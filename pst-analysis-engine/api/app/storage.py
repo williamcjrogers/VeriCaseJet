@@ -3,8 +3,20 @@ from botocore.client import Config
 from botocore.exceptions import ClientError
 from .config import settings
 import time
+
 _s3=None
 _s3_pub=None
+
+
+def _normalize_endpoint(url: str | None) -> str | None:
+    """Ensure endpoints include a scheme so boto3 accepts them."""
+    if not url:
+        return url
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    return f"http://{url}"
+
+
 def s3(public: bool=False):
     global _s3, _s3_pub
     
@@ -15,7 +27,7 @@ def s3(public: bool=False):
         if _s3_pub is None:
             _s3_pub = boto3.client(
                 "s3",
-                endpoint_url=settings.MINIO_PUBLIC_ENDPOINT,
+                endpoint_url=_normalize_endpoint(settings.MINIO_PUBLIC_ENDPOINT),
                 aws_access_key_id=settings.MINIO_ACCESS_KEY,
                 aws_secret_access_key=settings.MINIO_SECRET_KEY,
                 config=Config(signature_version="s3v4"),
@@ -45,7 +57,7 @@ def s3(public: bool=False):
             # MinIO mode: use explicit endpoint and credentials
             _s3 = boto3.client(
                 "s3",
-                endpoint_url=settings.MINIO_ENDPOINT,
+                endpoint_url=_normalize_endpoint(settings.MINIO_ENDPOINT),
                 aws_access_key_id=settings.MINIO_ACCESS_KEY,
                 aws_secret_access_key=settings.MINIO_SECRET_KEY,
                 config=Config(signature_version="s3v4"),

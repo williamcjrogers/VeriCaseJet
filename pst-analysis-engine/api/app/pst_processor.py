@@ -11,7 +11,7 @@ Features:
 - Progress tracking and error recovery
 """
 
-import pypff
+import pypff  # type: ignore  # pypff is installed in Docker container
 import hashlib
 import json
 from datetime import datetime, timezone
@@ -23,7 +23,7 @@ from io import BytesIO
 import re
 
 from sqlalchemy.orm import Session
-from .models import Document, Evidence, DocStatus
+from .models import Document, EmailMessage, EmailAttachment, DocStatus, PSTFile
 from .storage import s3
 from .config import settings
 
@@ -51,13 +51,13 @@ class UltimatePSTProcessor:
         self.total_count = 0
         self.attachment_hashes = {}  # For deduplication
         
-    def process_pst(self, pst_s3_key: str, document_id: int, case_id: int, company_id: int) -> Dict:
+    def process_pst(self, pst_s3_key: str, document_id: int, case_id: int = None, company_id: int = None, project_id: int = None) -> Dict:
         """
         Main entry point - process PST from S3
         
         Returns statistics about processed emails and attachments
         """
-        logger.info(f"Starting PST processing for document_id={document_id}")
+        logger.info(f"Starting PST processing for document_id={document_id}, case_id={case_id}, project_id={project_id}")
         
         stats = {
             'total_emails': 0,
@@ -76,15 +76,36 @@ class UltimatePSTProcessor:
         if not document:
             raise ValueError(f"Document {document_id} not found")
 
+        # Create or get PSTFile record
+        pst_file_record = self.db.query(PSTFile).filter_by(
+            filename=document.filename,
+            case_id=case_id,
+            project_id=project_id
+        ).first()
+        
+        if not pst_file_record:
+            pst_file_record = PSTFile(
+                filename=document.filename,
+                case_id=case_id,
+                project_id=project_id,
+                s3_bucket=settings.S3_BUCKET,
+                s3_key=pst_s3_key,
+                file_size=document.size
+            )
+            self.db.add(pst_file_record)
+            self.db.commit()
+            self.db.refresh(pst_file_record)
+
         def set_processing_meta(status: str, **extra):
-            meta = dict(document.meta or {})
-            pst_meta = dict(meta.get('pst_processing') or {})
+            meta: dict = document.meta if isinstance(document.meta, dict) else {}  # type: ignore
+            pst_meta_value = meta.get('pst_processing')
+            pst_meta: dict = pst_meta_value if isinstance(pst_meta_value, dict) else {}
             pst_meta.update(extra)
             pst_meta['status'] = status
             meta['pst_processing'] = pst_meta
-            document.meta = meta
+            setattr(document, 'meta', meta)
 
-        document.status = DocStatus.PROCESSING
+        setattr(document, 'status', DocStatus.PROCESSING)
         set_processing_meta('processing', started_at=start_time.isoformat())
         self.db.commit()
         
@@ -100,7 +121,7 @@ class UltimatePSTProcessor:
                 pst_path = tmp.name
             except Exception as e:
                 logger.error(f"Failed to download PST: {e}")
-                document.status = DocStatus.FAILED
+                setattr(document, 'status', DocStatus.FAILED)
                 set_processing_meta('failed', error=str(e), failed_at=datetime.now(timezone.utc).isoformat())
                 self.db.commit()
                 raise
@@ -118,11 +139,12 @@ class UltimatePSTProcessor:
             logger.info(f"Found {self.total_count} total messages to process")
             
             # Process all folders recursively
-            self._process_folder(root, document, case_id, company_id, stats)
+            self._process_folder(root, pst_file_record, case_id, project_id, company_id, stats)
             
             # Build thread relationships after all emails are extracted
-            logger.info("Building email thread relationships...")
-            self._build_thread_relationships(case_id)
+            # TODO: Update threading to work with EmailMessage model
+            # logger.info("Building email thread relationships...")
+            # self._build_thread_relationships(case_id, project_id)
             
             # Count unique threads (threads_map values are dicts with thread_id)
             unique_threads = set()
@@ -136,7 +158,7 @@ class UltimatePSTProcessor:
             stats['processing_time'] = (datetime.now(timezone.utc) - start_time).total_seconds()
             
             # Update document with success status
-            document.status = DocStatus.READY
+            setattr(document, 'status', DocStatus.READY)
             set_processing_meta('completed', processed_at=datetime.now(timezone.utc).isoformat(), stats=stats)
             self.db.commit()
             
@@ -146,7 +168,7 @@ class UltimatePSTProcessor:
             
         except Exception as e:
             logger.error(f"PST processing failed: {e}", exc_info=True)
-            document.status = DocStatus.FAILED
+            setattr(document, 'status', DocStatus.FAILED)
             set_processing_meta('failed', error=str(e), failed_at=datetime.now(timezone.utc).isoformat())
             self.db.commit()
             stats['errors'].append(str(e))
@@ -167,22 +189,48 @@ class UltimatePSTProcessor:
             count += self._count_messages(subfolder)
         return count
     
-    def _process_folder(self, folder, document, case_id, company_id, stats, folder_path=''):
+    def _process_folder(self, folder, pst_file_record, case_id, project_id, company_id, stats, folder_path=''):
         """
-        Recursively process PST folders
+        Recursively process PST folders with batch processing for performance
         """
         folder_name = folder.name or 'Root'
         current_path = f"{folder_path}/{folder_name}" if folder_path else folder_name
         
         logger.info(f"Processing folder: {current_path} ({folder.number_of_sub_messages} messages)")
         
+        # Batch processing: collect evidence records and commit in batches
+        BATCH_SIZE = 50
+        evidence_batch = []
+        
         # Process messages in this folder
         for i in range(folder.number_of_sub_messages):
             try:
                 message = folder.get_sub_message(i)
-                self._process_message(message, document, case_id, company_id, stats, current_path)
+                email_message = self._process_message(message, pst_file_record, case_id, project_id, company_id, stats, current_path)
+                
+                if email_message:
+                    evidence_batch.append(email_message)
+                
                 stats['total_emails'] += 1
                 self.processed_count += 1
+                
+                # Batch commit every BATCH_SIZE messages for performance
+                if len(evidence_batch) >= BATCH_SIZE:
+                    try:
+                        self.db.bulk_save_objects(evidence_batch)
+                        self.db.commit()
+                        evidence_batch = []
+                    except Exception as batch_error:
+                        logger.error(f"Batch commit failed, falling back to individual commits: {batch_error}")
+                        # Fallback: commit individually
+                        for ev in evidence_batch:
+                            try:
+                                self.db.add(ev)
+                                self.db.commit()
+                            except Exception as e:
+                                logger.error(f"Failed to save evidence: {e}")
+                                self.db.rollback()
+                        evidence_batch = []
                 
                 # Log progress every 100 emails
                 if self.processed_count % 100 == 0:
@@ -193,11 +241,47 @@ class UltimatePSTProcessor:
                 logger.error(f"Error processing message {i} in {current_path}: {e}")
                 stats['errors'].append(f"Message {i} in {current_path}: {str(e)}")
         
+        # Commit remaining batch
+        if evidence_batch:
+            try:
+                self.db.bulk_save_objects(evidence_batch)
+                self.db.commit()
+                
+                # Index to OpenSearch after batch commit
+                if self.opensearch:
+                    for evidence in evidence_batch:
+                        try:
+                            # Get email data from threads_map
+                            thread_info = None
+                            for msg_id, info in self.threads_map.items():
+                                if info.get('evidence') == evidence:
+                                    thread_info = info
+                                    break
+                            
+                            if thread_info:
+                                self._index_to_opensearch(
+                                    evidence, 
+                                    thread_info.get('email_data', {}), 
+                                    thread_info.get('content', '')
+                                )
+                        except Exception as e:
+                            logger.warning(f"OpenSearch indexing failed for evidence: {e}")
+                
+            except Exception as batch_error:
+                logger.error(f"Final batch commit failed: {batch_error}")
+                for ev in evidence_batch:
+                    try:
+                        self.db.add(ev)
+                        self.db.commit()
+                    except Exception as e:
+                        logger.error(f"Failed to save evidence: {e}")
+                        self.db.rollback()
+        
         # Process subfolders
         for i in range(folder.number_of_sub_folders):
             try:
                 subfolder = folder.get_sub_folder(i)
-                self._process_folder(subfolder, document, case_id, company_id, stats, current_path)
+                self._process_folder(subfolder, pst_file_record, case_id, project_id, company_id, stats, current_path)
             except Exception as e:
                 logger.error(f"Error processing subfolder {i} in {current_path}: {e}")
                 stats['errors'].append(f"Subfolder {i} in {current_path}: {str(e)}")
@@ -209,36 +293,9 @@ class UltimatePSTProcessor:
         except:
             return default
     
-    def _extract_email_from_headers(self, message):
-        """Extract email address from transport headers (RFC 2822 format)"""
-        try:
-            if not message:
-                return None
-            transport_headers = self._safe_get_attr(message, 'transport_headers', None)
-            if not transport_headers:
-                return None
-            
-            # Look for From: header line
-            import re
-            from_pattern = r'^From:\s*(?:.*?<)?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>?'
-            
-            for line in str(transport_headers).split('\n'):
-                match = re.match(from_pattern, line, re.IGNORECASE)
-                if match:
-                    return match.group(1)
-            
-            # Alternative: look for any email in transport headers
-            email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
-            matches = re.findall(email_pattern, str(transport_headers))
-            if matches:
-                return matches[0]
-                
-        except Exception as e:
-            logger.debug(f"Could not extract email from headers: {e}")
-        
-        return None
+
     
-    def _process_message(self, message, document, case_id, company_id, stats, folder_path):
+    def _process_message(self, message, pst_file_record, case_id, project_id, company_id, stats, folder_path):
         """
         Process individual email message
         
@@ -332,56 +389,52 @@ class UltimatePSTProcessor:
         attachments_info = []
         if message.number_of_attachments > 0:
             attachments_info = self._process_attachments(
-                message, document, case_id, company_id, stats
+                message, pst_file_record, case_id, project_id, company_id, stats
             )
         
-        # Create Evidence record (links email to case/documents)
-        # NOTE: Evidence model doesn't have a content column - it uses metadata field
-        evidence = Evidence(
-            document_id=document.id,  # Parent PST document
+        # Create EmailMessage record
+        email_message = EmailMessage(
+            pst_file_id=pst_file_record.id,
             case_id=case_id,
-            date_of_evidence=email_data['date'],
-            email_from=email_data['from'],
-            email_to=email_data['to'],
-            email_cc=email_data['cc'],
-            email_subject=email_data['subject'],
-            email_date=email_data['date'],
-            email_message_id=message_id,
-            email_in_reply_to=in_reply_to,
-            email_thread_topic=thread_topic,
-            email_conversation_index=conversation_index,
-            # Store content in meta field (maps to metadata column)
-            meta={
-                'content': content,
-                'content_type': content_type,
+            project_id=project_id,
+            message_id=message_id,
+            in_reply_to=in_reply_to,
+            email_references=references,
+            conversation_index=conversation_index,
+            subject=email_data['subject'],
+            sender_email=email_data['from'],
+            recipients_to=email_data['to'],
+            recipients_cc=email_data['cc'],
+            sent_date=email_data['date'],
+            body=content,
+            body_type=content_type,
+            importance=email_data['importance'],
+            pst_message_path=folder_path,
+            metadata={
+                'thread_topic': thread_topic,
                 'attachments': attachments_info,
-                'folder_path': folder_path,
-                'references': references,
-                'importance': email_data['importance'],
                 'has_attachments': email_data['has_attachments']
             }
         )
-        self.db.add(evidence)
-        self.db.flush()  # Get evidence ID immediately
         
-        # Index to OpenSearch if available
-        if self.opensearch:
-            try:
-                self._index_to_opensearch(evidence, email_data, content)
-            except Exception as e:
-                logger.warning(f"OpenSearch indexing failed for evidence {evidence.id}: {e}")
+        # Return email_message for batch processing (don't add/flush here)
+        # The caller will handle batch commits
         
-        # Track for threading
+        # Track for threading (use temporary ID)
         if message_id:
             self.threads_map[message_id] = {
-                'evidence_id': str(evidence.id),
+                'email_message': email_message,  # Store object for later indexing
                 'in_reply_to': in_reply_to,
                 'references': references,
                 'date': email_data['date'],
-                'subject': email_data['subject']
+                'subject': email_data['subject'],
+                'content': content,
+                'email_data': email_data
             }
+        
+        return email_message
     
-    def _process_attachments(self, message, document, case_id, company_id, stats) -> List[Dict]:
+    def _process_attachments(self, message, pst_file_record, case_id, project_id, company_id, stats) -> List[Dict]:
         """
         Extract and save ONLY the attachments (not the emails themselves)
         
@@ -443,7 +496,10 @@ class UltimatePSTProcessor:
                 
                 # Generate unique S3 key
                 hash_prefix = file_hash[:8]
-                s3_key = f"attachments/{company_id}/{case_id}/{hash_prefix}_{filename}"
+                entity_folder = f"case_{case_id}" if case_id else f"project_{project_id}"
+                # Use empty company_id if none provided
+                company_prefix = company_id if company_id else "no_company"
+                s3_key = f"attachments/{company_prefix}/{entity_folder}/{hash_prefix}_{filename}"
                 
                 # Upload to S3
                 try:
@@ -526,16 +582,18 @@ class UltimatePSTProcessor:
             logger.debug(f"Could not extract header {header_name}: {e}")
         return None
     
-    def _index_to_opensearch(self, evidence: Evidence, email_data: Dict, content: str):
+    def _index_to_opensearch(self, email_message: EmailMessage, email_data: Dict, content: str):
         """
         Index email to OpenSearch for full-text search
         """
+        attachments_val = email_data.get('attachments', [])
         doc = {
-            'id': f"evidence_{evidence.id}",
+            'id': f"email_{email_message.id}",
             'type': 'email',
-            'case_id': str(evidence.case_id),
-            'document_id': str(evidence.document_id),
-            'thread_id': evidence.thread_id,
+            'case_id': str(email_message.case_id) if email_message.case_id else None,
+            'project_id': str(email_message.project_id) if email_message.project_id else None,
+            'pst_file_id': str(email_message.pst_file_id),
+            'thread_id': getattr(email_message, 'thread_id', None),
             'message_id': email_data['message_id'],
             'in_reply_to': email_data['in_reply_to'],
             'from': email_data['from'],
@@ -546,15 +604,15 @@ class UltimatePSTProcessor:
             'content': content[:10000] if content else '',  # Truncate for indexing
             'folder_path': email_data['folder_path'],
             'has_attachments': email_data['has_attachments'],
-            'attachments_count': len(evidence.attachments) if evidence.attachments else 0,
+            'attachments_count': len(attachments_val),
             'indexed_at': datetime.now(timezone.utc).isoformat()
         }
         
         # Create index if not exists
         index_name = 'correspondence'
         try:
-            if not self.opensearch.indices.exists(index_name):
-                self.opensearch.indices.create(
+            if self.opensearch and not self.opensearch.indices.exists(index_name):  # type: ignore
+                self.opensearch.indices.create(  # type: ignore
                     index_name,
                     body={
                         'settings': {'number_of_shards': 1, 'number_of_replicas': 0},
@@ -571,17 +629,18 @@ class UltimatePSTProcessor:
             )
             
             # Index document
-            self.opensearch.index(
-                index=index_name,
-                body=doc,
-                id=f"evidence_{evidence.id}",
-                refresh=False  # Don't refresh immediately for performance
-            )
+            if self.opensearch:
+                self.opensearch.index(  # type: ignore
+                    index=index_name,
+                    body=doc,
+                    id=f"email_{email_message.id}",
+                    refresh=False  # Don't refresh immediately for performance
+                )
         except Exception as e:
             logger.error(f"Error indexing email to OpenSearch: {e}")
             # Continue processing even if indexing fails
     
-    def _build_thread_relationships(self, case_id):
+    def _build_thread_relationships(self, case_id, project_id):
         """
         Build email thread relationships using multiple algorithms:
         1. In-Reply-To header (direct parent-child)
@@ -591,49 +650,60 @@ class UltimatePSTProcessor:
         """
         logger.info(f"Building thread relationships for case {case_id}")
         
-        # Get all evidence for this case
-        all_evidence = self.db.query(Evidence).filter_by(case_id=case_id).all()
+        # Get all emails for this case or project
+        if case_id:
+            all_emails = self.db.query(EmailMessage).filter_by(case_id=case_id).all()
+        else:
+            all_emails = self.db.query(EmailMessage).filter_by(project_id=project_id).all()
         
-        # Build message_id -> evidence mapping
+        # Build message_id -> email mapping
         msg_id_map = {
-            e.email_message_id: e 
-            for e in all_evidence 
-            if e.email_message_id
+            email.message_id: email 
+            for email in all_emails 
+            if email.message_id
         }
         
         threads_found = {}
         
-        for evidence in all_evidence:
+        for email in all_emails:
             # Skip if already assigned to a thread
-            if evidence.thread_id:
+            thread_id_val = getattr(evidence, 'thread_id', None)
+            if thread_id_val:
                 continue
             
             thread_id = None
             
             # Strategy 1: Use In-Reply-To header
-            if evidence.email_in_reply_to and evidence.email_in_reply_to in msg_id_map:
-                parent = msg_id_map[evidence.email_in_reply_to]
-                if parent.thread_id:
-                    thread_id = parent.thread_id
+            in_reply_to_val = getattr(evidence, 'email_in_reply_to', None)
+            if in_reply_to_val and in_reply_to_val in msg_id_map:
+                parent = msg_id_map[in_reply_to_val]
+                parent_thread_id = getattr(parent, 'thread_id', None)
+                if parent_thread_id:
+                    thread_id = parent_thread_id
                 else:
                     # Create new thread starting from parent
-                    thread_id = f"thread_{hashlib.md5(parent.email_message_id.encode()).hexdigest()[:12]}"
-                    parent.thread_id = thread_id
+                    parent_msg_id = getattr(parent, 'email_message_id', None)
+                    if parent_msg_id:
+                        thread_id = f"thread_{hashlib.md5(parent_msg_id.encode()).hexdigest()[:12]}"
+                        setattr(parent, 'thread_id', thread_id)
             
             # Strategy 2: Parse References header for full thread chain
-            if not thread_id and evidence.meta and evidence.meta.get('references'):
-                refs = evidence.meta['references'].split()
+            meta_val = getattr(evidence, 'meta', None)
+            if not thread_id and meta_val and isinstance(meta_val, dict) and meta_val.get('references'):
+                refs = meta_val['references'].split()
                 for ref in refs:
                     if ref in msg_id_map:
                         parent = msg_id_map[ref]
-                        if parent.thread_id:
-                            thread_id = parent.thread_id
+                        parent_thread_id = getattr(parent, 'thread_id', None)
+                        if parent_thread_id:
+                            thread_id = parent_thread_id
                             break
             
             # Strategy 3: Outlook Conversation-Index
-            if not thread_id and evidence.email_conversation_index:
+            conv_idx_val = getattr(evidence, 'email_conversation_index', None)
+            if not thread_id and conv_idx_val:
                 # First 22 chars (11 bytes) of conversation index is the thread root
-                conv_root = evidence.email_conversation_index[:22]
+                conv_root = conv_idx_val[:22]
                 if conv_root in threads_found:
                     thread_id = threads_found[conv_root]
                 else:
@@ -641,35 +711,40 @@ class UltimatePSTProcessor:
                     threads_found[conv_root] = thread_id
             
             # Strategy 4: Subject-based fallback (normalize subject)
-            if not thread_id and evidence.email_subject:
+            subject_val = getattr(evidence, 'email_subject', None)
+            if not thread_id and subject_val:
                 # Normalize subject (remove Re:, Fwd:, etc.)
-                normalized_subject = evidence.email_subject.lower()
+                normalized_subject = subject_val.lower()
                 for prefix in ['re:', 'fw:', 'fwd:', 'aw:']:
                     normalized_subject = normalized_subject.replace(prefix, '').strip()
                 
                 # Check if any existing thread has this subject
                 for other in all_evidence:
-                    if other.thread_id and other.email_subject:
-                        other_normalized = other.email_subject.lower()
+                    other_thread_id = getattr(other, 'thread_id', None)
+                    other_subject = getattr(other, 'email_subject', None)
+                    if other_thread_id and other_subject:
+                        other_normalized = other_subject.lower()
                         for prefix in ['re:', 'fw:', 'fwd:', 'aw:']:
                             other_normalized = other_normalized.replace(prefix, '').strip()
                         
                         if normalized_subject == other_normalized:
-                            thread_id = other.thread_id
+                            thread_id = other_thread_id
                             break
             
             # Create new thread if no match found
-            if not thread_id and evidence.email_message_id:
-                thread_id = f"thread_{hashlib.md5(evidence.email_message_id.encode()).hexdigest()[:12]}"
+            msg_id_val = getattr(evidence, 'email_message_id', None)
+            if not thread_id and msg_id_val:
+                thread_id = f"thread_{hashlib.md5(msg_id_val.encode()).hexdigest()[:12]}"
             
             # Assign thread ID
             if thread_id:
-                evidence.thread_id = thread_id
+                setattr(evidence, 'thread_id', thread_id)
         
         # Commit all thread assignments
         self.db.commit()
         
-        logger.info(f"Thread building complete. Found {len(set(e.thread_id for e in all_evidence if e.thread_id))} unique threads")
+        unique_thread_ids = set(getattr(e, 'thread_id', None) for e in all_evidence if getattr(e, 'thread_id', None))
+        logger.info(f"Thread building complete. Found {len(unique_thread_ids)} unique threads")
     
     def _extract_email_from_headers(self, message):
         """

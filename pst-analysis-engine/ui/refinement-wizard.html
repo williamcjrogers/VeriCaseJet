@@ -508,7 +508,15 @@
     <script>
         // Discovery data from API
         let discoveryData = null;
-        const apiUrl = window.location.hostname === 'localhost' ? 'http://localhost:8010' : '';
+        
+        // Get API URL with appropriate protocol
+        const getApiUrl = () => {
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                return `${window.location.protocol}//localhost:8010`;
+            }
+            return window.location.origin || '';
+        };
+        const apiUrl = getApiUrl();
 
         let currentStep = 0;
         const refinementResults = {
@@ -521,8 +529,15 @@
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             const urlParams = new URLSearchParams(window.location.search);
-            const projectId = urlParams.get('projectId');
-            
+            let projectId = urlParams.get('projectId');
+            if (!projectId || projectId === 'null' || projectId === 'undefined') {
+                projectId = localStorage.getItem('currentProjectId') || localStorage.getItem('projectId');
+            }
+            if (!projectId) {
+                alert('No project selected. Redirecting to dashboard...');
+                window.location.href = 'dashboard.html';
+                return;
+            }
             // Load project info and discovery data
             loadDiscoveryData(projectId);
         });

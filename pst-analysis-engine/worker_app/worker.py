@@ -10,6 +10,15 @@ from .config import settings
 
 celery_app = Celery("vericase-docs", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
 
+# Helper to normalize endpoint URLs
+def _normalize_endpoint(url: str | None) -> str | None:
+    """Ensure endpoints include a scheme so boto3 accepts them."""
+    if not url:
+        return url
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    return f"http://{url}"
+
 # Initialize S3 client based on AWS mode
 use_aws = settings.USE_AWS_SERVICES or not settings.MINIO_ENDPOINT
 if use_aws:
@@ -23,7 +32,7 @@ else:
     # MinIO mode: use explicit endpoint and credentials
     s3 = boto3.client(
         "s3",
-        endpoint_url=settings.MINIO_ENDPOINT,
+        endpoint_url=_normalize_endpoint(settings.MINIO_ENDPOINT),
         aws_access_key_id=settings.MINIO_ACCESS_KEY,
         aws_secret_access_key=settings.MINIO_SECRET_KEY,
         config=Config(signature_version="s3v4"),

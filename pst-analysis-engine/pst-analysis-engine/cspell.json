@@ -1,0 +1,41 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "FIDIC",
+    "ilike",
+    "pypff",
+    "opensearch",
+    "OPENSEARCH",
+    "vericase",
+    "TIKA",
+    "onupdate",
+    "Asta",
+    "Powerproject",
+    "asta",
+    "joinedload",
+    "presign",
+    "creds",
+    "Veri",
+    "subfolders",
+    "isnot",
+    "ocred",
+    "changeme",
+    "arup",
+    "gleeds",
+    "maxlength",
+    "NHBC",
+    "Organisation"
+  ],
+  "ignorePaths": [
+    "node_modules/**",
+    ".venv/**",
+    "venv/**",
+    "__pycache__/**",
+    "*.pyc",
+    ".git/**",
+    "dist/**",
+    "build/**"
+  ]
+}
+

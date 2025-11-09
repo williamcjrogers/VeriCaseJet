@@ -558,7 +558,7 @@
         <!-- Attachment Preview Modal -->
         <div id="attachmentPreviewModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
                                                 background: rgba(0, 0, 0, 0.8); z-index: 10000;
-                                                display: flex; justify-content: center; align-items: center;">
+                                                justify-content: center; align-items: center;">
             <div style="background: white; width: 90%; height: 90%; max-width: 1200px; border-radius: 10px;
                         box-shadow: 0 20px 50px rgba(0,0,0,0.3); display: flex; flex-direction: column;">
                 <div style="padding: 15px 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
@@ -599,16 +599,17 @@
     </div>
 
     <!-- AG-Grid Enterprise Script -->
-    <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/dist/ag-grid-enterprise.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/dist/ag-grid-enterprise.min.js" 
+            crossorigin="anonymous"></script>
     
     <script>
         // Get case ID from URL - check both caseId and case_id parameters
         const urlParams = new URLSearchParams(window.location.search);
-        const caseId = urlParams.get('caseId') || urlParams.get('case_id');
+        const caseId = urlParams.get('caseId') || urlParams.get('case_id') || urlParams.get('projectId') || urlParams.get('project_id');
         
-        // Validate we have a case ID - STOP execution if invalid
+        // Validate we have a case/project ID - STOP execution if invalid
         if (!caseId || caseId === '00000000-0000-0000-0000-000000000001') {
-            alert('No case selected. Redirecting to case selection...');
+            alert('No case or project selected. Redirecting to wizard...');
             window.location.href = 'wizard.html';
             throw new Error('Invalid case ID - stopping execution'); // STOP HERE!
         }
@@ -1714,7 +1715,10 @@
         async function loadEmails() {
             showLoading(true);
             try {
-                const response = await fetch(`${API_BASE}/api/cases/${caseId}/evidence`);
+                const token = localStorage.getItem('token') || localStorage.getItem('jwt') || '';
+                const response = await fetch(`${API_BASE}/api/unified/${caseId}/evidence`, {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
                 if (!response.ok) throw new Error('Failed to load emails');
                 
                 const data = await response.json();
@@ -1778,11 +1782,20 @@
 
         async function loadCaseInfo() {
             try {
-                const response = await fetch(`${API_BASE}/api/cases/${caseId}`);
+                const token = localStorage.getItem('token') || localStorage.getItem('jwt') || '';
+                const response = await fetch(`${API_BASE}/api/unified/${caseId}`, {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
                 if (response.ok) {
-                    const caseData = await response.json();
-                    document.getElementById('caseNumber').textContent = caseData.case_number;
-                    document.getElementById('caseName').textContent = caseData.name;
+                    const entityData = await response.json();
+                    if (entityData.type === 'case') {
+                        document.getElementById('caseNumber').textContent = entityData.case_number;
+                        document.getElementById('caseName').textContent = entityData.name;
+                    } else {
+                        // It's a project
+                        document.getElementById('caseNumber').textContent = entityData.project_code;
+                        document.getElementById('caseName').textContent = entityData.name;
+                    }
                 }
             } catch (error) {
                 console.error('Error loading case info:', error);
@@ -1942,7 +1955,10 @@
             try {
                 // Fetch stakeholders for this case/project
                 const caseId = localStorage.getItem('currentCaseId');
-                const response = await fetch(`${API_BASE}/api/cases/${caseId}/stakeholders`);
+                const token = localStorage.getItem('token') || localStorage.getItem('jwt') || '';
+                const response = await fetch(`${API_BASE}/api/unified/${caseId}/stakeholders`, {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
                 const stakeholders = await response.json();
                 
                 // Get current filter
@@ -1997,7 +2013,10 @@
             try {
                 // Fetch keywords for this case/project
                 const caseId = localStorage.getItem('currentCaseId');
-                const response = await fetch(`${API_BASE}/api/cases/${caseId}/keywords`);
+                const token = localStorage.getItem('token') || localStorage.getItem('jwt') || '';
+                const response = await fetch(`${API_BASE}/api/unified/${caseId}/keywords`, {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
                 const keywords = await response.json();
                 
                 // Create filter modal
@@ -2242,14 +2261,30 @@
         // Store current attachment info for download
         let currentAttachment = null;
 
-        // Function to preview attachment
+        // Helpers for signed URL previews/downloads
+        async function getSignedUrlForDocument(documentId) {
+            const token = localStorage.getItem('token') || localStorage.getItem('jwt') || '';
+            const resp = await fetch(`${API_BASE}/documents/${documentId}/signed_url`, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            });
+            if (!resp.ok) throw new Error('Failed to get signed URL');
+            return resp.json(); // { url, filename, content_type }
+        }
+        function looksLikeUuid(v) {
+            return typeof v === 'string' && /^[0-9a-fA-F-]{32,36}$/.test(v);
+        }
+
+        // Function to preview attachment (accepts legacy args but uses document signed URL)
         window.previewAttachment = async function(evidenceId, attachmentId, fileName) {
             const modal = document.getElementById('attachmentPreviewModal');
             const previewContent = document.getElementById('previewContent');
             const previewTitle = document.getElementById('previewTitle');
             
-            // Store current attachment info
-            currentAttachment = { evidenceId, attachmentId, fileName };
+            // Derive a documentId from legacy args (most data passes document_id as attachmentId)
+            const documentId = looksLikeUuid(attachmentId) ? attachmentId : evidenceId;
+
+            // Store current info
+            currentAttachment = { evidenceId: documentId, attachmentId: documentId, fileName };
             
             // Show modal
             modal.style.display = 'flex';
@@ -2257,78 +2292,33 @@
             previewContent.innerHTML = '<div style="text-align: center; padding: 50px;">Loading preview...</div>';
             
             try {
-                // Determine file type
-                const fileExt = fileName.split('.').pop().toLowerCase();
-                
-                // For now, we'll show a mock preview based on file type
-                // In production, you'd fetch the actual file content from the API
-                
-                if (['jpg', 'jpeg', 'png', 'gif'].includes(fileExt)) {
-                    // Image preview - for now show a sample or use the attachment URL if available
-                    previewContent.innerHTML = `
-                        <div style="text-align: center;">
-                            <img src="${API_BASE}/api/cases/${caseId}/evidence/${evidenceId}/attachment/${attachmentId}" 
-                                 style="max-width: 100%; max-height: 100%; object-fit: contain;"
-                                 onerror="this.onerror=null; this.parentElement.innerHTML='<div style=\\'text-align: center; padding: 50px;\\'>\\n<div style=\\'font-size: 4rem; margin-bottom: 20px;\\'>🖼️</div>\\n<h3 style=\\'color: #1f2937; margin-bottom: 10px;\\'>${fileName}</h3>\\n<p style=\\'color: #6b7280; margin-bottom: 20px;\\'>Image preview currently unavailable.</p>\\n<button onclick=\\'downloadCurrentAttachment()\\' style=\\'background: #3b82f6; color: white; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer;\\'>⬇ Download Image</button>\\n</div>';" />
-                        </div>
-                    `;
-                } else if (fileExt === 'pdf') {
-                    // PDF preview - for now show download option
+                const { url, content_type } = await getSignedUrlForDocument(documentId);
+                const lowerName = (fileName || '').toLowerCase();
+                const isImage = /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/.test(lowerName) || (content_type || '').startsWith('image/');
+                const isPdf = /\.pdf$/.test(lowerName) || content_type === 'application/pdf';
+                if (isImage) {
+                    previewContent.innerHTML = `<div style="text-align:center;"><img src="${url}" style="max-width:100%;max-height:100%;object-fit:contain;"/></div>`;
+                } else if (isPdf) {
                     previewContent.innerHTML = `
                         <div style="text-align: center; padding: 50px;">
                             <div style="font-size: 4rem; margin-bottom: 20px;">📄</div>
-                            <h3 style="color: #1f2937; margin-bottom: 10px;">${fileName}</h3>
+                            <h3 style="color: #1f2937; margin-bottom: 10px;">${fileName || 'Document'}</h3>
                             <p style="color: #6b7280; margin-bottom: 20px;">PDF preview will open in new tab.</p>
-                            <button onclick="window.open('${API_BASE}/api/cases/${caseId}/evidence/${evidenceId}/attachment/${attachmentId}', '_blank')" 
-                                    style="background: #3b82f6; color: white; border: none; padding: 10px 24px;
-                                           border-radius: 6px; cursor: pointer; font-size: 0.95rem; font-weight: 500; margin-right: 10px;">
+                            <button onclick="window.open('${url}', '_blank')" 
+                                    style="background: #3b82f6; color: white; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer;">
                                 📖 Open PDF
                             </button>
-                            <button onclick="downloadCurrentAttachment()" 
-                                    style="background: #10b981; color: white; border: none; padding: 10px 24px;
-                                           border-radius: 6px; cursor: pointer; font-size: 0.95rem; font-weight: 500;">
-                                ⬇ Download PDF
-                            </button>
-                        </div>
-                    `;
-                } else if (['txt', 'csv'].includes(fileExt)) {
-                    // Text file preview
-                    previewContent.innerHTML = `
-                        <div style="background: #f9fafb; padding: 20px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; overflow: auto;">
-                            <div style="color: #6b7280;">Text preview would appear here...</div>
-                            <div style="margin-top: 10px; color: #9ca3af; font-size: 0.875rem;">Click Download to view the full file.</div>
-                        </div>
-                    `;
-                } else if (['doc', 'docx', 'xls', 'xlsx'].includes(fileExt)) {
-                    // Office documents
-                    previewContent.innerHTML = `
-                        <div style="text-align: center; padding: 50px;">
-                            <div style="font-size: 4rem; margin-bottom: 20px;">
-                                ${fileExt.includes('doc') ? '📝' : '📊'}
-                            </div>
-                            <h3 style="color: #1f2937; margin-bottom: 10px;">${fileName}</h3>
-                            <p style="color: #6b7280; margin-bottom: 20px;">Office document preview not available in browser.</p>
-                            <button onclick="downloadCurrentAttachment()" 
-                                    style="background: #3b82f6; color: white; border: none; padding: 10px 24px;
-                                           border-radius: 6px; cursor: pointer; font-size: 0.95rem; font-weight: 500;">
-                                ⬇ Download to View
-                            </button>
-                        </div>
-                    `;
+                        </div>`;
                 } else {
-                    // Generic file preview
                     previewContent.innerHTML = `
-                        <div style="text-align: center; padding: 50px;">
-                            <div style="font-size: 4rem; margin-bottom: 20px;">📎</div>
-                            <h3 style="color: #1f2937; margin-bottom: 10px;">${fileName}</h3>
-                            <p style="color: #6b7280; margin-bottom: 20px;">Preview not available for this file type.</p>
-                            <button onclick="downloadCurrentAttachment()" 
-                                    style="background: #3b82f6; color: white; border: none; padding: 10px 24px;
-                                           border-radius: 6px; cursor: pointer; font-size: 0.95rem; font-weight: 500;">
-                                ⬇ Download File
+                        <div style="text-align:center; padding: 50px;">
+                            <div style="font-size: 3rem;">📎</div>
+                            <p style="color:#6b7280; margin: 10px 0 20px;">Preview not available for this file type.</p>
+                            <button onclick="window.open('${url}', '_blank')" 
+                                    style="background:#10b981;color:#fff;border:none;padding:10px 24px;border-radius:6px;cursor:pointer;">
+                                ⬇ Download
                             </button>
-                        </div>
-                    `;
+                        </div>`;
                 }
             } catch (error) {
                 console.error('Error loading preview:', error);
@@ -2352,20 +2342,22 @@
             currentAttachment = null;
         };
 
-        // Function to download attachment
-        window.downloadAttachment = function(evidenceId, attachmentId, fileName) {
-            // For now, open in new tab which will trigger download for most file types
-            // The actual endpoint would need to be implemented in the backend
-            const url = `${API_BASE}/api/cases/${caseId}/evidence/${evidenceId}/attachment/${attachmentId}`;
-            
-            // Try to force download using a temporary link
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = fileName;
-            link.target = '_blank';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+        // Function to download attachment using a signed URL
+        window.downloadAttachment = async function(evidenceId, attachmentId, fileName) {
+            const documentId = looksLikeUuid(attachmentId) ? attachmentId : evidenceId;
+            try {
+                const { url } = await getSignedUrlForDocument(documentId);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = fileName || 'download';
+                link.target = '_blank';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (e) {
+                console.error('Download failed', e);
+                alert('Download failed. Please try again.');
+            }
         };
 
         // Function to download current attachment from preview

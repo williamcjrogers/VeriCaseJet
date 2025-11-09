@@ -6,14 +6,26 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from typing import List, Optional
-import xml.etree.ElementTree as ET
-from datetime import datetime
+# Use defusedxml to prevent XXE attacks
+try:
+    from defusedxml import ElementTree as ET
+except ImportError:
+    # Fallback to standard library with security warnings
+    import xml.etree.ElementTree as ET
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning("defusedxml not installed - XML parsing may be vulnerable to XXE attacks. Install with: pip install defusedxml")
+from datetime import datetime, timezone
 import json
 import io
 
 from .db import get_db
 from .models import Programme, DelayEvent, Case, Document, Evidence
 from .auth import get_current_user_email
+import logging
+
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -110,14 +122,14 @@ def parse_asta_date(date_str: Optional[str]) -> Optional[str]:
     try:
         dt = datetime.fromisoformat(date_str)
         return dt.isoformat()
-    except:
+    except (ValueError, TypeError):
         pass
     
     # Try DD/MM/YYYY
     try:
         dt = datetime.strptime(date_str, '%d/%m/%Y')
         return dt.isoformat()
-    except:
+    except (ValueError, TypeError):
         pass
     
     # Try other common formats
@@ -125,9 +137,10 @@ def parse_asta_date(date_str: Optional[str]) -> Optional[str]:
         try:
             dt = datetime.strptime(date_str, fmt)
             return dt.isoformat()
-        except:
+        except (ValueError, TypeError):
             continue
     
+    logger.warning(f"Unable to parse date string: {date_str}")
     return date_str  # Return as-is if can't parse
 
 
@@ -194,28 +207,59 @@ async def upload_programme(
         )
     
     # Create document record
-    document = Document(
-        filename=file.filename,
-        file_size=len(content),
-        mime_type=file.content_type or 'application/octet-stream',
-        uploaded_by=current_user,
-        s3_key=f"programmes/{case_id}/{file.filename}"
-    )
-    db.add(document)
-    db.flush()
+    try:
+        document = Document(
+            filename=file.filename,
+            file_size=len(content),
+            mime_type=file.content_type or 'application/octet-stream',
+            uploaded_by=current_user,
+            s3_key=f"programmes/{case_id}/{file.filename}"
+        )
+    except Exception as e:
+        logger.error(f"Failed to create document record: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to create document record"
+        )
+    
+    try:
+        db.add(document)
+        db.flush()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to save document to database: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to save document to database"
+        )
     
     # Create programme record
+    try:
+        prog_date = datetime.fromisoformat(programme_date) if programme_date else datetime.now(timezone.utc)
+    except (ValueError, TypeError):
+        prog_date = datetime.now(timezone.utc)
+    
+    try:
+        proj_start = datetime.fromisoformat(parsed_data['project_start']) if parsed_data.get('project_start') else None
+    except (ValueError, TypeError):
+        proj_start = None
+    
+    try:
+        proj_finish = datetime.fromisoformat(parsed_data['project_finish']) if parsed_data.get('project_finish') else None
+    except (ValueError, TypeError):
+        proj_finish = None
+    
     programme = Programme(
         case_id=case_id,
         document_id=document.id,
         programme_type=programme_type,
-        programme_date=datetime.fromisoformat(programme_date) if programme_date else datetime.now(),
+        programme_date=prog_date,
         version_number=version_number,
         activities=parsed_data['activities'],
         critical_path=parsed_data['critical_path'],
         milestones=parsed_data['milestones'],
-        project_start=datetime.fromisoformat(parsed_data['project_start']) if parsed_data.get('project_start') else None,
-        project_finish=datetime.fromisoformat(parsed_data['project_finish']) if parsed_data.get('project_finish') else None,
+        project_start=proj_start,
+        project_finish=proj_finish,
         notes=f"Uploaded by {current_user}. {parsed_data['total_activities']} activities parsed."
     )
     db.add(programme)
@@ -368,8 +412,8 @@ async def compare_programmes(
                             notes=f"Auto-detected from programme comparison"
                         )
                         db.add(delay_event)
-                    except (ValueError, TypeError):
-                        pass
+                    except (ValueError, TypeError) as e:
+                        continue
     
     db.commit()
     

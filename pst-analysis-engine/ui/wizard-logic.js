@@ -1,4 +1,73 @@
-// Wizard state management
+// ============================================================================
+// Security Utilities
+// ============================================================================
+
+/**
+ * Sanitize user input to prevent XSS attacks
+ * Escapes HTML special characters
+ */
+function escapeHtml(unsafe) {
+    if (unsafe === null || unsafe === undefined) {
+        return '';
+    }
+    return String(unsafe)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+/**
+ * Get or generate CSRF token for request protection
+ */
+function getCsrfToken() {
+    let token = sessionStorage.getItem('csrf-token');
+    if (!token) {
+        // Generate a random token
+        token = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+        sessionStorage.setItem('csrf-token', token);
+    }
+    return token;
+}
+
+/**
+ * Get API base URL with appropriate protocol
+ * Uses HTTPS in production, respects current protocol in development
+ */
+function getApiUrl() {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // Development: Use same protocol as current page (supports both HTTP and HTTPS)
+        return `${window.location.protocol}//localhost:8010`;
+    }
+    // Production: Use HTTPS
+    return window.location.origin || '';
+}
+
+/**
+ * Create a safe HTML element with sanitized text content
+ */
+function createSafeElement(tag, attributes = {}, textContent = '') {
+    const element = document.createElement(tag);
+    for (const [key, value] of Object.entries(attributes)) {
+        if (key === 'className') {
+            element.className = value;
+        } else if (key === 'onclick') {
+            element.onclick = value;
+        } else {
+            element.setAttribute(key, value);
+        }
+    }
+    element.textContent = textContent;
+    return element;
+}
+
+// ============================================================================
+// Wizard State Management
+// ============================================================================
+
 const wizardState = {
     currentStep: 0,
     profileType: 'project',
@@ -126,7 +195,13 @@ function nextStep() {
         wizardState.profileType = selectedType;
         
         if (selectedType === 'users') {
-            alert('Users management will be available in the main application');
+            // Check if user is admin
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            if (user.role === 'ADMIN') {
+                window.location.href = '/ui/admin-users.html';
+            } else {
+                alert('You need admin privileges to manage users');
+            }
             return;
         }
         
@@ -254,13 +329,13 @@ function renderProjectIdentification() {
         <div class="form-group">
             <label>Project Name <span class="required">*</span></label>
             <input type="text" id="projectName" required minlength="2" maxlength="200" 
-                   value="${data.projectName || ''}" placeholder="Enter project name">
+                   value="${escapeHtml(data.projectName || '')}" placeholder="Enter project name">
         </div>
         
         <div class="form-group">
             <label>Project Code <span class="required">*</span></label>
             <input type="text" id="projectCode" required 
-                   value="${data.projectCode || ''}" placeholder="Unique project code">
+                   value="${escapeHtml(data.projectCode || '')}" placeholder="Unique project code">
             <span class="helper-text">Must be unique within your organization</span>
         </div>
         
@@ -268,12 +343,12 @@ function renderProjectIdentification() {
             <label>Start Date 
                 <i class="fas fa-info-circle tooltip" title="Ensure all pre‑commencement and relevant tendering period is accounted for"></i>
             </label>
-            <input type="date" id="startDate" value="${data.startDate || ''}">
+            <input type="date" id="startDate" value="${escapeHtml(data.startDate || '')}">
         </div>
         
         <div class="form-group">
             <label>Completion Date</label>
-            <input type="date" id="completionDate" value="${data.completionDate || ''}">
+            <input type="date" id="completionDate" value="${escapeHtml(data.completionDate || '')}">
         </div>
     `;
 }
@@ -589,30 +664,33 @@ function validateProjectIdentification() {
     const startDate = document.getElementById('startDate').value;
     const completionDate = document.getElementById('completionDate').value;
     
-    if (!projectName || projectName.length < 2) {
-        alert('Project Name must be at least 2 characters');
-        return false;
+    // Only validate if moving forward (not saving draft or going back)
+    if (!projectName && !projectCode) {
+        // Give user a choice to continue anyway
+        return confirm('Project Name and Code are recommended but not required. Continue anyway?');
     }
     
-    if (!projectCode) {
-        alert('Project Code is required');
-        return false;
+    // Soft validations - just warnings
+    if (projectName && projectName.length < 2) {
+        if (!confirm('Project Name is very short. Continue anyway?')) {
+            return false;
+        }
     }
     
     if (startDate && completionDate && new Date(completionDate) < new Date(startDate)) {
-        alert('Completion Date must be after Start Date');
-        return false;
+        if (!confirm('Completion Date is before Start Date. This might be incorrect. Continue anyway?')) {
+            return false;
+        }
     }
     
     return true;
 }
 
 function validateProjectStakeholders() {
-    // At least one stakeholder should be present
+    // Stakeholders are optional - just give a warning
     const rows = document.querySelectorAll('#stakeholdersTable tbody tr');
     if (rows.length === 0) {
-        alert('Please add at least one stakeholder');
-        return false;
+        return confirm('No stakeholders added. You can add them later. Continue anyway?');
     }
     return true;
 }
@@ -625,9 +703,13 @@ function validateProjectKeywords() {
 function validateCaseIdentification() {
     const caseName = document.getElementById('caseName').value.trim();
     
-    if (!caseName || caseName.length < 2) {
-        alert('Case Name must be at least 2 characters');
-        return false;
+    // Make case name optional with confirmation
+    if (!caseName) {
+        return confirm('Case Name is recommended but not required. Continue anyway?');
+    }
+    
+    if (caseName.length < 2) {
+        return confirm('Case Name is very short. Continue anyway?');
     }
     
     return true;
@@ -775,7 +857,7 @@ window.addStakeholderRow = function(role = '', name = '') {
                 <option value="Custom" ${role === 'Custom' || (!stakeholderRoles.includes(role) && role) ? 'selected' : ''}>Custom</option>
             </select>
         </td>
-        <td><input type="text" class="stakeholder-name" value="${name}" placeholder="Name/Organisation"></td>
+        <td><input type="text" class="stakeholder-name" value="${escapeHtml(name)}" placeholder="Name/Organisation"></td>
         <td>
             ${tbody.children.length > 0 ? 
                 '<button class="btn-delete-row" onclick="deleteRow(this)"><i class="fas fa-trash"></i></button>' : 
@@ -804,7 +886,7 @@ window.addKeywordRow = function(name = '', variations = '') {
                     <option value="Custom" ${!isPrePopulated && name ? 'selected' : ''}>Custom</option>
                 </select>
             </td>
-            <td><input type="text" class="keyword-variations" value="${variations}" placeholder="e.g., Section 278, Highways Agreement, Section 106"></td>
+            <td><input type="text" class="keyword-variations" value="${escapeHtml(variations)}" placeholder="e.g., Section 278, Highways Agreement, Section 106"></td>
             <td>
                 <button class="btn-delete-row" onclick="deleteRow(this)">
                     <i class="fas fa-trash"></i>
@@ -812,10 +894,10 @@ window.addKeywordRow = function(name = '', variations = '') {
             </td>
         `;
     } else {
-        // Create text input for custom keyword
+        // Create text input for custom keyword (sanitized to prevent XSS)
         row.innerHTML = `
-            <td><input type="text" class="keyword-name" value="${name}" placeholder="Custom keyword"></td>
-            <td><input type="text" class="keyword-variations" value="${variations}" placeholder="e.g., Section 278, Highways Agreement, Section 106"></td>
+            <td><input type="text" class="keyword-name" value="${escapeHtml(name)}" placeholder="Custom keyword"></td>
+            <td><input type="text" class="keyword-variations" value="${escapeHtml(variations)}" placeholder="e.g., Section 278, Highways Agreement, Section 106"></td>
             <td>
                 <button class="btn-delete-row" onclick="deleteRow(this)">
                     <i class="fas fa-trash"></i>
@@ -845,7 +927,7 @@ window.addCaseKeywordRow = function(name = '', variations = '') {
                     <option value="Custom" ${!isPrePopulated && name ? 'selected' : ''}>Custom</option>
                 </select>
             </td>
-            <td><input type="text" class="keyword-variations" value="${variations}" placeholder="comma-separated"></td>
+            <td><input type="text" class="keyword-variations" value="${escapeHtml(variations)}" placeholder="comma-separated"></td>
             <td>
                 <button class="btn-delete-row" onclick="deleteRow(this)">
                     <i class="fas fa-trash"></i>
@@ -853,10 +935,10 @@ window.addCaseKeywordRow = function(name = '', variations = '') {
             </td>
         `;
     } else {
-        // Create text input for custom keyword
+        // Create text input for custom keyword (sanitized to prevent XSS)
         row.innerHTML = `
-            <td><input type="text" class="keyword-name" value="${name}" placeholder="Custom keyword"></td>
-            <td><input type="text" class="keyword-variations" value="${variations}" placeholder="comma-separated"></td>
+            <td><input type="text" class="keyword-name" value="${escapeHtml(name)}" placeholder="Custom keyword"></td>
+            <td><input type="text" class="keyword-variations" value="${escapeHtml(variations)}" placeholder="comma-separated"></td>
             <td>
                 <button class="btn-delete-row" onclick="deleteRow(this)">
                     <i class="fas fa-trash"></i>
@@ -869,9 +951,10 @@ window.addCaseKeywordRow = function(name = '', variations = '') {
 window.addLegalTeamRow = function(role = '', name = '') {
     const tbody = document.querySelector('#legalTeamTable tbody');
     const row = tbody.insertRow();
+    // Sanitize user input to prevent XSS
     row.innerHTML = `
-        <td><input type="text" class="team-role" value="${role}" placeholder="e.g., Partner, Counsel, Associate"></td>
-        <td><input type="text" class="team-name" value="${name}" placeholder="Name/Organisation"></td>
+        <td><input type="text" class="team-role" value="${escapeHtml(role)}" placeholder="e.g., Partner, Counsel, Associate"></td>
+        <td><input type="text" class="team-name" value="${escapeHtml(name)}" placeholder="Name/Organisation"></td>
         <td>
             <button class="btn-delete-row" onclick="deleteRow(this)">
                 <i class="fas fa-trash"></i>
@@ -889,14 +972,15 @@ window.addHeadOfClaimRow = function(head = '', status = 'Discovery', actions = '
         `<option value="${s}" ${s === status ? 'selected' : ''}>${s}</option>`
     ).join('');
     
+    // Sanitize user input to prevent XSS
     row.innerHTML = `
-        <td><input type="text" class="claim-head" value="${head}" placeholder="Enter head of claim"></td>
+        <td><input type="text" class="claim-head" value="${escapeHtml(head)}" placeholder="Enter head of claim"></td>
         <td>
             <select class="claim-status">
                 ${statusOptionsHtml}
             </select>
         </td>
-        <td><input type="text" class="claim-actions" value="${actions}" placeholder="e.g., Request PM notes"></td>
+        <td><input type="text" class="claim-actions" value="${escapeHtml(actions)}" placeholder="e.g., Request PM notes"></td>
         <td>
             <button class="btn-delete-row" onclick="deleteRow(this)">
                 <i class="fas fa-trash"></i>
@@ -908,10 +992,11 @@ window.addHeadOfClaimRow = function(head = '', status = 'Discovery', actions = '
 window.addDeadlineRow = function(task = '', description = '', date = '') {
     const tbody = document.querySelector('#deadlinesTable tbody');
     const row = tbody.insertRow();
+    // Sanitize user input to prevent XSS
     row.innerHTML = `
-        <td><input type="text" class="deadline-task" value="${task}" placeholder="e.g., Respondent's evidence"></td>
-        <td><input type="text" class="deadline-description" value="${description}" placeholder="Additional notes"></td>
-        <td><input type="date" class="deadline-date" value="${date}"></td>
+        <td><input type="text" class="deadline-task" value="${escapeHtml(task)}" placeholder="e.g., Respondent's evidence"></td>
+        <td><input type="text" class="deadline-description" value="${escapeHtml(description)}" placeholder="Additional notes"></td>
+        <td><input type="date" class="deadline-date" value="${escapeHtml(date)}"></td>
         <td>
             <button class="btn-delete-row" onclick="deleteRow(this)">
                 <i class="fas fa-trash"></i>
@@ -954,19 +1039,19 @@ function generateProjectReviewSummary() {
             <h3><i class="fas fa-clipboard-list"></i> Project Identification</h3>
             <div class="summary-item">
                 <div class="summary-label">Project Name:</div>
-                <div class="summary-value">${identification.projectName || 'Not specified'}</div>
+                <div class="summary-value">${escapeHtml(identification.projectName || 'Not specified')}</div>
             </div>
             <div class="summary-item">
                 <div class="summary-label">Project Code:</div>
-                <div class="summary-value">${identification.projectCode || 'Not specified'}</div>
+                <div class="summary-value">${escapeHtml(identification.projectCode || 'Not specified')}</div>
             </div>
             <div class="summary-item">
                 <div class="summary-label">Start Date:</div>
-                <div class="summary-value">${identification.startDate || 'Not specified'}</div>
+                <div class="summary-value">${escapeHtml(identification.startDate || 'Not specified')}</div>
             </div>
             <div class="summary-item">
                 <div class="summary-label">Completion Date:</div>
-                <div class="summary-value">${identification.completionDate || 'Not specified'}</div>
+                <div class="summary-value">${escapeHtml(identification.completionDate || 'Not specified')}</div>
             </div>
         </div>
         
@@ -974,8 +1059,8 @@ function generateProjectReviewSummary() {
             <h3><i class="fas fa-users"></i> Stakeholders</h3>
             ${(stakeholdersData.stakeholders || []).map(s => 
                 `<div class="summary-item">
-                    <div class="summary-label">${s.role}:</div>
-                    <div class="summary-value">${s.name}</div>
+                    <div class="summary-label">${escapeHtml(s.role)}:</div>
+                    <div class="summary-value">${escapeHtml(s.name)}</div>
                 </div>`
             ).join('')}
         </div>
@@ -984,8 +1069,8 @@ function generateProjectReviewSummary() {
             <h3><i class="fas fa-tags"></i> Keywords</h3>
             ${(stakeholdersData.keywords || []).map(k => 
                 `<div class="summary-item">
-                    <div class="summary-label">${k.name}:</div>
-                    <div class="summary-value">${k.variations || 'No variations'}</div>
+                    <div class="summary-label">${escapeHtml(k.name)}:</div>
+                    <div class="summary-value">${escapeHtml(k.variations || 'No variations')}</div>
                 </div>`
             ).join('')}
         </div>
@@ -994,8 +1079,8 @@ function generateProjectReviewSummary() {
             <h3><i class="fas fa-file-contract"></i> Contract</h3>
             <div class="summary-item">
                 <div class="summary-label">Contract Type:</div>
-                <div class="summary-value">${keywords.contractType === 'Custom' ? 
-                    keywords.contractTypeCustom : keywords.contractType || 'Not specified'}</div>
+                <div class="summary-value">${escapeHtml(keywords.contractType === 'Custom' ? 
+                    keywords.contractTypeCustom : keywords.contractType || 'Not specified')}</div>
             </div>
         </div>
     `;
@@ -1015,28 +1100,28 @@ function generateCaseReviewSummary() {
             <h3><i class="fas fa-gavel"></i> Case Identification</h3>
             <div class="summary-item">
                 <div class="summary-label">Case Name:</div>
-                <div class="summary-value">${identification.caseName || 'Not specified'}</div>
+                <div class="summary-value">${escapeHtml(identification.caseName || 'Not specified')}</div>
             </div>
             <div class="summary-item">
                 <div class="summary-label">Case ID:</div>
-                <div class="summary-value">${identification.caseId || 'Not specified'}</div>
+                <div class="summary-value">${escapeHtml(identification.caseId || 'Not specified')}</div>
             </div>
             <div class="summary-item">
                 <div class="summary-label">Resolution Route:</div>
-                <div class="summary-value">${identification.resolutionRoute === 'Custom' ? 
-                    identification.resolutionRouteCustom : identification.resolutionRoute || 'Not specified'}</div>
+                <div class="summary-value">${escapeHtml(identification.resolutionRoute === 'Custom' ? 
+                    identification.resolutionRouteCustom : identification.resolutionRoute || 'Not specified')}</div>
             </div>
             <div class="summary-item">
                 <div class="summary-label">Claimant:</div>
-                <div class="summary-value">${identification.claimant || 'Not specified'}</div>
+                <div class="summary-value">${escapeHtml(identification.claimant || 'Not specified')}</div>
             </div>
             <div class="summary-item">
                 <div class="summary-label">Defendant:</div>
-                <div class="summary-value">${identification.defendant || 'Not specified'}</div>
+                <div class="summary-value">${escapeHtml(identification.defendant || 'Not specified')}</div>
             </div>
             <div class="summary-item">
                 <div class="summary-label">Client:</div>
-                <div class="summary-value">${identification.client || 'Not specified'}</div>
+                <div class="summary-value">${escapeHtml(identification.client || 'Not specified')}</div>
             </div>
         </div>
         
@@ -1044,8 +1129,8 @@ function generateCaseReviewSummary() {
             <h3><i class="fas fa-user-tie"></i> Legal Team</h3>
             ${(legalTeamData.legalTeam || []).map(t => 
                 `<div class="summary-item">
-                    <div class="summary-label">${t.role}:</div>
-                    <div class="summary-value">${t.name}</div>
+                    <div class="summary-label">${escapeHtml(t.role)}:</div>
+                    <div class="summary-value">${escapeHtml(t.name)}</div>
                 </div>`
             ).join('')}
         </div>
@@ -1054,8 +1139,8 @@ function generateCaseReviewSummary() {
             <h3><i class="fas fa-list"></i> Heads of Claim</h3>
             ${(headsKeywordsData.headsOfClaim || []).map(h => 
                 `<div class="summary-item">
-                    <div class="summary-label">${h.head}:</div>
-                    <div class="summary-value">${h.status}${h.actions ? ' - ' + h.actions : ''}</div>
+                    <div class="summary-label">${escapeHtml(h.head)}:</div>
+                    <div class="summary-value">${escapeHtml(h.status)}${h.actions ? ' - ' + escapeHtml(h.actions) : ''}</div>
                 </div>`
             ).join('')}
         </div>
@@ -1064,8 +1149,8 @@ function generateCaseReviewSummary() {
             <h3><i class="fas fa-calendar"></i> Case Deadlines</h3>
             ${(deadlinesData.deadlines || []).map(d => 
                 `<div class="summary-item">
-                    <div class="summary-label">${d.task}:</div>
-                    <div class="summary-value">${d.date}${d.description ? ' - ' + d.description : ''}</div>
+                    <div class="summary-label">${escapeHtml(d.task)}:</div>
+                    <div class="summary-value">${escapeHtml(d.date)}${d.description ? ' - ' + escapeHtml(d.description) : ''}</div>
                 </div>`
             ).join('')}
         </div>
@@ -1082,11 +1167,9 @@ async function submitWizard() {
     currentStepObj.save();
     
     try {
-        const apiUrl = window.location.hostname === 'localhost' ? 
-            'http://localhost:8010' : 
-            (window.location.origin || '');
-        
+        const apiUrl = getApiUrl();
         const token = localStorage.getItem('token');
+        const csrfToken = getCsrfToken();
         
         let endpoint, requestData;
         
@@ -1134,9 +1217,11 @@ async function submitWizard() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken,
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {})
             },
-            body: JSON.stringify(requestData)
+            body: JSON.stringify(requestData),
+            credentials: 'same-origin'  // Include cookies for session-based auth
         });
         
         if (!response.ok) {
@@ -1149,12 +1234,24 @@ async function submitWizard() {
         // Clear draft
         localStorage.removeItem('wizardDraft');
         
-        // Store ID for future use
-        localStorage.setItem(`current${wizardState.profileType === 'project' ? 'Project' : 'Case'}Id`, result.id);
+        // Show message if fields were auto-generated
+        if (result.message && result.message.includes('Auto-generated')) {
+            alert(result.message);
+        }
+        
+        // Store ID and profile type for future use
+        const isProject = wizardState.profileType === 'project';
+        localStorage.setItem('profileType', isProject ? 'project' : 'case');
+        localStorage.setItem(isProject ? 'currentProjectId' : 'currentCaseId', result.id);
+        // Also store generic keys used by dashboard fallbacks
+        try {
+            localStorage.setItem(isProject ? 'projectId' : 'caseId', result.id);
+        } catch (e) {}
         
         // Redirect to appropriate page
-        if (wizardState.profileType === 'project') {
-            window.location.href = `pst-upload.html?projectId=${result.id}`;
+        if (isProject) {
+            // Take user to dashboard for a friendly start and uploads
+            window.location.href = `dashboard.html?projectId=${result.id}&firstTime=true`;
         } else {
             window.location.href = `correspondence-enterprise.html?caseId=${result.id}`;
         }

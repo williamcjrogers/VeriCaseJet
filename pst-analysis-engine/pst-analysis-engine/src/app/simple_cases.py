@@ -1,15 +1,18 @@
 """
 Simple Cases API for testing without authentication
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
+import logging
 
 from .db import get_db
 from .models import Case
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["simple-cases"])
 
@@ -17,54 +20,54 @@ router = APIRouter(prefix="/api", tags=["simple-cases"])
 def list_cases_simple(db: Session = Depends(get_db)):
     """List all cases without authentication (for testing)"""
     try:
+        # Use SQLAlchemy ORM to prevent SQL injection
         cases = db.query(Case).order_by(desc(Case.created_at)).limit(50).all()
         
         result = []
         for case in cases:
-            result.append({
-                "id": str(case.id),
-                "name": case.name or "Untitled Case",
-                "case_number": getattr(case, 'case_number', f"CASE-{case.id}"),
-                "description": case.description,
-                "project_name": getattr(case, 'project_name', None),
-                "contract_type": getattr(case, 'contract_type', None),
-                "dispute_type": getattr(case, 'dispute_type', None),
-                "status": getattr(case, 'status', 'active'),
-                "created_at": case.created_at.isoformat() if case.created_at else datetime.now().isoformat(),
-                "evidence_count": 0,  # TODO: Count evidence
-                "issue_count": 0      # TODO: Count issues
-            })
+            try:
+                # Safe attribute access with error handling
+                result.append({
+                    "id": str(case.id),
+                    "name": case.name or "Untitled Case",
+                    "case_number": getattr(case, 'case_number', f"CASE-{case.id}"),
+                    "description": case.description,
+                    "project_name": getattr(case, 'project_name', None),
+                    "contract_type": getattr(case, 'contract_type', None),
+                    "dispute_type": getattr(case, 'dispute_type', None),
+                    "status": getattr(case, 'status', 'active'),
+                    "created_at": case.created_at.isoformat() if case.created_at else None,
+                    "evidence_count": 0,  # TODO: Count evidence
+                    "issue_count": 0      # TODO: Count issues
+                })
+            except (AttributeError, TypeError, ValueError) as e:
+                logger.warning(f"Error processing case {case.id}: {e}", exc_info=True)
+                continue
         
         return result
         
     except Exception as e:
-        # Return mock data if database fails
-        return [
-            {
-                "id": "00000000-0000-0000-0000-000000000001",
-                "name": "Construction Delay Claim",
-                "case_number": "CASE-2024-001",
-                "description": "Delay claim for Project Alpha construction",
-                "project_name": "Alpha Tower Development",
-                "contract_type": "NEC4",
-                "dispute_type": "Delay",
-                "status": "active",
-                "created_at": "2024-11-01T10:00:00Z",
-                "evidence_count": 0,
-                "issue_count": 0
-            }
-        ]
+        logger.error(f"Database error while listing cases: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve cases")
 
 @router.post("/cases")
 def create_case_simple(case_data: dict, db: Session = Depends(get_db)):
     """Create a case without authentication (for testing)"""
     try:
-        case = Case(
-            id=uuid.uuid4(),
-            name=case_data.get('name', 'New Case'),
-            description=case_data.get('description'),
-            # Add other fields if they exist in the model
-        )
+        # Validate case_data is a dictionary
+        if not isinstance(case_data, dict):
+            raise HTTPException(status_code=400, detail="Invalid request data")
+        
+        try:
+            case = Case(
+                id=uuid.uuid4(),
+                name=case_data.get('name', 'New Case'),
+                description=case_data.get('description'),
+                # Add other fields if they exist in the model
+            )
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error creating Case object: {e}")
+            raise HTTPException(status_code=400, detail=f"Invalid case data: {str(e)}")
         
         # Only add fields that exist in the model
         if hasattr(Case, 'case_number'):
@@ -78,9 +81,14 @@ def create_case_simple(case_data: dict, db: Session = Depends(get_db)):
         if hasattr(Case, 'status'):
             case.status = 'active'
         
-        db.add(case)
-        db.commit()
-        db.refresh(case)
+        try:
+            db.add(case)
+            db.commit()
+            db.refresh(case)
+        except Exception as db_error:
+            db.rollback()
+            logger.error(f"Database error while creating case: {db_error}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to create case in database")
         
         return {
             "id": str(case.id),
@@ -91,24 +99,13 @@ def create_case_simple(case_data: dict, db: Session = Depends(get_db)):
             "contract_type": getattr(case, 'contract_type', None),
             "dispute_type": getattr(case, 'dispute_type', None),
             "status": getattr(case, 'status', 'active'),
-            "created_at": case.created_at.isoformat() if case.created_at else datetime.now().isoformat(),
+            "created_at": case.created_at.isoformat() if case.created_at else None,
             "evidence_count": 0,
             "issue_count": 0
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
-        # Return mock response if database fails
-        new_id = str(uuid.uuid4())
-        return {
-            "id": new_id,
-            "name": case_data.get('name', 'New Case'),
-            "case_number": case_data.get('case_number', f"CASE-{new_id[:8]}"),
-            "description": case_data.get('description'),
-            "project_name": case_data.get('project_name'),
-            "contract_type": case_data.get('contract_type'),
-            "dispute_type": case_data.get('dispute_type'),
-            "status": "active",
-            "created_at": datetime.now().isoformat(),
-            "evidence_count": 0,
-            "issue_count": 0
-        }
+        logger.error(f"Unexpected error creating case: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to create case")

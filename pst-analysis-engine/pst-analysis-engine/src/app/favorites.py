@@ -98,18 +98,20 @@ def list_favorites(
         Favorite.created_at.desc()
     ).all()
     
-    items = []
-    for fav in favorites:
-        if fav.document:
-            items.append(FavoriteResponse(
-                id=str(fav.id),
-                document_id=str(fav.document.id),
-                filename=fav.document.filename,
-                path=fav.document.path,
-                size=fav.document.size or 0,
-                content_type=fav.document.content_type,
-                created_at=fav.created_at
-            ))
+    # Use list comprehension for better readability and performance
+    items = [
+        FavoriteResponse(
+            id=str(fav.id),
+            document_id=str(fav.document.id),
+            filename=fav.document.filename,
+            path=fav.document.path,
+            size=fav.document.size or 0,
+            content_type=fav.document.content_type,
+            created_at=fav.created_at
+        )
+        for fav in favorites
+        if fav.document  # Only include favorites with valid documents
+    ]
     
     return FavoriteListResponse(total=len(items), items=items)
 

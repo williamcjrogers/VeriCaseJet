@@ -4,7 +4,7 @@ PST Refinement Wizard - AI-powered discovery and filtering
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, distinct, case
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, cast
 from datetime import datetime
 from collections import defaultdict
 import re
@@ -12,8 +12,8 @@ import logging
 from pydantic import BaseModel
 import uuid
 
-from .database import get_db
-from .auth import current_user
+from .db import get_db
+from .security import current_user
 from .models import (
     EmailMessage, Project, Case, Stakeholder, Keyword, 
     EmailAttachment, User, PSTFile
@@ -131,8 +131,8 @@ async def discover_evidence_patterns(
         "summary": {
             "total_emails_analyzed": len(emails),
             "date_range": {
-                "start": min(e.date_sent for e in emails if e.date_sent),
-                "end": max(e.date_sent for e in emails if e.date_sent)
+                "start": min((e.date_sent for e in emails if e.date_sent), default=None),
+                "end": max((e.date_sent for e in emails if e.date_sent), default=None)
             }
         }
     }
@@ -142,7 +142,7 @@ async def discover_evidence_patterns(
 
 def discover_other_projects(emails: List[EmailMessage], current_project: str) -> List[DiscoveredProject]:
     """Find references to other projects"""
-    project_mentions = defaultdict(lambda: {"count": 0, "samples": []})
+    project_mentions: Dict[str, Dict[str, Any]] = defaultdict(lambda: {"count": 0, "samples": []})
     current_project_lower = current_project.lower()
     
     for email in emails:
@@ -155,16 +155,19 @@ def discover_other_projects(emails: List[EmailMessage], current_project: str) ->
                 project_name = match.strip()
                 if len(project_name) > 3 and project_name.lower() != current_project_lower:
                     project_mentions[project_name]["count"] += 1
-                    if len(project_mentions[project_name]["samples"]) < 3:
-                        project_mentions[project_name]["samples"].append(email.subject)
+                    samples = project_mentions[project_name]["samples"]
+                    if isinstance(samples, list) and len(samples) < 3:
+                        samples.append(email.subject or "")
     
     # Convert to list and sort by frequency
     discovered_projects = []
-    for name, data in sorted(project_mentions.items(), key=lambda x: x[1]["count"], reverse=True)[:10]:
+    for name, data in sorted(project_mentions.items(), key=lambda x: int(x[1]["count"]), reverse=True)[:10]:
+        count_val = int(data["count"])
+        samples_val = data["samples"] if isinstance(data["samples"], list) else []
         discovered_projects.append(DiscoveredProject(
             name=name,
-            count=data["count"],
-            email_samples=data["samples"],
+            count=count_val,
+            email_samples=samples_val,
             patterns=["subject", "body"]  # Simplified for now
         ))
     
@@ -173,20 +176,25 @@ def discover_other_projects(emails: List[EmailMessage], current_project: str) ->
 
 def discover_parties(emails: List[EmailMessage], db: Session) -> List[DiscoveredParty]:
     """Identify organizations and their roles"""
-    domain_stats = defaultdict(lambda: {"count": 0, "people": set()})
+    domain_stats: Dict[str, Dict[str, Any]] = defaultdict(lambda: {"count": 0, "people": set()})
     
     # Analyze sender domains
     for email in emails:
-        if email.sender_email:
-            domain = email.sender_email.split('@')[-1].lower()
+        sender_email_val = str(email.sender_email) if email.sender_email else None
+        if sender_email_val:
+            domain = sender_email_val.split('@')[-1].lower()
             domain_stats[domain]["count"] += 1
-            if email.sender_name:
-                domain_stats[domain]["people"].add(email.sender_name)
+            sender_name_val = str(email.sender_name) if email.sender_name else None
+            if sender_name_val:
+                people_set = domain_stats[domain]["people"]
+                if isinstance(people_set, set):
+                    people_set.add(sender_name_val)
     
     # Try to match domains to roles
     discovered_parties = []
-    for domain, stats in sorted(domain_stats.items(), key=lambda x: x[1]["count"], reverse=True)[:20]:
-        if stats["count"] < 5:  # Minimum threshold
+    for domain, stats in sorted(domain_stats.items(), key=lambda x: int(x[1]["count"]), reverse=True)[:20]:
+        count_val = int(stats["count"])
+        if count_val < 5:  # Minimum threshold
             continue
             
         # Infer organization from domain
@@ -195,13 +203,14 @@ def discover_parties(emails: List[EmailMessage], db: Session) -> List[Discovered
         # Try to match role based on email content
         role = infer_role_from_content(emails, domain)
         
+        people_set = stats["people"] if isinstance(stats["people"], set) else set()
         discovered_parties.append(DiscoveredParty(
             role=role or "Unknown",
             organization=org_name,
-            confidence=min(0.95, stats["count"] / 100),  # Simple confidence score
-            email_count=stats["count"],
+            confidence=min(0.95, count_val / 100),  # Simple confidence score
+            email_count=count_val,
             domain=domain,
-            sample_people=list(stats["people"])[:5]
+            sample_people=list(people_set)[:5]
         ))
     
     return discovered_parties
@@ -209,7 +218,7 @@ def discover_parties(emails: List[EmailMessage], db: Session) -> List[Discovered
 
 def discover_people(emails: List[EmailMessage]) -> List[DiscoveredPerson]:
     """Extract individual people and their details"""
-    people_map = defaultdict(lambda: {
+    people_map: Dict[tuple, Dict[str, Any]] = defaultdict(lambda: {
         "count": 0, 
         "first_seen": datetime.now(), 
         "last_seen": datetime.now(),
@@ -217,27 +226,39 @@ def discover_people(emails: List[EmailMessage]) -> List[DiscoveredPerson]:
     })
     
     for email in emails:
-        if email.sender_email and email.sender_name:
-            key = (email.sender_name, email.sender_email)
+        sender_email_val = str(email.sender_email) if email.sender_email else None
+        sender_name_val = str(email.sender_name) if email.sender_name else None
+        if sender_email_val and sender_name_val:
+            key = (sender_name_val, sender_email_val)
             people_map[key]["count"] += 1
-            people_map[key]["domains"].add(email.sender_email.split('@')[-1])
+            domains_set = people_map[key]["domains"]
+            if isinstance(domains_set, set):
+                domains_set.add(sender_email_val.split('@')[-1])
             
-            if email.date_sent:
-                people_map[key]["first_seen"] = min(people_map[key]["first_seen"], email.date_sent)
-                people_map[key]["last_seen"] = max(people_map[key]["last_seen"], email.date_sent)
+            date_sent_val = email.date_sent
+            if date_sent_val and isinstance(date_sent_val, datetime):
+                first_seen_val = people_map[key]["first_seen"]
+                last_seen_val = people_map[key]["last_seen"]
+                if isinstance(first_seen_val, datetime):
+                    people_map[key]["first_seen"] = min(first_seen_val, date_sent_val)
+                if isinstance(last_seen_val, datetime):
+                    people_map[key]["last_seen"] = max(last_seen_val, date_sent_val)
     
     # Convert to list
     discovered_people = []
-    for (name, email_addr), stats in sorted(people_map.items(), key=lambda x: x[1]["count"], reverse=True)[:50]:
+    for (name, email_addr), stats in sorted(people_map.items(), key=lambda x: int(x[1]["count"]), reverse=True)[:50]:
         domain = email_addr.split('@')[-1]
+        count_val = int(stats["count"])
+        first_seen_val = stats["first_seen"] if isinstance(stats["first_seen"], datetime) else datetime.now()
+        last_seen_val = stats["last_seen"] if isinstance(stats["last_seen"], datetime) else datetime.now()
         discovered_people.append(DiscoveredPerson(
             name=name,
             email=email_addr,
             organization=infer_organization_from_domain(domain),
             role=None,  # Could enhance with title extraction
-            email_count=stats["count"],
-            first_seen=stats["first_seen"],
-            last_seen=stats["last_seen"]
+            email_count=count_val,
+            first_seen=first_seen_val,
+            last_seen=last_seen_val
         ))
     
     return discovered_people
@@ -255,7 +276,7 @@ def discover_topics(emails: List[EmailMessage], db: Session) -> List[DiscoveredT
         "H&S Incidents": ["accident", "incident", "safety", "injury", "near miss", "hse"],
     }
     
-    topic_stats = defaultdict(lambda: {
+    topic_stats: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
         "count": 0, 
         "keywords_found": set(),
         "date_range": {"start": None, "end": None},
@@ -265,7 +286,9 @@ def discover_topics(emails: List[EmailMessage], db: Session) -> List[DiscoveredT
     urgency_words = ["urgent", "immediate", "asap", "critical", "deadline", "overdue"]
     
     for email in emails:
-        text_to_search = f"{email.subject or ''} {email.body_text or ''}".lower()
+        subject_val = str(email.subject) if email.subject else ""
+        body_val = str(email.body_text) if email.body_text else ""
+        text_to_search = f"{subject_val} {body_val}".lower()
         
         # Check urgency
         urgency_count = sum(1 for word in urgency_words if word in text_to_search)
@@ -276,40 +299,52 @@ def discover_topics(emails: List[EmailMessage], db: Session) -> List[DiscoveredT
             for keyword in keywords:
                 if keyword in text_to_search:
                     matched = True
-                    topic_stats[topic]["keywords_found"].add(keyword)
+                    keywords_set = topic_stats[topic]["keywords_found"]
+                    if isinstance(keywords_set, set):
+                        keywords_set.add(keyword)
             
             if matched:
                 topic_stats[topic]["count"] += 1
                 topic_stats[topic]["urgency"] += urgency_count
                 
-                if email.date_sent:
-                    if topic_stats[topic]["date_range"]["start"] is None:
-                        topic_stats[topic]["date_range"]["start"] = email.date_sent
-                        topic_stats[topic]["date_range"]["end"] = email.date_sent
-                    else:
-                        topic_stats[topic]["date_range"]["start"] = min(
-                            topic_stats[topic]["date_range"]["start"], email.date_sent
-                        )
-                        topic_stats[topic]["date_range"]["end"] = max(
-                            topic_stats[topic]["date_range"]["end"], email.date_sent
-                        )
+                date_sent_val = email.date_sent
+                if date_sent_val and isinstance(date_sent_val, datetime):
+                    date_range = topic_stats[topic]["date_range"]
+                    if isinstance(date_range, dict):
+                        if date_range["start"] is None:
+                            date_range["start"] = date_sent_val
+                            date_range["end"] = date_sent_val
+                        else:
+                            start_val = date_range["start"]
+                            end_val = date_range["end"]
+                            if isinstance(start_val, datetime):
+                                date_range["start"] = min(start_val, date_sent_val)
+                            if isinstance(end_val, datetime):
+                                date_range["end"] = max(end_val, date_sent_val)
     
     # Convert to response format
     discovered_topics = []
-    for topic, stats in sorted(topic_stats.items(), key=lambda x: x[1]["count"], reverse=True):
-        if stats["count"] > 0:
+    for topic, stats in sorted(topic_stats.items(), key=lambda x: int(x[1]["count"]), reverse=True):
+        count_val = int(stats["count"])
+        if count_val > 0:
             date_range = "Unknown"
-            if stats["date_range"]["start"]:
-                start = stats["date_range"]["start"].strftime("%b %Y")
-                end = stats["date_range"]["end"].strftime("%b %Y")
-                date_range = f"{start} - {end}"
+            date_range_dict = stats["date_range"]
+            if isinstance(date_range_dict, dict):
+                start_val = date_range_dict["start"]
+                end_val = date_range_dict["end"]
+                if isinstance(start_val, datetime) and isinstance(end_val, datetime):
+                    start = start_val.strftime("%b %Y")
+                    end = end_val.strftime("%b %Y")
+                    date_range = f"{start} - {end}"
             
+            keywords_set = stats["keywords_found"] if isinstance(stats["keywords_found"], set) else set()
+            urgency_val = int(stats["urgency"])
             discovered_topics.append(DiscoveredTopic(
                 topic=topic,
-                count=stats["count"],
+                count=count_val,
                 date_range=date_range,
-                keywords=list(stats["keywords_found"]),
-                urgency_indicators=stats["urgency"]
+                keywords=list(keywords_set),
+                urgency_indicators=urgency_val
             ))
     
     return discovered_topics
@@ -380,10 +415,9 @@ async def apply_refinement(
     
     # In production, we'd store this in a refinement_filters table
     # For now, we'll update the project metadata
-    if not project.metadata:
-        project.metadata = {}
-    
-    project.metadata["active_refinement"] = filter_data
+    meta_val: dict = cast(dict, project.meta).copy() if (project.meta and isinstance(project.meta, dict)) else {}
+    meta_val["active_refinement"] = filter_data
+    project.meta = meta_val
     db.commit()
     
     # Apply filters to emails (mark excluded ones)
@@ -398,24 +432,27 @@ async def apply_refinement(
         should_exclude = False
         
         # Check if email mentions excluded projects
-        email_text = f"{email.subject or ''} {email.body_text or ''}".lower()
+        subject_val = str(email.subject) if email.subject else ""
+        body_val = str(email.body_text) if email.body_text else ""
+        email_text = f"{subject_val} {body_val}".lower()
         for excluded_project in refinement.exclude_projects:
             if excluded_project.lower() in email_text:
                 should_exclude = True
                 break
         
         # Check if from excluded people
-        if not should_exclude and email.sender_email:
+        sender_email_val = str(email.sender_email) if email.sender_email else None
+        if not should_exclude and sender_email_val:
             for excluded_person in refinement.exclude_people:
-                if excluded_person.lower() in email.sender_email.lower():
+                if excluded_person.lower() in sender_email_val.lower():
                     should_exclude = True
                     break
         
         # Update email metadata
         if should_exclude:
-            if not email.metadata:
-                email.metadata = {}
-            email.metadata["excluded_by_refinement"] = filter_id
+            email_meta: dict = cast(dict, email.meta).copy() if (email.meta and isinstance(email.meta, dict)) else {}
+            email_meta["excluded_by_refinement"] = filter_id
+            email.meta = email_meta
             excluded_count += 1
     
     db.commit()
@@ -442,10 +479,11 @@ async def get_active_filters(
     if not project:
         raise HTTPException(404, "Project not found")
     
-    if project.metadata and "active_refinement" in project.metadata:
+    meta_val = project.meta.copy() if project.meta else {}
+    if meta_val and "active_refinement" in meta_val:
         return {
             "has_active_filter": True,
-            "filter": project.metadata["active_refinement"]
+            "filter": meta_val["active_refinement"]
         }
     
     return {"has_active_filter": False}
@@ -463,8 +501,10 @@ async def clear_refinement_filters(
         raise HTTPException(404, "Project not found")
     
     # Clear project metadata
-    if project.metadata and "active_refinement" in project.metadata:
-        del project.metadata["active_refinement"]
+    meta_val = cast(dict, project.meta).copy() if (project.meta and isinstance(project.meta, dict)) else {}
+    if meta_val and "active_refinement" in meta_val:
+        del meta_val["active_refinement"]
+        project.meta = meta_val
     
     # Clear email exclusions
     emails = db.query(EmailMessage).filter(
@@ -473,8 +513,10 @@ async def clear_refinement_filters(
     
     cleared_count = 0
     for email in emails:
-        if email.metadata and "excluded_by_refinement" in email.metadata:
-            del email.metadata["excluded_by_refinement"]
+        email_meta = cast(dict, email.meta).copy() if (email.meta and isinstance(email.meta, dict)) else {}
+        if email_meta and "excluded_by_refinement" in email_meta:
+            del email_meta["excluded_by_refinement"]
+            email.meta = email_meta
             cleared_count += 1
     
     db.commit()

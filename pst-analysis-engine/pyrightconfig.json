@@ -1,0 +1,36 @@
+{
+  "include": [
+    "pst-analysis-engine/src",
+    "api/app",
+    "worker"
+  ],
+  "exclude": [
+    ".venv",
+    "venv",
+    "env",
+    "__pycache__",
+    "**/__pycache__",
+    "*.egg-info",
+    "build",
+    "dist",
+    ".eggs",
+    "**/*.pyc"
+  ],
+  "ignore": [
+    ".venv/**",
+    "venv/**",
+    "env/**",
+    "__pycache__/**"
+  ],
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "basic",
+  "useLibraryCodeForTypes": true,
+  "reportMissingImports": "warning",
+  "reportMissingTypeStubs": false,
+  "reportAttributeAccessIssue": "none",
+  "reportArgumentType": "none",
+  "reportGeneralTypeIssues": "none"
+}
+

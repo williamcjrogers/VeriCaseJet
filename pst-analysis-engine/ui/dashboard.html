@@ -612,18 +612,36 @@
     <script>
         // Get URL parameters
         const urlParams = new URLSearchParams(window.location.search);
-        const profileId = urlParams.get('projectId') || urlParams.get('caseId');
+        let profileId = urlParams.get('projectId') || urlParams.get('caseId');
         const isFirstTime = urlParams.get('firstTime') === 'true';
         const profileType = localStorage.getItem('profileType') || 'project';
+        // Fallbacks: grab stored IDs when URL param is missing
+        if (!profileId) {
+            const storedId = profileType === 'project'
+                ? (localStorage.getItem('currentProjectId') || localStorage.getItem('projectId'))
+                : (localStorage.getItem('currentCaseId') || localStorage.getItem('caseId'));
+            if (storedId) profileId = storedId;
+        }
         
         // Load token
-        const token = urlParams.get('token') || localStorage.getItem('token');
-        const apiUrl = window.location.hostname === 'localhost' ? 
-            'http://localhost:8010' : 
-            (process.env.REACT_APP_API_URL || '');
+        const token = urlParams.get('token') || localStorage.getItem('token') || localStorage.getItem('jwt');
+        
+        // Get API URL with appropriate protocol
+        const getApiUrl = () => {
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                return `${window.location.protocol}//localhost:8010`;
+            }
+            return process.env.REACT_APP_API_URL || window.location.origin || '';
+        };
+        const apiUrl = getApiUrl();
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', () => {
+            if (!profileId) {
+                alert('No profile selected. Redirecting to wizard...');
+                window.location.href = 'wizard.html';
+                return;
+            }
             loadProfileData();
             if (isFirstTime) {
                 showFirstTimeOnboarding();
@@ -836,53 +854,72 @@
                     return;
                 }
                 
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('profileId', profileId);
-                formData.append('profileType', profileType);
-                
                 uploadForm.style.display = 'none';
                 uploadProgress.style.display = 'block';
                 
                 try {
-                    // Simulate progress
-                    let progress = 0;
-                    const progressInterval = setInterval(() => {
-                        progress = Math.min(progress + 10, 90);
-                        progressBar.style.width = progress + '%';
-                        progressText.textContent = `Uploading... ${progress}%`;
-                    }, 200);
-                    
-                    const response = await fetch(`${apiUrl}/api/evidence/upload`, {
+                    // 1) Init upload
+                    const ct = 'application/octet-stream';
+                    const initResp = await fetch(`${apiUrl}/uploads/init`, {
                         method: 'POST',
-                        body: formData
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                        },
+                        body: JSON.stringify({
+                            filename: file.name,
+                            content_type: ct,
+                            size: file.size
+                        })
                     });
-                    
-                    clearInterval(progressInterval);
-                    
-                    if (!response.ok) {
-                        throw new Error('Upload failed');
+                    if (!initResp.ok) throw new Error('Failed to initialize upload');
+                    const { upload_id, upload_url } = await initResp.json();
+
+                    // 2) PUT to presigned URL
+                    let uploaded = 0;
+                    const chunkSize = Math.max(256 * 1024, Math.floor(file.size / 20)); // update bar ~20 steps
+                    const reader = file.stream().getReader();
+                    const chunks = [];
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        chunks.push(value);
+                        uploaded += value.length;
+                        const pct = Math.min(90, Math.round((uploaded / file.size) * 90));
+                        progressBar.style.width = pct + '%';
+                        progressText.textContent = `Uploading... ${pct}%`;
                     }
-                    
-                    const result = await response.json();
-                    
-                    // Show complete
+                    const putResp = await fetch(upload_url, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': ct },
+                        body: new Blob(chunks, { type: ct })
+                    });
+                    if (!putResp.ok) throw new Error('Failed to upload file');
+
+                    // 3) Complete
+                    const completeResp = await fetch(`${apiUrl}/uploads/complete`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                        },
+                        body: JSON.stringify({
+                            upload_id,
+                            filename: file.name,
+                            size: file.size,
+                            content_type: ct,
+                            path: null
+                        })
+                    });
+                    if (!completeResp.ok) throw new Error('Failed to finalize upload');
+
                     progressBar.style.width = '100%';
                     progressText.textContent = 'Processing...';
-                    
-                    // Check status periodically
-                    const jobId = result.job_id;
-                    const statusInterval = setInterval(async () => {
-                        const statusResponse = await fetch(`${apiUrl}/api/evidence/status/${jobId}`);
-                        if (statusResponse.ok) {
-                            const status = await statusResponse.json();
-                            if (status.status === 'complete' || status.status === 'error') {
-                                clearInterval(statusInterval);
-                                uploadProgress.style.display = 'none';
-                                uploadResult.style.display = 'block';
-                            }
-                        }
-                    }, 1000);
+                    // Done
+                    setTimeout(() => {
+                        uploadProgress.style.display = 'none';
+                        uploadResult.style.display = 'block';
+                    }, 300);
                     
                 } catch (error) {
                     console.error('Upload error:', error);

@@ -84,7 +84,7 @@ services:
     environment:
       - DATABASE_URL=postgresql+psycopg2://${DB_USER:-vericase}:${DB_PASSWORD:-vericase}@postgres:5432/${DB_NAME:-vericase}
       - REDIS_URL=redis://redis:6379/0
-      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ENDPOINT=http://minio:9000
       - OPENSEARCH_URL=http://opensearch:9200
       - TIKA_URL=http://tika:9998
     depends_on:
@@ -116,7 +116,7 @@ services:
     environment:
       - DATABASE_URL=postgresql+psycopg2://${DB_USER:-vericase}:${DB_PASSWORD:-vericase}@postgres:5432/${DB_NAME:-vericase}
       - REDIS_URL=redis://redis:6379/0
-      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ENDPOINT=http://minio:9000
       - OPENSEARCH_URL=http://opensearch:9200
       - TIKA_URL=http://tika:9998
       - CELERY_QUEUE=vericase

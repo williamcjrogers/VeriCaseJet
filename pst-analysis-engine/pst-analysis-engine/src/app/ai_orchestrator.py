@@ -111,14 +111,13 @@ async def analyze_dataset(
     
     # Extract themes
     themes = []
-    all_text = ' '.join([d.text_excerpt or '' for d in documents if d.text_excerpt]).lower()
     keyword_map = {
         'financial': ['payment', 'invoice', 'budget'],
         'legal': ['contract', 'agreement', 'terms'],
         'technical': ['software', 'system', 'implementation']
     }
     for theme, words in keyword_map.items():
-        if any(w in all_text for w in words):
+        if any(any(w in (d.text_excerpt or '').lower() for w in words) for d in documents if d.text_excerpt):
             themes.append(theme)
     
     dates = [d.created_at for d in documents]
@@ -184,9 +183,12 @@ async def get_trends(
         day = doc.created_at.strftime('%Y-%m-%d')
         by_day[day] = by_day.get(day, 0) + 1
     
-    counts = list(by_day.values())
-    avg = sum(counts) / len(counts) if counts else 0
-    recent_avg = sum(counts[-7:]) / 7 if len(counts) >= 7 else avg
+    if by_day:
+        counts = list(by_day.values())
+        avg = sum(counts) / len(counts)
+        recent_avg = sum(counts[-7:]) / min(7, len(counts))
+    else:
+        avg = recent_avg = 0
     
     return {
         'period_days': days, 'total_documents': len(documents),

@@ -4,18 +4,22 @@ Email correspondence management for PST analysis
 """
 
 import uuid
+import asyncio
+import os
 import logging
 from datetime import datetime
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, UploadFile, File, Form
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_, and_, func
 from pydantic import BaseModel
 
 from .security import get_db, current_user
 from .models import (
-    Case, PSTFile, EmailMessage, EmailAttachment, 
-    Stakeholder, Keyword, Project, User
+    Case, PSTFile, EmailMessage, EmailAttachment,
+    Stakeholder, Keyword, Project, User,
+    Company, UserCompany, Document, DocStatus
 )
 from .storage import presign_put, s3, settings
 from .tasks import celery_app
@@ -27,6 +31,9 @@ router = APIRouter(prefix="/api/correspondence", tags=["correspondence"])
 # Secondary router for wizard endpoints (no prefix for compatibility)
 wizard_router = APIRouter(prefix="/api", tags=["wizard"])
 
+# Unified router for both projects and cases
+unified_router = APIRouter(prefix="/api/unified", tags=["unified"])
+
 
 # ========================================
 # PYDANTIC MODELS
@@ -34,7 +41,7 @@ wizard_router = APIRouter(prefix="/api", tags=["wizard"])
 
 class PSTUploadInitRequest(BaseModel):
     """Request to initiate PST upload"""
-    case_id: str
+    case_id: Optional[str] = None  # Made optional
     filename: str
     file_size: int
     project_id: Optional[str] = None
@@ -198,7 +205,7 @@ async def get_pst_status(
     db: Session = Depends(get_db)
 ):
     """Get PST processing status with Redis-based progress tracking"""
-    import redis
+    import redis  # type: ignore[import-untyped]
     
     pst_file = db.query(PSTFile).filter_by(id=pst_file_id).first()
     if not pst_file:
@@ -467,8 +474,8 @@ async def get_email_thread(
 
 class ProjectCreateRequest(BaseModel):
     """Create project from wizard"""
-    project_name: str
-    project_code: str
+    project_name: Optional[str] = None
+    project_code: Optional[str] = None
     start_date: Optional[datetime] = None
     completion_date: Optional[datetime] = None
     contract_type: Optional[str] = None
@@ -486,19 +493,87 @@ class ProjectCreateRequest(BaseModel):
 
 class CaseCreateRequest(BaseModel):
     """Create case from wizard"""
-    case_name: str
+    case_name: Optional[str] = None
     case_id_custom: Optional[str] = None
     resolution_route: Optional[str] = None
     claimant: Optional[str] = None
     defendant: Optional[str] = None
     client: Optional[str] = None
+    case_status: Optional[str] = "active"
     stakeholders: Optional[List[dict]] = []
     keywords: Optional[List[dict]] = []
+    legal_team: Optional[List[dict]] = []
+    heads_of_claim: Optional[List[dict]] = []
+    deadlines: Optional[List[dict]] = []
 
 
 # ========================================
 # STAKEHOLDER AND KEYWORD ENDPOINTS
 # ========================================
+
+@wizard_router.get("/projects")
+async def list_projects(
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db)
+):
+    """List projects for the current user"""
+    projects = (
+        db.query(Project)
+        .filter(Project.owner_user_id == user.id)
+        .order_by(Project.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": str(p.id),
+            "project_name": p.project_name,
+            "project_code": p.project_code,
+            "contract_type": p.contract_type,
+        }
+        for p in projects
+    ]
+
+@wizard_router.get("/projects/{project_id}")
+async def get_project(
+    project_id: str,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db)
+):
+    """Get a single project with lightweight related info (for dashboard)"""
+    try:
+        project_uuid = uuid.UUID(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+
+    proj = (
+        db.query(Project)
+        .filter(Project.id == project_uuid, Project.owner_user_id == user.id)
+        .first()
+    )
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    stakeholders = db.query(Stakeholder).filter_by(project_id=project_uuid).all()
+    keywords = db.query(Keyword).filter_by(project_id=project_uuid).all()
+    
+    return {
+        "id": str(proj.id),
+        "projectName": proj.project_name,
+        "projectCode": proj.project_code,
+        "contractType": proj.contract_type,
+        "project-stakeholders": {
+            "stakeholders": [
+                {
+                    "stakeholder-role": s.role,
+                    "stakeholder-name": s.name,
+                    "stakeholder-email": s.email,
+                    "organization": s.organization,
+                }
+                for s in stakeholders
+            ],
+            "keywords": [{"name": k.keyword_name} for k in keywords],
+        },
+    }
 
 @wizard_router.get("/cases/{case_id}/stakeholders")
 async def get_case_stakeholders(
@@ -542,7 +617,12 @@ async def get_project_stakeholders(
     db: Session = Depends(get_db)
 ):
     """Get stakeholders for a project"""
-    stakeholders = db.query(Stakeholder).filter_by(project_id=project_id).all()
+    try:
+        project_uuid = uuid.UUID(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+    
+    stakeholders = db.query(Stakeholder).filter(Stakeholder.project_id == project_uuid).all()
     
     return [
         {
@@ -561,7 +641,12 @@ async def get_project_keywords(
     db: Session = Depends(get_db)
 ):
     """Get keywords for a project"""
-    keywords = db.query(Keyword).filter_by(project_id=project_id).all()
+    try:
+        project_uuid = uuid.UUID(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+    
+    keywords = db.query(Keyword).filter(Keyword.project_id == project_uuid).all()
     
     return [
         {
@@ -582,10 +667,14 @@ async def create_project(
     
     project_id = str(uuid.uuid4())
     
+    # Generate default values if not provided
+    project_name = request.project_name or f"Project {datetime.now().strftime('%Y%m%d-%H%M')}"
+    project_code = request.project_code or f"PROJ-{uuid.uuid4().hex[:8].upper()}"
+    
     project = Project(
         id=project_id,
-        project_name=request.project_name,
-        project_code=request.project_code,
+        project_name=project_name,
+        project_code=project_code,
         start_date=request.start_date,
         completion_date=request.completion_date,
         contract_type=request.contract_type,
@@ -603,14 +692,16 @@ async def create_project(
     
     # Add stakeholders
     for s in (request.stakeholders or []):
+        email_val = s.get('email', '')
+        email_domain = email_val.split('@')[1] if email_val and '@' in str(email_val) else None
         stakeholder = Stakeholder(
             project_id=project_id,
             case_id=None,  # Project-level stakeholder
             role=s.get('role', ''),
             name=s.get('name', ''),
-            email=s.get('email'),
+            email=email_val,
             organization=s.get('organization'),
-            email_domain=s.get('email', '').split('@')[1] if s.get('email') and '@' in s.get('email') else None
+            email_domain=email_domain
         )
         db.add(stakeholder)
     
@@ -625,14 +716,39 @@ async def create_project(
         )
         db.add(keyword)
     
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        message = str(exc.orig) if getattr(exc, "orig", None) else str(exc)
+        if "projects_project_code_key" in message:
+            raise HTTPException(status_code=409, detail="Project code already exists")
+        logger.error("Integrity error creating project %s: %s", project_id, message)
+        raise HTTPException(status_code=400, detail="Invalid project data")
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Failed to create project %s: %s", project_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to create project")
     
     logger.info(f"Created project: {project_id}")
     
+    # Inform if defaults were used
+    auto_generated = []
+    if not request.project_name:
+        auto_generated.append("project name")
+    if not request.project_code:
+        auto_generated.append("project code")
+    
+    message = 'Project created successfully'
+    if auto_generated:
+        message += f'. Auto-generated: {", ".join(auto_generated)}'
+    
     return {
         'id': project_id,
+        'project_name': project_name,
+        'project_code': project_code,
         'success': True,
-        'message': 'Project created successfully'
+        'message': message
     }
 
 
@@ -644,38 +760,73 @@ async def create_case(
 ):
     """Create new case"""
     
-    case_id = str(uuid.uuid4())
+    # Ensure user is associated with a company
+    user_company = (
+        db.query(UserCompany)
+        .filter(UserCompany.user_id == user.id, UserCompany.is_primary.is_(True))
+        .first()
+    )
+    if user_company:
+        company = user_company.company
+    else:
+        company = Company(name=f"{user.display_name or user.email}'s Company")
+        db.add(company)
+        db.flush()
+        user_company = UserCompany(
+            user_id=user.id,
+            company_id=company.id,
+            role="admin",
+            is_primary=True
+        )
+        db.add(user_company)
+        db.flush()
+    
+    case_uuid = uuid.uuid4()
+    case_number = request.case_id_custom or f"CASE-{uuid.uuid4().hex[:10].upper()}"
+    status_value = request.case_status or "active"
     
     case = Case(
-        id=case_id,
-        case_name=request.case_name,
+        id=case_uuid,
+        case_number=case_number,
         case_id_custom=request.case_id_custom,
+        name=request.case_name or f"Case {datetime.now().strftime('%Y%m%d-%H%M')}",
+        description=None,
+        project_name=request.case_name,
         resolution_route=request.resolution_route,
+        contract_type=request.resolution_route,
         claimant=request.claimant,
         defendant=request.defendant,
-        case_status='active',
-        client=request.client
+        client=request.client,
+        status=status_value,
+        case_status=status_value,
+        legal_team=request.legal_team or [],
+        heads_of_claim=request.heads_of_claim or [],
+        deadlines=request.deadlines or [],
+        owner_id=user.id,
+        company_id=company.id
     )
-    
     db.add(case)
+    db.flush()
     
     # Add stakeholders
     for s in (request.stakeholders or []):
+        email_val = s.get('email', '')
+        email_domain = email_val.split('@')[1] if email_val and '@' in str(email_val) else None
         stakeholder = Stakeholder(
-            case_id=case_id,
+            case_id=case.id,
             project_id=None,
             role=s.get('role', ''),
             name=s.get('name', ''),
-            email=s.get('email'),
+            email=email_val,
             organization=s.get('organization'),
-            email_domain=s.get('email', '').split('@')[1] if s.get('email') and '@' in s.get('email') else None
+            email_domain=email_domain
         )
         db.add(stakeholder)
     
     # Add keywords
     for k in (request.keywords or []):
         keyword = Keyword(
-            case_id=case_id,
+            case_id=case.id,
             project_id=None,
             keyword_name=k.get('name', ''),
             variations=k.get('variations'),
@@ -683,13 +834,267 @@ async def create_case(
         )
         db.add(keyword)
     
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        message = str(exc.orig) if getattr(exc, "orig", None) else str(exc)
+        logger.error("Integrity error creating case %s: %s", case_uuid, message)
+        raise HTTPException(status_code=400, detail="Case could not be created (duplicate number?)")
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Failed to create case %s: %s", case_uuid, exc)
+        raise HTTPException(status_code=500, detail="Failed to create case")
     
-    logger.info(f"Created case: {case_id}")
+    logger.info("Created case %s for user %s", case_uuid, user.email)
+    
+    # Inform if defaults were used
+    auto_generated = []
+    if not request.case_name:
+        auto_generated.append("case name")
+    
+    message = 'Case created successfully'
+    if auto_generated:
+        message += f'. Auto-generated: {", ".join(auto_generated)}'
     
     return {
-        'id': case_id,
+        'id': str(case.id),
+        'case_number': case.case_number,
+        'case_name': case.name,
         'success': True,
-        'message': 'Case created successfully'
+        'message': message
     }
+
+
+@wizard_router.post("/evidence/upload")
+async def upload_evidence(
+    profileId: str = Form(...),
+    profileType: str = Form(...),
+    file: UploadFile = File(...),
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Simplified upload endpoint for wizard dashboard.
+    Streams file directly to S3/MinIO and queues processing tasks.
+    """
+    if profileType not in {"project", "case"}:
+        raise HTTPException(status_code=400, detail="Invalid profile type")
+
+    try:
+        profile_uuid = uuid.UUID(profileId)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid profile ID format")
+
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="Missing file")
+
+    case_id = None
+    project_id = None
+    company_id = None
+
+    if profileType == "case":
+        case = db.query(Case).filter(Case.id == profile_uuid).first()
+        if not case:
+            raise HTTPException(status_code=404, detail="Case not found")
+        case_id = str(case.id)
+        company_id = str(case.company_id) if case.company_id else None
+        project_id = None
+    else:
+        project = db.query(Project).filter(Project.id == profile_uuid).first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        project_id = str(project.id)
+        company_id = str(project.owner_user_id) if getattr(project, "owner_user_id", None) else None
+        if file.filename.lower().endswith(".pst"):
+            raise HTTPException(status_code=400, detail="PST ingestion requires a case. Please create a case first.")
+
+    # Prepare S3 key
+    safe_name = file.filename.replace(" ", "_")
+    s3_key = f"uploads/{profileType}/{profileId}/{uuid.uuid4()}_{safe_name}"
+    content_type = file.content_type or "application/octet-stream"
+
+    # Determine file size
+    file.file.seek(0, os.SEEK_END)
+    size = file.file.tell()
+    file.file.seek(0)
+
+    # Upload to storage in a thread to avoid blocking event loop
+    await asyncio.to_thread(
+        s3().upload_fileobj,
+        file.file,
+        settings.MINIO_BUCKET,
+        s3_key,
+        ExtraArgs={"ContentType": content_type}
+    )
+
+    # Record document metadata
+    document = Document(
+        filename=file.filename,
+        path=f"{profileType}/{profileId}",
+        content_type=content_type,
+        size=size,
+        bucket=settings.MINIO_BUCKET,
+        s3_key=s3_key,
+        status=DocStatus.NEW,
+        owner_user_id=user.id,
+        meta={
+            "profile_type": profileType,
+            "profile_id": profileId,
+            "uploaded_by": str(user.id)
+        }
+    )
+    db.add(document)
+    db.commit()
+    db.refresh(document)
+
+    # Queue processing
+    if file.filename.lower().endswith(".pst"):
+        # For projects, pass a placeholder case_id that worker will recognize
+        task_case_id = case_id if case_id else "00000000-0000-0000-0000-000000000000"
+        celery_app.send_task(
+            "worker_app.worker.process_pst_file",
+            args=[str(document.id), task_case_id, company_id or ""]
+        )
+        processing_state = "PROCESSING_PST"
+    else:
+        celery_app.send_task("worker_app.worker.ocr_and_index", args=[str(document.id)])
+        processing_state = "QUEUED"
+
+    return {
+        "id": str(document.id),
+        "status": processing_state,
+        "case_id": case_id,
+        "project_id": project_id,
+        "s3_key": s3_key
+    }
+
+
+# ========================================
+# UNIFIED ENDPOINTS (Work with both Projects and Cases)
+# ========================================
+
+@unified_router.get("/{entity_id}/evidence")
+async def get_unified_evidence(
+    entity_id: str,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db)
+):
+    """Get evidence/emails for either a project or case"""
+    # Try to find as case first
+    case = db.query(Case).filter(Case.id == entity_id).first()
+    if case:
+        # Use existing case evidence logic
+        emails = db.query(EmailMessage).filter(
+            EmailMessage.case_id == entity_id
+        ).order_by(EmailMessage.sent_date.desc()).all()
+    else:
+        # Try as project
+        project = db.query(Project).filter(Project.id == entity_id).first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Entity not found")
+        
+        # Get emails associated with project
+        emails = db.query(EmailMessage).filter(
+            EmailMessage.project_id == entity_id
+        ).order_by(EmailMessage.sent_date.desc()).all()
+    
+    return [
+        {
+            "id": str(email.id),
+            "subject": email.subject,
+            "sender": email.sender,
+            "recipients": email.recipients,
+            "sent_date": email.sent_date.isoformat() if email.sent_date else None,
+            "body": email.body,
+            "importance": email.importance,
+            "has_attachments": bool(email.attachments),
+            "pst_file_id": str(email.pst_file_id) if email.pst_file_id else None
+        }
+        for email in emails
+    ]
+
+
+@unified_router.get("/{entity_id}")
+async def get_unified_entity(
+    entity_id: str,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db)
+):
+    """Get details for either a project or case"""
+    # Try to find as case first
+    case = db.query(Case).filter(Case.id == entity_id).first()
+    if case:
+        return {
+            "id": str(case.id),
+            "type": "case",
+            "name": case.name or case.case_number,
+            "case_number": case.case_number,
+            "status": case.status,
+            "created_at": case.created_at.isoformat() if case.created_at else None
+        }
+    
+    # Try as project
+    project = db.query(Project).filter(Project.id == entity_id).first()
+    if project:
+        return {
+            "id": str(project.id),
+            "type": "project",
+            "name": project.project_name,
+            "project_code": project.project_code,
+            "status": "active",  # Projects don't have status field
+            "created_at": project.created_at.isoformat() if hasattr(project, 'created_at') else None
+        }
+    
+    raise HTTPException(status_code=404, detail="Entity not found")
+
+
+@unified_router.get("/{entity_id}/stakeholders")
+async def get_unified_stakeholders(
+    entity_id: str,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db)
+):
+    """Get stakeholders for either a project or case"""
+    # Check if it's a case
+    stakeholders = db.query(Stakeholder).filter(Stakeholder.case_id == entity_id).all()
+    
+    # If no case stakeholders, try project
+    if not stakeholders:
+        stakeholders = db.query(Stakeholder).filter(Stakeholder.project_id == entity_id).all()
+    
+    return [
+        {
+            "id": str(s.id),
+            "role": s.role,
+            "name": s.name,
+            "email": s.email,
+            "organization": s.organization
+        }
+        for s in stakeholders
+    ]
+
+
+@unified_router.get("/{entity_id}/keywords")  
+async def get_unified_keywords(
+    entity_id: str,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db)
+):
+    """Get keywords for either a project or case"""
+    # Check if it's a case
+    keywords = db.query(Keyword).filter(Keyword.case_id == entity_id).all()
+    
+    # If no case keywords, try project
+    if not keywords:
+        keywords = db.query(Keyword).filter(Keyword.project_id == entity_id).all()
+    
+    return [
+        {
+            "id": str(k.id),
+            "name": k.keyword_name,
+            "variations": k.variations
+        }
+        for k in keywords
+    ]
 

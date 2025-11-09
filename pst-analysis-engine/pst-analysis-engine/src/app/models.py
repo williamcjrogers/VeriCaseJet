@@ -6,11 +6,20 @@ from sqlalchemy.orm import relationship
 from enum import Enum as PyEnum
 from .db import Base
 
+
 class DocStatus(str, PyEnum):
-    NEW="NEW"; PROCESSING="PROCESSING"; READY="READY"; FAILED="FAILED"
+    """Document processing status"""
+    NEW = "NEW"
+    PROCESSING = "PROCESSING"
+    READY = "READY"
+    FAILED = "FAILED"
+
 
 class UserRole(str, PyEnum):
-    ADMIN="ADMIN"; EDITOR="EDITOR"; VIEWER="VIEWER"
+    """User role types"""
+    ADMIN = "ADMIN"
+    EDITOR = "EDITOR"
+    VIEWER = "VIEWER"
 
 class User(Base):
     __tablename__="users"
@@ -205,7 +214,8 @@ class Issue(Base):
 
 class Evidence(Base):
     """Evidence linking documents to cases and issues"""
-    __tablename__="evidence"
+    __tablename__ = "evidence"
+    
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
@@ -240,6 +250,19 @@ class Evidence(Base):
     case = relationship("Case")
     document = relationship("Document")
     issue = relationship("Issue")
+    
+    def calculate_delay(self):
+        """Calculate delay days between as_planned and as_built dates with error handling"""
+        try:
+            if self.as_planned_date is not None and self.as_built_date is not None:
+                delta = self.as_built_date - self.as_planned_date
+                return delta.days
+            return 0
+        except (TypeError, AttributeError, ValueError) as e:
+            # Log error but don't crash - return 0 as safe default
+            import logging
+            logging.getLogger(__name__).warning(f"Error calculating delay for evidence {self.id}: {e}")
+            return 0
 
 class ClaimType(str, PyEnum):
     DELAY = "delay"
@@ -251,7 +274,8 @@ class ClaimType(str, PyEnum):
 
 class Claim(Base):
     """Construction claims (delay, defects, variations)"""
-    __tablename__="claims"
+    __tablename__ = "claims"
+    
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
     claim_type = Column(Enum(ClaimType), nullable=False)
@@ -268,7 +292,8 @@ class Claim(Base):
 
 class ChronologyItem(Base):
     """Timeline events for cases"""
-    __tablename__="chronology_items"
+    __tablename__ = "chronology_items"
+    
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
     claim_id = Column(UUID(as_uuid=True), ForeignKey("claims.id"), nullable=True)
@@ -328,7 +353,8 @@ class SearchQuery(Base):
 
 class Programme(Base):
     """Construction programme/schedule (Asta Powerproject or PDF)"""
-    __tablename__="programmes"
+    __tablename__ = "programmes"
+    
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
@@ -372,3 +398,28 @@ class DelayEvent(Base):
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     case = relationship("Case")
     issue = relationship("Issue")
+    
+    def __init__(self, **kwargs):
+        try:
+            super().__init__(**kwargs)
+        except (ValueError, TypeError) as e:
+            # Handle invalid data types or values during initialization
+            raise ValueError(f"Invalid DelayEvent data: {e}")
+
+
+class Project(Base):
+    """Construction project metadata"""
+    __tablename__ = "projects"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_name = Column(String(200), nullable=False)
+    project_code = Column(String(100), unique=True, nullable=False, index=True)
+    start_date = Column(DateTime(timezone=True), nullable=True)
+    completion_date = Column(DateTime(timezone=True), nullable=True)
+    contract_type = Column(String(100), nullable=True)
+    stakeholders = Column(JSON, nullable=True)
+    keywords = Column(JSON, nullable=True)
+    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    case = relationship("Case")

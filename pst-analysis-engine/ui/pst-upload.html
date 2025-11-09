@@ -342,9 +342,15 @@
         const profileId = urlParams.get('projectId') || urlParams.get('caseId');
         const profileType = localStorage.getItem('profileType') || 'project';
         const token = localStorage.getItem('token');
-        const apiUrl = window.location.hostname === 'localhost' ? 
-            'http://localhost:8010' : 
-            (process.env.REACT_APP_API_URL || '');
+        
+        // Get API URL with appropriate protocol
+        const getApiUrl = () => {
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                return `${window.location.protocol}//localhost:8010`;
+            }
+            return process.env.REACT_APP_API_URL || window.location.origin || '';
+        };
+        const apiUrl = getApiUrl();
 
         const uploadZone = document.getElementById('uploadZone');
         const fileInput = document.getElementById('fileInput');

@@ -20,4 +20,7 @@ fi
 # source /path/to/your/venv/bin/activate
 
 # Run the analysis using the main entry point of the application
-python -m src "$PST_FILE"
+if ! python -m src "$PST_FILE"; then
+    echo "Error: Analysis failed"
+    exit 1
+fi

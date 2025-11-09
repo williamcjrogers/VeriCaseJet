@@ -125,7 +125,7 @@ def classify_document(text: str, filename: str) -> DocumentClassification:
         confidence = 0.3
         suggested_folder = 'General'
     else:
-        doc_type = max(scores, key=scores.get)
+        doc_type = max(scores, key=lambda k: scores[k])
         max_score = scores[doc_type]
         # Normalize confidence to 0-1 range
         confidence = min(0.95, max_score / 10)

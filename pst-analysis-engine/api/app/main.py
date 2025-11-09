@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, List
 from uuid import uuid4
@@ -30,6 +30,7 @@ from .simple_cases import router as simple_cases_router
 from .programmes import router as programmes_router
 from .correspondence import router as correspondence_router, wizard_router  # PST Analysis endpoints
 from .refinement import router as refinement_router  # AI refinement wizard
+from .auth_enhanced import router as auth_enhanced_router  # Enhanced authentication
 
 logger = logging.getLogger(__name__)
 bearer = HTTPBearer()
@@ -76,6 +77,11 @@ app.include_router(cases_router)
 app.include_router(programmes_router)
 app.include_router(correspondence_router)  # PST Analysis & email correspondence
 app.include_router(refinement_router)  # AI refinement wizard endpoints
+app.include_router(auth_enhanced_router)  # Enhanced authentication endpoints
+
+# Import and include unified router
+from app.correspondence import unified_router
+app.include_router(unified_router)  # Unified endpoints for both projects and cases
 
 origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 if origins:
@@ -138,19 +144,111 @@ def signup(payload: dict = Body(...), db: Session = Depends(get_db)):
     display_name = (payload.get("display_name") or payload.get("full_name") or "").strip()
     from .models import User
     if db.query(User).filter(User.email==email).first(): raise HTTPException(409,"email already registered")
-    user=User(email=email, password_hash=hash_password(password), display_name=display_name or None); db.add(user); db.commit()
+    # Generate verification token
+    from .security_enhanced import generate_token
+    verification_token = generate_token()
+    
+    user=User(
+        email=email, 
+        password_hash=hash_password(password), 
+        display_name=display_name or None,
+        verification_token=verification_token,
+        email_verified=False
+    )
+    db.add(user)
+    db.commit()
+    
+    # Send verification email
+    from .email_service import email_service
+    email_service.send_verification_email(
+        to_email=email,
+        user_name=display_name or email.split('@')[0],
+        verification_token=verification_token
+    )
+    
     token=sign_token(str(user.id), user.email)
-    return {"access_token": token, "token_type": "bearer", "user":{"id":str(user.id),"email":user.email,"display_name":display_name,"full_name":display_name}}
+    return {
+        "access_token": token, 
+        "token_type": "bearer", 
+        "user": {
+            "id": str(user.id),
+            "email": user.email,
+            "display_name": display_name,
+            "full_name": display_name,
+            "email_verified": False
+        },
+        "message": "Registration successful. Please check your email to verify your account."
+    }
 
 @app.post("/api/auth/login")
 @app.post("/auth/login")  # Keep old endpoint for compatibility
 def login(payload: dict = Body(...), db: Session = Depends(get_db)):
-    email=(payload.get("email") or "").strip().lower(); password=payload.get("password") or ""
-    user=db.query(User).filter(User.email==email).first()
-    if not user or not verify_password(password, user.password_hash): raise HTTPException(401,"invalid credentials")
-    token=sign_token(str(user.id), user.email)
-    display_name = getattr(user, "display_name", None) or ""
-    return {"access_token": token, "token_type": "bearer", "user":{"id":str(user.id),"email":user.email,"display_name":display_name,"full_name":display_name}}
+    try:
+        email = (payload.get("email") or "").strip().lower()
+        password = payload.get("password") or ""
+        
+        if not email or not password:
+            raise HTTPException(status_code=400, detail="Email and password required")
+        
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        # Import enhanced security functions
+        from .security_enhanced import is_account_locked, handle_failed_login, handle_successful_login, record_login_attempt
+        
+        # Check if account is locked
+        if is_account_locked(user):
+            remaining_minutes = int((user.locked_until - datetime.now(timezone.utc)).total_seconds() / 60)
+            raise HTTPException(
+                status_code=403,
+                detail=f"Account is locked. Try again in {remaining_minutes} minutes."
+            )
+        
+        # Verify password with error handling
+        try:
+            password_valid = verify_password(password, user.password_hash)
+        except Exception as e:
+            logger.error(f"Password verification error for {email}: {e}")
+            handle_failed_login(user, db)
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        if not password_valid:
+            handle_failed_login(user, db)
+            attempts_remaining = 5 - (user.failed_login_attempts or 0)
+            raise HTTPException(
+                status_code=401,
+                detail=f"Invalid credentials. {attempts_remaining} attempts remaining."
+            )
+        
+        # Reset failed attempts on success
+        handle_successful_login(user, db)
+        
+        # Update last login
+        try:
+            user.last_login_at = datetime.now()
+            db.commit()
+        except Exception:
+            pass  # Non-critical
+        
+        token = sign_token(str(user.id), user.email)
+        display_name = getattr(user, "display_name", None) or ""
+        
+        return {
+            "access_token": token, 
+            "token_type": "bearer", 
+            "user": {
+                "id": str(user.id),
+                "email": user.email,
+                "display_name": display_name,
+                "full_name": display_name
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login error: {e}")
+        raise HTTPException(status_code=500, detail="Login failed")
 
 @app.get("/api/auth/me")
 def get_current_user_info(creds: HTTPAuthorizationCredentials = Depends(bearer), db: Session = Depends(get_db)):

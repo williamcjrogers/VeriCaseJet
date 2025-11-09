@@ -48,6 +48,12 @@ class UpdateUserRequest(BaseModel):
     is_active: Optional[bool] = None
     display_name: Optional[str] = None
 
+class CreateUserRequest(BaseModel):
+    email: str
+    display_name: Optional[str] = None
+    role: Optional[str] = "VIEWER"
+    send_invite: bool = True
+
 class CreateInvitationRequest(BaseModel):
     email: EmailStr
     role: str = "viewer"
@@ -127,6 +133,61 @@ def change_password(
     return {"message": "password changed successfully"}
 
 # Admin endpoints
+@router.post("", response_model=UserListItem)
+def create_user(
+    data: CreateUserRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """Create a new user (admin only)"""
+    from .models import User as UserModel
+    
+    # Validate email
+    if db.query(UserModel).filter(UserModel.email == data.email.lower()).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Generate temporary password
+    from .security_enhanced import generate_token, hash_password
+    temp_password = generate_token()[:12]  # Use first 12 chars of token
+    
+    # Create user
+    user = UserModel(
+        email=data.email.lower(),
+        password_hash=hash_password(temp_password),
+        display_name=data.display_name,
+        role=UserRole(data.role) if data.role else UserRole.VIEWER,
+        is_active=True,
+        email_verified=False,
+        verification_token=generate_token()
+    )
+    
+    try:
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        
+        # Send welcome email with temp password if requested
+        if data.send_invite:
+            from .email_service import email_service
+            # TODO: Create welcome email template with temp password
+            logger.info(f"Welcome email would be sent to {user.email} with temp password")
+        
+        logger.info(f"User {user.email} created by admin {admin.email}")
+        
+        return UserListItem(
+            id=str(user.id),
+            email=user.email,
+            display_name=user.display_name,
+            role=user.role.value,
+            is_active=user.is_active,
+            created_at=user.created_at,
+            last_login_at=user.last_login_at
+        )
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to create user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create user")
+
 @router.get("", response_model=List[UserListItem])
 def list_users(
     db: Session = Depends(get_db),

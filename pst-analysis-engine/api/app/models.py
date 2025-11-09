@@ -1,7 +1,7 @@
 import uuid
 from sqlalchemy import Column, String, DateTime, Text, JSON, Enum, Integer, ForeignKey, Boolean, Index
 from sqlalchemy.sql import func, expression
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from enum import Enum as PyEnum
 from .db import Base
@@ -22,6 +22,60 @@ class User(Base):
     last_login_at = Column(DateTime(timezone=True), nullable=True)
     display_name = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Enhanced security fields
+    email_verified = Column(Boolean, default=False, nullable=False)
+    verification_token = Column(String(255), nullable=True)
+    reset_token = Column(String(255), nullable=True)
+    reset_token_expires = Column(DateTime(timezone=True), nullable=True)
+    failed_login_attempts = Column(Integer, default=0, nullable=False)
+    locked_until = Column(DateTime(timezone=True), nullable=True)
+    last_failed_attempt = Column(DateTime(timezone=True), nullable=True)
+    password_changed_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+    password_history = relationship("PasswordHistory", back_populates="user", cascade="all, delete-orphan")
+    login_attempts = relationship("LoginAttempt", back_populates="user", cascade="all, delete-orphan")
+
+class UserSession(Base):
+    __tablename__ = "user_sessions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    token_jti = Column(String(255), nullable=False, unique=True, index=True)
+    ip_address = Column(String(45), nullable=True)  # Supports both IPv4 and IPv6
+    user_agent = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    last_activity = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    user = relationship("User", back_populates="sessions")
+
+class PasswordHistory(Base):
+    __tablename__ = "password_history"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    user = relationship("User", back_populates="password_history")
+
+class LoginAttempt(Base):
+    __tablename__ = "login_attempts"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(String(255), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(Text, nullable=True)
+    success = Column(Boolean, nullable=False)
+    failure_reason = Column(String(100), nullable=True)
+    attempted_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    user = relationship("User", back_populates="login_attempts")
 class Document(Base):
     __tablename__="documents"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -163,12 +217,21 @@ class Case(Base):
     __tablename__="cases"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     case_number = Column(String(100), unique=True, nullable=False, index=True)
+    case_id_custom = Column(String(100), nullable=True, index=True)
     name = Column(String(500), nullable=False)
     description = Column(Text)
     project_name = Column(String(500))
     contract_type = Column(String(100))  # JCT, NEC, FIDIC
     dispute_type = Column(String(100))   # Delay, Defects, Variation
     status = Column(String(50), default="active")  # active, closed, archived
+    case_status = Column(String(50), nullable=True)
+    resolution_route = Column(String(100), nullable=True)
+    claimant = Column(String(255), nullable=True)
+    defendant = Column(String(255), nullable=True)
+    client = Column(String(255), nullable=True)
+    legal_team = Column(JSON, nullable=True)
+    heads_of_claim = Column(JSON, nullable=True)
+    deadlines = Column(JSON, nullable=True)
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -326,27 +389,6 @@ class SearchQuery(Base):
     company = relationship("Company")
     case = relationship("Case")
 
-class Programme(Base):
-    """Construction programme/schedule (Asta Powerproject or PDF)"""
-    __tablename__="programmes"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
-    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
-    programme_type = Column(String(50), nullable=False)  # as_planned, as_built, interim
-    programme_date = Column(DateTime(timezone=True), nullable=True)
-    version_number = Column(String(50), nullable=True)
-    file_format = Column(String(20))  # asta_pp, asta_xml, pdf, mpp, primavera
-    activities = Column(JSON)  # Activity data
-    critical_path = Column(JSON)  # Critical path activity IDs
-    milestones = Column(JSON)
-    project_start = Column(DateTime(timezone=True))
-    project_finish = Column(DateTime(timezone=True))
-    data_date = Column(DateTime(timezone=True))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    uploaded_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
-    case = relationship("Case")
-    document = relationship("Document")
-
 class DelayEvent(Base):
     """Identified delay/slippage between as-planned and as-built"""
     __tablename__="delay_events"
@@ -395,7 +437,7 @@ class Project(Base):
     exclude_people = Column(Text, nullable=True)  # Comma-separated names/emails
     project_terms = Column(Text, nullable=True)  # Project-specific terms
     exclude_keywords = Column(Text, nullable=True)  # Keywords to exclude
-    metadata = Column(JSON, nullable=True, default=lambda: {})  # Flexible storage for refinements etc
+    meta = Column("metadata", JSON, nullable=True, default=lambda: {})  # Flexible storage for refinements etc
     owner_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     owner = relationship("User")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -430,7 +472,8 @@ class EmailMessage(Base):
     __tablename__ = "email_messages"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     pst_file_id = Column(UUID(as_uuid=True), ForeignKey("pst_files.id"), nullable=False)
-    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
+    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)  # Now nullable
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)  # New field
     
     # Email metadata
     message_id = Column(String(512), nullable=True, index=True)  # RFC message-id
@@ -460,15 +503,15 @@ class EmailMessage(Base):
     importance = Column(String(20), nullable=True)  # high, normal, low
     
     # Tagging (populated during processing)
-    matched_stakeholders = Column(JSON, nullable=True)  # Array of stakeholder IDs
-    matched_keywords = Column(JSON, nullable=True)  # Array of keyword IDs
+    matched_stakeholders = Column(JSONB, nullable=True)  # Array of stakeholder IDs
+    matched_keywords = Column(JSONB, nullable=True)  # Array of keyword IDs
     
     # Storage optimization: Store only preview if body is too large
     body_preview = Column(Text, nullable=True)  # First 10KB
     body_full_s3_key = Column(String(512), nullable=True)  # S3 key if body > 10KB
     
     # Flexible metadata storage
-    metadata = Column(JSON, nullable=True, default=lambda: {})
+    meta = Column("metadata", JSON, nullable=True, default=lambda: {})
     
     pst_file = relationship("PSTFile")
     case = relationship("Case")
@@ -507,7 +550,7 @@ class Stakeholder(Base):
     """Stakeholders for auto-tagging emails"""
     __tablename__ = "stakeholders"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
+    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
     
     role = Column(String(255), nullable=False)  # e.g., "Main Contractor", "Client"
@@ -527,7 +570,7 @@ class Keyword(Base):
     """Keywords for auto-tagging emails"""
     __tablename__ = "keywords"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
+    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
     
     keyword_name = Column(String(255), nullable=False)
@@ -573,35 +616,3 @@ class Programme(Base):
     project = relationship("Project")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-
-class DelayEvent(Base):
-    """Delay events identified from programme variance analysis"""
-    __tablename__ = "delay_events"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
-    
-    as_planned_programme_id = Column(UUID(as_uuid=True), ForeignKey("programmes.id"), nullable=True)
-    as_built_programme_id = Column(UUID(as_uuid=True), ForeignKey("programmes.id"), nullable=True)
-    
-    activity_id = Column(String(255), nullable=True)  # Activity ID from programme
-    activity_name = Column(String(512), nullable=True)
-    
-    planned_start = Column(DateTime(timezone=True), nullable=True)
-    actual_start = Column(DateTime(timezone=True), nullable=True)
-    planned_finish = Column(DateTime(timezone=True), nullable=True)
-    actual_finish = Column(DateTime(timezone=True), nullable=True)
-    
-    delay_days = Column(Integer, nullable=True)
-    is_on_critical_path = Column(Boolean, default=False)
-    
-    delay_cause = Column(Text, nullable=True)
-    responsibility = Column(String(255), nullable=True)
-    notes = Column(Text, nullable=True)
-    
-    # Link to related emails/correspondence
-    linked_correspondence_ids = Column(JSON, nullable=True)  # Array of email message IDs
-    
-    case = relationship("Case")
-    as_planned_programme = relationship("Programme", foreign_keys=[as_planned_programme_id])
-    as_built_programme = relationship("Programme", foreign_keys=[as_built_programme_id])
-    created_at = Column(DateTime(timezone=True), server_default=func.now())

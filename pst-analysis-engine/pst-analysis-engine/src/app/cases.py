@@ -179,23 +179,27 @@ def list_cases(
     # Add counts
     result = []
     for case in cases:
-        case_dict = {
-            "id": str(case.id),
-            "case_number": case.case_number,
-            "name": case.name,
-            "description": case.description,
-            "project_name": case.project_name,
-            "contract_type": case.contract_type,
-            "dispute_type": case.dispute_type,
-            "status": case.status,
-            "owner_id": str(case.owner_id),
-            "company_id": str(case.company_id) if case.company_id else None,
-            "created_at": case.created_at,
-            "updated_at": case.updated_at,
-            "evidence_count": db.query(Evidence).filter(Evidence.case_id == case.id).count(),
-            "issue_count": db.query(Issue).filter(Issue.case_id == case.id).count()
-        }
-        result.append(CaseOut(**case_dict))
+        try:
+            case_dict = {
+                "id": str(case.id),
+                "case_number": case.case_number,
+                "name": case.name,
+                "description": case.description,
+                "project_name": case.project_name,
+                "contract_type": case.contract_type,
+                "dispute_type": case.dispute_type,
+                "status": case.status,
+                "owner_id": str(case.owner_id),
+                "company_id": str(case.company_id) if case.company_id else None,
+                "created_at": case.created_at,
+                "updated_at": case.updated_at,
+                "evidence_count": 0,
+                "issue_count": 0
+            }
+            result.append(CaseOut(**case_dict))
+        except (AttributeError, ValueError, TypeError) as e:
+            logger.error(f"Error processing case {case.id}: {e}", exc_info=True)
+            continue
     
     return result
 
@@ -211,6 +215,14 @@ def create_case(
     if existing:
         raise HTTPException(status_code=400, detail="Case number already exists")
     
+    # Validate company_id if provided
+    company_uuid = None
+    if data.company_id:
+        try:
+            company_uuid = uuid.UUID(data.company_id)
+        except (ValueError, AttributeError):
+            raise HTTPException(status_code=400, detail="Invalid company ID format")
+    
     case = Case(
         id=uuid.uuid4(),
         case_number=data.case_number,
@@ -220,12 +232,17 @@ def create_case(
         contract_type=data.contract_type,
         dispute_type=data.dispute_type,
         owner_id=current_user.id,
-        company_id=uuid.UUID(data.company_id) if data.company_id else None,
+        company_id=company_uuid,
         status="active"
     )
-    db.add(case)
-    db.commit()
-    db.refresh(case)
+    try:
+        db.add(case)
+        db.commit()
+        db.refresh(case)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to create case: {e}", exc_info=True)
+        raise HTTPException(500, "Failed to create case")
     
     return CaseOut(
         id=str(case.id),
@@ -251,7 +268,12 @@ def get_case(
     current_user: User = Depends(get_current_user)
 ):
     """Get case details"""
-    case = db.query(Case).filter(Case.id == uuid.UUID(case_id)).first()
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(400, "Invalid case ID format")
+    
+    case = db.query(Case).filter(Case.id == case_uuid).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     
@@ -273,8 +295,8 @@ def get_case(
         company_id=str(case.company_id) if case.company_id else None,
         created_at=case.created_at,
         updated_at=case.updated_at,
-        evidence_count=db.query(Evidence).filter(Evidence.case_id == case.id).count(),
-        issue_count=db.query(Issue).filter(Issue.case_id == case.id).count()
+        evidence_count=0,
+        issue_count=0
     )
 
 @router.put("/{case_id}", response_model=CaseOut)
@@ -320,8 +342,8 @@ def update_case(
         company_id=str(case.company_id) if case.company_id else None,
         created_at=case.created_at,
         updated_at=case.updated_at,
-        evidence_count=db.query(Evidence).filter(Evidence.case_id == case.id).count(),
-        issue_count=db.query(Issue).filter(Issue.case_id == case.id).count()
+        evidence_count=0,
+        issue_count=0
     )
 
 # ============================================================================
@@ -386,8 +408,8 @@ def list_case_evidence(
                 meta=evidence.meta,
                 thread_id=evidence.thread_id
             ))
-        except Exception as e:
-            logger.error(f"Error processing evidence {evidence.id}: {e}")
+        except (AttributeError, ValueError, TypeError) as e:
+            logger.error(f"Error processing evidence {evidence.id}: {e}", exc_info=True)
             continue
     
     return evidence_list
@@ -404,9 +426,15 @@ def link_evidence(
     try:
         case_uuid = uuid.UUID(case_id)
     except (ValueError, AttributeError) as e:
+        logger.error(f"Invalid case ID format: {case_id}, error: {e}")
         raise HTTPException(status_code=400, detail="Invalid case ID format")
     
-    case = db.query(Case).filter(Case.id == case_uuid).first()
+    try:
+        case = db.query(Case).filter(Case.id == case_uuid).first()
+    except Exception as e:
+        logger.error(f"Database error fetching case {case_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch case")
+    
     if not case or case.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Case not found")
     
@@ -440,9 +468,14 @@ def link_evidence(
         relevance_score=data.relevance_score,
         added_by_id=current_user.id
     )
-    db.add(evidence)
-    db.commit()
-    db.refresh(evidence)
+    try:
+        db.add(evidence)
+        db.commit()
+        db.refresh(evidence)
+    except (ValueError, TypeError) as e:
+        db.rollback()
+        logger.error(f"Failed to create evidence: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to create evidence")
     
     return EvidenceOut(
         id=str(evidence.id),
@@ -487,10 +520,19 @@ def list_case_issues(
         logger.error(f"Database error fetching issues for case {case_id}: {e}")
         raise HTTPException(500, "Failed to fetch issues")
     
+    # Get evidence counts for all issues in one query to avoid N+1
+    from sqlalchemy import func
+    issue_ids = [issue.id for issue in issues]
+    evidence_counts = dict(
+        db.query(Evidence.issue_id, func.count(Evidence.id))
+        .filter(Evidence.issue_id.in_(issue_ids))
+        .group_by(Evidence.issue_id)
+        .all()
+    ) if issue_ids else {}
+    
     result = []
     for issue in issues:
         try:
-            evidence_count = db.query(Evidence).filter(Evidence.issue_id == issue.id).count()
             result.append(IssueOut(
                 id=str(issue.id),
                 case_id=str(issue.case_id),
@@ -500,10 +542,10 @@ def list_case_issues(
                 status=issue.status,
                 relevant_contract_clauses=issue.relevant_contract_clauses,
                 created_at=issue.created_at,
-                evidence_count=evidence_count
+                evidence_count=evidence_counts.get(issue.id, 0)
             ))
-        except Exception as e:
-            logger.error(f"Error processing issue {issue.id}: {e}")
+        except (AttributeError, ValueError, TypeError) as e:
+            logger.error(f"Error processing issue {issue.id}: {e}", exc_info=True)
             continue
     
     return result
@@ -518,7 +560,8 @@ def create_issue(
     """Create a new issue for a case"""
     try:
         case_uuid = uuid.UUID(case_id)
-    except (ValueError, AttributeError):
+    except (ValueError, AttributeError) as e:
+        logger.warning(f"Invalid case ID format: {case_id}")
         raise HTTPException(status_code=400, detail="Invalid case ID format")
     
     case = db.query(Case).filter(Case.id == case_uuid).first()
@@ -534,9 +577,14 @@ def create_issue(
         relevant_contract_clauses=data.relevant_contract_clauses,
         status="open"
     )
-    db.add(issue)
-    db.commit()
-    db.refresh(issue)
+    try:
+        db.add(issue)
+        db.commit()
+        db.refresh(issue)
+    except (ValueError, TypeError) as e:
+        db.rollback()
+        logger.error(f"Failed to create issue: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to create issue")
     
     return IssueOut(
         id=str(issue.id),
@@ -562,7 +610,12 @@ def list_case_claims(
     current_user: User = Depends(get_current_user)
 ):
     """List all claims for a case"""
-    query = db.query(Claim).filter(Claim.case_id == uuid.UUID(case_id))
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(400, "Invalid case ID format")
+    
+    query = db.query(Claim).filter(Claim.case_id == case_uuid)
     
     if claim_type:
         query = query.filter(Claim.claim_type == claim_type)
@@ -590,7 +643,13 @@ def create_claim(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new claim for a case"""
-    case = db.query(Case).filter(Case.id == uuid.UUID(case_id)).first()
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except (ValueError, AttributeError) as e:
+        logger.warning(f"Invalid case ID format: {case_id}")
+        raise HTTPException(400, "Invalid case ID format")
+    
+    case = db.query(Case).filter(Case.id == case_uuid).first()
     if not case or case.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Case not found")
     
@@ -602,12 +661,16 @@ def create_claim(
         description=data.description,
         claimed_amount=data.claimed_amount,
         currency=data.currency,
-        claim_date=data.claim_date,
-        status="draft"
+        claim_date=data.claim_date
     )
-    db.add(claim)
-    db.commit()
-    db.refresh(claim)
+    try:
+        db.add(claim)
+        db.commit()
+        db.refresh(claim)
+    except (ValueError, TypeError) as e:
+        db.rollback()
+        logger.error(f"Error creating claim for case {case_id}: {e}", exc_info=True)
+        raise HTTPException(500, "Failed to create claim")
     
     return ClaimOut(
         id=str(claim.id),
@@ -635,6 +698,10 @@ def list_available_documents(
     current_user: User = Depends(get_current_user)
 ):
     """List documents that can be linked as evidence"""
+    # Validate limit parameter
+    if limit < 1 or limit > 500:
+        raise HTTPException(status_code=400, detail="Limit must be between 1 and 500")
+    
     # Get all user's documents
     query = db.query(Document).filter(
         Document.owner_user_id == current_user.id,
@@ -651,6 +718,16 @@ def list_available_documents(
     
     documents = query.order_by(desc(Document.created_at)).limit(limit).all()
     
+    # Get all linked document IDs in one query to avoid N+1
+    case_uuid = uuid.UUID(case_id)
+    doc_ids = [doc.id for doc in documents]
+    linked_doc_ids = set(
+        doc_id for (doc_id,) in db.query(Evidence.document_id).filter(
+            Evidence.case_id == case_uuid,
+            Evidence.document_id.in_(doc_ids)
+        ).all()
+    ) if doc_ids else set()
+    
     return [{
         "id": str(doc.id),
         "filename": doc.filename,
@@ -658,10 +735,7 @@ def list_available_documents(
         "content_type": doc.content_type,
         "size": doc.size,
         "created_at": doc.created_at.isoformat() if doc.created_at else None,
-        "is_linked": db.query(Evidence).filter(
-            Evidence.document_id == doc.id,
-            Evidence.case_id == uuid.UUID(case_id)
-        ).first() is not None,
+        "is_linked": doc.id in linked_doc_ids,
         "metadata": doc.meta or {}
     } for doc in documents]
 
@@ -672,11 +746,21 @@ def list_case_documents(
     current_user: User = Depends(get_current_user)
 ):
     """List all documents uploaded for a case (including PST files)"""
-    # For now, return all documents owned by user
+    # Validate case_id format
+    try:
+        uuid.UUID(case_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid case ID format")
+    
+    # For now, return all documents owned by user (limited to 1000 for performance)
     # TODO: Filter by case_id once we add case_id to Document model
-    documents = db.query(Document).filter(
-        Document.owner_user_id == current_user.id
-    ).order_by(desc(Document.created_at)).all()
+    try:
+        documents = db.query(Document).filter(
+            Document.owner_user_id == current_user.id
+        ).order_by(desc(Document.created_at)).limit(1000).all()
+    except (ValueError, TypeError) as e:
+        logger.error(f"Failed to fetch documents: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch documents")
     
     return [{
         "id": str(doc.id),
@@ -686,5 +770,100 @@ def list_case_documents(
         "content_type": doc.content_type,
         "uploaded_at": doc.created_at.isoformat() if doc.created_at else None,
         "metadata": doc.meta or {},
-        "pst_processing": (doc.meta or {}).get('pst_processing') if doc.meta else None
+        "pst_processing": doc.meta.get('pst_processing') if doc.meta else None
     } for doc in documents]
+
+
+# ============================================================================
+# Project Endpoints
+# ============================================================================
+
+class ProjectCreate(BaseModel):
+    project_name: str
+    project_code: str
+    start_date: Optional[datetime] = None
+    completion_date: Optional[datetime] = None
+    contract_type: Optional[str] = None
+    stakeholders: Optional[List[str]] = []
+    keywords: Optional[List[str]] = []
+
+class ProjectOut(BaseModel):
+    id: str
+    project_name: str
+    project_code: str
+    start_date: Optional[datetime]
+    completion_date: Optional[datetime]
+    contract_type: Optional[str]
+    stakeholders: Optional[List[str]]
+    keywords: Optional[List[str]]
+    case_id: str
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+@router.post("/{case_id}/projects", response_model=ProjectOut)
+def create_project(
+    case_id: str,
+    data: ProjectCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create project metadata for a case"""
+    from .models import Project
+    from pydantic import constr
+    
+    # Validate project_name length
+    if len(data.project_name) < 2 or len(data.project_name) > 200:
+        raise HTTPException(400, "project_name must be 2-200 characters")
+    
+    # Validate project_code
+    if not data.project_code or len(data.project_code) < 1:
+        raise HTTPException(400, "project_code is required")
+    
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(400, "Invalid case ID format")
+    
+    case = db.query(Case).filter(Case.id == case_uuid).first()
+    if not case or case.owner_id != current_user.id:
+        raise HTTPException(404, "Case not found")
+    
+    # Check if project_code already exists
+    existing = db.query(Project).filter(Project.project_code == data.project_code).first()
+    if existing:
+        raise HTTPException(400, "project_code already exists")
+    
+    project = Project(
+        id=uuid.uuid4(),
+        project_name=data.project_name,
+        project_code=data.project_code,
+        start_date=data.start_date,
+        completion_date=data.completion_date,
+        contract_type=data.contract_type,
+        stakeholders=data.stakeholders,
+        keywords=data.keywords,
+        case_id=case_uuid
+    )
+    try:
+        db.add(project)
+        db.commit()
+        db.refresh(project)
+    except (ValueError, TypeError) as e:
+        db.rollback()
+        logger.error(f"Error creating project: {e}", exc_info=True)
+        raise HTTPException(500, "Failed to create project")
+    
+    return ProjectOut(
+        id=str(project.id),
+        project_name=project.project_name,
+        project_code=project.project_code,
+        start_date=project.start_date,
+        completion_date=project.completion_date,
+        contract_type=project.contract_type,
+        stakeholders=project.stakeholders or [],
+        keywords=project.keywords or [],
+        case_id=str(project.case_id),
+        created_at=project.created_at
+    )

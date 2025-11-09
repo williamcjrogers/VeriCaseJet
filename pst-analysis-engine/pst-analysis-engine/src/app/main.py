@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, List
 from uuid import uuid4
@@ -109,12 +109,49 @@ def signup(payload: dict = Body(...), db: Session = Depends(get_db)):
 @app.post("/api/auth/login")
 @app.post("/auth/login")  # Keep old endpoint for compatibility
 def login(payload: dict = Body(...), db: Session = Depends(get_db)):
-    email=(payload.get("email") or "").strip().lower(); password=payload.get("password") or ""
-    user=db.query(User).filter(User.email==email).first()
-    if not user or not verify_password(password, user.password_hash): raise HTTPException(401,"invalid credentials")
-    token=sign_token(str(user.id), user.email)
-    display_name = getattr(user, "display_name", None) or ""
-    return {"access_token": token, "token_type": "bearer", "user":{"id":str(user.id),"email":user.email,"display_name":display_name,"full_name":display_name}}
+    try:
+        email = (payload.get("email") or "").strip().lower()
+        password = payload.get("password") or ""
+        
+        if not email or not password:
+            raise HTTPException(status_code=400, detail="Email and password required")
+        
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        # Verify password with error handling
+        try:
+            password_valid = verify_password(password, user.password_hash)
+        except Exception as e:
+            logger.error(f"Password verification error: {e}")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        if not password_valid:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        # Update last login
+        user.last_login_at = datetime.now(timezone.utc)
+        db.commit()
+        
+        token = sign_token(str(user.id), user.email)
+        display_name = getattr(user, "display_name", None) or ""
+        
+        return {
+            "access_token": token, 
+            "token_type": "bearer", 
+            "user": {
+                "id": str(user.id),
+                "email": user.email,
+                "display_name": display_name,
+                "full_name": display_name
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login error: {e}")
+        raise HTTPException(status_code=500, detail="Login failed")
 
 @app.get("/api/auth/me")
 def get_current_user_info(creds: HTTPAuthorizationCredentials = Depends(bearer), db: Session = Depends(get_db)):
@@ -130,36 +167,58 @@ def create_case(payload: dict = Body(...), db: Session = Depends(get_db), user: 
     from .models import Case, Company, UserCompany
     
     # Get or create company for this user
-    user_company = db.query(UserCompany).filter(UserCompany.user_id == user.id, UserCompany.is_primary == True).first()
+    user_company = db.query(UserCompany).filter(UserCompany.user_id == user.id, UserCompany.is_primary.is_(True)).first()
     if user_company:
         company = user_company.company
     else:
-        # Create new company
-        company = Company(name=payload.get("company_name") or "My Company")
-        db.add(company)
-        db.flush()
-        # Link user to company
-        user_company = UserCompany(user_id=user.id, company_id=company.id, role="admin", is_primary=True)
-        db.add(user_company)
-        db.flush()
+        # Create new company with error handling
+        try:
+            company_name = payload.get("company_name") or "My Company"
+            if len(company_name) > 255:
+                raise HTTPException(status_code=400, detail="Company name too long (max 255 characters)")
+            
+            company = Company(name=company_name)
+            db.add(company)
+            db.flush()
+        except HTTPException:
+            raise
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to create company: {e}")
+            raise HTTPException(status_code=500, detail="Failed to create company")
+        
+        # Link user to company with error handling
+        try:
+            user_company = UserCompany(user_id=user.id, company_id=company.id, role="admin", is_primary=True)
+            db.add(user_company)
+            db.flush()
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to link user to company: {e}")
+            raise HTTPException(status_code=500, detail="Failed to link user to company")
     
     # Extract case data from wizard payload
     details = payload.get("details", {})
     stakeholders = payload.get("stakeholders", {})
     
-    case = Case(
-        case_number=details.get("projectCode") or f"CASE-{uuid4().hex[:8].upper()}",
-        name=details.get("projectName") or "Untitled Case",
-        description=details.get("description") or "",
-        project_name=details.get("projectName"),
-        contract_type=payload.get("contractType") or stakeholders.get("contractType"),
-        status="active",
-        owner_id=user.id,
-        company_id=company.id
-    )
-    db.add(case)
-    db.commit()
-    db.refresh(case)
+    try:
+        case = Case(
+            case_number=details.get("projectCode") or f"CASE-{uuid4().hex[:8].upper()}",
+            name=details.get("projectName") or "Untitled Case",
+            description=details.get("description") or "",
+            project_name=details.get("projectName"),
+            contract_type=payload.get("contractType") or stakeholders.get("contractType"),
+            status="active",
+            owner_id=user.id,
+            company_id=company.id
+        )
+        db.add(case)
+        db.commit()
+        db.refresh(case)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to create case: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create case")
     
     return {
         "id": str(case.id),
@@ -173,14 +232,21 @@ def create_case(payload: dict = Body(...), db: Session = Depends(get_db), user: 
 def init_upload(body: dict = Body(...), user: User = Depends(current_user)):
     """Initialize file upload - returns upload_id and presigned URL"""
     filename=body.get("filename"); ct=body.get("content_type") or "application/octet-stream"
-    size=int(body.get("size") or 0)
+    try:
+        size=int(body.get("size") or 0)
+    except (ValueError, TypeError):
+        raise HTTPException(400, "invalid size value")
     
     # Generate unique upload ID and S3 key
     upload_id = str(uuid4())
     s3_key = f"uploads/{user.id}/{upload_id}/{filename}"
     
     # Get presigned PUT URL
-    upload_url = presign_put(s3_key, ct)
+    try:
+        upload_url = presign_put(s3_key, ct)
+    except Exception as e:
+        logger.exception("Failed to generate presigned URL")
+        raise HTTPException(500, "failed to generate upload url")
     
     return {
         "upload_id": upload_id,
@@ -208,6 +274,8 @@ def complete_upload(body: dict = Body(...), db: Session = Depends(get_db), user:
     else:
         # Legacy format: use provided key
         key = body.get("key")
+        if not key:
+            raise HTTPException(status_code=400, detail="Key is required when upload_id is not provided")
     
     ct = body.get("content_type") or "application/octet-stream"
     size = int(body.get("size") or 0)
@@ -256,9 +324,42 @@ def multipart_part_url(key: str, uploadId: str, partNumber: int, user: User = De
     return {"url": presign_part(key, uploadId, partNumber)}
 @app.post("/uploads/multipart/complete")
 def multipart_complete_ep(body: dict = Body(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
-    key=body["key"]; upload_id=body["uploadId"]; parts=body["parts"]; multipart_complete(key, upload_id, parts)
-    filename=body.get("filename") or "file"; ct=body.get("content_type") or "application/octet-stream"
-    size=int(body.get("size") or 0); title=body.get("title"); path=body.get("path")
+    # Validate required fields
+    if "key" not in body:
+        raise HTTPException(status_code=400, detail="Missing required field: key")
+    if "uploadId" not in body:
+        raise HTTPException(status_code=400, detail="Missing required field: uploadId")
+    if "parts" not in body:
+        raise HTTPException(status_code=400, detail="Missing required field: parts")
+    
+    key = body["key"]
+    upload_id = body["uploadId"]
+    parts = body["parts"]
+    
+    # Validate parts is a list
+    if not isinstance(parts, list):
+        raise HTTPException(status_code=400, detail="Parts must be a list")
+    
+    # Complete the multipart upload
+    try:
+        multipart_complete(key, upload_id, parts)
+    except Exception as e:
+        logger.error(f"Failed to complete multipart upload: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to complete multipart upload: {str(e)}")
+    
+    # Extract metadata with validation
+    filename = body.get("filename") or "file"
+    ct = body.get("content_type") or "application/octet-stream"
+    
+    # Parse size with error handling
+    try:
+        size = int(body.get("size", 0) or 0)
+    except (ValueError, TypeError):
+        logger.warning(f"Invalid size value: {body.get('size')}")
+        size = 0
+    
+    title = body.get("title")
+    path = body.get("path")
     # Set empty paths to None so they're treated consistently
     if path == "": path = None
     
@@ -273,8 +374,17 @@ def multipart_complete_ep(body: dict = Body(...), db: Session = Depends(get_db),
         status=DocStatus.NEW, 
         owner_user_id=user.id
     )
-    db.add(doc); db.commit(); celery_app.send_task("worker_app.worker.ocr_and_index", args=[str(doc.id)])
-    return {"id": str(doc.id), "status":"QUEUED"}
+    
+    try:
+        db.add(doc)
+        db.commit()
+        celery_app.send_task("worker_app.worker.ocr_and_index", args=[str(doc.id)])
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to create document or queue OCR: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create document")
+    
+    return {"id": str(doc.id), "status": "QUEUED"}
 
 
 @app.get("/documents", response_model=DocumentListResponse)
@@ -334,7 +444,7 @@ def list_documents(
             id=str(doc.id),
             filename=doc.filename,
             path=doc.path,
-            status=doc.status.value if doc.status else DocStatus.NEW.value,
+            status=doc.status.value if doc.status is not None else DocStatus.NEW.value,
             size=doc.size or 0,
             content_type=doc.content_type,
             title=doc.title,
@@ -351,11 +461,16 @@ def list_paths(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    paths = (
-        db.query(Document.path)
-        .filter(Document.owner_user_id == user.id, Document.path.isnot(None))
-        .distinct().all()
-    )
+    """List all unique document paths for the current user"""
+    try:
+        paths = (
+            db.query(Document.path)
+            .filter(Document.owner_user_id == user.id, Document.path.isnot(None))
+            .distinct().all()
+        )
+    except Exception as e:
+        logger.error(f"Failed to fetch document paths: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch document paths")
     path_values = sorted(
         p[0]
         for p in paths
@@ -372,17 +487,21 @@ def get_recent_documents(
     """Get recently accessed or created documents"""
     from datetime import datetime, timedelta
     
-    # Get documents accessed in last 30 days, or fall back to recently created
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-    
-    # Try to get recently accessed first
-    recent_query = db.query(Document).filter(
-        Document.owner_user_id == user.id,
-        Document.last_accessed_at.isnot(None),
-        Document.last_accessed_at >= thirty_days_ago
-    ).order_by(Document.last_accessed_at.desc())
-    
-    recent_docs = recent_query.limit(limit).all()
+    try:
+        # Get documents accessed in last 30 days, or fall back to recently created
+        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+        
+        # Try to get recently accessed first
+        recent_query = db.query(Document).filter(
+            Document.owner_user_id == user.id,
+            Document.last_accessed_at.isnot(None),
+            Document.last_accessed_at >= thirty_days_ago
+        ).order_by(Document.last_accessed_at.desc())
+        
+        recent_docs = recent_query.limit(limit).all()
+    except Exception as e:
+        logger.error(f"Failed to fetch recent documents: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch recent documents")
     
     # If not enough recently accessed, add recently created
     if len(recent_docs) < limit:
@@ -404,7 +523,7 @@ def get_recent_documents(
             id=str(doc.id),
             filename=doc.filename,
             path=doc.path,
-            status=doc.status.value if doc.status else DocStatus.NEW.value,
+            status=doc.status.value if doc.status is not None else DocStatus.NEW.value,
             size=doc.size or 0,
             content_type=doc.content_type,
             title=doc.title,
@@ -419,26 +538,69 @@ def get_recent_documents(
 # Documents
 @app.get("/documents/{doc_id}")
 def get_document(doc_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    doc=db.get(Document, _parse_uuid(doc_id))
+    try:
+        doc_uuid = _parse_uuid(doc_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid document ID format")
+    
+    try:
+        doc = db.get(Document, doc_uuid)
+    except Exception as e:
+        logger.error(f"Database error while fetching document {doc_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch document")
+    
     if not doc:
-        raise HTTPException(404,"not found")
-    return {"id":str(doc.id),"filename":doc.filename,"path":doc.path,"status":doc.status.value,
-            "content_type":doc.content_type,"size":doc.size,"bucket":doc.bucket,"s3_key":doc.s3_key,
-            "title":doc.title,"metadata":doc.meta,"text_excerpt":(doc.text_excerpt or "")[:1000],
-            "created_at":doc.created_at,"updated_at":doc.updated_at}
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Check access permissions
+    if doc.owner_user_id is not None and doc.owner_user_id != user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    try:
+        return {
+            "id": str(doc.id),
+            "filename": doc.filename,
+            "path": doc.path,
+            "status": doc.status.value,
+            "content_type": doc.content_type,
+            "size": doc.size,
+            "bucket": doc.bucket,
+            "s3_key": doc.s3_key,
+            "title": doc.title,
+            "metadata": doc.meta,
+            "text_excerpt": (doc.text_excerpt or "")[:1000],
+            "created_at": doc.created_at,
+            "updated_at": doc.updated_at
+        }
+    except AttributeError as e:
+        logger.error(f"Error accessing document attributes: {e}")
+        raise HTTPException(status_code=500, detail="Document data is corrupted")
 @app.get("/documents/{doc_id}/signed_url")
 def get_signed_url(doc_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    doc=db.get(Document, _parse_uuid(doc_id))
+    try:
+        doc=db.get(Document, _parse_uuid(doc_id))
+    except Exception as e:
+        logger.exception("Database error fetching document")
+        raise HTTPException(500, "database error")
     if not doc:
         raise HTTPException(404,"not found")
-    return {"url": presign_get(doc.s3_key, 300), "filename": doc.filename, "content_type": doc.content_type}
+    try:
+        url = presign_get(doc.s3_key, 300)
+        return {"url": url, "filename": doc.filename, "content_type": doc.content_type}
+    except Exception as e:
+        logger.exception("Failed to generate presigned URL")
+        raise HTTPException(500, "failed to generate signed url")
 
 
 @app.patch("/documents/{doc_id}")
 def update_document(doc_id: str, body: dict = Body(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
     """Update document metadata (path, title, etc.)"""
-    doc = db.get(Document, _parse_uuid(doc_id))
-    if not doc or doc.owner_user_id != user.id:
+    try:
+        doc = db.get(Document, _parse_uuid(doc_id))
+    except Exception as e:
+        logger.exception("Database error fetching document")
+        raise HTTPException(500, "database error")
+    if not doc or (doc.owner_user_id is not None and doc.owner_user_id != user.id):
         raise HTTPException(404, "not found")
     
     if "path" in body:
@@ -454,8 +616,13 @@ def update_document(doc_id: str, body: dict = Body(...), db: Session = Depends(g
         doc.filename = body["filename"]
     
     doc.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(doc)
+    try:
+        db.commit()
+        db.refresh(doc)
+    except Exception as e:
+        db.rollback()
+        logger.exception("Failed to update document")
+        raise HTTPException(500, "failed to update document")
     
     return {
         "id": str(doc.id),
@@ -467,19 +634,61 @@ def update_document(doc_id: str, body: dict = Body(...), db: Session = Depends(g
 
 @app.delete("/documents/{doc_id}", status_code=204)
 def delete_document_endpoint(doc_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    doc = db.get(Document, _parse_uuid(doc_id))
-    if not doc or doc.owner_user_id != user.id:
-        raise HTTPException(404, "not found")
+    # Parse and validate document ID
+    try:
+        doc_uuid = _parse_uuid(doc_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid document ID format")
+    
+    # Fetch document with error handling
+    try:
+        doc = db.get(Document, doc_uuid)
+    except Exception as e:
+        logger.error(f"Database error while fetching document {doc_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch document")
+    
+    # Check if document exists
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Check access permissions
+    if doc.owner_user_id is not None and doc.owner_user_id != user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Track deletion failures
+    deletion_errors = []
+    
+    # Delete from S3/storage
     try:
         delete_object(doc.s3_key)
-    except Exception:
-        logger.exception("Failed to delete object %s from storage", doc.s3_key)
+    except Exception as e:
+        logger.exception(f"Failed to delete object {doc.s3_key} from storage")
+        deletion_errors.append(f"Storage deletion failed: {str(e)}")
+    
+    # Delete from search index
     try:
         os_delete(str(doc.id))
-    except Exception:
-        logger.exception("Failed to delete document %s from search index", doc.id)
-    db.delete(doc)
-    db.commit()
+    except Exception as e:
+        logger.exception(f"Failed to delete document {doc.id} from search index")
+        deletion_errors.append(f"Search index deletion failed: {str(e)}")
+    
+    # Delete from database
+    try:
+        db.delete(doc)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to delete document {doc_id} from database: {e}")
+        # If we can't delete from DB, raise error with details about what was cleaned up
+        error_msg = "Failed to delete document from database"
+        if deletion_errors:
+            error_msg += f". Partial cleanup completed with errors: {'; '.join(deletion_errors)}"
+        raise HTTPException(status_code=500, detail=error_msg)
+    
+    # If there were non-critical errors during deletion, log them but still return success
+    if deletion_errors:
+        logger.warning(f"Document {doc_id} deleted with warnings: {'; '.join(deletion_errors)}")
+    
     return Response(status_code=204)
 # Search
 @app.get("/search")
@@ -494,12 +703,38 @@ def search(q: str = Query(..., min_length=1), path_prefix: Optional[str] = None,
 # Share links
 @app.post("/shares")
 def create_share(body: dict = Body(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
-    doc_id=body.get("document_id"); hours=int(body.get("hours") or 24)
+    # Validate document_id
+    doc_id = body.get("document_id")
     if not doc_id:
-        raise HTTPException(400, "document_id required")
-    doc=db.get(Document, _parse_uuid(doc_id))
+        raise HTTPException(status_code=400, detail="document_id required")
+    
+    # Parse and validate UUID
+    try:
+        doc_uuid = _parse_uuid(doc_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid document ID format")
+    
+    # Fetch document with error handling
+    try:
+        doc = db.get(Document, doc_uuid)
+    except Exception as e:
+        logger.error(f"Database error while fetching document {doc_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch document")
+    
     if not doc:
-        raise HTTPException(404,"document not found")
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Check access permissions
+    if doc.owner_user_id is not None and doc.owner_user_id != user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Validate and sanitize hours
+    try:
+        hours = int(body.get("hours", 24))
+    except (ValueError, TypeError):
+        logger.warning(f"Invalid hours value: {body.get('hours')}, using default 24")
+        hours = 24
+    
     if hours < 1:
         hours = 1
     if hours > 168:
@@ -512,14 +747,25 @@ def create_share(body: dict = Body(...), db: Session = Depends(get_db), user: Us
             raise HTTPException(400, "password length must be between 4 and 128 characters")
         password_hash = hash_password(password)
     token=uuid.uuid4().hex; expires=datetime.utcnow() + timedelta(hours=hours)
-    share=ShareLink(token=token, document_id=doc.id, created_by=user.id, expires_at=expires, password_hash=password_hash); db.add(share); db.commit()
+    try:
+        share=ShareLink(token=token, document_id=doc.id, created_by=user.id, expires_at=expires, password_hash=password_hash)
+        db.add(share)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.exception("Failed to create share link")
+        raise HTTPException(500, "failed to create share link")
     return {"token": token, "expires_at": expires, "requires_password": bool(password_hash)}
 @app.get("/shares/{token}")
 def resolve_share(token: str, password: Optional[str] = Query(default=None), watermark: Optional[str] = Query(default=None), db: Session = Depends(get_db)):
     now=datetime.utcnow()
-    share=db.query(ShareLink).options(joinedload(ShareLink.document)).filter(ShareLink.token==token, ShareLink.expires_at>now).first()
+    try:
+        share=db.query(ShareLink).options(joinedload(ShareLink.document)).filter(ShareLink.token==token, ShareLink.expires_at>now).first()
+    except Exception as e:
+        logger.exception("Database error retrieving share link")
+        raise HTTPException(500, "database error")
     if not share: raise HTTPException(404,"invalid or expired")
-    if share.password_hash:
+    if share.password_hash is not None:
         if not password or not verify_password(password, share.password_hash):
             raise HTTPException(401,"password required")
     document = share.document
@@ -571,9 +817,18 @@ def create_folder(body: dict = Body(...), db: Session = Depends(get_db), user: U
     """Create a new empty folder"""
     path = body.get("path", "").strip()
     path = validate_folder_path(path)
-    folder = create_folder_record(db, path, user.id)
-    db.commit()
-    db.refresh(folder)
+    
+    try:
+        folder = create_folder_record(db, path, user.id)
+        db.commit()
+        db.refresh(folder)
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to create folder: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create folder")
+    
     return {"path": folder.path, "name": folder.name, "parent_path": folder.parent_path, "created": True, "created_at": folder.created_at}
 
 @app.patch("/folders")
@@ -600,6 +855,8 @@ def rename_folder(body: dict = Body(...), db: Session = Depends(get_db), user: U
         documents_updated = rename_folder_and_docs(db, user.id, old_path, new_path.split('/')[-1])
         db.commit()
         return {"old_path": old_path, "new_path": new_path, "documents_updated": documents_updated, "success": True}
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.exception("Failed to rename folder")
@@ -626,40 +883,59 @@ def list_folders(db: Session = Depends(get_db), user: User = Depends(current_use
     """List all folders with metadata including document counts"""
     from .models import UserRole
     
+    # Validate user.id to prevent SQL injection
+    if not user or user.id is None:
+        raise HTTPException(status_code=401, detail="Invalid user")
+    
     # Admin sees all folders except other users' private folders
     if user.role == UserRole.ADMIN:
-        # Get all document paths
-        doc_paths = db.query(Document.path, Document.owner_user_id).filter(Document.path.isnot(None)).distinct().all()
-        # Filter out private folders from other users
-        doc_paths = [(path, owner_id) for path, owner_id in doc_paths 
-                     if not path.startswith('private/') or owner_id == user.id]
-        # Convert back to tuple format
+        from sqlalchemy import or_, and_, literal
+        # Use parameterized pattern to prevent SQL injection
+        private_pattern = literal('private/') + '%'
+        # Get all document paths with filtering at database level
+        doc_paths = db.query(Document.path, Document.owner_user_id).filter(
+            Document.path.isnot(None),
+            or_(
+                ~Document.path.like(private_pattern),
+                and_(Document.path.like(private_pattern), Document.owner_user_id == user.id)
+            )
+        ).distinct().all()
+        # Convert to tuple format
         doc_paths = [(path,) for path, _ in doc_paths]
         
-        # Get all empty folders
-        empty_folders = db.query(Folder).all()
-        # Filter out private folders from other users
-        empty_folders = [f for f in empty_folders 
-                        if not f.path.startswith('private/') or f.owner_user_id == user.id]
+        # Get all empty folders with filtering at database level
+        empty_folders = db.query(Folder).filter(
+            or_(
+                ~Folder.path.like(private_pattern),
+                and_(Folder.path.like(private_pattern), Folder.owner_user_id == user.id)
+            )
+        ).all()
     else:
         # Regular users see only their own folders
-        doc_paths = db.query(Document.path).filter(Document.owner_user_id == user.id, Document.path.isnot(None)).distinct().all()
-        empty_folders = db.query(Folder).filter(Folder.owner_user_id == user.id).all()
+        # Note: SQLAlchemy ORM uses parameterized queries, user.id is a UUID object (not raw SQL)
+        doc_paths = db.query(Document.path).filter(Document.owner_user_id == user.id, Document.path.isnot(None)).distinct().all()  # nosec B608
+        empty_folders = db.query(Folder).filter(Folder.owner_user_id == user.id).all()  # nosec B608
     folder_map = {}
     for (path,) in doc_paths:
         if not path: continue
-        parts = path.split("/")
-        for i in range(len(parts)):
-            folder_path = "/".join(parts[:i+1])
-            if folder_path not in folder_map:
-                folder_map[folder_path] = {"path": folder_path, "name": get_folder_name(folder_path), "parent_path": get_parent_path(folder_path), "document_count": 0, "is_empty": False, "created_at": None}
+        try:
+            parts = path.split("/")
+            for i in range(len(parts)):
+                folder_path = "/".join(parts[:i+1])
+                if folder_path not in folder_map:
+                    folder_map[folder_path] = {"path": folder_path, "name": get_folder_name(folder_path), "parent_path": get_parent_path(folder_path), "document_count": 0, "is_empty": False, "created_at": None}
+        except (AttributeError, TypeError):
+            continue
     for (path,) in doc_paths:
         if path and path in folder_map: folder_map[path]["document_count"] += 1
     for folder in empty_folders:
-        if folder.path not in folder_map:
-            folder_map[folder.path] = {"path": folder.path, "name": folder.name, "parent_path": folder.parent_path, "document_count": 0, "is_empty": True, "created_at": folder.created_at}
-        else:
-            folder_map[folder.path]["created_at"] = folder.created_at
+        try:
+            if folder.path not in folder_map:
+                folder_map[folder.path] = {"path": folder.path, "name": folder.name, "parent_path": folder.parent_path, "document_count": 0, "is_empty": True, "created_at": folder.created_at}
+            else:
+                folder_map[folder.path]["created_at"] = folder.created_at
+        except (AttributeError, TypeError):
+            continue
     for folder_path in folder_map:
         if folder_map[folder_path]["document_count"] == 0: folder_map[folder_path]["is_empty"] = True
     folders = [FolderInfo(**f) for f in folder_map.values()]

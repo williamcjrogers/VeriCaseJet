@@ -3,8 +3,9 @@ Case Management API
 Handles cases, evidence linking, issues, claims, and chronology
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_, desc
+from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy import or_, and_, desc, func, select
+from sqlalchemy.sql import label
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
@@ -158,7 +159,30 @@ def list_cases(
     current_user: User = Depends(get_current_user)
 ):
     """List all cases accessible to the current user"""
-    query = db.query(Case).filter(Case.owner_id == current_user.id)
+    # Build subqueries for counts
+    evidence_count_subq = (
+        db.query(Evidence.case_id, func.count(Evidence.id).label("evidence_count"))
+        .group_by(Evidence.case_id)
+        .subquery()
+    )
+    
+    issue_count_subq = (
+        db.query(Issue.case_id, func.count(Issue.id).label("issue_count"))
+        .group_by(Issue.case_id)
+        .subquery()
+    )
+    
+    # Main query with counts
+    query = (
+        db.query(
+            Case,
+            func.coalesce(evidence_count_subq.c.evidence_count, 0).label("evidence_count"),
+            func.coalesce(issue_count_subq.c.issue_count, 0).label("issue_count")
+        )
+        .outerjoin(evidence_count_subq, Case.id == evidence_count_subq.c.case_id)
+        .outerjoin(issue_count_subq, Case.id == issue_count_subq.c.case_id)
+        .filter(Case.owner_id == current_user.id)
+    )
     
     if status:
         query = query.filter(Case.status == status)
@@ -173,11 +197,11 @@ def list_cases(
             )
         )
     
-    cases = query.order_by(desc(Case.created_at)).offset(skip).limit(limit).all()
+    results = query.order_by(desc(Case.created_at)).offset(skip).limit(limit).all()
     
-    # Add counts
+    # Convert to response model
     result = []
-    for case in cases:
+    for case, evidence_count, issue_count in results:
         case_dict = {
             "id": str(case.id),
             "case_number": case.case_number,
@@ -191,8 +215,8 @@ def list_cases(
             "company_id": str(case.company_id) if case.company_id else None,
             "created_at": case.created_at,
             "updated_at": case.updated_at,
-            "evidence_count": db.query(Evidence).filter(Evidence.case_id == case.id).count(),
-            "issue_count": db.query(Issue).filter(Issue.case_id == case.id).count()
+            "evidence_count": int(evidence_count),
+            "issue_count": int(issue_count)
         }
         result.append(CaseOut(**case_dict))
     
@@ -250,9 +274,24 @@ def get_case(
     current_user: User = Depends(get_current_user)
 ):
     """Get case details"""
-    case = db.query(Case).filter(Case.id == uuid.UUID(case_id)).first()
-    if not case:
+    # Single query to get case with counts
+    result = (
+        db.query(
+            Case,
+            func.count(func.distinct(Evidence.id)).label("evidence_count"),
+            func.count(func.distinct(Issue.id)).label("issue_count")
+        )
+        .outerjoin(Evidence, Case.id == Evidence.case_id)
+        .outerjoin(Issue, Case.id == Issue.case_id)
+        .filter(Case.id == uuid.UUID(case_id))
+        .group_by(Case.id)
+        .first()
+    )
+    
+    if not result:
         raise HTTPException(status_code=404, detail="Case not found")
+    
+    case, evidence_count, issue_count = result
     
     # Check access
     if case.owner_id != current_user.id:
@@ -272,8 +311,8 @@ def get_case(
         company_id=str(case.company_id) if case.company_id else None,
         created_at=case.created_at,
         updated_at=case.updated_at,
-        evidence_count=db.query(Evidence).filter(Evidence.case_id == case.id).count(),
-        issue_count=db.query(Issue).filter(Issue.case_id == case.id).count()
+        evidence_count=int(evidence_count or 0),
+        issue_count=int(issue_count or 0)
     )
 
 @router.put("/{case_id}", response_model=CaseOut)
@@ -306,6 +345,10 @@ def update_case(
     db.commit()
     db.refresh(case)
     
+    # Get counts efficiently
+    evidence_count = db.query(func.count(Evidence.id)).filter(Evidence.case_id == case.id).scalar() or 0
+    issue_count = db.query(func.count(Issue.id)).filter(Issue.case_id == case.id).scalar() or 0
+    
     return CaseOut(
         id=str(case.id),
         case_number=case.case_number,
@@ -319,8 +362,8 @@ def update_case(
         company_id=str(case.company_id) if case.company_id else None,
         created_at=case.created_at,
         updated_at=case.updated_at,
-        evidence_count=db.query(Evidence).filter(Evidence.case_id == case.id).count(),
-        issue_count=db.query(Issue).filter(Issue.case_id == case.id).count()
+        evidence_count=evidence_count,
+        issue_count=issue_count
     )
 
 # ============================================================================

@@ -21,7 +21,7 @@ check_health() {
     
     echo -n "   Waiting for $service to be healthy"
     while [ $attempt -le $max_attempts ]; do
-        if docker-compose -f docker-compose.prod.yml ps | grep -q "$service.*healthy"; then
+        if docker-compose -f docker-compose.prod.yml ps 2>/dev/null | grep -q "$service.*healthy"; then
             echo " ✅"
             return 0
         fi
@@ -35,7 +35,10 @@ check_health() {
 
 # Build images
 echo "📦 Building Docker images..."
-docker-compose -f docker-compose.prod.yml build --no-cache
+if ! docker-compose -f docker-compose.prod.yml build --no-cache; then
+    echo "❌ Failed to build Docker images"
+    exit 1
+fi
 
 # Tag images for registry (if using)
 if [ ! -z "$DOCKER_REGISTRY" ]; then
@@ -58,12 +61,19 @@ check_health "tika"
 
 # Create MinIO bucket if it doesn't exist
 echo "📤 Setting up MinIO bucket..."
-docker-compose -f docker-compose.prod.yml exec -T minio mc alias set local http://localhost:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY} || true
-docker-compose -f docker-compose.prod.yml exec -T minio mc mb local/${MINIO_BUCKET} --ignore-existing || true
+if ! docker-compose -f docker-compose.prod.yml exec -T minio mc alias set local http://localhost:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY} 2>/dev/null; then
+    echo "⚠️  Warning: Failed to set MinIO alias (may already exist)"
+fi
+if ! docker-compose -f docker-compose.prod.yml exec -T minio mc mb local/${MINIO_BUCKET} --ignore-existing 2>/dev/null; then
+    echo "⚠️  Warning: Failed to create MinIO bucket (may already exist)"
+fi
 
 # Run database migrations
 echo "🗄️  Running database migrations..."
-docker-compose -f docker-compose.prod.yml run --rm api python -m app.apply_migrations
+if ! docker-compose -f docker-compose.prod.yml run --rm api python -m app.apply_migrations; then
+    echo "❌ Failed to run database migrations"
+    exit 1
+fi
 
 # Start application services
 echo "🚀 Starting application services..."

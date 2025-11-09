@@ -18,3 +18,33 @@ build-backend = "poetry.core.masonry.api"
 # Add your development dependencies here
 # Example:
 # pytest = "^6.2.1"
+
+[tool.basedpyright]
+include = ["pst-analysis-engine/src", "api/app", "worker"]
+exclude = [
+  ".venv",
+  "venv",
+  "env",
+  "__pycache__",
+  "**/__pycache__",
+  "*.egg-info",
+  "build",
+  "dist"
+]
+ignore = [".venv/**", "venv/**", "env/**"]
+typeCheckingMode = "basic"
+reportMissingImports = "warning"
+
+[tool.ruff]
+exclude = [
+  ".venv",
+  "venv",
+  "env",
+  "__pycache__",
+  "*.egg-info",
+  "build",
+  "dist"
+]
+
+[tool.pylint]
+ignore = [".venv", "venv", "env", "__pycache__"]

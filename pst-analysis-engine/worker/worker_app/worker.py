@@ -19,6 +19,15 @@ from sqlalchemy.orm import sessionmaker
 engine = create_engine(settings.DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 
+# Helper to normalize endpoint URLs
+def _normalize_endpoint(url: str | None) -> str | None:
+    """Ensure endpoints include a scheme so boto3 accepts them."""
+    if not url:
+        return url
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    return f"http://{url}"
+
 # Initialize S3 client based on AWS mode
 use_aws = settings.USE_AWS_SERVICES or not settings.MINIO_ENDPOINT
 if use_aws:
@@ -32,7 +41,7 @@ else:
     # MinIO mode: use explicit endpoint and credentials
     s3 = boto3.client(
         "s3",
-        endpoint_url=settings.MINIO_ENDPOINT,
+        endpoint_url=_normalize_endpoint(settings.MINIO_ENDPOINT),
         aws_access_key_id=settings.MINIO_ACCESS_KEY,
         aws_secret_access_key=settings.MINIO_SECRET_KEY,
         config=Config(signature_version="s3v4"),
@@ -158,12 +167,22 @@ def process_pst_file(doc_id: str, case_id: str, company_id: str):
                 opensearch_client=os_client
             )
             
+            # Determine if this is for a case or project
+            project_id = None
+            if case_id == "00000000-0000-0000-0000-000000000000" or not case_id:
+                # This is a project upload - extract project_id from document metadata
+                doc_meta = doc.get('metadata', {})
+                if isinstance(doc_meta, dict):
+                    project_id = doc_meta.get('profile_id') if doc_meta.get('profile_type') == 'project' else None
+                case_id = None
+            
             # Process PST
             stats = processor.process_pst(
                 pst_s3_key=doc["s3_key"],
                 document_id=doc_id,
                 case_id=case_id,
-                company_id=company_id
+                company_id=company_id,
+                project_id=project_id
             )
             
             # Update document status with stats

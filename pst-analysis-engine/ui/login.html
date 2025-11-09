@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VeriCase Login</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 400px;
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .test-credentials {
+            background: #f0f7ff;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #666;
+        }
+        .test-credentials strong {
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>🔐 VeriCase Login</h1>
+        <p class="subtitle">Dispute Intelligence Platform</p>
+        
+        <div id="error" class="error" style="display:none;"></div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required placeholder="your@email.com">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required placeholder="Enter your password">
+            </div>
+            
+            <div class="form-group" style="display: flex; align-items: center; margin-bottom: 20px;">
+                <input type="checkbox" id="remember" name="remember" style="width: auto; margin-right: 8px;">
+                <label for="remember" style="margin: 0; font-weight: normal;">Remember me for 30 days</label>
+            </div>
+            
+            <button type="submit" id="submitBtn">Sign In</button>
+            
+            <div style="text-align: center; margin-top: 20px;">
+                <a href="password-reset.html" style="color: #667eea; text-decoration: none; font-size: 14px;">
+                    Forgot your password?
+                </a>
+            </div>
+        </form>
+        
+        <div class="test-credentials">
+            <strong>Test Credentials:</strong><br>
+            Email: test@vericase.com<br>
+            Password: password
+        </div>
+    </div>
+
+    <script>
+        // Fix API URL to work from file:// or http://
+        const apiUrl = window.location.protocol === 'file:' 
+            ? 'http://localhost:8010' 
+            : window.location.origin;
+        
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const remember = document.getElementById('remember').checked;
+            const errorDiv = document.getElementById('error');
+            const submitBtn = document.getElementById('submitBtn');
+            
+            errorDiv.style.display = 'none';
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Signing in...';
+            
+            try {
+                const response = await fetch(`${apiUrl}/api/auth/login-secure`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password, remember_me: remember })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Login failed');
+                }
+                
+                const data = await response.json();
+                
+                // Store token
+                localStorage.setItem('token', data.access_token);
+                // Compatibility: also store under 'jwt' for existing code paths
+                try { localStorage.setItem('jwt', data.access_token); } catch (e) {}
+                
+                // Store user info
+                if (data.user) {
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                }
+                
+                // Show warning if email not verified
+                if (data.warning) {
+                    errorDiv.textContent = data.warning;
+                    errorDiv.style.display = 'block';
+                    errorDiv.style.backgroundColor = '#fef5e7';
+                    errorDiv.style.color = '#92400e';
+                    errorDiv.style.borderColor = '#f59e0b';
+                }
+                
+                // Redirect to wizard after short delay
+                setTimeout(() => {
+                    if (window.location.protocol === 'file:') {
+                        // For file:// protocol, use relative path
+                        window.location.href = 'wizard.html';
+                    } else {
+                        window.location.href = '/ui/wizard.html';
+                    }
+                }, data.warning ? 2000 : 0);
+                
+            } catch (error) {
+                errorDiv.textContent = error.message;
+                errorDiv.style.display = 'block';
+                errorDiv.style.backgroundColor = '#fee2e2';
+                errorDiv.style.color = '#991b1b';
+                errorDiv.style.borderColor = '#ef4444';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Sign In';
+            }
+        });
+        
+        // Check if already logged in (disabled for now to allow re-login)
+        // if (localStorage.getItem('token')) {
+        //     window.location.href = '/ui/wizard.html';
+        // }
+    </script>
+</body>
+</html>
+

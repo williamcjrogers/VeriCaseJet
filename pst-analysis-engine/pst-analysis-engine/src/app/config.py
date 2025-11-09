@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings  # type: ignore
 from pydantic import field_validator, ValidationError
 import os
 import logging
@@ -11,20 +11,23 @@ class Settings(BaseSettings):
     
     # S3/MinIO settings
     # Note: S3_* fields are aliases for MINIO_* fields for backward compatibility
+    # Default values are for development only - override in production via environment variables
     MINIO_ENDPOINT: str = "http://minio:9000"
     MINIO_PUBLIC_ENDPOINT: str = ""
-    MINIO_ACCESS_KEY: str = "admin"
-    MINIO_SECRET_KEY: str = "changeme"
+    MINIO_ACCESS_KEY: str = "admin"  # Override in production
+    MINIO_SECRET_KEY: str = "changeme"  # Override in production
     MINIO_BUCKET: str = "vericase-docs"
     
     # S3 aliases (for backward compatibility)
+    # Default values are for development only - override in production via environment variables
     S3_BUCKET: str = "vericase-docs"
     S3_ENDPOINT: str = "http://minio:9000"
-    S3_ACCESS_KEY: str = "admin"
-    S3_SECRET_KEY: str = "changeme"
+    S3_ACCESS_KEY: str = "admin"  # Override in production
+    S3_SECRET_KEY: str = "changeme"  # Override in production
     AWS_REGION: str = "us-east-1"
     
     # Database - Railway provides postgresql://, we need postgresql+psycopg2://
+    # Default value is for development only - override in production via environment variables
     DATABASE_URL: str = "postgresql+psycopg2://vericase:vericase@postgres:5432/vericase"
     
     @field_validator('DATABASE_URL')
@@ -37,9 +40,12 @@ class Settings(BaseSettings):
             if v.startswith('postgresql://'):
                 return v.replace('postgresql://', 'postgresql+psycopg2://', 1)
             return v
-        except Exception as e:
+        except (AttributeError, TypeError) as e:
             logger.error(f"Error validating DATABASE_URL: {e}")
-            raise ValueError(f"Invalid DATABASE_URL configuration: {e}")
+            raise ValueError(f"Invalid DATABASE_URL format: {e}") from e
+        except Exception as e:
+            logger.error(f"Unexpected error validating DATABASE_URL: {e}")
+            raise
     
     # OpenSearch settings
     OPENSEARCH_HOST: str = "opensearch"
@@ -64,18 +70,53 @@ class Settings(BaseSettings):
     @field_validator('JWT_SECRET')
     @classmethod
     def validate_jwt_secret(cls, v: str) -> str:
-        """Warn if JWT_SECRET is using default value"""
-        try:
-            if v == "change-this-secret":
-                logger.warning("JWT_SECRET is using default value - INSECURE for production!")
-                if os.getenv("ENV", "development").lower() == "production":
-                    raise ValueError("JWT_SECRET must be changed in production")
-            return v
-        except ValueError:
-            raise
-        except Exception as e:
-            logger.error(f"Error validating JWT_SECRET: {e}")
-            return v
+        """Validate JWT_SECRET is secure and not empty"""
+        if not v or not v.strip():
+            raise ValueError("JWT_SECRET cannot be empty")
+        
+        # Check minimum length for security
+        if len(v) < 32:
+            logger.warning(f"JWT_SECRET is too short ({len(v)} chars). Recommended minimum: 32 characters")
+        
+        # Warn about default value
+        if v == "change-this-secret":
+            logger.warning("JWT_SECRET is using default value - INSECURE for production!")
+            
+            # Check if we're in production
+            try:
+                env_value = os.getenv("ENV", "development")
+                if env_value and env_value.lower() == "production":
+                    raise ValueError("JWT_SECRET must be changed from default value in production")
+            except (AttributeError, TypeError) as e:
+                logger.error(f"Error checking environment: {e}")
+        
+        return v
+    
+    @field_validator('JWT_EXPIRE_MIN')
+    @classmethod
+    def validate_jwt_expire(cls, v: int) -> int:
+        """Validate JWT expiration time is reasonable"""
+        if not isinstance(v, int):
+            raise ValueError(f"JWT_EXPIRE_MIN must be an integer, got {type(v).__name__}")
+        
+        if v <= 0:
+            raise ValueError(f"JWT_EXPIRE_MIN must be positive, got {v}")
+        
+        if v < 5:
+            logger.warning(f"JWT_EXPIRE_MIN is very short ({v} minutes). Consider a longer duration")
+        
+        if v > 43200:  # 30 days
+            logger.warning(f"JWT_EXPIRE_MIN is very long ({v} minutes = {v/1440:.1f} days)")
+        
+        return v
+    
+    @field_validator('JWT_ISSUER')
+    @classmethod
+    def validate_jwt_issuer(cls, v: str) -> str:
+        """Validate JWT issuer is not empty"""
+        if not v or not v.strip():
+            raise ValueError("JWT_ISSUER cannot be empty")
+        return v.strip()
     
     # AI Model API Keys
     GEMINI_API_KEY: str = ""
