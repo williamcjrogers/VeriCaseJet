@@ -101,18 +101,30 @@ class ForensicPSTProcessor:
                 self.db.commit()
                 
                 logger.info(f"PST contains {self.total_count} total emails")
-                
-                # Load case stakeholders and keywords for tagging
-                stakeholders = self.db.query(Stakeholder).filter_by(case_id=pst_file.case_id).all()
-                keywords = self.db.query(Keyword).filter_by(case_id=pst_file.case_id).all()
-                
+
+                # Load stakeholders and keywords for tagging (from case or project)
+                stakeholder_query = self.db.query(Stakeholder)
+                if pst_file.case_id:
+                    stakeholder_query = stakeholder_query.filter_by(case_id=pst_file.case_id)
+                elif pst_file.project_id:
+                    stakeholder_query = stakeholder_query.filter_by(project_id=pst_file.project_id)
+                stakeholders = stakeholder_query.all()
+
+                keyword_query = self.db.query(Keyword)
+                if pst_file.case_id:
+                    keyword_query = keyword_query.filter_by(case_id=pst_file.case_id)
+                elif pst_file.project_id:
+                    keyword_query = keyword_query.filter_by(project_id=pst_file.project_id)
+                keywords = keyword_query.all()
+
                 # Process all folders recursively
                 self._process_folder_recursive(root, pst_file, stakeholders, keywords, stats)
-                
+
                 pst.close()
-                
-                # Build email threads
-                threads = self._build_email_threads(pst_file.case_id)
+
+                # Build email threads (using case_id or project_id)
+                entity_id = pst_file.case_id or pst_file.project_id
+                threads = self._build_email_threads(entity_id, is_project=bool(pst_file.project_id))
                 stats['threads_identified'] = len(threads)
                 
                 # Update completion status
@@ -579,11 +591,15 @@ class ForensicPSTProcessor:
         except Exception as e:
             logger.warning(f"Failed to index email {email_msg.id} in OpenSearch: {e}")
     
-    def _build_email_threads(self, case_id: str) -> List[Dict]:
+    def _build_email_threads(self, entity_id: str, is_project: bool = False) -> List[Dict]:
         """Build email threads using Message-ID and In-Reply-To headers"""
-        
-        # Get all emails for the case
-        emails = self.db.query(EmailMessage).filter_by(case_id=case_id).all()
+
+        # Get all emails for the case or project
+        query = self.db.query(EmailMessage)
+        if is_project:
+            emails = query.filter_by(project_id=entity_id).all()
+        else:
+            emails = query.filter_by(case_id=entity_id).all()
         
         # Build message_id to email map
         message_id_map = {}

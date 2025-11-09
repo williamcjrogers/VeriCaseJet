@@ -663,35 +663,23 @@ function validateProjectIdentification() {
     const projectCode = document.getElementById('projectCode').value.trim();
     const startDate = document.getElementById('startDate').value;
     const completionDate = document.getElementById('completionDate').value;
-    
-    // Only validate if moving forward (not saving draft or going back)
+
+    // Relaxed validation - all fields are optional
+    // Just show a warning in console if both name and code are missing
     if (!projectName && !projectCode) {
-        // Give user a choice to continue anyway
-        return confirm('Project Name and Code are recommended but not required. Continue anyway?');
+        console.warn('Project Name and Code are recommended but not required.');
     }
-    
-    // Soft validations - just warnings
-    if (projectName && projectName.length < 2) {
-        if (!confirm('Project Name is very short. Continue anyway?')) {
-            return false;
-        }
-    }
-    
+
+    // Date validation - only warn in console if dates are invalid
     if (startDate && completionDate && new Date(completionDate) < new Date(startDate)) {
-        if (!confirm('Completion Date is before Start Date. This might be incorrect. Continue anyway?')) {
-            return false;
-        }
+        console.warn('Completion Date is before Start Date. This might be incorrect.');
     }
-    
+
     return true;
 }
 
 function validateProjectStakeholders() {
-    // Stakeholders are optional - just give a warning
-    const rows = document.querySelectorAll('#stakeholdersTable tbody tr');
-    if (rows.length === 0) {
-        return confirm('No stakeholders added. You can add them later. Continue anyway?');
-    }
+    // Stakeholders are completely optional - no warnings needed
     return true;
 }
 
@@ -702,16 +690,12 @@ function validateProjectKeywords() {
 
 function validateCaseIdentification() {
     const caseName = document.getElementById('caseName').value.trim();
-    
-    // Make case name optional with confirmation
+
+    // Relaxed validation - case name is completely optional
     if (!caseName) {
-        return confirm('Case Name is recommended but not required. Continue anyway?');
+        console.warn('Case Name is recommended but not required.');
     }
-    
-    if (caseName.length < 2) {
-        return confirm('Case Name is very short. Continue anyway?');
-    }
-    
+
     return true;
 }
 
