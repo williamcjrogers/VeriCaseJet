@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VeriCase - Configuration Wizard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .wizard-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 900px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .wizard-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .wizard-header-nav {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .wizard-header-nav button {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .wizard-header-nav button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .wizard-header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .wizard-header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .wizard-content {
+            padding: 40px;
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 40px;
+            position: relative;
+        }
+
+        .step-indicator::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #e0e0e0;
+            z-index: 0;
+        }
+
+        .step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .step-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e0e0e0;
+            color: #999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 10px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .step.active .step-circle {
+            background: #667eea;
+            color: white;
+        }
+
+        .step.completed .step-circle {
+            background: #4caf50;
+            color: white;
+        }
+
+        .step-label {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .step.active .step-label {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .wizard-step {
+            display: none;
+        }
+
+        .wizard-step.active {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        label .required {
+            color: #e74c3c;
+        }
+
+        label .tooltip {
+            margin-left: 5px;
+            color: #667eea;
+            cursor: help;
+        }
+
+        input[type="text"],
+        input[type="date"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .radio-option {
+            display: flex;
+            align-items: flex-start;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .radio-option:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .radio-option input[type="radio"] {
+            margin-right: 12px;
+            margin-top: 2px;
+        }
+
+        .radio-option-content h3 {
+            font-size: 16px;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .radio-option-content p {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .helper-text {
+            font-size: 13px;
+            color: #666;
+            margin-top: 5px;
+            font-style: italic;
+        }
+
+        .guidance-note {
+            background: #f0f7ff;
+            border-left: 4px solid #667eea;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #555;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table th {
+            background: #f5f5f5;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        table td {
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        table td input,
+        table td select {
+            width: 100%;
+        }
+
+        .btn-add-row {
+            background: #4caf50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: background 0.3s;
+        }
+
+        .btn-add-row:hover {
+            background: #45a049;
+        }
+
+        .btn-delete-row {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .btn-delete-row:hover {
+            background: #c0392b;
+        }
+
+        .wizard-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .summary-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .summary-section h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .summary-item {
+            display: flex;
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .summary-item:last-child {
+            border-bottom: none;
+        }
+
+        .summary-label {
+            font-weight: 600;
+            color: #555;
+            width: 200px;
+        }
+
+        .summary-value {
+            color: #333;
+            flex: 1;
+        }
+
+        .custom-input {
+            margin-top: 10px;
+            display: none;
+        }
+
+        .custom-input.visible {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="wizard-container">
+        <div class="wizard-header">
+            <div class="wizard-header-nav">
+                <button onclick="window.location.href='analysis.html?token=' + localStorage.getItem('token') + '&caseId=' + localStorage.getItem('currentCaseId')">
+                    <i class="fas fa-home"></i> Home
+                </button>
+            </div>
+            <h1><i class="fas fa-folder-plus"></i> Create Profile</h1>
+            <p>Set up your Project or Case to start managing evidence</p>
+        </div>
+
+        <div class="wizard-content">
+            <!-- Step Indicator -->
+            <div class="step-indicator" id="stepIndicator">
+                <div class="step active" data-step="0">
+                    <div class="step-circle">1</div>
+                    <div class="step-label">Choose Type</div>
+                </div>
+                <div class="step" data-step="1">
+                    <div class="step-circle">2</div>
+                    <div class="step-label">Details</div>
+                </div>
+                <div class="step" data-step="2">
+                    <div class="step-circle">3</div>
+                    <div class="step-label">Stakeholders</div>
+                </div>
+                <div class="step" data-step="3">
+                    <div class="step-circle">4</div>
+                    <div class="step-label">Review</div>
+                </div>
+            </div>
+
+            <!-- Step 0: Choose Type -->
+            <div class="wizard-step active" id="step0">
+                <h2 style="margin-bottom: 20px;">Choose what you want to do:</h2>
+                
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio" name="profileType" value="users" />
+                        <div class="radio-option-content">
+                            <h3>Add Users / Team</h3>
+                            <p>Add team members and assign roles for collaboration</p>
+                        </div>
+                    </label>
+
+                    <label class="radio-option">
+                        <input type="radio" name="profileType" value="project" checked />
+                        <div class="radio-option-content">
+                            <h3>Set up a Project</h3>
+                            <p><strong>Project:</strong> Best for discovery or live projects where we're gathering material to see if a case exists.</p>
+                        </div>
+                    </label>
+
+                    <label class="radio-option">
+                        <input type="radio" name="profileType" value="case" />
+                        <div class="radio-option-content">
+                            <h3>Set up a Case</h3>
+                            <p><strong>Case:</strong> Use when a dispute is formalising (adjudication, litigation, arbitration, etc.).</p>
+                        </div>
+                    </label>
+                </div>
+
+                <p class="helper-text" style="margin-top: 20px;">
+                    <i class="fas fa-info-circle"></i> You can convert a Project into a Case later (nothing lost).
+                </p>
+            </div>
+
+            <!-- Project Steps will be dynamically loaded -->
+            <div id="dynamicSteps"></div>
+
+            <!-- Wizard Actions -->
+            <div class="wizard-actions">
+                <div>
+                    <button class="btn btn-secondary" id="btnBack" style="display: none;">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </button>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-secondary" id="btnSaveDraft">
+                        <i class="fas fa-save"></i> Save Draft
+                    </button>
+                    <button class="btn btn-secondary" id="btnCancel">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button class="btn btn-primary" id="btnContinue">
+                        Continue <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="wizard-logic.js"></script>
+</body>
+</html>

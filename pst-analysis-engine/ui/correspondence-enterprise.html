@@ -1,0 +1,2611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VeriCase - Email Correspondence Manager (Enterprise)</title>
+    
+    <!-- AG-Grid Enterprise CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-grid.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-theme-quartz.css">
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --secondary: #64748b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --surface: #ffffff;
+            --background: #f8fafc;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--background);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .case-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding-left: 2rem;
+            border-left: 1px solid var(--border);
+        }
+
+        .case-badge {
+            background: var(--primary);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            background: var(--surface);
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex: 1;
+        }
+
+        .search-box {
+            display: flex;
+            align-items: center;
+            background: var(--background);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            padding: 0.5rem 1rem;
+            min-width: 300px;
+            flex: 1;
+            max-width: 500px;
+        }
+
+        .search-box i {
+            color: var(--text-muted);
+            margin-right: 0.5rem;
+        }
+
+        .search-box input {
+            border: none;
+            background: none;
+            outline: none;
+            width: 100%;
+            font-size: 0.875rem;
+        }
+
+        .toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: var(--background);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-group {
+            display: flex;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .btn-group .btn {
+            border-radius: 0;
+            border: none;
+            border-right: 1px solid var(--border);
+        }
+
+        .btn-group .btn:last-child {
+            border-right: none;
+        }
+
+        .btn-group .btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Statistics Bar */
+        .stats-bar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 3rem;
+            overflow-x: auto;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            min-width: max-content;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Grid Container */
+        .grid-container {
+            flex: 1;
+            background: var(--surface);
+            position: relative;
+        }
+
+        #emailGrid {
+            height: 100%;
+        }
+
+        /* Detail Panel */
+        .detail-panel {
+            width: 500px;
+            background: var(--surface);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+        }
+
+        .detail-panel.hidden {
+            transform: translateX(100%);
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+        }
+
+        .detail-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--background);
+        }
+
+        .detail-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+        }
+
+        .email-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .email-subject {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .email-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .email-meta-item {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .email-meta-label {
+            font-weight: 500;
+            min-width: 60px;
+        }
+
+        .email-body {
+            background: var(--background);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .email-attachments {
+            margin-top: 1.5rem;
+        }
+
+        .attachments-header {
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .attachment-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .attachment-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: var(--background);
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .attachment-item:hover {
+            background: var(--border);
+        }
+
+        .attachment-icon {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--primary);
+            color: white;
+            border-radius: 0.375rem;
+        }
+
+        .attachment-info {
+            flex: 1;
+        }
+
+        .attachment-name {
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        .attachment-size {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Custom AG-Grid Styles */
+        .ag-theme-quartz {
+            --ag-header-background-color: var(--background);
+            --ag-header-foreground-color: var(--text);
+            --ag-borders: solid 1px var(--border);
+            --ag-row-hover-color: #f9fafb;
+            --ag-selected-row-background-color: rgba(37, 99, 235, 0.08);
+            --ag-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .ag-cell {
+            display: flex;
+            align-items: flex-start;
+            padding-top: 8px !important;
+        }
+
+        /* Make email rows more readable */
+        .ag-row {
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .ag-row:hover {
+            background: linear-gradient(to right, #fafafa, #f9fafb) !important;
+        }
+
+        .email-thread-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.125rem 0.5rem;
+            background: rgba(37, 99, 235, 0.1);
+            color: var(--primary);
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .attachment-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.125rem 0.5rem;
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .priority-high {
+            color: var(--danger);
+            font-weight: 600;
+        }
+
+        .priority-normal {
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <div class="logo">
+                <i class="fas fa-envelope-open-text"></i>
+                <span>VeriCase Correspondence</span>
+            </div>
+            <div class="case-info">
+                <span class="case-badge" id="caseNumber">Loading...</span>
+                <span id="caseName">Loading case details...</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <button class="btn" onclick="goToDashboard()">
+                <i class="fas fa-home"></i> Dashboard
+            </button>
+            <button class="btn" onclick="exportToExcel()">
+                <i class="fas fa-file-excel"></i> Export Excel
+            </button>
+            <button class="btn" onclick="printEmails()">
+                <i class="fas fa-print"></i> Print
+            </button>
+            <button class="btn btn-primary" onclick="refreshData()">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <div class="toolbar-left">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="quickFilter" placeholder="Quick search emails..." onkeyup="onQuickFilterChanged()">
+            </div>
+            <button class="btn" onclick="toggleAdvancedFilter()">
+                <i class="fas fa-filter"></i> Advanced Filter
+            </button>
+            <button class="btn" id="toggleViewBtn" onclick="toggleAllEmails()">
+                <i class="fas fa-compress"></i> Preview Mode
+            </button>
+        </div>
+        <div class="toolbar-right">
+            <div class="btn-group">
+                <button class="btn active" onclick="setViewMode('all')">
+                    <i class="fas fa-inbox"></i> All
+                </button>
+                <button class="btn" onclick="setViewMode('threads')">
+                    <i class="fas fa-comments"></i> Threads
+                </button>
+                <button class="btn" onclick="setViewMode('attachments')">
+                    <i class="fas fa-paperclip"></i> With Attachments
+                </button>
+            </div>
+            <button class="btn" onclick="toggleDetailPanel()">
+                <i class="fas fa-sidebar"></i> Details
+            </button>
+        </div>
+    </div>
+
+    <!-- Statistics Bar -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <span class="stat-label">Total Emails</span>
+            <span class="stat-value" id="totalEmails">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Unique Threads</span>
+            <span class="stat-value" id="uniqueThreads">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">With Attachments</span>
+            <span class="stat-value" id="withAttachments">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Date Range</span>
+            <span class="stat-value" id="dateRange">-</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Selected</span>
+            <span class="stat-value" id="selectedCount">0</span>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- AG-Grid Container -->
+        <div class="grid-container">
+            <div id="emailGrid" class="ag-theme-quartz"></div>
+            <div class="loading-overlay" id="loadingOverlay">
+                <div class="spinner"></div>
+            </div>
+        </div>
+
+        <!-- Attachment Preview Modal -->
+        <div id="attachmentPreviewModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                                                background: rgba(0, 0, 0, 0.8); z-index: 10000;
+                                                display: flex; justify-content: center; align-items: center;">
+            <div style="background: white; width: 90%; height: 90%; max-width: 1200px; border-radius: 10px;
+                        box-shadow: 0 20px 50px rgba(0,0,0,0.3); display: flex; flex-direction: column;">
+                <div style="padding: 15px 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
+                    <h3 id="previewTitle" style="margin: 0; color: #1f2937; font-size: 1.1rem;">Attachment Preview</h3>
+                    <button onclick="closeAttachmentPreview()" 
+                            style="background: #ef4444; color: white; border: none; padding: 8px 16px;
+                                   border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 500;">
+                        ✕ Close
+                    </button>
+                </div>
+                <div id="previewContent" style="flex: 1; overflow: auto; padding: 20px; position: relative;">
+                    <!-- Preview content will be loaded here -->
+                </div>
+                <div style="padding: 10px 20px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 10px;">
+                    <button id="downloadBtn" onclick="downloadCurrentAttachment()" 
+                            style="background: #3b82f6; color: white; border: none; padding: 8px 20px;
+                                   border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 500;">
+                        ⬇ Download
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detail Panel -->
+        <div class="detail-panel hidden" id="detailPanel">
+            <div class="detail-header">
+                <h3>Email Details</h3>
+                <button class="btn" onclick="toggleDetailPanel()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="detail-content" id="detailContent">
+                <p style="color: var(--text-muted); text-align: center; margin-top: 2rem;">
+                    Select an email to view details
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- AG-Grid Enterprise Script -->
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/dist/ag-grid-enterprise.min.js"></script>
+    
+    <script>
+        // Get case ID from URL - check both caseId and case_id parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const caseId = urlParams.get('caseId') || urlParams.get('case_id');
+        
+        // Validate we have a case ID - STOP execution if invalid
+        if (!caseId || caseId === '00000000-0000-0000-0000-000000000001') {
+            alert('No case selected. Redirecting to case selection...');
+            window.location.href = 'wizard.html';
+            throw new Error('Invalid case ID - stopping execution'); // STOP HERE!
+        }
+        
+        window.caseId = caseId; // Make it globally available for other functions
+        
+        let gridApi;
+        let columnApi;
+        let allEmails = [];
+        let currentViewMode = 'all';
+        let showFullContent = true; // Default to showing full content
+
+        // Column Definitions with Enterprise Features
+        const columnDefs = [
+            {
+                headerName: '',
+                field: 'selection',
+                width: 50,
+                checkboxSelection: true,
+                headerCheckboxSelection: true,
+                pinned: 'left'
+            },
+            {
+                headerName: 'Date/Time',
+                field: 'email_date',
+                width: 180,
+                sort: 'desc',
+                cellRenderer: (params) => {
+                    if (!params.value) return '-';
+                    const date = new Date(params.value);
+                    return `
+                        <div style="display: flex; flex-direction: column;">
+                            <span style="font-weight: 500;">${date.toLocaleDateString()}</span>
+                            <span style="font-size: 0.75rem; color: var(--text-muted);">${date.toLocaleTimeString()}</span>
+                        </div>
+                    `;
+                },
+                filter: 'agDateColumnFilter',
+                filterParams: {
+                    comparator: (filterDate, cellValue) => {
+                        const cellDate = new Date(cellValue);
+                        if (cellDate < filterDate) return -1;
+                        if (cellDate > filterDate) return 1;
+                        return 0;
+                    }
+                }
+            },
+            {
+                headerName: 'From',
+                field: 'email_from',
+                width: 200,
+                wrapText: true,
+                autoHeight: true,
+                cellStyle: {
+                    'white-space': 'normal',
+                    'line-height': '1.4',
+                    'padding-top': '8px',
+                    'padding-bottom': '8px'
+                },
+                filter: 'agSetColumnFilter',
+                filterParams: {
+                    buttons: ['apply', 'clear', 'reset']
+                }
+            },
+            {
+                headerName: 'To',
+                field: 'email_to',
+                width: 200,
+                wrapText: true,
+                autoHeight: true,
+                cellStyle: {
+                    'white-space': 'normal',
+                    'line-height': '1.4',
+                    'padding-top': '8px',
+                    'padding-bottom': '8px'
+                },
+                valueGetter: params => {
+                    // First check the direct field
+                    if (params.data.email_to) return params.data.email_to;
+                    
+                    // Try to extract from HTML content if available
+                    const content = params.data.meta?.content || params.data.content || '';
+                    if (content.includes('<html') || content.includes('To:')) {
+                        // Look for To: in the email headers within the HTML
+                        const toMatch = content.match(/<b>To:<\/b>\s*([^<\n]+)/i) || 
+                                       content.match(/To:\s*([^<\n]+)/i);
+                        if (toMatch) {
+                            return toMatch[1].trim()
+                                .replace(/&lt;/g, '<')
+                                .replace(/&gt;/g, '>')
+                                .replace(/&amp;/g, '&');
+                        }
+                    }
+                    return '-';
+                },
+                filter: 'agTextColumnFilter'
+            },
+            {
+                headerName: 'CC',
+                field: 'email_cc',
+                width: 150,
+                wrapText: true,
+                autoHeight: true,
+                cellStyle: {
+                    'white-space': 'normal',
+                    'line-height': '1.4',
+                    'padding-top': '8px',
+                    'padding-bottom': '8px'
+                },
+                valueGetter: params => {
+                    // First check the direct field
+                    if (params.data.email_cc) return params.data.email_cc;
+                    
+                    // Try to extract from HTML content if available
+                    const content = params.data.meta?.content || params.data.content || '';
+                    if (content.includes('<html') || content.includes('Cc:')) {
+                        // Look for Cc: in the email headers within the HTML
+                        const ccMatch = content.match(/<b>Cc:<\/b>\s*([^<\n]+)/i) || 
+                                       content.match(/Cc:\s*([^<\n]+)/i);
+                        if (ccMatch) {
+                            return ccMatch[1].trim()
+                                .replace(/&lt;/g, '<')
+                                .replace(/&gt;/g, '>')
+                                .replace(/&amp;/g, '&');
+                        }
+                    }
+                    return '-';
+                },
+                filter: 'agTextColumnFilter'
+            },
+            {
+                headerName: 'Attachments',
+                field: 'attachments',
+                width: 250,
+                wrapText: true,
+                autoHeight: true,
+                cellStyle: {
+                    'white-space': 'normal',
+                    'line-height': '1.4',
+                    'padding-top': '8px',
+                    'padding-bottom': '8px'
+                },
+                valueGetter: params => {
+                    // Get attachments from meta field (excluding embedded images)
+                    const attachments = params.data.meta?.attachments || [];
+                    // AGGRESSIVE FILTERING - Remove ALL embedded images and signatures
+                    const realAttachments = attachments.filter(att => {
+                        // Check multiple conditions to exclude embedded images
+                        if (att.is_inline === true) return false;
+                        if (att.content_id) return false;
+                        
+                        const filename = (att.name || att.filename || '').toLowerCase();
+                        
+                        // Exclude common embedded image patterns
+                        if (filename.match(/^image\d{3}\.(png|jpg|jpeg|gif|bmp)$/)) return false; // image001.png etc
+                        if (filename.match(/^img_?\d+\.(png|jpg|jpeg|gif|bmp)$/)) return false; // img_001.png, img001.png
+                        if (filename.match(/^cid[:_]/)) return false; // cid: references
+                        if (filename.match(/^[\da-f]{8,}\.(png|jpg|jpeg|gif|bmp)$/)) return false; // hash-like names
+                        if (filename.match(/^[\da-f]{32}\.(png|jpg|jpeg|gif|bmp)$/)) return false; // MD5 hash names
+                        if (filename.includes('signature')) return false; // signature images
+                        if (filename.includes('logo')) return false; // logos
+                        if (filename.includes('banner')) return false; // email banners
+                        if (filename.includes('header')) return false; // header images
+                        if (filename.includes('footer')) return false; // footer images
+                        if (filename.includes('badge')) return false; // badge images
+                        if (filename.includes('icon')) return false; // icon images
+                        if (filename === 'blank.gif') return false; // tracking pixels
+                        if (filename === 'spacer.gif') return false; // layout spacers
+                        if (filename === 'pixel.gif') return false; // tracking pixels
+                        if (filename === '1x1.gif') return false; // 1x1 tracking pixels
+                        if (filename.match(/^attem*p*\d*\.(png|jpg|jpeg|gif|bmp)$/)) return false; // attempted inline images
+                        if (filename.match(/^oledata\.mso$/)) return false; // Outlook OLE data
+                        if (filename.match(/^image\.(png|jpg|jpeg|gif|bmp)$/)) return false; // generic image.png
+                        
+                        // Exclude by content type if it's marked as inline
+                        if (att.content_type && att.content_type.includes('image') && att.size < 50000) {
+                            // Small images (< 50KB) are likely embedded
+                            return false;
+                        }
+                        
+                        // Only include real document attachments
+                        return true;
+                    });
+                    return realAttachments.map(att => att.name || att.filename || 'Unnamed').join(', ') || '-';
+                },
+                cellRenderer: params => {
+                    const attachments = params.data.meta?.attachments || [];
+                    // AGGRESSIVE FILTERING - Remove ALL embedded images and signatures
+                    const realAttachments = attachments.filter(att => {
+                        // Check multiple conditions to exclude embedded images
+                        if (att.is_inline === true) return false;
+                        if (att.content_id) return false;
+                        
+                        const filename = (att.name || att.filename || '').toLowerCase();
+                        
+                        // Exclude common embedded image patterns
+                        if (filename.match(/^image\d{3}\.(png|jpg|jpeg|gif|bmp)$/)) return false;
+                        if (filename.match(/^img_?\d+\.(png|jpg|jpeg|gif|bmp)$/)) return false;
+                        if (filename.match(/^cid[:_]/)) return false;
+                        if (filename.match(/^[\da-f]{8,}\.(png|jpg|jpeg|gif|bmp)$/)) return false;
+                        if (filename.match(/^[\da-f]{32}\.(png|jpg|jpeg|gif|bmp)$/)) return false;
+                        if (filename.includes('signature')) return false;
+                        if (filename.includes('logo')) return false;
+                        if (filename.includes('banner')) return false;
+                        if (filename.includes('header')) return false;
+                        if (filename.includes('footer')) return false;
+                        if (filename.includes('badge')) return false;
+                        if (filename.includes('icon')) return false;
+                        if (filename === 'blank.gif') return false;
+                        if (filename === 'spacer.gif') return false;
+                        if (filename === 'pixel.gif') return false;
+                        if (filename === '1x1.gif') return false;
+                        if (filename.match(/^attem*p*\d*\.(png|jpg|jpeg|gif|bmp)$/)) return false;
+                        if (filename.match(/^oledata\.mso$/)) return false;
+                        if (filename.match(/^image\.(png|jpg|jpeg|gif|bmp)$/)) return false;
+                        
+                        // Exclude small images
+                        if (att.content_type && att.content_type.includes('image') && att.size < 50000) {
+                            return false;
+                        }
+                        
+                        return true;
+                    });
+                    
+                    if (realAttachments.length === 0) return '-';
+                    
+                    const rowId = params.node.id;
+                    const evidenceId = params.data.id;
+                    
+                    // Create clickable attachment links
+                    const attachmentLinks = realAttachments.map((att, index) => {
+                        const fileName = att.name || att.filename || 'Unnamed';
+                        const fileExt = fileName.split('.').pop().toLowerCase();
+                        const attachmentId = att.id || index;
+                        
+                        // Determine if file can be previewed
+                        const previewableTypes = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'txt', 'csv', 'doc', 'docx', 'xls', 'xlsx'];
+                        const canPreview = previewableTypes.includes(fileExt);
+                        
+                        // Choose icon based on file type
+                        let icon = '📎'; // Default paperclip
+                        if (['pdf'].includes(fileExt)) icon = '📄';
+                        else if (['jpg', 'jpeg', 'png', 'gif'].includes(fileExt)) icon = '🖼️';
+                        else if (['doc', 'docx'].includes(fileExt)) icon = '📝';
+                        else if (['xls', 'xlsx', 'csv'].includes(fileExt)) icon = '📊';
+                        else if (['txt'].includes(fileExt)) icon = '📃';
+                        
+                        return `
+                            <div style="display: inline-flex; align-items: center; gap: 4px; margin: 2px 4px 2px 0;">
+                                <span style="font-size: 0.9em;">${icon}</span>
+                                <span style="color: #2563eb; text-decoration: underline; cursor: pointer; font-size: 0.875rem;"
+                                      onclick="${canPreview ? `previewAttachment('${evidenceId}', '${attachmentId}', '${fileName}')` : `downloadAttachment('${evidenceId}', '${attachmentId}', '${fileName}')`}"
+                                      title="${canPreview ? 'Click to preview' : 'Click to download'}">
+                                    ${fileName}
+                                </span>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    return `<div style="display: flex; flex-wrap: wrap; align-items: center;">${attachmentLinks}</div>`;
+                },
+                filter: 'agTextColumnFilter'
+            },
+            {
+                headerName: 'Subject',
+                field: 'email_subject',
+                flex: 1,
+                minWidth: 300,
+                cellRenderer: (params) => {
+                    const thread = params.data.thread_id ? 
+                        `<span class="email-thread-indicator"><i class="fas fa-reply"></i> Thread</span>` : '';
+                    
+                    return `
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="flex: 1;">${params.value || '(No Subject)'}</span>
+                            ${thread}
+                        </div>
+                    `;
+                },
+                filter: 'agTextColumnFilter',
+                filterParams: {
+                    filterOptions: ['contains', 'notContains', 'equals', 'startsWith', 'endsWith'],
+                    defaultOption: 'contains'
+                }
+            },
+            {
+                headerName: 'Message',
+                field: 'email_body',
+                flex: 2,
+                minWidth: 500,
+                autoHeight: true,
+                wrapText: true,
+                valueGetter: params => {
+                    // Extract body content from meta field
+                    let content = params.data.meta?.content || params.data.content || '';
+                    
+                    // Clean up escaped newlines and other escape sequences
+                    if (typeof content === 'string') {
+                        // Remove Python bytes prefix
+                        if (content.startsWith("b'") || content.startsWith('b"')) {
+                            content = content.slice(2, -1);
+                        }
+                        
+                        // Clean escape sequences
+                        content = content
+                            .replace(/\\r\\n/g, '\n')
+                            .replace(/\\n/g, '\n')
+                            .replace(/\\t/g, '    ')
+                            .replace(/\\'/g, "'")
+                            .replace(/\\"/g, '"')
+                            .replace(/\\\\/g, '\\')
+                            .replace(/\\x([0-9a-fA-F]{2})/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+                        
+                        // If it's HTML, extract the text content
+                        if (content.includes('<html') || content.includes('<body')) {
+                            // Extract text between body tags
+                            const bodyMatch = content.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+                            if (bodyMatch) {
+                                let bodyContent = bodyMatch[1];
+                                
+                                // Remove style and script tags
+                                bodyContent = bodyContent.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+                                bodyContent = bodyContent.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+                                
+                                // Remove the EXTERNAL EMAIL warning table
+                                bodyContent = bodyContent.replace(/<table[^>]*background:#FFF2CC[^>]*>[\s\S]*?EXTERNAL EMAIL:[\s\S]*?<\/table>/gi, '');
+                                
+                                // Keep embedded images in HTML (they're part of email content, not attachments)
+                                // Note: We'll handle cid: images later in formatContent since they need special treatment
+                                
+                                // Find the main message content
+                                let messageContent = bodyContent;
+                                
+                                // AGGRESSIVE THREAD REMOVAL - Extract ONLY the current message
+                                const threadMarkers = [
+                                    /-----\s*Original Message\s*-----/i,
+                                    /<div[^>]*>[\s\S]*?From:.*?<br>.*?Sent:.*?<br>.*?To:.*?<br>/i,
+                                    /From:.*?[\r\n]+.*?Sent:.*?[\r\n]+.*?To:.*?[\r\n]+.*?Subject:/is,
+                                    /On\s+.+?\s+wrote:/i,
+                                    /<blockquote/i,
+                                    /<div[^>]*class=["']gmail_quote["'][^>]*>/i,
+                                    />+\s*On\s+\d{1,2}\/\d{1,2}\/\d{4}/i,
+                                    />+\s*From:/i,
+                                    /_{10,}/,  // Long underscores
+                                    /[-]{10,}/, // Long dashes
+                                    /[*]{10,}/, // Long asterisks
+                                    /\n{2,}From:\s+/m,  // Double newline followed by From:
+                                    /\n{2,}On\s+.*wrote:/m,  // Double newline followed by On...wrote
+                                    /\n{2,}----/m,  // Double newline followed by dashes
+                                    /________________________________________/
+                                ];
+                                
+                                // Find the earliest thread marker position
+                                let cutoffIndex = messageContent.length;
+                                for (const marker of threadMarkers) {
+                                    const match = messageContent.search ? messageContent.search(marker) : messageContent.match(marker);
+                                    if (match && (typeof match === 'number' ? match : match.index) > 20) {
+                                        const index = typeof match === 'number' ? match : match.index;
+                                        if (index < cutoffIndex) {
+                                            cutoffIndex = index;
+                                        }
+                                    }
+                                }
+                                
+                                // Extract only up to the cutoff
+                                if (cutoffIndex < messageContent.length) {
+                                    messageContent = messageContent.substring(0, cutoffIndex);
+                                }
+                                
+                                // Extract main content from WordSection1 if present
+                                const wordSection = messageContent.match(/<div class=WordSection1>([\s\S]*?)(?:<div|$)/i);
+                                if (wordSection) {
+                                    messageContent = wordSection[1];
+                                }
+                                
+                                // Store the HTML content (preserve images and formatting)
+                                const htmlContent = messageContent;
+                                
+                                // Also create a plain text version for search/preview
+                                const plainText = messageContent
+                                    .replace(/<p class=MsoNormal><o:p>&nbsp;<\/o:p><\/p>/gi, '\n') // Empty Office paragraphs
+                                    .replace(/<o:p>&nbsp;<\/o:p>/gi, ' ') // Empty Office inline tags
+                                    .replace(/<br\s*\/?>/gi, '\n')
+                                    .replace(/<\/p>/gi, '\n')
+                                    .replace(/<p[^>]*>/gi, '')
+                                    .replace(/<\/div>/gi, '\n')
+                                    .replace(/<div[^>]*>/gi, '')
+                                    .replace(/<[^>]+>/g, '') // Remove all remaining HTML tags
+                                    .replace(/&nbsp;/g, ' ')
+                                    .replace(/&amp;/g, '&')
+                                    .replace(/&lt;/g, '<')
+                                    .replace(/&gt;/g, '>')
+                                    .replace(/&quot;/g, '"')
+                                    .replace(/&#39;/g, "'")
+                                    .replace(/\n{2,}/g, '\n') // Replace multiple newlines with single newline
+                                    .replace(/^\s+|\s+$/g, '') // Trim start and end
+                                    .replace(/[ \t]+/g, ' ') // Collapse multiple spaces/tabs to single space
+                                    .trim();
+                                
+                                // Store both HTML and plain text
+                                content = {html: htmlContent, text: plainText};
+                            }
+                        }
+                        
+                        // Handle plain text content if not HTML
+                        if (typeof content === 'string') {
+                            // AGGRESSIVE thread removal for plain text
+                            const plainThreadMarkers = [
+                                /-----\s*Original Message\s*-----/i,
+                                /From:.*?[\r\n]+.*?Sent:.*?[\r\n]+.*?To:/is,
+                                /On\s+.+?\s+wrote:/i,
+                                />+\s*On\s+\d{1,2}\/\d{1,2}\/\d{4}/i,
+                                />+\s*From:/i,
+                                /_{10,}/,
+                                /[-]{10,}/,
+                                /[*]{10,}/,
+                                /\n{2,}From:\s+/m,
+                                /\n{2,}On\s+.*wrote:/m,
+                                /________________________________________/
+                            ];
+                            
+                            let cutoffIndex = content.length;
+                            for (const marker of plainThreadMarkers) {
+                                const match = content.search ? content.search(marker) : content.match(marker);
+                                if (match && (typeof match === 'number' ? match : match.index) > 20) {
+                                    const index = typeof match === 'number' ? match : match.index;
+                                    if (index < cutoffIndex) {
+                                        cutoffIndex = index;
+                                    }
+                                }
+                            }
+                            
+                            if (cutoffIndex < content.length) {
+                                content = content.substring(0, cutoffIndex);
+                            }
+                            
+                            // Final cleanup - but DON'T remove RE:/FW: prefixes
+                            content = content.trim();
+                            
+                            // Return as text-only object
+                            return {text: content || 'No message content available', html: null};
+                        }
+                        
+                        // Return the content object with HTML and text
+                        return content || {text: 'No message content available', html: null};
+                    }
+                    // Return plain text if no HTML extraction was done
+                    return typeof content === 'object' ? content : {text: content || 'No message content available', html: null};
+                },
+                cellRenderer: params => {
+                    const contentObj = params.value || {text: 'No content available', html: null};
+                    const content = typeof contentObj === 'string' ? contentObj : contentObj.text || 'No content available';
+                    const htmlContent = typeof contentObj === 'object' ? contentObj.html : null;
+                    const rowId = params.node.id;
+                    const isExpanded = params.api.getRowNode(rowId)?.data?.expanded;
+                    
+                    // Format the content for better readability
+                    const formatContent = (text, useHtml = false) => {
+                        if (useHtml && htmlContent) {
+                            // Clean up HTML and handle images
+                            let cleanedHtml = htmlContent
+                                .replace(/<o:p>&nbsp;<\/o:p>/gi, '') // Remove empty Office tags
+                                .replace(/<p class=MsoNormal><o:p>&nbsp;<\/o:p><\/p>/gi, '<br>'); // Convert empty paragraphs to breaks
+                            
+                            // Handle images: replace cid: with placeholders, keep real URLs
+                            // First, replace cid: images with placeholder since they won't load without the actual attachment data
+                            cleanedHtml = cleanedHtml.replace(/<img([^>]*src=["']?cid:[^"'>]*["']?[^>]*)>/gi, 
+                                '<div style="display: inline-block; padding: 8px 12px; margin: 4px 0; background: #f3f4f6; border: 1px dashed #9ca3af; border-radius: 4px; color: #6b7280; font-size: 0.875rem; font-style: italic;">' +
+                                '<svg style="display: inline; width: 16px; height: 16px; margin-right: 4px; vertical-align: text-bottom;" fill="currentColor" viewBox="0 0 20 20">' +
+                                '<path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/>' +
+                                '</svg>Embedded Image</div>');
+                            
+                            // Keep real images with valid URLs (http/https/data) and make them responsive
+                            cleanedHtml = cleanedHtml.replace(/<img([^>]*src=["']?(?:https?:\/\/|data:)[^"'>]*["']?[^>]*)>/gi, 
+                                '<img$1 style="max-width: 100%; height: auto; display: inline-block; margin: 4px 0;">');
+                            
+                            return cleanedHtml;
+                        }
+                        
+                        // First escape HTML for security (for plain text)
+                        let formatted = text
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;')
+                            .replace(/'/g, '&#39;');
+                        
+                        // Convert line breaks to HTML breaks - maintain original email format with single spacing
+                        const lines = formatted.split('\n');
+                        const formattedLines = [];
+                        
+                        for (const line of lines) {
+                            const trimmedLine = line.trim();
+                            // Keep all lines, including empty ones, to preserve original email formatting
+                            if (trimmedLine === '') {
+                                formattedLines.push(''); // Empty line becomes a single break when joined
+                            } else {
+                                formattedLines.push(line);
+                            }
+                        }
+                        
+                        return formattedLines.join('<br>');
+                    };
+                    
+                    if (isExpanded === false) {
+                        // Preview mode - show first 150 characters in an attractive card
+                        const preview = content.substring(0, 150);
+                        const hasMore = content.length > 150;
+                        const formattedPreview = formatContent(preview);
+                        
+                        return `
+                            <div style="padding: 8px; cursor: pointer; transition: all 0.2s ease;" 
+                                 onclick="toggleEmailContent(${rowId})"
+                                 onmouseover="this.style.backgroundColor='#f9fafb'" 
+                                 onmouseout="this.style.backgroundColor='transparent'">
+                                <div style="color: #374151; font-size: 0.875rem; line-height: 1.4; 
+                                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                                    ${formattedPreview}${hasMore ? '<span style="color: #6b7280;">...</span>' : ''}
+                                </div>
+                                ${hasMore ? `
+                                    <div style="margin-top: 8px;">
+                                        <span style="display: inline-flex; align-items: center; gap: 4px;
+                                                padding: 4px 10px; font-size: 0.75rem; font-weight: 500;
+                                                background: linear-gradient(135deg, #3b82f6, #2563eb); 
+                                                color: white; border-radius: 12px; cursor: pointer;
+                                                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                                                transition: transform 0.2s, box-shadow 0.2s;"
+                                                onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'"
+                                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
+                                            <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20">
+                                                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                                                <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
+                                            </svg>
+                                            Read Full Message
+                                        </span>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    } else {
+                        // Full content mode - show HTML if available for images, otherwise formatted text
+                        const formattedContent = formatContent(content, true); // Use HTML mode when available
+                        
+                        // Only add smart formatting if we're showing plain text
+                        const enhancedContent = htmlContent ? formattedContent : formattedContent
+                            // Highlight monetary values
+                            .replace(/([£$€]\d+(?:,\d{3})*(?:\.\d{2})?)/g, '<span style="color: #059669; font-weight: 600;">$1</span>')
+                            // Highlight email addresses
+                            .replace(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g, '<span style="color: #2563eb; text-decoration: underline;">$1</span>')
+                            // Highlight dates
+                            .replace(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{1,2}\s(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s\d{2,4})/gi, '<span style="color: #7c3aed; font-weight: 500;">$1</span>');
+                        
+                        return `
+                            <div style="padding: 8px;">
+                                <div style="background: linear-gradient(to bottom, #ffffff, #fafafa); 
+                                     border: 1px solid #e5e7eb; border-radius: 6px; 
+                                     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+                                     overflow: hidden;">
+                                    <div style="max-height: 400px; overflow-y: auto; padding: 12px 16px;
+                                         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                                         font-size: 0.9rem; line-height: 1.5; color: #1f2937;">
+                                        ${enhancedContent}
+                                    </div>
+                                </div>
+                                <div style="margin-top: 10px; display: flex; gap: 8px;">
+                                    <button onclick="toggleEmailContent(${rowId})" 
+                                            style="padding: 6px 14px; font-size: 0.8rem; font-weight: 500;
+                                                   background: #6b7280; color: white; border: none; 
+                                                   border-radius: 6px; cursor: pointer;
+                                                   transition: background 0.2s;"
+                                            onmouseover="this.style.backgroundColor='#4b5563'"
+                                            onmouseout="this.style.backgroundColor='#6b7280'">
+                                        ✕ Collapse
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }
+                },
+                filter: 'agTextColumnFilter'
+            },
+
+            {
+                headerName: 'Programme Activity',
+                field: 'programme_activity',
+                width: 250,
+                editable: true,
+                cellRenderer: params => {
+                    const activity = params.value || params.data.linked_activity;
+                    if (!activity) {
+                        return `<div style="color: #9ca3af; font-style: italic; cursor: pointer;" 
+                                    onclick="linkActivityToEmail('${params.data.id}')">
+                                    + Link to programme activity
+                                </div>`;
+                    }
+                    
+                    return `<div style="display: flex; align-items: center; gap: 8px; cursor: pointer;"
+                                 onclick="viewProgrammeAnalysis('${params.data.id}', '${activity}')">
+                        <span style="background: #dbeafe; color: #1e40af; padding: 4px 8px; 
+                                   border-radius: 6px; font-size: 0.875rem; font-weight: 500;">
+                            ${activity}
+                        </span>
+                        <i class="fas fa-chart-gantt" style="color: #3b82f6;"></i>
+                    </div>`;
+                },
+                filter: 'agTextColumnFilter',
+                filterParams: {
+                    filterOptions: ['contains', 'equals'],
+                    defaultOption: 'contains'
+                }
+            },
+
+            {
+                headerName: 'Baseline vs Actual',
+                field: 'programme_variance',
+                width: 180,
+                cellRenderer: params => {
+                    // This will be calculated from uploaded Asta programmes
+                    const emailDate = params.data.email_date ? new Date(params.data.email_date) : null;
+                    const activity = params.data.programme_activity || params.data.linked_activity;
+                    
+                    if (!emailDate || !activity) {
+                        return '<span style="color: #9ca3af;">-</span>';
+                    }
+                    
+                    // Get programme data from API (to be implemented)
+                    const baselineData = params.data.baseline_programme;
+                    const asBuiltData = params.data.asbuilt_programme;
+                    
+                    if (!baselineData || !asBuiltData) {
+                        return `<div style="color: #9ca3af; font-size: 0.875rem;">
+                            <i class="fas fa-upload"></i> Upload programmes
+                        </div>`;
+                    }
+                    
+                    // Calculate variance (positive = ahead, negative = behind)
+                    const variance = asBuiltData.days_variance || 0;
+                    const isDelayed = variance < 0;
+                    const isAhead = variance > 0;
+                    
+                    if (variance === 0) {
+                        return `<div style="display: flex; align-items: center; gap: 6px; color: #059669;">
+                            <i class="fas fa-check-circle"></i>
+                            <span style="font-weight: 500;">On Track</span>
+                        </div>`;
+                    }
+                    
+                    const color = isDelayed ? '#dc2626' : '#059669';
+                    const icon = isDelayed ? 'fa-exclamation-triangle' : 'fa-arrow-up';
+                    const absVariance = Math.abs(variance);
+                    
+                    return `<div style="display: flex; align-items: center; gap: 6px; color: ${color};">
+                        <i class="fas ${icon}"></i>
+                        <span style="font-weight: 600;">${isDelayed ? '-' : '+'}${absVariance} days</span>
+                    </div>`;
+                },
+                filter: 'agNumberColumnFilter',
+                filterParams: {
+                    filterOptions: ['equals', 'lessThan', 'greaterThan'],
+                    defaultOption: 'lessThan'
+                }
+            },
+
+            {
+                headerName: 'Critical Path',
+                field: 'is_critical_path',
+                width: 120,
+                cellRenderer: params => {
+                    const isCritical = params.value || params.data.on_critical_path;
+                    if (!isCritical) return '-';
+                    
+                    return `<div style="display: flex; align-items: center; justify-content: center; gap: 6px; 
+                                 background: #fee2e2; color: #991b1b; padding: 4px 12px; 
+                                 border-radius: 12px; font-weight: 600; font-size: 0.875rem;">
+                        <i class="fas fa-fire"></i>
+                        <span>CRITICAL</span>
+                    </div>`;
+                },
+                filter: 'agSetColumnFilter',
+                filterParams: {
+                    values: ['Yes', 'No'],
+                    buttons: ['apply', 'clear']
+                }
+            },
+
+            {
+                headerName: 'Programme Status',
+                field: 'programme_status',
+                width: 150,
+                cellRenderer: params => {
+                    const emailDate = params.data.email_date ? new Date(params.data.email_date) : null;
+                    const activity = params.data.programme_activity || params.data.linked_activity;
+                    
+                    if (!emailDate || !activity) return '-';
+                    
+                    // Get activity status at email date from Asta data
+                    const status = params.data.activity_status_at_date || 'Unknown';
+                    
+                    const statusConfig = {
+                        'Not Started': { icon: '⏸️', bg: '#f3f4f6', text: '#374151' },
+                        'In Progress': { icon: '🔄', bg: '#dbeafe', text: '#1e40af' },
+                        'Complete': { icon: '✅', bg: '#d1fae5', text: '#065f46' },
+                        'Delayed': { icon: '⚠️', bg: '#fee2e2', text: '#991b1b' },
+                        'Unknown': { icon: '❓', bg: '#f3f4f6', text: '#6b7280' }
+                    };
+                    
+                    const config = statusConfig[status] || statusConfig['Unknown'];
+                    
+                    return `<div style="display: inline-flex; align-items: center; gap: 6px; 
+                                 background: ${config.bg}; color: ${config.text}; 
+                                 padding: 4px 12px; border-radius: 12px; font-weight: 500; font-size: 0.875rem;">
+                        <span>${config.icon}</span>
+                        <span>${status}</span>
+                    </div>`;
+                },
+                filter: 'agSetColumnFilter',
+                filterParams: {
+                    values: ['Not Started', 'In Progress', 'Complete', 'Delayed'],
+                    buttons: ['apply', 'clear']
+                }
+            },
+
+            {
+                headerName: 'Planned % Complete',
+                field: 'planned_progress',
+                width: 140,
+                cellRenderer: params => {
+                    const progress = params.value || params.data.baseline_progress_at_date;
+                    if (progress === undefined || progress === null) return '-';
+                    
+                    const progressNum = Math.round(progress);
+                    const color = progressNum >= 75 ? '#059669' : progressNum >= 50 ? '#f59e0b' : '#dc2626';
+                    
+                    return `<div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="flex: 1; background: #e5e7eb; border-radius: 8px; height: 20px; overflow: hidden;">
+                            <div style="width: ${progressNum}%; height: 100%; background: ${color}; 
+                                      transition: width 0.3s ease;"></div>
+                        </div>
+                        <span style="font-weight: 600; color: ${color}; min-width: 40px; text-align: right;">
+                            ${progressNum}%
+                        </span>
+                    </div>`;
+                },
+                filter: 'agNumberColumnFilter'
+            },
+
+            {
+                headerName: 'Actual % Complete',
+                field: 'actual_progress',
+                width: 140,
+                cellRenderer: params => {
+                    const progress = params.value || params.data.asbuilt_progress_at_date;
+                    if (progress === undefined || progress === null) return '-';
+                    
+                    const progressNum = Math.round(progress);
+                    const color = progressNum >= 75 ? '#059669' : progressNum >= 50 ? '#f59e0b' : '#dc2626';
+                    
+                    return `<div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="flex: 1; background: #e5e7eb; border-radius: 8px; height: 20px; overflow: hidden;">
+                            <div style="width: ${progressNum}%; height: 100%; background: ${color}; 
+                                      transition: width 0.3s ease;"></div>
+                        </div>
+                        <span style="font-weight: 600; color: ${color}; min-width: 40px; text-align: right;">
+                            ${progressNum}%
+                        </span>
+                    </div>`;
+                },
+                filter: 'agNumberColumnFilter'
+            },
+
+            {
+                headerName: 'Category',
+                field: 'category',
+                width: 180,
+                editable: true,
+                cellEditor: 'agSelectCellEditor',
+                cellEditorParams: {
+                    values: [
+                        'Site Instruction',
+                        'Variation',
+                        'Delay Notice',
+                        'Compensation Event',
+                        'Early Warning',
+                        'Payment',
+                        'Meeting Minutes',
+                        'Technical Query',
+                        'Progress Update',
+                        'Contract Document',
+                        'Safety/H&S',
+                        'Quality Issue',
+                        'General'
+                    ]
+                },
+                cellRenderer: params => {
+                    if (!params.value) return '-';
+                    const icons = {
+                        'Site Instruction': '📋',
+                        'Variation': '🔄',
+                        'Delay Notice': '⏱️',
+                        'Compensation Event': '💰',
+                        'Early Warning': '⚠️',
+                        'Payment': '💳',
+                        'Meeting Minutes': '📝',
+                        'Technical Query': '❓',
+                        'Progress Update': '📊',
+                        'Contract Document': '📄',
+                        'Safety/H&S': '🦺',
+                        'Quality Issue': '🔍',
+                        'General': '📧'
+                    };
+                    return `<div style="display: flex; align-items: center; gap: 6px;">
+                        <span style="font-size: 1.1em;">${icons[params.value] || '📧'}</span>
+                        <span>${params.value}</span>
+                    </div>`;
+                },
+                filter: 'agSetColumnFilter',
+                filterParams: {
+                    buttons: ['apply', 'clear', 'reset']
+                }
+            },
+
+            {
+                headerName: 'Keywords',
+                field: 'keywords',
+                width: 200,
+                wrapText: true,
+                autoHeight: true,
+                editable: true,
+                cellStyle: {
+                    'white-space': 'normal',
+                    'line-height': '1.4',
+                    'padding-top': '8px',
+                    'padding-bottom': '8px'
+                },
+                cellRenderer: params => {
+                    if (!params.value) return '-';
+                    const keywords = params.value.split(',').map(k => k.trim()).filter(k => k);
+                    if (keywords.length === 0) return '-';
+                    
+                    return `<div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                        ${keywords.map(keyword => `
+                            <span style="background: #dbeafe; color: #1e40af; padding: 2px 8px; 
+                                       border-radius: 12px; font-size: 0.75rem; font-weight: 500;">
+                                ${keyword}
+                            </span>
+                        `).join('')}
+                    </div>`;
+                },
+                valueGetter: params => {
+                    // Auto-extract keywords from wizard configuration or email content
+                    const existingKeywords = params.data.keywords || '';
+                    if (existingKeywords) return existingKeywords;
+                    
+                    // Try to match against project keywords from wizard
+                    // This will be populated when wizard integration is complete
+                    return '';
+                },
+                filter: 'agTextColumnFilter'
+            },
+
+            {
+                headerName: 'Stakeholder',
+                field: 'stakeholder',
+                width: 180,
+                editable: true,
+                cellEditor: 'agSelectCellEditor',
+                cellEditorParams: {
+                    values: [
+                        'Main Contractor',
+                        'Council',
+                        'Employers Agent',
+                        'Project Manager',
+                        'Client',
+                        'Building Control',
+                        'Subcontractor',
+                        'Client Management Team',
+                        'Other'
+                    ]
+                },
+                valueGetter: params => {
+                    // Auto-detect stakeholder from email sender
+                    const existingStakeholder = params.data.stakeholder || '';
+                    if (existingStakeholder) return existingStakeholder;
+                    
+                    // Try to match against project stakeholders from wizard
+                    // This will be populated when wizard integration is complete
+                    const from = params.data.email_from || '';
+                    // Add logic here to match against wizard stakeholders
+                    return '';
+                },
+                filter: 'agSetColumnFilter',
+                filterParams: {
+                    buttons: ['apply', 'clear', 'reset']
+                }
+            },
+
+            {
+                headerName: 'Priority',
+                field: 'priority',
+                width: 120,
+                editable: true,
+                cellEditor: 'agSelectCellEditor',
+                cellEditorParams: {
+                    values: ['High', 'Medium', 'Low']
+                },
+                cellStyle: params => {
+                    const colors = {
+                        'High': { bg: '#fee2e2', text: '#991b1b' },
+                        'Medium': { bg: '#fef3c7', text: '#92400e' },
+                        'Low': { bg: '#d1fae5', text: '#065f46' }
+                    };
+                    const color = colors[params.value] || { bg: 'transparent', text: '#6b7280' };
+                    return {
+                        backgroundColor: color.bg,
+                        color: color.text,
+                        fontWeight: '600',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    };
+                },
+                filter: 'agSetColumnFilter',
+                filterParams: {
+                    buttons: ['apply', 'clear', 'reset']
+                }
+            },
+
+            {
+                headerName: 'Status',
+                field: 'status',
+                width: 150,
+                editable: true,
+                cellEditor: 'agSelectCellEditor',
+                cellEditorParams: {
+                    values: ['New', 'Review', 'Action Required', 'Responded', 'Closed', 'Archived']
+                },
+                cellRenderer: params => {
+                    if (!params.value) return '-';
+                    const icons = {
+                        'New': '🆕',
+                        'Review': '👀',
+                        'Action Required': '⚡',
+                        'Responded': '✅',
+                        'Closed': '🔒',
+                        'Archived': '📦'
+                    };
+                    const colors = {
+                        'New': { bg: '#dbeafe', text: '#1e40af' },
+                        'Review': { bg: '#fef3c7', text: '#92400e' },
+                        'Action Required': { bg: '#fee2e2', text: '#991b1b' },
+                        'Responded': { bg: '#d1fae5', text: '#065f46' },
+                        'Closed': { bg: '#f3f4f6', text: '#374151' },
+                        'Archived': { bg: '#e5e7eb', text: '#6b7280' }
+                    };
+                    const color = colors[params.value] || colors['New'];
+                    return `<div style="display: inline-flex; align-items: center; gap: 6px; 
+                                 background: ${color.bg}; color: ${color.text}; 
+                                 padding: 4px 12px; border-radius: 12px; font-weight: 500; font-size: 0.875rem;">
+                        <span>${icons[params.value] || '📧'}</span>
+                        <span>${params.value}</span>
+                    </div>`;
+                },
+                filter: 'agSetColumnFilter',
+                filterParams: {
+                    buttons: ['apply', 'clear', 'reset']
+                }
+            },
+
+            {
+                headerName: 'Notes',
+                field: 'notes',
+                width: 250,
+                editable: true,
+                wrapText: true,
+                autoHeight: true,
+                cellStyle: {
+                    'white-space': 'normal',
+                    'line-height': '1.4',
+                    'padding-top': '8px',
+                    'padding-bottom': '8px',
+                    'font-style': 'italic',
+                    'color': '#6b7280'
+                },
+                filter: 'agTextColumnFilter'
+            },
+
+            {
+                headerName: 'Thread ID',
+                field: 'thread_id',
+                width: 120,
+                hide: true,
+                filter: 'agTextColumnFilter'
+            }
+        ];
+
+        // Grid Options with Enterprise Features
+        const gridOptions = {
+            columnDefs: columnDefs,
+            defaultColDef: {
+                sortable: true,
+                filter: true,
+                resizable: true,
+                floatingFilter: true,
+                menuTabs: ['filterMenuTab', 'generalMenuTab', 'columnsMenuTab']
+            },
+            
+            // Enterprise features
+            sideBar: {
+                toolPanels: [
+                    {
+                        id: 'columns',
+                        labelDefault: 'Columns',
+                        labelKey: 'columns',
+                        iconKey: 'columns',
+                        toolPanel: 'agColumnsToolPanel',
+                        toolPanelParams: {
+                            suppressRowGroups: false,
+                            suppressValues: false,
+                            suppressPivots: false,
+                            suppressPivotMode: false,
+                            suppressColumnFilter: false,
+                            suppressColumnSelectAll: false,
+                            suppressColumnExpandAll: false
+                        }
+                    },
+                    {
+                        id: 'filters',
+                        labelDefault: 'Filters',
+                        labelKey: 'filters',
+                        iconKey: 'filter',
+                        toolPanel: 'agFiltersToolPanel'
+                    }
+                ],
+                defaultToolPanel: ''
+            },
+            
+            statusBar: {
+                statusPanels: [
+                    { statusPanel: 'agTotalAndFilteredRowCountComponent', align: 'left' },
+                    { statusPanel: 'agTotalRowCountComponent', align: 'center' },
+                    { statusPanel: 'agFilteredRowCountComponent', align: 'center' },
+                    { statusPanel: 'agSelectedRowCountComponent', align: 'center' },
+                    { statusPanel: 'agAggregationComponent', align: 'right' }
+                ]
+            },
+            
+            // Row selection
+            rowSelection: 'multiple',
+            rowMultiSelectWithClick: true,
+            
+            // Pagination
+            pagination: true,
+            paginationPageSize: 50,
+            paginationPageSizeSelector: [20, 50, 100, 200, 500],
+            
+            // Row grouping
+            groupDisplayType: 'multipleColumns',
+            groupDefaultExpanded: 0,
+            
+            // Performance
+            animateRows: true,
+            rowBuffer: 10,
+            
+            // Events
+            onSelectionChanged: onSelectionChanged,
+            onRowClicked: onRowClicked,
+            onGridReady: onGridReady,
+            onFirstDataRendered: onFirstDataRendered
+        };
+
+        // Initialize Grid
+        document.addEventListener('DOMContentLoaded', function() {
+            const gridDiv = document.querySelector('#emailGrid');
+            gridApi = agGrid.createGrid(gridDiv, gridOptions);
+            
+            // Load emails
+            loadEmails();
+        });
+
+        // ===========================
+        // Global Configuration
+        // ===========================
+        const API_BASE = window.location.origin;
+
+        function onGridReady(params) {
+            gridApi = params.api;
+            columnApi = params.columnApi;
+        }
+
+        function onFirstDataRendered(params) {
+            params.api.sizeColumnsToFit();
+            updateStatistics();
+        }
+
+        async function loadEmails() {
+            showLoading(true);
+            try {
+                const response = await fetch(`${API_BASE}/api/cases/${caseId}/evidence`);
+                if (!response.ok) throw new Error('Failed to load emails');
+                
+                const data = await response.json();
+                
+                // Filter for email evidence and set expanded state
+                allEmails = data.filter(item => 
+                    item.email_subject || item.email_from || item.meta?.content
+                ).map(email => ({
+                    ...email,
+                    expanded: showFullContent // Set initial state to show full content
+                }));
+                
+                gridApi.setGridOption('rowData', allEmails);
+                updateStatistics();
+                
+                // Load case info
+                loadCaseInfo();
+                
+            } catch (error) {
+                console.error('Error loading emails:', error);
+                alert('Failed to load emails: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Toggle between full content and preview
+        function toggleEmailContent(rowId) {
+            const rowNode = gridApi.getRowNode(rowId);
+            if (rowNode && rowNode.data) {
+                rowNode.data.expanded = !rowNode.data.expanded;
+                // Refresh the specific cell
+                const columnDef = gridApi.getColumnDef('email_body');
+                gridApi.refreshCells({
+                    rowNodes: [rowNode],
+                    columns: ['email_body'],
+                    force: true
+                });
+            }
+        }
+
+        // Toggle all emails between full and preview
+        function toggleAllEmails() {
+            showFullContent = !showFullContent;
+            gridApi.forEachNode(node => {
+                node.data.expanded = showFullContent;
+            });
+            gridApi.refreshCells({
+                columns: ['email_body'],
+                force: true
+            });
+            
+            // Update button text
+            const btn = document.getElementById('toggleViewBtn');
+            if (btn) {
+                btn.innerHTML = showFullContent ? 
+                    '<i class="fas fa-compress"></i> Preview Mode' : 
+                    '<i class="fas fa-expand"></i> Full Content';
+            }
+        }
+
+        async function loadCaseInfo() {
+            try {
+                const response = await fetch(`${API_BASE}/api/cases/${caseId}`);
+                if (response.ok) {
+                    const caseData = await response.json();
+                    document.getElementById('caseNumber').textContent = caseData.case_number;
+                    document.getElementById('caseName').textContent = caseData.name;
+                }
+            } catch (error) {
+                console.error('Error loading case info:', error);
+            }
+        }
+
+        function updateStatistics() {
+            if (!gridApi) return;
+            
+            const totalEmails = allEmails.length;
+            const uniqueThreads = new Set(allEmails.map(e => e.thread_id).filter(Boolean)).size;
+            const withAttachments = allEmails.filter(e => e.meta?.attachments?.length > 0).length;
+            
+            // Calculate date range
+            const dates = allEmails
+                .map(e => e.email_date)
+                .filter(Boolean)
+                .map(d => new Date(d));
+            
+            let dateRange = '-';
+            if (dates.length > 0) {
+                const minDate = new Date(Math.min(...dates));
+                const maxDate = new Date(Math.max(...dates));
+                dateRange = `${minDate.toLocaleDateString()} - ${maxDate.toLocaleDateString()}`;
+            }
+            
+            document.getElementById('totalEmails').textContent = totalEmails.toLocaleString();
+            document.getElementById('uniqueThreads').textContent = uniqueThreads.toLocaleString();
+            document.getElementById('withAttachments').textContent = withAttachments.toLocaleString();
+            document.getElementById('dateRange').textContent = dateRange;
+        }
+
+        function onSelectionChanged() {
+            const selectedRows = gridApi.getSelectedRows();
+            document.getElementById('selectedCount').textContent = selectedRows.length.toLocaleString();
+        }
+
+        function onRowClicked(event) {
+            showEmailDetails(event.data);
+        }
+
+        function showEmailDetails(email) {
+            const detailContent = document.getElementById('detailContent');
+            
+            let content = email.meta?.content || email.content || 'No content available';
+            
+            // Clean up escaped characters
+            if (typeof content === 'string') {
+                // Remove Python bytes prefix if present
+                if (content.startsWith("b'") || content.startsWith('b"')) {
+                    content = content.slice(2, -1);
+                }
+                
+                // Clean up escape sequences
+                content = content
+                    .replace(/\\r\\n/g, '\n')    // Replace \r\n with newline
+                    .replace(/\\n/g, '\n')        // Replace \n with newline
+                    .replace(/\\t/g, '    ')      // Replace \t with spaces
+                    .replace(/\\'/g, "'")         // Replace \' with '
+                    .replace(/\\"/g, '"')         // Replace \" with "
+                    .replace(/\\\\/g, '\\')       // Replace \\ with \
+                    .replace(/\\x([0-9a-fA-F]{2})/g, (match, hex) => String.fromCharCode(parseInt(hex, 16))); // Unicode escapes
+            }
+            
+            const attachments = email.meta?.attachments || [];
+            
+            detailContent.innerHTML = `
+                <div class="email-header">
+                    <h2 class="email-subject">${email.email_subject || '(No Subject)'}</h2>
+                    <div class="email-meta">
+                        <div class="email-meta-item">
+                            <span class="email-meta-label">From:</span>
+                            <span>${email.email_from || '-'}</span>
+                        </div>
+                        <div class="email-meta-item">
+                            <span class="email-meta-label">To:</span>
+                            <span>${email.email_to || '-'}</span>
+                        </div>
+                        ${(email.email_cc || email.meta?.cc) ? `
+                        <div class="email-meta-item">
+                            <span class="email-meta-label">CC:</span>
+                            <span>${email.email_cc || email.meta?.cc}</span>
+                        </div>` : ''}
+                        <div class="email-meta-item">
+                            <span class="email-meta-label">Date:</span>
+                            <span>${email.email_date ? new Date(email.email_date).toLocaleString() : '-'}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="email-body">
+                    ${(() => {
+                        // Content is already cleaned in showEmailDetails function
+                        const isHtml = email.meta?.content_type === 'html' || 
+                                      content.includes('<html') || 
+                                      content.includes('<body');
+                        
+                        if (isHtml) {
+                            // For HTML emails, render in iframe
+                            return `<iframe srcdoc="${content.replace(/"/g, '&quot;')}" 
+                                    style="width: 100%; height: 500px; border: none; background: white;"
+                                    sandbox="allow-same-origin"></iframe>`;
+                        } else {
+                            // For plain text emails
+                            return `<pre style="white-space: pre-wrap; font-family: inherit; margin: 0; 
+                                    line-height: 1.5; background: #f8fafc; padding: 1rem; border-radius: 0.5rem;">${content}</pre>`;
+                        }
+                    })()}
+                </div>
+                
+                ${attachments.length > 0 ? `
+                <div class="email-attachments">
+                    <div class="attachments-header">
+                        <i class="fas fa-paperclip"></i>
+                        <span>Attachments (${attachments.length})</span>
+                    </div>
+                    <div class="attachment-list">
+                        ${attachments.map(att => `
+                            <div class="attachment-item" onclick="downloadAttachment('${att.document_id}', '${att.filename}')">
+                                <div class="attachment-icon">
+                                    <i class="fas fa-file"></i>
+                                </div>
+                                <div class="attachment-info">
+                                    <div class="attachment-name">${att.filename}</div>
+                                    <div class="attachment-size">${formatFileSize(att.size)}</div>
+                                </div>
+                                <i class="fas fa-download"></i>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>` : ''}
+            `;
+            
+            // Show detail panel if hidden
+            const panel = document.getElementById('detailPanel');
+            if (panel.classList.contains('hidden')) {
+                toggleDetailPanel();
+            }
+        }
+
+        function onQuickFilterChanged() {
+            const filterText = document.getElementById('quickFilter').value;
+            gridApi.setQuickFilter(filterText);
+        }
+
+        function toggleAdvancedFilter() {
+            const sideBar = gridApi.getSideBar();
+            const filtersToolPanel = sideBar ? !sideBar : true;
+            
+            gridApi.setSideBarVisible(filtersToolPanel);
+            if (filtersToolPanel) {
+                gridApi.openToolPanel('filters');
+            }
+        }
+
+        function setViewMode(mode) {
+            currentViewMode = mode;
+            
+            // Update button states
+            document.querySelectorAll('.btn-group .btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Apply filters based on mode
+            switch(mode) {
+                case 'all':
+                    gridApi.setFilterModel(null);
+                    break;
+                case 'threads':
+                    gridApi.setFilterModel({
+                        thread_id: {
+                            type: 'notBlank'
+                        }
+                    });
+                    break;
+                case 'attachments':
+                    // Custom filter for attachments
+                    gridApi.onFilterChanged();
+                    break;
+            }
+        }
+
+        function toggleDetailPanel() {
+            const panel = document.getElementById('detailPanel');
+            panel.classList.toggle('hidden');
+        }
+
+        function exportToExcel() {
+            gridApi.exportDataAsExcel({
+                fileName: `case_${caseId}_emails_${new Date().toISOString().split('T')[0]}.xlsx`,
+                sheetName: 'Emails',
+                processCellCallback: (params) => {
+                    // Clean up HTML content for Excel
+                    if (params.column.colId === 'email_subject') {
+                        return params.value || '(No Subject)';
+                    }
+                    return params.value;
+                }
+            });
+        }
+
+        function printEmails() {
+            const selectedRows = gridApi.getSelectedRows();
+            const emailsToPrint = selectedRows.length > 0 ? selectedRows : allEmails;
+            
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>Email Correspondence - Case ${caseId}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; }
+                        .email { border-bottom: 2px solid #ccc; padding: 20px 0; page-break-inside: avoid; }
+                        .email-header { margin-bottom: 10px; }
+                        .email-subject { font-size: 18px; font-weight: bold; }
+                        .email-meta { color: #666; font-size: 14px; margin: 5px 0; }
+                        .email-body { margin-top: 15px; white-space: pre-wrap; }
+                    </style>
+                </head>
+                <body>
+                    <h1>Email Correspondence - Case ${caseId}</h1>
+                    ${emailsToPrint.map(email => `
+                        <div class="email">
+                            <div class="email-header">
+                                <div class="email-subject">${email.email_subject || '(No Subject)'}</div>
+                                <div class="email-meta">From: ${email.email_from || '-'}</div>
+                                <div class="email-meta">To: ${email.email_to || '-'}</div>
+                                <div class="email-meta">Date: ${email.email_date ? new Date(email.email_date).toLocaleString() : '-'}</div>
+                            </div>
+                            <div class="email-body">${email.meta?.content || email.content || 'No content'}</div>
+                        </div>
+                    `).join('')}
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
+        }
+
+        function refreshData() {
+            loadEmails();
+        }
+
+        function goToDashboard() {
+            const token = localStorage.getItem('token');
+            const caseId = localStorage.getItem('currentCaseId');
+            if (token && caseId) {
+                window.location.href = `dashboard.html?token=${token}&caseId=${caseId}`;
+            } else if (token) {
+                window.location.href = `dashboard.html?token=${token}`;
+            } else {
+                window.location.href = 'dashboard.html';
+            }
+        }
+
+        function showLoading(show) {
+            document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
+        }
+
+        function formatFileSize(bytes) {
+            if (!bytes) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        // Store current attachment info for download
+        let currentAttachment = null;
+
+        // Function to preview attachment
+        window.previewAttachment = async function(evidenceId, attachmentId, fileName) {
+            const modal = document.getElementById('attachmentPreviewModal');
+            const previewContent = document.getElementById('previewContent');
+            const previewTitle = document.getElementById('previewTitle');
+            
+            // Store current attachment info
+            currentAttachment = { evidenceId, attachmentId, fileName };
+            
+            // Show modal
+            modal.style.display = 'flex';
+            previewTitle.textContent = `Preview: ${fileName}`;
+            previewContent.innerHTML = '<div style="text-align: center; padding: 50px;">Loading preview...</div>';
+            
+            try {
+                // Determine file type
+                const fileExt = fileName.split('.').pop().toLowerCase();
+                
+                // For now, we'll show a mock preview based on file type
+                // In production, you'd fetch the actual file content from the API
+                
+                if (['jpg', 'jpeg', 'png', 'gif'].includes(fileExt)) {
+                    // Image preview - for now show a sample or use the attachment URL if available
+                    previewContent.innerHTML = `
+                        <div style="text-align: center;">
+                            <img src="${API_BASE}/api/cases/${caseId}/evidence/${evidenceId}/attachment/${attachmentId}" 
+                                 style="max-width: 100%; max-height: 100%; object-fit: contain;"
+                                 onerror="this.onerror=null; this.parentElement.innerHTML='<div style=\\'text-align: center; padding: 50px;\\'>\\n<div style=\\'font-size: 4rem; margin-bottom: 20px;\\'>🖼️</div>\\n<h3 style=\\'color: #1f2937; margin-bottom: 10px;\\'>${fileName}</h3>\\n<p style=\\'color: #6b7280; margin-bottom: 20px;\\'>Image preview currently unavailable.</p>\\n<button onclick=\\'downloadCurrentAttachment()\\' style=\\'background: #3b82f6; color: white; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer;\\'>⬇ Download Image</button>\\n</div>';" />
+                        </div>
+                    `;
+                } else if (fileExt === 'pdf') {
+                    // PDF preview - for now show download option
+                    previewContent.innerHTML = `
+                        <div style="text-align: center; padding: 50px;">
+                            <div style="font-size: 4rem; margin-bottom: 20px;">📄</div>
+                            <h3 style="color: #1f2937; margin-bottom: 10px;">${fileName}</h3>
+                            <p style="color: #6b7280; margin-bottom: 20px;">PDF preview will open in new tab.</p>
+                            <button onclick="window.open('${API_BASE}/api/cases/${caseId}/evidence/${evidenceId}/attachment/${attachmentId}', '_blank')" 
+                                    style="background: #3b82f6; color: white; border: none; padding: 10px 24px;
+                                           border-radius: 6px; cursor: pointer; font-size: 0.95rem; font-weight: 500; margin-right: 10px;">
+                                📖 Open PDF
+                            </button>
+                            <button onclick="downloadCurrentAttachment()" 
+                                    style="background: #10b981; color: white; border: none; padding: 10px 24px;
+                                           border-radius: 6px; cursor: pointer; font-size: 0.95rem; font-weight: 500;">
+                                ⬇ Download PDF
+                            </button>
+                        </div>
+                    `;
+                } else if (['txt', 'csv'].includes(fileExt)) {
+                    // Text file preview
+                    previewContent.innerHTML = `
+                        <div style="background: #f9fafb; padding: 20px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; overflow: auto;">
+                            <div style="color: #6b7280;">Text preview would appear here...</div>
+                            <div style="margin-top: 10px; color: #9ca3af; font-size: 0.875rem;">Click Download to view the full file.</div>
+                        </div>
+                    `;
+                } else if (['doc', 'docx', 'xls', 'xlsx'].includes(fileExt)) {
+                    // Office documents
+                    previewContent.innerHTML = `
+                        <div style="text-align: center; padding: 50px;">
+                            <div style="font-size: 4rem; margin-bottom: 20px;">
+                                ${fileExt.includes('doc') ? '📝' : '📊'}
+                            </div>
+                            <h3 style="color: #1f2937; margin-bottom: 10px;">${fileName}</h3>
+                            <p style="color: #6b7280; margin-bottom: 20px;">Office document preview not available in browser.</p>
+                            <button onclick="downloadCurrentAttachment()" 
+                                    style="background: #3b82f6; color: white; border: none; padding: 10px 24px;
+                                           border-radius: 6px; cursor: pointer; font-size: 0.95rem; font-weight: 500;">
+                                ⬇ Download to View
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    // Generic file preview
+                    previewContent.innerHTML = `
+                        <div style="text-align: center; padding: 50px;">
+                            <div style="font-size: 4rem; margin-bottom: 20px;">📎</div>
+                            <h3 style="color: #1f2937; margin-bottom: 10px;">${fileName}</h3>
+                            <p style="color: #6b7280; margin-bottom: 20px;">Preview not available for this file type.</p>
+                            <button onclick="downloadCurrentAttachment()" 
+                                    style="background: #3b82f6; color: white; border: none; padding: 10px 24px;
+                                           border-radius: 6px; cursor: pointer; font-size: 0.95rem; font-weight: 500;">
+                                ⬇ Download File
+                            </button>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading preview:', error);
+                previewContent.innerHTML = `
+                    <div style="text-align: center; padding: 50px; color: #ef4444;">
+                        <p>Error loading preview</p>
+                        <button onclick="downloadCurrentAttachment()" 
+                                style="margin-top: 20px; background: #3b82f6; color: white; border: none; padding: 10px 24px;
+                                       border-radius: 6px; cursor: pointer;">
+                            Try Downloading Instead
+                        </button>
+                    </div>
+                `;
+            }
+        };
+
+        // Function to close attachment preview
+        window.closeAttachmentPreview = function() {
+            const modal = document.getElementById('attachmentPreviewModal');
+            modal.style.display = 'none';
+            currentAttachment = null;
+        };
+
+        // Function to download attachment
+        window.downloadAttachment = function(evidenceId, attachmentId, fileName) {
+            // For now, open in new tab which will trigger download for most file types
+            // The actual endpoint would need to be implemented in the backend
+            const url = `${API_BASE}/api/cases/${caseId}/evidence/${evidenceId}/attachment/${attachmentId}`;
+            
+            // Try to force download using a temporary link
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            link.target = '_blank';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
+        // Function to download current attachment from preview
+        window.downloadCurrentAttachment = function() {
+            if (currentAttachment) {
+                downloadAttachment(currentAttachment.evidenceId, currentAttachment.attachmentId, currentAttachment.fileName);
+            }
+        };
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeAttachmentPreview();
+            }
+        });
+
+        // Legacy download function (if needed for other parts of the app)
+        function downloadDocumentLegacy(documentId, filename) {
+            window.open(`${API_BASE}/documents/${documentId}/download?filename=${encodeURIComponent(filename)}`, '_blank');
+        }
+
+        // ==================== PROGRAMME ANALYSIS FUNCTIONS ====================
+
+        /**
+         * Link an email to a programme activity
+         * Opens a modal to select from uploaded Asta programme activities
+         */
+        window.linkActivityToEmail = async function(emailId) {
+            try {
+                // Fetch available programme activities from uploaded Asta programme files
+                const response = await fetch(`${API_BASE}/api/cases/${caseId}/programme/activities`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load programme activities');
+                }
+                
+                const activities = await response.json();
+                
+                // Create modal with activity selector
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                    background: rgba(0,0,0,0.7); display: flex; align-items: center;
+                    justify-content: center; z-index: 10000;
+                `;
+                
+                modal.innerHTML = `
+                    <div style="background: white; border-radius: 12px; padding: 30px; 
+                              max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                        <h2 style="margin: 0 0 20px 0; color: #1e293b;">
+                            <i class="fas fa-link"></i> Link to Programme Activity
+                        </h2>
+                        
+                        <div style="margin-bottom: 20px;">
+                            <input type="text" id="activitySearchInput" 
+                                   placeholder="Search activities..." 
+                                   style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; 
+                                        border-radius: 8px; font-size: 14px;"
+                                   oninput="filterActivitiesList(this.value)">
+                        </div>
+                        
+                        <div id="activitiesList" style="max-height: 400px; overflow-y: auto;">
+                            ${activities.length === 0 ? `
+                                <div style="text-align: center; padding: 40px; color: #64748b;">
+                                    <i class="fas fa-upload" style="font-size: 48px; margin-bottom: 16px;"></i>
+                                    <p style="font-size: 16px; margin: 0;">No programme uploaded yet</p>
+                                    <button onclick="window.location.href='/ui/programme.html?case=${caseId}'"
+                                            style="margin-top: 20px; background: #3b82f6; color: white; 
+                                                 border: none; padding: 12px 24px; border-radius: 8px; 
+                                                 cursor: pointer; font-weight: 500;">
+                                        <i class="fas fa-upload"></i> Upload Programme
+                                    </button>
+                                </div>
+                            ` : activities.map(activity => `
+                                <div class="activity-item" data-activity-id="${activity.id}" 
+                                     data-activity-name="${activity.name}"
+                                     style="padding: 16px; border: 1px solid #e2e8f0; border-radius: 8px; 
+                                          margin-bottom: 12px; cursor: pointer; transition: all 0.2s;"
+                                     onmouseover="this.style.background='#f8fafc'; this.style.borderColor='#3b82f6'"
+                                     onmouseout="this.style.background='white'; this.style.borderColor='#e2e8f0'"
+                                     onclick="selectActivity('${emailId}', '${activity.id}', '${activity.name}')">
+                                    <div style="font-weight: 600; color: #1e293b; margin-bottom: 4px;">
+                                        ${activity.name}
+                                    </div>
+                                    <div style="font-size: 12px; color: #64748b;">
+                                        ID: ${activity.id} | Duration: ${activity.duration} days
+                                        ${activity.is_critical ? ' | <span style="color: #dc2626; font-weight: 600;">CRITICAL PATH</span>' : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        
+                        <div style="margin-top: 20px; display: flex; gap: 12px; justify-content: flex-end;">
+                            <button onclick="this.closest('div[style*=fixed]').remove()"
+                                    style="background: #e2e8f0; color: #475569; border: none; 
+                                         padding: 10px 20px; border-radius: 8px; cursor: pointer; 
+                                         font-weight: 500;">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+                
+            } catch (error) {
+                console.error('Error loading activities:', error);
+                alert('Failed to load programme activities. Make sure you have uploaded a baseline programme.');
+            }
+        };
+
+        /**
+         * Filter activities list based on search input
+         */
+        window.filterActivitiesList = function(searchTerm) {
+            const items = document.querySelectorAll('.activity-item');
+            const lowerSearch = searchTerm.toLowerCase();
+            
+            items.forEach(item => {
+                const name = item.dataset.activityName.toLowerCase();
+                const id = item.dataset.activityId.toLowerCase();
+                
+                if (name.includes(lowerSearch) || id.includes(lowerSearch)) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        };
+
+        /**
+         * Select an activity and link it to the email
+         */
+        window.selectActivity = async function(emailId, activityId, activityName) {
+            try {
+                // Save the link in the database
+                await fetch(`${API_BASE}/api/cases/${caseId}/evidence/${emailId}/link-activity`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        activity_id: activityId,
+                        activity_name: activityName
+                    })
+                });
+                
+                // Close modal
+                document.querySelector('div[style*="position: fixed"]').remove();
+                
+                // Refresh the grid to show the linked activity
+                await loadEmails();
+                
+                // Show success message
+                showNotification(`Email linked to activity: ${activityName}`, 'success');
+                
+            } catch (error) {
+                console.error('Error linking activity:', error);
+                alert('Failed to link activity to email');
+            }
+        };
+
+        /**
+         * View detailed programme analysis for an email
+         * Shows baseline vs actual progress at the email's date
+         */
+        window.viewProgrammeAnalysis = async function(emailId, activityId) {
+            try {
+                showLoading(true, 'Loading programme analysis...');
+                
+                // Fetch programme analysis data
+                const response = await fetch(
+                    `${API_BASE}/api/cases/${caseId}/evidence/${emailId}/programme-analysis?activity=${activityId}`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    }
+                );
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load programme analysis');
+                }
+                
+                const analysis = await response.json();
+                
+                // Create modal with detailed programme analysis
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                    background: rgba(0,0,0,0.8); display: flex; align-items: center;
+                    justify-content: center; z-index: 10000; overflow-y: auto; padding: 20px;
+                `;
+                
+                const emailDate = new Date(analysis.email_date);
+                const variance = analysis.variance_days || 0;
+                const isDelayed = variance < 0;
+                
+                modal.innerHTML = `
+                    <div style="background: white; border-radius: 16px; padding: 40px; 
+                              max-width: 1000px; width: 100%; max-height: 90vh; overflow-y: auto;">
+                        
+                        <!-- Header -->
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 30px;">
+                            <div>
+                                <h2 style="margin: 0 0 8px 0; color: #1e293b; font-size: 24px;">
+                                    <i class="fas fa-chart-gantt"></i> Programme Analysis
+                                </h2>
+                                <p style="margin: 0; color: #64748b;">
+                                    Activity: <strong>${analysis.activity_name}</strong> | 
+                                    Email Date: <strong>${emailDate.toLocaleDateString()}</strong>
+                                </p>
+                            </div>
+                            <button onclick="this.closest('div[style*=fixed]').remove()"
+                                    style="background: #e2e8f0; border: none; width: 36px; height: 36px; 
+                                         border-radius: 8px; cursor: pointer; font-size: 18px; color: #475569;">
+                                ×
+                            </button>
+                        </div>
+                        
+                        <!-- Variance Alert -->
+                        ${variance !== 0 ? `
+                            <div style="background: ${isDelayed ? '#fee2e2' : '#d1fae5'}; 
+                                      border-left: 4px solid ${isDelayed ? '#dc2626' : '#059669'}; 
+                                      padding: 20px; border-radius: 8px; margin-bottom: 30px;">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <i class="fas ${isDelayed ? 'fa-exclamation-triangle' : 'fa-check-circle'}" 
+                                       style="font-size: 32px; color: ${isDelayed ? '#dc2626' : '#059669'};"></i>
+                                    <div>
+                                        <h3 style="margin: 0 0 4px 0; color: ${isDelayed ? '#991b1b' : '#065f46'};">
+                                            ${isDelayed ? 'Programme Delay Detected' : 'Programme Ahead of Schedule'}
+                                        </h3>
+                                        <p style="margin: 0; font-size: 18px; font-weight: 600; 
+                                                color: ${isDelayed ? '#dc2626' : '#059669'};">
+                                            ${isDelayed ? '' : '+'}${variance} days ${isDelayed ? 'behind' : 'ahead of'} baseline
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        ` : ''}
+                        
+                        <!-- Progress Comparison -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 30px;">
+                            <div style="background: #f8fafc; padding: 24px; border-radius: 12px;">
+                                <h4 style="margin: 0 0 16px 0; color: #475569; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">
+                                    Baseline Programme
+                                </h4>
+                                <div style="font-size: 48px; font-weight: 700; color: #3b82f6; margin-bottom: 12px;">
+                                    ${Math.round(analysis.baseline_progress || 0)}%
+                                </div>
+                                <div style="background: #e2e8f0; height: 12px; border-radius: 6px; overflow: hidden;">
+                                    <div style="width: ${analysis.baseline_progress || 0}%; height: 100%; 
+                                              background: linear-gradient(90deg, #3b82f6, #2563eb);"></div>
+                                </div>
+                                <p style="margin: 12px 0 0 0; color: #64748b; font-size: 14px;">
+                                    Planned progress at ${emailDate.toLocaleDateString()}
+                                </p>
+                            </div>
+                            
+                            <div style="background: #f8fafc; padding: 24px; border-radius: 12px;">
+                                <h4 style="margin: 0 0 16px 0; color: #475569; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em;">
+                                    As-Built Programme
+                                </h4>
+                                <div style="font-size: 48px; font-weight: 700; 
+                                          color: ${isDelayed ? '#dc2626' : '#059669'}; margin-bottom: 12px;">
+                                    ${Math.round(analysis.actual_progress || 0)}%
+                                </div>
+                                <div style="background: #e2e8f0; height: 12px; border-radius: 6px; overflow: hidden;">
+                                    <div style="width: ${analysis.actual_progress || 0}%; height: 100%; 
+                                              background: linear-gradient(90deg, ${isDelayed ? '#dc2626, #991b1b' : '#059669, #047857'});"></div>
+                                </div>
+                                <p style="margin: 12px 0 0 0; color: #64748b; font-size: 14px;">
+                                    Actual progress at ${emailDate.toLocaleDateString()}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <!-- Timeline Visualization -->
+                        <div style="background: #f8fafc; padding: 24px; border-radius: 12px; margin-bottom: 30px;">
+                            <h4 style="margin: 0 0 20px 0; color: #1e293b;">Timeline Comparison</h4>
+                            
+                            <!-- Baseline Timeline -->
+                            <div style="margin-bottom: 16px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                    <span style="font-size: 12px; color: #64748b;">Baseline</span>
+                                    <span style="font-size: 12px; color: #64748b;">
+                                        ${new Date(analysis.baseline_start).toLocaleDateString()} - 
+                                        ${new Date(analysis.baseline_end).toLocaleDateString()}
+                                    </span>
+                                </div>
+                                <div style="background: #dbeafe; height: 24px; border-radius: 6px; position: relative;">
+                                    <div style="position: absolute; left: ${((emailDate - new Date(analysis.baseline_start)) / (new Date(analysis.baseline_end) - new Date(analysis.baseline_start))) * 100}%;
+                                              width: 3px; height: 100%; background: #1e40af; z-index: 1;"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- Actual Timeline -->
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                    <span style="font-size: 12px; color: #64748b;">As-Built</span>
+                                    <span style="font-size: 12px; color: #64748b;">
+                                        ${new Date(analysis.actual_start).toLocaleDateString()} - 
+                                        ${new Date(analysis.actual_end).toLocaleDateString()}
+                                    </span>
+                                </div>
+                                <div style="background: ${isDelayed ? '#fee2e2' : '#d1fae5'}; height: 24px; border-radius: 6px; position: relative;">
+                                    <div style="position: absolute; left: ${((emailDate - new Date(analysis.actual_start)) / (new Date(analysis.actual_end) - new Date(analysis.actual_start))) * 100}%;
+                                              width: 3px; height: 100%; background: ${isDelayed ? '#dc2626' : '#059669'}; z-index: 1;"></div>
+                                </div>
+                            </div>
+                            
+                            <div style="text-align: center; margin-top: 12px; padding: 12px; 
+                                      background: white; border-radius: 6px;">
+                                <i class="fas fa-map-marker-alt" style="color: #3b82f6;"></i>
+                                <span style="margin-left: 8px; font-size: 14px; color: #64748b;">
+                                    Email sent at this point in time
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <!-- Critical Path Status -->
+                        ${analysis.is_critical_path ? `
+                            <div style="background: #fef3c7; border-left: 4px solid #f59e0b; 
+                                      padding: 16px; border-radius: 8px; margin-bottom: 30px;">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <i class="fas fa-fire" style="font-size: 24px; color: #f59e0b;"></i>
+                                    <div>
+                                        <strong style="color: #92400e;">Critical Path Activity</strong>
+                                        <p style="margin: 4px 0 0 0; color: #78350f; font-size: 14px;">
+                                            This activity is on the critical path. Any delays will impact the project completion date.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        ` : ''}
+                        
+                        <!-- Action Buttons -->
+                        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                            <button onclick="exportProgrammeAnalysis('${emailId}', '${activityId}')"
+                                    style="background: white; border: 1px solid #e2e8f0; color: #475569; 
+                                         padding: 12px 24px; border-radius: 8px; cursor: pointer; 
+                                         font-weight: 500; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-download"></i> Export Report
+                            </button>
+                            <button onclick="this.closest('div[style*=fixed]').remove()"
+                                    style="background: #3b82f6; color: white; border: none; 
+                                         padding: 12px 24px; border-radius: 8px; cursor: pointer; 
+                                         font-weight: 500;">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+                
+            } catch (error) {
+                console.error('Error loading programme analysis:', error);
+                alert('Failed to load programme analysis. Make sure you have uploaded both baseline and as-built programmes.');
+            } finally {
+                showLoading(false);
+            }
+        };
+
+        /**
+         * Export programme analysis as PDF report
+         */
+        window.exportProgrammeAnalysis = async function(emailId, activityId) {
+            try {
+                showLoading(true, 'Generating report...');
+                
+                const response = await fetch(
+                    `${API_BASE}/api/cases/${caseId}/evidence/${emailId}/programme-report?activity=${activityId}&format=pdf`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    }
+                );
+                
+                if (!response.ok) {
+                    throw new Error('Failed to generate report');
+                }
+                
+                // Download the PDF
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `programme-analysis-${activityId}-${new Date().toISOString().split('T')[0]}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                showNotification('Report downloaded successfully', 'success');
+                
+            } catch (error) {
+                console.error('Error exporting report:', error);
+                alert('Failed to export report');
+            } finally {
+                showLoading(false);
+            }
+        };
+
+        /**
+         * Show notification message
+         */
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            const colors = {
+                success: { bg: '#d1fae5', border: '#059669', text: '#065f46' },
+                error: { bg: '#fee2e2', border: '#dc2626', text: '#991b1b' },
+                info: { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af' }
+            };
+            const color = colors[type] || colors.info;
+            
+            notification.style.cssText = `
+                position: fixed; top: 20px; right: 20px; z-index: 10001;
+                background: ${color.bg}; border-left: 4px solid ${color.border};
+                color: ${color.text}; padding: 16px 20px; border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-weight: 500;
+                animation: slideIn 0.3s ease-out;
+            `;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-in';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        // ==================== END PROGRAMME ANALYSIS FUNCTIONS ====================
+
+        // Set AG-Grid Enterprise license key (Trial - Valid until 30 November 2025)
+        agGrid.LicenseManager.setLicenseKey("[TRIAL]_this_{AG_Charts_and_AG_Grid}_Enterprise_key_{AG-104897}_is_granted_for_evaluation_only___Use_in_production_is_not_permitted___Please_report_misuse_to_legal@ag-grid.com___For_help_with_purchasing_a_production_key_please_contact_info@ag-grid.com___You_are_granted_a_{Single_Application}_Developer_License_for_one_application_only___All_Front-End_JavaScript_developers_working_on_the_application_would_need_to_be_licensed___This_key_will_deactivate_on_{30 November 2025}____[v3]_[0102]_MTc2NDQ2MDgwMDAwMA==a97c0b249a2f0bd2a1ed2c10804b61b5");
+    </script>
+</body>
+</html>

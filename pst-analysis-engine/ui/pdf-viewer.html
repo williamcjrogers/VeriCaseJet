@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>PDF Preview</title>
+  <style>
+    body { margin:0; background:#222; color:#eee; }
+    #toolbar { background:#333; padding:8px; position:fixed; top:0; left:0; right:0; z-index:10; }
+    #viewer { position:absolute; top:48px; bottom:0; left:0; right:0; overflow:auto; }
+    canvas { display:block; margin: 0 auto 12px; background:#444; }
+    button { padding:6px 10px; }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <button id="prev">Prev</button>
+    <span id="page_num">1</span>/<span id="page_count">?</span>
+    <button id="next">Next</button>
+    <span style="margin-left:16px">Zoom:</span>
+    <button id="zoom_out">-</button>
+    <button id="zoom_in">+</button>
+  </div>
+  <div id="viewer"><canvas id="the-canvas"></canvas></div>
+
+  <script type="module">
+    import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs";
+
+    // Configure PDF.js worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs';
+
+    const params = new URLSearchParams(location.search);
+    const url = params.get('file');
+    if (!url) {
+      document.body.innerHTML = '<div style="padding:20px">No file URL provided.</div>';
+      throw new Error('No file param');
+    }
+
+    let pdfDoc = null, pageNum = 1, scale = 1.2;
+    const canvas = document.getElementById('the-canvas');
+    const ctx = canvas.getContext('2d');
+
+    async function renderPage(num) {
+      const page = await pdfDoc.getPage(num);
+      const viewport = page.getViewport({ scale });
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      document.getElementById('page_num').textContent = num;
+      document.getElementById('page_count').textContent = pdfDoc.numPages;
+    }
+
+    async function load() {
+      try {
+        pdfDoc = await pdfjsLib.getDocument({ url, withCredentials: false }).promise;
+        renderPage(pageNum);
+      } catch (e) {
+        document.getElementById('viewer').innerHTML = '<div style="padding:20px">Failed to load PDF. ' + e + '</div>';
+      }
+    }
+
+    document.getElementById('prev').onclick = () => { if (pageNum > 1) { pageNum--; renderPage(pageNum); } };
+    document.getElementById('next').onclick = () => { if (pageNum < pdfDoc.numPages) { pageNum++; renderPage(pageNum); } };
+    document.getElementById('zoom_in').onclick = () => { scale *= 1.2; renderPage(pageNum); };
+    document.getElementById('zoom_out').onclick = () => { scale = Math.max(0.2, scale / 1.2); renderPage(pageNum); };
+
+    load();
+  </script>
+</body>
+</html>
