@@ -28,6 +28,8 @@ from .ai_orchestrator import router as orchestrator_router
 from .cases import router as cases_router
 from .simple_cases import router as simple_cases_router
 from .programmes import router as programmes_router
+from .correspondence import router as correspondence_router, wizard_router  # PST Analysis endpoints
+from .refinement import router as refinement_router  # AI refinement wizard
 
 logger = logging.getLogger(__name__)
 bearer = HTTPBearer()
@@ -68,9 +70,12 @@ app.include_router(favorites_router)
 app.include_router(versioning_router)
 app.include_router(ai_router)
 app.include_router(orchestrator_router)
+app.include_router(wizard_router)  # Wizard endpoints (must come early for /api/projects, /api/cases)
 app.include_router(simple_cases_router)  # Must come BEFORE cases_router to match first
 app.include_router(cases_router)
 app.include_router(programmes_router)
+app.include_router(correspondence_router)  # PST Analysis & email correspondence
+app.include_router(refinement_router)  # AI refinement wizard endpoints
 
 origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 if origins:
@@ -90,6 +95,37 @@ else:
 @app.get("/", include_in_schema=False)
 def root():
     return RedirectResponse(url="/ui/")
+
+@app.get("/health")
+async def health_check(db: Session = Depends(get_db)):
+    """Health check endpoint for monitoring"""
+    from sqlalchemy import text
+    from fastapi.responses import JSONResponse
+    
+    try:
+        # Check database connection
+        db.execute(text("SELECT 1"))
+        
+        # Check Redis connection
+        import redis
+        r = redis.from_url(settings.REDIS_URL)
+        r.ping()
+        
+        # Check MinIO/S3 connection
+        s3().list_buckets()
+        
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "redis": "connected",
+            "storage": "connected",
+            "version": app.version
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "error": str(e)}
+        )
 
 @app.on_event("startup")
 def startup():
@@ -370,34 +406,39 @@ def get_recent_documents(
     user: User = Depends(current_user),
 ):
     """Get recently accessed or created documents"""
-    from datetime import datetime, timedelta
-    
-    # Get documents accessed in last 30 days, or fall back to recently created
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-    
-    # Try to get recently accessed first
-    recent_query = db.query(Document).filter(
-        Document.owner_user_id == user.id,
-        Document.last_accessed_at.isnot(None),
-        Document.last_accessed_at >= thirty_days_ago
-    ).order_by(Document.last_accessed_at.desc())
-    
-    recent_docs = recent_query.limit(limit).all()
-    
-    # If not enough recently accessed, add recently created
-    if len(recent_docs) < limit:
-        created_query = db.query(Document).filter(
-            Document.owner_user_id == user.id
-        ).order_by(Document.created_at.desc())
+    try:
+        from datetime import datetime, timedelta
         
-        created_docs = created_query.limit(limit - len(recent_docs)).all()
+        # Get documents accessed in last 30 days, or fall back to recently created
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
         
-        # Merge and deduplicate
-        seen_ids = {doc.id for doc in recent_docs}
-        for doc in created_docs:
-            if doc.id not in seen_ids:
-                recent_docs.append(doc)
-                seen_ids.add(doc.id)
+        # Try to get recently accessed first
+        recent_query = db.query(Document).filter(
+            Document.owner_user_id == user.id,
+            Document.last_accessed_at.isnot(None),
+            Document.last_accessed_at >= thirty_days_ago
+        ).order_by(Document.last_accessed_at.desc())
+        
+        recent_docs = recent_query.limit(limit).all()
+        
+        # If not enough recently accessed, add recently created
+        if len(recent_docs) < limit:
+            created_query = db.query(Document).filter(
+                Document.owner_user_id == user.id
+            ).order_by(Document.created_at.desc())
+            
+            created_docs = created_query.limit(limit - len(recent_docs)).all()
+            
+            # Merge and deduplicate
+            seen_ids = {doc.id for doc in recent_docs}
+            for doc in created_docs:
+                if doc.id not in seen_ids:
+                    recent_docs.append(doc)
+                    seen_ids.add(doc.id)
+    except Exception as e:
+        import logging
+        logging.error(f"Database error in get_recent_documents: {e}")
+        raise HTTPException(500, "Failed to fetch recent documents")
     
     items = [
         DocumentSummary(
@@ -437,33 +478,41 @@ def get_signed_url(doc_id: str, db: Session = Depends(get_db), user: User = Depe
 @app.patch("/documents/{doc_id}")
 def update_document(doc_id: str, body: dict = Body(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
     """Update document metadata (path, title, etc.)"""
-    doc = db.get(Document, _parse_uuid(doc_id))
-    if not doc or doc.owner_user_id != user.id:
-        raise HTTPException(404, "not found")
-    
-    if "path" in body:
-        new_path = body["path"]
-        if new_path == "":
-            new_path = None
-        doc.path = new_path
-    
-    if "title" in body:
-        doc.title = body["title"]
-    
-    if "filename" in body:
-        doc.filename = body["filename"]
-    
-    doc.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(doc)
-    
-    return {
-        "id": str(doc.id),
-        "filename": doc.filename,
-        "path": doc.path,
-        "title": doc.title,
-        "updated_at": doc.updated_at
-    }
+    try:
+        doc = db.get(Document, _parse_uuid(doc_id))
+        if not doc or doc.owner_user_id != user.id:
+            raise HTTPException(404, "not found")
+        
+        if "path" in body:
+            new_path = body["path"]
+            if new_path == "":
+                new_path = None
+            doc.path = new_path
+        
+        if "title" in body:
+            doc.title = body["title"]
+        
+        if "filename" in body:
+            doc.filename = body["filename"]
+        
+        doc.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(doc)
+        
+        return {
+            "id": str(doc.id),
+            "filename": doc.filename,
+            "path": doc.path,
+            "title": doc.title,
+            "updated_at": doc.updated_at
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.error(f"Error updating document: {e}")
+        db.rollback()
+        raise HTTPException(500, "Failed to update document")
 
 @app.delete("/documents/{doc_id}", status_code=204)
 def delete_document_endpoint(doc_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)):

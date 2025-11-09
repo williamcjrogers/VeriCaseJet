@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, DateTime, Text, JSON, Enum, Integer, ForeignKey, Boolean
+from sqlalchemy import Column, String, DateTime, Text, JSON, Enum, Integer, ForeignKey, Boolean, Index
 from sqlalchemy.sql import func, expression
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -387,6 +387,15 @@ class Project(Base):
     start_date = Column(DateTime(timezone=True), nullable=True)
     completion_date = Column(DateTime(timezone=True), nullable=True)
     contract_type = Column(String(100), nullable=True)
+    # Retrospective analysis fields
+    analysis_type = Column(String(50), nullable=True, default='project')  # 'retrospective' or 'project'
+    project_aliases = Column(Text, nullable=True)  # Comma-separated alternative names
+    site_address = Column(Text, nullable=True)
+    include_domains = Column(Text, nullable=True)  # Comma-separated domains
+    exclude_people = Column(Text, nullable=True)  # Comma-separated names/emails
+    project_terms = Column(Text, nullable=True)  # Project-specific terms
+    exclude_keywords = Column(Text, nullable=True)  # Keywords to exclude
+    metadata = Column(JSON, nullable=True, default=lambda: {})  # Flexible storage for refinements etc
     owner_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     owner = relationship("User")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -426,7 +435,7 @@ class EmailMessage(Base):
     # Email metadata
     message_id = Column(String(512), nullable=True, index=True)  # RFC message-id
     in_reply_to = Column(String(512), nullable=True)
-    references = Column(Text, nullable=True)  # For threading
+    email_references = Column(Text, nullable=True)  # For threading (renamed from references)
     conversation_index = Column(String(1024), nullable=True)
     
     # PST forensic data
@@ -454,9 +463,25 @@ class EmailMessage(Base):
     matched_stakeholders = Column(JSON, nullable=True)  # Array of stakeholder IDs
     matched_keywords = Column(JSON, nullable=True)  # Array of keyword IDs
     
+    # Storage optimization: Store only preview if body is too large
+    body_preview = Column(Text, nullable=True)  # First 10KB
+    body_full_s3_key = Column(String(512), nullable=True)  # S3 key if body > 10KB
+    
+    # Flexible metadata storage
+    metadata = Column(JSON, nullable=True, default=lambda: {})
+    
     pst_file = relationship("PSTFile")
     case = relationship("Case")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Add indexes for performance
+    __table_args__ = (
+        Index('idx_email_case_date', 'case_id', 'date_sent'),
+        Index('idx_email_stakeholders', 'matched_stakeholders', postgresql_using='gin'),
+        Index('idx_email_keywords', 'matched_keywords', postgresql_using='gin'),
+        Index('idx_email_has_attachments', 'case_id', 'has_attachments'),
+        Index('idx_email_conversation', 'case_id', 'conversation_index'),
+    )
 
 
 class EmailAttachment(Base):

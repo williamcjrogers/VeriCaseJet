@@ -11,3 +11,4 @@ Pillow==10.4.0
 SQLAlchemy==2.0.35
 pydantic-settings==2.6.1
 pydantic==2.10.3
+# pypff is built from source in Dockerfile via libpff

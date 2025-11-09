@@ -2,442 +2,100 @@
 const wizardState = {
     currentStep: 0,
     profileType: 'project',
-    data: {}
+    data: {},
+    totalSteps: 0
 };
 
-// Templates for quick setup
-const projectTemplates = {
-    'construction': {
-        name: 'Construction Project',
-        stakeholders: [
-            { role: 'Main Contractor', name: '' },
-            { role: 'Client', name: '' },
-            { role: 'Employers Agent', name: '' },
-            { role: 'Project Manager', name: '' }
-        ],
-        keywords: [
-            { name: 'Delay', variations: 'delays, delayed, postponement' },
-            { name: 'Variation', variations: 'variations, change order, modification' },
-            { name: 'Relevant Event', variations: '' },
-            { name: 'Extension of Time', variations: 'EOT, time extension' }
-        ],
-        contractType: 'JCT'
-    },
-    'infrastructure': {
-        name: 'Infrastructure Project',
-        stakeholders: [
-            { role: 'Main Contractor', name: '' },
-            { role: 'Council', name: '' },
-            { role: 'Client', name: '' }
-        ],
-        keywords: [
-            { name: 'Section 278', variations: 'Section 278, Highways Agreement, Section 106' },
-            { name: 'Delay', variations: 'delays, programme slippage' },
-            { name: 'Variation', variations: 'variations, instructed works' }
-        ],
-        contractType: 'NEC'
-    }
-};
+// Pre-populated keywords list
+const prePopulatedKeywords = [
+    'Relevant Event',
+    'Relevant Matter', 
+    'Section 278',
+    'Delay',
+    'Risk',
+    'Change',
+    'Variation'
+];
 
-const caseTemplates = {
-    'adjudication': {
-        name: 'Adjudication',
-        deadlines: [
-            { task: 'Notice of Adjudication', description: 'Serve notice', date: '' },
-            { task: 'Referral Notice', description: 'Submit referral (7 days)', date: '' },
-            { task: 'Response', description: 'Respondent\'s response (14 days)', date: '' },
-            { task: 'Decision', description: 'Expected decision (28 days)', date: '' }
-        ],
-        keywords: [
-            { name: 'Payment', variations: 'payment, valuation, application' },
-            { name: 'Extension of Time', variations: 'EOT, time extension, delay' },
-            { name: 'Loss and Expense', variations: 'loss, expense, prolongation' }
-        ]
-    },
-    'litigation': {
-        name: 'Litigation',
-        deadlines: [
-            { task: 'Pre-action Protocol', description: 'Letter of claim', date: '' },
-            { task: 'Disclosure', description: 'Initial disclosure', date: '' },
-            { task: 'Witness Statements', description: 'Exchange statements', date: '' }
-        ],
-        keywords: [
-            { name: 'Breach', variations: 'breach of contract, contractual breach' },
-            { name: 'Negligence', variations: 'negligent, duty of care' },
-            { name: 'Damages', variations: 'damages, loss, compensation' }
-        ]
-    }
-};
+// Pre-populated roles
+const stakeholderRoles = [
+    'Main Contractor',
+    'Council',
+    'Employers Agent',
+    'Project Manager',
+    'Client',
+    'Building Control',
+    'Subcontractor',
+    'Client Management Team'
+];
 
-// Load token from URL or localStorage
-const urlParams = new URLSearchParams(window.location.search);
-const token = urlParams.get('token') || localStorage.getItem('token');
-
-// Token is optional - allow wizard to load without authentication
-
-// Step templates
+// Define steps for each profile type
 const projectSteps = [
     {
         id: 'project-identification',
-        title: 'Project Identification',
-        template: `
-            <h2>Step 1 of 3 — Identification</h2>
-            <div class="form-group">
-                <label>Project Name <span class="required">*</span></label>
-                <input type="text" id="projectName" required minlength="2" maxlength="200" placeholder="Enter project name">
-            </div>
-            <div class="form-group">
-                <label>Project Code <span class="required">*</span></label>
-                <input type="text" id="projectCode" required placeholder="Unique project code">
-                <span class="helper-text">Must be unique within your organization</span>
-            </div>
-            <div class="form-group">
-                <label>Start Date <i class="fas fa-info-circle tooltip" title="Ensure all pre-commencement and relevant tendering period is accounted for"></i></label>
-                <input type="date" id="startDate">
-            </div>
-            <div class="form-group">
-                <label>Completion Date</label>
-                <input type="date" id="completionDate">
-            </div>
-        `
+        title: 'Identification',
+        render: renderProjectIdentification,
+        validate: validateProjectIdentification,
+        save: saveProjectIdentification
     },
     {
         id: 'project-stakeholders',
-        title: 'Stakeholders & Keywords',
-        template: `
-            <h2>Step 2 of 3 — Stakeholders & Keywords</h2>
-            
-            <h3 style="margin-bottom: 10px;">Key Stakeholders & Parties</h3>
-            <div class="guidance-note">
-                Examples include United Living and names of: Employer's Agent, Client, Council, NHBC, Subcontractors, etc.
-            </div>
-            
-            <div class="table-container">
-                <table id="stakeholdersTable">
-                    <thead>
-                        <tr>
-                            <th>Role</th>
-                            <th>Name / Organisation</th>
-                            <th width="100">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>
-                                <select class="stakeholder-role">
-                                    <option value="Main Contractor">Main Contractor</option>
-                                    <option value="Council">Council</option>
-                                    <option value="Employers Agent">Employers Agent</option>
-                                    <option value="Project Manager">Project Manager</option>
-                                    <option value="Client">Client</option>
-                                    <option value="Building Control">Building Control</option>
-                                    <option value="Subcontractor">Subcontractor</option>
-                                    <option value="Client Management Team">Client Management Team</option>
-                                    <option value="Custom">Custom</option>
-                                </select>
-                            </td>
-                            <td><input type="text" class="stakeholder-name" value="United Living"></td>
-                            <td></td>
-                        </tr>
-                    </tbody>
-                </table>
-                <button class="btn-add-row" onclick="addStakeholderRow()">
-                    <i class="fas fa-plus"></i> Add Row
-                </button>
-            </div>
-
-            <h3 style="margin: 30px 0 10px 0;">Keywords (Heads of Claim / Relevant words)</h3>
-            <div class="guidance-note">
-                Populate with keywords relevant to your potential claims / Heads of Claim. Include common variations so nothing is missed.
-            </div>
-            
-            <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-                <button class="btn-secondary" onclick="loadProjectTemplate('construction')" style="font-size: 12px; padding: 6px 12px;">
-                    <i class="fas fa-building"></i> Load Construction Template
-                </button>
-                <button class="btn-secondary" onclick="loadProjectTemplate('infrastructure')" style="font-size: 12px; padding: 6px 12px;">
-                    <i class="fas fa-road"></i> Load Infrastructure Template
-                </button>
-                <button class="btn-secondary" onclick="importStakeholdersCSV()" style="font-size: 12px; padding: 6px 12px;">
-                    <i class="fas fa-file-csv"></i> Import CSV
-                </button>
-            </div>
-            
-            <div class="table-container">
-                <table id="keywordsTable">
-                    <thead>
-                        <tr>
-                            <th>Keyword</th>
-                            <th>Variations / Synonyms (comma-separated)</th>
-                            <th width="100">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>
-                                <select class="keyword-name">
-                                    <option value="Relevant Event">Relevant Event</option>
-                                    <option value="Relevant Matter">Relevant Matter</option>
-                                    <option value="Section 278">Section 278</option>
-                                    <option value="Delay">Delay</option>
-                                    <option value="Risk">Risk</option>
-                                    <option value="Change">Change</option>
-                                    <option value="Variation">Variation</option>
-                                    <option value="Custom">Custom</option>
-                                </select>
-                            </td>
-                            <td><input type="text" class="keyword-variations" placeholder="e.g., Section 278, Highways Agreement, Section 106"></td>
-                            <td>
-                                <button class="btn-delete-row" onclick="deleteRow(this)">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-                <button class="btn-add-row" onclick="addKeywordRow()">
-                    <i class="fas fa-plus"></i> Add Row
-                </button>
-            </div>
-
-            <h3 style="margin: 30px 0 10px 0;">Contract Type</h3>
-            <div class="form-group">
-                <select id="contractType" onchange="toggleCustomContract(this)">
-                    <option value="JCT">JCT</option>
-                    <option value="NEC">NEC</option>
-                    <option value="FIDIC">FIDIC</option>
-                    <option value="PPC">PPC</option>
-                    <option value="Custom">Custom</option>
-                </select>
-                <input type="text" id="contractTypeCustom" class="custom-input" placeholder="Enter custom contract type">
-            </div>
-        `
+        title: 'Stakeholders',
+        render: renderProjectStakeholders,
+        validate: validateProjectStakeholders,
+        save: saveProjectStakeholders
+    },
+    {
+        id: 'project-keywords',
+        title: 'Contract',
+        render: renderProjectKeywords,
+        validate: validateProjectKeywords,
+        save: saveProjectKeywords
     },
     {
         id: 'project-review',
-        title: 'Review & Confirm',
-        template: `
-            <h2>Review & Confirm</h2>
-            <div id="reviewSummary"></div>
-        `
+        title: 'Review',
+        render: renderProjectReview,
+        validate: () => true,
+        save: () => {}
     }
 ];
 
 const caseSteps = [
     {
         id: 'case-identification',
-        title: 'Case Identification',
-        template: `
-            <h2>Step 1 of 4 — Case Identification</h2>
-            <div class="form-group">
-                <label>Case Name <span class="required">*</span></label>
-                <input type="text" id="caseName" required minlength="2" maxlength="200" placeholder="Enter case name">
-            </div>
-            <div class="form-group">
-                <label>Case ID</label>
-                <input type="text" id="caseId" placeholder="Optional but recommended">
-            </div>
-            <div class="form-group">
-                <label>Resolution Route</label>
-                <select id="resolutionRoute" onchange="toggleCustomField(this, 'resolutionRouteCustom')">
-                    <option value="adjudication">Adjudication</option>
-                    <option value="litigation">Litigation</option>
-                    <option value="arbitration">Arbitration</option>
-                    <option value="mediation">Mediation</option>
-                    <option value="settlement">Settlement</option>
-                    <option value="TBC">TBC</option>
-                    <option value="Custom">Custom</option>
-                </select>
-                <input type="text" id="resolutionRouteCustom" class="custom-input" placeholder="Enter custom resolution route">
-            </div>
-            <div class="form-group">
-                <label>Claimant</label>
-                <input type="text" id="claimant" placeholder="Enter claimant name">
-            </div>
-            <div class="form-group">
-                <label>Defendant</label>
-                <input type="text" id="defendant" placeholder="Enter defendant name">
-            </div>
-            <div class="form-group">
-                <label>Case Status</label>
-                <select id="caseStatus" onchange="toggleCustomField(this, 'caseStatusCustom')">
-                    <option value="discovery">Discovery</option>
-                    <option value="preparation">Preparation</option>
-                    <option value="pre-adjudication">Pre-adjudication</option>
-                    <option value="Live Adjudication">Live Adjudication</option>
-                    <option value="Pre-action Protocol">Pre-action Protocol</option>
-                    <option value="Litigation Preparation">Litigation Preparation</option>
-                    <option value="Live Litigation">Live Litigation</option>
-                    <option value="Custom">Custom</option>
-                </select>
-                <input type="text" id="caseStatusCustom" class="custom-input" placeholder="Enter custom case status">
-            </div>
-            <div class="form-group">
-                <label>Client</label>
-                <input type="text" id="client" placeholder="Enter client name">
-            </div>
-        `
+        title: 'Identification',
+        render: renderCaseIdentification,
+        validate: validateCaseIdentification,
+        save: saveCaseIdentification
     },
     {
         id: 'case-legal-team',
         title: 'Legal Team',
-        template: `
-            <h2>Step 2 of 4 — Legal Team</h2>
-            <div class="table-container">
-                <table id="legalTeamTable">
-                    <thead>
-                        <tr>
-                            <th>Role / Area</th>
-                            <th>Name / Organisation</th>
-                            <th width="100">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><input type="text" class="team-role" placeholder="e.g., Partner, Counsel, Associate"></td>
-                            <td><input type="text" class="team-name" placeholder="Enter name or organisation"></td>
-                            <td>
-                                <button class="btn-delete-row" onclick="deleteRow(this)">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-                <button class="btn-add-row" onclick="addLegalTeamRow()">
-                    <i class="fas fa-plus"></i> Add Row
-                </button>
-            </div>
-        `
+        render: renderCaseLegalTeam,
+        validate: () => true,
+        save: saveCaseLegalTeam
     },
     {
         id: 'case-heads-keywords',
-        title: 'Heads of Claim & Keywords',
-        template: `
-            <h2>Step 3 of 4 — Heads of Claim & Keywords</h2>
-            
-            <h3 style="margin-bottom: 10px;">Heads of Claim</h3>
-            <div class="table-container">
-                <table id="headsOfClaimTable">
-                    <thead>
-                        <tr>
-                            <th>Head of Claim</th>
-                            <th>Status</th>
-                            <th>Actions (short notes)</th>
-                            <th width="100"></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><input type="text" class="claim-head" placeholder="Enter head of claim"></td>
-                            <td>
-                                <select class="claim-status">
-                                    <option value="Discovery">Discovery</option>
-                                    <option value="Merit Established">Merit Established</option>
-                                    <option value="Collating Evidence">Collating Evidence</option>
-                                    <option value="Bundling">Bundling</option>
-                                    <option value="Complete">Complete</option>
-                                    <option value="Custom">Custom</option>
-                                </select>
-                            </td>
-                            <td><input type="text" class="claim-actions" placeholder="e.g., Request PM notes"></td>
-                            <td>
-                                <button class="btn-delete-row" onclick="deleteRow(this)">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-                <button class="btn-add-row" onclick="addHeadOfClaimRow()">
-                    <i class="fas fa-plus"></i> Add Row
-                </button>
-            </div>
-
-            <h3 style="margin: 30px 0 10px 0;">Keywords</h3>
-            <div class="guidance-note">
-                Populate with keywords relevant to your potential claims / Heads of Claim. Include common variations so nothing is missed.
-            </div>
-            
-            <div class="table-container">
-                <table id="caseKeywordsTable">
-                    <thead>
-                        <tr>
-                            <th>Keyword</th>
-                            <th>Variations / Synonyms (comma-separated)</th>
-                            <th width="100">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>
-                                <select class="keyword-name">
-                                    <option value="Relevant Event">Relevant Event</option>
-                                    <option value="Relevant Matter">Relevant Matter</option>
-                                    <option value="Section 278">Section 278</option>
-                                    <option value="Delay">Delay</option>
-                                    <option value="Risk">Risk</option>
-                                    <option value="Change">Change</option>
-                                    <option value="Variation">Variation</option>
-                                    <option value="Custom">Custom</option>
-                                </select>
-                            </td>
-                            <td><input type="text" class="keyword-variations" placeholder="e.g., Section 278, Highways Agreement, Section 106"></td>
-                            <td>
-                                <button class="btn-delete-row" onclick="deleteRow(this)">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-                <button class="btn-add-row" onclick="addCaseKeywordRow()">
-                    <i class="fas fa-plus"></i> Add Row
-                </button>
-            </div>
-        `
+        title: 'Claims & Keywords',
+        render: renderCaseHeadsKeywords,
+        validate: () => true,
+        save: saveCaseHeadsKeywords
     },
     {
         id: 'case-deadlines',
-        title: 'Case Deadlines',
-        template: `
-            <h2>Step 4 of 4 — Case Deadlines</h2>
-            <div class="table-container">
-                <table id="deadlinesTable">
-                    <thead>
-                        <tr>
-                            <th>Deadline / Task</th>
-                            <th>Description / Notes</th>
-                            <th>Date</th>
-                            <th width="100">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><input type="text" class="deadline-task" placeholder="e.g., Respondent's evidence"></td>
-                            <td><input type="text" class="deadline-description" placeholder="Additional notes"></td>
-                            <td><input type="date" class="deadline-date"></td>
-                            <td>
-                                <button class="btn-delete-row" onclick="deleteRow(this)">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-                <button class="btn-add-row" onclick="addDeadlineRow()">
-                    <i class="fas fa-plus"></i> Add Row
-                </button>
-            </div>
-        `
+        title: 'Deadlines',
+        render: renderCaseDeadlines,
+        validate: () => true,
+        save: saveCaseDeadlines
     },
     {
         id: 'case-review',
-        title: 'Review & Confirm',
-        template: `
-            <h2>Review & Confirm</h2>
-            <div id="reviewSummary"></div>
-        `
+        title: 'Review',
+        render: renderCaseReview,
+        validate: () => true,
+        save: () => {}
     }
 ];
 
@@ -460,434 +118,1062 @@ function setupEventListeners() {
     });
 }
 
+// Navigation functions
 function nextStep() {
+    // If on entry screen
     if (wizardState.currentStep === 0) {
-        // First step - choose type
         const selectedType = document.querySelector('input[name="profileType"]:checked').value;
         wizardState.profileType = selectedType;
         
         if (selectedType === 'users') {
-            // Skip to users management
             alert('Users management will be available in the main application');
             return;
         }
         
-        // Hide step 0
-        document.getElementById('step0').classList.remove('active');
+        // Hide entry screen
+        document.getElementById('step-entry').classList.remove('active');
         
-        // Load appropriate steps
-        loadStepsForType(selectedType);
+        // Set up steps for selected type
+        const steps = selectedType === 'project' ? projectSteps : caseSteps;
+        wizardState.totalSteps = steps.length;
         wizardState.currentStep = 1;
-        updateStepIndicator();
+        
+        // Update step indicator
+        updateStepIndicator(steps);
+        
+        // Render first step
+        renderCurrentStep();
+        
+        // Show back button
         document.getElementById('btnBack').style.display = 'block';
         return;
     }
     
+    // Get current steps array
+    const steps = wizardState.profileType === 'project' ? projectSteps : caseSteps;
+    const currentStepObj = steps[wizardState.currentStep - 1];
+    
     // Validate current step
-    if (!validateCurrentStep()) {
+    if (!currentStepObj.validate()) {
         return;
     }
     
     // Save current step data
-    saveStepData();
+    currentStepObj.save();
     
-    const steps = wizardState.profileType === 'project' ? projectSteps : caseSteps;
-    
+    // Move to next step
     if (wizardState.currentStep < steps.length) {
         wizardState.currentStep++;
         renderCurrentStep();
-        updateStepIndicator();
     }
 }
 
 function previousStep() {
     if (wizardState.currentStep > 0) {
-        saveStepData();
+        // Save current step data (without validation)
+        const steps = wizardState.profileType === 'project' ? projectSteps : caseSteps;
+        if (wizardState.currentStep > 0 && wizardState.currentStep <= steps.length) {
+            const currentStepObj = steps[wizardState.currentStep - 1];
+            currentStepObj.save();
+        }
+        
         wizardState.currentStep--;
         
         if (wizardState.currentStep === 0) {
-            document.getElementById('step0').classList.add('active');
+            // Show entry screen
+            document.getElementById('step-entry').classList.add('active');
             document.getElementById('dynamicSteps').innerHTML = '';
             document.getElementById('btnBack').style.display = 'none';
+            document.getElementById('stepIndicator').innerHTML = '';
+            
+            // Reset continue button
+            const btnContinue = document.getElementById('btnContinue');
+            btnContinue.innerHTML = 'Continue <i class="fas fa-arrow-right"></i>';
+            btnContinue.onclick = nextStep;
         } else {
             renderCurrentStep();
         }
-        updateStepIndicator();
     }
-}
-
-function loadStepsForType(type) {
-    const container = document.getElementById('dynamicSteps');
-    container.innerHTML = '<div class="wizard-step active" id="dynamicStep"></div>';
-    renderCurrentStep();
 }
 
 function renderCurrentStep() {
     const steps = wizardState.profileType === 'project' ? projectSteps : caseSteps;
-    const currentStepIndex = wizardState.currentStep - 1;
+    const currentStepObj = steps[wizardState.currentStep - 1];
     
-    if (currentStepIndex < 0 || currentStepIndex >= steps.length) return;
+    // Create or get dynamic step container
+    let container = document.getElementById('dynamicSteps');
+    container.innerHTML = '<div class="wizard-step active" id="dynamicStep"></div>';
     
-    const step = steps[currentStepIndex];
-    const container = document.getElementById('dynamicStep');
+    // Render the step content
+    currentStepObj.render();
     
-    container.innerHTML = step.template;
+    // Update step indicator
+    updateStepIndicator(steps);
     
-    // Load saved data if exists
-    loadStepData();
-    
-    // Update continue button text
+    // Update continue button
     const btnContinue = document.getElementById('btnContinue');
-    if (currentStepIndex === steps.length - 1) {
-        if (wizardState.profileType === 'project') {
-            btnContinue.innerHTML = '<i class="fas fa-check"></i> Create Project';
-        } else {
-            btnContinue.innerHTML = '<i class="fas fa-check"></i> Create Case';
-        }
+    if (wizardState.currentStep === steps.length) {
+        btnContinue.innerHTML = wizardState.profileType === 'project' ? 
+            '<i class="fas fa-check"></i> Create Project' : 
+            '<i class="fas fa-check"></i> Create Case';
         btnContinue.onclick = submitWizard;
     } else {
         btnContinue.innerHTML = 'Continue <i class="fas fa-arrow-right"></i>';
         btnContinue.onclick = nextStep;
     }
-    
-    // If it's review step, generate summary
-    if (step.id.includes('review')) {
-        generateReviewSummary();
-    }
 }
 
-function validateCurrentStep() {
-    const requiredFields = document.querySelectorAll('#dynamicStep [required]');
-    let isValid = true;
-    
-    requiredFields.forEach(field => {
-        if (!field.value.trim()) {
-            field.style.borderColor = '#e74c3c';
-            isValid = false;
-        } else {
-            field.style.borderColor = '#e0e0e0';
-        }
-    });
-    
-    if (!isValid) {
-        alert('Please fill in all required fields');
-    }
-    
-    return isValid;
-}
-
-function saveStepData() {
-    const steps = wizardState.profileType === 'project' ? projectSteps : caseSteps;
-    const currentStepIndex = wizardState.currentStep - 1;
-    
-    if (currentStepIndex < 0 || currentStepIndex >= steps.length) return;
-    
-    const step = steps[currentStepIndex];
-    const stepData = {};
-    
-    // Save all input values
-    document.querySelectorAll('#dynamicStep input, #dynamicStep select, #dynamicStep textarea').forEach(field => {
-        if (field.id) {
-            stepData[field.id] = field.value;
-        }
-    });
-    
-    // Save table data
-    if (step.id === 'project-stakeholders') {
-        stepData.stakeholders = getTableData('stakeholdersTable', ['stakeholder-role', 'stakeholder-name']);
-        stepData.keywords = getTableData('keywordsTable', ['keyword-name', 'keyword-variations']);
-    } else if (step.id === 'case-legal-team') {
-        stepData.legalTeam = getTableData('legalTeamTable', ['team-role', 'team-name']);
-    } else if (step.id === 'case-heads-keywords') {
-        stepData.headsOfClaim = getTableData('headsOfClaimTable', ['claim-head', 'claim-status', 'claim-actions']);
-        stepData.keywords = getTableData('caseKeywordsTable', ['keyword-name', 'keyword-variations']);
-    } else if (step.id === 'case-deadlines') {
-        stepData.deadlines = getTableData('deadlinesTable', ['deadline-task', 'deadline-description', 'deadline-date']);
-    }
-    
-    wizardState.data[step.id] = stepData;
-}
-
-function loadStepData() {
-    const steps = wizardState.profileType === 'project' ? projectSteps : caseSteps;
-    const currentStepIndex = wizardState.currentStep - 1;
-    
-    if (currentStepIndex < 0 || currentStepIndex >= steps.length) return;
-    
-    const step = steps[currentStepIndex];
-    const stepData = wizardState.data[step.id];
-    
-    if (!stepData) return;
-    
-    // Load input values
-    Object.keys(stepData).forEach(key => {
-        const field = document.getElementById(key);
-        if (field && typeof stepData[key] === 'string') {
-            field.value = stepData[key];
-        }
-    });
-    
-    // Load table data
-    if (stepData.stakeholders) {
-        loadTableData('stakeholdersTable', stepData.stakeholders, addStakeholderRow);
-    }
-    if (stepData.keywords) {
-        loadTableData('keywordsTable', stepData.keywords, addKeywordRow);
-    }
-    if (stepData.legalTeam) {
-        loadTableData('legalTeamTable', stepData.legalTeam, addLegalTeamRow);
-    }
-    if (stepData.headsOfClaim) {
-        loadTableData('headsOfClaimTable', stepData.headsOfClaim, addHeadOfClaimRow);
-    }
-    if (stepData.deadlines) {
-        loadTableData('deadlinesTable', stepData.deadlines, addDeadlineRow);
-    }
-}
-
-function getTableData(tableId, columnClasses) {
-    const table = document.getElementById(tableId);
-    if (!table) return [];
-    
-    const rows = table.querySelectorAll('tbody tr');
-    const data = [];
-    
-    rows.forEach(row => {
-        const rowData = {};
-        columnClasses.forEach((className, index) => {
-            const field = row.querySelector(`.${className}`);
-            if (field) {
-                rowData[className] = field.tagName === 'SELECT' ? field.value : field.value;
-            }
-        });
-        data.push(rowData);
-    });
-    
-    return data;
-}
-
-function loadTableData(tableId, data, addRowFunction) {
-    const table = document.getElementById(tableId);
-    if (!table || !data) return;
-    
-    const tbody = table.querySelector('tbody');
-    tbody.innerHTML = '';
-    
-    data.forEach(rowData => {
-        addRowFunction();
-        const lastRow = tbody.lastElementChild;
-        Object.keys(rowData).forEach(key => {
-            const field = lastRow.querySelector(`.${key}`);
-            if (field) {
-                field.value = rowData[key];
-            }
-        });
-    });
-}
-
-function updateStepIndicator() {
-    const steps = document.querySelectorAll('.step');
-    steps.forEach((step, index) => {
-        step.classList.remove('active', 'completed');
-        if (index < wizardState.currentStep) {
-            step.classList.add('completed');
-        } else if (index === wizardState.currentStep) {
-            step.classList.add('active');
-        }
-    });
-}
-
-function generateReviewSummary() {
-    const container = document.getElementById('reviewSummary');
+function updateStepIndicator(steps) {
+    const indicator = document.getElementById('stepIndicator');
     let html = '';
     
-    if (wizardState.profileType === 'project') {
-        const identification = wizardState.data['project-identification'] || {};
-        const stakeholders = wizardState.data['project-stakeholders'] || {};
+    steps.forEach((step, index) => {
+        const stepNumber = index + 1;
+        const isActive = stepNumber === wizardState.currentStep;
+        const isCompleted = stepNumber < wizardState.currentStep;
         
         html += `
-            <div class="summary-section">
-                <h3><i class="fas fa-clipboard-list"></i> Project Identification</h3>
-                <div class="summary-item">
-                    <div class="summary-label">Project Name:</div>
-                    <div class="summary-value">${identification.projectName || 'Not specified'}</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label">Project Code:</div>
-                    <div class="summary-value">${identification.projectCode || 'Not specified'}</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label">Start Date:</div>
-                    <div class="summary-value">${identification.startDate || 'Not specified'}</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label">Completion Date:</div>
-                    <div class="summary-value">${identification.completionDate || 'Not specified'}</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label">Contract Type:</div>
-                    <div class="summary-value">${identification.contractType || 'Not specified'}</div>
-                </div>
+            <div class="step ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}" data-step="${stepNumber}">
+                <div class="step-circle">${stepNumber}</div>
+                <div class="step-label">${step.title}</div>
             </div>
-            
-            <div class="summary-section">
-                <h3><i class="fas fa-users"></i> Stakeholders</h3>
-                ${(stakeholders.stakeholders || []).map(s => 
-                    `<div class="summary-item">
-                        <div class="summary-label">${s['stakeholder-role']}:</div>
-                        <div class="summary-value">${s['stakeholder-name']}</div>
-                    </div>`
-                ).join('')}
-            </div>
-            
-            <div class="summary-section">
-                <h3><i class="fas fa-tags"></i> Keywords</h3>
-                ${(stakeholders.keywords || []).map(k => 
-                    `<div class="summary-item">
-                        <div class="summary-label">${k['keyword-name']}:</div>
-                        <div class="summary-value">${k['keyword-variations'] || 'No variations'}</div>
-                    </div>`
-                ).join('')}
-            </div>
+        `;
+    });
+    
+    indicator.innerHTML = html;
+}
+
+// Project Step Renderers
+function renderProjectIdentification() {
+    const container = document.getElementById('dynamicStep');
+    const data = wizardState.data['project-identification'] || {};
+    
+    container.innerHTML = `
+        <h2>Step 1 of 3 — Identification</h2>
+        
+        <div class="form-group">
+            <label>Project Name <span class="required">*</span></label>
+            <input type="text" id="projectName" required minlength="2" maxlength="200" 
+                   value="${data.projectName || ''}" placeholder="Enter project name">
+        </div>
+        
+        <div class="form-group">
+            <label>Project Code <span class="required">*</span></label>
+            <input type="text" id="projectCode" required 
+                   value="${data.projectCode || ''}" placeholder="Unique project code">
+            <span class="helper-text">Must be unique within your organization</span>
+        </div>
+        
+        <div class="form-group">
+            <label>Start Date 
+                <i class="fas fa-info-circle tooltip" title="Ensure all pre‑commencement and relevant tendering period is accounted for"></i>
+            </label>
+            <input type="date" id="startDate" value="${data.startDate || ''}">
+        </div>
+        
+        <div class="form-group">
+            <label>Completion Date</label>
+            <input type="date" id="completionDate" value="${data.completionDate || ''}">
+        </div>
+    `;
+}
+
+function renderProjectStakeholders() {
+    const container = document.getElementById('dynamicStep');
+    const data = wizardState.data['project-stakeholders'] || {};
+    
+    container.innerHTML = `
+        <h2>Step 2 of 3 — Stakeholders & Keywords</h2>
+        
+        <h3>Key Stakeholders & Parties</h3>
+        <div class="guidance-note">
+            Examples include United Living and names of: Employer's Agent, Client, Council, NHBC, Subcontractors, etc.
+        </div>
+        
+        <div class="table-container">
+            <table id="stakeholdersTable">
+                <thead>
+                    <tr>
+                        <th style="width: 40%">Role</th>
+                        <th style="width: 50%">Name/Organisation</th>
+                        <th style="width: 10%">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+            <button class="btn-add-row" onclick="addStakeholderRow()">
+                <i class="fas fa-plus"></i> Add Row
+            </button>
+        </div>
+        
+        <h3 style="margin-top: 30px;">Keywords (Heads of Claim / Relevant words)</h3>
+        <div class="guidance-note">
+            Populate with keywords relevant to your potential claims / Heads of Claim. Include common variations so nothing is missed.
+        </div>
+        
+        <div class="table-container">
+            <table id="keywordsTable">
+                <thead>
+                    <tr>
+                        <th style="width: 30%">Keyword</th>
+                        <th style="width: 60%">Variations/Synonyms</th>
+                        <th style="width: 10%">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+            <button class="btn-add-row" onclick="addKeywordRow()">
+                <i class="fas fa-plus"></i> Add Row
+            </button>
+        </div>
+    `;
+    
+    // Load saved data
+    if (data.stakeholders && data.stakeholders.length > 0) {
+        data.stakeholders.forEach(stakeholder => {
+            addStakeholderRow(stakeholder.role, stakeholder.name);
+        });
+    } else {
+        // Add default row with Main Contractor - United Living
+        addStakeholderRow('Main Contractor', 'United Living');
+    }
+    
+    if (data.keywords) {
+        data.keywords.forEach(keyword => {
+            addKeywordRow(keyword.name, keyword.variations);
+        });
+    }
+}
+
+function renderProjectKeywords() {
+    const container = document.getElementById('dynamicStep');
+    const data = wizardState.data['project-keywords'] || {};
+    
+    container.innerHTML = `
+        <h2>Step 3 of 3 — Contract</h2>
+        
+        <div class="form-group">
+            <label>Contract Type</label>
+            <select id="contractType" onchange="toggleCustomContract(this)">
+                <option value="">Select contract type...</option>
+                <option value="JCT" ${data.contractType === 'JCT' ? 'selected' : ''}>JCT</option>
+                <option value="NEC" ${data.contractType === 'NEC' ? 'selected' : ''}>NEC</option>
+                <option value="FIDIC" ${data.contractType === 'FIDIC' ? 'selected' : ''}>FIDIC</option>
+                <option value="PPC" ${data.contractType === 'PPC' ? 'selected' : ''}>PPC</option>
+                <option value="Custom" ${data.contractType === 'Custom' ? 'selected' : ''}>Custom</option>
+            </select>
+            <input type="text" id="contractTypeCustom" class="custom-input ${data.contractType === 'Custom' ? 'visible' : ''}" 
+                   placeholder="Specify contract type" value="${data.contractTypeCustom || ''}">
+        </div>
+    `;
+}
+
+function renderProjectReview() {
+    const container = document.getElementById('dynamicStep');
+    container.innerHTML = '<h2>Review Summary</h2><div id="reviewSummary"></div>';
+    generateProjectReviewSummary();
+}
+
+// Case Step Renderers
+function renderCaseIdentification() {
+    const container = document.getElementById('dynamicStep');
+    const data = wizardState.data['case-identification'] || {};
+    
+    container.innerHTML = `
+        <h2>Step 1 of 4 — Case Identification</h2>
+        
+        <div class="form-group">
+            <label>Case Name <span class="required">*</span></label>
+            <input type="text" id="caseName" required minlength="2" maxlength="200" 
+                   value="${data.caseName || ''}" placeholder="Enter case name">
+        </div>
+        
+        <div class="form-group">
+            <label>Case ID</label>
+            <input type="text" id="caseId" value="${data.caseId || ''}" 
+                   placeholder="Optional but recommended">
+        </div>
+        
+        <div class="form-group">
+            <label>Resolution Route</label>
+            <select id="resolutionRoute" onchange="toggleCustomField(this, 'resolutionRouteCustom')">
+                <option value="adjudication" ${data.resolutionRoute === 'adjudication' ? 'selected' : ''}>adjudication</option>
+                <option value="litigation" ${data.resolutionRoute === 'litigation' ? 'selected' : ''}>litigation</option>
+                <option value="arbitration" ${data.resolutionRoute === 'arbitration' ? 'selected' : ''}>arbitration</option>
+                <option value="mediation" ${data.resolutionRoute === 'mediation' ? 'selected' : ''}>mediation</option>
+                <option value="settlement" ${data.resolutionRoute === 'settlement' ? 'selected' : ''}>settlement</option>
+                <option value="TBC" ${data.resolutionRoute === 'TBC' ? 'selected' : ''}>TBC</option>
+                <option value="Custom" ${data.resolutionRoute === 'Custom' ? 'selected' : ''}>Custom</option>
+            </select>
+            <input type="text" id="resolutionRouteCustom" 
+                   class="custom-input ${data.resolutionRoute === 'Custom' ? 'visible' : ''}" 
+                   placeholder="Enter custom resolution route" value="${data.resolutionRouteCustom || ''}">
+        </div>
+        
+        <div class="form-group">
+            <label>Claimant</label>
+            <input type="text" id="claimant" value="${data.claimant || ''}" placeholder="Free entry">
+        </div>
+        
+        <div class="form-group">
+            <label>Defendant</label>
+            <input type="text" id="defendant" value="${data.defendant || ''}" placeholder="Free entry">
+        </div>
+        
+        <div class="form-group">
+            <label>Case Status</label>
+            <select id="caseStatus" onchange="toggleCustomField(this, 'caseStatusCustom')">
+                <option value="discovery" ${data.caseStatus === 'discovery' ? 'selected' : ''}>discovery</option>
+                <option value="preparation" ${data.caseStatus === 'preparation' ? 'selected' : ''}>preparation</option>
+                <option value="pre-adjudication" ${data.caseStatus === 'pre-adjudication' ? 'selected' : ''}>pre-adjudication</option>
+                <option value="Live Adjudication" ${data.caseStatus === 'Live Adjudication' ? 'selected' : ''}>Live Adjudication</option>
+                <option value="Pre-action Protocol" ${data.caseStatus === 'Pre-action Protocol' ? 'selected' : ''}>Pre-action Protocol</option>
+                <option value="Litigation Preparation" ${data.caseStatus === 'Litigation Preparation' ? 'selected' : ''}>Litigation Preparation</option>
+                <option value="Live Litigation" ${data.caseStatus === 'Live Litigation' ? 'selected' : ''}>Live Litigation</option>
+                <option value="Custom" ${data.caseStatus === 'Custom' ? 'selected' : ''}>Custom</option>
+            </select>
+            <input type="text" id="caseStatusCustom" 
+                   class="custom-input ${data.caseStatus === 'Custom' ? 'visible' : ''}" 
+                   placeholder="Enter custom case status" value="${data.caseStatusCustom || ''}">
+        </div>
+        
+        <div class="form-group">
+            <label>Client</label>
+            <input type="text" id="client" value="${data.client || ''}" placeholder="Free entry">
+        </div>
+    `;
+}
+
+function renderCaseLegalTeam() {
+    const container = document.getElementById('dynamicStep');
+    const data = wizardState.data['case-legal-team'] || {};
+    
+    container.innerHTML = `
+        <h2>Step 2 of 4 — Legal Team</h2>
+        
+        <div class="table-container">
+            <table id="legalTeamTable">
+                <thead>
+                    <tr>
+                        <th style="width: 40%">Role/Area</th>
+                        <th style="width: 50%">Name/Organisation</th>
+                        <th style="width: 10%">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+            <button class="btn-add-row" onclick="addLegalTeamRow()">
+                <i class="fas fa-plus"></i> Add Row
+            </button>
+        </div>
+    `;
+    
+    // Load saved data
+    if (data.legalTeam) {
+        data.legalTeam.forEach(member => {
+            addLegalTeamRow(member.role, member.name);
+        });
+    }
+}
+
+function renderCaseHeadsKeywords() {
+    const container = document.getElementById('dynamicStep');
+    const data = wizardState.data['case-heads-keywords'] || {};
+    
+    container.innerHTML = `
+        <h2>Step 3 of 4 — Heads of Claim & Keywords</h2>
+        
+        <h3>Heads of Claim</h3>
+        <div class="table-container">
+            <table id="headsOfClaimTable">
+                <thead>
+                    <tr>
+                        <th style="width: 30%">Head of Claim</th>
+                        <th style="width: 25%">Status</th>
+                        <th style="width: 35%">Actions</th>
+                        <th style="width: 10%"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+            <button class="btn-add-row" onclick="addHeadOfClaimRow()">
+                <i class="fas fa-plus"></i> Add Row
+            </button>
+        </div>
+        
+        <h3 style="margin-top: 30px;">Keywords</h3>
+        <div class="guidance-note">
+            Populate with keywords relevant to your potential claims / Heads of Claim. Include common variations so nothing is missed.
+        </div>
+        
+        <div class="table-container">
+            <table id="caseKeywordsTable">
+                <thead>
+                    <tr>
+                        <th style="width: 30%">Keyword</th>
+                        <th style="width: 60%">Variations/Synonyms</th>
+                        <th style="width: 10%">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+            <button class="btn-add-row" onclick="addCaseKeywordRow()">
+                <i class="fas fa-plus"></i> Add Row
+            </button>
+        </div>
+    `;
+    
+    // Load saved data
+    if (data.headsOfClaim) {
+        data.headsOfClaim.forEach(claim => {
+            addHeadOfClaimRow(claim.head, claim.status, claim.actions);
+        });
+    }
+    
+    if (data.keywords) {
+        data.keywords.forEach(keyword => {
+            addCaseKeywordRow(keyword.name, keyword.variations);
+        });
+    }
+}
+
+function renderCaseDeadlines() {
+    const container = document.getElementById('dynamicStep');
+    const data = wizardState.data['case-deadlines'] || {};
+    
+    container.innerHTML = `
+        <h2>Step 4 of 4 — Case Deadlines</h2>
+        
+        <div class="table-container">
+            <table id="deadlinesTable">
+                <thead>
+                    <tr>
+                        <th style="width: 30%">Deadline/Task</th>
+                        <th style="width: 40%">Description/Notes</th>
+                        <th style="width: 20%">Date</th>
+                        <th style="width: 10%">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+            <button class="btn-add-row" onclick="addDeadlineRow()">
+                <i class="fas fa-plus"></i> Add Row
+            </button>
+        </div>
+    `;
+    
+    // Load saved data
+    if (data.deadlines) {
+        data.deadlines.forEach(deadline => {
+            addDeadlineRow(deadline.task, deadline.description, deadline.date);
+        });
+    }
+}
+
+function renderCaseReview() {
+    const container = document.getElementById('dynamicStep');
+    container.innerHTML = '<h2>Review Summary</h2><div id="reviewSummary"></div>';
+    generateCaseReviewSummary();
+}
+
+// Validation functions
+function validateProjectIdentification() {
+    const projectName = document.getElementById('projectName').value.trim();
+    const projectCode = document.getElementById('projectCode').value.trim();
+    const startDate = document.getElementById('startDate').value;
+    const completionDate = document.getElementById('completionDate').value;
+    
+    if (!projectName || projectName.length < 2) {
+        alert('Project Name must be at least 2 characters');
+        return false;
+    }
+    
+    if (!projectCode) {
+        alert('Project Code is required');
+        return false;
+    }
+    
+    if (startDate && completionDate && new Date(completionDate) < new Date(startDate)) {
+        alert('Completion Date must be after Start Date');
+        return false;
+    }
+    
+    return true;
+}
+
+function validateProjectStakeholders() {
+    // At least one stakeholder should be present
+    const rows = document.querySelectorAll('#stakeholdersTable tbody tr');
+    if (rows.length === 0) {
+        alert('Please add at least one stakeholder');
+        return false;
+    }
+    return true;
+}
+
+function validateProjectKeywords() {
+    // Contract type is optional
+    return true;
+}
+
+function validateCaseIdentification() {
+    const caseName = document.getElementById('caseName').value.trim();
+    
+    if (!caseName || caseName.length < 2) {
+        alert('Case Name must be at least 2 characters');
+        return false;
+    }
+    
+    return true;
+}
+
+// Save functions
+function saveProjectIdentification() {
+    wizardState.data['project-identification'] = {
+        projectName: document.getElementById('projectName').value,
+        projectCode: document.getElementById('projectCode').value,
+        startDate: document.getElementById('startDate').value,
+        completionDate: document.getElementById('completionDate').value
+    };
+}
+
+function saveProjectStakeholders() {
+    const stakeholders = [];
+    const keywords = [];
+    
+    // Save stakeholders
+    document.querySelectorAll('#stakeholdersTable tbody tr').forEach(row => {
+        const role = row.querySelector('.stakeholder-role').value;
+        const name = row.querySelector('.stakeholder-name').value;
+        if (role || name) {
+            stakeholders.push({ role, name });
+        }
+    });
+    
+    // Save keywords
+    document.querySelectorAll('#keywordsTable tbody tr').forEach(row => {
+        const nameInput = row.querySelector('.keyword-name');
+        const name = nameInput.tagName === 'SELECT' ? nameInput.value : nameInput.value;
+        const variations = row.querySelector('.keyword-variations').value;
+        if (name || variations) {
+            keywords.push({ name, variations });
+        }
+    });
+    
+    wizardState.data['project-stakeholders'] = {
+        stakeholders,
+        keywords
+    };
+}
+
+function saveProjectKeywords() {
+    const contractType = document.getElementById('contractType').value;
+    const contractTypeCustom = document.getElementById('contractTypeCustom').value;
+    
+    wizardState.data['project-keywords'] = {
+        contractType,
+        contractTypeCustom
+    };
+}
+
+function saveCaseIdentification() {
+    const resolutionRoute = document.getElementById('resolutionRoute').value;
+    const caseStatus = document.getElementById('caseStatus').value;
+    
+    wizardState.data['case-identification'] = {
+        caseName: document.getElementById('caseName').value,
+        caseId: document.getElementById('caseId').value,
+        resolutionRoute: resolutionRoute,
+        resolutionRouteCustom: resolutionRoute === 'Custom' ? document.getElementById('resolutionRouteCustom').value : '',
+        claimant: document.getElementById('claimant').value,
+        defendant: document.getElementById('defendant').value,
+        caseStatus: caseStatus,
+        caseStatusCustom: caseStatus === 'Custom' ? document.getElementById('caseStatusCustom').value : '',
+        client: document.getElementById('client').value
+    };
+}
+
+function saveCaseLegalTeam() {
+    const legalTeam = [];
+    
+    document.querySelectorAll('#legalTeamTable tbody tr').forEach(row => {
+        const role = row.querySelector('.team-role').value;
+        const name = row.querySelector('.team-name').value;
+        if (role || name) {
+            legalTeam.push({ role, name });
+        }
+    });
+    
+    wizardState.data['case-legal-team'] = { legalTeam };
+}
+
+function saveCaseHeadsKeywords() {
+    const headsOfClaim = [];
+    const keywords = [];
+    
+    // Save heads of claim
+    document.querySelectorAll('#headsOfClaimTable tbody tr').forEach(row => {
+        const head = row.querySelector('.claim-head').value;
+        const status = row.querySelector('.claim-status').value;
+        const actions = row.querySelector('.claim-actions').value;
+        if (head || status || actions) {
+            headsOfClaim.push({ head, status, actions });
+        }
+    });
+    
+    // Save keywords
+    document.querySelectorAll('#caseKeywordsTable tbody tr').forEach(row => {
+        const nameInput = row.querySelector('.keyword-name');
+        const name = nameInput.tagName === 'SELECT' ? nameInput.value : nameInput.value;
+        const variations = row.querySelector('.keyword-variations').value;
+        if (name || variations) {
+            keywords.push({ name, variations });
+        }
+    });
+    
+    wizardState.data['case-heads-keywords'] = {
+        headsOfClaim,
+        keywords
+    };
+}
+
+function saveCaseDeadlines() {
+    const deadlines = [];
+    
+    document.querySelectorAll('#deadlinesTable tbody tr').forEach(row => {
+        const task = row.querySelector('.deadline-task').value;
+        const description = row.querySelector('.deadline-description').value;
+        const date = row.querySelector('.deadline-date').value;
+        if (task || description || date) {
+            deadlines.push({ task, description, date });
+        }
+    });
+    
+    wizardState.data['case-deadlines'] = { deadlines };
+}
+
+// Table row functions
+window.addStakeholderRow = function(role = '', name = '') {
+    const tbody = document.querySelector('#stakeholdersTable tbody');
+    const row = tbody.insertRow();
+    
+    // Create role dropdown options
+    const roleOptions = stakeholderRoles.map(r => 
+        `<option value="${r}" ${r === role ? 'selected' : ''}>${r}</option>`
+    ).join('');
+    
+    row.innerHTML = `
+        <td>
+            <select class="stakeholder-role">
+                ${roleOptions}
+                <option value="Custom" ${role === 'Custom' || (!stakeholderRoles.includes(role) && role) ? 'selected' : ''}>Custom</option>
+            </select>
+        </td>
+        <td><input type="text" class="stakeholder-name" value="${name}" placeholder="Name/Organisation"></td>
+        <td>
+            ${tbody.children.length > 0 ? 
+                '<button class="btn-delete-row" onclick="deleteRow(this)"><i class="fas fa-trash"></i></button>' : 
+                ''}
+        </td>
+    `;
+};
+
+window.addKeywordRow = function(name = '', variations = '') {
+    const tbody = document.querySelector('#keywordsTable tbody');
+    const row = tbody.insertRow();
+    
+    // Check if name is a pre-populated keyword
+    const isPrePopulated = prePopulatedKeywords.includes(name);
+    
+    if (isPrePopulated || !name) {
+        // Create dropdown
+        const keywordOptions = prePopulatedKeywords.map(k => 
+            `<option value="${k}" ${k === name ? 'selected' : ''}>${k}</option>`
+        ).join('');
+        
+        row.innerHTML = `
+            <td>
+                <select class="keyword-name">
+                    ${keywordOptions}
+                    <option value="Custom" ${!isPrePopulated && name ? 'selected' : ''}>Custom</option>
+                </select>
+            </td>
+            <td><input type="text" class="keyword-variations" value="${variations}" placeholder="e.g., Section 278, Highways Agreement, Section 106"></td>
+            <td>
+                <button class="btn-delete-row" onclick="deleteRow(this)">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
         `;
     } else {
-        // Case summary
-        const identification = wizardState.data['case-identification'] || {};
-        const legalTeam = wizardState.data['case-legal-team'] || {};
-        const headsKeywords = wizardState.data['case-heads-keywords'] || {};
-        const deadlines = wizardState.data['case-deadlines'] || {};
-        
-        html += `
-            <div class="summary-section">
-                <h3><i class="fas fa-gavel"></i> Case Identification</h3>
-                <div class="summary-item">
-                    <div class="summary-label">Case Name:</div>
-                    <div class="summary-value">${identification.caseName || 'Not specified'}</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label">Case ID:</div>
-                    <div class="summary-value">${identification.caseId || 'Not specified'}</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label">Resolution Route:</div>
-                    <div class="summary-value">${identification.resolutionRoute || 'Not specified'}</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label">Claimant:</div>
-                    <div class="summary-value">${identification.claimant || 'Not specified'}</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label">Defendant:</div>
-                    <div class="summary-value">${identification.defendant || 'Not specified'}</div>
-                </div>
-            </div>
-            
-            <div class="summary-section">
-                <h3><i class="fas fa-user-tie"></i> Legal Team</h3>
-                ${(legalTeam.legalTeam || []).map(t => 
-                    `<div class="summary-item">
-                        <div class="summary-label">${t['team-role']}:</div>
-                        <div class="summary-value">${t['team-name']}</div>
-                    </div>`
-                ).join('')}
-            </div>
-            
-            <div class="summary-section">
-                <h3><i class="fas fa-list-check"></i> Heads of Claim</h3>
-                ${(headsKeywords.headsOfClaim || []).map(h => 
-                    `<div class="summary-item">
-                        <div class="summary-label">${h['claim-head']}:</div>
-                        <div class="summary-value">${h['claim-status']} - ${h['claim-actions']}</div>
-                    </div>`
-                ).join('')}
-            </div>
+        // Create text input for custom keyword
+        row.innerHTML = `
+            <td><input type="text" class="keyword-name" value="${name}" placeholder="Custom keyword"></td>
+            <td><input type="text" class="keyword-variations" value="${variations}" placeholder="e.g., Section 278, Highways Agreement, Section 106"></td>
+            <td>
+                <button class="btn-delete-row" onclick="deleteRow(this)">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
         `;
     }
+};
+
+window.addCaseKeywordRow = function(name = '', variations = '') {
+    const tbody = document.querySelector('#caseKeywordsTable tbody');
+    const row = tbody.insertRow();
+    
+    // Check if name is a pre-populated keyword
+    const isPrePopulated = prePopulatedKeywords.includes(name);
+    
+    if (isPrePopulated || !name) {
+        // Create dropdown
+        const keywordOptions = prePopulatedKeywords.map(k => 
+            `<option value="${k}" ${k === name ? 'selected' : ''}>${k}</option>`
+        ).join('');
+        
+        row.innerHTML = `
+            <td>
+                <select class="keyword-name">
+                    ${keywordOptions}
+                    <option value="Custom" ${!isPrePopulated && name ? 'selected' : ''}>Custom</option>
+                </select>
+            </td>
+            <td><input type="text" class="keyword-variations" value="${variations}" placeholder="comma-separated"></td>
+            <td>
+                <button class="btn-delete-row" onclick="deleteRow(this)">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+    } else {
+        // Create text input for custom keyword
+        row.innerHTML = `
+            <td><input type="text" class="keyword-name" value="${name}" placeholder="Custom keyword"></td>
+            <td><input type="text" class="keyword-variations" value="${variations}" placeholder="comma-separated"></td>
+            <td>
+                <button class="btn-delete-row" onclick="deleteRow(this)">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+    }
+};
+
+window.addLegalTeamRow = function(role = '', name = '') {
+    const tbody = document.querySelector('#legalTeamTable tbody');
+    const row = tbody.insertRow();
+    row.innerHTML = `
+        <td><input type="text" class="team-role" value="${role}" placeholder="e.g., Partner, Counsel, Associate"></td>
+        <td><input type="text" class="team-name" value="${name}" placeholder="Name/Organisation"></td>
+        <td>
+            <button class="btn-delete-row" onclick="deleteRow(this)">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    `;
+};
+
+window.addHeadOfClaimRow = function(head = '', status = 'Discovery', actions = '') {
+    const tbody = document.querySelector('#headsOfClaimTable tbody');
+    const row = tbody.insertRow();
+    
+    const statusOptions = ['Discovery', 'Merit Established', 'Collating Evidence', 'Bundling', 'Complete', 'Custom'];
+    const statusOptionsHtml = statusOptions.map(s => 
+        `<option value="${s}" ${s === status ? 'selected' : ''}>${s}</option>`
+    ).join('');
+    
+    row.innerHTML = `
+        <td><input type="text" class="claim-head" value="${head}" placeholder="Enter head of claim"></td>
+        <td>
+            <select class="claim-status">
+                ${statusOptionsHtml}
+            </select>
+        </td>
+        <td><input type="text" class="claim-actions" value="${actions}" placeholder="e.g., Request PM notes"></td>
+        <td>
+            <button class="btn-delete-row" onclick="deleteRow(this)">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    `;
+};
+
+window.addDeadlineRow = function(task = '', description = '', date = '') {
+    const tbody = document.querySelector('#deadlinesTable tbody');
+    const row = tbody.insertRow();
+    row.innerHTML = `
+        <td><input type="text" class="deadline-task" value="${task}" placeholder="e.g., Respondent's evidence"></td>
+        <td><input type="text" class="deadline-description" value="${description}" placeholder="Additional notes"></td>
+        <td><input type="date" class="deadline-date" value="${date}"></td>
+        <td>
+            <button class="btn-delete-row" onclick="deleteRow(this)">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>
+    `;
+};
+
+window.deleteRow = function(button) {
+    button.closest('tr').remove();
+};
+
+window.toggleCustomContract = function(select) {
+    const customInput = document.getElementById('contractTypeCustom');
+    if (select.value === 'Custom') {
+        customInput.classList.add('visible');
+    } else {
+        customInput.classList.remove('visible');
+    }
+};
+
+window.toggleCustomField = function(select, customInputId) {
+    const customInput = document.getElementById(customInputId);
+    if (select.value === 'Custom') {
+        customInput.classList.add('visible');
+    } else {
+        customInput.classList.remove('visible');
+    }
+};
+
+// Review summary functions
+function generateProjectReviewSummary() {
+    const container = document.getElementById('reviewSummary');
+    const identification = wizardState.data['project-identification'] || {};
+    const stakeholdersData = wizardState.data['project-stakeholders'] || {};
+    const keywords = wizardState.data['project-keywords'] || {};
+    
+    let html = `
+        <div class="summary-section">
+            <h3><i class="fas fa-clipboard-list"></i> Project Identification</h3>
+            <div class="summary-item">
+                <div class="summary-label">Project Name:</div>
+                <div class="summary-value">${identification.projectName || 'Not specified'}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Project Code:</div>
+                <div class="summary-value">${identification.projectCode || 'Not specified'}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Start Date:</div>
+                <div class="summary-value">${identification.startDate || 'Not specified'}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Completion Date:</div>
+                <div class="summary-value">${identification.completionDate || 'Not specified'}</div>
+            </div>
+        </div>
+        
+        <div class="summary-section">
+            <h3><i class="fas fa-users"></i> Stakeholders</h3>
+            ${(stakeholdersData.stakeholders || []).map(s => 
+                `<div class="summary-item">
+                    <div class="summary-label">${s.role}:</div>
+                    <div class="summary-value">${s.name}</div>
+                </div>`
+            ).join('')}
+        </div>
+        
+        <div class="summary-section">
+            <h3><i class="fas fa-tags"></i> Keywords</h3>
+            ${(stakeholdersData.keywords || []).map(k => 
+                `<div class="summary-item">
+                    <div class="summary-label">${k.name}:</div>
+                    <div class="summary-value">${k.variations || 'No variations'}</div>
+                </div>`
+            ).join('')}
+        </div>
+        
+        <div class="summary-section">
+            <h3><i class="fas fa-file-contract"></i> Contract</h3>
+            <div class="summary-item">
+                <div class="summary-label">Contract Type:</div>
+                <div class="summary-value">${keywords.contractType === 'Custom' ? 
+                    keywords.contractTypeCustom : keywords.contractType || 'Not specified'}</div>
+            </div>
+        </div>
+    `;
     
     container.innerHTML = html;
 }
 
+function generateCaseReviewSummary() {
+    const container = document.getElementById('reviewSummary');
+    const identification = wizardState.data['case-identification'] || {};
+    const legalTeamData = wizardState.data['case-legal-team'] || {};
+    const headsKeywordsData = wizardState.data['case-heads-keywords'] || {};
+    const deadlinesData = wizardState.data['case-deadlines'] || {};
+    
+    let html = `
+        <div class="summary-section">
+            <h3><i class="fas fa-gavel"></i> Case Identification</h3>
+            <div class="summary-item">
+                <div class="summary-label">Case Name:</div>
+                <div class="summary-value">${identification.caseName || 'Not specified'}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Case ID:</div>
+                <div class="summary-value">${identification.caseId || 'Not specified'}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Resolution Route:</div>
+                <div class="summary-value">${identification.resolutionRoute === 'Custom' ? 
+                    identification.resolutionRouteCustom : identification.resolutionRoute || 'Not specified'}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Claimant:</div>
+                <div class="summary-value">${identification.claimant || 'Not specified'}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Defendant:</div>
+                <div class="summary-value">${identification.defendant || 'Not specified'}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Client:</div>
+                <div class="summary-value">${identification.client || 'Not specified'}</div>
+            </div>
+        </div>
+        
+        <div class="summary-section">
+            <h3><i class="fas fa-user-tie"></i> Legal Team</h3>
+            ${(legalTeamData.legalTeam || []).map(t => 
+                `<div class="summary-item">
+                    <div class="summary-label">${t.role}:</div>
+                    <div class="summary-value">${t.name}</div>
+                </div>`
+            ).join('')}
+        </div>
+        
+        <div class="summary-section">
+            <h3><i class="fas fa-list"></i> Heads of Claim</h3>
+            ${(headsKeywordsData.headsOfClaim || []).map(h => 
+                `<div class="summary-item">
+                    <div class="summary-label">${h.head}:</div>
+                    <div class="summary-value">${h.status}${h.actions ? ' - ' + h.actions : ''}</div>
+                </div>`
+            ).join('')}
+        </div>
+        
+        <div class="summary-section">
+            <h3><i class="fas fa-calendar"></i> Case Deadlines</h3>
+            ${(deadlinesData.deadlines || []).map(d => 
+                `<div class="summary-item">
+                    <div class="summary-label">${d.task}:</div>
+                    <div class="summary-value">${d.date}${d.description ? ' - ' + d.description : ''}</div>
+                </div>`
+            ).join('')}
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+// Submit wizard
 async function submitWizard() {
-    // Save current step (in case user edited something)
-    saveStepData();
-    
-    // Validate we have required data
+    // Save the current step (review step)
     const steps = wizardState.profileType === 'project' ? projectSteps : caseSteps;
-    const identificationStep = steps.find(s => s.id.includes('identification'));
-    
-    if (identificationStep) {
-        const identificationData = wizardState.data[identificationStep.id] || {};
-        const requiredFields = wizardState.profileType === 'project' 
-            ? ['projectName', 'projectCode']
-            : ['caseName'];
-        
-        const missingFields = requiredFields.filter(field => !identificationData[field] || identificationData[field].trim() === '');
-        
-        if (missingFields.length > 0) {
-            alert(`Please fill in the required fields:\n${missingFields.join(', ')}\n\nGo back and complete the identification step.`);
-            return;
-        }
-    }
-    
-    // Debug: Log what we're sending
-    console.log('Submitting wizard data:', JSON.stringify(wizardState.data, null, 2));
+    const currentStepObj = steps[wizardState.currentStep - 1];
+    currentStepObj.save();
     
     try {
         const apiUrl = window.location.hostname === 'localhost' ? 
             'http://localhost:8010' : 
-            (process.env.REACT_APP_API_URL || '');
+            (window.location.origin || '');
         
-        const endpoint = wizardState.profileType === 'project' ? '/api/projects' : '/api/cases';
+        const token = localStorage.getItem('token');
+        
+        let endpoint, requestData;
+        
+        if (wizardState.profileType === 'project') {
+            endpoint = '/api/projects';
+            const identification = wizardState.data['project-identification'] || {};
+            const stakeholdersData = wizardState.data['project-stakeholders'] || {};
+            const keywordsData = wizardState.data['project-keywords'] || {};
+            
+            requestData = {
+                project_name: identification.projectName,
+                project_code: identification.projectCode,
+                start_date: identification.startDate || null,
+                completion_date: identification.completionDate || null,
+                contract_type: keywordsData.contractType === 'Custom' ? 
+                    keywordsData.contractTypeCustom : keywordsData.contractType,
+                stakeholders: stakeholdersData.stakeholders || [],
+                keywords: stakeholdersData.keywords || []
+            };
+        } else {
+            endpoint = '/api/cases';
+            const identification = wizardState.data['case-identification'] || {};
+            const legalTeamData = wizardState.data['case-legal-team'] || {};
+            const headsKeywordsData = wizardState.data['case-heads-keywords'] || {};
+            const deadlinesData = wizardState.data['case-deadlines'] || {};
+            
+            requestData = {
+                case_name: identification.caseName,
+                case_id: identification.caseId || null,
+                resolution_route: identification.resolutionRoute === 'Custom' ? 
+                    identification.resolutionRouteCustom : identification.resolutionRoute,
+                claimant: identification.claimant || null,
+                defendant: identification.defendant || null,
+                case_status: identification.caseStatus === 'Custom' ? 
+                    identification.caseStatusCustom : identification.caseStatus,
+                client: identification.client || null,
+                legal_team: legalTeamData.legalTeam || [],
+                heads_of_claim: headsKeywordsData.headsOfClaim || [],
+                keywords: headsKeywordsData.keywords || [],
+                deadlines: deadlinesData.deadlines || []
+            };
+        }
         
         const response = await fetch(`${apiUrl}${endpoint}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
             },
-            body: JSON.stringify(wizardState.data)
+            body: JSON.stringify(requestData)
         });
         
-        // Get error details if request failed
         if (!response.ok) {
-            let errorMessage = `Failed to create ${wizardState.profileType}`;
-            try {
-                const errorData = await response.json();
-                console.error('Server error response:', errorData);
-                errorMessage = errorData.error || errorMessage;
-                
-                // Show specific validation errors
-                if (errorData.received) {
-                    errorMessage += `\n\nReceived data: ${JSON.stringify(errorData.received, null, 2)}`;
-                }
-            } catch (e) {
-                errorMessage += `: ${response.status} ${response.statusText}`;
-            }
-            throw new Error(errorMessage);
+            const errorData = await response.json();
+            throw new Error(errorData.detail || `Failed to create ${wizardState.profileType}`);
         }
         
         const result = await response.json();
-        console.log('Success! Created:', result);
         
         // Clear draft
         localStorage.removeItem('wizardDraft');
         
-        // Store case ID for future use
-        localStorage.setItem('activeCaseId', result.id);
-        localStorage.setItem('currentCaseId', result.id);
-        localStorage.setItem('profileType', wizardState.profileType);
+        // Store ID for future use
+        localStorage.setItem(`current${wizardState.profileType === 'project' ? 'Project' : 'Case'}Id`, result.id);
         
-        // Redirect to dispute intelligence dashboard
-        window.location.href = `/ui/dashboard.html?${wizardState.profileType}Id=${result.id}&firstTime=true`;
+        // Redirect to appropriate page
+        if (wizardState.profileType === 'project') {
+            window.location.href = `pst-upload.html?projectId=${result.id}`;
+        } else {
+            window.location.href = `correspondence-enterprise.html?caseId=${result.id}`;
+        }
         
     } catch (error) {
         console.error('Error creating profile:', error);
-        alert(`Error creating ${wizardState.profileType}:\n\n${error.message}\n\nCheck the browser console (F12) for full details.`);
+        alert(`Error creating ${wizardState.profileType}: ${error.message}`);
     }
 }
 
+// Draft management
 function saveDraft() {
-    saveStepData();
+    // Save current step data
+    const steps = wizardState.profileType === 'project' ? projectSteps : caseSteps;
+    if (wizardState.currentStep > 0 && wizardState.currentStep <= steps.length) {
+        const currentStepObj = steps[wizardState.currentStep - 1];
+        currentStepObj.save();
+    }
+    
     localStorage.setItem('wizardDraft', JSON.stringify(wizardState));
     alert('Draft saved successfully!');
 }
@@ -899,10 +1185,23 @@ function loadDraft() {
         if (shouldLoad) {
             Object.assign(wizardState, JSON.parse(draft));
             if (wizardState.currentStep > 0) {
-                document.getElementById('step0').classList.remove('active');
-                loadStepsForType(wizardState.profileType);
+                // Set radio button
+                document.querySelector(`input[name="profileType"][value="${wizardState.profileType}"]`).checked = true;
+                
+                // Hide entry screen
+                document.getElementById('step-entry').classList.remove('active');
+                
+                // Set up steps
+                const steps = wizardState.profileType === 'project' ? projectSteps : caseSteps;
+                wizardState.totalSteps = steps.length;
+                
+                // Update step indicator
+                updateStepIndicator(steps);
+                
+                // Render current step
                 renderCurrentStep();
-                updateStepIndicator();
+                
+                // Show back button
                 document.getElementById('btnBack').style.display = 'block';
             }
         }
@@ -911,295 +1210,6 @@ function loadDraft() {
 
 function cancel() {
     if (confirm('Are you sure you want to cancel? Any unsaved progress will be lost.')) {
-        localStorage.removeItem('wizardDraft');
-        window.location.href = '/ui/wizard.html';
+        window.location.href = 'dashboard.html';
     }
-}
-
-// Table row functions
-function addStakeholderRow() {
-    const tbody = document.querySelector('#stakeholdersTable tbody');
-    const row = tbody.insertRow();
-    row.innerHTML = `
-        <td>
-            <select class="stakeholder-role">
-                <option value="Main Contractor">Main Contractor</option>
-                <option value="Council">Council</option>
-                <option value="Employers Agent">Employers Agent</option>
-                <option value="Project Manager">Project Manager</option>
-                <option value="Client">Client</option>
-                <option value="Building Control">Building Control</option>
-                <option value="Subcontractor">Subcontractor</option>
-                <option value="Client Management Team">Client Management Team</option>
-                <option value="Custom">Custom</option>
-            </select>
-        </td>
-        <td><input type="text" class="stakeholder-name"></td>
-        <td>
-            <button class="btn-delete-row" onclick="deleteRow(this)">
-                <i class="fas fa-trash"></i>
-            </button>
-        </td>
-    `;
-}
-
-function addKeywordRow() {
-    const tbody = document.querySelector('#keywordsTable tbody');
-    const row = tbody.insertRow();
-    row.innerHTML = `
-        <td>
-            <select class="keyword-name">
-                <option value="Relevant Event">Relevant Event</option>
-                <option value="Relevant Matter">Relevant Matter</option>
-                <option value="Section 278">Section 278</option>
-                <option value="Delay">Delay</option>
-                <option value="Risk">Risk</option>
-                <option value="Change">Change</option>
-                <option value="Variation">Variation</option>
-                <option value="Custom">Custom</option>
-            </select>
-        </td>
-        <td><input type="text" class="keyword-variations" placeholder="e.g., Section 278, Highways Agreement, Section 106"></td>
-        <td>
-            <button class="btn-delete-row" onclick="deleteRow(this)">
-                <i class="fas fa-trash"></i>
-            </button>
-        </td>
-    `;
-}
-
-function addCaseKeywordRow() {
-    const tbody = document.querySelector('#caseKeywordsTable tbody');
-    const row = tbody.insertRow();
-    row.innerHTML = `
-        <td>
-            <select class="keyword-name">
-                <option value="Relevant Event">Relevant Event</option>
-                <option value="Relevant Matter">Relevant Matter</option>
-                <option value="Section 278">Section 278</option>
-                <option value="Delay">Delay</option>
-                <option value="Risk">Risk</option>
-                <option value="Change">Change</option>
-                <option value="Variation">Variation</option>
-                <option value="Custom">Custom</option>
-            </select>
-        </td>
-        <td><input type="text" class="keyword-variations" placeholder="e.g., Section 278, Highways Agreement, Section 106"></td>
-        <td>
-            <button class="btn-delete-row" onclick="deleteRow(this)">
-                <i class="fas fa-trash"></i>
-            </button>
-        </td>
-    `;
-}
-
-function addLegalTeamRow() {
-    const tbody = document.querySelector('#legalTeamTable tbody');
-    const row = tbody.insertRow();
-    row.innerHTML = `
-        <td><input type="text" class="team-role" placeholder="e.g., Partner, Counsel, Associate"></td>
-        <td><input type="text" class="team-name" placeholder="Enter name or organisation"></td>
-        <td>
-            <button class="btn-delete-row" onclick="deleteRow(this)">
-                <i class="fas fa-trash"></i>
-            </button>
-        </td>
-    `;
-}
-
-function addHeadOfClaimRow() {
-    const tbody = document.querySelector('#headsOfClaimTable tbody');
-    const row = tbody.insertRow();
-    row.innerHTML = `
-        <td><input type="text" class="claim-head" placeholder="Enter head of claim"></td>
-        <td>
-            <select class="claim-status">
-                <option value="Discovery">Discovery</option>
-                <option value="Merit Established">Merit Established</option>
-                <option value="Collating Evidence">Collating Evidence</option>
-                <option value="Bundling">Bundling</option>
-                <option value="Complete">Complete</option>
-                <option value="Custom">Custom</option>
-            </select>
-        </td>
-        <td><input type="text" class="claim-actions" placeholder="e.g., Request PM notes"></td>
-        <td>
-            <button class="btn-delete-row" onclick="deleteRow(this)">
-                <i class="fas fa-trash"></i>
-            </button>
-        </td>
-    `;
-}
-
-function addDeadlineRow() {
-    const tbody = document.querySelector('#deadlinesTable tbody');
-    const row = tbody.insertRow();
-    row.innerHTML = `
-        <td><input type="text" class="deadline-task" placeholder="e.g., Respondent's evidence"></td>
-        <td><input type="text" class="deadline-description" placeholder="Additional notes"></td>
-        <td><input type="date" class="deadline-date"></td>
-        <td>
-            <button class="btn-delete-row" onclick="deleteRow(this)">
-                <i class="fas fa-trash"></i>
-            </button>
-        </td>
-    `;
-}
-
-function deleteRow(button) {
-    button.closest('tr').remove();
-}
-
-function toggleCustomContract(select) {
-    const customInput = document.getElementById('contractTypeCustom');
-    if (select.value === 'Custom') {
-        customInput.classList.add('visible');
-    } else {
-        customInput.classList.remove('visible');
-    }
-}
-
-function toggleCustomField(select, customInputId) {
-    const customInput = document.getElementById(customInputId);
-    if (select.value === 'Custom') {
-        customInput.classList.add('visible');
-    } else {
-        customInput.classList.remove('visible');
-    }
-}
-
-// Template loading functions
-function loadProjectTemplate(templateName) {
-    const template = projectTemplates[templateName];
-    if (!template) return;
-    
-    // Clear existing stakeholders and add template ones
-    const stakeholdersTable = document.querySelector('#stakeholdersTable tbody');
-    if (stakeholdersTable) {
-        stakeholdersTable.innerHTML = '';
-        template.stakeholders.forEach(stakeholder => {
-            addStakeholderRow();
-            const lastRow = stakeholdersTable.lastElementChild;
-            lastRow.querySelector('.stakeholder-role').value = stakeholder.role;
-            lastRow.querySelector('.stakeholder-name').value = stakeholder.name;
-        });
-    }
-    
-    // Load template keywords
-    const keywordsTable = document.querySelector('#keywordsTable tbody');
-    if (keywordsTable) {
-        keywordsTable.innerHTML = '';
-        template.keywords.forEach(keyword => {
-            addKeywordRow();
-            const lastRow = keywordsTable.lastElementChild;
-            const selectElem = lastRow.querySelector('.keyword-name');
-            const variationsElem = lastRow.querySelector('.keyword-variations');
-            
-            // Check if it's a predefined keyword
-            const option = Array.from(selectElem.options).find(opt => opt.value === keyword.name);
-            if (option) {
-                selectElem.value = keyword.name;
-            } else {
-                selectElem.value = 'Custom';
-            }
-            variationsElem.value = keyword.variations;
-        });
-    }
-    
-    // Set contract type
-    const contractType = document.getElementById('contractType');
-    if (contractType && template.contractType) {
-        contractType.value = template.contractType;
-    }
-    
-    alert(`${template.name} template loaded successfully!`);
-}
-
-function loadCaseTemplate(resolutionRoute) {
-    const template = caseTemplates[resolutionRoute];
-    if (!template) return;
-    
-    // Load template deadlines
-    const deadlinesTable = document.querySelector('#deadlinesTable tbody');
-    if (deadlinesTable) {
-        deadlinesTable.innerHTML = '';
-        template.deadlines.forEach(deadline => {
-            addDeadlineRow();
-            const lastRow = deadlinesTable.lastElementChild;
-            lastRow.querySelector('.deadline-task').value = deadline.task;
-            lastRow.querySelector('.deadline-description').value = deadline.description;
-        });
-    }
-    
-    // Load template keywords
-    const keywordsTable = document.querySelector('#caseKeywordsTable tbody');
-    if (keywordsTable) {
-        keywordsTable.innerHTML = '';
-        template.keywords.forEach(keyword => {
-            addCaseKeywordRow();
-            const lastRow = keywordsTable.lastElementChild;
-            const selectElem = lastRow.querySelector('.keyword-name');
-            const variationsElem = lastRow.querySelector('.keyword-variations');
-            
-            const option = Array.from(selectElem.options).find(opt => opt.value === keyword.name);
-            if (option) {
-                selectElem.value = keyword.name;
-            } else {
-                selectElem.value = 'Custom';
-            }
-            variationsElem.value = keyword.variations;
-        });
-    }
-}
-
-// CSV Import functionality
-function importStakeholdersCSV() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.csv';
-    input.onchange = e => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = event => {
-            parseCSV(event.target.result);
-        };
-        reader.readAsText(file);
-    };
-    input.click();
-}
-
-function parseCSV(csvData) {
-    const lines = csvData.split('\n');
-    const stakeholdersTable = document.querySelector('#stakeholdersTable tbody');
-    
-    if (!stakeholdersTable) return;
-    
-    stakeholdersTable.innerHTML = '';
-    
-    // Skip header row, process data rows
-    for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-        
-        const [role, name] = line.split(',').map(s => s.trim().replace(/^["']|["']$/g, ''));
-        
-        addStakeholderRow();
-        const lastRow = stakeholdersTable.lastElementChild;
-        const roleSelect = lastRow.querySelector('.stakeholder-role');
-        
-        // Try to match role
-        const option = Array.from(roleSelect.options).find(opt => 
-            opt.value.toLowerCase() === role.toLowerCase()
-        );
-        
-        if (option) {
-            roleSelect.value = option.value;
-        } else {
-            roleSelect.value = 'Custom';
-        }
-        
-        lastRow.querySelector('.stakeholder-name').value = name || '';
-    }
-    
-    alert(`Imported ${lines.length - 1} stakeholders from CSV`);
 }

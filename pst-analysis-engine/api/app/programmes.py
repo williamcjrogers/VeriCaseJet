@@ -193,33 +193,39 @@ async def upload_programme(
             detail="Unsupported file format. Please upload .xml (Asta XML) or .pdf"
         )
     
-    # Create document record
-    document = Document(
-        filename=file.filename,
-        file_size=len(content),
-        mime_type=file.content_type or 'application/octet-stream',
-        uploaded_by=current_user,
-        s3_key=f"programmes/{case_id}/{file.filename}"
-    )
-    db.add(document)
-    db.flush()
-    
-    # Create programme record
-    programme = Programme(
-        case_id=case_id,
-        document_id=document.id,
-        programme_type=programme_type,
-        programme_date=datetime.fromisoformat(programme_date) if programme_date else datetime.now(),
-        version_number=version_number,
-        activities=parsed_data['activities'],
-        critical_path=parsed_data['critical_path'],
-        milestones=parsed_data['milestones'],
-        project_start=datetime.fromisoformat(parsed_data['project_start']) if parsed_data.get('project_start') else None,
-        project_finish=datetime.fromisoformat(parsed_data['project_finish']) if parsed_data.get('project_finish') else None,
-        notes=f"Uploaded by {current_user}. {parsed_data['total_activities']} activities parsed."
-    )
-    db.add(programme)
-    db.commit()
+    try:
+        # Create document record
+        document = Document(
+            filename=file.filename,
+            file_size=len(content),
+            mime_type=file.content_type or 'application/octet-stream',
+            uploaded_by=current_user,
+            s3_key=f"programmes/{case_id}/{file.filename}"
+        )
+        db.add(document)
+        db.flush()
+        
+        # Create programme record
+        programme = Programme(
+            case_id=case_id,
+            document_id=document.id,
+            programme_type=programme_type,
+            programme_date=datetime.fromisoformat(programme_date) if programme_date else datetime.now(),
+            version_number=version_number,
+            activities=parsed_data['activities'],
+            critical_path=parsed_data['critical_path'],
+            milestones=parsed_data['milestones'],
+            project_start=datetime.fromisoformat(parsed_data['project_start']) if parsed_data.get('project_start') else None,
+            project_finish=datetime.fromisoformat(parsed_data['project_finish']) if parsed_data.get('project_finish') else None,
+            notes=f"Uploaded by {current_user}. {parsed_data['total_activities']} activities parsed."
+        )
+        db.add(programme)
+        db.commit()
+    except Exception as e:
+        import logging
+        logging.error(f"Error saving programme data: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to save programme data")
     db.refresh(programme)
     
     return {
@@ -240,9 +246,16 @@ async def get_programme(
     current_user: str = Depends(get_current_user_email)
 ):
     """Get programme details"""
-    programme = db.query(Programme).filter(Programme.id == programme_id).first()
-    if not programme:
-        raise HTTPException(status_code=404, detail="Programme not found")
+    try:
+        programme = db.query(Programme).filter(Programme.id == programme_id).first()
+        if not programme:
+            raise HTTPException(status_code=404, detail="Programme not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.error(f"Error fetching programme: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch programme")
     
     return {
         "id": programme.id,

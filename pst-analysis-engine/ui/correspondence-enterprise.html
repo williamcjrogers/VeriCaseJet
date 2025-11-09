@@ -490,6 +490,15 @@
             <button class="btn" onclick="toggleAdvancedFilter()">
                 <i class="fas fa-filter"></i> Advanced Filter
             </button>
+            <button class="btn" onclick="showStakeholderFilter()">
+                <i class="fas fa-users"></i> Stakeholders
+            </button>
+            <button class="btn" onclick="showKeywordFilter()">
+                <i class="fas fa-tags"></i> Keywords
+            </button>
+            <button class="btn btn-primary" onclick="openRefinementWizard()">
+                <i class="fas fa-magic"></i> AI Refine Filters
+            </button>
             <button class="btn" id="toggleViewBtn" onclick="toggleAllEmails()">
                 <i class="fas fa-compress"></i> Preview Mode
             </button>
@@ -1449,12 +1458,16 @@
                     </div>`;
                 },
                 valueGetter: params => {
-                    // Auto-extract keywords from wizard configuration or email content
+                    // Get keywords from matched_keywords field
+                    const matchedKeywords = params.data.matched_keywords || [];
+                    if (Array.isArray(matchedKeywords) && matchedKeywords.length > 0) {
+                        return matchedKeywords.join(', ');
+                    }
+                    
+                    // Fallback to existing keywords field
                     const existingKeywords = params.data.keywords || '';
                     if (existingKeywords) return existingKeywords;
                     
-                    // Try to match against project keywords from wizard
-                    // This will be populated when wizard integration is complete
                     return '';
                 },
                 filter: 'agTextColumnFilter'
@@ -1480,14 +1493,16 @@
                     ]
                 },
                 valueGetter: params => {
-                    // Auto-detect stakeholder from email sender
+                    // Get stakeholders from matched_stakeholders field
+                    const matchedStakeholders = params.data.matched_stakeholders || [];
+                    if (Array.isArray(matchedStakeholders) && matchedStakeholders.length > 0) {
+                        return matchedStakeholders.join(', ');
+                    }
+                    
+                    // Fallback to existing stakeholder field
                     const existingStakeholder = params.data.stakeholder || '';
                     if (existingStakeholder) return existingStakeholder;
                     
-                    // Try to match against project stakeholders from wizard
-                    // This will be populated when wizard integration is complete
-                    const from = params.data.email_from || '';
-                    // Add logic here to match against wizard stakeholders
                     return '';
                 },
                 filter: 'agSetColumnFilter',
@@ -1923,6 +1938,184 @@
             }
         }
 
+        async function showStakeholderFilter() {
+            try {
+                // Fetch stakeholders for this case/project
+                const caseId = localStorage.getItem('currentCaseId');
+                const response = await fetch(`${API_BASE}/api/cases/${caseId}/stakeholders`);
+                const stakeholders = await response.json();
+                
+                // Get current filter
+                const stakeholderColumn = gridApi.getColumnDef('stakeholder');
+                const currentFilter = gridApi.getFilterInstance('stakeholder');
+                
+                // Create filter modal
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                    background: white; padding: 20px; border-radius: 8px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1000;
+                    min-width: 300px; max-width: 400px;
+                `;
+                
+                modal.innerHTML = `
+                    <h3 style="margin-bottom: 16px;">Filter by Stakeholder</h3>
+                    <div style="max-height: 300px; overflow-y: auto; margin-bottom: 16px;">
+                        ${stakeholders.map(s => `
+                            <label style="display: block; margin-bottom: 8px; cursor: pointer;">
+                                <input type="checkbox" value="${s.name}" style="margin-right: 8px;">
+                                ${s.role}: ${s.name}
+                            </label>
+                        `).join('')}
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="applyStakeholderFilter()" style="flex: 1; padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">Apply</button>
+                        <button onclick="clearStakeholderFilter()" style="flex: 1; padding: 8px 16px; background: #e5e7eb; color: #374151; border: none; border-radius: 6px; cursor: pointer;">Clear</button>
+                        <button onclick="closeFilterModal()" style="flex: 1; padding: 8px 16px; background: #e5e7eb; color: #374151; border: none; border-radius: 6px; cursor: pointer;">Cancel</button>
+                    </div>
+                `;
+                
+                // Add backdrop
+                const backdrop = document.createElement('div');
+                backdrop.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999;';
+                backdrop.onclick = () => closeFilterModal();
+                
+                document.body.appendChild(backdrop);
+                document.body.appendChild(modal);
+                
+                // Store modal references globally
+                window.stakeholderModal = modal;
+                window.stakeholderBackdrop = backdrop;
+                
+            } catch (error) {
+                console.error('Error loading stakeholders:', error);
+                showNotification('Failed to load stakeholders', 'error');
+            }
+        }
+
+        async function showKeywordFilter() {
+            try {
+                // Fetch keywords for this case/project
+                const caseId = localStorage.getItem('currentCaseId');
+                const response = await fetch(`${API_BASE}/api/cases/${caseId}/keywords`);
+                const keywords = await response.json();
+                
+                // Create filter modal
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                    background: white; padding: 20px; border-radius: 8px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1000;
+                    min-width: 300px; max-width: 400px;
+                `;
+                
+                modal.innerHTML = `
+                    <h3 style="margin-bottom: 16px;">Filter by Keyword</h3>
+                    <div style="max-height: 300px; overflow-y: auto; margin-bottom: 16px;">
+                        ${keywords.map(k => `
+                            <label style="display: block; margin-bottom: 8px; cursor: pointer;">
+                                <input type="checkbox" value="${k.name}" style="margin-right: 8px;">
+                                ${k.name} ${k.variations ? `<small style="color: #6b7280;">(${k.variations})</small>` : ''}
+                            </label>
+                        `).join('')}
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="applyKeywordFilter()" style="flex: 1; padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">Apply</button>
+                        <button onclick="clearKeywordFilter()" style="flex: 1; padding: 8px 16px; background: #e5e7eb; color: #374151; border: none; border-radius: 6px; cursor: pointer;">Clear</button>
+                        <button onclick="closeFilterModal()" style="flex: 1; padding: 8px 16px; background: #e5e7eb; color: #374151; border: none; border-radius: 6px; cursor: pointer;">Cancel</button>
+                    </div>
+                `;
+                
+                // Add backdrop
+                const backdrop = document.createElement('div');
+                backdrop.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999;';
+                backdrop.onclick = () => closeFilterModal();
+                
+                document.body.appendChild(backdrop);
+                document.body.appendChild(modal);
+                
+                // Store modal references globally
+                window.keywordModal = modal;
+                window.keywordBackdrop = backdrop;
+                
+            } catch (error) {
+                console.error('Error loading keywords:', error);
+                showNotification('Failed to load keywords', 'error');
+            }
+        }
+
+        function applyStakeholderFilter() {
+            const modal = window.stakeholderModal;
+            const checked = Array.from(modal.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+            
+            if (checked.length > 0) {
+                // Apply filter to stakeholder column
+                const filterInstance = gridApi.getFilterInstance('stakeholder');
+                filterInstance.setModel({
+                    filterType: 'set',
+                    values: checked
+                });
+                gridApi.onFilterChanged();
+            }
+            
+            closeFilterModal();
+            showNotification(`Filtering by ${checked.length} stakeholder(s)`, 'success');
+        }
+
+        function applyKeywordFilter() {
+            const modal = window.keywordModal;
+            const checked = Array.from(modal.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+            
+            if (checked.length > 0) {
+                // Apply filter to keywords column
+                const filterInstance = gridApi.getFilterInstance('keywords');
+                filterInstance.setModel({
+                    filterType: 'text',
+                    type: 'contains',
+                    filter: checked.join('|')
+                });
+                gridApi.onFilterChanged();
+            }
+            
+            closeFilterModal();
+            showNotification(`Filtering by ${checked.length} keyword(s)`, 'success');
+        }
+
+        function clearStakeholderFilter() {
+            const filterInstance = gridApi.getFilterInstance('stakeholder');
+            filterInstance.setModel(null);
+            gridApi.onFilterChanged();
+            closeFilterModal();
+            showNotification('Stakeholder filter cleared', 'info');
+        }
+
+        function clearKeywordFilter() {
+            const filterInstance = gridApi.getFilterInstance('keywords');
+            filterInstance.setModel(null);
+            gridApi.onFilterChanged();
+            closeFilterModal();
+            showNotification('Keyword filter cleared', 'info');
+        }
+
+        function closeFilterModal() {
+            if (window.stakeholderModal) {
+                window.stakeholderModal.remove();
+                window.stakeholderModal = null;
+            }
+            if (window.stakeholderBackdrop) {
+                window.stakeholderBackdrop.remove();
+                window.stakeholderBackdrop = null;
+            }
+            if (window.keywordModal) {
+                window.keywordModal.remove();
+                window.keywordModal = null;
+            }
+            if (window.keywordBackdrop) {
+                window.keywordBackdrop.remove();
+                window.keywordBackdrop = null;
+            }
+        }
+
         function setViewMode(mode) {
             currentViewMode = mode;
             
@@ -1954,6 +2147,16 @@
         function toggleDetailPanel() {
             const panel = document.getElementById('detailPanel');
             panel.classList.toggle('hidden');
+        }
+
+        function openRefinementWizard() {
+            // Get current project/case ID from URL params
+            const urlParams = new URLSearchParams(window.location.search);
+            const projectId = urlParams.get('profileId') || urlParams.get('projectId');
+            
+            // Open refinement wizard in a new window or modal
+            const wizardUrl = `refinement-wizard.html?projectId=${projectId}`;
+            window.open(wizardUrl, '_blank', 'width=1400,height=900');
         }
 
         function exportToExcel() {

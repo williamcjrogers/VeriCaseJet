@@ -9,14 +9,18 @@ logger = logging.getLogger(__name__)
 def client():
     global _client
     if _client is None:
-        _client = OpenSearch(
-            hosts=[{"host": settings.OPENSEARCH_HOST, "port": settings.OPENSEARCH_PORT}],
-            http_auth=('admin', 'admin'),
-            http_compress=True,
-            use_ssl=settings.OPENSEARCH_USE_SSL,
-            verify_certs=settings.OPENSEARCH_VERIFY_CERTS,
-            connection_class=RequestsHttpConnection
-        )
+        try:
+            _client = OpenSearch(
+                hosts=[{"host": settings.OPENSEARCH_HOST, "port": settings.OPENSEARCH_PORT}],
+                http_auth=('admin', 'admin'),
+                http_compress=True,
+                use_ssl=settings.OPENSEARCH_USE_SSL,
+                verify_certs=settings.OPENSEARCH_VERIFY_CERTS,
+                connection_class=RequestsHttpConnection
+            )
+        except Exception as e:
+            logger.error(f"Failed to create OpenSearch client: {e}")
+            raise
     return _client
 def ensure_index():
     body={"settings":{"index":{"number_of_shards":1,"number_of_replicas":0}},

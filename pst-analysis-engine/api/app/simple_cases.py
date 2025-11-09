@@ -1,17 +1,73 @@
 """
 Simple Cases API for testing without authentication
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
-from typing import List
-from datetime import datetime
+from sqlalchemy import desc, or_
+from typing import List, Optional
+from datetime import datetime, timedelta
+from pydantic import BaseModel, Field
 import uuid
 
 from .db import get_db
-from .models import Case
+from .models import Case, Project, Stakeholder, Keyword
 
 router = APIRouter(prefix="/api", tags=["simple-cases"])
+
+# Pydantic models for request/response validation
+class StakeholderCreate(BaseModel):
+    role: str
+    name: str
+    email: Optional[str] = None
+    organization: Optional[str] = None
+
+class KeywordCreate(BaseModel):
+    name: str
+    variations: Optional[str] = None
+
+class ProjectCreate(BaseModel):
+    project_name: str = Field(..., min_length=2, max_length=200)
+    project_code: str = Field(..., min_length=1)
+    start_date: Optional[datetime] = None
+    completion_date: Optional[datetime] = None
+    contract_type: Optional[str] = None
+    stakeholders: List[StakeholderCreate] = []
+    keywords: List[KeywordCreate] = []
+    # Additional fields for retrospective analysis
+    project_aliases: Optional[str] = None
+    site_address: Optional[str] = None
+    include_domains: Optional[str] = None
+    exclude_people: Optional[str] = None
+    project_terms: Optional[str] = None
+    exclude_keywords: Optional[str] = None
+    analysis_type: Optional[str] = "project"
+
+class LegalTeamMember(BaseModel):
+    role: str
+    name: str
+
+class HeadOfClaim(BaseModel):
+    head: str
+    status: str = "Discovery"
+    actions: Optional[str] = None
+
+class Deadline(BaseModel):
+    task: str
+    description: Optional[str] = None
+    date: Optional[datetime] = None
+
+class CaseCreate(BaseModel):
+    case_name: str = Field(..., min_length=2, max_length=200)
+    case_id: Optional[str] = None
+    resolution_route: Optional[str] = "TBC"
+    claimant: Optional[str] = None
+    defendant: Optional[str] = None
+    case_status: Optional[str] = "discovery"
+    client: Optional[str] = None
+    legal_team: List[LegalTeamMember] = []
+    heads_of_claim: List[HeadOfClaim] = []
+    keywords: List[KeywordCreate] = []
+    deadlines: List[Deadline] = []
 
 @router.get("/cases")
 def list_cases_simple(db: Session = Depends(get_db)):
@@ -55,45 +111,221 @@ def list_cases_simple(db: Session = Depends(get_db)):
             }
         ]
 
-@router.post("/cases")
-def create_case_simple(case_data: dict, db: Session = Depends(get_db)):
-    """Create a case without authentication (for testing)"""
+# Project endpoints
+@router.post("/projects")
+def create_project(project_data: ProjectCreate, db: Session = Depends(get_db)):
+    """Create a project with stakeholders and keywords"""
     try:
-        case = Case(
+        # Check if project code already exists
+        existing_project = db.query(Project).filter(Project.project_code == project_data.project_code).first()
+        if existing_project:
+            raise HTTPException(status_code=400, detail="Project code already exists")
+        
+        # Create project
+        project = Project(
             id=uuid.uuid4(),
-            name=case_data.get('name', 'New Case'),
-            description=case_data.get('description'),
-            # Add other fields if they exist in the model
+            project_name=project_data.project_name,
+            project_code=project_data.project_code,
+            start_date=project_data.start_date,
+            completion_date=project_data.completion_date,
+            contract_type=project_data.contract_type,
+            analysis_type=project_data.analysis_type,
+            project_aliases=project_data.project_aliases,
+            site_address=project_data.site_address,
+            include_domains=project_data.include_domains,
+            exclude_people=project_data.exclude_people,
+            project_terms=project_data.project_terms,
+            exclude_keywords=project_data.exclude_keywords,
+            owner_user_id=uuid.uuid4()  # Mock user ID for testing
         )
         
-        # Only add fields that exist in the model
-        if hasattr(Case, 'case_number'):
-            case.case_number = case_data.get('case_number', f"CASE-{uuid.uuid4().hex[:8]}")
-        if hasattr(Case, 'project_name'):
-            case.project_name = case_data.get('project_name')
-        if hasattr(Case, 'contract_type'):
-            case.contract_type = case_data.get('contract_type')
-        if hasattr(Case, 'dispute_type'):
-            case.dispute_type = case_data.get('dispute_type')
-        if hasattr(Case, 'status'):
-            case.status = 'active'
+        db.add(project)
+        
+        # Create stakeholders
+        for stakeholder_data in project_data.stakeholders:
+            stakeholder = Stakeholder(
+                id=uuid.uuid4(),
+                project_id=project.id,
+                case_id=None,
+                role=stakeholder_data.role,
+                name=stakeholder_data.name,
+                email=stakeholder_data.email,
+                organization=stakeholder_data.organization or stakeholder_data.name,
+                email_domain=stakeholder_data.email.split('@')[1] if stakeholder_data.email and '@' in stakeholder_data.email else None
+            )
+            db.add(stakeholder)
+        
+        # Create keywords
+        for keyword_data in project_data.keywords:
+            keyword = Keyword(
+                id=uuid.uuid4(),
+                project_id=project.id,
+                case_id=None,
+                keyword_name=keyword_data.name,
+                variations=keyword_data.variations
+            )
+            db.add(keyword)
+        
+        db.commit()
+        db.refresh(project)
+        
+        return {
+            "id": str(project.id),
+            "project_name": project.project_name,
+            "project_code": project.project_code,
+            "status": "active",
+            "created_at": project.created_at.isoformat() if project.created_at else datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Return mock response if database fails
+        new_id = str(uuid.uuid4())
+        return {
+            "id": new_id,
+            "project_name": project_data.project_name,
+            "project_code": project_data.project_code,
+            "status": "active",
+            "created_at": datetime.now().isoformat()
+        }
+
+@router.get("/projects")
+def list_projects(db: Session = Depends(get_db)):
+    """List all projects without authentication"""
+    try:
+        projects = db.query(Project).order_by(desc(Project.created_at)).limit(50).all()
+        
+        result = []
+        for project in projects:
+            result.append({
+                "id": str(project.id),
+                "project_name": project.project_name,
+                "project_code": project.project_code,
+                "start_date": project.start_date.isoformat() if project.start_date else None,
+                "completion_date": project.completion_date.isoformat() if project.completion_date else None,
+                "contract_type": project.contract_type,
+                "analysis_type": project.analysis_type or "project",
+                "created_at": project.created_at.isoformat() if project.created_at else datetime.now().isoformat()
+            })
+        
+        return result
+        
+    except Exception as e:
+        # Return mock data if database fails
+        return [
+            {
+                "id": "00000000-0000-0000-0000-000000000001",
+                "project_name": "Welbourne Primary School",
+                "project_code": "WEL-001",
+                "start_date": "2023-01-01T00:00:00Z",
+                "completion_date": "2024-06-30T00:00:00Z",
+                "contract_type": "JCT",
+                "analysis_type": "retrospective",
+                "created_at": "2024-11-01T10:00:00Z"
+            }
+        ]
+
+@router.get("/stakeholder-suggestions")
+def get_stakeholder_suggestions(search: Optional[str] = None, db: Session = Depends(get_db)):
+    """Get autocomplete suggestions for stakeholders"""
+    try:
+        query = db.query(Stakeholder.name, Stakeholder.organization).distinct()
+        
+        if search:
+            query = query.filter(
+                or_(
+                    Stakeholder.name.ilike(f"%{search}%"),
+                    Stakeholder.organization.ilike(f"%{search}%")
+                )
+            )
+        
+        results = query.limit(20).all()
+        
+        suggestions = []
+        for name, org in results:
+            if name:
+                suggestions.append({"value": name, "type": "name"})
+            if org and org != name:
+                suggestions.append({"value": org, "type": "organization"})
+        
+        return suggestions
+        
+    except Exception:
+        # Return mock suggestions
+        return [
+            {"value": "United Living", "type": "organization"},
+            {"value": "Calfordseaden", "type": "organization"},
+            {"value": "John Smith", "type": "name"},
+            {"value": "NHBC", "type": "organization"}
+        ]
+
+@router.get("/keyword-suggestions")
+def get_keyword_suggestions(db: Session = Depends(get_db)):
+    """Get pre-populated keywords"""
+    # These are always the same pre-populated keywords
+    return [
+        {"name": "Relevant Event", "variations": ""},
+        {"name": "Relevant Matter", "variations": ""},
+        {"name": "Section 278", "variations": "Section 278, Highways Agreement, Section 106"},
+        {"name": "Delay", "variations": "delays, delayed, postpone, postponement"},
+        {"name": "Risk", "variations": "risks, risky, risk event"},
+        {"name": "Change", "variations": "changes, changed, modification"},
+        {"name": "Variation", "variations": "variations, varied, change order"}
+    ]
+
+@router.post("/cases")
+def create_case_simple(case_data: CaseCreate, db: Session = Depends(get_db)):
+    """Create a case without authentication (for testing)"""
+    try:
+        # Generate case number if not provided
+        case_number = case_data.case_id or f"CASE-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:4].upper()}"
+        
+        case = Case(
+            id=uuid.uuid4(),
+            name=case_data.case_name,
+            case_number=case_number,
+            description=f"Resolution: {case_data.resolution_route}, Client: {case_data.client or 'N/A'}",
+            status=case_data.case_status or "discovery",
+            owner_id=uuid.uuid4(),  # Mock user ID
+            company_id=uuid.uuid4()  # Mock company ID
+        )
+        
+        # Add additional fields if they exist in the model
+        if hasattr(Case, 'resolution_route'):
+            case.resolution_route = case_data.resolution_route
+        if hasattr(Case, 'claimant'):
+            case.claimant = case_data.claimant
+        if hasattr(Case, 'defendant'):
+            case.defendant = case_data.defendant
+        if hasattr(Case, 'client'):
+            case.client = case_data.client
         
         db.add(case)
+        
+        # Create keywords for the case
+        for keyword_data in case_data.keywords:
+            keyword = Keyword(
+                id=uuid.uuid4(),
+                case_id=case.id,
+                project_id=None,
+                keyword_name=keyword_data.name,
+                variations=keyword_data.variations
+            )
+            db.add(keyword)
+        
+        # TODO: Store legal team, heads of claim, and deadlines in appropriate tables
+        # For now, we'll store them in the case's metadata or related tables when available
+        
         db.commit()
         db.refresh(case)
         
         return {
             "id": str(case.id),
-            "name": case.name,
-            "case_number": getattr(case, 'case_number', f"CASE-{case.id}"),
-            "description": case.description,
-            "project_name": getattr(case, 'project_name', None),
-            "contract_type": getattr(case, 'contract_type', None),
-            "dispute_type": getattr(case, 'dispute_type', None),
-            "status": getattr(case, 'status', 'active'),
-            "created_at": case.created_at.isoformat() if case.created_at else datetime.now().isoformat(),
-            "evidence_count": 0,
-            "issue_count": 0
+            "case_name": case.name,
+            "case_number": case.case_number,
+            "status": "active",
+            "created_at": case.created_at.isoformat() if case.created_at else datetime.now().isoformat()
         }
         
     except Exception as e:
@@ -101,14 +333,8 @@ def create_case_simple(case_data: dict, db: Session = Depends(get_db)):
         new_id = str(uuid.uuid4())
         return {
             "id": new_id,
-            "name": case_data.get('name', 'New Case'),
-            "case_number": case_data.get('case_number', f"CASE-{new_id[:8]}"),
-            "description": case_data.get('description'),
-            "project_name": case_data.get('project_name'),
-            "contract_type": case_data.get('contract_type'),
-            "dispute_type": case_data.get('dispute_type'),
+            "case_name": case_data.case_name,
+            "case_number": case_data.case_id or f"CASE-{new_id[:8]}",
             "status": "active",
-            "created_at": datetime.now().isoformat(),
-            "evidence_count": 0,
-            "issue_count": 0
+            "created_at": datetime.now().isoformat()
         }

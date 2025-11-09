@@ -535,6 +535,10 @@ def resolve_share(token: str, password: Optional[str] = Query(default=None), wat
             raise HTTPException(400,"watermark supported for PDFs only")
         try:
             original_bytes = get_object(document.s3_key)
+        except Exception as exc:
+            logger.exception("Failed to retrieve document %s from storage", document.s3_key)
+            raise HTTPException(500, "unable to retrieve document") from exc
+        try:
             stamped = build_watermarked_pdf(original_bytes, sanitized)
             temp_key = f"shares/{token}/watermarked/{uuid4()}.pdf"
             put_object(temp_key, stamped, "application/pdf")
@@ -544,7 +548,7 @@ def resolve_share(token: str, password: Optional[str] = Query(default=None), wat
             raise
         except Exception as exc:
             logger.exception("Failed to create watermarked PDF for share %s", token)
-            raise HTTPException(500,"unable to generate watermark") from exc
+            raise HTTPException(500, "unable to generate watermark") from exc
     url=presign_get(document.s3_key, 300)
     return {"url": url, "filename": document.filename, "content_type": document.content_type}
 

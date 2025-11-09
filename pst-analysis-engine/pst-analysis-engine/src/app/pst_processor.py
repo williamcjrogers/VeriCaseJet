@@ -14,7 +14,7 @@ Features:
 import pypff
 import hashlib
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 import tempfile
 import os
@@ -43,6 +43,11 @@ class UltimatePSTProcessor:
     """
     
     def __init__(self, db: Session, s3_client, opensearch_client=None):
+        if db is None:
+            raise ValueError("Database session is required")
+        if s3_client is None:
+            raise ValueError("S3 client is required")
+        
         self.db = db
         self.s3 = s3_client
         self.opensearch = opensearch_client
@@ -69,7 +74,7 @@ class UltimatePSTProcessor:
             'errors': []
         }
         
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         # Update document status
         document = self.db.query(Document).filter_by(id=document_id).first()
@@ -101,7 +106,7 @@ class UltimatePSTProcessor:
             except Exception as e:
                 logger.error(f"Failed to download PST: {e}")
                 document.status = DocStatus.FAILED
-                set_processing_meta('failed', error=str(e), failed_at=datetime.utcnow().isoformat())
+                set_processing_meta('failed', error=str(e), failed_at=datetime.now(timezone.utc).isoformat())
                 self.db.commit()
                 raise
         
@@ -133,11 +138,11 @@ class UltimatePSTProcessor:
             
             # Calculate stats
             stats['unique_attachments'] = len(self.attachment_hashes)
-            stats['processing_time'] = (datetime.utcnow() - start_time).total_seconds()
+            stats['processing_time'] = (datetime.now(timezone.utc) - start_time).total_seconds()
             
             # Update document with success status
             document.status = DocStatus.READY
-            set_processing_meta('completed', processed_at=datetime.utcnow().isoformat(), stats=stats)
+            set_processing_meta('completed', processed_at=datetime.now(timezone.utc).isoformat(), stats=stats)
             self.db.commit()
             
             pst_file.close()
@@ -147,7 +152,7 @@ class UltimatePSTProcessor:
         except Exception as e:
             logger.error(f"PST processing failed: {e}", exc_info=True)
             document.status = DocStatus.FAILED
-            set_processing_meta('failed', error=str(e), failed_at=datetime.utcnow().isoformat())
+            set_processing_meta('failed', error=str(e), failed_at=datetime.now(timezone.utc).isoformat())
             self.db.commit()
             stats['errors'].append(str(e))
             raise
@@ -212,8 +217,13 @@ class UltimatePSTProcessor:
     def _extract_email_from_headers(self, message):
         """Extract email address from transport headers (RFC 2822 format)"""
         try:
+            if not message:
+                logger.warning("No message provided for email extraction")
+                return None
+                
             transport_headers = self._safe_get_attr(message, 'transport_headers', None)
             if not transport_headers:
+                logger.debug("No transport headers found in message")
                 return None
             
             # Look for From: header line
@@ -264,11 +274,9 @@ class UltimatePSTProcessor:
         bcc_recipients = self._safe_get_attr(message, 'display_bcc', '')
         
         # Get dates - pypff has delivery_time and client_submit_time
-        email_date = self._safe_get_attr(message, 'delivery_time', None)
-        if not email_date:
-            email_date = self._safe_get_attr(message, 'client_submit_time', None)
-        if not email_date:
-            email_date = self._safe_get_attr(message, 'creation_time', None)
+        email_date = (self._safe_get_attr(message, 'delivery_time', None) or 
+                     self._safe_get_attr(message, 'client_submit_time', None) or 
+                     self._safe_get_attr(message, 'creation_time', None))
         
         # Get Outlook conversation index (binary data, convert to hex)
         conversation_index = None
@@ -509,18 +517,19 @@ class UltimatePSTProcessor:
         """
         Extract specific header from message transport headers
         """
+        if not hasattr(message, 'transport_headers') or not message.transport_headers:
+            return None
         try:
-            if hasattr(message, 'transport_headers') and message.transport_headers:
-                headers = message.transport_headers
-                # Parse headers (they come as one big string)
-                for line in headers.split('\n'):
-                    if line.startswith(f"{header_name}:"):
-                        value = line[len(header_name)+1:].strip()
-                        # Clean up angle brackets
-                        if value.startswith('<') and value.endswith('>'):
-                            value = value[1:-1]
-                        return value
-        except Exception as e:
+            headers = message.transport_headers
+            # Parse headers (they come as one big string)
+            for line in headers.split('\n'):
+                if line.startswith(f"{header_name}:"):
+                    value = line[len(header_name)+1:].strip()
+                    # Clean up angle brackets
+                    if value.startswith('<') and value.endswith('>'):
+                        value = value[1:-1]
+                    return value
+        except (AttributeError, TypeError) as e:
             logger.debug(f"Could not extract header {header_name}: {e}")
         return None
     
@@ -545,35 +554,40 @@ class UltimatePSTProcessor:
             'folder_path': email_data['folder_path'],
             'has_attachments': email_data['has_attachments'],
             'attachments_count': len(evidence.attachments) if evidence.attachments else 0,
-            'indexed_at': datetime.utcnow().isoformat()
+            'indexed_at': datetime.now(timezone.utc).isoformat()
         }
         
-        # Create index if not exists
-        index_name = 'correspondence'
-        if not self.opensearch.indices.exists(index_name):
-            self.opensearch.indices.create(
-                index_name,
-                body={
-                    'settings': {'number_of_shards': 1, 'number_of_replicas': 0},
-                    'mappings': {
-                        'properties': {
-                            'date': {'type': 'date'},
-                            'content': {'type': 'text'},
-                            'subject': {'type': 'text'},
-                            'from': {'type': 'keyword'},
-                            'to': {'type': 'keyword'}
+        try:
+            # Create index if not exists
+            index_name = 'correspondence'
+            if not self.opensearch.indices.exists(index_name):
+                self.opensearch.indices.create(
+                    index_name,
+                    body={
+                        'settings': {'number_of_shards': 1, 'number_of_replicas': 0},
+                        'mappings': {
+                            'properties': {
+                                'date': {'type': 'date'},
+                                'content': {'type': 'text'},
+                                'subject': {'type': 'text'},
+                                'from': {'type': 'keyword'},
+                                'to': {'type': 'keyword'}
+                            }
                         }
                     }
-                }
+                )
+            
+            # Index document
+            self.opensearch.index(
+                index=index_name,
+                body=doc,
+                id=f"evidence_{evidence.id}",
+                refresh=False  # Don't refresh immediately for performance
             )
-        
-        # Index document
-        self.opensearch.index(
-            index=index_name,
-            body=doc,
-            id=f"evidence_{evidence.id}",
-            refresh=False  # Don't refresh immediately for performance
-        )
+        except Exception as e:
+            logger.error(f"Failed to index email to OpenSearch: {e}")
+            # Don't fail the entire processing just because indexing failed
+            # This allows the extraction to continue even if search is temporarily unavailable
     
     def _build_thread_relationships(self, case_id):
         """
@@ -611,8 +625,11 @@ class UltimatePSTProcessor:
                     thread_id = parent.thread_id
                 else:
                     # Create new thread starting from parent
-                    thread_id = f"thread_{hashlib.md5(parent.email_message_id.encode()).hexdigest()[:12]}"
-                    parent.thread_id = thread_id
+                    try:
+                        thread_id = f"thread_{hashlib.md5(parent.email_message_id.encode()).hexdigest()[:12]}"
+                        parent.thread_id = thread_id
+                    except Exception as e:
+                        logger.warning(f"Failed to create thread ID from parent message ID: {e}")
             
             # Strategy 2: Parse References header for full thread chain
             if not thread_id and evidence.meta and evidence.meta.get('references'):
@@ -654,7 +671,10 @@ class UltimatePSTProcessor:
             
             # Create new thread if no match found
             if not thread_id and evidence.email_message_id:
-                thread_id = f"thread_{hashlib.md5(evidence.email_message_id.encode()).hexdigest()[:12]}"
+                try:
+                    thread_id = f"thread_{hashlib.md5(evidence.email_message_id.encode()).hexdigest()[:12]}"
+                except Exception as e:
+                    logger.warning(f"Failed to create thread ID from message ID {evidence.email_message_id}: {e}")
             
             # Assign thread ID
             if thread_id:
@@ -670,7 +690,6 @@ class UltimatePSTProcessor:
         Extract email address from RFC 2822 transport headers
         pypff doesn't expose direct .sender_email_address - parse from headers
         """
-        import re
         try:
             headers = message.transport_headers
             if not headers:
@@ -682,5 +701,5 @@ class UltimatePSTProcessor:
                 return from_match.group(1)
             
             return None
-        except:
+        except Exception:
             return None

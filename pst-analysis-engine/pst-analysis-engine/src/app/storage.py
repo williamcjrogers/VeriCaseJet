@@ -3,45 +3,70 @@ from botocore.client import Config
 from botocore.exceptions import ClientError
 from .config import settings
 import time
-_s3=None
-_s3_pub=None
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Global S3 client cache (singleton pattern for connection pooling)
+# These are intentionally global to avoid recreating clients on every request
+_s3 = None
+_s3_pub = None
 def s3(public: bool=False):
+    """
+    Get S3 client (cached singleton pattern for connection pooling).
+    
+    Args:
+        public: If True and MinIO public endpoint is configured, use public endpoint
+        
+    Returns:
+        boto3 S3 client instance
+        
+    Raises:
+        ClientError: If S3/MinIO connection fails
+    """
     global _s3, _s3_pub
     
-    # Detect AWS mode: USE_AWS_SERVICES flag or empty MINIO_ENDPOINT
-    use_aws = settings.USE_AWS_SERVICES or not settings.MINIO_ENDPOINT
-    
-    if public and settings.MINIO_PUBLIC_ENDPOINT and not use_aws:
-        if _s3_pub is None:
-            _s3_pub = boto3.client(
-                "s3",
-                endpoint_url=settings.MINIO_PUBLIC_ENDPOINT,
-                aws_access_key_id=settings.MINIO_ACCESS_KEY,
-                aws_secret_access_key=settings.MINIO_SECRET_KEY,
-                config=Config(signature_version="s3v4"),
-                region_name=settings.AWS_REGION,
-            )
-        return _s3_pub
-    
-    if _s3 is None:
-        if use_aws:
-            # AWS S3 mode: use IRSA for credentials (no endpoint_url, no explicit keys)
-            _s3 = boto3.client(
-                "s3",
-                config=Config(signature_version="s3v4"),
-                region_name=settings.AWS_REGION,
-            )
-        else:
-            # MinIO mode: use explicit endpoint and credentials
-            _s3 = boto3.client(
-                "s3",
-                endpoint_url=settings.MINIO_ENDPOINT,
-                aws_access_key_id=settings.MINIO_ACCESS_KEY,
-                aws_secret_access_key=settings.MINIO_SECRET_KEY,
-                config=Config(signature_version="s3v4"),
-                region_name=settings.AWS_REGION,
-            )
-    return _s3
+    try:
+        # Detect AWS mode: USE_AWS_SERVICES flag or empty MINIO_ENDPOINT
+        use_aws = settings.USE_AWS_SERVICES or not settings.MINIO_ENDPOINT
+        
+        if public and settings.MINIO_PUBLIC_ENDPOINT and not use_aws:
+            if _s3_pub is None:
+                logger.info("Initializing public S3 client for MinIO")
+                _s3_pub = boto3.client(
+                    "s3",
+                    endpoint_url=settings.MINIO_PUBLIC_ENDPOINT,
+                    aws_access_key_id=settings.MINIO_ACCESS_KEY,
+                    aws_secret_access_key=settings.MINIO_SECRET_KEY,
+                    config=Config(signature_version="s3v4"),
+                    region_name=settings.AWS_REGION,
+                )
+            return _s3_pub
+        
+        if _s3 is None:
+            if use_aws:
+                # AWS S3 mode: use IRSA for credentials (no endpoint_url, no explicit keys)
+                logger.info("Initializing AWS S3 client")
+                _s3 = boto3.client(
+                    "s3",
+                    config=Config(signature_version="s3v4"),
+                    region_name=settings.AWS_REGION,
+                )
+            else:
+                # MinIO mode: use explicit endpoint and credentials
+                logger.info(f"Initializing MinIO S3 client at {settings.MINIO_ENDPOINT}")
+                _s3 = boto3.client(
+                    "s3",
+                    endpoint_url=settings.MINIO_ENDPOINT,
+                    aws_access_key_id=settings.MINIO_ACCESS_KEY,
+                    aws_secret_access_key=settings.MINIO_SECRET_KEY,
+                    config=Config(signature_version="s3v4"),
+                    region_name=settings.AWS_REGION,
+                )
+        return _s3
+    except Exception as e:
+        logger.error(f"Failed to initialize S3 client: {e}")
+        raise
 def ensure_bucket():
     # Detect AWS mode: USE_AWS_SERVICES flag or empty MINIO_ENDPOINT
     use_aws = settings.USE_AWS_SERVICES or not settings.MINIO_ENDPOINT
@@ -57,10 +82,13 @@ def ensure_bucket():
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', '')
             if error_code == '404':
-                raise Exception(f"S3 bucket '{settings.MINIO_BUCKET}' does not exist. Please create it in AWS first.")
+                logger.error(f"S3 bucket '{settings.MINIO_BUCKET}' does not exist")
+                raise RuntimeError(f"S3 bucket '{settings.MINIO_BUCKET}' does not exist. Please create it in AWS first.")
             elif error_code == '403':
-                raise Exception(f"Access denied to S3 bucket '{settings.MINIO_BUCKET}'. Check IRSA permissions.")
+                logger.error(f"Access denied to S3 bucket '{settings.MINIO_BUCKET}'")
+                raise PermissionError(f"Access denied to S3 bucket '{settings.MINIO_BUCKET}'. Check IRSA permissions.")
             else:
+                logger.error(f"Error checking S3 bucket: {e}")
                 raise
     else:
         # MinIO mode: Wait for MinIO to be reachable and ensure bucket/versioning/CORS
@@ -85,10 +113,28 @@ def ensure_cors():
     try: s3().put_bucket_cors(Bucket=settings.MINIO_BUCKET, CORSConfiguration=cfg)
     except Exception: pass
 def put_object(key: str, data: bytes, content_type: str):
-    s3().put_object(Bucket=settings.MINIO_BUCKET, Key=key, Body=data, ContentType=content_type)
+    """Upload an object to S3/MinIO"""
+    try:
+        s3().put_object(Bucket=settings.MINIO_BUCKET, Key=key, Body=data, ContentType=content_type)
+        logger.debug(f"Successfully uploaded object: {key}")
+    except Exception as e:
+        logger.error(f"Failed to upload object {key}: {e}")
+        raise
+        
 def get_object(key: str) -> bytes:
-    obj=s3().get_object(Bucket=settings.MINIO_BUCKET, Key=key)
-    return obj["Body"].read()
+    """Download an object from S3/MinIO"""
+    try:
+        obj = s3().get_object(Bucket=settings.MINIO_BUCKET, Key=key)
+        return obj["Body"].read()
+    except ClientError as e:
+        if e.response.get('Error', {}).get('Code') == 'NoSuchKey':
+            logger.warning(f"Object not found: {key}")
+        else:
+            logger.error(f"Failed to get object {key}: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get object {key}: {e}")
+        raise
 def presign_put(key: str, content_type: str, expires: int=3600) -> str:
     url = s3(public=bool(settings.MINIO_PUBLIC_ENDPOINT)).generate_presigned_url("put_object",
         Params={"Bucket": settings.MINIO_BUCKET, "Key": key, "ContentType": content_type},
@@ -100,21 +146,44 @@ def presign_get(key: str, expires: int=300) -> str:
         ExpiresIn=expires, HttpMethod="GET")
     return url
 def multipart_start(key: str, content_type: str) -> str:
-    resp = s3().create_multipart_upload(Bucket=settings.MINIO_BUCKET, Key=key, ContentType=content_type)
-    return resp["UploadId"]
+    """Start a multipart upload"""
+    try:
+        resp = s3().create_multipart_upload(Bucket=settings.MINIO_BUCKET, Key=key, ContentType=content_type)
+        logger.debug(f"Started multipart upload for {key}: {resp['UploadId']}")
+        return resp["UploadId"]
+    except Exception as e:
+        logger.error(f"Failed to start multipart upload for {key}: {e}")
+        raise
 def presign_part(key: str, upload_id: str, part_number: int, expires: int=3600) -> str:
     url = s3(public=bool(settings.MINIO_PUBLIC_ENDPOINT)).generate_presigned_url("upload_part",
         Params={"Bucket": settings.MINIO_BUCKET, "Key": key, "UploadId": upload_id, "PartNumber": part_number},
         ExpiresIn=expires, HttpMethod="PUT")
     return url
 def multipart_complete(key: str, upload_id: str, parts: list):
-    return s3().complete_multipart_upload(Bucket=settings.MINIO_BUCKET, Key=key, UploadId=upload_id, MultipartUpload={"Parts": parts})
+    """Complete a multipart upload"""
+    try:
+        result = s3().complete_multipart_upload(
+            Bucket=settings.MINIO_BUCKET, 
+            Key=key, 
+            UploadId=upload_id, 
+            MultipartUpload={"Parts": parts}
+        )
+        logger.debug(f"Completed multipart upload for {key}")
+        return result
+    except Exception as e:
+        logger.error(f"Failed to complete multipart upload for {key}: {e}")
+        raise
 
 def delete_object(key: str):
+    """Delete an object from S3/MinIO"""
     client = s3()
     try:
         client.delete_object(Bucket=settings.MINIO_BUCKET, Key=key)
+        logger.debug(f"Deleted object: {key}")
     except ClientError as exc:
         code = exc.response.get("Error", {}).get("Code")
         if code not in {"NoSuchKey", "404"}:
+            logger.error(f"Failed to delete object {key}: {exc}")
             raise
+        else:
+            logger.debug(f"Object already deleted or not found: {key}")

@@ -1,21 +1,15 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from .config import settings
-import os
+import logging
 
-# DEBUG: Print environment variables
-print("=" * 80)
-print("DEBUG: Environment Variables")
-print("=" * 80)
-for key, value in sorted(os.environ.items()):
-    if 'DATABASE' in key or 'POSTGRES' in key or 'RAILWAY' in key:
-        print(f"{key} = {value}")
-print("=" * 80)
-print(f"DEBUG: settings.DATABASE_URL = '{settings.DATABASE_URL}'")
-print(f"DEBUG: Length of DATABASE_URL: {len(settings.DATABASE_URL)}")
-print("=" * 80)
+logger = logging.getLogger(__name__)
 
-engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
+try:
+    engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
+except Exception as e:
+    logger.error(f"Failed to create database engine: {e}")
+    raise RuntimeError(f"Database connection failed: {e}") from e
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -25,5 +19,8 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception as e:
+        logger.error(f"Database session error: {e}")
+        raise
     finally:
         db.close()

@@ -25,12 +25,22 @@ def s3(public: bool=False):
     
     if _s3 is None:
         if use_aws:
-            # AWS S3 mode: use IRSA for credentials (no endpoint_url, no explicit keys)
-            _s3 = boto3.client(
-                "s3",
-                config=Config(signature_version="s3v4"),
-                region_name=settings.AWS_REGION,
-            )
+            # AWS S3 mode: use explicit credentials if provided, otherwise IRSA
+            if hasattr(settings, 'AWS_ACCESS_KEY_ID') and settings.AWS_ACCESS_KEY_ID:
+                _s3 = boto3.client(
+                    "s3",
+                    aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                    aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                    config=Config(signature_version="s3v4"),
+                    region_name=settings.AWS_REGION,
+                )
+            else:
+                # Use IRSA for credentials (no explicit keys)
+                _s3 = boto3.client(
+                    "s3",
+                    config=Config(signature_version="s3v4"),
+                    region_name=settings.AWS_REGION,
+                )
         else:
             # MinIO mode: use explicit endpoint and credentials
             _s3 = boto3.client(
@@ -89,6 +99,14 @@ def put_object(key: str, data: bytes, content_type: str):
 def get_object(key: str) -> bytes:
     obj=s3().get_object(Bucket=settings.MINIO_BUCKET, Key=key)
     return obj["Body"].read()
+
+
+def download_file_streaming(bucket: str, key: str, file_obj):
+    """
+    Stream download from S3/MinIO directly to file object
+    Avoids loading entire file into memory
+    """
+    s3().download_fileobj(bucket, key, file_obj)
 def presign_put(key: str, content_type: str, expires: int=3600) -> str:
     url = s3(public=bool(settings.MINIO_PUBLIC_ENDPOINT)).generate_presigned_url("put_object",
         Params={"Bucket": settings.MINIO_BUCKET, "Key": key, "ContentType": content_type},

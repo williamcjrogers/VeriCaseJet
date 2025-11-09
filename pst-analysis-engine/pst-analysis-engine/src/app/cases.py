@@ -9,6 +9,9 @@ from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .db import get_db
 from .models import (
@@ -333,42 +336,59 @@ def list_case_evidence(
     db: Session = Depends(get_db)
 ):
     """List all evidence for a case"""
-    query = db.query(Evidence, Document).join(Document).filter(Evidence.case_id == uuid.UUID(case_id))
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(400, "Invalid case ID format")
+    
+    query = db.query(Evidence, Document).join(Document).filter(Evidence.case_id == case_uuid)
     
     if issue_id:
-        query = query.filter(Evidence.issue_id == uuid.UUID(issue_id))
+        try:
+            issue_uuid = uuid.UUID(issue_id)
+            query = query.filter(Evidence.issue_id == issue_uuid)
+        except (ValueError, AttributeError):
+            raise HTTPException(400, "Invalid issue ID format")
     if evidence_type:
         query = query.filter(Evidence.evidence_type == evidence_type)
     
-    results = query.order_by(desc(Evidence.added_at)).all()
+    try:
+        results = query.order_by(desc(Evidence.added_at)).all()
+    except Exception as e:
+        logger.error(f"Database error fetching evidence for case {case_id}: {e}")
+        raise HTTPException(500, "Failed to fetch evidence")
     
     evidence_list = []
     for evidence, document in results:
-        evidence_list.append(EvidenceOut(
-            id=str(evidence.id),
-            case_id=str(evidence.case_id),
-            document_id=str(evidence.document_id),
-            issue_id=str(evidence.issue_id) if evidence.issue_id else None,
-            evidence_type=evidence.evidence_type,
-            exhibit_number=evidence.exhibit_number,
-            notes=evidence.notes,
-            relevance_score=evidence.relevance_score,
-            added_at=evidence.added_at,
-            document_filename=document.filename,
-            document_size=document.size,
-            document_content_type=document.content_type,
-            # Email-specific fields
-            email_from=evidence.email_from,
-            email_to=evidence.email_to,
-            email_cc=evidence.email_cc,
-            email_subject=evidence.email_subject,
-            email_date=evidence.email_date,
-            email_message_id=evidence.email_message_id,
-            content=evidence.content,
-            content_type=evidence.content_type,
-            meta=evidence.meta,
-            thread_id=evidence.thread_id
-        ))
+        try:
+            evidence_list.append(EvidenceOut(
+                id=str(evidence.id),
+                case_id=str(evidence.case_id),
+                document_id=str(evidence.document_id),
+                issue_id=str(evidence.issue_id) if evidence.issue_id else None,
+                evidence_type=evidence.evidence_type,
+                exhibit_number=evidence.exhibit_number,
+                notes=evidence.notes,
+                relevance_score=evidence.relevance_score,
+                added_at=evidence.added_at,
+                document_filename=document.filename,
+                document_size=document.size,
+                document_content_type=document.content_type,
+                # Email-specific fields
+                email_from=evidence.email_from,
+                email_to=evidence.email_to,
+                email_cc=evidence.email_cc,
+                email_subject=evidence.email_subject,
+                email_date=evidence.email_date,
+                email_message_id=evidence.email_message_id,
+                content=evidence.content,
+                content_type=evidence.content_type,
+                meta=evidence.meta,
+                thread_id=evidence.thread_id
+            ))
+        except Exception as e:
+            logger.error(f"Error processing evidence {evidence.id}: {e}")
+            continue
     
     return evidence_list
 
@@ -381,21 +401,39 @@ def link_evidence(
 ):
     """Link a document as evidence to a case"""
     # Verify case exists and user has access
-    case = db.query(Case).filter(Case.id == uuid.UUID(case_id)).first()
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except (ValueError, AttributeError) as e:
+        raise HTTPException(status_code=400, detail="Invalid case ID format")
+    
+    case = db.query(Case).filter(Case.id == case_uuid).first()
     if not case or case.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Case not found")
     
     # Verify document exists
-    document = db.query(Document).filter(Document.id == uuid.UUID(data.document_id)).first()
+    try:
+        doc_uuid = uuid.UUID(data.document_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid document ID format")
+    
+    document = db.query(Document).filter(Document.id == doc_uuid).first()
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Validate issue_id if provided
+    issue_uuid = None
+    if data.issue_id:
+        try:
+            issue_uuid = uuid.UUID(data.issue_id)
+        except (ValueError, AttributeError):
+            raise HTTPException(status_code=400, detail="Invalid issue ID format")
     
     # Create evidence link
     evidence = Evidence(
         id=uuid.uuid4(),
-        case_id=uuid.UUID(case_id),
-        document_id=uuid.UUID(data.document_id),
-        issue_id=uuid.UUID(data.issue_id) if data.issue_id else None,
+        case_id=case_uuid,
+        document_id=doc_uuid,
+        issue_id=issue_uuid,
         evidence_type=data.evidence_type,
         exhibit_number=data.exhibit_number,
         notes=data.notes,
@@ -433,26 +471,40 @@ def list_case_issues(
     current_user: User = Depends(get_current_user)
 ):
     """List all issues for a case"""
-    query = db.query(Issue).filter(Issue.case_id == uuid.UUID(case_id))
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(400, "Invalid case ID format")
+    
+    query = db.query(Issue).filter(Issue.case_id == case_uuid)
     
     if status:
         query = query.filter(Issue.status == status)
     
-    issues = query.order_by(desc(Issue.created_at)).all()
+    try:
+        issues = query.order_by(desc(Issue.created_at)).all()
+    except Exception as e:
+        logger.error(f"Database error fetching issues for case {case_id}: {e}")
+        raise HTTPException(500, "Failed to fetch issues")
     
     result = []
     for issue in issues:
-        result.append(IssueOut(
-            id=str(issue.id),
-            case_id=str(issue.case_id),
-            title=issue.title,
-            description=issue.description,
-            issue_type=issue.issue_type,
-            status=issue.status,
-            relevant_contract_clauses=issue.relevant_contract_clauses,
-            created_at=issue.created_at,
-            evidence_count=db.query(Evidence).filter(Evidence.issue_id == issue.id).count()
-        ))
+        try:
+            evidence_count = db.query(Evidence).filter(Evidence.issue_id == issue.id).count()
+            result.append(IssueOut(
+                id=str(issue.id),
+                case_id=str(issue.case_id),
+                title=issue.title,
+                description=issue.description,
+                issue_type=issue.issue_type,
+                status=issue.status,
+                relevant_contract_clauses=issue.relevant_contract_clauses,
+                created_at=issue.created_at,
+                evidence_count=evidence_count
+            ))
+        except Exception as e:
+            logger.error(f"Error processing issue {issue.id}: {e}")
+            continue
     
     return result
 
@@ -464,13 +516,18 @@ def create_issue(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new issue for a case"""
-    case = db.query(Case).filter(Case.id == uuid.UUID(case_id)).first()
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid case ID format")
+    
+    case = db.query(Case).filter(Case.id == case_uuid).first()
     if not case or case.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Case not found")
     
     issue = Issue(
         id=uuid.uuid4(),
-        case_id=uuid.UUID(case_id),
+        case_id=case_uuid,
         title=data.title,
         description=data.description,
         issue_type=data.issue_type,
@@ -539,7 +596,7 @@ def create_claim(
     
     claim = Claim(
         id=uuid.uuid4(),
-        case_id=uuid.UUID(case_id),
+        case_id=case_uuid,
         claim_type=data.claim_type,
         title=data.title,
         description=data.description,

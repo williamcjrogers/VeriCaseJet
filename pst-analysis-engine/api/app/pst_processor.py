@@ -14,7 +14,7 @@ Features:
 import pypff
 import hashlib
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 import tempfile
 import os
@@ -69,7 +69,7 @@ class UltimatePSTProcessor:
             'errors': []
         }
         
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         # Update document status
         document = self.db.query(Document).filter_by(id=document_id).first()
@@ -101,7 +101,7 @@ class UltimatePSTProcessor:
             except Exception as e:
                 logger.error(f"Failed to download PST: {e}")
                 document.status = DocStatus.FAILED
-                set_processing_meta('failed', error=str(e), failed_at=datetime.utcnow().isoformat())
+                set_processing_meta('failed', error=str(e), failed_at=datetime.now(timezone.utc).isoformat())
                 self.db.commit()
                 raise
         
@@ -133,11 +133,11 @@ class UltimatePSTProcessor:
             
             # Calculate stats
             stats['unique_attachments'] = len(self.attachment_hashes)
-            stats['processing_time'] = (datetime.utcnow() - start_time).total_seconds()
+            stats['processing_time'] = (datetime.now(timezone.utc) - start_time).total_seconds()
             
             # Update document with success status
             document.status = DocStatus.READY
-            set_processing_meta('completed', processed_at=datetime.utcnow().isoformat(), stats=stats)
+            set_processing_meta('completed', processed_at=datetime.now(timezone.utc).isoformat(), stats=stats)
             self.db.commit()
             
             pst_file.close()
@@ -147,7 +147,7 @@ class UltimatePSTProcessor:
         except Exception as e:
             logger.error(f"PST processing failed: {e}", exc_info=True)
             document.status = DocStatus.FAILED
-            set_processing_meta('failed', error=str(e), failed_at=datetime.utcnow().isoformat())
+            set_processing_meta('failed', error=str(e), failed_at=datetime.now(timezone.utc).isoformat())
             self.db.commit()
             stats['errors'].append(str(e))
             raise
@@ -212,6 +212,8 @@ class UltimatePSTProcessor:
     def _extract_email_from_headers(self, message):
         """Extract email address from transport headers (RFC 2822 format)"""
         try:
+            if not message:
+                return None
             transport_headers = self._safe_get_attr(message, 'transport_headers', None)
             if not transport_headers:
                 return None
@@ -545,35 +547,39 @@ class UltimatePSTProcessor:
             'folder_path': email_data['folder_path'],
             'has_attachments': email_data['has_attachments'],
             'attachments_count': len(evidence.attachments) if evidence.attachments else 0,
-            'indexed_at': datetime.utcnow().isoformat()
+            'indexed_at': datetime.now(timezone.utc).isoformat()
         }
         
         # Create index if not exists
         index_name = 'correspondence'
-        if not self.opensearch.indices.exists(index_name):
-            self.opensearch.indices.create(
-                index_name,
-                body={
-                    'settings': {'number_of_shards': 1, 'number_of_replicas': 0},
-                    'mappings': {
-                        'properties': {
-                            'date': {'type': 'date'},
-                            'content': {'type': 'text'},
-                            'subject': {'type': 'text'},
-                            'from': {'type': 'keyword'},
-                            'to': {'type': 'keyword'}
+        try:
+            if not self.opensearch.indices.exists(index_name):
+                self.opensearch.indices.create(
+                    index_name,
+                    body={
+                        'settings': {'number_of_shards': 1, 'number_of_replicas': 0},
+                        'mappings': {
+                            'properties': {
+                                'date': {'type': 'date'},
+                                'content': {'type': 'text'},
+                                'subject': {'type': 'text'},
+                                'from': {'type': 'keyword'},
+                                'to': {'type': 'keyword'}
                         }
                     }
                 }
             )
-        
-        # Index document
-        self.opensearch.index(
-            index=index_name,
-            body=doc,
-            id=f"evidence_{evidence.id}",
-            refresh=False  # Don't refresh immediately for performance
-        )
+            
+            # Index document
+            self.opensearch.index(
+                index=index_name,
+                body=doc,
+                id=f"evidence_{evidence.id}",
+                refresh=False  # Don't refresh immediately for performance
+            )
+        except Exception as e:
+            logger.error(f"Error indexing email to OpenSearch: {e}")
+            # Continue processing even if indexing fails
     
     def _build_thread_relationships(self, case_id):
         """
@@ -670,9 +676,11 @@ class UltimatePSTProcessor:
         Extract email address from RFC 2822 transport headers
         pypff doesn't expose direct .sender_email_address - parse from headers
         """
-        import re
         try:
-            headers = message.transport_headers
+            import re
+            if not message:
+                return None
+            headers = getattr(message, 'transport_headers', None)
             if not headers:
                 return None
             

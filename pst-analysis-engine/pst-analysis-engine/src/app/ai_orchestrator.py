@@ -53,13 +53,13 @@ async def analyze_dataset(
     if date_from:
         try:
             query = query.filter(Document.created_at >= datetime.fromisoformat(date_from))
-        except:
-            pass
+        except ValueError:
+            raise HTTPException(400, "invalid date_from format")
     if date_to:
         try:
             query = query.filter(Document.created_at <= datetime.fromisoformat(date_to))
-        except:
-            pass
+        except ValueError:
+            raise HTTPException(400, "invalid date_to format")
     
     documents = query.order_by(Document.created_at.asc()).all()
     if not documents:

@@ -3,7 +3,7 @@ User Management API Endpoints
 Handles user profile, password changes, and admin operations
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Body
@@ -217,7 +217,7 @@ def create_invitation(
     # Check if invitation already exists
     existing_invite = db.query(UserInvitation).filter(
         UserInvitation.email == data.email.lower(),
-        UserInvitation.expires_at > datetime.utcnow()
+        UserInvitation.expires_at > datetime.now(timezone.utc)
     ).first()
     if existing_invite:
         raise HTTPException(409, "active invitation already exists for this email")
@@ -230,7 +230,7 @@ def create_invitation(
     
     # Create invitation
     token = uuid4().hex
-    expires_at = datetime.utcnow() + timedelta(days=7)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     
     invitation = UserInvitation(
         token=token,
@@ -245,7 +245,10 @@ def create_invitation(
     db.refresh(invitation)
     
     # TODO: Send invitation email
-    logger.info(f"Invitation created for {data.email} by {admin.email}")
+    # Sanitize emails for logging (prevent log injection)
+    safe_invited_email = str(data.email).replace('\n', '').replace('\r', '')
+    safe_admin_email = admin.email.replace('\n', '').replace('\r', '')
+    logger.info(f"Invitation created for {safe_invited_email} by {safe_admin_email}")
     
     return InvitationResponse(
         token=invitation.token,
@@ -261,10 +264,15 @@ def list_invitations(
     admin: User = Depends(require_admin)
 ):
     """List all active invitations (admin only)"""
-    now = datetime.utcnow()
-    invitations = db.query(UserInvitation).filter(
-        UserInvitation.expires_at > now
-    ).order_by(UserInvitation.created_at.desc()).all()
+    now = datetime.now(timezone.utc)
+    try:
+        # Query uses parameterized SQLAlchemy ORM (SQL injection safe)
+        invitations = db.query(UserInvitation).filter(
+            UserInvitation.expires_at > now
+        ).order_by(UserInvitation.created_at.desc()).all()
+    except Exception as e:
+        logger.error(f"Database error fetching invitations: {e}")
+        raise HTTPException(500, "Failed to fetch invitations")
     
     return [
         InvitationResponse(
@@ -299,7 +307,7 @@ def revoke_invitation(
 @router.get("/invitations/{token}/validate")
 def validate_invitation(token: str, db: Session = Depends(get_db)):
     """Validate invitation token (public endpoint)"""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     invitation = db.query(UserInvitation).filter(
         UserInvitation.token == token,
         UserInvitation.expires_at > now
@@ -321,7 +329,7 @@ def accept_invitation(
     db: Session = Depends(get_db)
 ):
     """Accept invitation and create account (public endpoint)"""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     invitation = db.query(UserInvitation).filter(
         UserInvitation.token == token,
         UserInvitation.expires_at > now

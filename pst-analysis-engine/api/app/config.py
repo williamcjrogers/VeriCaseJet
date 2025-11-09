@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     S3_SECRET_KEY: str = "changeme"  # Alias for MINIO_SECRET_KEY
     AWS_REGION: str = "us-east-1"
     
+    # AWS Credentials (optional - for non-IRSA deployments)
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_DEFAULT_REGION: str = "us-east-1"
+    
     # Database - Railway provides postgresql://, we need postgresql+psycopg2://
     DATABASE_URL: str = "postgresql+psycopg2://vericase:vericase@postgres:5432/vericase"
     
@@ -62,4 +67,32 @@ class Settings(BaseSettings):
     ENABLE_AI_NATURAL_LANGUAGE_QUERY: bool = True
     AI_DEFAULT_MODEL: str = "gemini"
 
-settings = Settings()
+try:
+    settings = Settings()
+except Exception as e:
+    import logging
+    logging.error(f"Failed to load settings: {e}")
+    # Provide defaults for critical settings
+    class DefaultSettings:
+        DATABASE_URL = "postgresql+psycopg2://vericase:vericase@postgres:5432/vericase"
+        REDIS_URL = "redis://redis:6379/0"
+        JWT_SECRET = "change-this-secret"
+        API_HOST = "0.0.0.0"
+        API_PORT = 8000
+        CORS_ORIGINS = ""
+        USE_AWS_SERVICES = False
+        MINIO_ENDPOINT = "http://minio:9000"
+        MINIO_ACCESS_KEY = "admin"
+        MINIO_SECRET_KEY = "changeme"
+        MINIO_BUCKET = "vericase-docs"
+        S3_BUCKET = "vericase-docs"
+        OPENSEARCH_HOST = "opensearch"
+        OPENSEARCH_PORT = 9200
+        OPENSEARCH_INDEX = "documents"
+        OPENSEARCH_USE_SSL = False
+        OPENSEARCH_VERIFY_CERTS = False
+        TIKA_URL = "http://tika:9998"
+        CELERY_QUEUE = "ocr"
+        # Add other required fields with defaults
+    settings = DefaultSettings()
+    logging.warning("Using default settings due to configuration error")

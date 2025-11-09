@@ -329,25 +329,29 @@ async def compare_programmes(
             try:
                 planned_dt = datetime.fromisoformat(planned_finish)
                 built_dt = datetime.fromisoformat(built_finish)
-                delay_days = (built_dt - planned_dt).days
+            except (ValueError, TypeError) as e:
+                continue
+            
+            delay_days = (built_dt - planned_dt).days
+            
+            if delay_days != 0:
+                is_critical = activity_id in (as_planned.critical_path or [])
                 
-                if delay_days != 0:
-                    is_critical = activity_id in (as_planned.critical_path or [])
+                delay_info = {
+                    'activity_id': activity_id,
+                    'activity_name': planned['name'],
+                    'planned_finish': planned_finish,
+                    'actual_finish': built_finish,
+                    'delay_days': delay_days,
+                    'is_critical': is_critical
+                }
+                
+                delays.append(delay_info)
+                
+                if is_critical:
+                    critical_delays.append(delay_info)
                     
-                    delay_info = {
-                        'activity_id': activity_id,
-                        'activity_name': planned['name'],
-                        'planned_finish': planned_finish,
-                        'actual_finish': built_finish,
-                        'delay_days': delay_days,
-                        'is_critical': is_critical
-                    }
-                    
-                    delays.append(delay_info)
-                    
-                    if is_critical:
-                        critical_delays.append(delay_info)
-                        
+                    try:
                         # Create delay event record
                         delay_event = DelayEvent(
                             case_id=as_planned.case_id,
@@ -355,18 +359,17 @@ async def compare_programmes(
                             activity_id=activity_id,
                             activity_name=planned['name'],
                             planned_start=datetime.fromisoformat(planned_start) if planned_start else None,
-                            planned_finish=datetime.fromisoformat(planned_finish),
+                            planned_finish=planned_dt,
                             actual_start=datetime.fromisoformat(built_start) if built_start else None,
-                            actual_finish=datetime.fromisoformat(built_finish),
+                            actual_finish=built_dt,
                             delay_days=delay_days,
                             is_on_critical_path=True,
                             delay_type='critical',
                             notes=f"Auto-detected from programme comparison"
                         )
                         db.add(delay_event)
-            
-            except (ValueError, TypeError):
-                continue
+                    except (ValueError, TypeError):
+                        pass
     
     db.commit()
     

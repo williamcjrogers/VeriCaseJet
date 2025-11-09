@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Refinement Feature</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .status {
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            background: #f0f0f0;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover { background: #0056b3; }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>VeriCase Refinement Feature Test</h1>
+    
+    <h2>Quick Links:</h2>
+    <ul>
+        <li><a href="http://localhost:8010/ui/wizard.html" target="_blank">Setup Wizard (Create Project)</a></li>
+        <li><a href="http://localhost:8010/ui/correspondence-enterprise.html?projectId=YOUR_PROJECT_ID" target="_blank">Correspondence Page</a></li>
+        <li><a href="http://localhost:8010/ui/refinement-wizard.html?projectId=YOUR_PROJECT_ID" target="_blank">Refinement Wizard (Direct)</a></li>
+    </ul>
+    
+    <h2>Test API Endpoints:</h2>
+    
+    <button onclick="testDiscovery()">Test Discovery Endpoint</button>
+    <button onclick="testApplyRefinement()">Test Apply Refinement</button>
+    
+    <div id="status"></div>
+    
+    <h2>Response:</h2>
+    <pre id="response"></pre>
+    
+    <script>
+        const apiUrl = 'http://localhost:8010';
+        const projectId = prompt('Enter your project ID (from wizard):') || 'test-project-id';
+        
+        async function testDiscovery() {
+            const status = document.getElementById('status');
+            const response = document.getElementById('response');
+            
+            status.innerHTML = '<div class="status">Testing discovery endpoint...</div>';
+            
+            try {
+                const res = await fetch(`${apiUrl}/api/refinement/${projectId}/discover`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+                    }
+                });
+                
+                const data = await res.json();
+                
+                if (res.ok) {
+                    status.innerHTML = '<div class="status success">✅ Discovery endpoint working!</div>';
+                    response.textContent = JSON.stringify(data, null, 2);
+                } else {
+                    status.innerHTML = '<div class="status error">❌ Discovery failed: ' + res.status + '</div>';
+                    response.textContent = JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                status.innerHTML = '<div class="status error">❌ Error: ' + error.message + '</div>';
+            }
+        }
+        
+        async function testApplyRefinement() {
+            const status = document.getElementById('status');
+            const response = document.getElementById('response');
+            
+            status.innerHTML = '<div class="status">Testing apply refinement endpoint...</div>';
+            
+            const testData = {
+                exclude_projects: ["Test Project 1", "Test Project 2"],
+                confirmed_parties: {
+                    "Employer's Agent": "Calfordseaden",
+                    "Council": "Haringey Council"
+                },
+                exclude_people: [],
+                include_topics: ["Delays", "Payment"],
+                custom_filters: {}
+            };
+            
+            try {
+                const res = await fetch(`${apiUrl}/api/refinement/${projectId}/apply-refinement`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+                    },
+                    body: JSON.stringify(testData)
+                });
+                
+                const data = await res.json();
+                
+                if (res.ok) {
+                    status.innerHTML = '<div class="status success">✅ Apply refinement endpoint working!</div>';
+                    response.textContent = JSON.stringify(data, null, 2);
+                } else {
+                    status.innerHTML = '<div class="status error">❌ Apply refinement failed: ' + res.status + '</div>';
+                    response.textContent = JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                status.innerHTML = '<div class="status error">❌ Error: ' + error.message + '</div>';
+            }
+        }
+    </script>
+    
+    <h2>How the Refinement Wizard Works:</h2>
+    <ol>
+        <li><strong>Discovery Phase:</strong> Analyzes uploaded PST emails to find:
+            <ul>
+                <li>Other project references (to exclude irrelevant emails)</li>
+                <li>Organizations and their roles (Employer's Agent, Council, etc.)</li>
+                <li>Key people and their email domains</li>
+                <li>Important topics (delays, payments, defects, etc.)</li>
+            </ul>
+        </li>
+        <li><strong>Interactive Q&A:</strong> The wizard asks smart questions like:
+            <ul>
+                <li>"I noticed references to 3 other projects. Should I exclude these?"</li>
+                <li>"Based on the emails, Calfordseaden appears to be the Employer's Agent. Is this correct?"</li>
+                <li>"Haringey Council sent 456 emails. Are they the local authority for this project?"</li>
+            </ul>
+        </li>
+        <li><strong>Apply Filters:</strong> Once confirmed, the wizard:
+            <ul>
+                <li>Marks excluded emails in the database</li>
+                <li>Updates the project with confirmed party information</li>
+                <li>Saves the refinement configuration for future reference</li>
+            </ul>
+        </li>
+    </ol>
+    
+    <p><strong>Note:</strong> Replace YOUR_PROJECT_ID with an actual project ID from the wizard.</p>
+</body>
+</html>

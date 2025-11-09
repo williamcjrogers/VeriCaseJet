@@ -11,9 +11,11 @@ import uuid
 import json
 import re
 from typing import Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel
+import logging
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ai", tags=["ai-intelligence"])
 
 class DocumentClassification(BaseModel):
@@ -82,24 +84,40 @@ def classify_document(text: str, filename: str) -> DocumentClassification:
     Uses pattern matching and keyword analysis
     In production, would use ML model
     """
-    text_lower = text.lower()
-    scores = {}
-    
-    # Score each document type
-    for doc_type, patterns in DOCUMENT_PATTERNS.items():
-        score = 0
+    try:
+        if not text:
+            logger.warning(f"Empty text provided for classification of {filename}")
+            text = ""
         
-        # Keyword matching
-        for keyword in patterns['keywords']:
-            if keyword in text_lower:
-                score += 2
+        text_lower = text.lower()
+        scores = {}
         
-        # Regex pattern matching
-        for pattern in patterns['patterns']:
-            if re.search(pattern, text_lower):
-                score += 3
-        
-        scores[doc_type] = score
+        # Score each document type
+        for doc_type, patterns in DOCUMENT_PATTERNS.items():
+            score = 0
+            
+            # Keyword matching
+            for keyword in patterns['keywords']:
+                try:
+                    if keyword in text_lower:
+                        score += 2
+                except Exception as e:
+                    logger.debug(f"Error matching keyword {keyword}: {e}")
+                    continue
+            
+            # Regex pattern matching
+            for pattern in patterns['patterns']:
+                try:
+                    if re.search(pattern, text_lower):
+                        score += 3
+                except Exception as e:
+                    logger.debug(f"Error matching pattern {pattern}: {e}")
+                    continue
+            
+            scores[doc_type] = score
+    except Exception as e:
+        logger.error(f"Error in initial classification for {filename}: {e}")
+        scores = {}
     
     # Get best match
     if not scores or max(scores.values()) == 0:
@@ -114,16 +132,32 @@ def classify_document(text: str, filename: str) -> DocumentClassification:
         suggested_folder = DOCUMENT_PATTERNS[doc_type]['folder']
     
     # Extract metadata
-    metadata = extract_metadata(text)
+    try:
+        metadata = extract_metadata(text)
+    except Exception as e:
+        logger.error(f"Error extracting metadata from {filename}: {e}")
+        metadata = {}
     
     # Extract entities
-    entities = extract_entities(text)
+    try:
+        entities = extract_entities(text)
+    except Exception as e:
+        logger.error(f"Error extracting entities from {filename}: {e}")
+        entities = []
     
     # Generate tags
-    tags = generate_tags(text, doc_type)
+    try:
+        tags = generate_tags(text, doc_type)
+    except Exception as e:
+        logger.error(f"Error generating tags for {filename}: {e}")
+        tags = []
     
     # Generate summary (first 2 sentences)
-    summary = generate_summary(text)
+    try:
+        summary = generate_summary(text)
+    except Exception as e:
+        logger.error(f"Error generating summary for {filename}: {e}")
+        summary = None
     
     return DocumentClassification(
         document_type=doc_type,
@@ -140,32 +174,48 @@ def extract_metadata(text: str) -> Dict:
     metadata = {}
     
     # Extract dates
-    date_patterns = [
-        r'\b\d{1,2}/\d{1,2}/\d{4}\b',
-        r'\b\d{4}-\d{2}-\d{2}\b',
-        r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}\b'
-    ]
-    dates = []
-    for pattern in date_patterns:
-        dates.extend(re.findall(pattern, text, re.IGNORECASE))
-    if dates:
-        metadata['dates'] = dates[:5]  # Top 5 dates
+    try:
+        date_patterns = [
+            r'\b\d{1,2}/\d{1,2}/\d{4}\b',
+            r'\b\d{4}-\d{2}-\d{2}\b',
+            r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}\b'
+        ]
+        dates = []
+        for pattern in date_patterns:
+            try:
+                dates.extend(re.findall(pattern, text, re.IGNORECASE))
+            except Exception as e:
+                logger.debug(f"Error matching date pattern {pattern}: {e}")
+                continue
+        if dates:
+            metadata['dates'] = dates[:5]  # Top 5 dates
+    except Exception as e:
+        logger.debug(f"Error extracting dates: {e}")
     
     # Extract amounts
-    amount_pattern = r'\$\s*[\d,]+\.?\d*'
-    amounts = re.findall(amount_pattern, text)
-    if amounts:
-        metadata['amounts'] = amounts[:5]
+    try:
+        amount_pattern = r'\$\s*[\d,]+\.?\d*'
+        amounts = re.findall(amount_pattern, text)
+        if amounts:
+            metadata['amounts'] = amounts[:5]
+    except Exception as e:
+        logger.debug(f"Error extracting amounts: {e}")
     
     # Extract email addresses
-    emails = re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text)
-    if emails:
-        metadata['emails'] = list(set(emails))[:5]
+    try:
+        emails = re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text)
+        if emails:
+            metadata['emails'] = list(set(emails))[:5]
+    except Exception as e:
+        logger.debug(f"Error extracting emails: {e}")
     
     # Extract phone numbers
-    phones = re.findall(r'\b(\+\d{1,2}\s?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b', text)
-    if phones:
-        metadata['phone_numbers'] = phones[:3]
+    try:
+        phones = re.findall(r'\b(\+\d{1,2}\s?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b', text)
+        if phones:
+            metadata['phone_numbers'] = phones[:3]
+    except Exception as e:
+        logger.debug(f"Error extracting phone numbers: {e}")
     
     return metadata
 
@@ -173,28 +223,35 @@ def extract_entities(text: str) -> List[Dict]:
     """Extract named entities (people, organizations, locations)"""
     entities = []
     
-    # Simple capitalized word extraction (in production, use NER model)
-    # Look for capitalized words that might be names/orgs
-    capitalized = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', text)
-    
-    # Filter out common words
-    common_words = {'The', 'This', 'That', 'These', 'Those', 'A', 'An', 'And', 'Or', 'But'}
-    potential_entities = [w for w in capitalized if w not in common_words]
-    
-    # Count occurrences
-    entity_counts = {}
-    for entity in potential_entities:
-        entity_counts[entity] = entity_counts.get(entity, 0) + 1
-    
-    # Sort by frequency and take top 10
-    sorted_entities = sorted(entity_counts.items(), key=lambda x: x[1], reverse=True)[:10]
-    
-    for entity, count in sorted_entities:
-        entities.append({
-            'text': entity,
-            'type': 'UNKNOWN',  # Would be PERSON, ORG, LOCATION with NER
-            'mentions': count
-        })
+    try:
+        # Simple capitalized word extraction (in production, use NER model)
+        # Look for capitalized words that might be names/orgs
+        capitalized = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', text)
+        
+        # Filter out common words
+        common_words = {'The', 'This', 'That', 'These', 'Those', 'A', 'An', 'And', 'Or', 'But'}
+        potential_entities = [w for w in capitalized if w not in common_words]
+        
+        # Count occurrences
+        entity_counts = {}
+        for entity in potential_entities:
+            entity_counts[entity] = entity_counts.get(entity, 0) + 1
+        
+        # Sort by frequency and take top 10
+        sorted_entities = sorted(entity_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+        
+        for entity, count in sorted_entities:
+            try:
+                entities.append({
+                    'text': entity,
+                    'type': 'UNKNOWN',  # Would be PERSON, ORG, LOCATION with NER
+                    'mentions': count
+                })
+            except Exception as e:
+                logger.debug(f"Error processing entity {entity}: {e}")
+                continue
+    except Exception as e:
+        logger.error(f"Error extracting entities: {e}")
     
     return entities
 
@@ -291,33 +348,54 @@ async def classify_document_endpoint(
         raise HTTPException(400, "document text not available or too short - OCR may still be processing")
     
     # Perform classification
-    classification = classify_document(text, document.filename)
+    try:
+        classification = classify_document(text, document.filename)
+    except Exception as e:
+        logger.error(f"Error classifying document {document_id}: {e}")
+        raise HTTPException(500, "Failed to classify document")
     
     # Detect compliance issues
-    compliance_flags = detect_compliance_issues(text, classification.document_type)
+    try:
+        compliance_flags = detect_compliance_issues(text, classification.document_type)
+    except Exception as e:
+        logger.error(f"Error detecting compliance issues for {document_id}: {e}")
+        compliance_flags = []
     
     # Detect PII
-    has_pii, pii_types = detect_pii(text)
+    try:
+        has_pii, pii_types = detect_pii(text)
+    except Exception as e:
+        logger.error(f"Error detecting PII for {document_id}: {e}")
+        has_pii, pii_types = False, []
     
     # Detect language (simple heuristic)
-    language = detect_language(text)
+    try:
+        language = detect_language(text)
+    except Exception as e:
+        logger.error(f"Error detecting language for {document_id}: {e}")
+        language = "en"
     
     # Store classification in document metadata
-    if not document.meta:
-        document.meta = {}
-    
-    document.meta['ai_classification'] = {
-        'type': classification.document_type,
-        'confidence': classification.confidence,
-        'suggested_folder': classification.suggested_folder,
-        'tags': classification.tags,
-        'classified_at': datetime.utcnow().isoformat(),
-        'contains_pii': has_pii,
-        'pii_types': pii_types,
-        'compliance_flags': compliance_flags
-    }
-    
-    db.commit()
+    try:
+        if not document.meta:
+            document.meta = {}
+        
+        document.meta['ai_classification'] = {
+            'type': classification.document_type,
+            'confidence': classification.confidence,
+            'suggested_folder': classification.suggested_folder,
+            'tags': classification.tags,
+            'classified_at': datetime.now(timezone.utc).isoformat(),
+            'contains_pii': has_pii,
+            'pii_types': pii_types,
+            'compliance_flags': compliance_flags
+        }
+        
+        db.commit()
+    except Exception as e:
+        logger.error(f"Error saving classification for {document_id}: {e}")
+        db.rollback()
+        raise HTTPException(500, "Failed to save classification results")
     
     insights = DocumentInsights(
         document_id=str(document.id),
@@ -371,7 +449,11 @@ async def suggest_folder(
     if not text:
         return {"suggested_folder": "General", "confidence": 0.0, "reason": "No text content available"}
     
-    classification = classify_document(text, document.filename)
+    try:
+        classification = classify_document(text, document.filename)
+    except Exception as e:
+        logger.error(f"Error classifying document {document_id} for folder suggestion: {e}")
+        return {"suggested_folder": "General", "confidence": 0.0, "reason": "Classification failed"}
     
     return {
         "suggested_folder": classification.suggested_folder,
@@ -400,16 +482,25 @@ async def auto_tag_document(
     if not text:
         raise HTTPException(400, "No text content available")
     
-    classification = classify_document(text, document.filename)
+    try:
+        classification = classify_document(text, document.filename)
+    except Exception as e:
+        logger.error(f"Error classifying document {document_id} for auto-tagging: {e}")
+        raise HTTPException(500, "Failed to generate tags")
     
     # Store tags in metadata
-    if not document.meta:
-        document.meta = {}
-    
-    document.meta['tags'] = classification.tags
-    document.meta['auto_tagged_at'] = datetime.utcnow().isoformat()
-    
-    db.commit()
+    try:
+        if not document.meta:
+            document.meta = {}
+        
+        document.meta['tags'] = classification.tags
+        document.meta['auto_tagged_at'] = datetime.now(timezone.utc).isoformat()
+        
+        db.commit()
+    except Exception as e:
+        logger.error(f"Error saving tags for {document_id}: {e}")
+        db.rollback()
+        raise HTTPException(500, "Failed to save tags")
     
     return {
         "tags": classification.tags,
@@ -510,15 +601,18 @@ async def batch_classify_documents(
     for doc_id in document_ids[:100]:  # Limit to 100 at a time
         try:
             doc_uuid = uuid.UUID(doc_id)
-            document = db.get(Document, doc_uuid)
-            
-            if not document or document.owner_user_id != user.id:
-                continue
-            
-            text = document.text_excerpt or ""
-            if len(text) < 50:
-                continue
-            
+        except ValueError:
+            continue
+        
+        document = db.get(Document, doc_uuid)
+        if not document or document.owner_user_id != user.id:
+            continue
+        
+        text = document.text_excerpt or ""
+        if len(text) < 50:
+            continue
+        
+        try:
             classification = classify_document(text, document.filename)
             
             # Store in metadata
@@ -530,7 +624,7 @@ async def batch_classify_documents(
                 'confidence': classification.confidence,
                 'suggested_folder': classification.suggested_folder,
                 'tags': classification.tags,
-                'classified_at': datetime.utcnow().isoformat()
+                'classified_at': datetime.now(timezone.utc).isoformat()
             }
             
             results.append({
@@ -539,11 +633,16 @@ async def batch_classify_documents(
                 'confidence': classification.confidence,
                 'suggested_folder': classification.suggested_folder
             })
-            
         except Exception as e:
+            logger.error(f"Error classifying document {doc_id} in batch: {e}")
             continue
     
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        logger.error(f"Error committing batch classification results: {e}")
+        db.rollback()
+        raise HTTPException(500, "Failed to save batch classification results")
     
     return {
         'classified': len(results),

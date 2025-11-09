@@ -61,6 +61,9 @@ def get_folder_name(path: str) -> str:
 
 def create_folder_record(db: Session, path: str, owner_user_id: str) -> Folder:
     """Create a folder record in the database"""
+    if not owner_user_id:
+        raise HTTPException(400, "owner_user_id is required")
+    
     # Check if folder already exists
     existing_folder = db.query(Folder).filter(
         Folder.owner_user_id == owner_user_id,

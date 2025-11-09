@@ -395,37 +395,25 @@
     <div class="wizard-container">
         <div class="wizard-header">
             <div class="wizard-header-nav">
-                <button onclick="window.location.href='analysis.html?token=' + localStorage.getItem('token') + '&caseId=' + localStorage.getItem('currentCaseId')">
-                    <i class="fas fa-home"></i> Home
+                <button class="btn-secondary" id="btnSaveDraft">
+                    <i class="fas fa-save"></i> Save Draft
+                </button>
+                <button class="btn-secondary" id="btnCancel">
+                    <i class="fas fa-times"></i> Cancel
                 </button>
             </div>
-            <h1><i class="fas fa-folder-plus"></i> Create Profile</h1>
-            <p>Set up your Project or Case to start managing evidence</p>
+            <h1><i class="fas fa-cog"></i> Create Profile</h1>
+            <p>Set up your project or case for evidence analysis</p>
         </div>
 
         <div class="wizard-content">
             <!-- Step Indicator -->
             <div class="step-indicator" id="stepIndicator">
-                <div class="step active" data-step="0">
-                    <div class="step-circle">1</div>
-                    <div class="step-label">Choose Type</div>
-                </div>
-                <div class="step" data-step="1">
-                    <div class="step-circle">2</div>
-                    <div class="step-label">Details</div>
-                </div>
-                <div class="step" data-step="2">
-                    <div class="step-circle">3</div>
-                    <div class="step-label">Stakeholders</div>
-                </div>
-                <div class="step" data-step="3">
-                    <div class="step-circle">4</div>
-                    <div class="step-label">Review</div>
-                </div>
+                <!-- Steps will be dynamically populated based on profile type -->
             </div>
 
-            <!-- Step 0: Choose Type -->
-            <div class="wizard-step active" id="step0">
+            <!-- Entry Screen - Choose Type -->
+            <div class="wizard-step active" id="step-entry">
                 <h2 style="margin-bottom: 20px;">Choose what you want to do:</h2>
                 
                 <div class="radio-group">
@@ -433,7 +421,7 @@
                         <input type="radio" name="profileType" value="users" />
                         <div class="radio-option-content">
                             <h3>Add Users / Team</h3>
-                            <p>Add team members and assign roles for collaboration</p>
+                            <p>Set up team members and their roles</p>
                         </div>
                     </label>
 
@@ -441,7 +429,7 @@
                         <input type="radio" name="profileType" value="project" checked />
                         <div class="radio-option-content">
                             <h3>Set up a Project</h3>
-                            <p><strong>Project:</strong> Best for discovery or live projects where we're gathering material to see if a case exists.</p>
+                            <p>Best for discovery or live projects where we're gathering material to see if a case exists.</p>
                         </div>
                     </label>
 
@@ -449,17 +437,17 @@
                         <input type="radio" name="profileType" value="case" />
                         <div class="radio-option-content">
                             <h3>Set up a Case</h3>
-                            <p><strong>Case:</strong> Use when a dispute is formalising (adjudication, litigation, arbitration, etc.).</p>
+                            <p>Use when a dispute is formalising (adjudication, litigation, arbitration, etc.).</p>
                         </div>
                     </label>
                 </div>
 
                 <p class="helper-text" style="margin-top: 20px;">
-                    <i class="fas fa-info-circle"></i> You can convert a Project into a Case later (nothing lost).
+                    <i class="fas fa-info-circle"></i> Project is for discovery/live project work; Case is for a formalised dispute. You can convert a Project into a Case later.
                 </p>
             </div>
 
-            <!-- Project Steps will be dynamically loaded -->
+            <!-- Dynamic Steps Container -->
             <div id="dynamicSteps"></div>
 
             <!-- Wizard Actions -->
@@ -470,12 +458,6 @@
                     </button>
                 </div>
                 <div style="display: flex; gap: 10px;">
-                    <button class="btn btn-secondary" id="btnSaveDraft">
-                        <i class="fas fa-save"></i> Save Draft
-                    </button>
-                    <button class="btn btn-secondary" id="btnCancel">
-                        <i class="fas fa-times"></i> Cancel
-                    </button>
                     <button class="btn btn-primary" id="btnContinue">
                         Continue <i class="fas fa-arrow-right"></i>
                     </button>

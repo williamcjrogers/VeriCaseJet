@@ -3,12 +3,12 @@ Document Sharing API Endpoints
 Allows users to share documents with other users with permissions
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 
 from .security import get_db, current_user
 from .models import User, UserRole, Document, DocumentShare, FolderShare
@@ -21,6 +21,14 @@ router = APIRouter(tags=["sharing"])
 class ShareDocumentRequest(BaseModel):
     user_email: EmailStr
     permission: str = "view"  # "view" or "edit"
+    
+    @field_validator('permission')
+    @classmethod
+    def validate_permission(cls, v: str) -> str:
+        """Validate permission is either view or edit"""
+        if v not in ['view', 'edit']:
+            raise ValueError("Permission must be 'view' or 'edit'")
+        return v
 
 class ShareResponse(BaseModel):
     id: str
@@ -43,6 +51,14 @@ class SharedDocumentItem(BaseModel):
 class ShareFolderRequest(BaseModel):
     user_email: EmailStr
     permission: str = "view"
+    
+    @field_validator('permission')
+    @classmethod
+    def validate_permission(cls, v: str) -> str:
+        """Validate permission is either view or edit"""
+        if v not in ['view', 'edit']:
+            raise ValueError("Permission must be 'view' or 'edit'")
+        return v
 
 class FolderShareResponse(BaseModel):
     id: str
@@ -90,10 +106,15 @@ async def share_document(
     
     if existing:
         # Update existing share
-        existing.permission = data.permission
-        existing.updated_at = datetime.utcnow()
-        db.commit()
-        db.refresh(existing)
+        try:
+            existing.permission = data.permission
+            existing.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(existing)
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error updating document share: {e}")
+            raise HTTPException(500, "Failed to update share")
         
         return ShareResponse(
             id=str(existing.id),
@@ -104,18 +125,26 @@ async def share_document(
         )
     
     # Create new share
-    share = DocumentShare(
-        document_id=doc.id,
-        shared_by=user.id,
-        shared_with=target_user.id,
-        permission=data.permission
-    )
+    try:
+        share = DocumentShare(
+            document_id=doc.id,
+            shared_by=user.id,
+            shared_with=target_user.id,
+            permission=data.permission
+        )
+        
+        db.add(share)
+        db.commit()
+        db.refresh(share)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error creating document share: {e}")
+        raise HTTPException(500, "Failed to create share")
     
-    db.add(share)
-    db.commit()
-    db.refresh(share)
-    
-    logger.info(f"Document {doc.id} shared with {target_user.email} by {user.email}")
+    # Sanitize email addresses for logging (prevent log injection)
+    safe_target_email = target_user.email.replace('\n', '').replace('\r', '')
+    safe_user_email = user.email.replace('\n', '').replace('\r', '')
+    logger.info(f"Document {doc.id} shared with {safe_target_email} by {safe_user_email}")
     
     return ShareResponse(
         id=str(share.id),
@@ -196,13 +225,25 @@ async def list_shared_documents(
     user: User = Depends(current_user)
 ):
     """List documents shared with the current user"""
-    shares = db.query(DocumentShare).filter(
-        DocumentShare.shared_with == user.id
-    ).all()
+    try:
+        # Query uses parameterized SQLAlchemy ORM (SQL injection safe)
+        shares = db.query(DocumentShare).filter(
+            DocumentShare.shared_with == user.id
+        ).all()
+    except Exception as e:
+        logger.error(f"Database error fetching shared documents: {e}")
+        raise HTTPException(500, "Failed to fetch shared documents")
     
     result = []
     for share in shares:
-        doc = db.get(Document, share.document_id)
+        try:
+            doc = db.get(Document, share.document_id)
+            if not doc:
+                continue
+        except Exception as e:
+            logger.error(f"Error fetching document {share.document_id}: {e}")
+            continue
+        
         if doc:
             owner = db.get(User, doc.owner_user_id)
             result.append(SharedDocumentItem(
@@ -254,10 +295,15 @@ async def share_folder(
     
     if existing:
         # Update existing share
-        existing.permission = data.permission
-        existing.updated_at = datetime.utcnow()
-        db.commit()
-        db.refresh(existing)
+        try:
+            existing.permission = data.permission
+            existing.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(existing)
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error updating folder share: {e}")
+            raise HTTPException(500, "Failed to update folder share")
         
         return FolderShareResponse(
             id=str(existing.id),
@@ -268,19 +314,28 @@ async def share_folder(
         )
     
     # Create new share
-    share = FolderShare(
-        folder_path=path,
-        owner_id=user.id,
-        shared_by=user.id,
-        shared_with=target_user.id,
-        permission=data.permission
-    )
+    try:
+        share = FolderShare(
+            folder_path=path,
+            owner_id=user.id,
+            shared_by=user.id,
+            shared_with=target_user.id,
+            permission=data.permission
+        )
+        
+        db.add(share)
+        db.commit()
+        db.refresh(share)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error creating folder share: {e}")
+        raise HTTPException(500, "Failed to create folder share")
     
-    db.add(share)
-    db.commit()
-    db.refresh(share)
-    
-    logger.info(f"Folder {path} shared with {target_user.email} by {user.email}")
+    # Sanitize email addresses and path for logging (prevent log injection)
+    safe_target_email = target_user.email.replace('\n', '').replace('\r', '')
+    safe_user_email = user.email.replace('\n', '').replace('\r', '')
+    safe_path = path.replace('\n', '').replace('\r', '')
+    logger.info(f"Folder {safe_path} shared with {safe_target_email} by {safe_user_email}")
     
     return FolderShareResponse(
         id=str(share.id),
@@ -299,24 +354,23 @@ async def list_folder_shares(
     """List all shares for a folder"""
     path = path.strip().strip("/")
     
-    shares = db.query(FolderShare).filter(
+    shares = db.query(FolderShare, User).join(
+        User, FolderShare.shared_with == User.id
+    ).filter(
         FolderShare.folder_path == path,
         FolderShare.owner_id == user.id
     ).all()
     
-    result = []
-    for share in shares:
-        shared_user = db.get(User, share.shared_with)
-        if shared_user:
-            result.append(FolderShareResponse(
-                id=str(share.id),
-                folder_path=share.folder_path,
-                user_email=shared_user.email,
-                permission=share.permission,
-                created_at=share.created_at
-            ))
-    
-    return result
+    return [
+        FolderShareResponse(
+            id=str(share.id),
+            folder_path=share.folder_path,
+            user_email=shared_user.email,
+            permission=share.permission,
+            created_at=share.created_at
+        )
+        for share, shared_user in shares
+    ]
 
 @router.delete("/folders/{path:path}/shares/{user_id}")
 async def revoke_folder_share(

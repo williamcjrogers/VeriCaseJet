@@ -9,6 +9,7 @@ from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
 import uuid
+import logging
 
 from .db import get_db
 from .models import (
@@ -17,6 +18,7 @@ from .models import (
 )
 from .security import get_current_user
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/cases", tags=["cases"])
 
 # ============================================================================
@@ -333,30 +335,44 @@ def list_case_evidence(
     db: Session = Depends(get_db)
 ):
     """List all evidence for a case"""
-    query = db.query(Evidence, Document).join(Document).filter(Evidence.case_id == uuid.UUID(case_id))
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid case ID format")
+    
+    query = db.query(Evidence, Document).join(Document).filter(Evidence.case_id == case_uuid)
     
     if issue_id:
-        query = query.filter(Evidence.issue_id == uuid.UUID(issue_id))
+        try:
+            issue_uuid = uuid.UUID(issue_id)
+            query = query.filter(Evidence.issue_id == issue_uuid)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid issue ID format")
     if evidence_type:
         query = query.filter(Evidence.evidence_type == evidence_type)
     
-    results = query.order_by(desc(Evidence.added_at)).all()
+    try:
+        results = query.order_by(desc(Evidence.added_at)).all()
+    except Exception as e:
+        logger.error(f"Database error while fetching evidence: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch evidence")
     
     evidence_list = []
     for evidence, document in results:
-        evidence_list.append(EvidenceOut(
-            id=str(evidence.id),
-            case_id=str(evidence.case_id),
-            document_id=str(evidence.document_id),
-            issue_id=str(evidence.issue_id) if evidence.issue_id else None,
-            evidence_type=evidence.evidence_type,
-            exhibit_number=evidence.exhibit_number,
-            notes=evidence.notes,
-            relevance_score=evidence.relevance_score,
-            added_at=evidence.added_at,
-            document_filename=document.filename,
-            document_size=document.size,
-            document_content_type=document.content_type,
+        try:
+            evidence_list.append(EvidenceOut(
+                id=str(evidence.id),
+                case_id=str(evidence.case_id),
+                document_id=str(evidence.document_id),
+                issue_id=str(evidence.issue_id) if evidence.issue_id else None,
+                evidence_type=evidence.evidence_type,
+                exhibit_number=evidence.exhibit_number,
+                notes=evidence.notes,
+                relevance_score=evidence.relevance_score,
+                added_at=evidence.added_at,
+                document_filename=document.filename,
+                document_size=document.size,
+                document_content_type=document.content_type,
             # Email-specific fields
             email_from=evidence.email_from,
             email_to=evidence.email_to,
@@ -369,6 +385,9 @@ def list_case_evidence(
             meta=evidence.meta,
             thread_id=evidence.thread_id
         ))
+        except Exception as e:
+            logger.error(f"Error processing evidence record {evidence.id}: {e}")
+            continue
     
     return evidence_list
 
@@ -433,26 +452,40 @@ def list_case_issues(
     current_user: User = Depends(get_current_user)
 ):
     """List all issues for a case"""
-    query = db.query(Issue).filter(Issue.case_id == uuid.UUID(case_id))
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid case ID format")
+    
+    query = db.query(Issue).filter(Issue.case_id == case_uuid)
     
     if status:
         query = query.filter(Issue.status == status)
     
-    issues = query.order_by(desc(Issue.created_at)).all()
+    try:
+        issues = query.order_by(desc(Issue.created_at)).all()
+    except Exception as e:
+        logger.error(f"Database error while fetching issues: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch issues")
     
     result = []
     for issue in issues:
-        result.append(IssueOut(
-            id=str(issue.id),
-            case_id=str(issue.case_id),
-            title=issue.title,
-            description=issue.description,
-            issue_type=issue.issue_type,
-            status=issue.status,
-            relevant_contract_clauses=issue.relevant_contract_clauses,
-            created_at=issue.created_at,
-            evidence_count=db.query(Evidence).filter(Evidence.issue_id == issue.id).count()
-        ))
+        try:
+            evidence_count = db.query(Evidence).filter(Evidence.issue_id == issue.id).count()
+            result.append(IssueOut(
+                id=str(issue.id),
+                case_id=str(issue.case_id),
+                title=issue.title,
+                description=issue.description,
+                issue_type=issue.issue_type,
+                status=issue.status,
+                relevant_contract_clauses=issue.relevant_contract_clauses,
+                created_at=issue.created_at,
+                evidence_count=evidence_count
+            ))
+        except Exception as e:
+            logger.error(f"Error processing issue record {issue.id}: {e}")
+            continue
     
     return result
 
@@ -505,25 +538,42 @@ def list_case_claims(
     current_user: User = Depends(get_current_user)
 ):
     """List all claims for a case"""
-    query = db.query(Claim).filter(Claim.case_id == uuid.UUID(case_id))
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid case ID format")
+    
+    query = db.query(Claim).filter(Claim.case_id == case_uuid)
     
     if claim_type:
         query = query.filter(Claim.claim_type == claim_type)
     
-    claims = query.order_by(desc(Claim.created_at)).all()
+    try:
+        claims = query.order_by(desc(Claim.created_at)).all()
+    except Exception as e:
+        logger.error(f"Database error while fetching claims: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch claims")
     
-    return [ClaimOut(
-        id=str(c.id),
-        case_id=str(c.case_id),
-        claim_type=c.claim_type.value,
-        title=c.title,
-        description=c.description,
-        claimed_amount=c.claimed_amount,
-        currency=c.currency,
-        claim_date=c.claim_date,
-        status=c.status,
-        created_at=c.created_at
-    ) for c in claims]
+    result = []
+    for c in claims:
+        try:
+            result.append(ClaimOut(
+                id=str(c.id),
+                case_id=str(c.case_id),
+                claim_type=c.claim_type.value,
+                title=c.title,
+                description=c.description,
+                claimed_amount=c.claimed_amount,
+                currency=c.currency,
+                claim_date=c.claim_date,
+                status=c.status,
+                created_at=c.created_at
+            ))
+        except Exception as e:
+            logger.error(f"Error processing claim record {c.id}: {e}")
+            continue
+    
+    return result
 
 @router.post("/{case_id}/claims", response_model=ClaimOut)
 def create_claim(

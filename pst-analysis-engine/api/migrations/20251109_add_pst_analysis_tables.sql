@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS email_messages (
     -- Email metadata for threading
     message_id VARCHAR(512),
     in_reply_to VARCHAR(512),
-    references TEXT,
+    email_references TEXT,  -- renamed from 'references' (reserved keyword)
     conversation_index VARCHAR(1024),
     
     -- PST forensic data

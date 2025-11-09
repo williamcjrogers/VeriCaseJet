@@ -9,14 +9,23 @@ logger = logging.getLogger(__name__)
 def client():
     global _client
     if _client is None:
-        _client = OpenSearch(
-            hosts=[{"host": settings.OPENSEARCH_HOST, "port": settings.OPENSEARCH_PORT}],
-            http_auth=('admin', 'admin'),
-            http_compress=True,
-            use_ssl=settings.OPENSEARCH_USE_SSL,
-            verify_certs=settings.OPENSEARCH_VERIFY_CERTS,
-            connection_class=RequestsHttpConnection
-        )
+        try:
+            # Get credentials from settings or environment
+            opensearch_user = getattr(settings, 'OPENSEARCH_USER', 'admin')
+            opensearch_pass = getattr(settings, 'OPENSEARCH_PASSWORD', 'admin')
+            
+            _client = OpenSearch(
+                hosts=[{"host": settings.OPENSEARCH_HOST, "port": settings.OPENSEARCH_PORT}],
+                http_auth=(opensearch_user, opensearch_pass) if opensearch_user else None,
+                http_compress=True,
+                use_ssl=settings.OPENSEARCH_USE_SSL,
+                verify_certs=settings.OPENSEARCH_VERIFY_CERTS,
+                connection_class=RequestsHttpConnection
+            )
+        except Exception as e:
+            import logging
+            logging.error(f"Failed to create OpenSearch client: {e}")
+            raise
     return _client
 def ensure_index():
     body={"settings":{"index":{"number_of_shards":1,"number_of_replicas":0}},
@@ -89,3 +98,71 @@ def delete_document(doc_id: str):
         return
     except Exception:
         logger.exception("Failed to delete document %s from OpenSearch", doc_id)
+
+
+# ========================================
+# EMAIL INDEXING FOR PST ANALYSIS
+# ========================================
+
+def index_email_in_opensearch(
+    email_id: str,
+    case_id: str,
+    subject: str,
+    body_text: str,
+    sender_email: str,
+    sender_name: str,
+    recipients: list,
+    date_sent: str = None,
+    has_attachments: bool = False,
+    matched_stakeholders: list = None,
+    matched_keywords: list = None
+):
+    """Index email message for full-text search"""
+    try:
+        email_index = 'emails'
+        
+        # Ensure emails index exists
+        c = client()
+        if not c.indices.exists(email_index):
+            c.indices.create(
+                index=email_index,
+                body={
+                    'settings': {'number_of_shards': 1, 'number_of_replicas': 0},
+                    'mappings': {
+                        'properties': {
+                            'id': {'type': 'keyword'},
+                            'case_id': {'type': 'keyword'},
+                            'type': {'type': 'keyword'},
+                            'subject': {'type': 'text', 'analyzer': 'english'},
+                            'body': {'type': 'text', 'analyzer': 'english'},
+                            'sender_email': {'type': 'keyword'},
+                            'sender_name': {'type': 'text'},
+                            'recipients': {'type': 'keyword'},
+                            'date_sent': {'type': 'date'},
+                            'has_attachments': {'type': 'boolean'},
+                            'matched_stakeholders': {'type': 'keyword'},
+                            'matched_keywords': {'type': 'keyword'}
+                        }
+                    }
+                }
+            )
+        
+        doc = {
+            'id': email_id,
+            'case_id': case_id,
+            'type': 'email',
+            'subject': subject,
+            'body': body_text[:50000] if body_text else "",
+            'sender_email': sender_email,
+            'sender_name': sender_name,
+            'recipients': [r.get('email', '') for r in recipients] if recipients else [],
+            'date_sent': date_sent,
+            'has_attachments': has_attachments,
+            'matched_stakeholders': matched_stakeholders or [],
+            'matched_keywords': matched_keywords or []
+        }
+        
+        c.index(index=email_index, id=email_id, body=doc)
+        
+    except Exception as e:
+        logger.error(f"Failed to index email {email_id}: {e}")

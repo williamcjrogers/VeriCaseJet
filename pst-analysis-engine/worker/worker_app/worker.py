@@ -1,14 +1,23 @@
-import io, os, tempfile
+import io, os, tempfile, json
 from celery import Celery
 import boto3
 from botocore.client import Config
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, func
 from opensearchpy import OpenSearch, RequestsHttpConnection
 import requests, subprocess, pytesseract
 from PIL import Image
 from .config import settings
+import redis
+from celery.utils.log import get_task_logger
+
+logger = get_task_logger(__name__)
 
 celery_app = Celery("vericase-docs", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
+
+# Database session factory
+from sqlalchemy.orm import sessionmaker
+engine = create_engine(settings.DATABASE_URL)
+SessionLocal = sessionmaker(bind=engine)
 
 # Initialize S3 client based on AWS mode
 use_aws = settings.USE_AWS_SERVICES or not settings.MINIO_ENDPOINT
@@ -172,3 +181,338 @@ def process_pst_file(doc_id: str, case_id: str, company_id: str):
         logger.error(f"PST processing failed: {e}", exc_info=True)
         _update_status(doc_id, "FAILED", f"PST processing error: {str(e)}")
         raise
+
+
+# ========================================
+# FORENSIC PST PROCESSING TASK
+# ========================================
+
+@celery_app.task(bind=True, name='worker_app.worker.process_pst_forensic_task')
+def process_pst_forensic_task(self, pst_file_id: str, s3_bucket: str, s3_key: str):
+    """
+    Process PST file with forensic-grade extraction
+    This is the commercial-grade PST processor
+    
+    Args:
+        pst_file_id: ID of PSTFile record
+        s3_bucket: S3 bucket containing the PST
+        s3_key: S3 key of the PST file
+    """
+    logger.info(f"Starting forensic PST processing: {pst_file_id}")
+    
+    db = SessionLocal()
+    
+    try:
+        # Update task progress
+        self.update_state(state='PROCESSING', meta={'status': 'Initializing PST processor'})
+        
+        # Create processor
+        processor = ForensicPSTProcessor(db)
+        
+        # Process PST file
+        stats = processor.process_pst_file(pst_file_id, s3_bucket, s3_key)
+        
+        logger.info(f"PST processing complete: {stats}")
+        
+        return {
+            'status': 'completed',
+            'pst_file_id': pst_file_id,
+            'stats': stats
+        }
+        
+    except Exception as e:
+        logger.error(f"Forensic PST processing failed: {e}", exc_info=True)
+        
+        # Update PST file status to failed
+        from app.models import PSTFile
+        pst_file = db.query(PSTFile).filter_by(id=pst_file_id).first()
+        if pst_file:
+            pst_file.processing_status = 'failed'
+            pst_file.error_message = str(e)
+            db.commit()
+        
+        raise
+    
+    finally:
+        db.close()
+
+
+# ========================================
+# PST PROCESSING COORDINATOR
+# ========================================
+
+@celery_app.task(name='worker_app.worker.coordinate_pst_processing')
+def coordinate_pst_processing(pst_file_id: str, s3_bucket: str, s3_key: str):
+    """
+    Coordinate processing of large PST files by splitting work
+    """
+    import pypff
+    import tempfile
+    # Import from parent directory
+    import sys
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+    from api.app.storage import download_file_streaming
+    from api.app.models import PSTFile
+    
+    logger.info(f"Starting PST coordination for {pst_file_id}")
+    
+    db = SessionLocal()
+    redis_client = redis.from_url(settings.REDIS_URL)
+    
+    try:
+        # Update status
+        pst_file = db.query(PSTFile).filter_by(id=pst_file_id).first()
+        if not pst_file:
+            raise ValueError(f"PST file {pst_file_id} not found")
+        
+        pst_file.processing_status = 'analyzing'
+        db.commit()
+        
+        # Download PST to analyze structure
+        with tempfile.NamedTemporaryFile(suffix='.pst', delete=False) as tmp:
+            pst_path = tmp.name
+            logger.info(f"Downloading PST for analysis: s3://{s3_bucket}/{s3_key}")
+            download_file_streaming(s3_bucket, s3_key, tmp)
+            tmp.flush()
+        
+        try:
+            # Open PST to analyze folder structure
+            pst = pypff.file()
+            pst.open(pst_path)
+            
+            root = pst.get_root_folder()
+            
+            # Build list of work chunks (folder-based)
+            work_chunks = []
+            _collect_folders(root, "", work_chunks)
+            
+            logger.info(f"Found {len(work_chunks)} folders to process")
+            
+            # Store coordination metadata in Redis
+            redis_key = f"pst:{pst_file_id}"
+            redis_client.hset(redis_key, mapping={
+                "total_chunks": len(work_chunks),
+                "completed_chunks": 0,
+                "failed_chunks": 0,
+                "status": "processing"
+            })
+            
+            # Dispatch chunk processing tasks
+            chunk_tasks = []
+            for idx, (folder_path, message_count) in enumerate(work_chunks):
+                task = process_pst_chunk.apply_async(
+                    args=[pst_file_id, s3_bucket, s3_key, folder_path, idx],
+                    queue=settings.CELERY_QUEUE
+                )
+                chunk_tasks.append(task.id)
+                
+                # Update progress
+                redis_client.hset(redis_key, f"chunk_{idx}", json.dumps({
+                    "folder_path": folder_path,
+                    "message_count": message_count,
+                    "task_id": task.id,
+                    "status": "dispatched"
+                }))
+            
+            pst.close()
+            
+            # Monitor chunk completion
+            _monitor_chunks(pst_file_id, chunk_tasks, redis_client, db)
+            
+        finally:
+            if os.path.exists(pst_path):
+                os.unlink(pst_path)
+        
+        return {"status": "completed", "chunks_processed": len(work_chunks)}
+        
+    except Exception as e:
+        logger.error(f"PST coordination failed: {e}", exc_info=True)
+        redis_client.hset(f"pst:{pst_file_id}", "status", "failed")
+        
+        pst_file = db.query(PSTFile).filter_by(id=pst_file_id).first()
+        if pst_file:
+            pst_file.processing_status = 'failed'
+            pst_file.error_message = str(e)
+            db.commit()
+        raise
+    finally:
+        db.close()
+
+
+def _collect_folders(folder, path, chunks):
+    """Recursively collect folders as work chunks"""
+    num_messages = folder.get_number_of_sub_messages()
+    
+    if num_messages > 0:
+        chunks.append((path, num_messages))
+    
+    num_folders = folder.get_number_of_sub_folders()
+    for i in range(num_folders):
+        sub_folder = folder.get_sub_folder(i)
+        folder_name = sub_folder.get_name() or f"Folder{i}"
+        sub_path = f"{path}/{folder_name}" if path else folder_name
+        _collect_folders(sub_folder, sub_path, chunks)
+
+
+def _monitor_chunks(pst_file_id: str, chunk_tasks: list, redis_client, db):
+    """Monitor chunk completion and aggregate results"""
+    import time
+    from celery.result import AsyncResult
+    
+    redis_key = f"pst:{pst_file_id}"
+    total_chunks = len(chunk_tasks)
+    
+    while True:
+        completed = 0
+        failed = 0
+        
+        for idx, task_id in enumerate(chunk_tasks):
+            result = AsyncResult(task_id, app=celery_app)
+            
+            if result.ready():
+                if result.successful():
+                    completed += 1
+                else:
+                    failed += 1
+        
+        # Update Redis
+        redis_client.hset(redis_key, mapping={
+            "completed_chunks": completed,
+            "failed_chunks": failed
+        })
+        
+        # Check if all done
+        if completed + failed >= total_chunks:
+            break
+        
+        time.sleep(2)  # Check every 2 seconds
+    
+    # Update final status
+    from api.app.models import PSTFile
+    pst_file = db.query(PSTFile).filter_by(id=pst_file_id).first()
+    
+    if pst_file:
+        if failed == 0:
+            pst_file.processing_status = 'completed'
+        else:
+            pst_file.processing_status = 'completed_with_errors'
+            pst_file.error_message = f"{failed} chunks failed processing"
+        
+        pst_file.processing_completed_at = func.now()
+        db.commit()
+
+
+# ========================================
+# PST CHUNK PROCESSOR
+# ========================================
+
+@celery_app.task(bind=True, name='worker_app.worker.process_pst_chunk')
+def process_pst_chunk(self, pst_file_id: str, s3_bucket: str, s3_key: str, 
+                     folder_path: str, chunk_idx: int):
+    """
+    Process a specific folder/chunk from PST file
+    """
+    import pypff
+    import tempfile
+    # Import from parent directory
+    import sys
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+    from api.app.storage import download_file_streaming
+    from api.app.pst_forensic_processor import ForensicPSTProcessor
+    
+    logger.info(f"Processing chunk {chunk_idx}: {folder_path}")
+    
+    db = SessionLocal()
+    redis_client = redis.from_url(settings.REDIS_URL)
+    redis_key = f"pst:{pst_file_id}"
+    
+    try:
+        # Update chunk status
+        redis_client.hset(redis_key, f"chunk_{chunk_idx}_status", "processing")
+        
+        # Create processor
+        processor = ForensicPSTProcessor(db)
+        
+        # Download PST (TODO: optimize with shared cache)
+        with tempfile.NamedTemporaryFile(suffix='.pst', delete=False) as tmp:
+            pst_path = tmp.name
+            download_file_streaming(s3_bucket, s3_key, tmp)
+            tmp.flush()
+        
+        try:
+            # Open PST and navigate to specific folder
+            pst = pypff.file()
+            pst.open(pst_path)
+            
+            root = pst.get_root_folder()
+            target_folder = _navigate_to_folder(root, folder_path)
+            
+            if target_folder:
+                # Process only this folder
+                from api.app.models import PSTFile, Stakeholder, Keyword
+                
+                pst_file = db.query(PSTFile).filter_by(id=pst_file_id).first()
+                stakeholders = db.query(Stakeholder).filter_by(case_id=pst_file.case_id).all()
+                keywords = db.query(Keyword).filter_by(case_id=pst_file.case_id).all()
+                
+                stats = {"total_emails": 0, "total_attachments": 0, "errors": []}
+                
+                processor._process_folder_recursive(
+                    target_folder,
+                    pst_file,
+                    stakeholders,
+                    keywords,
+                    stats,
+                    folder_path
+                )
+                
+                # Update progress
+                redis_client.hincrby(redis_key, "processed_emails", stats["total_emails"])
+                
+                logger.info(f"Chunk {chunk_idx} processed: {stats['total_emails']} emails")
+            
+            pst.close()
+            
+        finally:
+            if os.path.exists(pst_path):
+                os.unlink(pst_path)
+        
+        # Mark chunk complete
+        redis_client.hset(redis_key, f"chunk_{chunk_idx}_status", "completed")
+        
+        return {
+            "status": "completed",
+            "folder_path": folder_path,
+            "emails_processed": stats.get("total_emails", 0)
+        }
+        
+    except Exception as e:
+        logger.error(f"Chunk processing failed: {e}", exc_info=True)
+        redis_client.hset(redis_key, f"chunk_{chunk_idx}_status", "failed")
+        raise
+    finally:
+        db.close()
+
+
+def _navigate_to_folder(root, folder_path):
+    """Navigate PST folder tree to find target folder"""
+    if not folder_path:
+        return root
+    
+    parts = folder_path.split('/')
+    current = root
+    
+    for part in parts:
+        found = False
+        for i in range(current.get_number_of_sub_folders()):
+            sub = current.get_sub_folder(i)
+            if (sub.get_name() or f"Folder{i}") == part:
+                current = sub
+                found = True
+                break
+        
+        if not found:
+            logger.warning(f"Folder not found: {part} in path {folder_path}")
+            return None
+    
+    return current
