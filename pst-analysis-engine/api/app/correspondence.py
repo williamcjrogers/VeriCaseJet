@@ -120,16 +120,26 @@ async def init_pst_upload(
     Initialize PST file upload
     Returns presigned S3 URL for direct browser upload
     """
-    
-    # Verify case exists and user has access
-    case = db.query(Case).filter_by(id=request.case_id).first()
-    if not case:
-        raise HTTPException(404, "Case not found")
-    
+
+    # Verify case or project exists and user has access
+    if not request.case_id and not request.project_id:
+        raise HTTPException(400, "Either case_id or project_id must be provided")
+
+    if request.case_id:
+        case = db.query(Case).filter_by(id=request.case_id).first()
+        if not case:
+            raise HTTPException(404, "Case not found")
+        entity_prefix = f"case_{request.case_id}"
+    else:
+        project = db.query(Project).filter_by(id=request.project_id).first()
+        if not project:
+            raise HTTPException(404, "Project not found")
+        entity_prefix = f"project_{request.project_id}"
+
     # Generate PST file record
     pst_file_id = str(uuid.uuid4())
     s3_bucket = settings.S3_PST_BUCKET or settings.S3_BUCKET
-    s3_key = f"case_{request.case_id}/pst/{pst_file_id}/{request.filename}"
+    s3_key = f"{entity_prefix}/pst/{pst_file_id}/{request.filename}"
     
     # Create PST file record
     pst_file = PSTFile(
@@ -272,7 +282,8 @@ async def get_pst_status(
 
 @router.get("/emails", response_model=EmailListResponse)
 async def list_emails(
-    case_id: str = Query(..., description="Case ID"),
+    case_id: Optional[str] = Query(None, description="Case ID"),
+    project_id: Optional[str] = Query(None, description="Project ID"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     search: Optional[str] = Query(None, description="Search in subject and body"),
@@ -285,16 +296,25 @@ async def list_emails(
     db: Session = Depends(get_db)
 ):
     """
-    List emails for a case with filtering and pagination
+    List emails for a case or project with filtering and pagination
     """
-    
-    # Verify case exists
-    case = db.query(Case).filter_by(id=case_id).first()
-    if not case:
-        raise HTTPException(404, "Case not found")
-    
-    # Build query
-    query = db.query(EmailMessage).filter_by(case_id=case_id)
+
+    # Verify case or project exists
+    if not case_id and not project_id:
+        raise HTTPException(400, "Either case_id or project_id must be provided")
+
+    if case_id:
+        case = db.query(Case).filter_by(id=case_id).first()
+        if not case:
+            raise HTTPException(404, "Case not found")
+        # Build query
+        query = db.query(EmailMessage).filter_by(case_id=case_id)
+    else:
+        project = db.query(Project).filter_by(id=project_id).first()
+        if not project:
+            raise HTTPException(404, "Project not found")
+        # Build query
+        query = db.query(EmailMessage).filter_by(project_id=project_id)
     
     # Apply filters
     if search:
@@ -424,13 +444,21 @@ async def get_email_thread(
     
     # Build thread by finding all related emails
     thread_emails = []
-    
+
+    # Determine entity filter (case_id or project_id)
+    if email.case_id:
+        entity_filter = EmailMessage.case_id == email.case_id
+    elif email.project_id:
+        entity_filter = EmailMessage.project_id == email.project_id
+    else:
+        raise HTTPException(400, "Email has no case_id or project_id")
+
     # Find by message-id threading
     if email.message_id:
         # Find all emails with same conversation
         thread_emails = db.query(EmailMessage).filter(
             and_(
-                EmailMessage.case_id == email.case_id,
+                entity_filter,
                 or_(
                     EmailMessage.message_id == email.message_id,
                     EmailMessage.in_reply_to == email.message_id,
@@ -438,12 +466,12 @@ async def get_email_thread(
                 )
             )
         ).order_by(EmailMessage.date_sent).all()
-    
+
     # Fall back to conversation index
     if not thread_emails and email.conversation_index:
         thread_emails = db.query(EmailMessage).filter(
             and_(
-                EmailMessage.case_id == email.case_id,
+                entity_filter,
                 EmailMessage.conversation_index == email.conversation_index
             )
         ).order_by(EmailMessage.date_sent).all()
@@ -987,29 +1015,34 @@ async def get_unified_evidence(
         # Use existing case evidence logic
         emails = db.query(EmailMessage).filter(
             EmailMessage.case_id == entity_id
-        ).order_by(EmailMessage.sent_date.desc()).all()
+        ).order_by(EmailMessage.date_sent.desc()).all()
     else:
         # Try as project
         project = db.query(Project).filter(Project.id == entity_id).first()
         if not project:
             raise HTTPException(status_code=404, detail="Entity not found")
-        
+
         # Get emails associated with project
         emails = db.query(EmailMessage).filter(
             EmailMessage.project_id == entity_id
-        ).order_by(EmailMessage.sent_date.desc()).all()
-    
+        ).order_by(EmailMessage.date_sent.desc()).all()
+
     return [
         {
             "id": str(email.id),
             "subject": email.subject,
-            "sender": email.sender,
-            "recipients": email.recipients,
-            "sent_date": email.sent_date.isoformat() if email.sent_date else None,
-            "body": email.body,
+            "sender_email": email.sender_email,
+            "sender_name": email.sender_name,
+            "recipients_to": email.recipients_to,
+            "recipients_cc": email.recipients_cc,
+            "date_sent": email.date_sent.isoformat() if email.date_sent else None,
+            "body_text": email.body_text,
+            "body_preview": email.body_preview,
             "importance": email.importance,
-            "has_attachments": bool(email.attachments),
-            "pst_file_id": str(email.pst_file_id) if email.pst_file_id else None
+            "has_attachments": email.has_attachments,
+            "pst_file_id": str(email.pst_file_id) if email.pst_file_id else None,
+            "matched_stakeholders": email.matched_stakeholders,
+            "matched_keywords": email.matched_keywords
         }
         for email in emails
     ]

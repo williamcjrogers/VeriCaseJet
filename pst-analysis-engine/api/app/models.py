@@ -515,15 +515,19 @@ class EmailMessage(Base):
     
     pst_file = relationship("PSTFile")
     case = relationship("Case")
+    project = relationship("Project")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
+
     # Add indexes for performance
     __table_args__ = (
         Index('idx_email_case_date', 'case_id', 'date_sent'),
+        Index('idx_email_project_date', 'project_id', 'date_sent'),
         Index('idx_email_stakeholders', 'matched_stakeholders', postgresql_using='gin'),
         Index('idx_email_keywords', 'matched_keywords', postgresql_using='gin'),
         Index('idx_email_has_attachments', 'case_id', 'has_attachments'),
+        Index('idx_email_project_has_attachments', 'project_id', 'has_attachments'),
         Index('idx_email_conversation', 'case_id', 'conversation_index'),
+        Index('idx_email_project_conversation', 'project_id', 'conversation_index'),
     )
 
 

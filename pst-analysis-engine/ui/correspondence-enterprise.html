@@ -599,9 +599,8 @@
     </div>
 
     <!-- AG-Grid Enterprise Script -->
-    <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/dist/ag-grid-enterprise.min.js" 
-            crossorigin="anonymous"></script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/dist/ag-grid-enterprise.min.js"></script>
+
     <script>
         // Get case ID from URL - check both caseId and case_id parameters
         const urlParams = new URLSearchParams(window.location.search);
@@ -1690,11 +1689,28 @@
 
         // Initialize Grid
         document.addEventListener('DOMContentLoaded', function() {
+            // Check if ag-Grid is loaded
+            if (typeof agGrid === 'undefined') {
+                console.error('ag-Grid library failed to load');
+                alert('Failed to load email grid. Please refresh the page.');
+                return;
+            }
+
             const gridDiv = document.querySelector('#emailGrid');
-            gridApi = agGrid.createGrid(gridDiv, gridOptions);
-            
-            // Load emails
-            loadEmails();
+            if (!gridDiv) {
+                console.error('Grid container not found');
+                return;
+            }
+
+            try {
+                gridApi = agGrid.createGrid(gridDiv, gridOptions);
+
+                // Load emails
+                loadEmails();
+            } catch (error) {
+                console.error('Error initializing grid:', error);
+                alert('Failed to initialize email grid. Please refresh the page.');
+            }
         });
 
         // ===========================
