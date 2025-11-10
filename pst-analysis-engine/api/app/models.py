@@ -244,7 +244,7 @@ class CaseUser(Base):
     """Case team members with roles"""
     __tablename__="case_users"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
+    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     role = Column(String(50), default="viewer")  # admin, editor, viewer
     added_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -460,7 +460,7 @@ class PSTFile(Base):
     processing_started_at = Column(DateTime(timezone=True), nullable=True)
     processing_completed_at = Column(DateTime(timezone=True), nullable=True)
     error_message = Column(Text, nullable=True)
-    uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     uploader = relationship("User")
     case = relationship("Case")
     project = relationship("Project")
@@ -515,15 +515,19 @@ class EmailMessage(Base):
     
     pst_file = relationship("PSTFile")
     case = relationship("Case")
+    project = relationship("Project")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
+
     # Add indexes for performance
     __table_args__ = (
         Index('idx_email_case_date', 'case_id', 'date_sent'),
+        Index('idx_email_project_date', 'project_id', 'date_sent'),
         Index('idx_email_stakeholders', 'matched_stakeholders', postgresql_using='gin'),
         Index('idx_email_keywords', 'matched_keywords', postgresql_using='gin'),
         Index('idx_email_has_attachments', 'case_id', 'has_attachments'),
+        Index('idx_email_project_has_attachments', 'project_id', 'has_attachments'),
         Index('idx_email_conversation', 'case_id', 'conversation_index'),
+        Index('idx_email_project_conversation', 'project_id', 'conversation_index'),
     )
 
 

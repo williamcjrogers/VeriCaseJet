@@ -1,45 +1,75 @@
 import logging
 import time
 from functools import lru_cache
-from typing import Optional, Dict, Any
-from opensearchpy import OpenSearch, RequestsHttpConnection
-from opensearchpy.exceptions import NotFoundError
+from html import escape
+from typing import Optional, Dict, Any, MutableMapping
+from opensearchpy import OpenSearch, RequestsHttpConnection  # type: ignore[import-not-found]
+from opensearchpy.exceptions import NotFoundError  # type: ignore[import-not-found]
 from .config import settings
 
 logger = logging.getLogger(__name__)
 
-# Global OpenSearch client (singleton pattern for connection pooling)
-# This is intentionally global to avoid recreating the client on every request
-_client = None
-
-# In-memory cache for search results to improve performance
-# Cache entries expire after CACHE_TTL seconds
-_search_cache: Dict[str, tuple[Any, float]] = {}
 CACHE_TTL = 300  # 5 minutes cache for search results
+HIGHLIGHT_PRE = "__HIGHLIGHT_START__"
+HIGHLIGHT_POST = "__HIGHLIGHT_END__"
+
+
+class _SearchResultCache:
+    """Simple TTL cache for search responses."""
+
+    def __init__(self, ttl: int, max_entries: int = 100) -> None:
+        self.ttl = ttl
+        self.max_entries = max_entries
+        self._store: Dict[str, tuple[Any, float]] = {}
+
+    def get(self, key: str) -> Optional[Any]:
+        entry = self._store.get(key)
+        if not entry:
+            return None
+        value, timestamp = entry
+        if time.time() - timestamp >= self.ttl:
+            del self._store[key]
+            return None
+        return value
+
+    def set(self, key: str, value: Any) -> None:
+        self._store[key] = (value, time.time())
+        if len(self._store) > self.max_entries:
+            # Remove oldest entries
+            sorted_items = sorted(self._store.items(), key=lambda item: item[1][1])
+            for old_key, _ in sorted_items[: max(1, self.max_entries // 5)]:
+                self._store.pop(old_key, None)
+
+
+@lru_cache(maxsize=1)
+def _cache_manager() -> _SearchResultCache:
+    return _SearchResultCache(ttl=CACHE_TTL, max_entries=100)
 
 def client():
     """Get or create OpenSearch client with connection pooling"""
-    global _client
-    if _client is None:
-        try:
-            _client = OpenSearch(
-                hosts=[{"host": settings.OPENSEARCH_HOST, "port": settings.OPENSEARCH_PORT}],
-                http_auth=('admin', 'admin'),
-                http_compress=True,
-                use_ssl=settings.OPENSEARCH_USE_SSL,
-                verify_certs=settings.OPENSEARCH_VERIFY_CERTS,
-                connection_class=RequestsHttpConnection,
-                # Connection pooling settings
-                maxsize=25,  # Max connections in pool
-                max_retries=3,
-                retry_on_timeout=True,
-                timeout=30
-            )
-            logger.info("OpenSearch client created with connection pooling")
-        except Exception as e:
-            logger.error(f"Failed to create OpenSearch client: {e}")
-            raise
-    return _client
+    return _client_singleton()
+
+
+@lru_cache(maxsize=1)
+def _client_singleton() -> OpenSearch:
+    try:
+        instance = OpenSearch(
+            hosts=[{"host": settings.OPENSEARCH_HOST, "port": settings.OPENSEARCH_PORT}],
+            http_auth=('admin', 'admin'),
+            http_compress=True,
+            use_ssl=settings.OPENSEARCH_USE_SSL,
+            verify_certs=settings.OPENSEARCH_VERIFY_CERTS,
+            connection_class=RequestsHttpConnection,
+            maxsize=25,
+            max_retries=3,
+            retry_on_timeout=True,
+            timeout=30
+        )
+        logger.info("OpenSearch client created with connection pooling")
+        return instance
+    except Exception as exc:
+        logger.error("Failed to create OpenSearch client: %s", exc)
+        raise
 
 def _get_cache_key(query: str, size: int, path_prefix: Optional[str], owner: Optional[str]) -> str:
     """Generate cache key for search results"""
@@ -47,25 +77,36 @@ def _get_cache_key(query: str, size: int, path_prefix: Optional[str], owner: Opt
 
 def _get_cached_result(cache_key: str) -> Optional[Any]:
     """Get cached search result if not expired"""
-    if cache_key in _search_cache:
-        result, timestamp = _search_cache[cache_key]
-        if time.time() - timestamp < CACHE_TTL:
-            return result
-        else:
-            # Remove expired entry
-            del _search_cache[cache_key]
-    return None
+    return _cache_manager().get(cache_key)
 
 def _set_cached_result(cache_key: str, result: Any):
     """Cache search result with timestamp"""
-    _search_cache[cache_key] = (result, time.time())
-    
-    # Simple cache size management - keep last 100 entries
-    if len(_search_cache) > 100:
-        # Remove oldest entries
-        sorted_keys = sorted(_search_cache.items(), key=lambda x: x[1][1])
-        for key, _ in sorted_keys[:20]:  # Remove 20 oldest
-            del _search_cache[key]
+    _cache_manager().set(cache_key, result)
+
+def _sanitize_highlights(result: MutableMapping[str, Any]) -> MutableMapping[str, Any]:
+    """Escape highlight fragments to prevent unintended HTML rendering."""
+    hits_container = result.get("hits")
+    if not isinstance(hits_container, dict):
+        return result
+    hits = hits_container.get("hits") or []
+    if not isinstance(hits, list):
+        return result
+    for hit in hits:
+        highlight = hit.get("highlight")
+        if not isinstance(highlight, dict):
+            continue
+        for field, fragments in highlight.items():
+            if not isinstance(fragments, list):
+                continue
+            safe_fragments = []
+            for fragment in fragments:
+                safe = escape(fragment or "", quote=False)
+                safe = safe.replace(HIGHLIGHT_PRE, "<mark>").replace(HIGHLIGHT_POST, "</mark>")
+                safe_fragments.append(safe)
+            highlight[field] = safe_fragments
+    return result
+
+
 def ensure_index():
     """
     Ensure OpenSearch index exists with proper schema.
@@ -167,6 +208,8 @@ def search(query: str, size: int=25, path_prefix: str|None=None, owner: str|None
         "size": size,
         "query": {"bool": {"must": must}},
         "highlight": {
+            "pre_tags": [HIGHLIGHT_PRE],
+            "post_tags": [HIGHLIGHT_POST],
             "fields": {
                 "text": {
                     "fragment_size": 200,
@@ -180,7 +223,8 @@ def search(query: str, size: int=25, path_prefix: str|None=None, owner: str|None
     
     # Execute search with error handling
     try:
-        result = client().search(index=settings.OPENSEARCH_INDEX, body=dsl)
+        raw_result = client().search(index=settings.OPENSEARCH_INDEX, body=dsl)
+        result = _sanitize_highlights(raw_result)
         # Cache successful result
         _set_cached_result(cache_key, result)
         return result
@@ -189,7 +233,8 @@ def search(query: str, size: int=25, path_prefix: str|None=None, owner: str|None
         # Retry without highlighting if it fails
         try:
             dsl_no_highlight = {"size": size, "query": {"bool": {"must": must}}}
-            result = client().search(index=settings.OPENSEARCH_INDEX, body=dsl_no_highlight)
+            raw_result = client().search(index=settings.OPENSEARCH_INDEX, body=dsl_no_highlight)
+            result = _sanitize_highlights(raw_result)
             # Cache successful result
             _set_cached_result(cache_key, result)
             return result

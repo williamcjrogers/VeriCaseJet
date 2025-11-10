@@ -14,15 +14,20 @@
     
     <style>
         :root {
-            --primary: #2563eb;
-            --primary-dark: #1e40af;
+            --vericase-teal: #17B5A3;
+            --vericase-teal-dark: #129B8B;
+            --vericase-blue: #2B7FBF;
+            --vericase-navy: #1F2937;
+            --bg-primary: #E8EEF2;
+            --primary: #17B5A3;
+            --primary-dark: #129B8B;
             --secondary: #64748b;
             --success: #10b981;
             --warning: #f59e0b;
             --danger: #ef4444;
             --surface: #ffffff;
-            --background: #f8fafc;
-            --text: #1e293b;
+            --background: #E8EEF2;
+            --text: #1F2937;
             --text-muted: #64748b;
             --border: #e2e8f0;
         }
@@ -480,9 +485,67 @@
         </div>
     </div>
 
+    <!-- AI Chat Interface -->
+    <div id="aiChatContainer" style="background: white; border-bottom: 2px solid var(--vericase-teal); box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 1.5rem 2rem; display: none;">
+        <div style="max-width: 1400px; margin: 0 auto;">
+            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-teal-dark)); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(23, 181, 163, 0.39);">
+                    <i class="fas fa-brain" style="color: white; font-size: 24px;"></i>
+                </div>
+                <div style="flex: 1;">
+                    <h3 style="color: var(--vericase-navy); font-size: 1.25rem; margin-bottom: 0.25rem;">AI Research Assistant</h3>
+                    <p style="color: var(--text-muted); font-size: 0.875rem;">Ask questions about your evidence. Choose Quick Search or Deep Research mode.</p>
+                </div>
+                <button onclick="toggleAIChat()" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem; padding: 0.5rem;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                <div style="flex: 1; position: relative;">
+                    <textarea id="aiQuery" placeholder="Ask a question about your evidence... e.g., 'What are the key delay events?' or 'Summarize the dispute timeline'" 
+                              style="width: 100%; min-height: 80px; padding: 1rem; border: 2px solid #E5E7EB; border-radius: 12px; font-size: 0.9375rem; font-family: inherit; resize: vertical;"
+                              onkeydown="if(event.key==='Enter' && event.ctrlKey) aiQuickSearch()"></textarea>
+                    <div style="position: absolute; bottom: 0.75rem; right: 0.75rem; font-size: 0.75rem; color: var(--text-muted);">
+                        Ctrl+Enter for Quick Search
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <button id="quickSearchBtn" onclick="aiQuickSearch()" class="btn" style="background: var(--vericase-teal); color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 14px rgba(23, 181, 163, 0.39);">
+                    <i class="fas fa-bolt"></i> Quick Search (3s)
+                </button>
+                <button id="deepResearchBtn" onclick="aiDeepResearch()" class="btn" style="background: var(--vericase-navy); color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                    <i class="fas fa-microscope"></i> Deep Research (60s)
+                </button>
+                <div id="aiModelsStatus" style="margin-left: auto; font-size: 0.75rem; color: var(--text-muted);"></div>
+            </div>
+            
+            <!-- Research Progress -->
+            <div id="researchProgress" style="display: none; margin-top: 1.5rem; padding: 1.5rem; background: #F9FAFB; border-radius: 12px; border: 1px solid #E5E7EB;">
+                <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="loading-spinner"></div>
+                    <div>
+                        <div style="font-weight: 600; color: var(--vericase-navy); margin-bottom: 0.25rem;" id="progressTitle">Analyzing...</div>
+                        <div style="font-size: 0.875rem; color: var(--text-muted);" id="progressStatus">Preparing research plan...</div>
+                    </div>
+                </div>
+                <div id="researchPlan" style="display: none; margin-top: 1rem; padding: 1rem; background: white; border-radius: 8px; border-left: 4px solid var(--vericase-teal);"></div>
+                <div id="modelProgress" style="display: none; margin-top: 1rem;"></div>
+            </div>
+            
+            <!-- AI Response -->
+            <div id="aiResponse" style="display: none; margin-top: 1.5rem; padding: 1.5rem; background: white; border-radius: 12px; border: 2px solid var(--vericase-teal); box-shadow: 0 4px 12px rgba(0,0,0,0.08);"></div>
+        </div>
+    </div>
+
     <!-- Toolbar -->
     <div class="toolbar">
         <div class="toolbar-left">
+            <button class="btn btn-primary" onclick="toggleAIChat()" style="background: var(--vericase-teal); border: none;">
+                <i class="fas fa-brain"></i> AI Assistant
+            </button>
             <div class="search-box">
                 <i class="fas fa-search"></i>
                 <input type="text" id="quickFilter" placeholder="Quick search emails..." onkeyup="onQuickFilterChanged()">
@@ -599,19 +662,47 @@
     </div>
 
     <!-- AG-Grid Enterprise Script -->
-    <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/dist/ag-grid-enterprise.min.js" 
-            crossorigin="anonymous"></script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/dist/ag-grid-enterprise.min.js"></script>
+
     <script>
-        // Get case ID from URL - check both caseId and case_id parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        const caseId = urlParams.get('caseId') || urlParams.get('case_id') || urlParams.get('projectId') || urlParams.get('project_id');
+        // API Base URL
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? `${window.location.protocol}//localhost:8010`
+            : window.location.origin;
         
-        // Validate we have a case/project ID - STOP execution if invalid
-        if (!caseId || caseId === '00000000-0000-0000-0000-000000000001') {
+        // Get case/project ID from URL - check both caseId and case_id parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        caseId = urlParams.get('caseId') || urlParams.get('case_id');
+        projectId = urlParams.get('projectId') || urlParams.get('project_id');
+        
+        // For backwards compatibility, if neither is set, try generic ID
+        if (!caseId && !projectId) {
+            const genericId = urlParams.get('caseId') || urlParams.get('case_id') || urlParams.get('projectId') || urlParams.get('project_id');
+            // Determine if it's a project or case based on localStorage
+            const profileType = localStorage.getItem('profileType');
+            if (profileType === 'project') {
+                projectId = genericId;
+            } else {
+                caseId = genericId;
+            }
+        }
+        
+        // Check if user is admin - admins can view all correspondence
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const isAdmin = user.role === 'ADMIN';
+        
+        // Validate we have a case/project ID - STOP execution if invalid (unless admin)
+        if (!isAdmin && (!caseId && !projectId)) {
             alert('No case or project selected. Redirecting to wizard...');
             window.location.href = 'wizard.html';
             throw new Error('Invalid case ID - stopping execution'); // STOP HERE!
+        }
+        
+        // For admin without specific project/case, show all emails
+        if (isAdmin && !caseId && !projectId) {
+            console.log('Admin mode: Showing all correspondence');
+            // Set a flag for admin mode
+            window.adminViewAll = true;
         }
         
         window.caseId = caseId; // Make it globally available for other functions
@@ -1690,11 +1781,28 @@
 
         // Initialize Grid
         document.addEventListener('DOMContentLoaded', function() {
+            // Check if ag-Grid is loaded
+            if (typeof agGrid === 'undefined') {
+                console.error('ag-Grid library failed to load');
+                alert('Failed to load email grid. Please refresh the page.');
+                return;
+            }
+
             const gridDiv = document.querySelector('#emailGrid');
-            gridApi = agGrid.createGrid(gridDiv, gridOptions);
-            
-            // Load emails
-            loadEmails();
+            if (!gridDiv) {
+                console.error('Grid container not found');
+                return;
+            }
+
+            try {
+                gridApi = agGrid.createGrid(gridDiv, gridOptions);
+
+                // Load emails
+                loadEmails();
+            } catch (error) {
+                console.error('Error initializing grid:', error);
+                alert('Failed to initialize email grid. Please refresh the page.');
+            }
         });
 
         // ===========================
@@ -1716,16 +1824,42 @@
             showLoading(true);
             try {
                 const token = localStorage.getItem('token') || localStorage.getItem('jwt') || '';
-                const response = await fetch(`${API_BASE}/api/unified/${caseId}/evidence`, {
+                
+                // Build API URL based on whether we have a project/case ID
+                let apiUrl;
+                if (projectId) {
+                    apiUrl = `${API_BASE}/api/correspondence/emails?project_id=${projectId}`;
+                } else if (caseId) {
+                    apiUrl = `${API_BASE}/api/unified/${caseId}/evidence`;
+                } else if (isAdmin) {
+                    // Admin viewing all emails without specific project/case
+                    apiUrl = `${API_BASE}/api/correspondence/emails?page_size=500`;
+                } else {
+                    throw new Error('No project or case ID specified');
+                }
+                
+                const response = await fetch(apiUrl, {
                     headers: token ? { 'Authorization': `Bearer ${token}` } : {}
                 });
                 if (!response.ok) throw new Error('Failed to load emails');
                 
                 const data = await response.json();
                 
+                // Handle different response formats
+                let emailData = data;
+                if (data.emails) {
+                    // Response from /api/correspondence/emails
+                    emailData = data.emails;
+                } else if (Array.isArray(data)) {
+                    // Response from unified endpoint
+                    emailData = data;
+                } else {
+                    emailData = [];
+                }
+                
                 // Filter for email evidence and set expanded state
-                allEmails = data.filter(item => 
-                    item.email_subject || item.email_from || item.meta?.content
+                allEmails = emailData.filter(item => 
+                    item.subject || item.email_subject || item.sender_email || item.email_from || item.content || item.meta?.content
                 ).map(email => ({
                     ...email,
                     expanded: showFullContent // Set initial state to show full content
@@ -2798,6 +2932,290 @@
         }
 
         // ==================== END PROGRAMME ANALYSIS FUNCTIONS ====================
+
+        // ==================== AI CHAT FUNCTIONS ====================
+        
+        // Global variables for AI chat
+        let projectId = null;
+        let caseId = null;
+
+        /**
+         * Toggle AI Chat Interface
+         */
+        window.toggleAIChat = function() {
+            const container = document.getElementById('aiChatContainer');
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                loadAIModelsStatus();
+            } else {
+                container.style.display = 'none';
+            }
+        };
+
+        /**
+         * Load AI models status
+         */
+        async function loadAIModelsStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/api/ai-chat/models/status`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const statusDiv = document.getElementById('aiModelsStatus');
+                    
+                    const available = Object.values(data.models).filter(m => m.available).length;
+                    const total = Object.keys(data.models).length;
+                    
+                    statusDiv.innerHTML = `<i class="fas fa-circle" style="color: ${available > 0 ? '#10B981' : '#EF4444'};"></i> ${available}/${total} AI models ready`;
+                }
+            } catch (error) {
+                console.error('Error loading AI models status:', error);
+            }
+        }
+
+        /**
+         * Quick AI Search (3-5 seconds)
+         */
+        window.aiQuickSearch = async function() {
+            const query = document.getElementById('aiQuery').value.trim();
+            if (!query) {
+                alert('Please enter a question');
+                return;
+            }
+            
+            const quickBtn = document.getElementById('quickSearchBtn');
+            const deepBtn = document.getElementById('deepResearchBtn');
+            const progressDiv = document.getElementById('researchProgress');
+            const responseDiv = document.getElementById('aiResponse');
+            
+            // Show progress
+            quickBtn.disabled = true;
+            deepBtn.disabled = true;
+            progressDiv.style.display = 'block';
+            responseDiv.style.display = 'none';
+            document.getElementById('progressTitle').textContent = 'Quick Search...';
+            document.getElementById('progressStatus').textContent = 'Analyzing evidence with AI...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/ai-chat/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        mode: 'quick',
+                        project_id: projectId,
+                        case_id: caseId
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Search failed');
+                }
+                
+                const data = await response.json();
+                displayAIResponse(data);
+                
+            } catch (error) {
+                console.error('Quick search error:', error);
+                alert('Quick search failed: ' + error.message);
+            } finally {
+                quickBtn.disabled = false;
+                deepBtn.disabled = false;
+                progressDiv.style.display = 'none';
+            }
+        };
+
+        /**
+         * Deep AI Research (30-60 seconds)
+         */
+        window.aiDeepResearch = async function() {
+            const query = document.getElementById('aiQuery').value.trim();
+            if (!query) {
+                alert('Please enter a question');
+                return;
+            }
+            
+            const quickBtn = document.getElementById('quickSearchBtn');
+            const deepBtn = document.getElementById('deepResearchBtn');
+            const progressDiv = document.getElementById('researchProgress');
+            const responseDiv = document.getElementById('aiResponse');
+            const planDiv = document.getElementById('researchPlan');
+            const modelProgressDiv = document.getElementById('modelProgress');
+            
+            // Show progress
+            quickBtn.disabled = true;
+            deepBtn.disabled = true;
+            progressDiv.style.display = 'block';
+            responseDiv.style.display = 'none';
+            document.getElementById('progressTitle').textContent = 'Deep Research Mode';
+            document.getElementById('progressStatus').textContent = 'Creating research plan...';
+            planDiv.style.display = 'none';
+            modelProgressDiv.style.display = 'none';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/ai-chat/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        mode: 'deep',
+                        project_id: projectId,
+                        case_id: caseId
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Research failed');
+                }
+                
+                const data = await response.json();
+                
+                // Show plan
+                if (data.plan) {
+                    planDiv.style.display = 'block';
+                    planDiv.innerHTML = `
+                        <div style="font-weight: 600; color: var(--vericase-navy); margin-bottom: 0.5rem;">
+                            <i class="fas fa-list-check"></i> Research Plan
+                        </div>
+                        <div style="font-size: 0.875rem; color: var(--text-secondary);">
+                            ${data.plan.analysis_steps.map(step => `• ${step}`).join('<br>')}
+                        </div>
+                    `;
+                }
+                
+                // Show model progress
+                document.getElementById('progressStatus').textContent = 'Analyzing with multiple AI models...';
+                modelProgressDiv.style.display = 'block';
+                modelProgressDiv.innerHTML = `
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem;">
+                        ${data.model_responses.map(m => `
+                            <div style="padding: 0.75rem; background: white; border-radius: 8px; border: 1px solid #E5E7EB;">
+                                <div style="font-size: 0.75rem; font-weight: 600; color: var(--vericase-navy); margin-bottom: 0.25rem;">
+                                    ${m.model}
+                                </div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                    ${m.processing_time.toFixed(1)}s | ${(m.confidence * 100).toFixed(0)}% confidence
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                
+                // Display response
+                displayAIResponse(data);
+                
+            } catch (error) {
+                console.error('Deep research error:', error);
+                alert('Deep research failed: ' + error.message);
+            } finally {
+                quickBtn.disabled = false;
+                deepBtn.disabled = false;
+                progressDiv.style.display = 'none';
+            }
+        };
+
+        /**
+         * Display AI response
+         */
+        function displayAIResponse(data) {
+            const responseDiv = document.getElementById('aiResponse');
+            responseDiv.style.display = 'block';
+            
+            let html = `
+                <div style="margin-bottom: 1.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                        <div style="width: 36px; height: 36px; background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-teal-dark)); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-sparkles" style="color: white; font-size: 16px;"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 700; color: var(--vericase-navy); font-size: 1.125rem;">AI Analysis</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                ${data.mode === 'quick' ? 'Quick Search' : 'Deep Research'} • ${data.processing_time.toFixed(1)}s
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="font-size: 0.9375rem; line-height: 1.7; color: var(--text-primary); white-space: pre-wrap;">
+                        ${formatMarkdown(data.answer)}
+                    </div>
+                </div>
+            `;
+            
+            // Add key findings
+            if (data.key_findings && data.key_findings.length > 0) {
+                html += `
+                    <div style="margin-top: 1.5rem; padding: 1rem; background: #F0FDF4; border-radius: 8px; border-left: 4px solid #10B981;">
+                        <div style="font-weight: 600; color: #065F46; margin-bottom: 0.5rem;">
+                            <i class="fas fa-lightbulb"></i> Key Findings
+                        </div>
+                        <ul style="margin-left: 1.25rem; color: #047857;">
+                            ${data.key_findings.map(f => `<li style="margin-bottom: 0.25rem;">${f}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            // Add sources
+            if (data.sources && data.sources.length > 0) {
+                html += `
+                    <div style="margin-top: 1.5rem; padding: 1rem; background: #F9FAFB; border-radius: 8px;">
+                        <div style="font-weight: 600; color: var(--vericase-navy); margin-bottom: 0.75rem; font-size: 0.875rem;">
+                            <i class="fas fa-file-lines"></i> Evidence Sources (${data.sources.length})
+                        </div>
+                        <div style="display: grid; gap: 0.5rem; font-size: 0.8125rem;">
+                            ${data.sources.slice(0, 5).map(s => `
+                                <div style="padding: 0.5rem; background: white; border-radius: 6px; border: 1px solid #E5E7EB;">
+                                    <div style="font-weight: 600; color: var(--vericase-navy);">${s.subject}</div>
+                                    <div style="color: var(--text-muted); font-size: 0.75rem;">
+                                        ${s.sender} • ${new Date(s.date).toLocaleDateString()}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            responseDiv.innerHTML = html;
+            responseDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        /**
+         * Format markdown-style text
+         */
+        function formatMarkdown(text) {
+            if (!text) return '';
+            
+            // Convert markdown to HTML
+            return text
+                .replace(/### (.*?)$/gm, '<h4 style="font-size: 1.125rem; font-weight: 700; color: var(--vericase-navy); margin: 1.5rem 0 0.75rem 0;">$1</h4>')
+                .replace(/## (.*?)$/gm, '<h3 style="font-size: 1.25rem; font-weight: 700; color: var(--vericase-navy); margin: 1.5rem 0 0.75rem 0;">$1</h3>')
+                .replace(/# (.*?)$/gm, '<h2 style="font-size: 1.5rem; font-weight: 700; color: var(--vericase-navy); margin: 1.5rem 0 1rem 0;">$1</h2>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: 700; color: var(--vericase-navy);">$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/^- (.*?)$/gm, '<div style="margin-left: 1.25rem; margin-bottom: 0.25rem;">• $1</div>')
+                .replace(/^(\d+)\. (.*?)$/gm, '<div style="margin-left: 1.25rem; margin-bottom: 0.25rem;">$1. $2</div>');
+        }
+
+        // Initialize AI chat on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check if AI keys are configured
+            loadAIModelsStatus();
+        });
+
+        // ==================== END AI CHAT FUNCTIONS ====================
 
         // Set AG-Grid Enterprise license key (Trial - Valid until 30 November 2025)
         agGrid.LicenseManager.setLicenseKey("[TRIAL]_this_{AG_Charts_and_AG_Grid}_Enterprise_key_{AG-104897}_is_granted_for_evaluation_only___Use_in_production_is_not_permitted___Please_report_misuse_to_legal@ag-grid.com___For_help_with_purchasing_a_production_key_please_contact_info@ag-grid.com___You_are_granted_a_{Single_Application}_Developer_License_for_one_application_only___All_Front-End_JavaScript_developers_working_on_the_application_would_need_to_be_licensed___This_key_will_deactivate_on_{30 November 2025}____[v3]_[0102]_MTc2NDQ2MDgwMDAwMA==a97c0b249a2f0bd2a1ed2c10804b61b5");

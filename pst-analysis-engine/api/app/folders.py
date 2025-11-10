@@ -2,6 +2,7 @@
 from typing import Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import select, func
 from .models import Folder, Document
 
 
@@ -61,20 +62,24 @@ def get_folder_name(path: str) -> str:
 
 def create_folder_record(db: Session, path: str, owner_user_id: str) -> Folder:
     """Create a folder record in the database"""
-    # Check if folder already exists
-    existing_folder = db.query(Folder).filter(
+    path = validate_folder_path(path)
+    
+    # Parameterized query via SQLAlchemy select()
+    existing_stmt = select(Folder).where(
         Folder.owner_user_id == owner_user_id,
         Folder.path == path
-    ).first()
+    )
+    existing_folder = db.execute(existing_stmt).scalars().first()
     
     if existing_folder:
         raise HTTPException(409, "folder already exists")
     
-    # Check if documents exist at this path
-    doc_count = db.query(Document).filter(
+    # Parameterized query via SQLAlchemy select()
+    count_stmt = select(func.count()).select_from(Document).where(
         Document.owner_user_id == owner_user_id,
         Document.path == path
-    ).count()
+    )
+    doc_count = db.execute(count_stmt).scalar() or 0
     
     if doc_count > 0:
         raise HTTPException(409, "path already contains documents")
@@ -95,78 +100,84 @@ def create_folder_record(db: Session, path: str, owner_user_id: str) -> Folder:
 
 def rename_folder_and_docs(db: Session, owner_user_id: str, old_path: str, new_name: str) -> int:
     """Rename a folder and update all document paths"""
-    # Validate new name doesn't contain slashes
+    old_path = validate_folder_path(old_path)
+    
     if "/" in new_name or "\\" in new_name:
         raise HTTPException(400, "new_name cannot contain path separators")
     
-    # Build new path
     parent = get_parent_path(old_path)
     new_path = f"{parent}/{new_name}" if parent else new_name
     new_path = validate_folder_path(new_path)
     
-    # Check if new path already exists
-    existing = db.query(Folder).filter(
+    # Parameterized query via SQLAlchemy select()
+    existing_stmt = select(Folder).where(
         Folder.owner_user_id == owner_user_id,
         Folder.path == new_path
-    ).first()
+    )
+    existing = db.execute(existing_stmt).scalars().first()
     
     if existing:
         raise HTTPException(409, "destination folder already exists")
     
-    # Check if documents exist at new path
-    doc_count = db.query(Document).filter(
+    # Parameterized query via SQLAlchemy select()
+    count_stmt = select(func.count()).select_from(Document).where(
         Document.owner_user_id == owner_user_id,
         Document.path == new_path
-    ).count()
+    )
+    doc_count = db.execute(count_stmt).scalar() or 0
     
     if doc_count > 0:
         raise HTTPException(409, "destination path already contains documents")
     
-    # Update the folder record if it exists
-    folder = db.query(Folder).filter(
+    # Parameterized query via SQLAlchemy select()
+    folder_stmt = select(Folder).where(
         Folder.owner_user_id == owner_user_id,
         Folder.path == old_path
-    ).first()
+    )
+    folder = db.execute(folder_stmt).scalars().first()
     
     documents_updated = 0
+    old_prefix = f"{old_path}/"
     
-    # Update all documents at this exact path
-    docs = db.query(Document).filter(
+    # Parameterized query via SQLAlchemy select()
+    docs_stmt = select(Document).where(
         Document.owner_user_id == owner_user_id,
         Document.path == old_path
-    ).all()
+    )
+    docs = db.execute(docs_stmt).scalars().all()
     
     for doc in docs:
         doc.path = new_path
         documents_updated += 1
     
-    # Update all documents in subfolders
-    old_prefix = f"{old_path}/"
-    subdocs = db.query(Document).filter(
+    # Parameterized query via SQLAlchemy select()
+    subdocs_stmt = select(Document).where(
         Document.owner_user_id == owner_user_id,
-        Document.path.like(f"{old_prefix}%")
-    ).all()
+        Document.path.startswith(old_prefix)
+    )
+    subdocs = db.execute(subdocs_stmt).scalars().all()
     
+    old_path_len = len(old_path)
     for doc in subdocs:
         if doc.path and doc.path.startswith(old_prefix):
-            doc.path = new_path + doc.path[len(old_path):]
+            doc.path = new_path + doc.path[old_path_len:]
             documents_updated += 1
     
-    # Update the folder record
     if folder:
         folder.path = new_path
         folder.name = new_name
         folder.parent_path = parent
     
-    # Update any empty subfolders
-    subfolders = db.query(Folder).filter(
+    # Parameterized query via SQLAlchemy select()
+    subfolders_stmt = select(Folder).where(
         Folder.owner_user_id == owner_user_id,
-        Folder.path.like(f"{old_prefix}%")
-    ).all()
+        Folder.path.startswith(old_prefix)
+    )
+    subfolders = db.execute(subfolders_stmt).scalars().all()
     
     for subfolder in subfolders:
         if subfolder.path.startswith(old_prefix):
-            subfolder.path = new_path + subfolder.path[len(old_path):]
+            subfolder.path = new_path + subfolder.path[old_path_len:]
             subfolder.parent_path = get_parent_path(subfolder.path)
     
     return documents_updated
@@ -174,17 +185,21 @@ def rename_folder_and_docs(db: Session, owner_user_id: str, old_path: str, new_n
 
 def delete_folder_and_docs(db: Session, owner_user_id: str, path: str, recursive: bool, delete_object_func, os_delete_func, logger) -> tuple:
     """Delete a folder and optionally its contents"""
-    # Count documents at this path
-    doc_count = db.query(Document).filter(
+    path = validate_folder_path(path)
+    
+    # Parameterized query via SQLAlchemy select()
+    doc_count_stmt = select(func.count()).select_from(Document).where(
         Document.owner_user_id == owner_user_id,
         Document.path == path
-    ).count()
+    )
+    doc_count = db.execute(doc_count_stmt).scalar() or 0
     
-    # Count documents in subfolders
-    subdoc_count = db.query(Document).filter(
+    # Parameterized query via SQLAlchemy select()
+    subdoc_count_stmt = select(func.count()).select_from(Document).where(
         Document.owner_user_id == owner_user_id,
-        Document.path.like(f"{path}/%")
-    ).count()
+        Document.path.startswith(path + "/")
+    )
+    subdoc_count = db.execute(subdoc_count_stmt).scalar() or 0
     
     total_docs = doc_count + subdoc_count
     
@@ -195,11 +210,12 @@ def delete_folder_and_docs(db: Session, owner_user_id: str, path: str, recursive
     files_removed = 0
     
     if recursive and total_docs > 0:
-        # Delete documents at this path
-        docs = db.query(Document).filter(
+        # Parameterized query via SQLAlchemy select()
+        docs_stmt = select(Document).where(
             Document.owner_user_id == owner_user_id,
             Document.path == path
-        ).all()
+        )
+        docs = db.execute(docs_stmt).scalars().all()
         
         for doc in docs:
             try:
@@ -216,11 +232,12 @@ def delete_folder_and_docs(db: Session, owner_user_id: str, path: str, recursive
             db.delete(doc)
             documents_deleted += 1
         
-        # Delete documents in subfolders
-        subdocs = db.query(Document).filter(
+        # Parameterized query via SQLAlchemy select()
+        subdocs_stmt = select(Document).where(
             Document.owner_user_id == owner_user_id,
-            Document.path.like(f"{path}/%")
-        ).all()
+            Document.path.startswith(path + "/")
+        )
+        subdocs = db.execute(subdocs_stmt).scalars().all()
         
         for doc in subdocs:
             try:
@@ -237,20 +254,22 @@ def delete_folder_and_docs(db: Session, owner_user_id: str, path: str, recursive
             db.delete(doc)
             documents_deleted += 1
     
-    # Delete empty folder record
-    folder = db.query(Folder).filter(
+    # Parameterized query via SQLAlchemy select()
+    folder_stmt = select(Folder).where(
         Folder.owner_user_id == owner_user_id,
         Folder.path == path
-    ).first()
+    )
+    folder = db.execute(folder_stmt).scalars().first()
     
     if folder:
         db.delete(folder)
     
-    # Delete empty subfolders
-    subfolders = db.query(Folder).filter(
+    # Parameterized query via SQLAlchemy select()
+    subfolders_stmt = select(Folder).where(
         Folder.owner_user_id == owner_user_id,
-        Folder.path.like(f"{path}/%")
-    ).all()
+        Folder.path.startswith(path + "/")
+    )
+    subfolders = db.execute(subfolders_stmt).scalars().all()
     
     for subfolder in subfolders:
         db.delete(subfolder)

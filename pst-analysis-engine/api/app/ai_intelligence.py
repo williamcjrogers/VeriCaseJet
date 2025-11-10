@@ -2,19 +2,25 @@
 AI-Powered Document Intelligence
 Provides smart classification, metadata extraction, and content insights
 """
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from sqlalchemy.orm import Session
-from .security import get_db, current_user
-from .models import User, Document
-from .storage import get_object
+import logging
 import uuid
 import json
 import re
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
-from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
+from .security import get_db, current_user
+from .models import User, Document
+from .storage import get_object
+
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/ai", tags=["ai-intelligence"])
+
 
 class DocumentClassification(BaseModel):
     document_type: str  # Invoice, Contract, Report, Email, etc.
@@ -82,6 +88,18 @@ def classify_document(text: str, filename: str) -> DocumentClassification:
     Uses pattern matching and keyword analysis
     In production, would use ML model
     """
+    if not text or not isinstance(text, str):
+        logger.warning("Invalid text input for classification")
+        return DocumentClassification(
+            document_type='other',
+            confidence=0.0,
+            suggested_folder='General',
+            extracted_metadata={},
+            key_entities=[],
+            summary=None,
+            tags=[]
+        )
+    
     text_lower = text.lower()
     scores = {}
     
@@ -96,8 +114,11 @@ def classify_document(text: str, filename: str) -> DocumentClassification:
         
         # Regex pattern matching
         for pattern in patterns['patterns']:
-            if re.search(pattern, text_lower):
-                score += 3
+            try:
+                if re.search(pattern, text_lower):
+                    score += 3
+            except re.error:
+                continue
         
         scores[doc_type] = score
     
@@ -107,7 +128,7 @@ def classify_document(text: str, filename: str) -> DocumentClassification:
         confidence = 0.3
         suggested_folder = 'General'
     else:
-        doc_type = max(scores, key=scores.get)
+        doc_type = max(scores, key=lambda k: scores[k])
         max_score = scores[doc_type]
         # Normalize confidence to 0-1 range
         confidence = min(0.95, max_score / 10)
@@ -137,6 +158,9 @@ def classify_document(text: str, filename: str) -> DocumentClassification:
 
 def extract_metadata(text: str) -> Dict:
     """Extract structured metadata from text"""
+    if not text or not isinstance(text, str):
+        return {}
+    
     metadata = {}
     
     # Extract dates
@@ -147,60 +171,67 @@ def extract_metadata(text: str) -> Dict:
     ]
     dates = []
     for pattern in date_patterns:
-        dates.extend(re.findall(pattern, text, re.IGNORECASE))
+        try:
+            dates.extend(re.findall(pattern, text, re.IGNORECASE))
+        except re.error:
+            continue
     if dates:
-        metadata['dates'] = dates[:5]  # Top 5 dates
+        metadata['dates'] = dates[:5]
     
     # Extract amounts
-    amount_pattern = r'\$\s*[\d,]+\.?\d*'
-    amounts = re.findall(amount_pattern, text)
-    if amounts:
-        metadata['amounts'] = amounts[:5]
+    try:
+        amounts = re.findall(r'\$\s*[\d,]+\.?\d*', text)
+        if amounts:
+            metadata['amounts'] = amounts[:5]
+    except re.error:
+        pass
     
     # Extract email addresses
-    emails = re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text)
-    if emails:
-        metadata['emails'] = list(set(emails))[:5]
+    try:
+        emails = re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', text)
+        if emails:
+            metadata['emails'] = list(set(emails))[:5]
+    except re.error:
+        pass
     
     # Extract phone numbers
-    phones = re.findall(r'\b(\+\d{1,2}\s?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b', text)
-    if phones:
-        metadata['phone_numbers'] = phones[:3]
+    try:
+        phones = re.findall(r'\b(\+\d{1,2}\s?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b', text)
+        if phones:
+            metadata['phone_numbers'] = phones[:3]
+    except re.error:
+        pass
     
     return metadata
 
 def extract_entities(text: str) -> List[Dict]:
     """Extract named entities (people, organizations, locations)"""
-    entities = []
+    if not text or not isinstance(text, str):
+        return []
     
-    # Simple capitalized word extraction (in production, use NER model)
-    # Look for capitalized words that might be names/orgs
-    capitalized = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', text)
+    try:
+        capitalized = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', text)
+    except re.error:
+        return []
     
-    # Filter out common words
     common_words = {'The', 'This', 'That', 'These', 'Those', 'A', 'An', 'And', 'Or', 'But'}
     potential_entities = [w for w in capitalized if w not in common_words]
     
-    # Count occurrences
-    entity_counts = {}
-    for entity in potential_entities:
-        entity_counts[entity] = entity_counts.get(entity, 0) + 1
+    from collections import Counter
+    entity_counts = Counter(potential_entities)
     
-    # Sort by frequency and take top 10
-    sorted_entities = sorted(entity_counts.items(), key=lambda x: x[1], reverse=True)[:10]
-    
-    for entity, count in sorted_entities:
-        entities.append({
-            'text': entity,
-            'type': 'UNKNOWN',  # Would be PERSON, ORG, LOCATION with NER
-            'mentions': count
-        })
+    entities = []
+    for entity, count in entity_counts.most_common(10):
+        entities.append({'text': entity, 'type': 'UNKNOWN', 'mentions': count})
     
     return entities
 
 def generate_tags(text: str, doc_type: str) -> List[str]:
     """Generate relevant tags for the document"""
-    tags = [doc_type]
+    if not text or not isinstance(text, str):
+        return [doc_type] if doc_type else []
+    
+    tags = [doc_type] if doc_type else []
     
     # Add tags based on keywords
     tag_keywords = {
@@ -221,46 +252,65 @@ def generate_tags(text: str, doc_type: str) -> List[str]:
 
 def generate_summary(text: str, max_sentences: int = 2) -> str:
     """Generate a simple extractive summary"""
-    # Split into sentences
-    sentences = re.split(r'[.!?]+', text)
-    sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
-    
-    if not sentences:
+    if not text or not isinstance(text, str):
         return "No summary available"
     
-    # Take first N sentences as summary
-    summary = '. '.join(sentences[:max_sentences])
-    if len(summary) > 500:
-        summary = summary[:497] + '...'
-    
-    return summary
+    try:
+        # Split into sentences
+        sentences = re.split(r'[.!?]+', text)
+        sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
+        
+        if not sentences:
+            return "No summary available"
+        
+        # Take first N sentences as summary
+        summary = '. '.join(sentences[:max_sentences])
+        if len(summary) > 500:
+            summary = summary[:497] + '...'
+        
+        return summary
+    except Exception as e:
+        logger.warning("Error generating summary: %s", str(e))
+        return "No summary available"
 
 def detect_pii(text: str) -> tuple[bool, List[str]]:
     """Detect presence of PII in document"""
-    found_pii = []
+    if not text or not isinstance(text, str):
+        return False, []
     
+    found_pii = []
     for pii_type, pattern in PII_PATTERNS.items():
-        if re.search(pattern, text):
-            found_pii.append(pii_type)
+        try:
+            if re.search(pattern, text):
+                found_pii.append(pii_type)
+        except re.error:
+            continue
     
     return len(found_pii) > 0, found_pii
 
 def detect_compliance_issues(text: str, doc_type: str) -> List[str]:
     """Flag potential compliance issues"""
-    flags = []
+    if not text or not isinstance(text, str):
+        return []
     
-    # Check for PII
+    flags = []
     has_pii, pii_types = detect_pii(text)
     if has_pii:
         flags.append(f"Contains PII: {', '.join(pii_types)}")
     
     # Check for confidential markers
-    if re.search(r'\bconfidential\b|\bprivate\b|\brestricted\b', text, re.IGNORECASE):
-        flags.append("Marked as confidential")
+    try:
+        if re.search(r'\bconfidential\b|\bprivate\b|\brestricted\b', text, re.IGNORECASE):
+            flags.append("Marked as confidential")
+    except re.error:
+        pass
     
     # Check for missing dates on time-sensitive docs
-    if doc_type in ['contract', 'invoice'] and not re.search(r'\d{1,2}/\d{1,2}/\d{4}', text):
-        flags.append("Missing date information")
+    try:
+        if doc_type in ['contract', 'invoice'] and not re.search(r'\d{1,2}/\d{1,2}/\d{4}', text):
+            flags.append("Missing date information")
+    except re.error:
+        pass
     
     return flags
 
@@ -311,7 +361,7 @@ async def classify_document_endpoint(
         'confidence': classification.confidence,
         'suggested_folder': classification.suggested_folder,
         'tags': classification.tags,
-        'classified_at': datetime.utcnow().isoformat(),
+        'classified_at': datetime.now(timezone.utc).isoformat(),
         'contains_pii': has_pii,
         'pii_types': pii_types,
         'compliance_flags': compliance_flags
@@ -407,7 +457,7 @@ async def auto_tag_document(
         document.meta = {}
     
     document.meta['tags'] = classification.tags
-    document.meta['auto_tagged_at'] = datetime.utcnow().isoformat()
+    document.meta['auto_tagged_at'] = datetime.now(timezone.utc).isoformat()
     
     db.commit()
     
@@ -444,22 +494,20 @@ async def semantic_search(
         if word in synonym_map:
             expanded_terms.extend(synonym_map[word])
     
-    # Search across all terms
-    results = []
+    # Pre-lowercase terms once for performance
+    expanded_terms_lower = [term.lower() for term in expanded_terms]
+    
     docs = db.query(Document).filter(
-        Document.owner_user_id == user.id
+        Document.owner_user_id == user.id,
+        Document.text_excerpt.isnot(None)
     ).limit(100).all()
     
+    results = []
     for doc in docs:
         if not doc.text_excerpt:
             continue
-        
         text_lower = doc.text_excerpt.lower()
-        score = 0
-        
-        for term in expanded_terms:
-            count = text_lower.count(term.lower())
-            score += count * 2
+        score = sum(text_lower.count(term) * 2 for term in expanded_terms_lower)
         
         if score > 0:
             results.append({
@@ -482,6 +530,9 @@ async def semantic_search(
 
 def detect_language(text: str) -> str:
     """Simple language detection"""
+    if not text or not isinstance(text, str):
+        return 'unknown'
+    
     # Very basic - would use langdetect or similar in production
     sample = text[:500].lower()
     
@@ -530,7 +581,7 @@ async def batch_classify_documents(
                 'confidence': classification.confidence,
                 'suggested_folder': classification.suggested_folder,
                 'tags': classification.tags,
-                'classified_at': datetime.utcnow().isoformat()
+                'classified_at': datetime.now(timezone.utc).isoformat()
             }
             
             results.append({
@@ -540,7 +591,11 @@ async def batch_classify_documents(
                 'suggested_folder': classification.suggested_folder
             })
             
-        except Exception as e:
+        except (ValueError, AttributeError, TypeError):
+            logger.error("Failed to classify document in batch")
+            continue
+        except Exception:
+            logger.error("Unexpected error classifying document")
             continue
     
     db.commit()

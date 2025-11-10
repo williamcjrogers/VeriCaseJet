@@ -7,14 +7,16 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from typing import List, Optional
 # Use defusedxml to prevent XXE attacks
+DEFUSED_XML = True
 try:
-    from defusedxml import ElementTree as ET
+    from defusedxml import ElementTree as ET  # type: ignore[reportMissingModuleSource]
 except ImportError:
     # Fallback to standard library with security warnings
     import xml.etree.ElementTree as ET
     import logging
     logger = logging.getLogger(__name__)
     logger.warning("defusedxml not installed - XML parsing may be vulnerable to XXE attacks. Install with: pip install defusedxml")
+    DEFUSED_XML = False
 from datetime import datetime, timezone
 import json
 import io
@@ -30,6 +32,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _sanitize_for_log(value) -> str:
+    """Remove control characters to avoid log injection in logs."""
+    try:
+        return str(value).replace("\n", "").replace("\r", "")
+    except Exception:
+        return "<unprintable>"
+
+
 def parse_asta_xml(xml_content: bytes) -> dict:
     """
     Parse Asta Powerproject XML export to extract activities, dates, and critical path
@@ -41,6 +51,10 @@ def parse_asta_xml(xml_content: bytes) -> dict:
     - EXCEPTIONS_CALENDAR for working days
     """
     try:
+        # In production, require defusedxml
+        import os as _os
+        if not DEFUSED_XML and _os.getenv("ENV", "development").lower() == "production":
+            raise ValueError("Secure XML parser (defusedxml) is required in production")
         root = ET.fromstring(xml_content)
         
         activities = []
@@ -189,7 +203,8 @@ async def upload_programme(
     content = await file.read()
     
     # Determine file type and parse
-    filename_lower = file.filename.lower()
+    safe_name = file.filename or ""
+    filename_lower = safe_name.lower()
     
     if filename_lower.endswith('.xml'):
         parsed_data = parse_asta_xml(content)
@@ -262,9 +277,17 @@ async def upload_programme(
         project_finish=proj_finish,
         notes=f"Uploaded by {current_user}. {parsed_data['total_activities']} activities parsed."
     )
-    db.add(programme)
-    db.commit()
-    db.refresh(programme)
+    try:
+        db.add(programme)
+        db.commit()
+        db.refresh(programme)
+    except Exception:
+        db.rollback()
+        logger.error("Failed to create programme record", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create programme record"
+        )
     
     return {
         "programme_id": programme.id,
@@ -284,7 +307,11 @@ async def get_programme(
     current_user: str = Depends(get_current_user_email)
 ):
     """Get programme details"""
-    programme = db.query(Programme).filter(Programme.id == programme_id).first()
+    try:
+        programme = db.query(Programme).filter(Programme.id == programme_id).first()
+    except Exception as e:
+        logger.error("Database error fetching programme id=%s", _sanitize_for_log(programme_id), exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch programme")
     if not programme:
         raise HTTPException(status_code=404, detail="Programme not found")
     
@@ -311,10 +338,20 @@ async def list_case_programmes(
     current_user: str = Depends(get_current_user_email)
 ):
     """List all programmes for a case"""
-    programmes = db.query(Programme).filter(Programme.case_id == case_id).order_by(Programme.programme_date.desc()).all()
-    
-    return [
-        {
+    try:
+        programmes = (
+            db.query(Programme)
+              .filter(Programme.case_id == case_id)
+              .order_by(Programme.programme_date.desc())
+              .all()
+        )
+    except Exception:
+        logger.error("Database error listing programmes for case_id=%s", _sanitize_for_log(case_id), exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to list programmes")
+
+    result = []
+    for p in programmes:
+        result.append({
             "id": p.id,
             "programme_type": p.programme_type,
             "programme_date": p.programme_date.isoformat() if p.programme_date else None,
@@ -322,9 +359,8 @@ async def list_case_programmes(
             "total_activities": len(p.activities) if p.activities else 0,
             "project_start": p.project_start.isoformat() if p.project_start else None,
             "project_finish": p.project_finish.isoformat() if p.project_finish else None,
-        }
-        for p in programmes
-    ]
+        })
+    return result
 
 
 @router.post("/api/programmes/compare")
@@ -342,8 +378,16 @@ async def compare_programmes(
     - Total float consumed
     - Activities with slippage
     """
-    as_planned = db.query(Programme).filter(Programme.id == as_planned_id).first()
-    as_built = db.query(Programme).filter(Programme.id == as_built_id).first()
+    try:
+        as_planned = db.query(Programme).filter(Programme.id == as_planned_id).first()
+        as_built = db.query(Programme).filter(Programme.id == as_built_id).first()
+    except Exception:
+        logger.error(
+            "Database error fetching programmes for comparison planned_id=%s built_id=%s",
+            _sanitize_for_log(as_planned_id), _sanitize_for_log(as_built_id),
+            exc_info=True
+        )
+        raise HTTPException(status_code=500, detail="Failed to fetch programmes for comparison")
     
     if not as_planned or not as_built:
         raise HTTPException(status_code=404, detail="Programme not found")
@@ -353,10 +397,25 @@ async def compare_programmes(
     
     delays = []
     critical_delays = []
+
+    def _parse_iso_date(date_str: Optional[str]) -> Optional[datetime]:
+        try:
+            return datetime.fromisoformat(date_str) if date_str else None
+        except (ValueError, TypeError):
+            return None
     
     # Match activities by ID
-    planned_activities = {a['id']: a for a in as_planned.activities}
-    built_activities = {a['id']: a for a in as_built.activities}
+    planned_activities = {}
+    for a in as_planned.activities or []:
+        activity_id = a.get('id')
+        if activity_id:
+            planned_activities[activity_id] = a
+    
+    built_activities = {}
+    for a in as_built.activities or []:
+        activity_id = a.get('id')
+        if activity_id:
+            built_activities[activity_id] = a
     
     for activity_id, planned in planned_activities.items():
         built = built_activities.get(activity_id)
@@ -370,10 +429,9 @@ async def compare_programmes(
         built_finish = built.get('finish_date')
         
         if planned_finish and built_finish:
-            try:
-                planned_dt = datetime.fromisoformat(planned_finish)
-                built_dt = datetime.fromisoformat(built_finish)
-            except (ValueError, TypeError) as e:
+            planned_dt = _parse_iso_date(planned_finish)
+            built_dt = _parse_iso_date(built_finish)
+            if planned_dt is None or built_dt is None:
                 continue
             
             delay_days = (built_dt - planned_dt).days
@@ -401,21 +459,36 @@ async def compare_programmes(
                             case_id=as_planned.case_id,
                             programme_id=as_built.id,
                             activity_id=activity_id,
-                            activity_name=planned['name'],
-                            planned_start=datetime.fromisoformat(planned_start) if planned_start else None,
+                            activity_name=planned.get('name', 'Unknown'),
+                            planned_start=_parse_iso_date(planned_start),
                             planned_finish=planned_dt,
-                            actual_start=datetime.fromisoformat(built_start) if built_start else None,
+                            actual_start=_parse_iso_date(built_start),
                             actual_finish=built_dt,
                             delay_days=delay_days,
                             is_on_critical_path=True,
                             delay_type='critical',
-                            notes=f"Auto-detected from programme comparison"
+                            notes="Auto-detected from programme comparison"
                         )
                         db.add(delay_event)
-                    except (ValueError, TypeError) as e:
+                    except (ValueError, TypeError, KeyError) as e:
+                        logger.debug(
+                            "Skipping delay event creation for activity_id=%s due to invalid data",
+                            _sanitize_for_log(activity_id),
+                            exc_info=True
+                        )
                         continue
     
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to persist comparison results", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to save comparison results")
+    
+    # Calculate summary statistics
+    delay_days_list = [d.get('delay_days', 0) for d in delays]
+    critical_delay_days = [d.get('delay_days', 0) for d in critical_delays]
+    positive_delays = [d for d in delays if d.get('delay_days', 0) > 0]
     
     return {
         "case_id": as_planned.case_id,
@@ -423,12 +496,12 @@ async def compare_programmes(
         "as_built_programme": as_built_id,
         "total_delays": len(delays),
         "critical_delays": len(critical_delays),
-        "delays": sorted(delays, key=lambda x: abs(x['delay_days']), reverse=True)[:50],  # Top 50
+        "delays": sorted(delays, key=lambda x: abs(x.get('delay_days', 0)), reverse=True)[:50],
         "critical_delays": critical_delays,
         "summary": {
-            "longest_delay": max([d['delay_days'] for d in delays]) if delays else 0,
-            "total_delay_days": sum([d['delay_days'] for d in critical_delays]),
-            "activities_delayed": len([d for d in delays if d['delay_days'] > 0])
+            "longest_delay": max(delay_days_list) if delay_days_list else 0,
+            "total_delay_days": sum(critical_delay_days),
+            "activities_delayed": len(positive_delays)
         }
     }
 
@@ -440,10 +513,20 @@ async def list_delays(
     current_user: str = Depends(get_current_user_email)
 ):
     """List all delay events for a case"""
-    delays = db.query(DelayEvent).filter(DelayEvent.case_id == case_id).order_by(DelayEvent.delay_days.desc()).all()
-    
-    return [
-        {
+    try:
+        delays = (
+            db.query(DelayEvent)
+              .filter(DelayEvent.case_id == case_id)
+              .order_by(DelayEvent.delay_days.desc())
+              .all()
+        )
+    except Exception as e:
+        logger.error("Database error listing delays for case_id=%s", _sanitize_for_log(case_id), exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to list delays")
+
+    result = []
+    for d in delays:
+        result.append({
             "id": d.id,
             "activity_name": d.activity_name,
             "delay_days": d.delay_days,
@@ -454,9 +537,8 @@ async def list_delays(
             "actual_finish": d.actual_finish.isoformat() if d.actual_finish else None,
             "linked_correspondence": d.linked_correspondence_ids,
             "notes": d.notes
-        }
-        for d in delays
-    ]
+        })
+    return result
 
 
 @router.patch("/api/delays/{delay_id}/link-correspondence")
@@ -467,7 +549,11 @@ async def link_correspondence_to_delay(
     current_user: str = Depends(get_current_user_email)
 ):
     """Link correspondence (evidence) to a delay event"""
-    delay = db.query(DelayEvent).filter(DelayEvent.id == delay_id).first()
+    try:
+        delay = db.query(DelayEvent).filter(DelayEvent.id == delay_id).first()
+    except Exception as e:
+        logger.error("Database error fetching delay id=%s", _sanitize_for_log(delay_id), exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch delay")
     if not delay:
         raise HTTPException(status_code=404, detail="Delay event not found")
     
@@ -476,7 +562,16 @@ async def link_correspondence_to_delay(
     new_links = list(set(current_links + evidence_ids))
     
     delay.linked_correspondence_ids = new_links
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(
+            "Failed to update linked correspondence for delay id=%s",
+            _sanitize_for_log(delay_id),
+            exc_info=True
+        )
+        raise HTTPException(status_code=500, detail="Failed to update delay links")
     
     return {
         "delay_id": delay_id,

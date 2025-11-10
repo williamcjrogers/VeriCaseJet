@@ -1,3 +1,5 @@
+Flask>=2.2,<4.0
+
 # Combined requirements from VeriCase Analysis and vericase-docs-rapid-plus-ts
 
 # FastAPI and Server

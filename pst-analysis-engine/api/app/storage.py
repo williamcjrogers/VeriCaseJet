@@ -1,12 +1,15 @@
 import boto3
 from botocore.client import Config
 from botocore.exceptions import ClientError
+from typing import Optional
 from .config import settings
 import time
+import html
 
-_s3=None
-_s3_pub=None
-
+class _S3ClientManager:
+    """Thread-safe S3 client manager"""
+    _s3 = None
+    _s3_pub = None
 
 def _normalize_endpoint(url: str | None) -> str | None:
     """Ensure endpoints include a scheme so boto3 accepts them."""
@@ -18,14 +21,12 @@ def _normalize_endpoint(url: str | None) -> str | None:
 
 
 def s3(public: bool=False):
-    global _s3, _s3_pub
-    
     # Detect AWS mode: USE_AWS_SERVICES flag or empty MINIO_ENDPOINT
     use_aws = settings.USE_AWS_SERVICES or not settings.MINIO_ENDPOINT
     
     if public and settings.MINIO_PUBLIC_ENDPOINT and not use_aws:
-        if _s3_pub is None:
-            _s3_pub = boto3.client(
+        if _S3ClientManager._s3_pub is None:
+            _S3ClientManager._s3_pub = boto3.client(
                 "s3",
                 endpoint_url=_normalize_endpoint(settings.MINIO_PUBLIC_ENDPOINT),
                 aws_access_key_id=settings.MINIO_ACCESS_KEY,
@@ -33,13 +34,13 @@ def s3(public: bool=False):
                 config=Config(signature_version="s3v4"),
                 region_name=settings.AWS_REGION,
             )
-        return _s3_pub
+        return _S3ClientManager._s3_pub
     
-    if _s3 is None:
+    if _S3ClientManager._s3 is None:
         if use_aws:
             # AWS S3 mode: use explicit credentials if provided, otherwise IRSA
             if hasattr(settings, 'AWS_ACCESS_KEY_ID') and settings.AWS_ACCESS_KEY_ID:
-                _s3 = boto3.client(
+                _S3ClientManager._s3 = boto3.client(
                     "s3",
                     aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
                     aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
@@ -48,14 +49,14 @@ def s3(public: bool=False):
                 )
             else:
                 # Use IRSA for credentials (no explicit keys)
-                _s3 = boto3.client(
+                _S3ClientManager._s3 = boto3.client(
                     "s3",
                     config=Config(signature_version="s3v4"),
                     region_name=settings.AWS_REGION,
                 )
         else:
             # MinIO mode: use explicit endpoint and credentials
-            _s3 = boto3.client(
+            _S3ClientManager._s3 = boto3.client(
                 "s3",
                 endpoint_url=_normalize_endpoint(settings.MINIO_ENDPOINT),
                 aws_access_key_id=settings.MINIO_ACCESS_KEY,
@@ -63,7 +64,7 @@ def s3(public: bool=False):
                 config=Config(signature_version="s3v4"),
                 region_name=settings.AWS_REGION,
             )
-    return _s3
+    return _S3ClientManager._s3
 def ensure_bucket():
     # Detect AWS mode: USE_AWS_SERVICES flag or empty MINIO_ENDPOINT
     use_aws = settings.USE_AWS_SERVICES or not settings.MINIO_ENDPOINT
@@ -79,9 +80,9 @@ def ensure_bucket():
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', '')
             if error_code == '404':
-                raise Exception(f"S3 bucket '{settings.MINIO_BUCKET}' does not exist. Please create it in AWS first.")
+                raise S3BucketError(f"S3 bucket '{settings.MINIO_BUCKET}' does not exist. Please create it in AWS first.")
             elif error_code == '403':
-                raise Exception(f"Access denied to S3 bucket '{settings.MINIO_BUCKET}'. Check IRSA permissions.")
+                raise S3AccessError(f"Access denied to S3 bucket '{settings.MINIO_BUCKET}'. Check IRSA permissions.")
             else:
                 raise
     else:
@@ -106,8 +107,10 @@ def ensure_cors():
     cfg={"CORSRules":[{"AllowedHeaders":["*"],"AllowedMethods":["GET","PUT","POST","HEAD"],"AllowedOrigins":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]}
     try: s3().put_bucket_cors(Bucket=settings.MINIO_BUCKET, CORSConfiguration=cfg)
     except Exception: pass
-def put_object(key: str, data: bytes, content_type: str):
-    s3().put_object(Bucket=settings.MINIO_BUCKET, Key=key, Body=data, ContentType=content_type)
+def put_object(key: str, data: bytes, content_type: str, *, bucket: Optional[str] = None):
+    target_bucket = bucket or settings.MINIO_BUCKET
+    safe_content_type = html.escape(content_type)
+    s3().put_object(Bucket=target_bucket, Key=key, Body=data, ContentType=safe_content_type)
 def get_object(key: str) -> bytes:
     obj=s3().get_object(Bucket=settings.MINIO_BUCKET, Key=key)
     return obj["Body"].read()
@@ -119,26 +122,60 @@ def download_file_streaming(bucket: str, key: str, file_obj):
     Avoids loading entire file into memory
     """
     s3().download_fileobj(bucket, key, file_obj)
-def presign_put(key: str, content_type: str, expires: int=3600) -> str:
-    url = s3(public=bool(settings.MINIO_PUBLIC_ENDPOINT)).generate_presigned_url("put_object",
-        Params={"Bucket": settings.MINIO_BUCKET, "Key": key, "ContentType": content_type},
-        ExpiresIn=expires, HttpMethod="PUT")
+def presign_put(key: str, content_type: str, expires: int=3600, bucket: Optional[str] = None) -> str:
+    target_bucket = bucket or settings.MINIO_BUCKET
+    client = s3(public=bool(settings.MINIO_PUBLIC_ENDPOINT))
+    url = client.generate_presigned_url(
+        "put_object",
+        Params={"Bucket": target_bucket, "Key": key, "ContentType": content_type},
+        ExpiresIn=expires,
+        HttpMethod="PUT",
+    )
     return url
-def presign_get(key: str, expires: int=300) -> str:
-    url = s3(public=bool(settings.MINIO_PUBLIC_ENDPOINT)).generate_presigned_url("get_object",
-        Params={"Bucket": settings.MINIO_BUCKET, "Key": key, "ResponseContentDisposition": "inline"},
-        ExpiresIn=expires, HttpMethod="GET")
+def presign_get(key: str, expires: int=300, bucket: Optional[str] = None, response_disposition: str = "inline") -> str:
+    target_bucket = bucket or settings.MINIO_BUCKET
+    client = s3(public=bool(settings.MINIO_PUBLIC_ENDPOINT))
+    url = client.generate_presigned_url(
+        "get_object",
+        Params={
+            "Bucket": target_bucket,
+            "Key": key,
+            "ResponseContentDisposition": response_disposition,
+        },
+        ExpiresIn=expires,
+        HttpMethod="GET",
+    )
     return url
-def multipart_start(key: str, content_type: str) -> str:
-    resp = s3().create_multipart_upload(Bucket=settings.MINIO_BUCKET, Key=key, ContentType=content_type)
+def multipart_start(key: str, content_type: str, bucket: Optional[str] = None) -> str:
+    target_bucket = bucket or settings.MINIO_BUCKET
+    resp = s3().create_multipart_upload(Bucket=target_bucket, Key=key, ContentType=content_type)
     return resp["UploadId"]
-def presign_part(key: str, upload_id: str, part_number: int, expires: int=3600) -> str:
-    url = s3(public=bool(settings.MINIO_PUBLIC_ENDPOINT)).generate_presigned_url("upload_part",
-        Params={"Bucket": settings.MINIO_BUCKET, "Key": key, "UploadId": upload_id, "PartNumber": part_number},
-        ExpiresIn=expires, HttpMethod="PUT")
+def presign_part(key: str, upload_id: str, part_number: int, expires: int=3600, bucket: Optional[str] = None) -> str:
+    target_bucket = bucket or settings.MINIO_BUCKET
+    client = s3(public=bool(settings.MINIO_PUBLIC_ENDPOINT))
+    url = client.generate_presigned_url(
+        "upload_part",
+        Params={"Bucket": target_bucket, "Key": key, "UploadId": upload_id, "PartNumber": part_number},
+        ExpiresIn=expires,
+        HttpMethod="PUT",
+    )
     return url
-def multipart_complete(key: str, upload_id: str, parts: list):
-    return s3().complete_multipart_upload(Bucket=settings.MINIO_BUCKET, Key=key, UploadId=upload_id, MultipartUpload={"Parts": parts})
+def multipart_complete(key: str, upload_id: str, parts: list, bucket: Optional[str] = None):
+    target_bucket = bucket or settings.MINIO_BUCKET
+    return s3().complete_multipart_upload(
+        Bucket=target_bucket,
+        Key=key,
+        UploadId=upload_id,
+        MultipartUpload={"Parts": parts},
+    )
+
+class S3BucketError(Exception):
+    """S3 bucket does not exist"""
+    pass
+
+class S3AccessError(Exception):
+    """S3 access denied"""
+    pass
 
 def delete_object(key: str):
     client = s3()
@@ -147,4 +184,6 @@ def delete_object(key: str):
     except ClientError as exc:
         code = exc.response.get("Error", {}).get("Code")
         if code not in {"NoSuchKey", "404"}:
+            import logging
+            logging.error("Failed to delete S3 object: %s", key)
             raise

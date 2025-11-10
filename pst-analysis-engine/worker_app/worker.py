@@ -57,10 +57,22 @@ def _update_status(doc_id: str, status: str, excerpt: str|None=None):
         else:
             conn.execute(text("UPDATE documents SET status=:s WHERE id::text=:i"), {"s":status,"i":doc_id})
 def _fetch_doc(doc_id: str):
+    import json
     with engine.begin() as conn:
         row = conn.execute(text("SELECT id::text, filename, content_type, bucket, s3_key, path, created_at, metadata, owner_user_id FROM documents WHERE id::text=:i"),
                            {"i": doc_id}).mappings().first()
-        return dict(row) if row else None
+        if not row:
+            return None
+        doc = dict(row)
+        # Ensure metadata is a dict (handle both JSONB and JSON string from database)
+        if doc.get("metadata") and isinstance(doc["metadata"], str):
+            try:
+                doc["metadata"] = json.loads(doc["metadata"])
+            except (json.JSONDecodeError, TypeError):
+                doc["metadata"] = {}
+        elif not doc.get("metadata"):
+            doc["metadata"] = {}
+        return doc
 def _index_document(doc_id: str, filename: str, created_at, content_type: str, metadata: dict, text: str, path: str|None, owner_user_id: str|None):
     body = {"id": doc_id, "filename": filename, "title": None, "path": path, "owner": owner_user_id,
             "content_type": content_type, "uploaded_at": created_at, "metadata": metadata or {}, "text": text}

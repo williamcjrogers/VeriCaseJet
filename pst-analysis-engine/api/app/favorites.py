@@ -1,8 +1,10 @@
 """
 Favorites API endpoints for starring/bookmarking documents
 """
+# cspell:ignore joinedload favorited unfavorited
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import select
 from .security import get_db, current_user
 from .models import User, Document, Favorite
 from typing import List
@@ -90,26 +92,27 @@ def list_favorites(
     user: User = Depends(current_user)
 ):
     """Get all favorited documents for current user"""
-    favorites = db.query(Favorite).options(
-        joinedload(Favorite.document)
-    ).filter(
-        Favorite.user_id == user.id
-    ).order_by(
-        Favorite.created_at.desc()
-    ).all()
+    stmt = (
+        select(Favorite)
+        .options(joinedload(Favorite.document))
+        .where(Favorite.user_id == user.id)
+        .order_by(Favorite.created_at.desc())
+    )
+    favorites = db.execute(stmt).scalars().all()
     
-    items = []
-    for fav in favorites:
-        if fav.document:
-            items.append(FavoriteResponse(
-                id=str(fav.id),
-                document_id=str(fav.document.id),
-                filename=fav.document.filename,
-                path=fav.document.path,
-                size=fav.document.size or 0,
-                content_type=fav.document.content_type,
-                created_at=fav.created_at
-            ))
+    items = [
+        FavoriteResponse(
+            id=str(fav.id),
+            document_id=str(fav.document.id),
+            filename=fav.document.filename,
+            path=fav.document.path,
+            size=fav.document.size or 0,
+            content_type=fav.document.content_type,
+            created_at=fav.created_at
+        )
+        for fav in favorites
+        if fav.document
+    ]
     
     return FavoriteListResponse(total=len(items), items=items)
 

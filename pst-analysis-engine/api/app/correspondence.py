@@ -8,7 +8,7 @@ import asyncio
 import os
 import logging
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -19,9 +19,9 @@ from .security import get_db, current_user
 from .models import (
     Case, PSTFile, EmailMessage, EmailAttachment,
     Stakeholder, Keyword, Project, User,
-    Company, UserCompany, Document, DocStatus
+    Company, UserCompany, Document, DocStatus, UserRole
 )
-from .storage import presign_put, s3, settings
+from .storage import presign_put, presign_get, s3, settings
 from .tasks import celery_app
 
 logger = logging.getLogger(__name__)
@@ -76,6 +76,7 @@ class EmailMessageSummary(BaseModel):
     matched_stakeholders: Optional[List[str]]
     matched_keywords: Optional[List[str]]
     importance: Optional[str]
+    meta: Optional[Dict[str, Any]] = None  # Include attachments and other metadata
 
 
 class EmailMessageDetail(BaseModel):
@@ -120,16 +121,26 @@ async def init_pst_upload(
     Initialize PST file upload
     Returns presigned S3 URL for direct browser upload
     """
-    
-    # Verify case exists and user has access
-    case = db.query(Case).filter_by(id=request.case_id).first()
-    if not case:
-        raise HTTPException(404, "Case not found")
-    
+
+    # Verify case or project exists and user has access
+    if not request.case_id and not request.project_id:
+        raise HTTPException(400, "Either case_id or project_id must be provided")
+
+    if request.case_id:
+        case = db.query(Case).filter_by(id=request.case_id).first()
+        if not case:
+            raise HTTPException(404, "Case not found")
+        entity_prefix = f"case_{request.case_id}"
+    else:
+        project = db.query(Project).filter_by(id=request.project_id).first()
+        if not project:
+            raise HTTPException(404, "Project not found")
+        entity_prefix = f"project_{request.project_id}"
+
     # Generate PST file record
     pst_file_id = str(uuid.uuid4())
     s3_bucket = settings.S3_PST_BUCKET or settings.S3_BUCKET
-    s3_key = f"case_{request.case_id}/pst/{pst_file_id}/{request.filename}"
+    s3_key = f"{entity_prefix}/pst/{pst_file_id}/{request.filename}"
     
     # Create PST file record
     pst_file = PSTFile(
@@ -148,7 +159,12 @@ async def init_pst_upload(
     db.commit()
     
     # Generate presigned upload URL (valid for 4 hours for large files)
-    upload_url = presign_put(s3_bucket, s3_key, expires_in=14400)
+    upload_url = presign_put(
+        s3_key,
+        "application/vnd.ms-outlook",
+        expires=14400,
+        bucket=s3_bucket
+    )
     
     logger.info(f"Initiated PST upload: {pst_file_id} for case {request.case_id}")
     
@@ -228,7 +244,7 @@ async def get_pst_status(
             
             # Calculate progress based on chunks
             if total_chunks > 0:
-                progress = ((completed_chunks + failed_chunks) / total_chunks) * 100.0
+                progress = (float(completed_chunks + failed_chunks) / float(total_chunks)) * 100.0
             else:
                 progress = 0.0
                 
@@ -245,7 +261,7 @@ async def get_pst_status(
                 status=redis_data.get('status', pst_file.processing_status),
                 total_emails=pst_file.total_emails or 0,
                 processed_emails=processed_emails,
-                progress_percent=round(progress, 1),
+                progress_percent=round(float(progress), 1),
                 error_message=pst_file.error_message
             )
     except Exception as e:
@@ -253,15 +269,17 @@ async def get_pst_status(
     
     # Fall back to database progress
     progress = 0.0
-    if pst_file.total_emails > 0:
-        progress = (pst_file.processed_emails / pst_file.total_emails) * 100.0
+    total_emails = pst_file.total_emails or 0
+    processed_emails = pst_file.processed_emails or 0
+    if total_emails > 0:
+        progress = (float(processed_emails) / float(total_emails)) * 100.0
     
     return PSTProcessingStatus(
         pst_file_id=str(pst_file.id),
         status=pst_file.processing_status,
-        total_emails=pst_file.total_emails or 0,
-        processed_emails=pst_file.processed_emails or 0,
-        progress_percent=round(progress, 1),
+        total_emails=total_emails,
+        processed_emails=processed_emails,
+        progress_percent=round(float(progress), 1),
         error_message=pst_file.error_message
     )
 
@@ -272,7 +290,8 @@ async def get_pst_status(
 
 @router.get("/emails", response_model=EmailListResponse)
 async def list_emails(
-    case_id: str = Query(..., description="Case ID"),
+    case_id: Optional[str] = Query(None, description="Case ID"),
+    project_id: Optional[str] = Query(None, description="Project ID"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     search: Optional[str] = Query(None, description="Search in subject and body"),
@@ -285,16 +304,32 @@ async def list_emails(
     db: Session = Depends(get_db)
 ):
     """
-    List emails for a case with filtering and pagination
+    List emails for a case or project with filtering and pagination
     """
+
+    # Verify case or project exists
+    # Check if user is admin
+    from .models import UserRole
+    is_admin = user.role == UserRole.ADMIN
     
-    # Verify case exists
-    case = db.query(Case).filter_by(id=case_id).first()
-    if not case:
-        raise HTTPException(404, "Case not found")
-    
-    # Build query
-    query = db.query(EmailMessage).filter_by(case_id=case_id)
+    # Admin can view all emails without case/project filter
+    if not case_id and not project_id:
+        if not is_admin:
+            raise HTTPException(400, "Either case_id or project_id must be provided")
+        # Admin viewing all emails
+        query = db.query(EmailMessage)
+    elif case_id:
+        case = db.query(Case).filter_by(id=case_id).first()
+        if not case:
+            raise HTTPException(404, "Case not found")
+        # Build query
+        query = db.query(EmailMessage).filter_by(case_id=case_id)
+    else:
+        project = db.query(Project).filter_by(id=project_id).first()
+        if not project:
+            raise HTTPException(404, "Project not found")
+        # Build query
+        query = db.query(EmailMessage).filter_by(project_id=project_id)
     
     # Apply filters
     if search:
@@ -334,21 +369,42 @@ async def list_emails(
     offset = (page - 1) * page_size
     emails = query.order_by(EmailMessage.date_sent.desc()).offset(offset).limit(page_size).all()
     
-    # Convert to summaries
-    email_summaries = [
-        EmailMessageSummary(
+    # Convert to summaries with attachment info
+    email_summaries = []
+    for e in emails:
+        # Get attachments for this email
+        attachments = db.query(EmailAttachment).filter_by(email_message_id=e.id).all()
+        
+        # Build attachment list
+        attachment_list = [
+            {
+                'id': str(att.id),
+                'filename': att.filename,
+                'name': att.filename,
+                'content_type': att.content_type,
+                'file_size': att.file_size,
+                'size': att.file_size,
+                'is_inline': False
+            }
+            for att in attachments
+        ]
+        
+        # Update email meta with attachments
+        email_meta = e.meta.copy() if e.meta else {}
+        email_meta['attachments'] = attachment_list
+        
+        email_summaries.append(EmailMessageSummary(
             id=str(e.id),
             subject=e.subject,
             sender_email=e.sender_email,
             sender_name=e.sender_name,
             date_sent=e.date_sent,
-            has_attachments=e.has_attachments,
+            has_attachments=e.has_attachments or len(attachments) > 0,
             matched_stakeholders=e.matched_stakeholders,
             matched_keywords=e.matched_keywords,
-            importance=e.importance
-        )
-        for e in emails
-    ]
+            importance=e.importance,
+            meta=email_meta
+        ))
     
     return EmailListResponse(
         total=total,
@@ -377,8 +433,12 @@ async def get_email_detail(
     attachment_list = []
     for att in attachments:
         try:
-            from .storage import presign_get
-            download_url = presign_get(att.s3_bucket, att.s3_key, expires_in=3600)
+            download_url = presign_get(
+                att.s3_key,
+                expires=3600,
+                bucket=att.s3_bucket,
+                response_disposition=f'attachment; filename="{att.filename}"' if att.filename else "attachment"
+            )
             attachment_list.append({
                 'id': str(att.id),
                 'filename': att.filename,
@@ -424,13 +484,21 @@ async def get_email_thread(
     
     # Build thread by finding all related emails
     thread_emails = []
-    
+
+    # Determine entity filter (case_id or project_id)
+    if email.case_id:
+        entity_filter = EmailMessage.case_id == email.case_id
+    elif email.project_id:
+        entity_filter = EmailMessage.project_id == email.project_id
+    else:
+        raise HTTPException(400, "Email has no case_id or project_id")
+
     # Find by message-id threading
     if email.message_id:
         # Find all emails with same conversation
         thread_emails = db.query(EmailMessage).filter(
             and_(
-                EmailMessage.case_id == email.case_id,
+                entity_filter,
                 or_(
                     EmailMessage.message_id == email.message_id,
                     EmailMessage.in_reply_to == email.message_id,
@@ -438,12 +506,12 @@ async def get_email_thread(
                 )
             )
         ).order_by(EmailMessage.date_sent).all()
-    
+
     # Fall back to conversation index
     if not thread_emails and email.conversation_index:
         thread_emails = db.query(EmailMessage).filter(
             and_(
-                EmailMessage.case_id == email.case_id,
+                entity_filter,
                 EmailMessage.conversation_index == email.conversation_index
             )
         ).order_by(EmailMessage.date_sent).all()
@@ -866,6 +934,47 @@ async def create_case(
     }
 
 
+def _get_entity_ids(profile_uuid: uuid.UUID, profile_type: str, db: Session) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    """Get case_id, project_id, and company_id for the given entity"""
+    if profile_type == "case":
+        case = db.query(Case).filter(Case.id == profile_uuid).first()
+        if not case:
+            raise HTTPException(status_code=404, detail="Case not found")
+        return str(case.id), None, str(case.company_id) if case.company_id else None
+    else:
+        project = db.query(Project).filter(Project.id == profile_uuid).first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        return None, str(project.id), str(project.owner_user_id) if getattr(project, "owner_user_id", None) else None
+
+async def _upload_file_to_storage(file: UploadFile, s3_key: str, content_type: str) -> int:
+    """Upload file to S3/MinIO and return file size"""
+    file.file.seek(0, os.SEEK_END)
+    size = file.file.tell()
+    file.file.seek(0)
+    
+    await asyncio.to_thread(
+        s3().upload_fileobj,
+        file.file,
+        settings.MINIO_BUCKET,
+        s3_key,
+        ExtraArgs={"ContentType": content_type}
+    )
+    return size
+
+def _queue_processing_task(filename: str, document_id: str, case_id: Optional[str], company_id: Optional[str]) -> str:
+    """Queue appropriate processing task and return status"""
+    if filename.lower().endswith(".pst"):
+        task_case_id = case_id if case_id else "00000000-0000-0000-0000-000000000000"
+        celery_app.send_task(
+            "worker_app.worker.process_pst_file",
+            args=[document_id, task_case_id, company_id or ""]
+        )
+        return "PROCESSING_PST"
+    else:
+        celery_app.send_task("worker_app.worker.ocr_and_index", args=[document_id])
+        return "QUEUED"
+
 @wizard_router.post("/evidence/upload")
 async def upload_evidence(
     profileId: str = Form(...),
@@ -889,44 +998,16 @@ async def upload_evidence(
     if not file or not file.filename:
         raise HTTPException(status_code=400, detail="Missing file")
 
-    case_id = None
-    project_id = None
-    company_id = None
-
-    if profileType == "case":
-        case = db.query(Case).filter(Case.id == profile_uuid).first()
-        if not case:
-            raise HTTPException(status_code=404, detail="Case not found")
-        case_id = str(case.id)
-        company_id = str(case.company_id) if case.company_id else None
-        project_id = None
-    else:
-        project = db.query(Project).filter(Project.id == profile_uuid).first()
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found")
-        project_id = str(project.id)
-        company_id = str(project.owner_user_id) if getattr(project, "owner_user_id", None) else None
-        if file.filename.lower().endswith(".pst"):
-            raise HTTPException(status_code=400, detail="PST ingestion requires a case. Please create a case first.")
+    # Get entity IDs
+    case_id, project_id, company_id = _get_entity_ids(profile_uuid, profileType, db)
 
     # Prepare S3 key
     safe_name = file.filename.replace(" ", "_")
     s3_key = f"uploads/{profileType}/{profileId}/{uuid.uuid4()}_{safe_name}"
     content_type = file.content_type or "application/octet-stream"
 
-    # Determine file size
-    file.file.seek(0, os.SEEK_END)
-    size = file.file.tell()
-    file.file.seek(0)
-
-    # Upload to storage in a thread to avoid blocking event loop
-    await asyncio.to_thread(
-        s3().upload_fileobj,
-        file.file,
-        settings.MINIO_BUCKET,
-        s3_key,
-        ExtraArgs={"ContentType": content_type}
-    )
+    # Upload file
+    size = await _upload_file_to_storage(file, s3_key, content_type)
 
     # Record document metadata
     document = Document(
@@ -949,17 +1030,7 @@ async def upload_evidence(
     db.refresh(document)
 
     # Queue processing
-    if file.filename.lower().endswith(".pst"):
-        # For projects, pass a placeholder case_id that worker will recognize
-        task_case_id = case_id if case_id else "00000000-0000-0000-0000-000000000000"
-        celery_app.send_task(
-            "worker_app.worker.process_pst_file",
-            args=[str(document.id), task_case_id, company_id or ""]
-        )
-        processing_state = "PROCESSING_PST"
-    else:
-        celery_app.send_task("worker_app.worker.ocr_and_index", args=[str(document.id)])
-        processing_state = "QUEUED"
+    processing_state = _queue_processing_task(file.filename, str(document.id), case_id, company_id)
 
     return {
         "id": str(document.id),
@@ -984,32 +1055,109 @@ async def get_unified_evidence(
     # Try to find as case first
     case = db.query(Case).filter(Case.id == entity_id).first()
     if case:
+        # ADD OWNERSHIP CHECK FOR CASES
+        if case.owner_id != user.id:
+            # Also check if user is part of the case's company if applicable
+            user_company = db.query(UserCompany).filter(
+                UserCompany.user_id == user.id, 
+                UserCompany.company_id == case.company_id
+            ).first()
+            if not user_company and user.role != UserRole.ADMIN:
+                 raise HTTPException(status_code=403, detail="Not authorized to access this case")
+
         # Use existing case evidence logic
         emails = db.query(EmailMessage).filter(
             EmailMessage.case_id == entity_id
-        ).order_by(EmailMessage.sent_date.desc()).all()
+        ).order_by(EmailMessage.date_sent.desc()).all()
     else:
         # Try as project
         project = db.query(Project).filter(Project.id == entity_id).first()
         if not project:
             raise HTTPException(status_code=404, detail="Entity not found")
-        
+
+        # ADD OWNERSHIP CHECK FOR PROJECTS
+        if project.owner_user_id != user.id and user.role != UserRole.ADMIN:
+            raise HTTPException(status_code=403, detail="Not authorized to access this project")
+
         # Get emails associated with project
         emails = db.query(EmailMessage).filter(
             EmailMessage.project_id == entity_id
-        ).order_by(EmailMessage.sent_date.desc()).all()
+        ).order_by(EmailMessage.date_sent.desc()).all()
+
+    def _format_recipients(recipients: Optional[List[Dict]]) -> str:
+        if not recipients:
+            return ""
+        formatted: List[str] = []
+        for recipient in recipients:
+            if isinstance(recipient, dict):
+                email_addr = recipient.get('email') or recipient.get('address') or ""
+                name = recipient.get('name') or recipient.get('display_name') or ""
+                if email_addr and name:
+                    formatted.append(f"{name} <{email_addr}>")
+                elif email_addr:
+                    formatted.append(email_addr)
+                elif name:
+                    formatted.append(name)
+            else:
+                formatted.append(str(recipient))
+        return ", ".join([item for item in formatted if item])
+
+    # Get attachments for all emails
+    email_ids = [email.id for email in emails]
+    attachments_by_email = {}
+    
+    if email_ids:
+        # Query all attachments for these emails
+        attachments = db.query(EmailAttachment).filter(
+            EmailAttachment.email_message_id.in_(email_ids)
+        ).all()
+        
+        # Group by email_message_id
+        for att in attachments:
+            if att.email_message_id not in attachments_by_email:
+                attachments_by_email[att.email_message_id] = []
+            attachments_by_email[att.email_message_id].append({
+                "id": str(att.id),
+                "filename": att.filename,
+                "size": att.file_size,
+                "content_type": att.content_type,
+                "s3_bucket": att.s3_bucket,
+                "s3_key": att.s3_key
+            })
     
     return [
         {
             "id": str(email.id),
-            "subject": email.subject,
-            "sender": email.sender,
-            "recipients": email.recipients,
-            "sent_date": email.sent_date.isoformat() if email.sent_date else None,
-            "body": email.body,
+            # Map to expected field names for correspondence view
+            "email_subject": email.subject or "",
+            "email_from": email.sender_email or email.sender_name or "Unknown",
+            "email_to": _format_recipients(email.recipients_to),
+            "email_cc": _format_recipients(email.recipients_cc),
+            "email_date": email.date_sent.isoformat() if email.date_sent else None,
+            # Include full content
+            "content": email.body_html or email.body_text or "",
+            "body": email.body_text or "",
+            "meta": {
+                "content": email.body_html or email.body_text or "",
+                "content_type": "html" if email.body_html else "text",
+                "importance": email.importance,
+                "has_attachments": bool(attachments_by_email.get(email.id, [])),
+                "attachments": attachments_by_email.get(email.id, [])
+            },
+            # Additional fields for compatibility
+            "sender_name": email.sender_name,
+            "recipients_to": email.recipients_to,
+            "recipients_cc": email.recipients_cc,
+            "date_sent": email.date_sent.isoformat() if email.date_sent else None,
+            "body_text": email.body_text,
+            "body_html": email.body_html,
             "importance": email.importance,
-            "has_attachments": bool(email.attachments),
-            "pst_file_id": str(email.pst_file_id) if email.pst_file_id else None
+            "has_attachments": bool(attachments_by_email.get(email.id, [])),
+            "attachments": attachments_by_email.get(email.id, []),
+            "pst_file_id": str(email.pst_file_id) if email.pst_file_id else None,
+            "matched_stakeholders": email.matched_stakeholders,
+            "matched_keywords": email.matched_keywords,
+            "thread_id": getattr(email, "thread_id", None)
         }
         for email in emails
     ]
@@ -1025,6 +1173,15 @@ async def get_unified_entity(
     # Try to find as case first
     case = db.query(Case).filter(Case.id == entity_id).first()
     if case:
+        # ADD OWNERSHIP CHECK FOR CASES
+        if case.owner_id != user.id:
+            user_company = db.query(UserCompany).filter(
+                UserCompany.user_id == user.id, 
+                UserCompany.company_id == case.company_id
+            ).first()
+            if not user_company and user.role != UserRole.ADMIN:
+                 raise HTTPException(status_code=403, detail="Not authorized to access this case")
+        
         return {
             "id": str(case.id),
             "type": "case",
@@ -1037,6 +1194,10 @@ async def get_unified_entity(
     # Try as project
     project = db.query(Project).filter(Project.id == entity_id).first()
     if project:
+        # ADD OWNERSHIP CHECK FOR PROJECTS
+        if project.owner_user_id != user.id and user.role != UserRole.ADMIN:
+            raise HTTPException(status_code=403, detail="Not authorized to access this project")
+
         return {
             "id": str(project.id),
             "type": "project",

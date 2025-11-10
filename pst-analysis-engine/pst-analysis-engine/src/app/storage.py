@@ -9,12 +9,13 @@ from functools import wraps
 logger = logging.getLogger(__name__)
 
 # Global S3 client cache (singleton pattern for connection pooling)
-# These are intentionally global to avoid recreating clients on every request
+# These are intentionally global to avoid recreating clients on every request.
+# Thread-safe: boto3 clients are thread-safe after initialization.
 _s3 = None
 _s3_pub = None
 
 def retry_on_connection_error(max_retries=3, delay=1):
-    """Decorator to retry S3 operations on connection errors"""
+    """Decorator to retry S3 operations on connection errors with exponential backoff"""
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -22,15 +23,17 @@ def retry_on_connection_error(max_retries=3, delay=1):
             for attempt in range(max_retries):
                 try:
                     return func(*args, **kwargs)
-                except (ClientError, BotoCoreError, ConnectionError) as e:
+                except (ClientError, BotoCoreError, ConnectionError, TimeoutError) as e:
                     last_error = e
                     if attempt < max_retries - 1:
-                        wait_time = delay * (2 ** attempt)  # Exponential backoff
+                        wait_time = delay * (2 ** attempt)
                         logger.warning(f"S3 operation failed (attempt {attempt + 1}/{max_retries}), retrying in {wait_time}s: {e}")
                         time.sleep(wait_time)
                     else:
-                        logger.error(f"S3 operation failed after {max_retries} attempts: {e}")
-            raise last_error
+                        logger.error(f"S3 operation failed after {max_retries} attempts: {e}", exc_info=True)
+            if last_error:
+                raise last_error
+            raise RuntimeError("Retry logic failed without capturing error")
         return wrapper
     return decorator
 
@@ -96,12 +99,12 @@ def s3(public: bool=False):
                     region_name=settings.AWS_REGION,
                 )
         return _s3
-    except Exception as e:
-        logger.error(f"Failed to initialize S3 client: {e}")
-        raise
+    except (ClientError, BotoCoreError, ValueError, TypeError) as e:
+        logger.error(f"Failed to initialize S3 client: {e}", exc_info=True)
+        raise RuntimeError(f"S3 client initialization failed: {e}") from e
 
 def ensure_bucket():
-    # Detect AWS mode: USE_AWS_SERVICES flag or empty MINIO_ENDPOINT
+    """Ensure S3 bucket exists and is accessible with proper configuration"""
     use_aws = settings.USE_AWS_SERVICES or not settings.MINIO_ENDPOINT
     
     if use_aws:
@@ -136,11 +139,13 @@ def ensure_bucket():
                 client.put_bucket_versioning(Bucket=settings.MINIO_BUCKET, VersioningConfiguration={"Status":"Enabled"})
                 ensure_cors()
                 return
-            except Exception as e:
+            except (ClientError, BotoCoreError, ConnectionError, TimeoutError) as e:
                 last_err = e
+                logger.debug(f"MinIO connection attempt failed: {e}")
                 time.sleep(2)
         if last_err:
-            raise last_err
+            logger.error(f"Failed to initialize MinIO bucket after 60s: {last_err}", exc_info=True)
+            raise RuntimeError(f"MinIO bucket initialization failed: {last_err}") from last_err
 
 def ensure_cors():
     """Configure CORS for the S3 bucket"""
@@ -157,7 +162,7 @@ def ensure_cors():
     }
     try:
         s3().put_bucket_cors(Bucket=settings.MINIO_BUCKET, CORSConfiguration=cors_config)
-    except Exception as e:
+    except (ClientError, BotoCoreError) as e:
         logger.warning(f"Failed to configure CORS: {e}")
 
 def put_object(key: str, data: bytes, content_type: str):
@@ -165,8 +170,8 @@ def put_object(key: str, data: bytes, content_type: str):
     try:
         s3().put_object(Bucket=settings.MINIO_BUCKET, Key=key, Body=data, ContentType=content_type)
         logger.debug(f"Successfully uploaded object: {key}")
-    except Exception as e:
-        logger.error(f"Failed to upload object {key}: {e}")
+    except (ClientError, BotoCoreError, ConnectionError) as e:
+        logger.error(f"Failed to upload object {key}: {e}", exc_info=True)
         raise
         
 def get_object(key: str) -> bytes:
@@ -178,10 +183,10 @@ def get_object(key: str) -> bytes:
         if e.response.get('Error', {}).get('Code') == 'NoSuchKey':
             logger.warning(f"Object not found: {key}")
         else:
-            logger.error(f"Failed to get object {key}: {e}")
+            logger.error(f"Failed to get object {key}: {e}", exc_info=True)
         raise
-    except Exception as e:
-        logger.error(f"Failed to get object {key}: {e}")
+    except (BotoCoreError, ConnectionError, IOError) as e:
+        logger.error(f"Failed to get object {key}: {e}", exc_info=True)
         raise
 
 def presign_put(key: str, content_type: str, expires: int=3600) -> str:
@@ -218,8 +223,8 @@ def multipart_start(key: str, content_type: str) -> str:
         resp = s3().create_multipart_upload(Bucket=settings.MINIO_BUCKET, Key=key, ContentType=content_type)
         logger.debug(f"Started multipart upload for {key}: {resp['UploadId']}")
         return resp["UploadId"]
-    except Exception as e:
-        logger.error(f"Failed to start multipart upload for {key}: {e}")
+    except (ClientError, BotoCoreError, ConnectionError) as e:
+        logger.error(f"Failed to start multipart upload for {key}: {e}", exc_info=True)
         raise
 def presign_part(key: str, upload_id: str, part_number: int, expires: int=3600) -> str:
     """Generate a presigned URL for uploading a part in a multipart upload"""
@@ -247,8 +252,8 @@ def multipart_complete(key: str, upload_id: str, parts: list):
         )
         logger.debug(f"Completed multipart upload for {key}")
         return result
-    except Exception as e:
-        logger.error(f"Failed to complete multipart upload for {key}: {e}")
+    except (ClientError, BotoCoreError, ConnectionError) as e:
+        logger.error(f"Failed to complete multipart upload for {key}: {e}", exc_info=True)
         raise
 
 def delete_object(key: str):

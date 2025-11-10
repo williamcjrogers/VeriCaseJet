@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, DateTime, Text, JSON, Enum, Integer, ForeignKey, Boolean
+from sqlalchemy import Column, String, DateTime, Text, JSON, Enum, Integer, ForeignKey, Boolean, Index
 from sqlalchemy.sql import func, expression
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -233,9 +233,9 @@ class Evidence(Base):
     email_thread_topic = Column(String(500), nullable=True)
     email_conversation_index = Column(String(500), nullable=True)
     thread_id = Column(String(100), nullable=True, index=True)  # Computed thread ID
-    content = Column(Text, nullable=True)  # Email body stored directly
+    content = Column(Text, nullable=True)  # Email body with inline images preserved
     content_type = Column(String(50), nullable=True)  # html or text
-    attachments = Column(JSON, nullable=True)  # Array of attachment info
+    has_attachments = Column(Boolean, default=False)  # Quick flag for UI
     relevance_score = Column(Integer, nullable=True)
     notes = Column(Text)
     meta = Column("metadata", JSON, nullable=True)
@@ -354,6 +354,10 @@ class SearchQuery(Base):
 class Programme(Base):
     """Construction programme/schedule (Asta Powerproject or PDF)"""
     __tablename__ = "programmes"
+    __table_args__ = (
+        Index("idx_programmes_case_id", "case_id"),
+        Index("idx_programmes_document_id", "document_id"),
+    )
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
@@ -388,7 +392,7 @@ class DelayEvent(Base):
     actual_finish = Column(DateTime(timezone=True))
     delay_days = Column(Integer)
     delay_type = Column(String(50))  # critical, non_critical, concurrent
-    is_on_critical_path = Column(Boolean, default=False)
+    is_on_critical_path = Column(Boolean, nullable=False, server_default=expression.false())
     delay_cause = Column(String(100))  # employer, contractor, neutral, concurrent
     description = Column(Text)
     linked_correspondence_ids = Column(JSON)  # Document IDs of related emails
@@ -398,13 +402,6 @@ class DelayEvent(Base):
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     case = relationship("Case")
     issue = relationship("Issue")
-    
-    def __init__(self, **kwargs):
-        try:
-            super().__init__(**kwargs)
-        except (ValueError, TypeError) as e:
-            # Handle invalid data types or values during initialization
-            raise ValueError(f"Invalid DelayEvent data: {e}")
 
 
 class Project(Base):
@@ -422,4 +419,25 @@ class Project(Base):
     case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    case = relationship("Case")
+
+class Attachment(Base):
+    """Email attachments stored separately for preview (excludes signature files)"""
+    __tablename__ = "attachments"
+    __table_args__ = (
+        Index("idx_attachments_evidence_id", "evidence_id"),
+        Index("idx_attachments_case_id", "case_id"),
+    )
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    evidence_id = Column(UUID(as_uuid=True), ForeignKey("evidence.id"), nullable=False)
+    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
+    filename = Column(String(512), nullable=False)
+    content_type = Column(String(128), nullable=True)
+    size = Column(Integer, nullable=True)
+    s3_key = Column(String(2048), nullable=False)
+    is_inline = Column(Boolean, default=False)  # True for inline images
+    content_id = Column(String(255), nullable=True)  # For inline attachments
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    evidence = relationship("Evidence", backref="attachment_files")
     case = relationship("Case")

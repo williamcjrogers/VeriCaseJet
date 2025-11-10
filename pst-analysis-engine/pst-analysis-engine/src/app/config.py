@@ -1,7 +1,11 @@
 from pydantic_settings import BaseSettings  # type: ignore
-from pydantic import field_validator, ValidationError
+from pydantic import Field, field_validator, model_validator, ValidationError
 import os
 import logging
+
+from .logging_utils import install_log_sanitizer
+
+install_log_sanitizer()
 
 logger = logging.getLogger(__name__)
 
@@ -10,42 +14,83 @@ class Settings(BaseSettings):
     USE_AWS_SERVICES: bool = False
     
     # S3/MinIO settings
-    # Note: S3_* fields are aliases for MINIO_* fields for backward compatibility
-    # Default values are for development only - override in production via environment variables
     MINIO_ENDPOINT: str = "http://minio:9000"
     MINIO_PUBLIC_ENDPOINT: str = ""
-    MINIO_ACCESS_KEY: str = "admin"  # Override in production
-    MINIO_SECRET_KEY: str = "changeme"  # Override in production
+    MINIO_ACCESS_KEY: str | None = Field(default=None, description="MinIO access key from environment")
+    MINIO_SECRET_KEY: str | None = Field(default=None, description="MinIO secret key from environment")
     MINIO_BUCKET: str = "vericase-docs"
     
-    # S3 aliases (for backward compatibility)
-    # Default values are for development only - override in production via environment variables
     S3_BUCKET: str = "vericase-docs"
     S3_ENDPOINT: str = "http://minio:9000"
-    S3_ACCESS_KEY: str = "admin"  # Override in production
-    S3_SECRET_KEY: str = "changeme"  # Override in production
+    S3_ACCESS_KEY: str | None = Field(default=None, description="S3 access key from environment")
+    S3_SECRET_KEY: str | None = Field(default=None, description="S3 secret key from environment")
+    S3_ATTACHMENTS_BUCKET: str | None = None
     AWS_REGION: str = "us-east-1"
     
-    # Database - Railway provides postgresql://, we need postgresql+psycopg2://
-    # Default value is for development only - override in production via environment variables
-    DATABASE_URL: str = "postgresql+psycopg2://vericase:vericase@postgres:5432/vericase"
+    AWS_ACCESS_KEY_ID: str = Field(default="")
+    AWS_SECRET_ACCESS_KEY: str = Field(default="")
+    AWS_DEFAULT_REGION: str = "us-east-1"
+    
+    DATABASE_URL: str = Field(..., min_length=1)
     
     @field_validator('DATABASE_URL')
     @classmethod
     def convert_postgres_url(cls, v: str) -> str:
         """Convert postgresql:// to postgresql+psycopg2:// for SQLAlchemy"""
-        try:
-            if not v or not v.strip():
-                raise ValueError("DATABASE_URL cannot be empty")
-            if v.startswith('postgresql://'):
-                return v.replace('postgresql://', 'postgresql+psycopg2://', 1)
+        if not v or not isinstance(v, str) or not v.strip():
+            raise ValueError("DATABASE_URL cannot be empty")
+        if v.startswith('postgresql://'):
+            return v.replace('postgresql://', 'postgresql+psycopg2://', 1)
+        return v
+    
+    @field_validator('MINIO_ACCESS_KEY', 'MINIO_SECRET_KEY', 'S3_ACCESS_KEY', 'S3_SECRET_KEY', 'DATABASE_URL')
+    @classmethod
+    def validate_secrets_not_default(cls, v: str | None, info):
+        """Prevent use of default/weak credentials in production"""
+        if v is None:
             return v
-        except (AttributeError, TypeError) as e:
-            logger.error(f"Error validating DATABASE_URL: {e}")
-            raise ValueError(f"Invalid DATABASE_URL format: {e}") from e
-        except Exception as e:
-            logger.error(f"Unexpected error validating DATABASE_URL: {e}")
-            raise
+        
+        try:
+            env = os.getenv("ENV", "development").lower()
+        except (AttributeError, TypeError):
+            env = "development"
+        
+        if env == "production":
+            # Check for common default credentials
+            if info.field_name in {"MINIO_ACCESS_KEY", "S3_ACCESS_KEY"} and v == "admin":
+                raise ValueError(f"{info.field_name} must not use default 'admin' in production")
+            if info.field_name in {"MINIO_SECRET_KEY", "S3_SECRET_KEY"} and v == "changeme":
+                raise ValueError(f"{info.field_name} must not use default 'changeme' in production")
+            if info.field_name == "DATABASE_URL" and "vericase:vericase@" in (v or ""):
+                raise ValueError("DATABASE_URL uses default credentials in production")
+        return v
+    
+    @model_validator(mode="after")
+    def ensure_required_credentials(self) -> "Settings":
+        """Ensure storage and database secrets are provided via environment variables."""
+        if not self.DATABASE_URL:
+            raise ValueError("DATABASE_URL must be set via environment variables")
+        
+        try:
+            use_aws = self.USE_AWS_SERVICES or not self.MINIO_ENDPOINT
+        except (AttributeError, TypeError):
+            use_aws = False
+        
+        if not use_aws:
+            if not self.MINIO_ACCESS_KEY:
+                raise ValueError("MINIO_ACCESS_KEY must be set when USE_AWS_SERVICES is false")
+            if not self.MINIO_SECRET_KEY:
+                raise ValueError("MINIO_SECRET_KEY must be set when USE_AWS_SERVICES is false")
+        else:
+            if not self.MINIO_BUCKET:
+                raise ValueError("MINIO_BUCKET (storage bucket name) is required")
+        
+        if not self.S3_ACCESS_KEY:
+            self.S3_ACCESS_KEY = self.MINIO_ACCESS_KEY
+        if not self.S3_SECRET_KEY:
+            self.S3_SECRET_KEY = self.MINIO_SECRET_KEY
+        
+        return self
     
     # OpenSearch settings
     OPENSEARCH_HOST: str = "opensearch"
@@ -63,7 +108,7 @@ class Settings(BaseSettings):
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
     CORS_ORIGINS: str = ""
-    JWT_SECRET: str = "change-this-secret"
+    JWT_SECRET: str = Field(..., min_length=1)
     JWT_ISSUER: str = "vericase-docs"
     JWT_EXPIRE_MIN: int = 7200
     
@@ -71,25 +116,20 @@ class Settings(BaseSettings):
     @classmethod
     def validate_jwt_secret(cls, v: str) -> str:
         """Validate JWT_SECRET is secure and not empty"""
-        if not v or not v.strip():
+        if not v or not isinstance(v, str) or not v.strip():
             raise ValueError("JWT_SECRET cannot be empty")
-        
-        # Check minimum length for security
         if len(v) < 32:
-            logger.warning(f"JWT_SECRET is too short ({len(v)} chars). Recommended minimum: 32 characters")
+            logger.warning("JWT_SECRET is too short. Recommended minimum: 32 characters")
         
-        # Warn about default value
-        if v == "change-this-secret":
-            logger.warning("JWT_SECRET is using default value - INSECURE for production!")
-            
-            # Check if we're in production
+        # Check for default/weak secrets
+        weak_secrets = ["change-this-secret", "secret", "changeme", "default"]
+        if v.lower() in weak_secrets:
             try:
                 env_value = os.getenv("ENV", "development")
                 if env_value and env_value.lower() == "production":
                     raise ValueError("JWT_SECRET must be changed from default value in production")
-            except (AttributeError, TypeError) as e:
-                logger.error(f"Error checking environment: {e}")
-        
+            except (AttributeError, TypeError):
+                pass
         return v
     
     @field_validator('JWT_EXPIRE_MIN')
@@ -135,15 +175,25 @@ class Settings(BaseSettings):
     @classmethod
     def validate_ai_model(cls, v: str) -> str:
         """Validate AI model selection"""
-        try:
-            valid_models = ['gemini', 'claude', 'openai', 'grok', 'perplexity']
-            if v and v not in valid_models:
-                logger.warning(f"Invalid AI_DEFAULT_MODEL '{v}', using 'gemini'")
-                return 'gemini'
-            return v or 'gemini'
-        except Exception as e:
-            logger.error(f"Error validating AI_DEFAULT_MODEL: {e}")
+        valid_models = ['gemini', 'claude', 'openai', 'grok', 'perplexity']
+        if v and v not in valid_models:
+            logger.warning("Invalid AI_DEFAULT_MODEL, using 'gemini'")
             return 'gemini'
+        return v or 'gemini'
+    
+    @field_validator('AWS_REGION', 'AWS_DEFAULT_REGION')
+    @classmethod
+    def validate_aws_region(cls, v: str) -> str:
+        """Validate AWS region is valid"""
+        valid_regions = [
+            'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
+            'eu-west-1', 'eu-west-2', 'eu-west-3', 'eu-central-1',
+            'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1',
+            'ca-central-1', 'sa-east-1'
+        ]
+        if v and v not in valid_regions:
+            logger.warning(f"AWS region '{v}' may not be valid. Common regions: {', '.join(valid_regions[:5])}")
+        return v or 'us-east-1'
     
     class Config:
         env_file = ".env"
@@ -151,11 +201,18 @@ class Settings(BaseSettings):
 
 # Initialize settings with error handling
 try:
-    settings = Settings()
+    settings = Settings()  # type: ignore[call-arg]
     logger.info("Settings loaded successfully")
 except ValidationError as e:
-    logger.error(f"Settings validation error: {e}")
+    logger.error("Settings validation error: %s", str(e))
     raise
 except Exception as e:
-    logger.error(f"Unexpected error loading settings: {e}")
+    logger.error("Unexpected error loading settings: %s", str(e))
+    try:
+        env = os.getenv("ENV", "development").lower()
+    except (AttributeError, TypeError):
+        env = "development"
+    
+    if env == "production":
+        raise
     raise
