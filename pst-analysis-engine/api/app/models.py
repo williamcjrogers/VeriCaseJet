@@ -620,3 +620,16 @@ class Programme(Base):
     project = relationship("Project")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+
+class AppSetting(Base):
+    """Application settings that can be modified by admins"""
+    __tablename__ = "app_settings"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    key = Column(String(128), unique=True, nullable=False, index=True)
+    value = Column(Text, nullable=False)
+    description = Column(Text, nullable=True)
+    updated_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    updater = relationship("User")

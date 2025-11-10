@@ -6,7 +6,10 @@ from sqlalchemy import create_engine, text
 from opensearchpy import OpenSearch, RequestsHttpConnection
 import requests, subprocess, pytesseract
 from PIL import Image
+import logging
 from .config import settings
+
+logger = logging.getLogger(__name__)
 
 celery_app = Celery("vericase-docs", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
 
@@ -40,6 +43,34 @@ else:
     )
 
 engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
+
+def _get_setting_from_db(key: str, default_value: str) -> str:
+    """Get setting value from database with fallback to default"""
+    try:
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            result = conn.execute(
+                text("SELECT value FROM app_settings WHERE key = :key"),
+                {"key": key}
+            ).scalar()
+            if result:
+                return str(result)
+    except Exception as e:
+        logger.debug(f"Failed to get setting '{key}' from DB: {e}")
+    return default_value
+
+# Initialize AWS Textract client
+if settings.USE_TEXTRACT and use_aws:
+    try:
+        textract = boto3.client(
+            "textract",
+            region_name=getattr(settings, 'AWS_REGION_FOR_TEXTRACT', settings.AWS_REGION)
+        )
+    except Exception as e:
+        logger.warning(f"Failed to initialize Textract client: {e}")
+        textract = None
+else:
+    textract = None
 
 # Initialize OpenSearch client with TLS support
 os_client = OpenSearch(
@@ -77,6 +108,87 @@ def _index_document(doc_id: str, filename: str, created_at, content_type: str, m
     body = {"id": doc_id, "filename": filename, "title": None, "path": path, "owner": owner_user_id,
             "content_type": content_type, "uploaded_at": created_at, "metadata": metadata or {}, "text": text}
     os_client.index(index=settings.OPENSEARCH_INDEX, id=doc_id, body=body, refresh=True)
+def _count_pdf_pages(file_bytes: bytes) -> int:
+    """Count pages in a PDF file."""
+    try:
+        import PyPDF2
+        pdf_file = io.BytesIO(file_bytes)
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        return len(pdf_reader.pages)
+    except Exception:
+        try:
+            # Fallback: try pdfplumber
+            import pdfplumber
+            with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+                return len(pdf.pages)
+        except Exception:
+            return 0
+
+def _textract_extract(file_bytes: bytes, filename: str = "") -> str:
+    """
+    Extract text using AWS Textract.
+    Returns empty string if Textract fails, file is too large, or has too many pages.
+    Falls back to Tika for large documents (e.g., 1000+ page PDFs).
+    """
+    if not textract:
+        return ""
+    
+    # Check if it's a supported format (PDF, PNG, JPEG, TIFF)
+    filename_lower = filename.lower()
+    if not any(filename_lower.endswith(ext) for ext in ['.pdf', '.png', '.jpg', '.jpeg', '.tiff', '.tif']):
+        logger.debug(f"File {filename} format not supported by Textract, will use Tika")
+        return ""
+    
+    # For PDFs, check page count first (Textract limit is 500 pages, but use Tika for large docs)
+    # Get threshold from database (admin-configurable) with fallback to config
+    max_pages = int(_get_setting_from_db('textract_max_pages', str(getattr(settings, 'TEXTRACT_MAX_PAGES', 500))))
+    page_threshold = int(_get_setting_from_db('textract_page_threshold', str(getattr(settings, 'TEXTRACT_PAGE_THRESHOLD', 100))))
+    if filename_lower.endswith('.pdf'):
+        page_count = _count_pdf_pages(file_bytes)
+        if page_count > max_pages:
+            logger.info(f"PDF {filename} has {page_count} pages, exceeds Textract limit ({max_pages} pages), will use Tika")
+            return ""
+        elif page_count > page_threshold:  # Use Tika for documents over threshold (cost/speed optimization)
+            logger.info(f"PDF {filename} has {page_count} pages, exceeds threshold ({page_threshold} pages), using Tika for better performance")
+            return ""
+    
+    file_size_mb = len(file_bytes) / (1024 * 1024)
+    max_size_mb = getattr(settings, 'TEXTRACT_MAX_FILE_SIZE_MB', 500)
+    
+    # Check if file is too large for Textract
+    if file_size_mb > max_size_mb:
+        logger.info(f"File {filename} ({file_size_mb:.2f}MB) exceeds Textract limit ({max_size_mb}MB), will use Tika")
+        return ""
+    
+    try:
+        # Use detect_document_text for simple text extraction
+        response = textract.detect_document_text(Document={'Bytes': file_bytes})
+        
+        # Extract text from blocks
+        text_lines = []
+        for block in response.get('Blocks', []):
+            if block.get('BlockType') == 'LINE':
+                text_lines.append(block.get('Text', ''))
+        
+        extracted_text = '\n'.join(text_lines)
+        
+        if extracted_text and len(extracted_text.strip()) > 50:
+            logger.info(f"Textract extracted {len(extracted_text)} characters from {filename}")
+            return extracted_text
+        else:
+            logger.debug(f"Textract returned insufficient text for {filename}, will try Tika")
+            return ""
+            
+    except Exception as e:
+        error_str = str(e)
+        if 'InvalidParameterException' in error_str or 'InvalidParameter' in error_str:
+            logger.warning(f"Textract invalid parameter for {filename}: {e}")
+        elif 'DocumentTooLargeException' in error_str or 'DocumentTooLarge' in error_str:
+            logger.info(f"Document {filename} too large for Textract: {e}, will use Tika")
+        else:
+            logger.warning(f"Textract extraction failed for {filename}: {e}, will try Tika")
+        return ""
+
 def _tika_extract(file_bytes: bytes) -> str:
     try:
         r = requests.put(f"{settings.TIKA_URL}/tika", data=file_bytes, headers={"Accept":"text/plain"}, timeout=60)
@@ -104,19 +216,32 @@ def ocr_and_index(doc_id: str):
         return
     _update_status(doc_id,"PROCESSING",None)
     obj=s3.get_object(Bucket=doc["bucket"], Key=doc["s3_key"]); fb=obj["Body"].read()
-    text=_tika_extract(fb)
-    if not text or len(text.strip())<50:
-        name=(doc["filename"] or "").lower()
+    
+    # Try Textract first (for small/medium documents)
+    filename = doc.get("filename") or ""
+    text = ""
+    if settings.USE_TEXTRACT:
+        text = _textract_extract(fb, filename)
+    
+    # Fall back to Tika if Textract didn't work (large files, unsupported formats, or failed)
+    if not text or len(text.strip()) < 50:
+        logger.info(f"Textract didn't extract sufficient text for {filename}, trying Tika")
+        text = _tika_extract(fb)
+    
+    # Final fallback: OCR for PDFs/images if both Textract and Tika failed
+    if not text or len(text.strip()) < 50:
+        name = filename.lower()
         if name.endswith(".pdf"):
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
                 tmp.write(fb); tmp.flush()
-                text=_ocr_pdf_sidecar(tmp.name) or ""
+                text = _ocr_pdf_sidecar(tmp.name) or ""
                 try: os.remove(tmp.name + ".ocr.pdf")
                 except Exception: pass
                 os.remove(tmp.name)
         else:
-            text=_ocr_image_bytes(fb) or ""
-    excerpt=(text.strip()[:1000]) if text else ""
+            text = _ocr_image_bytes(fb) or ""
+    
+    excerpt = (text.strip()[:1000]) if text else ""
     _index_document(doc_id, doc["filename"], doc["created_at"], doc.get("content_type") or "application/octet-stream", doc.get("metadata"), text or "", doc.get("path"), doc.get("owner_user_id"))
     _update_status(doc_id,"READY",excerpt)
     return {"id": doc_id, "chars": len(text or "")}

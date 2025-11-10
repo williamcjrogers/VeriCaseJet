@@ -195,6 +195,12 @@ function nextStep() {
         const selectedType = document.querySelector('input[name="profileType"]:checked').value;
         wizardState.profileType = selectedType;
         
+        if (selectedType === 'intelligent') {
+            // Redirect to intelligent configuration wizard
+            window.location.href = 'intelligent-wizard.html';
+            return;
+        }
+        
         if (selectedType === 'users') {
             // Check if user is admin
             const user = JSON.parse(localStorage.getItem('user') || '{}');

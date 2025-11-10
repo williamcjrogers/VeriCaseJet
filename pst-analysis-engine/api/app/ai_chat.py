@@ -17,6 +17,12 @@ from sqlalchemy import or_, and_
 from .models import User, EmailMessage, Project, Case, EmailAttachment
 from .security import get_db, current_user
 from .config import settings
+from .ai_models import (
+    AIModelService,
+    TaskComplexity,
+    log_model_selection,
+    query_perplexity_local,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,14 +89,14 @@ class AIEvidenceOrchestrator:
         self.anthropic_key = getattr(settings, 'CLAUDE_API_KEY', None) or ""
         self.google_key = getattr(settings, 'GEMINI_API_KEY', None) or ""
         self.grok_key = getattr(settings, 'GROK_API_KEY', None) or ""
+        self.model_service = AIModelService()
     
     async def quick_search(self, query: str, emails: List[EmailMessage]) -> ModelResponse:
         """Quick evidence search using fastest model"""
         start_time = datetime.now(timezone.utc)
-        
-        # Build evidence context
+
         context = self._build_evidence_context(emails)
-        
+
         prompt = f"""You are an expert legal evidence analyst. Answer this question based ONLY on the evidence provided.
 
 EVIDENCE:
@@ -100,29 +106,54 @@ QUESTION: {query}
 
 Provide a clear, concise answer citing specific emails. If the evidence doesn't support an answer, say so."""
 
-        try:
-            if self.google_key:
-                response_text = await self._query_gemini_flash(prompt)
-                model_name = "Gemini Flash"
-            elif self.openai_key:
-                response_text = await self._query_gpt_turbo(prompt)
-                model_name = "GPT-4 Turbo"
-            else:
-                raise HTTPException(500, "No AI models configured. Add API keys to .env")
-            
-            processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
-            
-            return ModelResponse(
-                model=model_name,
-                task="Quick Evidence Search",
-                response=response_text,
-                confidence=0.85,
-                processing_time=processing_time,
-                key_findings=self._extract_key_findings(response_text)
-            )
-        except Exception as e:
-            logger.error(f"Quick search error: {e}")
-            raise HTTPException(500, f"Quick search failed: {str(e)}")
+        model_config = self.model_service.select_model("quick_search", TaskComplexity.BASIC)
+        candidate_models = self.model_service.build_priority_queue(
+            "quick_search", TaskComplexity.BASIC, model_config
+        )
+
+        attempts: List[str] = []
+
+        for candidate in candidate_models:
+            resolved = AIModelService.resolve_model(candidate)
+            if not resolved:
+                continue
+
+            provider = resolved["provider"]
+            model_name = resolved["model"]
+            display_name = AIModelService.display_name(candidate)
+
+            try:
+                if provider == "google" and self.google_key:
+                    response_text = await self._query_gemini_flash(prompt, model_name)
+                elif provider == "openai" and self.openai_key:
+                    response_text = await self._query_gpt_turbo(prompt, model_name)
+                elif provider == "anthropic" and self.anthropic_key:
+                    response_text = await self._query_claude_sonnet(prompt, model_name)
+                elif provider == "perplexity":
+                    response_text = await query_perplexity_local(prompt, context)
+                    if not response_text:
+                        raise RuntimeError("Perplexity returned no content")
+                else:
+                    continue
+
+                processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
+                log_model_selection("quick_search", display_name, f"{provider}:{model_name}")
+
+                return ModelResponse(
+                    model=display_name,
+                    task="Quick Evidence Search",
+                    response=response_text,
+                    confidence=0.87,
+                    processing_time=processing_time,
+                    key_findings=self._extract_key_findings(response_text),
+                )
+            except Exception as exc:
+                attempts.append(f"{display_name}: {exc}")
+                logger.debug("Quick search candidate %s failed: %s", display_name, exc)
+                continue
+
+        error_detail = attempts or ["No AI models configured. Add API keys to .env"]
+        raise HTTPException(500, f"Quick search failed -> {', '.join(error_detail)}")
     
     async def deep_research(self, query: str, emails: List[EmailMessage]) -> tuple[ResearchPlan, List[ModelResponse]]:
         """
@@ -139,19 +170,55 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
         plan = await self._create_evidence_plan(query, emails)
         
         # Step 2: Execute research across models with specific tasks
+        model_config = self.model_service.select_model(
+            "deep_research", TaskComplexity.DEEP_RESEARCH
+        )
+        prioritized = self.model_service.build_priority_queue(
+            "deep_research", TaskComplexity.DEEP_RESEARCH, model_config
+        )
+
         tasks = []
-        
-        if self.openai_key:
-            tasks.append(self._gpt5_analyze_chronology(query, context, emails))
-        
-        if self.google_key:
-            tasks.append(self._gemini_find_patterns(query, context, emails))
-        
-        if self.anthropic_key:
-            tasks.append(self._claude_build_narrative(query, context, emails))
-        
-        if self.grok_key:
-            tasks.append(self._grok_identify_gaps(query, context, emails))
+        scheduled: set[str] = set()
+
+        for candidate in prioritized:
+            if candidate in scheduled:
+                continue
+            resolved = AIModelService.resolve_model(candidate)
+            if not resolved:
+                continue
+
+            provider = resolved["provider"]
+            model_name = resolved["model"]
+            display_name = AIModelService.display_name(candidate)
+
+            if provider == "openai" and self.openai_key:
+                tasks.append(
+                    self._gpt5_analyze_chronology(
+                        query, context, emails, model_name, display_name
+                    )
+                )
+            elif provider == "google" and self.google_key:
+                tasks.append(
+                    self._gemini_find_patterns(
+                        query, context, emails, model_name, display_name
+                    )
+                )
+            elif provider == "anthropic" and self.anthropic_key:
+                tasks.append(
+                    self._claude_build_narrative(
+                        query, context, emails, model_name, display_name
+                    )
+                )
+            elif provider == "grok" and self.grok_key:
+                tasks.append(
+                    self._grok_identify_gaps(
+                        query, context, emails, model_name, display_name
+                    )
+                )
+            else:
+                continue
+
+            scheduled.add(candidate)
         
         if not tasks:
             raise HTTPException(500, "No AI models configured. Add API keys to .env")
@@ -308,24 +375,24 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
     
     # Model-specific methods with evidence focus
     
-    async def _query_gemini_flash(self, prompt: str) -> str:
+    async def _query_gemini_flash(self, prompt: str, model_name: str = 'gemini-1.5-flash') -> str:
         """Gemini Flash for quick responses"""
         try:
             import google.generativeai as genai
             genai.configure(api_key=self.google_key)
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel(model_name)
             response = await asyncio.to_thread(model.generate_content, prompt)
             return response.text
         except Exception as e:
             raise Exception(f"Gemini error: {str(e)}")
     
-    async def _query_gpt_turbo(self, prompt: str) -> str:
+    async def _query_gpt_turbo(self, prompt: str, model_name: str = 'gpt-4-turbo') -> str:
         """GPT-4 Turbo for quick responses"""
         try:
             import openai
             client = openai.AsyncOpenAI(api_key=self.openai_key)
             response = await client.chat.completions.create(
-                model="gpt-4-turbo",
+                model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1000
             )
@@ -333,7 +400,32 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
         except Exception as e:
             raise Exception(f"GPT error: {str(e)}")
     
-    async def _gpt5_analyze_chronology(self, query: str, context: str, emails: List[EmailMessage]) -> ModelResponse:
+    async def _query_claude_sonnet(self, prompt: str, model_name: str = 'claude-3-5-sonnet-20241022') -> str:
+        """Claude Sonnet for structured quick responses"""
+        try:
+            import anthropic
+            client = anthropic.AsyncAnthropic(api_key=self.anthropic_key)
+            response = await client.messages.create(
+                model=model_name,
+                max_tokens=1200,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            text = ""
+            for block in response.content:
+                if hasattr(block, 'text'):
+                    text += block.text
+            return text or response.content[0].text
+        except Exception as e:
+            raise Exception(f"Claude error: {str(e)}")
+    
+    async def _gpt5_analyze_chronology(
+        self,
+        query: str,
+        context: str,
+        emails: List[EmailMessage],
+        model_override: Optional[str] = None,
+        friendly_name: str = "ChatGPT 5 Pro Deep Research",
+    ) -> ModelResponse:
         """GPT-5 Pro: Build chronology and identify key events"""
         start_time = datetime.now(timezone.utc)
         
@@ -357,15 +449,17 @@ Focus on:
 Provide a structured chronology with dates, events, and responsible parties."""
 
             response = await client.chat.completions.create(
-                model="o1-preview",  # GPT-5 equivalent with deep reasoning
+                model=model_override or "o1-preview",  # GPT-5 equivalent with deep reasoning
                 messages=[{"role": "user", "content": prompt}]
             )
             
             processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
             response_text = response.choices[0].message.content
+
+            log_model_selection("deep_research", friendly_name, f"OpenAI:{model_override or 'o1-preview'}")
             
             return ModelResponse(
-                model="GPT-5 Pro Deep Research",
+                model=friendly_name,
                 task="Chronology Analysis & Event Sequencing",
                 response=response_text,
                 confidence=0.95,
@@ -375,7 +469,7 @@ Provide a structured chronology with dates, events, and responsible parties."""
         except Exception as e:
             logger.error(f"GPT-5 chronology error: {e}")
             return ModelResponse(
-                model="GPT-5 Pro",
+                model=friendly_name,
                 task="Chronology Analysis",
                 response=f"Model unavailable: {str(e)}",
                 confidence=0.0,
@@ -383,14 +477,21 @@ Provide a structured chronology with dates, events, and responsible parties."""
                 key_findings=[]
             )
     
-    async def _gemini_find_patterns(self, query: str, context: str, emails: List[EmailMessage]) -> ModelResponse:
+    async def _gemini_find_patterns(
+        self,
+        query: str,
+        context: str,
+        emails: List[EmailMessage],
+        model_override: Optional[str] = None,
+        friendly_name: str = "Gemini 2.5 Pro Deep Think",
+    ) -> ModelResponse:
         """Gemini 2.5 Pro: Find patterns and connections in evidence"""
         start_time = datetime.now(timezone.utc)
         
         try:
             import google.generativeai as genai
             genai.configure(api_key=self.google_key)
-            model = genai.GenerativeModel('gemini-2.0-flash-thinking-exp')
+            model = genai.GenerativeModel(model_override or 'gemini-2.0-flash-thinking-exp')
             
             prompt = f"""You are analyzing construction dispute evidence to find patterns and connections.
 
@@ -411,8 +512,10 @@ Identify patterns that tell the story of what happened."""
             response = await asyncio.to_thread(model.generate_content, prompt)
             processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
             
+            log_model_selection("deep_research", friendly_name, f"Gemini:{model_override or 'gemini-2.0-flash-thinking-exp'}")
+            
             return ModelResponse(
-                model="Gemini 2.5 Pro Deep Think",
+                model=friendly_name,
                 task="Pattern Recognition & Connection Mapping",
                 response=response.text,
                 confidence=0.93,
@@ -422,7 +525,7 @@ Identify patterns that tell the story of what happened."""
         except Exception as e:
             logger.error(f"Gemini pattern error: {e}")
             return ModelResponse(
-                model="Gemini 2.5 Pro",
+                model=friendly_name,
                 task="Pattern Recognition",
                 response=f"Model unavailable: {str(e)}",
                 confidence=0.0,
@@ -430,7 +533,14 @@ Identify patterns that tell the story of what happened."""
                 key_findings=[]
             )
     
-    async def _claude_build_narrative(self, query: str, context: str, emails: List[EmailMessage]) -> ModelResponse:
+    async def _claude_build_narrative(
+        self,
+        query: str,
+        context: str,
+        emails: List[EmailMessage],
+        model_override: Optional[str] = None,
+        friendly_name: str = "Sonnet 4.5 Extended Thinking",
+    ) -> ModelResponse:
         """Claude Opus 4.1: Build coherent narrative from evidence"""
         start_time = datetime.now(timezone.utc)
         
@@ -455,7 +565,7 @@ Focus on:
 Build a narrative that explains what happened and why it matters."""
 
             response = await client.messages.create(
-                model="claude-opus-4-20250514",
+                model=model_override or "claude-opus-4-20250514",
                 max_tokens=4096,
                 thinking={
                     "type": "enabled",
@@ -472,8 +582,10 @@ Build a narrative that explains what happened and why it matters."""
                 if hasattr(block, 'text'):
                     response_text += block.text
             
+            log_model_selection("deep_research", friendly_name, f"Anthropic:{model_override or 'claude-opus-4-20250514'}")
+            
             return ModelResponse(
-                model="Claude Opus 4.1 Extended Thinking",
+                model=friendly_name,
                 task="Narrative Construction & Legal Reasoning",
                 response=response_text,
                 confidence=0.96,
@@ -483,7 +595,7 @@ Build a narrative that explains what happened and why it matters."""
         except Exception as e:
             logger.error(f"Claude narrative error: {e}")
             return ModelResponse(
-                model="Claude Opus 4.1",
+                model=friendly_name,
                 task="Narrative Construction",
                 response=f"Model unavailable: {str(e)}",
                 confidence=0.0,
@@ -491,7 +603,14 @@ Build a narrative that explains what happened and why it matters."""
                 key_findings=[]
             )
     
-    async def _grok_identify_gaps(self, query: str, context: str, emails: List[EmailMessage]) -> ModelResponse:
+    async def _grok_identify_gaps(
+        self,
+        query: str,
+        context: str,
+        emails: List[EmailMessage],
+        model_override: Optional[str] = None,
+        friendly_name: str = "Grok 4 Heavy",
+    ) -> ModelResponse:
         """Grok 4: Identify gaps and missing evidence"""
         start_time = datetime.now(timezone.utc)
         
@@ -519,7 +638,7 @@ Focus on:
 Provide a critical analysis identifying gaps and suggesting what's needed."""
 
             response = await client.chat.completions.create(
-                model="grok-2-1212",
+                model=model_override or "grok-2-1212",
                 messages=[
                     {"role": "system", "content": "You are Grok, providing critical analysis of legal evidence."},
                     {"role": "user", "content": prompt}
@@ -528,9 +647,10 @@ Provide a critical analysis identifying gaps and suggesting what's needed."""
             )
             
             processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
+            log_model_selection("deep_research", friendly_name, f"Grok:{model_override or 'grok-2-1212'}")
             
             return ModelResponse(
-                model="Grok 4 Heavy",
+                model=friendly_name,
                 task="Gap Analysis & Critical Review",
                 response=response.choices[0].message.content,
                 confidence=0.90,
@@ -540,7 +660,7 @@ Provide a critical analysis identifying gaps and suggesting what's needed."""
         except Exception as e:
             logger.error(f"Grok gap analysis error: {e}")
             return ModelResponse(
-                model="Grok 4 Heavy",
+                model=friendly_name,
                 task="Gap Analysis",
                 response=f"Model unavailable: {str(e)}",
                 confidence=0.0,
