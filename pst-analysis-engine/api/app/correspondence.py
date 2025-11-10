@@ -8,7 +8,7 @@ import asyncio
 import os
 import logging
 from datetime import datetime
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -308,10 +308,17 @@ async def list_emails(
     """
 
     # Verify case or project exists
+    # Check if user is admin
+    from .models import UserRole
+    is_admin = user.role == UserRole.ADMIN
+    
+    # Admin can view all emails without case/project filter
     if not case_id and not project_id:
-        raise HTTPException(400, "Either case_id or project_id must be provided")
-
-    if case_id:
+        if not is_admin:
+            raise HTTPException(400, "Either case_id or project_id must be provided")
+        # Admin viewing all emails
+        query = db.query(EmailMessage)
+    elif case_id:
         case = db.query(Case).filter_by(id=case_id).first()
         if not case:
             raise HTTPException(404, "Case not found")

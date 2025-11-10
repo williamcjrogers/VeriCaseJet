@@ -665,6 +665,11 @@
     <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/dist/ag-grid-enterprise.min.js"></script>
 
     <script>
+        // API Base URL
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? `${window.location.protocol}//localhost:8010`
+            : window.location.origin;
+        
         // Get case/project ID from URL - check both caseId and case_id parameters
         const urlParams = new URLSearchParams(window.location.search);
         caseId = urlParams.get('caseId') || urlParams.get('case_id');
@@ -682,11 +687,22 @@
             }
         }
         
-        // Validate we have a case/project ID - STOP execution if invalid
-        if (!caseId || caseId === '00000000-0000-0000-0000-000000000001') {
+        // Check if user is admin - admins can view all correspondence
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const isAdmin = user.role === 'ADMIN';
+        
+        // Validate we have a case/project ID - STOP execution if invalid (unless admin)
+        if (!isAdmin && (!caseId && !projectId)) {
             alert('No case or project selected. Redirecting to wizard...');
             window.location.href = 'wizard.html';
             throw new Error('Invalid case ID - stopping execution'); // STOP HERE!
+        }
+        
+        // For admin without specific project/case, show all emails
+        if (isAdmin && !caseId && !projectId) {
+            console.log('Admin mode: Showing all correspondence');
+            // Set a flag for admin mode
+            window.adminViewAll = true;
         }
         
         window.caseId = caseId; // Make it globally available for other functions
@@ -1808,16 +1824,42 @@
             showLoading(true);
             try {
                 const token = localStorage.getItem('token') || localStorage.getItem('jwt') || '';
-                const response = await fetch(`${API_BASE}/api/unified/${caseId}/evidence`, {
+                
+                // Build API URL based on whether we have a project/case ID
+                let apiUrl;
+                if (projectId) {
+                    apiUrl = `${API_BASE}/api/correspondence/emails?project_id=${projectId}`;
+                } else if (caseId) {
+                    apiUrl = `${API_BASE}/api/unified/${caseId}/evidence`;
+                } else if (isAdmin) {
+                    // Admin viewing all emails without specific project/case
+                    apiUrl = `${API_BASE}/api/correspondence/emails?page_size=500`;
+                } else {
+                    throw new Error('No project or case ID specified');
+                }
+                
+                const response = await fetch(apiUrl, {
                     headers: token ? { 'Authorization': `Bearer ${token}` } : {}
                 });
                 if (!response.ok) throw new Error('Failed to load emails');
                 
                 const data = await response.json();
                 
+                // Handle different response formats
+                let emailData = data;
+                if (data.emails) {
+                    // Response from /api/correspondence/emails
+                    emailData = data.emails;
+                } else if (Array.isArray(data)) {
+                    // Response from unified endpoint
+                    emailData = data;
+                } else {
+                    emailData = [];
+                }
+                
                 // Filter for email evidence and set expanded state
-                allEmails = data.filter(item => 
-                    item.email_subject || item.email_from || item.content || item.meta?.content
+                allEmails = emailData.filter(item => 
+                    item.subject || item.email_subject || item.sender_email || item.email_from || item.content || item.meta?.content
                 ).map(email => ({
                     ...email,
                     expanded: showFullContent // Set initial state to show full content

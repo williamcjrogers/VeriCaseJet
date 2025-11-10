@@ -1,0 +1,17 @@
+version: 1.0
+runtime: python311
+build:
+  commands:
+    build:
+      - pip install --upgrade pip
+      - pip install -r requirements.txt
+      - cd api && alembic upgrade head
+run:
+  runtime-version: 3.11
+  command: cd api && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+  network:
+    port: 8000
+    env: PORT
+  env:
+    - name: PYTHONUNBUFFERED
+      value: "1"
