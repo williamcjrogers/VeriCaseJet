@@ -11,6 +11,13 @@ from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select
+
+# Import production config helper if in production
+import os
+if os.getenv('AWS_EXECUTION_ENV') or os.getenv('AWS_REGION'):
+    from .config_production import update_production_config
+    update_production_config()
+
 from .config import settings
 from .db import Base, engine
 from .models import Document, DocStatus, User, ShareLink, Folder
