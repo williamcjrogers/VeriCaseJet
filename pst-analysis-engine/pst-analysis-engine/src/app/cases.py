@@ -5,13 +5,23 @@ Handles cases, evidence linking, issues, claims, and chronology
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, desc
-from typing import List, Optional
-from datetime import datetime
+from typing import Dict, List, Optional, cast
+from datetime import datetime, timezone
 from pydantic import BaseModel
 import uuid
 import logging
+import re
 
 logger = logging.getLogger(__name__)
+
+def sanitize_for_log(value: str) -> str:
+    """Sanitize user input for safe logging to prevent log injection"""
+    if not value:
+        return ""
+    # Remove newlines and other control characters
+    sanitized = re.sub(r'[\r\n\t]', ' ', str(value))
+    # Limit length to prevent log flooding
+    return sanitized[:100] if len(sanitized) > 100 else sanitized
 
 from .db import get_db
 from .models import (
@@ -166,15 +176,23 @@ def list_cases(
     if contract_type:
         query = query.filter(Case.contract_type == contract_type)
     if search:
-        query = query.filter(
-            or_(
-                Case.name.ilike(f"%{search}%"),
-                Case.case_number.ilike(f"%{search}%"),
-                Case.project_name.ilike(f"%{search}%")
+        # Sanitize search input to prevent any potential issues
+        search = search.strip()
+        if search:
+            # SQLAlchemy's ilike already handles SQL injection prevention
+            query = query.filter(
+                or_(
+                    Case.name.ilike(f"%{search}%"),
+                    Case.case_number.ilike(f"%{search}%"),
+                    Case.project_name.ilike(f"%{search}%")
+                )
             )
-        )
     
-    cases = query.order_by(desc(Case.created_at)).offset(skip).limit(limit).all()
+    try:
+        cases = query.order_by(desc(Case.created_at)).offset(skip).limit(limit).all()
+    except Exception as e:
+        logger.error(f"Failed to query cases: {e}", exc_info=True)
+        raise HTTPException(500, "Failed to fetch cases")
     
     # Add counts
     result = []
@@ -211,9 +229,16 @@ def create_case(
 ):
     """Create a new case"""
     # Check if case number already exists
-    existing = db.query(Case).filter(Case.case_number == data.case_number).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Case number already exists")
+    try:
+        existing = db.query(Case).filter(Case.case_number == data.case_number).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Case number already exists")
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to check existing case: {e}", exc_info=True)
+        raise HTTPException(500, "Failed to validate case number")
     
     # Validate company_id if provided
     company_uuid = None
@@ -307,7 +332,17 @@ def update_case(
     current_user: User = Depends(get_current_user)
 ):
     """Update case details"""
-    case = db.query(Case).filter(Case.id == uuid.UUID(case_id)).first()
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid case ID format")
+    
+    try:
+        case = db.query(Case).filter(Case.id == case_uuid).first()
+    except Exception as e:
+        logger.error(f"Failed to fetch case: {e}", exc_info=True)
+        raise HTTPException(500, "Failed to fetch case")
+    
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     if case.owner_id != current_user.id:
@@ -377,7 +412,7 @@ def list_case_evidence(
     try:
         results = query.order_by(desc(Evidence.added_at)).all()
     except Exception as e:
-        logger.error(f"Database error fetching evidence for case {case_id}: {e}")
+        logger.error(f"Database error fetching evidence for case {sanitize_for_log(case_id)}: {e}")
         raise HTTPException(500, "Failed to fetch evidence")
     
     evidence_list = []
@@ -426,13 +461,13 @@ def link_evidence(
     try:
         case_uuid = uuid.UUID(case_id)
     except (ValueError, AttributeError) as e:
-        logger.error(f"Invalid case ID format: {case_id}, error: {e}")
+        logger.error(f"Invalid case ID format: {sanitize_for_log(case_id)}, error: {e}")
         raise HTTPException(status_code=400, detail="Invalid case ID format")
     
     try:
         case = db.query(Case).filter(Case.id == case_uuid).first()
     except Exception as e:
-        logger.error(f"Database error fetching case {case_id}: {e}")
+        logger.error(f"Database error fetching case {sanitize_for_log(case_id)}: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch case")
     
     if not case or case.owner_id != current_user.id:
@@ -517,33 +552,51 @@ def list_case_issues(
     try:
         issues = query.order_by(desc(Issue.created_at)).all()
     except Exception as e:
-        logger.error(f"Database error fetching issues for case {case_id}: {e}")
+        logger.error(f"Database error fetching issues for case {sanitize_for_log(case_id)}: {e}")
         raise HTTPException(500, "Failed to fetch issues")
     
     # Get evidence counts for all issues in one query to avoid N+1
     from sqlalchemy import func
-    issue_ids = [issue.id for issue in issues]
-    evidence_counts = dict(
-        db.query(Evidence.issue_id, func.count(Evidence.id))
-        .filter(Evidence.issue_id.in_(issue_ids))
-        .group_by(Evidence.issue_id)
-        .all()
-    ) if issue_ids else {}
+    # Get all issue IDs using list comprehension
+    issue_ids: List[uuid.UUID] = [
+        issue_id_obj for issue in issues
+        if (issue_id_obj := getattr(issue, "id", None)) and isinstance(issue_id_obj, uuid.UUID)
+    ]
+    
+    evidence_counts: Dict[uuid.UUID, int] = {}
+    if issue_ids:
+        rows = (
+            db.query(Evidence.issue_id, func.count(Evidence.id))
+            .filter(Evidence.issue_id.in_(issue_ids))
+            .group_by(Evidence.issue_id)
+            .all()
+        )
+        for issue_id_value, count_value in rows:
+            if isinstance(issue_id_value, uuid.UUID):
+                evidence_counts[issue_id_value] = int(count_value)
     
     result = []
     for issue in issues:
         try:
-            result.append(IssueOut(
-                id=str(issue.id),
-                case_id=str(issue.case_id),
-                title=issue.title,
-                description=issue.description,
-                issue_type=issue.issue_type,
-                status=issue.status,
-                relevant_contract_clauses=issue.relevant_contract_clauses,
-                created_at=issue.created_at,
-                evidence_count=evidence_counts.get(issue.id, 0)
-            ))
+            issue_id_value = getattr(issue, "id", None)
+            case_id_value = getattr(issue, "case_id", None)
+            if not isinstance(issue_id_value, uuid.UUID) or not isinstance(case_id_value, uuid.UUID):
+                logger.error("Issue %s has invalid UUID fields", getattr(issue, "id", "unknown"))
+                continue
+
+            created_at_value = cast(Optional[datetime], getattr(issue, "created_at", None)) or datetime.now(timezone.utc)
+            issue_payload = {
+                "id": str(issue_id_value),
+                "case_id": str(case_id_value),
+                "title": cast(Optional[str], getattr(issue, "title", None)),
+                "description": cast(Optional[str], getattr(issue, "description", None)),
+                "issue_type": cast(Optional[str], getattr(issue, "issue_type", None)),
+                "status": cast(Optional[str], getattr(issue, "status", None)) or "open",
+                "relevant_contract_clauses": cast(Optional[dict], getattr(issue, "relevant_contract_clauses", None)),
+                "created_at": created_at_value,
+                "evidence_count": evidence_counts.get(issue_id_value, 0),
+            }
+            result.append(IssueOut.model_validate(issue_payload))
         except (AttributeError, ValueError, TypeError) as e:
             logger.error(f"Error processing issue {issue.id}: {e}", exc_info=True)
             continue
@@ -561,7 +614,7 @@ def create_issue(
     try:
         case_uuid = uuid.UUID(case_id)
     except (ValueError, AttributeError) as e:
-        logger.warning(f"Invalid case ID format: {case_id}")
+        logger.warning(f"Invalid case ID format: {sanitize_for_log(case_id)}")
         raise HTTPException(status_code=400, detail="Invalid case ID format")
     
     case = db.query(Case).filter(Case.id == case_uuid).first()
@@ -586,17 +639,24 @@ def create_issue(
         logger.error(f"Failed to create issue: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to create issue")
     
-    return IssueOut(
-        id=str(issue.id),
-        case_id=str(issue.case_id),
-        title=issue.title,
-        description=issue.description,
-        issue_type=issue.issue_type,
-        status=issue.status,
-        relevant_contract_clauses=issue.relevant_contract_clauses,
-        created_at=issue.created_at,
-        evidence_count=0
-    )
+    issue_id_value = getattr(issue, "id", None)
+    case_id_value = getattr(issue, "case_id", None)
+    if not isinstance(issue_id_value, uuid.UUID) or not isinstance(case_id_value, uuid.UUID):
+        raise HTTPException(status_code=500, detail="Issue saved but has invalid identifiers")
+
+    issue_created_at = cast(Optional[datetime], getattr(issue, "created_at", None)) or datetime.now(timezone.utc)
+    issue_payload = {
+        "id": str(issue_id_value),
+        "case_id": str(case_id_value),
+        "title": cast(Optional[str], getattr(issue, "title", None)),
+        "description": cast(Optional[str], getattr(issue, "description", None)),
+        "issue_type": cast(Optional[str], getattr(issue, "issue_type", None)),
+        "status": cast(Optional[str], getattr(issue, "status", None)) or "open",
+        "relevant_contract_clauses": cast(Optional[dict], getattr(issue, "relevant_contract_clauses", None)),
+        "created_at": issue_created_at,
+        "evidence_count": 0,
+    }
+    return IssueOut.model_validate(issue_payload)
 
 # ============================================================================
 # Claims Endpoints
@@ -646,7 +706,7 @@ def create_claim(
     try:
         case_uuid = uuid.UUID(case_id)
     except (ValueError, AttributeError) as e:
-        logger.warning(f"Invalid case ID format: {case_id}")
+        logger.warning(f"Invalid case ID format: {sanitize_for_log(case_id)}")
         raise HTTPException(400, "Invalid case ID format")
     
     case = db.query(Case).filter(Case.id == case_uuid).first()
@@ -702,7 +762,7 @@ def list_available_documents(
     if limit < 1 or limit > 500:
         raise HTTPException(status_code=400, detail="Limit must be between 1 and 500")
     
-    # Get all user's documents
+    # Get all user's documents that are ready for use
     query = db.query(Document).filter(
         Document.owner_user_id == current_user.id,
         Document.status == DocStatus.READY
@@ -716,10 +776,17 @@ def list_available_documents(
             )
         )
     
-    documents = query.order_by(desc(Document.created_at)).limit(limit).all()
+    try:
+        documents = query.order_by(desc(Document.created_at)).limit(limit).all()
+    except Exception as e:
+        logger.error(f"Failed to query documents: {e}", exc_info=True)
+        raise HTTPException(500, "Failed to fetch documents")
     
     # Get all linked document IDs in one query to avoid N+1
-    case_uuid = uuid.UUID(case_id)
+    try:
+        case_uuid = uuid.UUID(case_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(400, "Invalid case ID format")
     doc_ids = [doc.id for doc in documents]
     linked_doc_ids = set(
         doc_id for (doc_id,) in db.query(Evidence.document_id).filter(

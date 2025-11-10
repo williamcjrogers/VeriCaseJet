@@ -629,7 +629,7 @@ class PSTIngestionEngine:
             norm_subject = self._normalise_subject(subject)
             thread_id = thread_by_subject.get(norm_subject)
             if not thread_id:
-                thread_id = f"thread-{hashlib.md5(norm_subject.encode('utf-8', 'ignore')).hexdigest()[:12]}"
+                thread_id = f"thread-{hashlib.sha256(norm_subject.encode('utf-8', 'ignore')).hexdigest()[:12]}"
                 thread_by_subject[norm_subject] = thread_id
 
         if message_id:

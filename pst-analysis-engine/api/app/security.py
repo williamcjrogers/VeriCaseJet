@@ -12,7 +12,7 @@ bearer = HTTPBearer(auto_error=True)
 def hash_password(p: str) -> str: return hasher.hash(p)
 def verify_password(p: str, h: str) -> bool: return hasher.verify(p, h)
 def sign_token(user_id: str, email: str) -> str:
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.timezone.utc)
     payload = {"sub": user_id, "email": email, "iss": settings.JWT_ISSUER, "iat": now, "exp": now + datetime.timedelta(minutes=settings.JWT_EXPIRE_MIN)}
     return jwt.encode(payload, settings.JWT_SECRET, algorithm="HS256")
 def get_db():

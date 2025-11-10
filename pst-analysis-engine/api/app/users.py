@@ -170,9 +170,13 @@ def create_user(
         if data.send_invite:
             from .email_service import email_service
             # TODO: Create welcome email template with temp password
-            logger.info(f"Welcome email would be sent to {user.email} with temp password")
+            safe_email = user.email.replace('\n', '').replace('\r', '')
+            logger.info(f"Welcome email would be sent to {safe_email} with temp password")
         
-        logger.info(f"User {user.email} created by admin {admin.email}")
+        # Sanitize emails for logging to prevent log injection
+        safe_user_email = user.email.replace('\n', '').replace('\r', '')
+        safe_admin_email = admin.email.replace('\n', '').replace('\r', '')
+        logger.info(f"User {safe_user_email} created by admin {safe_admin_email}")
         
         return UserListItem(
             id=str(user.id),
@@ -276,9 +280,10 @@ def create_invitation(
         raise HTTPException(409, "user with this email already exists")
     
     # Check if invitation already exists
+    from datetime import timezone
     existing_invite = db.query(UserInvitation).filter(
-        UserInvitation.email == data.email.lower(),
-        UserInvitation.expires_at > datetime.utcnow()
+        UserInvitation.email.is_(data.email.lower()),
+        UserInvitation.expires_at > datetime.now(timezone.utc)
     ).first()
     if existing_invite:
         raise HTTPException(409, "active invitation already exists for this email")
@@ -306,7 +311,10 @@ def create_invitation(
     db.refresh(invitation)
     
     # TODO: Send invitation email
-    logger.info(f"Invitation created for {data.email} by {admin.email}")
+    # Sanitize emails for logging to prevent log injection
+    safe_email = data.email.replace('\n', '').replace('\r', '')
+    safe_admin_email = admin.email.replace('\n', '').replace('\r', '')
+    logger.info(f"Invitation created for {safe_email} by {safe_admin_email}")
     
     return InvitationResponse(
         token=invitation.token,
@@ -322,7 +330,8 @@ def list_invitations(
     admin: User = Depends(require_admin)
 ):
     """List all active invitations (admin only)"""
-    now = datetime.utcnow()
+    from datetime import timezone
+    now = datetime.now(timezone.utc)
     invitations = db.query(UserInvitation).filter(
         UserInvitation.expires_at > now
     ).order_by(UserInvitation.created_at.desc()).all()
@@ -360,7 +369,8 @@ def revoke_invitation(
 @router.get("/invitations/{token}/validate")
 def validate_invitation(token: str, db: Session = Depends(get_db)):
     """Validate invitation token (public endpoint)"""
-    now = datetime.utcnow()
+    from datetime import timezone
+    now = datetime.now(timezone.utc)
     invitation = db.query(UserInvitation).filter(
         UserInvitation.token == token,
         UserInvitation.expires_at > now
@@ -382,7 +392,8 @@ def accept_invitation(
     db: Session = Depends(get_db)
 ):
     """Accept invitation and create account (public endpoint)"""
-    now = datetime.utcnow()
+    from datetime import timezone
+    now = datetime.now(timezone.utc)
     invitation = db.query(UserInvitation).filter(
         UserInvitation.token == token,
         UserInvitation.expires_at > now

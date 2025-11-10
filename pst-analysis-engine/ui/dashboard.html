@@ -6,6 +6,17 @@
     <title>VeriCase - Dispute Intelligence Dashboard</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        :root {
+            --vericase-teal: #17B5A3;
+            --vericase-teal-dark: #129B8B;
+            --vericase-blue: #2B7FBF;
+            --vericase-navy: #1F2937;
+            --bg-primary: #E8EEF2;
+            --brand-primary: #17B5A3;
+            --brand-primary-dark: #129B8B;
+            --brand-secondary: #2B7FBF;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -13,19 +24,29 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: #f5f7fa;
-            color: #333;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'SF Pro Display', 'Roboto', sans-serif;
+            background: var(--bg-primary);
+            color: var(--vericase-navy);
+            -webkit-font-smoothing: antialiased;
+            background-image: radial-gradient(circle, rgba(23, 181, 163, 0.05) 1px, transparent 1px);
+            background-size: 30px 30px;
         }
 
         .top-bar {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 15px 30px;
+            background: white;
+            color: var(--vericase-navy);
+            padding: 1rem 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border-bottom: 1px solid var(--gray-200);
+        }
+        
+        .top-bar .logo-img {
+            height: 32px;
+            width: auto;
+            margin-right: 0.5rem;
         }
 
         .top-bar h1 {
@@ -54,24 +75,26 @@
         }
 
         .btn-primary {
-            background: #667eea;
+            background: var(--vericase-teal);
             color: white;
+            box-shadow: 0 4px 14px 0 rgba(23, 181, 163, 0.39);
         }
 
         .btn-primary:hover {
-            background: #5568d3;
+            background: var(--vericase-teal-dark);
+            box-shadow: 0 6px 20px rgba(23, 181, 163, 0.5);
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
 
         .btn-secondary {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            border: 1px solid rgba(255,255,255,0.3);
+            background: white;
+            color: var(--vericase-navy);
+            border: 2px solid var(--gray-200);
         }
 
         .btn-secondary:hover {
-            background: rgba(255,255,255,0.3);
+            background: var(--gray-50);
+            border-color: var(--vericase-teal);
         }
 
         .btn-success {
@@ -90,12 +113,26 @@
         }
 
         .welcome-banner {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--vericase-navy) 0%, var(--vericase-navy) 100%);
             color: white;
-            padding: 30px;
-            border-radius: 12px;
-            margin-bottom: 30px;
-            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+            padding: 2.5rem;
+            border-radius: 20px;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 40px rgba(31, 41, 55, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .welcome-banner::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(23, 181, 163, 0.2) 0%, transparent 70%);
+            border-radius: 50%;
         }
 
         .welcome-banner h2 {
@@ -131,31 +168,32 @@
 
         .action-card {
             background: white;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             cursor: pointer;
-            transition: all 0.3s;
-            border: 2px solid transparent;
+            transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+            border: 2px solid #F3F4F6;
         }
 
         .action-card:hover {
             transform: translateY(-4px);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.12);
-            border-color: #667eea;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            border-color: var(--brand-primary);
         }
 
         .action-card .icon {
-            width: 50px;
-            height: 50px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 10px;
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%);
+            border-radius: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            font-size: 24px;
-            margin-bottom: 15px;
+            font-size: 28px;
+            margin-bottom: 1.25rem;
+            box-shadow: 0 4px 14px 0 rgba(23, 181, 163, 0.39);
         }
 
         .action-card h3 {
@@ -179,9 +217,15 @@
 
         .widget {
             background: white;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid #F3F4F6;
+            transition: all 200ms;
+        }
+        
+        .widget:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
 
         .widget h3 {
@@ -438,15 +482,21 @@
 <body>
     <div class="top-bar">
         <h1>
-            <i class="fas fa-chart-line"></i>
-            <span id="profileName">VeriCase Dashboard</span>
+            <img src="assets/logo.png" alt="VeriCase" class="logo-img">
+            <span id="profileName">Dashboard</span>
         </h1>
         <div class="top-bar-actions">
+            <button class="btn btn-primary" id="uploadBtn" onclick="openPstUpload()" disabled>
+                <i class="fas fa-cloud-upload-alt"></i> Upload Evidence
+            </button>
             <button class="btn btn-secondary" onclick="window.location.href='wizard.html'">
                 <i class="fas fa-plus"></i> New Profile
             </button>
             <button class="btn btn-secondary" onclick="showSettings()">
                 <i class="fas fa-cog"></i> Settings
+            </button>
+            <button class="btn btn-secondary" id="adminApprovalBtn" onclick="window.location.href='admin-approvals.html'" style="display: none;">
+                <i class="fas fa-user-check"></i> <span id="pendingBadge"></span> Approvals
             </button>
         </div>
     </div>
@@ -470,7 +520,7 @@
 
         <!-- Quick Actions -->
         <div class="quick-actions">
-            <div class="action-card" onclick="uploadEvidence()">
+            <div class="action-card" onclick="openPstUpload()">
                 <div class="icon">
                     <i class="fas fa-cloud-upload-alt"></i>
                 </div>
@@ -500,6 +550,14 @@
                 </div>
                 <h3>Event Timeline</h3>
                 <p>Visualize project chronology and key events</p>
+            </div>
+
+            <div class="action-card" onclick="openAIRefinement()" style="background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%); color: white; border-color: transparent;">
+                <div class="icon" style="background: rgba(255, 255, 255, 0.2); box-shadow: 0 4px 14px 0 rgba(255, 255, 255, 0.3);">
+                    <i class="fas fa-wand-magic-sparkles"></i>
+                </div>
+                <h3 style="color: white;">AI Refinement</h3>
+                <p style="color: rgba(255, 255, 255, 0.9);">Discover patterns and refine evidence with AI assistance</p>
             </div>
         </div>
 
@@ -610,6 +668,46 @@
     </div>
 
     <script>
+        // Define navigation functions first (before DOMContentLoaded)
+        function openPstUpload() {
+            const profileId = localStorage.getItem('currentProjectId') || localStorage.getItem('currentCaseId');
+            const profileType = localStorage.getItem('profileType') || 'project';
+            if (!profileId) {
+                alert('Select a project or case before uploading evidence.');
+                return;
+            }
+            const param = profileType === 'project' ? 'projectId' : 'caseId';
+            window.location.href = `pst-upload.html?${param}=${profileId}`;
+        }
+
+        function viewCorrespondence() {
+            const profileId = localStorage.getItem('currentProjectId') || localStorage.getItem('currentCaseId');
+            const profileType = localStorage.getItem('profileType') || 'project';
+            window.location.href = `correspondence-enterprise.html?${profileType}Id=${profileId}`;
+        }
+
+        function manageStakeholders() {
+            alert('Stakeholder management coming soon!');
+        }
+
+        function viewTimeline() {
+            alert('Timeline view coming soon!');
+        }
+
+        function showSettings() {
+            alert('Settings panel coming soon!');
+        }
+
+        function openAIRefinement() {
+            const profileId = localStorage.getItem('currentProjectId') || localStorage.getItem('currentCaseId');
+            const profileType = localStorage.getItem('profileType') || 'project';
+            if (!profileId) {
+                alert('Select a project before using AI refinement.');
+                return;
+            }
+            window.location.href = `refinement-wizard.html?projectId=${profileId}`;
+        }
+
         // Get URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         let profileId = urlParams.get('projectId') || urlParams.get('caseId');
@@ -634,6 +732,10 @@
             return process.env.REACT_APP_API_URL || window.location.origin || '';
         };
         const apiUrl = getApiUrl();
+        const uploadBtn = document.getElementById('uploadBtn');
+        if (uploadBtn) {
+            uploadBtn.disabled = !profileId;
+        }
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', () => {
@@ -646,7 +748,33 @@
             if (isFirstTime) {
                 showFirstTimeOnboarding();
             }
+            
+            // Check if user is admin and show approval button
+            checkAdminStatus();
         });
+        
+        async function checkAdminStatus() {
+            try {
+                const user = JSON.parse(localStorage.getItem('user') || '{}');
+                if (user.role === 'ADMIN') {
+                    document.getElementById('adminApprovalBtn').style.display = 'inline-flex';
+                    
+                    // Check for pending users
+                    const response = await fetch(`${apiUrl}/api/admin/users/pending`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    
+                    if (response.ok) {
+                        const pending = await response.json();
+                        if (pending.length > 0) {
+                            document.getElementById('pendingBadge').innerHTML = `<span style="background: var(--error); color: white; padding: 0.125rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; margin-left: 0.25rem;">${pending.length}</span>`;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking admin status:', error);
+            }
+        }
 
         async function loadProfileData() {
             try {
@@ -760,191 +888,6 @@
             document.getElementById('welcomeMessage').textContent = welcomeMsg;
         }
 
-        function uploadEvidence() {
-            // Create and show upload modal
-            const modal = document.createElement('div');
-            modal.className = 'modal';
-            modal.innerHTML = `
-                <div class="modal-content" style="max-width: 500px;">
-                    <div class="modal-header">
-                        <h2>Upload Evidence</h2>
-                        <span class="close" onclick="this.closest('.modal').remove()">&times;</span>
-                    </div>
-                    <div class="modal-body" style="padding: 2rem;">
-                        <div id="uploadForm">
-                            <div class="upload-area" style="border: 2px dashed #ddd; border-radius: 8px; padding: 3rem; text-align: center; cursor: pointer;">
-                                <i class="fas fa-cloud-upload-alt" style="font-size: 3rem; color: #667eea; margin-bottom: 1rem; display: block;"></i>
-                                <p style="margin: 0.5rem 0;">Drag and drop PST files here or click to browse</p>
-                                <input type="file" id="fileInput" accept=".pst" style="display: none;">
-                            </div>
-                            <div id="uploadProgress" style="display: none; margin-top: 1rem;">
-                                <div class="progress-bar" style="background: #f0f0f0; border-radius: 4px; overflow: hidden; height: 20px;">
-                                    <div class="progress" style="background: #667eea; height: 100%; width: 0%; transition: width 0.3s;"></div>
-                                </div>
-                                <p style="margin-top: 0.5rem; text-align: center;"><span id="progressText">Uploading...</span></p>
-                            </div>
-                        </div>
-                        <div id="uploadResult" style="display: none; text-align: center; padding: 2rem;">
-                            <i class="fas fa-check-circle" style="font-size: 3rem; color: #48bb78; margin-bottom: 1rem; display: block;"></i>
-                            <h3>Upload Successful!</h3>
-                            <p>Your PST file is being processed. You can view the emails in the correspondence section once processing is complete.</p>
-                            <button onclick="window.location.href='correspondence-enterprise.html?${profileType}Id=${profileId}'" style="margin-top: 1rem; padding: 0.5rem 2rem; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer;">View Correspondence</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            modal.style.cssText = `
-                display: flex;
-                position: fixed;
-                z-index: 1000;
-                left: 0;
-                top: 0;
-                width: 100%;
-                height: 100%;
-                background-color: rgba(0,0,0,0.4);
-                align-items: center;
-                justify-content: center;
-            `;
-            
-            document.body.appendChild(modal);
-            
-            // Setup file upload
-            const uploadArea = modal.querySelector('.upload-area');
-            const fileInput = modal.querySelector('#fileInput');
-            const uploadForm = modal.querySelector('#uploadForm');
-            const uploadProgress = modal.querySelector('#uploadProgress');
-            const uploadResult = modal.querySelector('#uploadResult');
-            const progressBar = modal.querySelector('.progress');
-            const progressText = modal.querySelector('#progressText');
-            
-            uploadArea.onclick = () => fileInput.click();
-            
-            // Handle drag and drop
-            uploadArea.ondragover = (e) => {
-                e.preventDefault();
-                uploadArea.style.borderColor = '#667eea';
-                uploadArea.style.backgroundColor = '#f7fafc';
-            };
-            
-            uploadArea.ondragleave = () => {
-                uploadArea.style.borderColor = '#ddd';
-                uploadArea.style.backgroundColor = 'transparent';
-            };
-            
-            uploadArea.ondrop = (e) => {
-                e.preventDefault();
-                uploadArea.style.borderColor = '#ddd';
-                uploadArea.style.backgroundColor = 'transparent';
-                
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    handleFileUpload(files[0]);
-                }
-            };
-            
-            fileInput.onchange = (e) => {
-                if (e.target.files.length > 0) {
-                    handleFileUpload(e.target.files[0]);
-                }
-            };
-            
-            async function handleFileUpload(file) {
-                if (!file.name.toLowerCase().endsWith('.pst')) {
-                    alert('Please select a PST file');
-                    return;
-                }
-                
-                uploadForm.style.display = 'none';
-                uploadProgress.style.display = 'block';
-                
-                try {
-                    // 1) Init upload
-                    const ct = 'application/octet-stream';
-                    const initResp = await fetch(`${apiUrl}/uploads/init`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                        },
-                        body: JSON.stringify({
-                            filename: file.name,
-                            content_type: ct,
-                            size: file.size
-                        })
-                    });
-                    if (!initResp.ok) throw new Error('Failed to initialize upload');
-                    const { upload_id, upload_url } = await initResp.json();
-
-                    // 2) PUT to presigned URL
-                    let uploaded = 0;
-                    const chunkSize = Math.max(256 * 1024, Math.floor(file.size / 20)); // update bar ~20 steps
-                    const reader = file.stream().getReader();
-                    const chunks = [];
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        chunks.push(value);
-                        uploaded += value.length;
-                        const pct = Math.min(90, Math.round((uploaded / file.size) * 90));
-                        progressBar.style.width = pct + '%';
-                        progressText.textContent = `Uploading... ${pct}%`;
-                    }
-                    const putResp = await fetch(upload_url, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': ct },
-                        body: new Blob(chunks, { type: ct })
-                    });
-                    if (!putResp.ok) throw new Error('Failed to upload file');
-
-                    // 3) Complete
-                    const completeResp = await fetch(`${apiUrl}/uploads/complete`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                        },
-                        body: JSON.stringify({
-                            upload_id,
-                            filename: file.name,
-                            size: file.size,
-                            content_type: ct,
-                            path: null
-                        })
-                    });
-                    if (!completeResp.ok) throw new Error('Failed to finalize upload');
-
-                    progressBar.style.width = '100%';
-                    progressText.textContent = 'Processing...';
-                    // Done
-                    setTimeout(() => {
-                        uploadProgress.style.display = 'none';
-                        uploadResult.style.display = 'block';
-                    }, 300);
-                    
-                } catch (error) {
-                    console.error('Upload error:', error);
-                    alert('Upload failed: ' + error.message);
-                    uploadProgress.style.display = 'none';
-                    uploadForm.style.display = 'block';
-                }
-            }
-        }
-
-        function viewCorrespondence() {
-            window.location.href = `correspondence-enterprise.html?${profileType}Id=${profileId}`;
-        }
-
-        function manageStakeholders() {
-            alert('Stakeholder management coming soon!');
-        }
-
-        function viewTimeline() {
-            alert('Timeline view coming soon!');
-        }
-
-        function showSettings() {
-            alert('Settings panel coming soon!');
-        }
     </script>
 </body>
 </html>

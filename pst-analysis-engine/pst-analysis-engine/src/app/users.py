@@ -8,6 +8,7 @@ from typing import List, Optional
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
 
 from .security import get_db, current_user, hash_password, verify_password, sign_token
@@ -15,10 +16,14 @@ from .models import User, UserRole, UserInvitation
 
 logger = logging.getLogger(__name__)
 
+# Shared constants
+MAX_USER_LIST = 1000
+
 router = APIRouter(prefix="/users", tags=["users"])
 
-# Pydantic models for requests/responses
-class UserProfile(BaseModel):
+
+class _BaseUserResponse(BaseModel):
+    """Common fields returned for user objects."""
     id: str
     email: str
     display_name: Optional[str] = None
@@ -26,6 +31,11 @@ class UserProfile(BaseModel):
     is_active: bool
     created_at: datetime
     last_login_at: Optional[datetime] = None
+
+
+# Pydantic models for requests/responses
+class UserProfile(_BaseUserResponse):
+    pass
 
 class UpdateProfileRequest(BaseModel):
     display_name: Optional[str] = None
@@ -34,14 +44,8 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
-class UserListItem(BaseModel):
-    id: str
-    email: str
-    display_name: Optional[str] = None
-    role: str
-    is_active: bool
-    created_at: datetime
-    last_login_at: Optional[datetime] = None
+class UserListItem(_BaseUserResponse):
+    pass
 
 class UpdateUserRequest(BaseModel):
     role: Optional[str] = None
@@ -49,8 +53,9 @@ class UpdateUserRequest(BaseModel):
     display_name: Optional[str] = None
 
 class CreateInvitationRequest(BaseModel):
+    """Payload to create a user invitation (admin-only)."""
     email: EmailStr
-    role: str = "viewer"
+    role: UserRole = UserRole.VIEWER
 
 class InvitationResponse(BaseModel):
     token: str
@@ -167,8 +172,12 @@ def list_users(
 ):
     """List all users (admin only)"""
     try:
-        # Add pagination and limit to prevent performance issues
-        users = db.query(User).order_by(User.created_at.desc()).limit(1000).all()
+        stmt = (
+            select(User)
+            .order_by(User.created_at.desc())
+            .limit(MAX_USER_LIST)
+        )
+        users = db.execute(stmt).scalars().all()
         
         return [
             UserListItem(
@@ -274,11 +283,8 @@ def create_invitation(
     if existing_invite:
         raise HTTPException(409, "active invitation already exists for this email")
     
-    # Validate role
-    try:
-        role = UserRole(data.role)
-    except ValueError:
-        raise HTTPException(400, f"invalid role: {data.role}")
+    # Role provided as enum; pydantic validation ensures correctness
+    role = data.role
     
     # Create invitation
     token = uuid4().hex
@@ -319,10 +325,12 @@ def list_invitations(
     """List all active invitations (admin only)"""
     now = datetime.now(timezone.utc)
     try:
-        # Query uses parameterized SQLAlchemy ORM (SQL injection safe)
-        invitations = db.query(UserInvitation).filter(
-            UserInvitation.expires_at > now
-        ).order_by(UserInvitation.created_at.desc()).all()
+        stmt = (
+            select(UserInvitation)
+            .where(UserInvitation.expires_at > now)
+            .order_by(UserInvitation.created_at.desc())
+        )
+        invitations = db.execute(stmt).scalars().all()
     except Exception as e:
         logger.error(f"Database error fetching invitations: {e}")
         raise HTTPException(500, "Failed to fetch invitations")

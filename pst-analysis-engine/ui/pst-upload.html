@@ -415,10 +415,10 @@
                 await uploadFile(selectedFiles[i], i);
             }
             
-            // After all uploads complete, redirect to dashboard
+            // After all uploads complete, redirect to correspondence view
             setTimeout(() => {
-                alert('All files uploaded successfully! Processing has begun.');
-                goToDashboard();
+                alert('All files uploaded successfully! Processing has begun. You can review emails in the correspondence view.');
+                goToCorrespondence();
             }, 1000);
         }
 
@@ -499,6 +499,15 @@
 
         function goToDashboard() {
             window.location.href = `dashboard.html?${profileType}Id=${profileId}`;
+        }
+
+        function goToCorrespondence() {
+            if (!profileId) {
+                goToDashboard();
+                return;
+            }
+            const param = profileType === 'project' ? 'projectId' : 'caseId';
+            window.location.href = `correspondence-enterprise.html?${param}=${profileId}`;
         }
     </script>
 </body>

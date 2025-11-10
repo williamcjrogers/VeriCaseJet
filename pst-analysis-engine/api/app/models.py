@@ -244,7 +244,7 @@ class CaseUser(Base):
     """Case team members with roles"""
     __tablename__="case_users"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
+    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     role = Column(String(50), default="viewer")  # admin, editor, viewer
     added_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -460,7 +460,7 @@ class PSTFile(Base):
     processing_started_at = Column(DateTime(timezone=True), nullable=True)
     processing_completed_at = Column(DateTime(timezone=True), nullable=True)
     error_message = Column(Text, nullable=True)
-    uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     uploader = relationship("User")
     case = relationship("Case")
     project = relationship("Project")

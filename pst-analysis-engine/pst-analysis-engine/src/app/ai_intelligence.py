@@ -84,40 +84,37 @@ def classify_document(text: str, filename: str) -> DocumentClassification:
     Uses pattern matching and keyword analysis
     In production, would use ML model
     """
+    scores = {}
     try:
         if not text:
-            logger.warning(f"Empty text provided for classification of {filename}")
+            safe_filename = str(filename).replace('\n', '').replace('\r', '')[:100]
+            logger.warning(f"Empty text provided for classification of {safe_filename}")
             text = ""
         
         text_lower = text.lower()
-        scores = {}
         
         # Score each document type
         for doc_type, patterns in DOCUMENT_PATTERNS.items():
             score = 0
             
             # Keyword matching
-            for keyword in patterns['keywords']:
-                try:
-                    if keyword in text_lower:
-                        score += 2
-                except Exception as e:
-                    logger.debug(f"Error matching keyword {keyword}: {e}")
-                    continue
+            for keyword in patterns.get('keywords', []):
+                if keyword in text_lower:
+                    score += 2
             
             # Regex pattern matching
-            for pattern in patterns['patterns']:
+            for pattern in patterns.get('patterns', []):
                 try:
                     if re.search(pattern, text_lower):
                         score += 3
-                except Exception as e:
-                    logger.debug(f"Error matching pattern {pattern}: {e}")
+                except re.error as e:
+                    logger.debug(f"Invalid regex pattern {pattern}: {e}")
                     continue
             
             scores[doc_type] = score
-    except Exception as e:
-        logger.error(f"Error in initial classification for {filename}: {e}")
-        scores = {}
+    except (TypeError, AttributeError, ValueError) as e:
+        safe_filename = str(filename).replace('\n', '').replace('\r', '')[:100]
+        logger.error(f"Error in classification for {safe_filename}: {e}", exc_info=True)
     
     # Get best match
     if not scores or max(scores.values()) == 0:
@@ -135,28 +132,32 @@ def classify_document(text: str, filename: str) -> DocumentClassification:
     try:
         metadata = extract_metadata(text)
     except Exception as e:
-        logger.error(f"Error extracting metadata from {filename}: {e}")
+        safe_filename = str(filename).replace('\n', '').replace('\r', '')[:100]
+        logger.error(f"Error extracting metadata from {safe_filename}: {e}")
         metadata = {}
     
     # Extract entities
     try:
         entities = extract_entities(text)
     except Exception as e:
-        logger.error(f"Error extracting entities from {filename}: {e}")
+        safe_filename = str(filename).replace('\n', '').replace('\r', '')[:100]
+        logger.error(f"Error extracting entities from {safe_filename}: {e}")
         entities = []
     
     # Generate tags
     try:
         tags = generate_tags(text, doc_type)
     except Exception as e:
-        logger.error(f"Error generating tags for {filename}: {e}")
+        safe_filename = str(filename).replace('\n', '').replace('\r', '')[:100]
+        logger.error(f"Error generating tags for {safe_filename}: {e}")
         tags = []
     
     # Generate summary (first 2 sentences)
     try:
         summary = generate_summary(text)
     except Exception as e:
-        logger.error(f"Error generating summary for {filename}: {e}")
+        safe_filename = str(filename).replace('\n', '').replace('\r', '')[:100]
+        logger.error(f"Error generating summary for {safe_filename}: {e}")
         summary = None
     
     return DocumentClassification(
@@ -271,8 +272,10 @@ def generate_tags(text: str, doc_type: str) -> List[str]:
     
     text_lower = text.lower()
     for tag, keywords in tag_keywords.items():
-        if any(kw in text_lower for kw in keywords):
-            tags.append(tag)
+        for kw in keywords:
+            if kw in text_lower:
+                tags.append(tag)
+                break
     
     return list(set(tags))[:8]  # Max 8 tags
 
@@ -297,8 +300,11 @@ def detect_pii(text: str) -> tuple[bool, List[str]]:
     found_pii = []
     
     for pii_type, pattern in PII_PATTERNS.items():
-        if re.search(pattern, text):
-            found_pii.append(pii_type)
+        try:
+            if re.search(pattern, text):
+                found_pii.append(pii_type)
+        except re.error:
+            continue
     
     return len(found_pii) > 0, found_pii
 
@@ -306,18 +312,27 @@ def detect_compliance_issues(text: str, doc_type: str) -> List[str]:
     """Flag potential compliance issues"""
     flags = []
     
-    # Check for PII
-    has_pii, pii_types = detect_pii(text)
-    if has_pii:
-        flags.append(f"Contains PII: {', '.join(pii_types)}")
+    try:
+        # Check for PII
+        has_pii, pii_types = detect_pii(text)
+        if has_pii:
+            flags.append(f"Contains PII: {', '.join(pii_types)}")
+    except Exception:
+        pass
     
-    # Check for confidential markers
-    if re.search(r'\bconfidential\b|\bprivate\b|\brestricted\b', text, re.IGNORECASE):
-        flags.append("Marked as confidential")
+    try:
+        # Check for confidential markers
+        if re.search(r'\bconfidential\b|\bprivate\b|\brestricted\b', text, re.IGNORECASE):
+            flags.append("Marked as confidential")
+    except re.error:
+        pass
     
-    # Check for missing dates on time-sensitive docs
-    if doc_type in ['contract', 'invoice'] and not re.search(r'\d{1,2}/\d{1,2}/\d{4}', text):
-        flags.append("Missing date information")
+    try:
+        # Check for missing dates on time-sensitive docs
+        if doc_type in ['contract', 'invoice'] and not re.search(r'\d{1,2}/\d{1,2}/\d{4}', text):
+            flags.append("Missing date information")
+    except re.error:
+        pass
     
     return flags
 
@@ -351,36 +366,41 @@ async def classify_document_endpoint(
     try:
         classification = classify_document(text, document.filename)
     except Exception as e:
-        logger.error(f"Error classifying document {document_id}: {e}")
+        safe_doc_id = str(document_id).replace('\n', '').replace('\r', '')[:50]
+        logger.error(f"Error classifying document {safe_doc_id}: {e}")
         raise HTTPException(500, "Failed to classify document")
     
     # Detect compliance issues
     try:
         compliance_flags = detect_compliance_issues(text, classification.document_type)
     except Exception as e:
-        logger.error(f"Error detecting compliance issues for {document_id}: {e}")
+        safe_doc_id = str(document_id).replace('\n', '').replace('\r', '')[:50]
+        logger.error(f"Error detecting compliance issues for {safe_doc_id}: {e}")
         compliance_flags = []
     
     # Detect PII
     try:
         has_pii, pii_types = detect_pii(text)
     except Exception as e:
-        logger.error(f"Error detecting PII for {document_id}: {e}")
+        safe_doc_id = str(document_id).replace('\n', '').replace('\r', '')[:50]
+        logger.error(f"Error detecting PII for {safe_doc_id}: {e}")
         has_pii, pii_types = False, []
     
     # Detect language (simple heuristic)
     try:
         language = detect_language(text)
     except Exception as e:
-        logger.error(f"Error detecting language for {document_id}: {e}")
+        safe_doc_id = str(document_id).replace('\n', '').replace('\r', '')[:50]
+        logger.error(f"Error detecting language for {safe_doc_id}: {e}")
         language = "en"
     
     # Store classification in document metadata
     try:
-        if not document.meta:
-            document.meta = {}
+        meta = getattr(document, 'meta', None)
+        if not meta:
+            meta = {}
         
-        document.meta['ai_classification'] = {
+        meta['ai_classification'] = {
             'type': classification.document_type,
             'confidence': classification.confidence,
             'suggested_folder': classification.suggested_folder,
@@ -390,10 +410,12 @@ async def classify_document_endpoint(
             'pii_types': pii_types,
             'compliance_flags': compliance_flags
         }
+        setattr(document, 'meta', meta)
         
         db.commit()
     except Exception as e:
-        logger.error(f"Error saving classification for {document_id}: {e}")
+        safe_doc_id = str(document_id).replace('\n', '').replace('\r', '')[:50]
+        logger.error(f"Error saving classification for {safe_doc_id}: {e}")
         db.rollback()
         raise HTTPException(500, "Failed to save classification results")
     
@@ -452,7 +474,8 @@ async def suggest_folder(
     try:
         classification = classify_document(text, document.filename)
     except Exception as e:
-        logger.error(f"Error classifying document {document_id} for folder suggestion: {e}")
+        safe_doc_id = str(document_id).replace('\n', '').replace('\r', '')[:50]
+        logger.error(f"Error classifying document {safe_doc_id} for folder suggestion: {e}")
         return {"suggested_folder": "General", "confidence": 0.0, "reason": "Classification failed"}
     
     return {
@@ -485,20 +508,24 @@ async def auto_tag_document(
     try:
         classification = classify_document(text, document.filename)
     except Exception as e:
-        logger.error(f"Error classifying document {document_id} for auto-tagging: {e}")
+        safe_doc_id = str(document_id).replace('\n', '').replace('\r', '')[:50]
+        logger.error(f"Error classifying document {safe_doc_id} for auto-tagging: {e}")
         raise HTTPException(500, "Failed to generate tags")
     
     # Store tags in metadata
     try:
-        if not document.meta:
-            document.meta = {}
+        meta = getattr(document, 'meta', None)
+        if not meta:
+            meta = {}
         
-        document.meta['tags'] = classification.tags
-        document.meta['auto_tagged_at'] = datetime.now(timezone.utc).isoformat()
+        meta['tags'] = classification.tags
+        meta['auto_tagged_at'] = datetime.now(timezone.utc).isoformat()
+        setattr(document, 'meta', meta)
         
         db.commit()
     except Exception as e:
-        logger.error(f"Error saving tags for {document_id}: {e}")
+        safe_doc_id = str(document_id).replace('\n', '').replace('\r', '')[:50]
+        logger.error(f"Error saving tags for {safe_doc_id}: {e}")
         db.rollback()
         raise HTTPException(500, "Failed to save tags")
     
@@ -542,24 +569,27 @@ async def semantic_search(
     ).limit(100).all()
     
     for doc in docs:
-        if not doc.text_excerpt:
+        try:
+            if not doc.text_excerpt:
+                continue
+            
+            text_lower = doc.text_excerpt.lower()
+            score = 0
+            
+            for term in expanded_terms:
+                count = text_lower.count(term.lower())
+                score += count * 2
+            
+            if score > 0:
+                results.append({
+                    'document_id': str(doc.id),
+                    'filename': doc.filename,
+                    'path': doc.path,
+                    'score': score,
+                    'snippet': doc.text_excerpt[:200] if doc.text_excerpt else None
+                })
+        except (AttributeError, TypeError):
             continue
-        
-        text_lower = doc.text_excerpt.lower()
-        score = 0
-        
-        for term in expanded_terms:
-            count = text_lower.count(term.lower())
-            score += count * 2
-        
-        if score > 0:
-            results.append({
-                'document_id': str(doc.id),
-                'filename': doc.filename,
-                'path': doc.path,
-                'score': score,
-                'snippet': doc.text_excerpt[:200] if doc.text_excerpt else None
-            })
     
     # Sort by relevance
     results.sort(key=lambda x: x['score'], reverse=True)
@@ -616,16 +646,18 @@ async def batch_classify_documents(
             classification = classify_document(text, document.filename)
             
             # Store in metadata
-            if not document.meta:
-                document.meta = {}
+            meta = getattr(document, 'meta', None)
+            if not meta:
+                meta = {}
             
-            document.meta['ai_classification'] = {
+            meta['ai_classification'] = {
                 'type': classification.document_type,
                 'confidence': classification.confidence,
                 'suggested_folder': classification.suggested_folder,
                 'tags': classification.tags,
                 'classified_at': datetime.now(timezone.utc).isoformat()
             }
+            setattr(document, 'meta', meta)
             
             results.append({
                 'document_id': doc_id,
@@ -634,7 +666,8 @@ async def batch_classify_documents(
                 'suggested_folder': classification.suggested_folder
             })
         except Exception as e:
-            logger.error(f"Error classifying document {doc_id} in batch: {e}")
+            safe_doc_id = str(doc_id).replace('\n', '').replace('\r', '')[:50]
+            logger.warning(f"Skipping document {safe_doc_id} in batch: {e}")
             continue
     
     try:

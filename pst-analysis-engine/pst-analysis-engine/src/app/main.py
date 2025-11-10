@@ -98,13 +98,22 @@ def startup():
 @app.post("/api/auth/register")
 @app.post("/auth/signup")  # Keep old endpoint for compatibility
 def signup(payload: dict = Body(...), db: Session = Depends(get_db)):
-    email=(payload.get("email") or "").strip().lower(); password=payload.get("password") or ""
+    email = (payload.get("email") or "").strip().lower()
+    password = payload.get("password") or ""
     display_name = (payload.get("display_name") or payload.get("full_name") or "").strip()
+    
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password required")
+    
     from .models import User
-    if db.query(User).filter(User.email==email).first(): raise HTTPException(409,"email already registered")
-    user=User(email=email, password_hash=hash_password(password), display_name=display_name or None); db.add(user); db.commit()
-    token=sign_token(str(user.id), user.email)
-    return {"access_token": token, "token_type": "bearer", "user":{"id":str(user.id),"email":user.email,"display_name":display_name,"full_name":display_name}}
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=409, detail="Email already registered")
+    
+    user = User(email=email, password_hash=hash_password(password), display_name=display_name or None)
+    db.add(user)
+    db.commit()
+    token = sign_token(str(user.id), user.email)
+    return {"access_token": token, "token_type": "bearer", "user": {"id": str(user.id), "email": user.email, "display_name": display_name, "full_name": display_name}}
 
 @app.post("/api/auth/login")
 @app.post("/auth/login")  # Keep old endpoint for compatibility
@@ -167,7 +176,7 @@ def create_case(payload: dict = Body(...), db: Session = Depends(get_db), user: 
     from .models import Case, Company, UserCompany
     
     # Get or create company for this user
-    user_company = db.query(UserCompany).filter(UserCompany.user_id == user.id, UserCompany.is_primary.is_(True)).first()
+    user_company = db.query(UserCompany).filter(UserCompany.user_id == user.id, UserCompany.is_primary is True).first()
     if user_company:
         company = user_company.company
     else:
@@ -256,10 +265,21 @@ def init_upload(body: dict = Body(...), user: User = Depends(current_user)):
 
 @app.post("/uploads/presign")
 def presign_upload(body: dict = Body(...), user: User = Depends(current_user)):
-    filename=body.get("filename"); ct=body.get("content_type") or "application/octet-stream"
-    path=(body.get("path") or "").strip().strip("/")
-    key=f"{path + '/' if path else ''}{uuid.uuid4()}/{filename}"
-    url=presign_put(key, ct); return {"key":key, "url":url}
+    filename = body.get("filename")
+    if not filename:
+        raise HTTPException(status_code=400, detail="Filename is required")
+    
+    ct = body.get("content_type") or "application/octet-stream"
+    path = (body.get("path") or "").strip().strip("/")
+    key = f"{path + '/' if path else ''}{uuid.uuid4()}/{filename}"
+    
+    try:
+        url = presign_put(key, ct)
+    except (IOError, OSError, ConnectionError) as e:
+        logger.error(f"Failed to generate presigned URL: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate upload URL")
+    
+    return {"key": key, "url": url}
 @app.post("/uploads/complete")
 def complete_upload(body: dict = Body(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
     from .models import Document, DocStatus
@@ -278,14 +298,21 @@ def complete_upload(body: dict = Body(...), db: Session = Depends(get_db), user:
             raise HTTPException(status_code=400, detail="Key is required when upload_id is not provided")
     
     ct = body.get("content_type") or "application/octet-stream"
-    size = int(body.get("size") or 0)
+    
+    try:
+        size = int(body.get("size") or 0)
+    except (ValueError, TypeError):
+        logger.warning(f"Invalid size value: {body.get('size')}")
+        size = 0
+    
     title = body.get("title")
     path = body.get("path")
     
     # Set empty paths to None so they're treated consistently
-    if path == "": path = None
+    if path == "":
+        path = None
     
-    doc=Document(
+    doc = Document(
         filename=filename, 
         path=path, 
         content_type=ct, 
@@ -296,7 +323,14 @@ def complete_upload(body: dict = Body(...), db: Session = Depends(get_db), user:
         status=DocStatus.NEW, 
         owner_user_id=user.id
     )
-    db.add(doc); db.commit(); 
+    
+    try:
+        db.add(doc)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to create document: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create document") 
     
     # Check if PST file - trigger PST processor instead of OCR
     if filename.lower().endswith('.pst'):
@@ -316,9 +350,21 @@ def complete_upload(body: dict = Body(...), db: Session = Depends(get_db), user:
 
 @app.post("/uploads/multipart/start")
 def multipart_start_ep(body: dict = Body(...), user: User = Depends(current_user)):
-    filename=body.get("filename"); ct=body.get("content_type") or "application/octet-stream"
-    path=(body.get("path") or "").strip().strip("/"); key=f"{path + '/' if path else ''}{uuid.uuid4()}/{filename}"
-    upload_id=multipart_start(key, ct); return {"key":key, "uploadId": upload_id}
+    filename = body.get("filename")
+    if not filename:
+        raise HTTPException(status_code=400, detail="Filename is required")
+    
+    ct = body.get("content_type") or "application/octet-stream"
+    path = (body.get("path") or "").strip().strip("/")
+    key = f"{path + '/' if path else ''}{uuid.uuid4()}/{filename}"
+    
+    try:
+        upload_id = multipart_start(key, ct)
+    except (IOError, OSError, ConnectionError) as e:
+        logger.error(f"Failed to start multipart upload: {e}")
+        raise HTTPException(status_code=500, detail="Failed to start multipart upload")
+    
+    return {"key": key, "uploadId": upload_id}
 @app.get("/uploads/multipart/part")
 def multipart_part_url(key: str, uploadId: str, partNumber: int, user: User = Depends(current_user)):
     return {"url": presign_part(key, uploadId, partNumber)}
@@ -361,9 +407,10 @@ def multipart_complete_ep(body: dict = Body(...), db: Session = Depends(get_db),
     title = body.get("title")
     path = body.get("path")
     # Set empty paths to None so they're treated consistently
-    if path == "": path = None
+    if path == "":
+        path = None
     
-    doc=Document(
+    doc = Document(
         filename=filename, 
         path=path, 
         content_type=ct, 
@@ -409,7 +456,7 @@ def list_documents(
             or_(
                 Document.path.is_(None),  # Documents with no path
                 ~Document.path.like('private/%'),  # Not in private folder
-                and_(Document.path.like('private/%'), Document.owner_user_id == user.id)  # Or it's admin's own private folder
+                and_(Document.path.like('private/%'), Document.owner_user_id.is_(user.id))  # Or it's admin's own private folder
             )
         )
     else:
@@ -418,7 +465,7 @@ def list_documents(
     if path_prefix is not None:
         if path_prefix == "":
             # Empty string means root - show documents with no path or empty path
-            query = query.filter((Document.path == None) | (Document.path == ""))
+            query = query.filter((Document.path.is_(None)) | (Document.path == ""))
         else:
             safe_path = path_prefix.strip().strip("/")
             if safe_path:
@@ -615,7 +662,7 @@ def update_document(doc_id: str, body: dict = Body(...), db: Session = Depends(g
     if "filename" in body:
         doc.filename = body["filename"]
     
-    doc.updated_at = datetime.utcnow()
+    doc.updated_at = datetime.now(timezone.utc)
     try:
         db.commit()
         db.refresh(doc)
@@ -746,7 +793,7 @@ def create_share(body: dict = Body(...), db: Session = Depends(get_db), user: Us
         if len(password) < 4 or len(password) > 128:
             raise HTTPException(400, "password length must be between 4 and 128 characters")
         password_hash = hash_password(password)
-    token=uuid.uuid4().hex; expires=datetime.utcnow() + timedelta(hours=hours)
+    token=uuid.uuid4().hex; expires=datetime.now(timezone.utc) + timedelta(hours=hours)
     try:
         share=ShareLink(token=token, document_id=doc.id, created_by=user.id, expires_at=expires, password_hash=password_hash)
         db.add(share)
@@ -758,7 +805,7 @@ def create_share(body: dict = Body(...), db: Session = Depends(get_db), user: Us
     return {"token": token, "expires_at": expires, "requires_password": bool(password_hash)}
 @app.get("/shares/{token}")
 def resolve_share(token: str, password: Optional[str] = Query(default=None), watermark: Optional[str] = Query(default=None), db: Session = Depends(get_db)):
-    now=datetime.utcnow()
+    now=datetime.now(timezone.utc)
     try:
         share=db.query(ShareLink).options(joinedload(ShareLink.document)).filter(ShareLink.token==token, ShareLink.expires_at>now).first()
     except Exception as e:
@@ -913,8 +960,8 @@ def list_folders(db: Session = Depends(get_db), user: User = Depends(current_use
     else:
         # Regular users see only their own folders
         # Note: SQLAlchemy ORM uses parameterized queries, user.id is a UUID object (not raw SQL)
-        doc_paths = db.query(Document.path).filter(Document.owner_user_id == user.id, Document.path.isnot(None)).distinct().all()  # nosec B608
-        empty_folders = db.query(Folder).filter(Folder.owner_user_id == user.id).all()  # nosec B608
+        doc_paths = db.query(Document.path).filter(Document.owner_user_id.is_(user.id), Document.path.isnot(None)).distinct().all()
+        empty_folders = db.query(Folder).filter(Folder.owner_user_id.is_(user.id)).all()
     folder_map = {}
     for (path,) in doc_paths:
         if not path: continue
