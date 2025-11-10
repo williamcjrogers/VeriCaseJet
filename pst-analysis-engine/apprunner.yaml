@@ -15,3 +15,22 @@ run:
   env:
     - name: PYTHONUNBUFFERED
       value: "1"
+    - name: USE_AWS_SERVICES
+      value: "true"
+    - name: AWS_STORAGE_BUCKET_NAME
+      value: "vericase-data"
+    - name: S3_BUCKET_NAME
+      value: "vericase-data"
+    - name: AWS_S3_REGION_NAME
+      value: "us-east-1"
+    - name: EMAIL_HOST
+      value: "smtp.gmail.com"
+    - name: EMAIL_PORT
+      value: "587"
+    - name: EMAIL_FROM
+      value: "noreply@vericase.com"
+    # IMPORTANT: Add these as environment variables in AWS Console or Secrets Manager:
+    # SECRET_KEY, DATABASE_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+    # ADMIN_EMAIL, ADMIN_PASSWORD
+    # OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, GROK_API_KEY
+    # EMAIL_HOST_USER, EMAIL_HOST_PASSWORD
