@@ -53,98 +53,22 @@ class ChangePasswordRequest(BaseModel):
 class RefreshTokenRequest(BaseModel):
     token: str
 
-# Enhanced login with security features
-@router.post("/login-secure")
-@rate_limit(max_attempts=5, window=900)  # 5 attempts per 15 minutes
-async def login_secure(
-    request: Request,
-    data: LoginRequest,
-    db: Session = Depends(get_db)
-):
-    """Enhanced login with rate limiting and account lockout"""
-    # Get request info
-    client_ip = request.client.host
-    user_agent = request.headers.get("user-agent", "")
-    
-    # Find user
-    user = db.query(User).filter(User.email == data.email.lower()).first()
-    
-    if not user:
-        # Record failed attempt even for non-existent users (prevent enumeration)
-        record_login_attempt(
-            email=data.email.lower(),
-            success=False,
-            failure_reason="user_not_found",
-            ip_address=client_ip,
-            user_agent=user_agent,
-            db=db
-        )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
-        )
-    
-    # Check if account is locked
-    if is_account_locked(user):
-        remaining_minutes = int((user.locked_until - datetime.now(timezone.utc)).total_seconds() / 60)
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Account is locked. Try again in {remaining_minutes} minutes."
-        )
-    
-    # Verify password
-    if not verify_password(data.password, user.password_hash):
-        handle_failed_login(user, db)
-        record_login_attempt(
-            email=data.email.lower(),
-            success=False,
-            user_id=user.id,
-            failure_reason="invalid_password",
-            ip_address=client_ip,
-            user_agent=user_agent,
-            db=db
-        )
-        
-        attempts_remaining = 5 - (user.failed_login_attempts or 0)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid credentials. {attempts_remaining} attempts remaining."
-        )
-    
-    # Check if email is verified
-    if not user.email_verified:
-        logger.warning(f"Unverified email login attempt for {user.email}")
-        # Still allow login but include warning in response
-    
-    # Successful login
-    handle_successful_login(user, db)
-    
-    # Create JWT and session
-    token, jti = sign_jwt_token(str(user.id), user.email, data.remember_me)
-    
-    # Create session record
+# Helper functions to reduce coupling
+def _create_session_token(user: User, remember_me: bool, client_ip: str, user_agent: str, db: Session):
+    """Create JWT token and session record"""
+    token, jti = sign_jwt_token(str(user.id), user.email, remember_me)
     session = UserSession(
         user_id=user.id,
         token_jti=jti,
         ip_address=client_ip,
         user_agent=user_agent,
-        expires_at=datetime.now(timezone.utc) + timedelta(
-            days=30 if data.remember_me else 1
-        )
+        expires_at=datetime.now(timezone.utc) + timedelta(days=30 if remember_me else 1)
     )
     db.add(session)
-    db.commit()
-    
-    # Record successful login
-    record_login_attempt(
-        email=data.email.lower(),
-        success=True,
-        user_id=user.id,
-        ip_address=client_ip,
-        user_agent=user_agent,
-        db=db
-    )
-    
+    return token
+
+def _build_user_response(user: User, token: str):
+    """Build login response with user data"""
     return {
         "access_token": token,
         "token_type": "bearer",
@@ -157,6 +81,44 @@ async def login_secure(
         },
         "warning": None if user.email_verified else "Please verify your email address"
     }
+
+# Enhanced login with security features
+@router.post("/login-secure")
+@rate_limit(max_attempts=5, window=900)  # 5 attempts per 15 minutes
+async def login_secure(
+    request: Request,
+    data: LoginRequest,
+    db: Session = Depends(get_db)
+):
+    """Enhanced login with rate limiting and account lockout"""
+    client_ip = request.client.host
+    user_agent = request.headers.get("user-agent", "")
+    
+    user = db.query(User).filter(User.email == data.email.lower()).first()
+    
+    if not user:
+        record_login_attempt(email=data.email.lower(), success=False, failure_reason="user_not_found", ip_address=client_ip, user_agent=user_agent, db=db)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    
+    if is_account_locked(user):
+        remaining_minutes = int((user.locked_until - datetime.now(timezone.utc)).total_seconds() / 60)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Account is locked. Try again in {remaining_minutes} minutes.")
+    
+    if not verify_password(data.password, user.password_hash):
+        handle_failed_login(user, db)
+        record_login_attempt(email=data.email.lower(), success=False, user_id=user.id, failure_reason="invalid_password", ip_address=client_ip, user_agent=user_agent, db=db)
+        attempts_remaining = 5 - (user.failed_login_attempts or 0)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid credentials. {attempts_remaining} attempts remaining.")
+    
+    if not user.email_verified:
+        logger.warning(f"Unverified email login attempt for {user.email}")
+    
+    handle_successful_login(user, db)
+    token = _create_session_token(user, data.remember_me, client_ip, user_agent, db)
+    db.commit()
+    record_login_attempt(email=data.email.lower(), success=True, user_id=user.id, ip_address=client_ip, user_agent=user_agent, db=db)
+    
+    return _build_user_response(user, token)
 
 # Logout endpoint
 @router.post("/logout")

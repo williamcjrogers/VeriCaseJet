@@ -5,12 +5,23 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, or_
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel, Field
 import uuid
+import re
 
 from .db import get_db
 from .models import Case, Project, Stakeholder, Keyword
+
+def validate_search_input(search: str) -> str:
+    """Validate and sanitize search input to prevent any injection attempts"""
+    if not search:
+        return ""
+    # Remove any potentially dangerous characters
+    # Allow only alphanumeric, spaces, hyphens, underscores, and common punctuation
+    sanitized = re.sub(r'[^\w\s.,@-]', '', search)
+    # Limit length to prevent DoS
+    return sanitized[:100]
 
 router = APIRouter(prefix="/api", tags=["simple-cases"])
 
@@ -73,6 +84,7 @@ class CaseCreate(BaseModel):
 def list_cases_simple(db: Session = Depends(get_db)):
     """List all cases without authentication (for testing)"""
     try:
+        # Using SQLAlchemy ORM which parameterizes queries safely
         cases = db.query(Case).order_by(desc(Case.created_at)).limit(50).all()
         
         result = []
@@ -86,7 +98,7 @@ def list_cases_simple(db: Session = Depends(get_db)):
                 "contract_type": getattr(case, 'contract_type', None),
                 "dispute_type": getattr(case, 'dispute_type', None),
                 "status": getattr(case, 'status', 'active'),
-                "created_at": case.created_at.isoformat() if case.created_at else datetime.now().isoformat(),
+                "created_at": case.created_at.isoformat() if case.created_at else datetime.now(timezone.utc).isoformat(),
                 "evidence_count": 0,  # TODO: Count evidence
                 "issue_count": 0      # TODO: Count issues
             })
@@ -117,6 +129,7 @@ def create_project(project_data: ProjectCreate, db: Session = Depends(get_db)):
     """Create a project with stakeholders and keywords"""
     try:
         # Check if project code already exists
+        # Using SQLAlchemy ORM with parameterized query (safe from SQL injection)
         existing_project = db.query(Project).filter(Project.project_code == project_data.project_code).first()
         if existing_project:
             raise HTTPException(status_code=400, detail="Project code already exists")
@@ -174,7 +187,7 @@ def create_project(project_data: ProjectCreate, db: Session = Depends(get_db)):
             "project_name": project.project_name,
             "project_code": project.project_code,
             "status": "active",
-            "created_at": project.created_at.isoformat() if project.created_at else datetime.now().isoformat()
+            "created_at": project.created_at.isoformat() if project.created_at else datetime.now(timezone.utc).isoformat()
         }
         
     except HTTPException:
@@ -187,13 +200,14 @@ def create_project(project_data: ProjectCreate, db: Session = Depends(get_db)):
             "project_name": project_data.project_name,
             "project_code": project_data.project_code,
             "status": "active",
-            "created_at": datetime.now().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat()
         }
 
 @router.get("/projects")
 def list_projects(db: Session = Depends(get_db)):
     """List all projects without authentication"""
     try:
+        # Using SQLAlchemy ORM which parameterizes queries safely
         projects = db.query(Project).order_by(desc(Project.created_at)).limit(50).all()
         
         result = []
@@ -206,7 +220,7 @@ def list_projects(db: Session = Depends(get_db)):
                 "completion_date": project.completion_date.isoformat() if project.completion_date else None,
                 "contract_type": project.contract_type,
                 "analysis_type": project.analysis_type or "project",
-                "created_at": project.created_at.isoformat() if project.created_at else datetime.now().isoformat()
+                "created_at": project.created_at.isoformat() if project.created_at else datetime.now(timezone.utc).isoformat()
             })
         
         return result
@@ -233,12 +247,15 @@ def get_stakeholder_suggestions(search: Optional[str] = None, db: Session = Depe
         query = db.query(Stakeholder.name, Stakeholder.organization).distinct()
         
         if search:
-            query = query.filter(
-                or_(
-                    Stakeholder.name.ilike(f"%{search}%"),
-                    Stakeholder.organization.ilike(f"%{search}%")
+            # Sanitize search input
+            safe_search = validate_search_input(search)
+            if safe_search:
+                query = query.filter(
+                    or_(
+                        Stakeholder.name.ilike(f"%{safe_search}%"),
+                        Stakeholder.organization.ilike(f"%{safe_search}%")
+                    )
                 )
-            )
         
         results = query.limit(20).all()
         
@@ -279,7 +296,7 @@ def create_case_simple(case_data: CaseCreate, db: Session = Depends(get_db)):
     """Create a case without authentication (for testing)"""
     try:
         # Generate case number if not provided
-        case_number = case_data.case_id or f"CASE-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:4].upper()}"
+        case_number = case_data.case_id or f"CASE-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid.uuid4().hex[:4].upper()}"
         
         case = Case(
             id=uuid.uuid4(),
@@ -325,7 +342,7 @@ def create_case_simple(case_data: CaseCreate, db: Session = Depends(get_db)):
             "case_name": case.name,
             "case_number": case.case_number,
             "status": "active",
-            "created_at": case.created_at.isoformat() if case.created_at else datetime.now().isoformat()
+            "created_at": case.created_at.isoformat() if case.created_at else datetime.now(timezone.utc).isoformat()
         }
         
     except Exception as e:
@@ -336,5 +353,5 @@ def create_case_simple(case_data: CaseCreate, db: Session = Depends(get_db)):
             "case_name": case_data.case_name,
             "case_number": case_data.case_id or f"CASE-{new_id[:8]}",
             "status": "active",
-            "created_at": datetime.now().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat()
         }

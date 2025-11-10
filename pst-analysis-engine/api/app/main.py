@@ -10,6 +10,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import select
+
+# Import production config helper if in production
+import os
+if os.getenv('AWS_EXECUTION_ENV') or os.getenv('AWS_REGION'):
+    from .config_production import update_production_config
+    update_production_config()
+
 from .config import settings
 from .db import Base, engine
 from .models import Document, DocStatus, User, ShareLink, Folder
@@ -25,6 +33,8 @@ from .favorites import router as favorites_router
 from .versioning import router as versioning_router
 from .ai_intelligence import router as ai_router
 from .ai_orchestrator import router as orchestrator_router
+from .ai_chat import router as ai_chat_router
+from .admin_approval import router as admin_approval_router
 from .cases import router as cases_router
 from .simple_cases import router as simple_cases_router
 from .programmes import router as programmes_router
@@ -71,6 +81,8 @@ app.include_router(favorites_router)
 app.include_router(versioning_router)
 app.include_router(ai_router)
 app.include_router(orchestrator_router)
+app.include_router(ai_chat_router)  # AI Chat with multi-model research
+app.include_router(admin_approval_router)  # Admin user approval system
 app.include_router(wizard_router)  # Wizard endpoints (must come early for /api/projects, /api/cases)
 app.include_router(simple_cases_router)  # Must come BEFORE cases_router to match first
 app.include_router(cases_router)
@@ -99,7 +111,7 @@ else:
     logger.warning("UI directory not found in candidates %s; /ui mount disabled", _ui_candidates)
 
 @app.get("/", include_in_schema=False)
-def root():
+def redirect_to_ui():
     return RedirectResponse(url="/ui/")
 
 @app.get("/health")
@@ -113,7 +125,7 @@ async def health_check(db: Session = Depends(get_db)):
         db.execute(text("SELECT 1"))
         
         # Check Redis connection
-        import redis
+        import redis  # type: ignore[import-untyped]
         r = redis.from_url(settings.REDIS_URL)
         r.ping()
         
@@ -140,45 +152,93 @@ def startup():
 @app.post("/api/auth/register")
 @app.post("/auth/signup")  # Keep old endpoint for compatibility
 def signup(payload: dict = Body(...), db: Session = Depends(get_db)):
-    email=(payload.get("email") or "").strip().lower(); password=payload.get("password") or ""
+    email=(payload.get("email") or "").strip().lower()
+    password=payload.get("password") or ""
     display_name = (payload.get("display_name") or payload.get("full_name") or "").strip()
+    requires_approval = payload.get("requires_approval", True)  # Default to requiring approval
+    
     from .models import User
-    if db.query(User).filter(User.email==email).first(): raise HTTPException(409,"email already registered")
+    if db.query(User).filter(User.email==email).first():
+        raise HTTPException(409,"email already registered")
+    
     # Generate verification token
     from .security_enhanced import generate_token
     verification_token = generate_token()
     
+    # Create user with pending approval status
     user=User(
         email=email, 
         password_hash=hash_password(password), 
         display_name=display_name or None,
         verification_token=verification_token,
-        email_verified=False
+        email_verified=False,
+        is_active=not requires_approval,  # Inactive until admin approves
+        role='VIEWER'  # Default role, admin can change
     )
+    
+    # Store additional signup info in meta
+    user_meta = {
+        'first_name': payload.get('first_name'),
+        'last_name': payload.get('last_name'),
+        'company': payload.get('company'),
+        'role_description': payload.get('role'),
+        'signup_reason': payload.get('reason'),
+        'signup_date': datetime.now(timezone.utc).isoformat(),
+        'approval_status': 'pending' if requires_approval else 'auto_approved'
+    }
+    
     db.add(user)
     db.commit()
     
-    # Send verification email
-    from .email_service import email_service
-    email_service.send_verification_email(
-        to_email=email,
-        user_name=display_name or email.split('@')[0],
-        verification_token=verification_token
-    )
+    # Send notification emails
+    try:
+        from .email_service import email_service
+        
+        # Email to user
+        email_service.send_verification_email(
+            to_email=email,
+            user_name=display_name or email.split('@')[0],
+            verification_token=verification_token
+        )
+        
+        # Email to admin if approval required
+        if requires_approval:
+            # Get admin users
+            admins = db.query(User).filter(User.role == 'ADMIN', User.is_active == True).all()
+            for admin in admins:
+                try:
+                    email_service.send_approval_notification(
+                        admin_email=admin.email,
+                        new_user_email=email,
+                        new_user_name=display_name,
+                        company=payload.get('company', 'Unknown')
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to send approval notification to {admin.email}: {e}")
+    except Exception as e:
+        logger.error(f"Failed to send emails: {e}")
     
-    token=sign_token(str(user.id), user.email)
-    return {
-        "access_token": token, 
-        "token_type": "bearer", 
-        "user": {
-            "id": str(user.id),
-            "email": user.email,
-            "display_name": display_name,
-            "full_name": display_name,
-            "email_verified": False
-        },
-        "message": "Registration successful. Please check your email to verify your account."
-    }
+    # Return success message (no token if approval required)
+    if requires_approval:
+        return {
+            "message": "Registration successful! Your account is pending admin approval. You will receive an email once approved.",
+            "approval_required": True,
+            "email": email
+        }
+    else:
+        token=sign_token(str(user.id), user.email)
+        return {
+            "access_token": token, 
+            "token_type": "bearer", 
+            "user": {
+                "id": str(user.id),
+                "email": user.email,
+                "display_name": display_name,
+                "full_name": display_name,
+                "email_verified": False
+            },
+            "message": "Registration successful. Please check your email to verify your account."
+        }
 
 @app.post("/api/auth/login")
 @app.post("/auth/login")  # Keep old endpoint for compatibility
@@ -228,8 +288,8 @@ def login(payload: dict = Body(...), db: Session = Depends(get_db)):
         try:
             user.last_login_at = datetime.now()
             db.commit()
-        except Exception:
-            pass  # Non-critical
+        except (ValueError, TypeError, AttributeError) as e:
+            logger.debug(f"Non-critical error updating last_login_at: {e}")
         
         token = sign_token(str(user.id), user.email)
         display_name = getattr(user, "display_name", None) or ""
@@ -264,7 +324,7 @@ def create_case(payload: dict = Body(...), db: Session = Depends(get_db), user: 
     from .models import Case, Company, UserCompany
     
     # Get or create company for this user
-    user_company = db.query(UserCompany).filter(UserCompany.user_id == user.id, UserCompany.is_primary == True).first()
+    user_company = db.query(UserCompany).filter(UserCompany.user_id == user.id, UserCompany.is_primary.is_(True)).first()
     if user_company:
         company = user_company.company
     else:
@@ -349,7 +409,19 @@ def complete_upload(body: dict = Body(...), db: Session = Depends(get_db), user:
     path = body.get("path")
     
     # Set empty paths to None so they're treated consistently
-    if path == "": path = None
+    if path == "":
+        path = None
+    
+    # Extract profile info for PST processing
+    profile_type = body.get("profile_type") or body.get("profileType")
+    profile_id = body.get("profile_id") or body.get("profileId")
+    
+    # Build metadata
+    meta = {}
+    if profile_type and profile_id:
+        meta["profile_type"] = profile_type
+        meta["profile_id"] = profile_id
+        meta["uploaded_by"] = str(user.id)
     
     doc=Document(
         filename=filename, 
@@ -360,15 +432,16 @@ def complete_upload(body: dict = Body(...), db: Session = Depends(get_db), user:
         s3_key=key, 
         title=title, 
         status=DocStatus.NEW, 
-        owner_user_id=user.id
+        owner_user_id=user.id,
+        meta=meta if meta else None
     )
     db.add(doc); db.commit(); 
     
     # Check if PST file - trigger PST processor instead of OCR
     if filename.lower().endswith('.pst'):
-        # Get case_id and company_id from body or user
-        case_id = body.get("case_id") or str(user.id)  # Default to user ID if no case
-        company_id = body.get("company_id", "1")
+        # For PST files, pass placeholder case_id so worker recognizes it as project upload
+        case_id = "00000000-0000-0000-0000-000000000000"
+        company_id = body.get("company_id", "")
         
         celery_app.send_task(
             "worker_app.worker.process_pst_file", 
@@ -394,7 +467,8 @@ def multipart_complete_ep(body: dict = Body(...), db: Session = Depends(get_db),
     filename=body.get("filename") or "file"; ct=body.get("content_type") or "application/octet-stream"
     size=int(body.get("size") or 0); title=body.get("title"); path=body.get("path")
     # Set empty paths to None so they're treated consistently
-    if path == "": path = None
+    if path == "":
+        path = None
     
     doc=Document(
         filename=filename, 
@@ -508,7 +582,7 @@ def get_recent_documents(
         from datetime import datetime, timedelta
         
         # Get documents accessed in last 30 days, or fall back to recently created
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
         
         # Try to get recently accessed first
         recent_query = db.query(Document).filter(
@@ -593,7 +667,7 @@ def update_document(doc_id: str, body: dict = Body(...), db: Session = Depends(g
         if "filename" in body:
             doc.filename = body["filename"]
         
-        doc.updated_at = datetime.utcnow()
+        doc.updated_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(doc)
         
@@ -658,12 +732,12 @@ def create_share(body: dict = Body(...), db: Session = Depends(get_db), user: Us
         if len(password) < 4 or len(password) > 128:
             raise HTTPException(400, "password length must be between 4 and 128 characters")
         password_hash = hash_password(password)
-    token=uuid.uuid4().hex; expires=datetime.utcnow() + timedelta(hours=hours)
+    token=uuid.uuid4().hex; expires=datetime.now(timezone.utc) + timedelta(hours=hours)
     share=ShareLink(token=token, document_id=doc.id, created_by=user.id, expires_at=expires, password_hash=password_hash); db.add(share); db.commit()
     return {"token": token, "expires_at": expires, "requires_password": bool(password_hash)}
 @app.get("/shares/{token}")
 def resolve_share(token: str, password: Optional[str] = Query(default=None), watermark: Optional[str] = Query(default=None), db: Session = Depends(get_db)):
-    now=datetime.utcnow()
+    now=datetime.now(timezone.utc)
     share=db.query(ShareLink).options(joinedload(ShareLink.document)).filter(ShareLink.token==token, ShareLink.expires_at>now).first()
     if not share: raise HTTPException(404,"invalid or expired")
     if share.password_hash:
@@ -771,23 +845,32 @@ def list_folders(db: Session = Depends(get_db), user: User = Depends(current_use
     
     # Admin sees all folders except other users' private folders
     if user.role == UserRole.ADMIN:
-        # Get all document paths
-        doc_paths = db.query(Document.path, Document.owner_user_id).filter(Document.path.isnot(None)).distinct().all()
+        doc_paths_stmt = (
+            select(Document.path, Document.owner_user_id)
+            .where(Document.path.isnot(None))
+            .distinct()
+        )
+        doc_paths = db.execute(doc_paths_stmt).all()
         # Filter out private folders from other users
         doc_paths = [(path, owner_id) for path, owner_id in doc_paths 
                      if not path.startswith('private/') or owner_id == user.id]
         # Convert back to tuple format
         doc_paths = [(path,) for path, _ in doc_paths]
         
-        # Get all empty folders
-        empty_folders = db.query(Folder).all()
+        empty_folders_stmt = select(Folder)
+        empty_folders = db.execute(empty_folders_stmt).scalars().all()
         # Filter out private folders from other users
         empty_folders = [f for f in empty_folders 
                         if not f.path.startswith('private/') or f.owner_user_id == user.id]
     else:
-        # Regular users see only their own folders
-        doc_paths = db.query(Document.path).filter(Document.owner_user_id == user.id, Document.path.isnot(None)).distinct().all()
-        empty_folders = db.query(Folder).filter(Folder.owner_user_id == user.id).all()
+        doc_paths_stmt = (
+            select(Document.path)
+            .where(Document.owner_user_id == user.id, Document.path.isnot(None))
+            .distinct()
+        )
+        doc_paths = db.execute(doc_paths_stmt).all()
+        empty_folders_stmt = select(Folder).where(Folder.owner_user_id == user.id)
+        empty_folders = db.execute(empty_folders_stmt).scalars().all()
     folder_map = {}
     for (path,) in doc_paths:
         if not path: continue
@@ -808,3 +891,14 @@ def list_folders(db: Session = Depends(get_db), user: User = Depends(current_use
     folders = [FolderInfo(**f) for f in folder_map.values()]
     folders.sort(key=lambda f: f.path)
     return FolderListResponse(folders=folders)
+
+# Utility routes
+@app.get("/ui/", include_in_schema=False)
+async def ui_root():
+    """Redirect /ui/ to wizard"""
+    return RedirectResponse(url="/ui/wizard.html")
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """Return 204 No Content to prevent 404 errors"""
+    return Response(status_code=204)

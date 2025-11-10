@@ -84,13 +84,23 @@ class UltimatePSTProcessor:
         ).first()
         
         if not pst_file_record:
+            # Resolve uploader from document metadata or owner
+            meta_dict = {}
+            try:
+                meta_dict = document.meta if isinstance(document.meta, dict) else {}
+            except Exception:
+                meta_dict = {}
+            uploader = meta_dict.get("uploaded_by") if isinstance(meta_dict, dict) else None
+            if not uploader:
+                uploader = str(document.owner_user_id) if getattr(document, "owner_user_id", None) else "00000000-0000-0000-0000-000000000000"
             pst_file_record = PSTFile(
                 filename=document.filename,
                 case_id=case_id,
                 project_id=project_id,
                 s3_bucket=settings.S3_BUCKET,
                 s3_key=pst_s3_key,
-                file_size=document.size
+                file_size=document.size,
+                uploaded_by=uploader
             )
             self.db.add(pst_file_record)
             self.db.commit()
@@ -139,7 +149,7 @@ class UltimatePSTProcessor:
             logger.info(f"Found {self.total_count} total messages to process")
             
             # Process all folders recursively
-            self._process_folder(root, pst_file_record, case_id, project_id, company_id, stats)
+            self._process_folder(root, pst_file_record, document, case_id, project_id, company_id, stats)
             
             # Build thread relationships after all emails are extracted
             # TODO: Update threading to work with EmailMessage model
@@ -183,30 +193,48 @@ class UltimatePSTProcessor:
     
     def _count_messages(self, folder) -> int:
         """Recursively count total messages for progress tracking"""
-        count = folder.number_of_sub_messages
-        for i in range(folder.number_of_sub_folders):
-            subfolder = folder.get_sub_folder(i)
-            count += self._count_messages(subfolder)
-        return count
+        try:
+            count = int(self._safe_get_attr(folder, 'number_of_sub_messages', 0) or 0)
+            num_subfolders = int(self._safe_get_attr(folder, 'number_of_sub_folders', 0) or 0)
+            for i in range(num_subfolders):
+                try:
+                    subfolder = folder.get_sub_folder(i)
+                    count += self._count_messages(subfolder)
+                except (AttributeError, RuntimeError, OSError) as e:
+                    logger.debug("Could not count messages in subfolder %d: %s", i, str(e)[:50])
+            return count
+        except (ValueError, TypeError) as e:
+            logger.warning("Error counting messages: %s", str(e))
+            return 0
     
-    def _process_folder(self, folder, pst_file_record, case_id, project_id, company_id, stats, folder_path=''):
+    def _process_folder(self, folder, pst_file_record, document, case_id, project_id, company_id, stats, folder_path=''):
         """
         Recursively process PST folders with batch processing for performance
         """
         folder_name = folder.name or 'Root'
         current_path = f"{folder_path}/{folder_name}" if folder_path else folder_name
         
-        logger.info(f"Processing folder: {current_path} ({folder.number_of_sub_messages} messages)")
+        num_messages = int(self._safe_get_attr(folder, 'number_of_sub_messages', 0) or 0)
+        logger.info("Processing folder: %s (%d messages)", current_path, num_messages)
         
         # Batch processing: collect evidence records and commit in batches
         BATCH_SIZE = 50
         evidence_batch = []
         
         # Process messages in this folder
-        for i in range(folder.number_of_sub_messages):
+        for i in range(num_messages):
             try:
                 message = folder.get_sub_message(i)
-                email_message = self._process_message(message, pst_file_record, case_id, project_id, company_id, stats, current_path)
+                email_message = self._process_message(
+                    message,
+                    pst_file_record,
+                    document,
+                    case_id,
+                    project_id,
+                    company_id,
+                    stats,
+                    current_path
+                )
                 
                 if email_message:
                     evidence_batch.append(email_message)
@@ -235,9 +263,9 @@ class UltimatePSTProcessor:
                 # Log progress every 100 emails
                 if self.processed_count % 100 == 0:
                     progress = (self.processed_count / self.total_count * 100) if self.total_count > 0 else 0
-                    logger.info(f"Progress: {self.processed_count}/{self.total_count} ({progress:.1f}%)")
+                    logger.info("Progress: %d/%d (%.1f%%)", self.processed_count, self.total_count, progress)
                     
-            except Exception as e:
+            except (AttributeError, RuntimeError, OSError, ValueError) as e:
                 logger.error(f"Error processing message {i} in {current_path}: {e}")
                 stats['errors'].append(f"Message {i} in {current_path}: {str(e)}")
         
@@ -249,23 +277,23 @@ class UltimatePSTProcessor:
                 
                 # Index to OpenSearch after batch commit
                 if self.opensearch:
-                    for evidence in evidence_batch:
+                    for email_message in evidence_batch:
                         try:
                             # Get email data from threads_map
                             thread_info = None
                             for msg_id, info in self.threads_map.items():
-                                if info.get('evidence') == evidence:
+                                if info.get('email_message') == email_message:
                                     thread_info = info
                                     break
                             
                             if thread_info:
                                 self._index_to_opensearch(
-                                    evidence, 
+                                    email_message, 
                                     thread_info.get('email_data', {}), 
                                     thread_info.get('content', '')
                                 )
                         except Exception as e:
-                            logger.warning(f"OpenSearch indexing failed for evidence: {e}")
+                            logger.warning(f"OpenSearch indexing failed for email_message: {e}")
                 
             except Exception as batch_error:
                 logger.error(f"Final batch commit failed: {batch_error}")
@@ -278,24 +306,46 @@ class UltimatePSTProcessor:
                         self.db.rollback()
         
         # Process subfolders
-        for i in range(folder.number_of_sub_folders):
+        num_subfolders = int(self._safe_get_attr(folder, 'number_of_sub_folders', 0) or 0)
+        for i in range(num_subfolders):
             try:
                 subfolder = folder.get_sub_folder(i)
-                self._process_folder(subfolder, pst_file_record, case_id, project_id, company_id, stats, current_path)
-            except Exception as e:
+                self._process_folder(subfolder, pst_file_record, document, case_id, project_id, company_id, stats, current_path)
+            except (AttributeError, RuntimeError, OSError) as e:
                 logger.error(f"Error processing subfolder {i} in {current_path}: {e}")
                 stats['errors'].append(f"Subfolder {i} in {current_path}: {str(e)}")
     
     def _safe_get_attr(self, obj, attr_name, default=None):
-        """Safely get attribute from pypff object"""
+        """Safely get attribute from pypff object
+        
+        Handles pypff errors that occur when accessing corrupted PST data.
+        """
         try:
-            return getattr(obj, attr_name, default)
-        except:
+            # First check if the attribute exists
+            if not hasattr(obj, attr_name):
+                return default
+                
+            # Try to get the value
+            value = getattr(obj, attr_name)
+            
+            # If it's a callable (method), call it
+            if callable(value):
+                return value()
+            else:
+                return value
+        except (AttributeError, RuntimeError, OSError) as e:
+            # Log only if it's not a common corruption error
+            error_str = str(e)
+            if not any(x in error_str for x in ['unable to retrieve', 'invalid local descriptors', 'libpff']):
+                logger.debug("Error accessing %s: %s", attr_name, error_str[:100])
+            return default
+        except (ValueError, TypeError, MemoryError) as e:
+            logger.warning("Unexpected error accessing %s: %s", attr_name, str(e)[:100])
             return default
     
 
     
-    def _process_message(self, message, pst_file_record, case_id, project_id, company_id, stats, folder_path):
+    def _process_message(self, message, pst_file_record, document, case_id, project_id, company_id, stats, folder_path):
         """
         Process individual email message
         
@@ -318,9 +368,16 @@ class UltimatePSTProcessor:
             from_email = sender_name  # Fallback to sender name if no email found
         
         # Get recipients - pypff uses display_to, display_cc, display_bcc
-        to_recipients = self._safe_get_attr(message, 'display_to', '')
-        cc_recipients = self._safe_get_attr(message, 'display_cc', '')
-        bcc_recipients = self._safe_get_attr(message, 'display_bcc', '')
+        def _normalize_recipients(raw: Optional[str]) -> List[str]:
+            if not raw:
+                return []
+            # Outlook often separates with ; but can include commas as well.
+            parts = [part.strip() for part in re.split(r'[;,]', raw) if part.strip()]
+            return parts
+
+        to_recipients = _normalize_recipients(self._safe_get_attr(message, 'display_to', ''))
+        cc_recipients = _normalize_recipients(self._safe_get_attr(message, 'display_cc', ''))
+        bcc_recipients = _normalize_recipients(self._safe_get_attr(message, 'display_bcc', ''))
         
         # Get dates - pypff has delivery_time and client_submit_time
         email_date = self._safe_get_attr(message, 'delivery_time', None)
@@ -328,6 +385,8 @@ class UltimatePSTProcessor:
             email_date = self._safe_get_attr(message, 'client_submit_time', None)
         if not email_date:
             email_date = self._safe_get_attr(message, 'creation_time', None)
+        if email_date and email_date.tzinfo is None:
+            email_date = email_date.replace(tzinfo=timezone.utc)
         
         # Get Outlook conversation index (binary data, convert to hex)
         conversation_index = None
@@ -335,8 +394,8 @@ class UltimatePSTProcessor:
             conv_idx_raw = self._safe_get_attr(message, 'conversation_index', None)
             if conv_idx_raw:
                 conversation_index = conv_idx_raw.hex() if hasattr(conv_idx_raw, 'hex') else str(conv_idx_raw)
-        except:
-            pass
+        except (AttributeError, TypeError, ValueError) as e:
+            logger.debug("Failed to extract conversation index: %s", e, exc_info=True)
         
         thread_topic = self._get_header(message, 'Thread-Topic') or subject
         
@@ -355,43 +414,55 @@ class UltimatePSTProcessor:
             'date': email_date,
             'folder_path': folder_path,
             'importance': self._safe_get_attr(message, 'importance', None),
-            'has_attachments': message.number_of_attachments > 0
+            'has_attachments': int(self._safe_get_attr(message, 'number_of_attachments', 0) or 0) > 0
         }
         
         # Extract body content (prefer HTML, fallback to plain text)
         body_html = self._safe_get_attr(message, 'html_body', None)
         body_plain = self._safe_get_attr(message, 'plain_text_body', None)
         body_rtf = self._safe_get_attr(message, 'rtf_body', None)
-        
-        # Get the best available content
-        content = ''
-        content_type = 'text'
-        
+
+        body_text = None
+        body_html_content = None
+
         if body_html:
-            content = str(body_html)
-            content_type = 'html'
-        elif body_plain:
-            content = str(body_plain)
-            content_type = 'text'
+            body_html_content = str(body_html)
+        if body_plain:
+            body_text = str(body_plain)
+        elif body_html_content:
+            # Provide a simple text fallback by stripping tags
+            body_text = re.sub(r'<[^>]+>', ' ', body_html_content)
+            body_text = re.sub(r'\s+', ' ', body_text).strip()
         elif body_rtf:
-            content = str(body_rtf)
-            content_type = 'rtf'
+            body_text = str(body_rtf)
         else:
-            # Create basic representation if no body available
-            content = f"From: {email_data['from']}\nTo: {email_data['to']}\nSubject: {email_data['subject']}\n\n[No body content available]"
-            content_type = 'text'
-        
+            body_text = f"From: {from_email}\nTo: {', '.join(to_recipients)}\nSubject: {subject}\n\n[No body content available]"
+
         # Calculate size saved by NOT storing the email as a file
-        email_size = len(content) + len(str(email_data))
-        stats['size_saved'] += email_size
-        
+        combined_content = (body_html_content or '') + (body_text or '')
+        stats['size_saved'] += len(combined_content) + len(str(email_data))
+
         # Process attachments (THESE we DO save!)
         attachments_info = []
-        if message.number_of_attachments > 0:
-            attachments_info = self._process_attachments(
-                message, pst_file_record, case_id, project_id, company_id, stats
-            )
+        try:
+            num_attachments = message.number_of_attachments
+            if num_attachments > 0:
+                attachments_info = self._process_attachments(
+                    message,
+                    pst_file_record,
+                    document,
+                    case_id,
+                    project_id,
+                    company_id,
+                    stats
+                )
+        except (AttributeError, RuntimeError, OSError) as e:
+            logger.warning(f"Could not read attachments for message in {folder_path}: {e}")
+            stats['errors'].append(f"Attachment error in {folder_path}: {str(e)[:100]}")
         
+        preview_source = body_text or body_html_content or ''
+        body_preview = preview_source[:10000] if preview_source else None
+
         # Create EmailMessage record
         email_message = EmailMessage(
             pst_file_id=pst_file_record.id,
@@ -401,19 +472,24 @@ class UltimatePSTProcessor:
             in_reply_to=in_reply_to,
             email_references=references,
             conversation_index=conversation_index,
-            subject=email_data['subject'],
-            sender_email=email_data['from'],
-            recipients_to=email_data['to'],
-            recipients_cc=email_data['cc'],
-            sent_date=email_data['date'],
-            body=content,
-            body_type=content_type,
-            importance=email_data['importance'],
+            subject=subject,
+            sender_email=from_email,
+            sender_name=sender_name,
+            recipients_to=to_recipients or None,
+            recipients_cc=cc_recipients or None,
+            recipients_bcc=bcc_recipients or None,
+            date_sent=email_date,
+            date_received=email_date,
+            body_text=body_text,
+            body_html=body_html_content,
+            body_preview=body_preview,
+            has_attachments=bool(attachments_info),
+            importance=self._safe_get_attr(message, 'importance', None),
             pst_message_path=folder_path,
-            metadata={
+            meta={
                 'thread_topic': thread_topic,
                 'attachments': attachments_info,
-                'has_attachments': email_data['has_attachments']
+                'has_attachments': bool(attachments_info)
             }
         )
         
@@ -423,18 +499,18 @@ class UltimatePSTProcessor:
         # Track for threading (use temporary ID)
         if message_id:
             self.threads_map[message_id] = {
-                'email_message': email_message,  # Store object for later indexing
+                'email_message': email_message,
                 'in_reply_to': in_reply_to,
                 'references': references,
-                'date': email_data['date'],
-                'subject': email_data['subject'],
-                'content': content,
+                'date': email_date,
+                'subject': subject,
+                'content': body_html_content or body_text or '',
                 'email_data': email_data
             }
         
         return email_message
     
-    def _process_attachments(self, message, pst_file_record, case_id, project_id, company_id, stats) -> List[Dict]:
+    def _process_attachments(self, message, pst_file_record, parent_document, case_id, project_id, company_id, stats) -> List[Dict]:
         """
         Extract and save ONLY the attachments (not the emails themselves)
         
@@ -481,7 +557,7 @@ class UltimatePSTProcessor:
                 if file_hash in self.attachment_hashes:
                     # Use existing document
                     att_doc_id = self.attachment_hashes[file_hash]
-                    logger.debug(f"Attachment {filename} is duplicate (hash={file_hash[:8]}), reusing doc {att_doc_id}")
+                    logger.debug("Attachment is duplicate (hash=%s), reusing doc %s", file_hash[:8], att_doc_id)
                     
                     attachments_info.append({
                         'document_id': str(att_doc_id),
@@ -494,12 +570,13 @@ class UltimatePSTProcessor:
                     })
                     continue
                 
-                # Generate unique S3 key
+                # Sanitize filename and generate unique S3 key
+                safe_filename = self._sanitize_attachment_filename(filename, f"attachment_{i}")
                 hash_prefix = file_hash[:8]
                 entity_folder = f"case_{case_id}" if case_id else f"project_{project_id}"
                 # Use empty company_id if none provided
                 company_prefix = company_id if company_id else "no_company"
-                s3_key = f"attachments/{company_prefix}/{entity_folder}/{hash_prefix}_{filename}"
+                s3_key = f"attachments/{company_prefix}/{entity_folder}/{hash_prefix}_{safe_filename}"
                 
                 # Upload to S3
                 try:
@@ -521,20 +598,21 @@ class UltimatePSTProcessor:
                 
                 # Create Document record for attachment
                 att_doc = Document(
-                    filename=filename,
+                    filename=safe_filename,
                     content_type=content_type,
                     size=size,
                     bucket=settings.S3_BUCKET,
                     s3_key=s3_key,
                     status=DocStatus.READY,
-                    owner_user_id=document.owner_user_id,
+                    owner_user_id=getattr(parent_document, 'owner_user_id', None),
                     meta={
                         'is_email_attachment': True,
                         'is_inline': is_inline,
                         'content_id': content_id,
                         'file_hash': file_hash,
-                        'parent_document_id': str(document.id),
+                        'parent_document_id': str(parent_document.id),
                         'case_id': str(case_id) if case_id else None,
+                        'project_id': str(project_id) if project_id else None,
                         'company_id': str(company_id) if company_id else None
                     }
                 )
@@ -546,7 +624,7 @@ class UltimatePSTProcessor:
                 
                 attachments_info.append({
                     'document_id': str(att_doc.id),
-                    'filename': filename,
+                    'filename': safe_filename,
                     'size': size,
                     'content_type': content_type,
                     'is_inline': is_inline,
@@ -557,11 +635,25 @@ class UltimatePSTProcessor:
                 
                 stats['total_attachments'] += 1
                 
-            except Exception as e:
+            except (AttributeError, RuntimeError, OSError, ValueError) as e:
                 logger.error(f"Error processing attachment {i}: {e}", exc_info=True)
                 stats['errors'].append(f"Attachment {i}: {str(e)}")
         
         return attachments_info
+    
+    @staticmethod
+    def _sanitize_attachment_filename(filename: Optional[str], fallback: str) -> str:
+        """
+        Prevent path traversal and control characters in attachment filenames.
+        Returns a safe filename or a fallback value when the provided name is empty.
+        """
+        if not filename:
+            return fallback
+        name = os.path.basename(str(filename).strip())
+        name = name.replace('\\', '_').replace('/', '_')
+        name = re.sub(r'[^A-Za-z0-9._-]+', '_', name)
+        name = name.strip('._')
+        return name or fallback
     
     def _get_header(self, message, header_name: str) -> Optional[str]:
         """
@@ -578,14 +670,16 @@ class UltimatePSTProcessor:
                         if value.startswith('<') and value.endswith('>'):
                             value = value[1:-1]
                         return value
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError) as e:
             logger.debug(f"Could not extract header {header_name}: {e}")
         return None
     
     def _index_to_opensearch(self, email_message: EmailMessage, email_data: Dict, content: str):
-        """
-        Index email to OpenSearch for full-text search
-        """
+        """Index email to OpenSearch for full-text search"""
+        # cspell:ignore opensearch
+        if not self.opensearch:
+            return
+        
         attachments_val = email_data.get('attachments', [])
         doc = {
             'id': f"email_{email_message.id}",
@@ -601,17 +695,16 @@ class UltimatePSTProcessor:
             'cc': email_data['cc'],
             'subject': email_data['subject'],
             'date': email_data['date'].isoformat() if email_data['date'] else None,
-            'content': content[:10000] if content else '',  # Truncate for indexing
+            'content': content[:10000] if content else '',
             'folder_path': email_data['folder_path'],
             'has_attachments': email_data['has_attachments'],
             'attachments_count': len(attachments_val),
             'indexed_at': datetime.now(timezone.utc).isoformat()
         }
         
-        # Create index if not exists
         index_name = 'correspondence'
         try:
-            if self.opensearch and not self.opensearch.indices.exists(index_name):  # type: ignore
+            if not self.opensearch.indices.exists(index_name):  # type: ignore
                 self.opensearch.indices.create(  # type: ignore
                     index_name,
                     body={
@@ -623,128 +716,26 @@ class UltimatePSTProcessor:
                                 'subject': {'type': 'text'},
                                 'from': {'type': 'keyword'},
                                 'to': {'type': 'keyword'}
+                            }
                         }
                     }
-                }
-            )
-            
-            # Index document
-            if self.opensearch:
-                self.opensearch.index(  # type: ignore
-                    index=index_name,
-                    body=doc,
-                    id=f"email_{email_message.id}",
-                    refresh=False  # Don't refresh immediately for performance
                 )
-        except Exception as e:
+            
+            self.opensearch.index(  # type: ignore
+                index=index_name,
+                body=doc,
+                id=f"email_{email_message.id}",
+                refresh=False
+            )
+        except (ConnectionError, TimeoutError, ValueError) as e:
             logger.error(f"Error indexing email to OpenSearch: {e}")
-            # Continue processing even if indexing fails
     
     def _build_thread_relationships(self, case_id, project_id):
-        """
-        Build email thread relationships using multiple algorithms:
-        1. In-Reply-To header (direct parent-child)
-        2. References header (full thread chain)
-        3. Outlook Conversation-Index (binary thread tree)
-        4. Subject-based fallback (for emails without headers)
-        """
-        logger.info(f"Building thread relationships for case {case_id}")
-        
-        # Get all emails for this case or project
-        if case_id:
-            all_emails = self.db.query(EmailMessage).filter_by(case_id=case_id).all()
-        else:
-            all_emails = self.db.query(EmailMessage).filter_by(project_id=project_id).all()
-        
-        # Build message_id -> email mapping
-        msg_id_map = {
-            email.message_id: email 
-            for email in all_emails 
-            if email.message_id
-        }
-        
-        threads_found = {}
-        
-        for email in all_emails:
-            # Skip if already assigned to a thread
-            thread_id_val = getattr(evidence, 'thread_id', None)
-            if thread_id_val:
-                continue
-            
-            thread_id = None
-            
-            # Strategy 1: Use In-Reply-To header
-            in_reply_to_val = getattr(evidence, 'email_in_reply_to', None)
-            if in_reply_to_val and in_reply_to_val in msg_id_map:
-                parent = msg_id_map[in_reply_to_val]
-                parent_thread_id = getattr(parent, 'thread_id', None)
-                if parent_thread_id:
-                    thread_id = parent_thread_id
-                else:
-                    # Create new thread starting from parent
-                    parent_msg_id = getattr(parent, 'email_message_id', None)
-                    if parent_msg_id:
-                        thread_id = f"thread_{hashlib.md5(parent_msg_id.encode()).hexdigest()[:12]}"
-                        setattr(parent, 'thread_id', thread_id)
-            
-            # Strategy 2: Parse References header for full thread chain
-            meta_val = getattr(evidence, 'meta', None)
-            if not thread_id and meta_val and isinstance(meta_val, dict) and meta_val.get('references'):
-                refs = meta_val['references'].split()
-                for ref in refs:
-                    if ref in msg_id_map:
-                        parent = msg_id_map[ref]
-                        parent_thread_id = getattr(parent, 'thread_id', None)
-                        if parent_thread_id:
-                            thread_id = parent_thread_id
-                            break
-            
-            # Strategy 3: Outlook Conversation-Index
-            conv_idx_val = getattr(evidence, 'email_conversation_index', None)
-            if not thread_id and conv_idx_val:
-                # First 22 chars (11 bytes) of conversation index is the thread root
-                conv_root = conv_idx_val[:22]
-                if conv_root in threads_found:
-                    thread_id = threads_found[conv_root]
-                else:
-                    thread_id = f"thread_{conv_root}"
-                    threads_found[conv_root] = thread_id
-            
-            # Strategy 4: Subject-based fallback (normalize subject)
-            subject_val = getattr(evidence, 'email_subject', None)
-            if not thread_id and subject_val:
-                # Normalize subject (remove Re:, Fwd:, etc.)
-                normalized_subject = subject_val.lower()
-                for prefix in ['re:', 'fw:', 'fwd:', 'aw:']:
-                    normalized_subject = normalized_subject.replace(prefix, '').strip()
-                
-                # Check if any existing thread has this subject
-                for other in all_evidence:
-                    other_thread_id = getattr(other, 'thread_id', None)
-                    other_subject = getattr(other, 'email_subject', None)
-                    if other_thread_id and other_subject:
-                        other_normalized = other_subject.lower()
-                        for prefix in ['re:', 'fw:', 'fwd:', 'aw:']:
-                            other_normalized = other_normalized.replace(prefix, '').strip()
-                        
-                        if normalized_subject == other_normalized:
-                            thread_id = other_thread_id
-                            break
-            
-            # Create new thread if no match found
-            msg_id_val = getattr(evidence, 'email_message_id', None)
-            if not thread_id and msg_id_val:
-                thread_id = f"thread_{hashlib.md5(msg_id_val.encode()).hexdigest()[:12]}"
-            
-            # Assign thread ID
-            if thread_id:
-                setattr(evidence, 'thread_id', thread_id)
-        
-        # Commit all thread assignments
-        self.db.commit()
-        
-        unique_thread_ids = set(getattr(e, 'thread_id', None) for e in all_evidence if getattr(e, 'thread_id', None))
-        logger.info(f"Thread building complete. Found {len(unique_thread_ids)} unique threads")
+        logger.info(
+            "Thread relationship builder is currently disabled for the EmailMessage schema. "
+            "A future update will reintroduce threading once the data model is finalized."
+        )
+        return
     
     def _extract_email_from_headers(self, message):
         """
@@ -752,7 +743,6 @@ class UltimatePSTProcessor:
         pypff doesn't expose direct .sender_email_address - parse from headers
         """
         try:
-            import re
             if not message:
                 return None
             headers = getattr(message, 'transport_headers', None)
@@ -765,5 +755,6 @@ class UltimatePSTProcessor:
                 return from_match.group(1)
             
             return None
-        except:
+        except (AttributeError, TypeError, re.error) as e:
+            logger.debug("Could not extract email from headers: %s", str(e))
             return None

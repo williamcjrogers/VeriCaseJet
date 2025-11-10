@@ -1,3 +1,4 @@
+// cspell:ignore maxlength NHBC Organisation FIDIC Segoe
 // ============================================================================
 // Security Utilities
 // ============================================================================
@@ -175,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function setupEventListeners() {
-    document.getElementById('btnContinue').addEventListener('click', nextStep);
+    document.getElementById('btnContinue').onclick = nextStep;
     document.getElementById('btnBack').addEventListener('click', previousStep);
     document.getElementById('btnCancel').addEventListener('click', cancel);
     document.getElementById('btnSaveDraft').addEventListener('click', saveDraft);
@@ -200,7 +201,7 @@ function nextStep() {
             if (user.role === 'ADMIN') {
                 window.location.href = '/ui/admin-users.html';
             } else {
-                alert('You need admin privileges to manage users');
+                showWizardMessage('You need admin privileges to manage users', 'error');
             }
             return;
         }
@@ -663,35 +664,23 @@ function validateProjectIdentification() {
     const projectCode = document.getElementById('projectCode').value.trim();
     const startDate = document.getElementById('startDate').value;
     const completionDate = document.getElementById('completionDate').value;
-    
-    // Only validate if moving forward (not saving draft or going back)
+
+    // Relaxed validation - all fields are optional
+    // Just show a warning in console if both name and code are missing
     if (!projectName && !projectCode) {
-        // Give user a choice to continue anyway
-        return confirm('Project Name and Code are recommended but not required. Continue anyway?');
+        console.warn('Project Name and Code are recommended but not required.');
     }
-    
-    // Soft validations - just warnings
-    if (projectName && projectName.length < 2) {
-        if (!confirm('Project Name is very short. Continue anyway?')) {
-            return false;
-        }
-    }
-    
+
+    // Date validation - only warn in console if dates are invalid
     if (startDate && completionDate && new Date(completionDate) < new Date(startDate)) {
-        if (!confirm('Completion Date is before Start Date. This might be incorrect. Continue anyway?')) {
-            return false;
-        }
+        console.warn('Completion Date is before Start Date. This might be incorrect.');
     }
-    
+
     return true;
 }
 
 function validateProjectStakeholders() {
-    // Stakeholders are optional - just give a warning
-    const rows = document.querySelectorAll('#stakeholdersTable tbody tr');
-    if (rows.length === 0) {
-        return confirm('No stakeholders added. You can add them later. Continue anyway?');
-    }
+    // Stakeholders are completely optional - no warnings needed
     return true;
 }
 
@@ -702,16 +691,12 @@ function validateProjectKeywords() {
 
 function validateCaseIdentification() {
     const caseName = document.getElementById('caseName').value.trim();
-    
-    // Make case name optional with confirmation
+
+    // Relaxed validation - case name is completely optional
     if (!caseName) {
-        return confirm('Case Name is recommended but not required. Continue anyway?');
+        console.warn('Case Name is recommended but not required.');
     }
-    
-    if (caseName.length < 2) {
-        return confirm('Case Name is very short. Continue anyway?');
-    }
-    
+
     return true;
 }
 
@@ -1168,8 +1153,16 @@ async function submitWizard() {
     
     try {
         const apiUrl = getApiUrl();
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('token') || localStorage.getItem('jwt');
         const csrfToken = getCsrfToken();
+
+        if (!token) {
+            showWizardMessage('Your session has expired. Please log in again to create a project or case.', 'error');
+            setTimeout(() => {
+                window.location.href = 'login.html';
+            }, 1200);
+            return;
+        }
         
         let endpoint, requestData;
         
@@ -1218,7 +1211,7 @@ async function submitWizard() {
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-Token': csrfToken,
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify(requestData),
             credentials: 'same-origin'  // Include cookies for session-based auth
@@ -1236,7 +1229,7 @@ async function submitWizard() {
         
         // Show message if fields were auto-generated
         if (result.message && result.message.includes('Auto-generated')) {
-            alert(result.message);
+            showWizardMessage(result.message, 'info');
         }
         
         // Store ID and profile type for future use
@@ -1248,17 +1241,13 @@ async function submitWizard() {
             localStorage.setItem(isProject ? 'projectId' : 'caseId', result.id);
         } catch (e) {}
         
-        // Redirect to appropriate page
-        if (isProject) {
-            // Take user to dashboard for a friendly start and uploads
-            window.location.href = `dashboard.html?projectId=${result.id}&firstTime=true`;
-        } else {
-            window.location.href = `correspondence-enterprise.html?caseId=${result.id}`;
-        }
+        // Redirect to dashboard for next steps
+        const redirectParam = isProject ? 'projectId' : 'caseId';
+        window.location.href = `dashboard.html?${redirectParam}=${result.id}&firstTime=true`;
         
     } catch (error) {
         console.error('Error creating profile:', error);
-        alert(`Error creating ${wizardState.profileType}: ${error.message}`);
+        showWizardMessage(`Error creating ${wizardState.profileType}: ${error.message}`, 'error');
     }
 }
 
@@ -1272,13 +1261,13 @@ function saveDraft() {
     }
     
     localStorage.setItem('wizardDraft', JSON.stringify(wizardState));
-    alert('Draft saved successfully!');
+    showWizardMessage('Draft saved successfully!', 'success');
 }
 
-function loadDraft() {
+async function loadDraft() {
     const draft = localStorage.getItem('wizardDraft');
     if (draft) {
-        const shouldLoad = confirm('Would you like to continue from your saved draft?');
+        const shouldLoad = await confirmWizard('Would you like to continue from your saved draft?');
         if (shouldLoad) {
             Object.assign(wizardState, JSON.parse(draft));
             if (wizardState.currentStep > 0) {
@@ -1305,8 +1294,60 @@ function loadDraft() {
     }
 }
 
-function cancel() {
-    if (confirm('Are you sure you want to cancel? Any unsaved progress will be lost.')) {
-        window.location.href = 'dashboard.html';
+async function cancel() {
+    const ok = await confirmWizard('Are you sure you want to cancel? Any unsaved progress will be lost.');
+    if (ok) window.location.href = 'dashboard.html';
+}
+
+// ----------------------------------------
+// Non-blocking notifications and confirm
+// ----------------------------------------
+function ensureWizardBanner() {
+    let el = document.getElementById('wizardBanner');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'wizardBanner';
+        el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;display:none;padding:10px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;border-bottom:1px solid #e2e8f0;';
+        document.body.appendChild(el);
     }
+    return el;
+}
+function showWizardMessage(message, type = 'info', timeoutMs = 4000) {
+    const el = ensureWizardBanner();
+    el.textContent = message;
+    el.style.background = type === 'error' ? '#fee2e2' : type === 'success' ? '#ecfdf5' : '#eef2ff';
+    el.style.color = type === 'error' ? '#991b1b' : type === 'success' ? '#065f46' : '#1e3a8a';
+    el.style.display = 'block';
+    if (timeoutMs > 0) {
+        setTimeout(() => { el.style.display = 'none'; }, timeoutMs);
+    }
+}
+function confirmWizard(message) {
+    return new Promise(resolve => {
+        // Build lightweight modal
+        let overlay = document.getElementById('wizardConfirmOverlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'wizardConfirmOverlay';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
+            const box = document.createElement('div');
+            box.style.cssText = 'background:#fff;min-width:320px;max-width:90vw;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.2);padding:16px;';
+            box.innerHTML = '<div id="wizardConfirmMsg" style="margin-bottom:12px;color:#0f172a;"></div>' +
+                            '<div style="display:flex;gap:8px;justify-content:flex-end">' +
+                            '<button id="wizardConfirmNo" style="padding:8px 12px;border:1px solid #e2e8f0;background:#fff;border-radius:6px;cursor:pointer">No</button>' +
+                            '<button id="wizardConfirmYes" style="padding:8px 12px;border:0;background:#2563eb;color:#fff;border-radius:6px;cursor:pointer">Yes</button>' +
+                            '</div>';
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+        } else {
+            overlay.style.display = 'flex';
+        }
+        overlay.querySelector('#wizardConfirmMsg').textContent = message;
+        const onClose = (val) => {
+            overlay.style.display = 'none';
+            resolve(val);
+        };
+        overlay.querySelector('#wizardConfirmYes').onclick = () => onClose(true);
+        overlay.querySelector('#wizardConfirmNo').onclick = () => onClose(false);
+    });
 }

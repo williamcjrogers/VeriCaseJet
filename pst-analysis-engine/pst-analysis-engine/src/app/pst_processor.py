@@ -48,13 +48,16 @@ class UltimatePSTProcessor:
         if not s3_client:
             raise ValueError("S3 client is required")
         
-        self.db = db
-        self.s3 = s3_client
-        self.opensearch: Optional[Any] = opensearch_client
-        self.threads_map = {}
-        self.processed_count = 0
-        self.total_count = 0
-        self.attachment_hashes = {}  # For deduplication
+        try:
+            self.db = db
+            self.s3 = s3_client
+            self.opensearch: Optional[Any] = opensearch_client
+            self.threads_map = {}
+            self.processed_count = 0
+            self.total_count = 0
+            self.attachment_hashes = {}  # For deduplication
+        except (AttributeError, TypeError) as e:
+            raise ValueError(f"Invalid client configuration: {e}") from e
     
     def _resolve_message_content(self, message, email_meta: Dict[str, Any]) -> tuple[str, str]:
         """
@@ -145,12 +148,12 @@ class UltimatePSTProcessor:
                     Fileobj=tmp
                 )
                 pst_path = tmp.name
-            except Exception as e:
+            except (IOError, OSError, ConnectionError) as e:
                 logger.error(f"Failed to download PST: {e}")
                 setattr(document, 'status', DocStatus.FAILED)
                 set_processing_meta('failed', error=str(e), failed_at=datetime.now(timezone.utc).isoformat())
                 self.db.commit()
-                raise
+                raise RuntimeError(f"PST download failed: {e}") from e
         
         try:
             # Open PST with pypff
@@ -191,13 +194,13 @@ class UltimatePSTProcessor:
             
             logger.info(f"PST processing completed: {stats}")
             
-        except Exception as e:
+        except (IOError, OSError, RuntimeError, ValueError) as e:
             logger.error(f"PST processing failed: {e}", exc_info=True)
             setattr(document, 'status', DocStatus.FAILED)
             set_processing_meta('failed', error=str(e), failed_at=datetime.now(timezone.utc).isoformat())
             self.db.commit()
             stats['errors'].append(str(e))
-            raise
+            raise RuntimeError(f"PST processing error: {e}") from e
             
         finally:
             # Cleanup temp file
@@ -236,7 +239,7 @@ class UltimatePSTProcessor:
                     progress = (self.processed_count / self.total_count * 100) if self.total_count > 0 else 0
                     logger.info(f"Progress: {self.processed_count}/{self.total_count} ({progress:.1f}%)")
                     
-            except Exception as e:
+            except (IOError, OSError, RuntimeError, ValueError, AttributeError) as e:
                 logger.error(f"Error processing message {i} in {current_path}: {e}")
                 stats['errors'].append(f"Message {i} in {current_path}: {str(e)}")
         
@@ -245,7 +248,7 @@ class UltimatePSTProcessor:
             try:
                 subfolder = folder.get_sub_folder(i)
                 self._process_folder(subfolder, document, case_id, company_id, stats, current_path)
-            except Exception as e:
+            except (IOError, OSError, RuntimeError, ValueError, AttributeError) as e:
                 logger.error(f"Error processing subfolder {i} in {current_path}: {e}")
                 stats['errors'].append(f"Subfolder {i} in {current_path}: {str(e)}")
     
@@ -289,6 +292,11 @@ class UltimatePSTProcessor:
         email_date = (self._safe_get_attr(message, 'delivery_time') or 
                      self._safe_get_attr(message, 'client_submit_time') or 
                      self._safe_get_attr(message, 'creation_time'))
+        
+        # Ensure timezone-aware datetime
+        if email_date and hasattr(email_date, 'replace'):
+            if hasattr(email_date, 'tzinfo') and email_date.tzinfo is None:
+                email_date = email_date.replace(tzinfo=timezone.utc)
         
         # Get Outlook conversation index (binary data, convert to hex)
         conversation_index = None
@@ -373,7 +381,7 @@ class UltimatePSTProcessor:
         if self.opensearch:
             try:
                 self._index_to_opensearch(evidence, email_data, content)
-            except Exception as e:
+            except (RuntimeError, ValueError, ConnectionError) as e:
                 logger.warning(f"OpenSearch indexing failed for evidence {evidence.id}: {e}")
         
         # Track for threading
@@ -448,6 +456,9 @@ class UltimatePSTProcessor:
                 # Generate unique S3 key with sanitized components
                 hash_prefix = file_hash[:8]
                 safe_filename = os.path.basename(filename)
+                # Validate path components to prevent traversal
+                if not str(company_id).isalnum() or not str(case_id).isalnum():
+                    raise ValueError(f"Invalid company_id or case_id format")
                 s3_key = f"attachments/{company_id}/{case_id}/{hash_prefix}_{safe_filename}"
                 
                 # Upload to S3
@@ -506,7 +517,7 @@ class UltimatePSTProcessor:
                 
                 stats['total_attachments'] += 1
                 
-            except Exception as e:
+            except (IOError, OSError, RuntimeError, ValueError, AttributeError) as e:
                 logger.error(f"Error processing attachment {i}: {e}", exc_info=True)
                 stats['errors'].append(f"Attachment {i}: {str(e)}")
         
@@ -520,6 +531,9 @@ class UltimatePSTProcessor:
             return None
         try:
             headers = message.transport_headers
+            if not isinstance(headers, str):
+                logger.debug(f"Invalid headers type for {header_name}")
+                return None
             # Parse headers (they come as one big string)
             for line in headers.split('\n'):
                 if line.startswith(f"{header_name}:"):
@@ -528,7 +542,7 @@ class UltimatePSTProcessor:
                     if value.startswith('<') and value.endswith('>'):
                         value = value[1:-1]
                     return value
-        except (AttributeError, TypeError) as e:
+        except (AttributeError, TypeError, ValueError) as e:
             logger.debug(f"Could not extract header {header_name}: {e}")
         return None
     
@@ -588,10 +602,83 @@ class UltimatePSTProcessor:
                 id=f"evidence_{evidence.id}",
                 refresh=False
             )
-        except (ConnectionError, TimeoutError) as e:
+        except (ConnectionError, TimeoutError, OSError) as e:
             logger.error(f"Failed to index email to OpenSearch: {e}")
-        except Exception as e:
-            logger.warning(f"Unexpected error indexing to OpenSearch: {e}")
+            raise RuntimeError(f"OpenSearch indexing failed: {e}") from e
+        except (ValueError, AttributeError, TypeError) as e:
+            logger.error(f"Invalid data for OpenSearch indexing: {e}")
+            raise ValueError(f"OpenSearch data error: {e}") from e
+    
+    def _try_in_reply_to_threading(self, evidence, msg_id_map):
+        """Strategy 1: Use In-Reply-To header"""
+        in_reply_to_val = getattr(evidence, 'email_in_reply_to', None)
+        if not in_reply_to_val or in_reply_to_val not in msg_id_map:
+            return None
+        
+        parent = msg_id_map[in_reply_to_val]
+        parent_thread_id = getattr(parent, 'thread_id', None)
+        if parent_thread_id:
+            return parent_thread_id
+        
+        parent_msg_id = getattr(parent, 'email_message_id', None)
+        if parent_msg_id:
+            try:
+                thread_id = f"thread_{hashlib.sha256(parent_msg_id.encode()).hexdigest()[:12]}"
+                setattr(parent, 'thread_id', thread_id)
+                return thread_id
+            except (AttributeError, UnicodeEncodeError) as e:
+                logger.warning(f"Failed to create thread ID from parent message ID: {e}")
+        return None
+    
+    def _try_references_threading(self, evidence, msg_id_map):
+        """Strategy 2: Parse References header"""
+        meta_val = getattr(evidence, 'meta', None)
+        if not meta_val or not isinstance(meta_val, dict) or not meta_val.get('references'):
+            return None
+        
+        refs = meta_val['references'].split()
+        for ref in refs:
+            if ref in msg_id_map:
+                parent_thread_id = getattr(msg_id_map[ref], 'thread_id', None)
+                if parent_thread_id:
+                    return parent_thread_id
+        return None
+    
+    def _try_conversation_index_threading(self, evidence, threads_found):
+        """Strategy 3: Outlook Conversation-Index"""
+        conv_idx_val = getattr(evidence, 'email_conversation_index', None)
+        if not conv_idx_val:
+            return None
+        
+        conv_root = conv_idx_val[:22]
+        if conv_root in threads_found:
+            return threads_found[conv_root]
+        
+        thread_id = f"thread_{conv_root}"
+        threads_found[conv_root] = thread_id
+        return thread_id
+    
+    def _normalize_subject(self, subject):
+        """Normalize email subject by removing reply/forward prefixes"""
+        normalized = subject.lower()
+        for prefix in ['re:', 'fw:', 'fwd:', 'aw:']:
+            normalized = normalized.replace(prefix, '').strip()
+        return normalized
+    
+    def _try_subject_threading(self, evidence, all_evidence):
+        """Strategy 4: Subject-based fallback"""
+        subject_val = getattr(evidence, 'email_subject', None)
+        if not subject_val:
+            return None
+        
+        normalized_subject = self._normalize_subject(subject_val)
+        for other in all_evidence:
+            other_thread_id = getattr(other, 'thread_id', None)
+            other_subject = getattr(other, 'email_subject', None)
+            if other_thread_id and other_subject:
+                if normalized_subject == self._normalize_subject(other_subject):
+                    return other_thread_id
+        return None
     
     def _build_thread_relationships(self, case_id):
         """
@@ -600,108 +687,39 @@ class UltimatePSTProcessor:
         2. References header (full thread chain)
         3. Outlook Conversation-Index (binary thread tree)
         4. Subject-based fallback (for emails without headers)
-        
-        Note: High complexity is intentional - implements multiple fallback strategies
-        for robust email threading across different email clients.
         """
         logger.info(f"Building thread relationships for case {case_id}")
         
-        # Get all evidence for this case
         all_evidence = self.db.query(Evidence).filter_by(case_id=case_id).all()
-        
-        # Build message_id -> evidence mapping
         msg_id_map = {
             getattr(e, 'email_message_id', None): e 
             for e in all_evidence 
             if getattr(e, 'email_message_id', None)
         }
-        
         threads_found = {}
         
         for evidence in all_evidence:
-            # Skip if already assigned to a thread
-            thread_id_val = getattr(evidence, 'thread_id', None)
-            if thread_id_val:
+            if getattr(evidence, 'thread_id', None):
                 continue
             
-            thread_id = None
+            thread_id = (self._try_in_reply_to_threading(evidence, msg_id_map) or
+                        self._try_references_threading(evidence, msg_id_map) or
+                        self._try_conversation_index_threading(evidence, threads_found) or
+                        self._try_subject_threading(evidence, all_evidence))
             
-            # Strategy 1: Use In-Reply-To header
-            in_reply_to_val = getattr(evidence, 'email_in_reply_to', None)
-            if in_reply_to_val and in_reply_to_val in msg_id_map:
-                parent = msg_id_map[in_reply_to_val]
-                parent_thread_id = getattr(parent, 'thread_id', None)
-                if parent_thread_id:
-                    thread_id = parent_thread_id
-                else:
-                    # Create new thread starting from parent
-                    parent_msg_id = getattr(parent, 'email_message_id', None)
-                    if parent_msg_id:
-                        try:
-                            thread_id = f"thread_{hashlib.md5(parent_msg_id.encode()).hexdigest()[:12]}"
-                            setattr(parent, 'thread_id', thread_id)
-                        except (AttributeError, UnicodeEncodeError) as e:
-                            logger.warning(f"Failed to create thread ID from parent message ID: {e}")
+            if not thread_id:
+                msg_id_val = getattr(evidence, 'email_message_id', None)
+                if msg_id_val:
+                    try:
+                        # Use SHA-256 for secure hashing
+                        thread_id = f"thread_{hashlib.sha256(msg_id_val.encode('utf-8')).hexdigest()[:12]}"
+                    except (AttributeError, UnicodeEncodeError, ValueError) as e:
+                        logger.warning(f"Failed to create thread ID from message ID: {e}")
             
-            # Strategy 2: Parse References header for full thread chain
-            meta_val = getattr(evidence, 'meta', None)
-            if not thread_id and meta_val and isinstance(meta_val, dict) and meta_val.get('references'):
-                refs = meta_val['references'].split()
-                for ref in refs:
-                    if ref in msg_id_map:
-                        parent = msg_id_map[ref]
-                        parent_thread_id = getattr(parent, 'thread_id', None)
-                        if parent_thread_id:
-                            thread_id = parent_thread_id
-                            break
-            
-            # Strategy 3: Outlook Conversation-Index
-            conv_idx_val = getattr(evidence, 'email_conversation_index', None)
-            if not thread_id and conv_idx_val:
-                # First 22 chars (11 bytes) of conversation index is the thread root
-                conv_root = conv_idx_val[:22]
-                if conv_root in threads_found:
-                    thread_id = threads_found[conv_root]
-                else:
-                    thread_id = f"thread_{conv_root}"
-                    threads_found[conv_root] = thread_id
-            
-            # Strategy 4: Subject-based fallback (normalize subject)
-            subject_val = getattr(evidence, 'email_subject', None)
-            if not thread_id and subject_val:
-                # Normalize subject (remove Re:, Fwd:, etc.)
-                normalized_subject = subject_val.lower()
-                for prefix in ['re:', 'fw:', 'fwd:', 'aw:']:
-                    normalized_subject = normalized_subject.replace(prefix, '').strip()
-                
-                # Check if any existing thread has this subject
-                for other in all_evidence:
-                    other_thread_id = getattr(other, 'thread_id', None)
-                    other_subject = getattr(other, 'email_subject', None)
-                    if other_thread_id and other_subject:
-                        other_normalized = other_subject.lower()
-                        for prefix in ['re:', 'fw:', 'fwd:', 'aw:']:
-                            other_normalized = other_normalized.replace(prefix, '').strip()
-                        
-                        if normalized_subject == other_normalized:
-                            thread_id = other_thread_id
-                            break
-            
-            # Create new thread if no match found
-            msg_id_val = getattr(evidence, 'email_message_id', None)
-            if not thread_id and msg_id_val:
-                try:
-                    thread_id = f"thread_{hashlib.md5(msg_id_val.encode()).hexdigest()[:12]}"
-                except (AttributeError, UnicodeEncodeError) as e:
-                    logger.warning(f"Failed to create thread ID from message ID {msg_id_val}: {e}")
-            
-            # Assign thread ID
             if thread_id:
                 setattr(evidence, 'thread_id', thread_id)
         
-        # Commit all thread assignments
         self.db.commit()
-        
         unique_thread_ids = set(getattr(e, 'thread_id', None) for e in all_evidence if getattr(e, 'thread_id', None))
         logger.info(f"Thread building complete. Found {len(unique_thread_ids)} unique threads")
     
@@ -712,7 +730,7 @@ class UltimatePSTProcessor:
         """
         try:
             headers = message.transport_headers
-            if not headers:
+            if not headers or not isinstance(headers, str):
                 return None
             
             # Parse From: header - format is "Name <email@domain.com>" or just "email@domain.com"
@@ -721,5 +739,6 @@ class UltimatePSTProcessor:
                 return from_match.group(1)
             
             return None
-        except (AttributeError, TypeError, re.error):
+        except (AttributeError, TypeError, ValueError) as e:
+            logger.debug(f"Failed to extract email from headers: {e}")
             return None

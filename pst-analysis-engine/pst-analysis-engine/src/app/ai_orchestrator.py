@@ -37,6 +37,68 @@ class DatasetAnalysisResponse(BaseModel):
     document_types: Dict[str, int]
     ai_models_used: List[str]
 
+def _calculate_activity_trend(metadata: List[Dict]) -> Optional[DatasetInsight]:
+    """Calculate activity trend from metadata"""
+    if len(metadata) <= 10:
+        return None
+    
+    try:
+        dates = [datetime.fromisoformat(m['created_at']) for m in metadata]
+        now = datetime.utcnow()
+        recent = sum(1 for d in dates if d > now - timedelta(days=7))
+        prev = sum(1 for d in dates if now - timedelta(days=14) < d <= now - timedelta(days=7))
+        
+        if prev == 0 or recent <= prev * 1.5:
+            return None
+        
+        increase_pct = ((recent / max(prev, 1) - 1) * 100)
+        recent_docs = [m['id'] for m in metadata if datetime.fromisoformat(m['created_at']) > now - timedelta(days=7)]
+        
+        return DatasetInsight(
+            insight_type='trend',
+            title='Increased Activity',
+            description=f'Uploads up {increase_pct:.0f}% last week',
+            confidence=0.9,
+            supporting_documents=recent_docs,
+            ai_model='gemini'
+        )
+    except (ValueError, KeyError, TypeError) as e:
+        return None
+
+def _group_by_month(metadata: List[Dict]) -> Dict[str, List[Dict]]:
+    """Group documents by month"""
+    by_month = {}
+    for m in metadata:
+        try:
+            date = datetime.fromisoformat(m['created_at'])
+            month_key = date.strftime('%Y-%m')
+            if month_key not in by_month:
+                by_month[month_key] = []
+            by_month[month_key].append(m)
+        except (ValueError, KeyError):
+            continue
+    return by_month
+
+def _extract_themes(documents: List) -> List[str]:
+    """Extract key themes from documents"""
+    themes = []
+    keyword_map = {
+        'financial': ['payment', 'invoice', 'budget'],
+        'legal': ['contract', 'agreement', 'terms'],
+        'technical': ['software', 'system', 'implementation']
+    }
+    
+    for theme, words in keyword_map.items():
+        for doc in documents:
+            if not doc.text_excerpt:
+                continue
+            text_lower = doc.text_excerpt.lower()
+            if any(w in text_lower for w in words):
+                themes.append(theme)
+                break
+    
+    return themes
+
 @router.get("/analyze/dataset", response_model=DatasetAnalysisResponse)
 async def analyze_dataset(
     folder_path: Optional[str] = Query(default=None),
@@ -53,12 +115,12 @@ async def analyze_dataset(
     if date_from:
         try:
             query = query.filter(Document.created_at >= datetime.fromisoformat(date_from))
-        except ValueError:
+        except (ValueError, TypeError) as e:
             raise HTTPException(400, "invalid date_from format")
     if date_to:
         try:
             query = query.filter(Document.created_at <= datetime.fromisoformat(date_to))
-        except ValueError:
+        except (ValueError, TypeError) as e:
             raise HTTPException(400, "invalid date_to format")
     
     documents = query.order_by(Document.created_at.asc()).all()
@@ -73,55 +135,48 @@ async def analyze_dataset(
     timeline = []
     
     # Generate insights
-    if len(metadata) > 10:
-        dates = [datetime.fromisoformat(m['created_at']) for m in metadata]
-        recent = sum(1 for d in dates if d > datetime.utcnow() - timedelta(days=7))
-        prev = sum(1 for d in dates if datetime.utcnow() - timedelta(days=14) < d <= datetime.utcnow() - timedelta(days=7))
-        if recent > prev * 1.5:
-            insights.append(DatasetInsight(
-                insight_type='trend', title='Increased Activity',
-                description=f'Uploads up {((recent/max(prev,1)-1)*100):.0f}% last week',
-                confidence=0.9, supporting_documents=[m['id'] for m in metadata[-recent:]],
-                ai_model='gemini'
-            ))
+    trend_insight = _calculate_activity_trend(metadata)
+    if trend_insight:
+        insights.append(trend_insight)
     
     # Generate timeline by month
-    by_month = {}
-    for m in metadata:
-        date = datetime.fromisoformat(m['created_at'])
-        month_key = date.strftime('%Y-%m')
-        if month_key not in by_month:
-            by_month[month_key] = []
-        by_month[month_key].append(m)
+    by_month = _group_by_month(metadata)
     
     for month, docs in sorted(by_month.items()):
-        significance = 'high' if len(docs) > 10 else 'medium' if len(docs) > 5 else 'low'
+        doc_count = len(docs)
+        if doc_count > 10:
+            significance = 'high'
+        elif doc_count > 5:
+            significance = 'medium'
+        else:
+            significance = 'low'
+        
         timeline.append(TimelineEvent(
-            date=month + '-01', event_type='document_batch',
-            description=f'{len(docs)} documents uploaded', significance=significance,
+            date=month + '-01',
+            event_type='document_batch',
+            description=f'{doc_count} documents uploaded',
+            significance=significance,
             related_documents=[{'id': d['id'], 'filename': d['filename']} for d in docs[:5]]
         ))
     
     # Count document types
     doc_types = {}
     for doc in documents:
-        if doc.meta and 'ai_classification' in doc.meta:
-            doc_type = doc.meta['ai_classification'].get('type', 'unknown')
-            doc_types[doc_type] = doc_types.get(doc_type, 0) + 1
+        try:
+            if doc.meta and isinstance(doc.meta, dict) and 'ai_classification' in doc.meta:
+                classification = doc.meta['ai_classification']
+                if isinstance(classification, dict):
+                    doc_type = classification.get('type', 'unknown')
+                    doc_types[doc_type] = doc_types.get(doc_type, 0) + 1
+        except (AttributeError, TypeError):
+            continue
     
     # Extract themes
-    themes = []
-    keyword_map = {
-        'financial': ['payment', 'invoice', 'budget'],
-        'legal': ['contract', 'agreement', 'terms'],
-        'technical': ['software', 'system', 'implementation']
-    }
-    for theme, words in keyword_map.items():
-        if any(any(w in (d.text_excerpt or '').lower() for w in words) for d in documents if d.text_excerpt):
-            themes.append(theme)
+    themes = _extract_themes(documents)
     
     dates = [d.created_at for d in documents]
-    summary = f"{len(documents)} documents over {(max(dates) - min(dates)).days} days"
+    date_range_days = (max(dates) - min(dates)).days
+    summary = f"{len(documents)} documents over {date_range_days} days"
     
     return DatasetAnalysisResponse(
         total_documents=len(documents),
@@ -146,16 +201,28 @@ async def query_documents(
         Document.owner_user_id == user.id
     ).limit(200).all()
     
+    # Pre-compute query words once
+    query_words = query_text.lower().split()
+    
     results = []
     for doc in documents:
         if not doc.text_excerpt:
             continue
-        score = sum(doc.text_excerpt.lower().count(word) for word in query_text.lower().split())
-        if score > 0:
-            results.append({
-                'document_id': str(doc.id), 'filename': doc.filename,
-                'path': doc.path, 'score': score, 'snippet': doc.text_excerpt[:200]
-            })
+        
+        try:
+            text_lower = doc.text_excerpt.lower()
+            score = sum(text_lower.count(word) for word in query_words)
+            
+            if score > 0:
+                results.append({
+                    'document_id': str(doc.id),
+                    'filename': doc.filename,
+                    'path': doc.path,
+                    'score': score,
+                    'snippet': doc.text_excerpt[:200]
+                })
+        except (AttributeError, TypeError):
+            continue
     
     results.sort(key=lambda x: x['score'], reverse=True)
     answer = f"Found {len(results)} documents. Top: {results[0]['filename']}" if results else "No matches"
@@ -180,13 +247,18 @@ async def get_trends(
     
     by_day = {}
     for doc in documents:
-        day = doc.created_at.strftime('%Y-%m-%d')
-        by_day[day] = by_day.get(day, 0) + 1
+        try:
+            day = doc.created_at.strftime('%Y-%m-%d')
+            by_day[day] = by_day.get(day, 0) + 1
+        except (AttributeError, ValueError):
+            continue
     
     if by_day:
         counts = list(by_day.values())
-        avg = sum(counts) / len(counts)
-        recent_avg = sum(counts[-7:]) / min(7, len(counts))
+        count_len = len(counts)
+        avg = sum(counts) / count_len if count_len > 0 else 0
+        recent_count = min(7, count_len)
+        recent_avg = sum(counts[-7:]) / recent_count if recent_count > 0 else 0
     else:
         avg = recent_avg = 0
     
