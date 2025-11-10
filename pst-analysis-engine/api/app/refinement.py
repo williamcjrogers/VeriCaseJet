@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, distinct, case
 from typing import List, Dict, Optional, Any, cast
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict
 import re
 import logging
@@ -115,9 +115,9 @@ async def discover_evidence_patterns(
     if not project:
         raise HTTPException(404, "Project not found")
     
-    # Get email sample
+    # Get email sample - filter by project_id, not case_id!
     emails = db.query(EmailMessage).filter(
-        EmailMessage.case_id == project_id
+        EmailMessage.project_id == project_id
     ).order_by(EmailMessage.date_sent.desc()).limit(limit).all()
     
     if not emails:
@@ -218,10 +218,11 @@ def discover_parties(emails: List[EmailMessage], db: Session) -> List[Discovered
 
 def discover_people(emails: List[EmailMessage]) -> List[DiscoveredPerson]:
     """Extract individual people and their details"""
+    # Use None as sentinel; will be replaced with actual email dates
     people_map: Dict[tuple, Dict[str, Any]] = defaultdict(lambda: {
         "count": 0, 
-        "first_seen": datetime.now(), 
-        "last_seen": datetime.now(),
+        "first_seen": None, 
+        "last_seen": None,
         "domains": set()
     })
     
@@ -239,18 +240,19 @@ def discover_people(emails: List[EmailMessage]) -> List[DiscoveredPerson]:
             if date_sent_val and isinstance(date_sent_val, datetime):
                 first_seen_val = people_map[key]["first_seen"]
                 last_seen_val = people_map[key]["last_seen"]
-                if isinstance(first_seen_val, datetime):
-                    people_map[key]["first_seen"] = min(first_seen_val, date_sent_val)
-                if isinstance(last_seen_val, datetime):
-                    people_map[key]["last_seen"] = max(last_seen_val, date_sent_val)
+                if first_seen_val is None or (isinstance(first_seen_val, datetime) and date_sent_val < first_seen_val):
+                    people_map[key]["first_seen"] = date_sent_val
+                if last_seen_val is None or (isinstance(last_seen_val, datetime) and date_sent_val > last_seen_val):
+                    people_map[key]["last_seen"] = date_sent_val
     
     # Convert to list
     discovered_people = []
     for (name, email_addr), stats in sorted(people_map.items(), key=lambda x: int(x[1]["count"]), reverse=True)[:50]:
         domain = email_addr.split('@')[-1]
         count_val = int(stats["count"])
-        first_seen_val = stats["first_seen"] if isinstance(stats["first_seen"], datetime) else datetime.now()
-        last_seen_val = stats["last_seen"] if isinstance(stats["last_seen"], datetime) else datetime.now()
+        # Use actual dates from emails or current UTC time as fallback
+        first_seen_val = stats["first_seen"] if isinstance(stats["first_seen"], datetime) else datetime.now(timezone.utc)
+        last_seen_val = stats["last_seen"] if isinstance(stats["last_seen"], datetime) else datetime.now(timezone.utc)
         discovered_people.append(DiscoveredPerson(
             name=name,
             email=email_addr,
@@ -286,57 +288,18 @@ def discover_topics(emails: List[EmailMessage], db: Session) -> List[DiscoveredT
     urgency_words = ["urgent", "immediate", "asap", "critical", "deadline", "overdue"]
     
     for email in emails:
-        subject_val = str(email.subject) if email.subject else ""
-        body_val = str(email.body_text) if email.body_text else ""
-        text_to_search = f"{subject_val} {body_val}".lower()
-        
-        # Check urgency
-        urgency_count = sum(1 for word in urgency_words if word in text_to_search)
-        
-        # Match topics
-        for topic, keywords in topic_keywords.items():
-            matched = False
-            for keyword in keywords:
-                if keyword in text_to_search:
-                    matched = True
-                    keywords_set = topic_stats[topic]["keywords_found"]
-                    if isinstance(keywords_set, set):
-                        keywords_set.add(keyword)
-            
-            if matched:
-                topic_stats[topic]["count"] += 1
-                topic_stats[topic]["urgency"] += urgency_count
-                
-                date_sent_val = email.date_sent
-                if date_sent_val and isinstance(date_sent_val, datetime):
-                    date_range = topic_stats[topic]["date_range"]
-                    if isinstance(date_range, dict):
-                        if date_range["start"] is None:
-                            date_range["start"] = date_sent_val
-                            date_range["end"] = date_sent_val
-                        else:
-                            start_val = date_range["start"]
-                            end_val = date_range["end"]
-                            if isinstance(start_val, datetime):
-                                date_range["start"] = min(start_val, date_sent_val)
-                            if isinstance(end_val, datetime):
-                                date_range["end"] = max(end_val, date_sent_val)
+        process_email_topics(email, topic_stats, topic_keywords, urgency_words)
     
     # Convert to response format
+    return build_topic_responses(topic_stats)
+
+def build_topic_responses(topic_stats: Dict[str, Dict[str, Any]]) -> List[DiscoveredTopic]:
+    """Convert topic statistics into response format"""
     discovered_topics = []
     for topic, stats in sorted(topic_stats.items(), key=lambda x: int(x[1]["count"]), reverse=True):
         count_val = int(stats["count"])
         if count_val > 0:
-            date_range = "Unknown"
-            date_range_dict = stats["date_range"]
-            if isinstance(date_range_dict, dict):
-                start_val = date_range_dict["start"]
-                end_val = date_range_dict["end"]
-                if isinstance(start_val, datetime) and isinstance(end_val, datetime):
-                    start = start_val.strftime("%b %Y")
-                    end = end_val.strftime("%b %Y")
-                    date_range = f"{start} - {end}"
-            
+            date_range = format_date_range(stats["date_range"])
             keywords_set = stats["keywords_found"] if isinstance(stats["keywords_found"], set) else set()
             urgency_val = int(stats["urgency"])
             discovered_topics.append(DiscoveredTopic(
@@ -346,8 +309,59 @@ def discover_topics(emails: List[EmailMessage], db: Session) -> List[DiscoveredT
                 keywords=list(keywords_set),
                 urgency_indicators=urgency_val
             ))
-    
     return discovered_topics
+
+def format_date_range(date_range_dict: Any) -> str:
+    """Format date range for display"""
+    if not isinstance(date_range_dict, dict):
+        return "Unknown"
+    start_val = date_range_dict.get("start")
+    end_val = date_range_dict.get("end")
+    if isinstance(start_val, datetime) and isinstance(end_val, datetime):
+        start = start_val.strftime("%b %Y")
+        end = end_val.strftime("%b %Y")
+        return f"{start} - {end}"
+    return "Unknown"
+
+def process_email_topics(email: EmailMessage, topic_stats: Dict, topic_keywords: Dict, urgency_words: List) -> None:
+    subject_val = str(email.subject) if email.subject else ""
+    body_val = str(email.body_text) if email.body_text else ""
+    text_to_search = f"{subject_val} {body_val}".lower()
+    
+    # Check urgency
+    urgency_count = sum(1 for word in urgency_words if word in text_to_search)
+    
+    # Match topics
+    for topic, keywords in topic_keywords.items():
+        matched = False
+        for keyword in keywords:
+            if keyword in text_to_search:
+                matched = True
+                keywords_set = topic_stats[topic]["keywords_found"]
+                if isinstance(keywords_set, set):
+                    keywords_set.add(keyword)
+        
+        if matched:
+            topic_stats[topic]["count"] += 1
+            topic_stats[topic]["urgency"] += urgency_count
+            
+            date_sent_val = email.date_sent
+            if date_sent_val and isinstance(date_sent_val, datetime):
+                update_topic_dates(topic_stats[topic], date_sent_val)
+
+def update_topic_dates(stats: Dict, date: datetime) -> None:
+    date_range = stats["date_range"]
+    if isinstance(date_range, dict):
+        if date_range["start"] is None:
+            date_range["start"] = date
+            date_range["end"] = date
+        else:
+            start_val = date_range["start"]
+            end_val = date_range["end"]
+            if isinstance(start_val, datetime):
+                date_range["start"] = min(start_val, date)
+            if isinstance(end_val, datetime):
+                date_range["end"] = max(end_val, date)
 
 
 def infer_organization_from_domain(domain: str) -> str:
@@ -402,15 +416,16 @@ async def apply_refinement(
     if not project:
         raise HTTPException(404, "Project not found")
     
-    # Create refinement filter record
+    # Create refinement filter record with timezone-aware timestamp
     filter_id = str(uuid.uuid4())
+    applied_at_utc = datetime.now(timezone.utc)
     filter_data = {
         "exclude_projects": refinement.exclude_projects,
         "confirmed_parties": refinement.confirmed_parties,
         "exclude_people": refinement.exclude_people,
         "include_topics": refinement.include_topics,
         "custom_filters": refinement.custom_filters,
-        "applied_at": datetime.now().isoformat()
+        "applied_at": applied_at_utc.isoformat()
     }
     
     # In production, we'd store this in a refinement_filters table
@@ -425,7 +440,7 @@ async def apply_refinement(
     
     # Get all emails for the project
     emails = db.query(EmailMessage).filter(
-        EmailMessage.case_id == project_id
+        EmailMessage.project_id == project_id
     ).all()
     
     for email in emails:
@@ -508,7 +523,7 @@ async def clear_refinement_filters(
     
     # Clear email exclusions
     emails = db.query(EmailMessage).filter(
-        EmailMessage.case_id == project_id
+        EmailMessage.project_id == project_id
     ).all()
     
     cleared_count = 0

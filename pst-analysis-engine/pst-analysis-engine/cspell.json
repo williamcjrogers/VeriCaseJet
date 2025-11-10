@@ -25,7 +25,8 @@
     "gleeds",
     "maxlength",
     "NHBC",
-    "Organisation"
+    "Organisation",
+    "witnesseth"
   ],
   "ignorePaths": [
     "node_modules/**",

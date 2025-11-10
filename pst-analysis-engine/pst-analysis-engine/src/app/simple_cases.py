@@ -3,7 +3,7 @@ Simple Cases API for testing without authentication
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, select
 from typing import List
 from datetime import datetime, timezone
 import uuid
@@ -20,8 +20,9 @@ router = APIRouter(prefix="/api", tags=["simple-cases"])
 def list_cases_simple(db: Session = Depends(get_db)):
     """List all cases without authentication (for testing)"""
     try:
-        # Use SQLAlchemy ORM to prevent SQL injection
-        cases = db.query(Case).order_by(desc(Case.created_at)).limit(50).all()
+        # Use SQLAlchemy parameterized Core/ORM query to prevent SQL injection
+        stmt = select(Case).order_by(desc(Case.created_at)).limit(50)
+        cases = db.execute(stmt).scalars().all()
         
         result = []
         for case in cases:

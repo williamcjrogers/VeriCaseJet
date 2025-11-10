@@ -1,7 +1,15 @@
 #!/bin/bash
 # VeriCase Production Deployment Script
 
-set -e  # Exit on error
+set -Eeuo pipefail  # Exit on error, unset vars error, and fail pipelines
+IFS=$'\n\t'
+
+on_error() {
+    local exit_code=$?
+    local line_no=$LINENO
+    echo "❌ Error: Command failed with exit code ${exit_code} on line ${line_no}." >&2
+}
+trap on_error ERR
 
 echo "🚀 VeriCase Production Deployment"
 echo "================================"
@@ -13,6 +21,20 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
+# Verify required tools and files
+if ! command -v docker >/dev/null 2>&1; then
+    echo "❌ Error: 'docker' not found in PATH." >&2
+    exit 127
+fi || { echo "❌ Error: Failed to check for docker command." >&2; exit 1; }
+if ! command -v docker-compose >/dev/null 2>&1; then
+    echo "❌ Error: 'docker-compose' not found in PATH." >&2
+    exit 127
+fi
+if [ ! -f docker-compose.prod.yml ]; then
+    echo "❌ Error: docker-compose.prod.yml not found in the project root." >&2
+    exit 1
+fi
+
 # Function to check if service is healthy
 check_health() {
     local service=$1
@@ -21,7 +43,14 @@ check_health() {
     
     echo -n "   Waiting for $service to be healthy"
     while [ $attempt -le $max_attempts ]; do
-        if docker-compose -f docker-compose.prod.yml ps 2>/dev/null | grep -q "$service.*healthy"; then
+        # Capture output so failures in docker-compose are detected distinctly
+        local ps_output=""
+        if ! ps_output=$(docker-compose -f docker-compose.prod.yml ps 2>/dev/null); then
+            echo " ❌"
+            echo "   Error: 'docker-compose ps' failed while checking $service." >&2
+            return 1
+        fi
+        if echo "$ps_output" | grep -q "$service.*healthy"; then
             echo " ✅"
             return 0
         fi
@@ -30,6 +59,7 @@ check_health() {
         attempt=$((attempt + 1))
     done
     echo " ❌"
+    echo "   Error: $service failed to become healthy after $max_attempts attempts." >&2
     return 1
 }
 
@@ -61,11 +91,15 @@ check_health "tika"
 
 # Create MinIO bucket if it doesn't exist
 echo "📤 Setting up MinIO bucket..."
-if ! docker-compose -f docker-compose.prod.yml exec -T minio mc alias set local http://localhost:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY} 2>/dev/null; then
-    echo "⚠️  Warning: Failed to set MinIO alias (may already exist)"
-fi
-if ! docker-compose -f docker-compose.prod.yml exec -T minio mc mb local/${MINIO_BUCKET} --ignore-existing 2>/dev/null; then
-    echo "⚠️  Warning: Failed to create MinIO bucket (may already exist)"
+if [ -n "${MINIO_ACCESS_KEY:-}" ] && [ -n "${MINIO_SECRET_KEY:-}" ] && [ -n "${MINIO_BUCKET:-}" ]; then
+    if ! docker-compose -f docker-compose.prod.yml exec -T minio mc alias set local http://localhost:9000 "${MINIO_ACCESS_KEY}" "${MINIO_SECRET_KEY}" 2>/dev/null; then
+        echo "⚠️  Warning: Failed to set MinIO alias (may already exist)"
+    fi
+    if ! docker-compose -f docker-compose.prod.yml exec -T minio mc mb "local/${MINIO_BUCKET}" --ignore-existing 2>/dev/null; then
+        echo "⚠️  Warning: Failed to create MinIO bucket (may already exist)"
+    fi
+else
+    echo "⚠️  Warning: MINIO_ACCESS_KEY, MINIO_SECRET_KEY, or MINIO_BUCKET not set; skipping bucket setup."
 fi
 
 # Run database migrations

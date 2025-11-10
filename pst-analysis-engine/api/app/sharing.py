@@ -91,7 +91,7 @@ async def share_document(
     if existing:
         # Update existing share
         existing.permission = data.permission
-        existing.updated_at = datetime.utcnow()
+        existing.updated_at = datetime.now(datetime.timezone.utc)
         db.commit()
         db.refresh(existing)
         
@@ -115,7 +115,7 @@ async def share_document(
     db.commit()
     db.refresh(share)
     
-    logger.info(f"Document {doc.id} shared with {target_user.email} by {user.email}")
+    logger.info("Document %s shared with %s by %s", doc.id, target_user.email, user.email)
     
     return ShareResponse(
         id=str(share.id),
@@ -185,7 +185,9 @@ async def revoke_document_share(
     if not share:
         raise HTTPException(404, "share not found")
     
-    db.delete(share)
+    db.query(DocumentShare).filter(
+        DocumentShare.id == share.id
+    ).delete(synchronize_session=False)
     db.commit()
     
     return {"message": "share revoked"}
@@ -255,7 +257,7 @@ async def share_folder(
     if existing:
         # Update existing share
         existing.permission = data.permission
-        existing.updated_at = datetime.utcnow()
+        existing.updated_at = datetime.now(datetime.timezone.utc)
         db.commit()
         db.refresh(existing)
         
@@ -280,7 +282,7 @@ async def share_folder(
     db.commit()
     db.refresh(share)
     
-    logger.info(f"Folder {path} shared with {target_user.email} by {user.email}")
+    logger.info("Folder %s shared with %s by %s", path, target_user.email, user.email)
     
     return FolderShareResponse(
         id=str(share.id),
@@ -342,7 +344,9 @@ async def revoke_folder_share(
     if not share:
         raise HTTPException(404, "share not found")
     
-    db.delete(share)
+    db.query(FolderShare).filter(
+        FolderShare.id == share.id
+    ).delete(synchronize_session=False)
     db.commit()
     
     return {"message": "share revoked"}

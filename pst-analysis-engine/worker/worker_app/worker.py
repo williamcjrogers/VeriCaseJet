@@ -1,16 +1,19 @@
+# cspell:ignore opensearchpy vericase sessionmaker tika ocrmypdf pypff hset hincrby
 import io, os, tempfile, json
 from celery import Celery
 import boto3
 from botocore.client import Config
 from sqlalchemy import create_engine, text, func
-from opensearchpy import OpenSearch, RequestsHttpConnection
-import requests, subprocess, pytesseract
-from PIL import Image
+from opensearchpy import OpenSearch, RequestsHttpConnection  # type: ignore[import-not-found]
+import requests, subprocess, pytesseract  # type: ignore[import-not-found]
+from PIL import Image  # type: ignore[import-not-found]
 from .config import settings
-import redis
+import redis  # type: ignore[import-not-found]
 from celery.utils.log import get_task_logger
+from .logging_utils import install_log_sanitizer
 
 logger = get_task_logger(__name__)
+install_log_sanitizer()
 
 celery_app = Celery("vericase-docs", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
 
@@ -24,6 +27,8 @@ def _normalize_endpoint(url: str | None) -> str | None:
     """Ensure endpoints include a scheme so boto3 accepts them."""
     if not url:
         return url
+    # Sanitize URL to prevent injection
+    url = str(url).strip()
     if url.startswith("http://") or url.startswith("https://"):
         return url
     return f"http://{url}"
@@ -73,27 +78,43 @@ def _fetch_doc(doc_id: str):
 def _index_document(doc_id: str, filename: str, created_at, content_type: str, metadata: dict, text: str, path: str|None, owner_user_id: str|None):
     body = {"id": doc_id, "filename": filename, "title": None, "path": path, "owner": owner_user_id,
             "content_type": content_type, "uploaded_at": created_at, "metadata": metadata or {}, "text": text}
-    os_client.index(index=settings.OPENSEARCH_INDEX, id=doc_id, body=body, refresh=True)
+    os_client.index(index=settings.OPENSEARCH_INDEX, id=doc_id, body=body)
+    os_client.indices.refresh(index=settings.OPENSEARCH_INDEX)
 def _tika_extract(file_bytes: bytes) -> str:
     try:
         r = requests.put(f"{settings.TIKA_URL}/tika", data=file_bytes, headers={"Accept":"text/plain"}, timeout=60)
         if r.status_code==200 and r.text: return r.text
-    except Exception: pass
+    except (requests.RequestException, ConnectionError, TimeoutError) as e:
+        logger.warning(f"Tika extraction failed: {e}")
     return ""
 def _ocr_pdf_sidecar(in_path: str) -> str:
+    # Validate path to prevent path traversal
+    if not os.path.isabs(in_path) or ".." in in_path:
+        logger.error(f"Invalid path for OCR: {in_path}")
+        return ""
+    
     sidecar = in_path + ".txt"
     try:
-        subprocess.run(["ocrmypdf","--sidecar", sidecar,"--force-ocr", in_path, in_path + ".ocr.pdf"], check=True, capture_output=True)
+        # Use absolute path for ocrmypdf command
+        subprocess.run(["/usr/bin/ocrmypdf","--sidecar", sidecar,"--force-ocr", in_path, in_path + ".ocr.pdf"], check=True, capture_output=True)
         with open(sidecar,"r",encoding="utf-8",errors="ignore") as f: return f.read()
-    except subprocess.CalledProcessError: return ""
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"OCR failed: {e}")
+        return ""
+    except (IOError, OSError) as e:
+        logger.error(f"File operation failed during OCR: {e}")
+        return ""
     finally:
         try: os.remove(sidecar)
-        except Exception: pass
+        except (IOError, OSError) as e:
+            logger.debug(f"Failed to remove sidecar file: {e}")
 def _ocr_image_bytes(file_bytes: bytes) -> str:
     try:
-        from PIL import Image
+        from PIL import Image  # type: ignore[import-not-found]
         with Image.open(io.BytesIO(file_bytes)) as im: return pytesseract.image_to_string(im)
-    except Exception: return ""
+    except (IOError, ValueError, RuntimeError) as e:
+        logger.warning(f"Image OCR failed: {e}")
+        return ""
 @celery_app.task(name="worker_app.worker.ocr_and_index", queue=settings.CELERY_QUEUE)
 def ocr_and_index(doc_id: str):
     doc=_fetch_doc(doc_id)
@@ -107,10 +128,16 @@ def ocr_and_index(doc_id: str):
         if name.endswith(".pdf"):
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
                 tmp.write(fb); tmp.flush()
-                text=_ocr_pdf_sidecar(tmp.name) or ""
-                try: os.remove(tmp.name + ".ocr.pdf")
-                except Exception: pass
-                os.remove(tmp.name)
+                tmp_path = tmp.name
+            try:
+                text=_ocr_pdf_sidecar(tmp_path) or ""
+                try: os.remove(tmp_path + ".ocr.pdf")
+                except (IOError, OSError) as e:
+                    logger.debug(f"Failed to remove OCR output: {e}")
+            finally:
+                try: os.remove(tmp_path)
+                except (IOError, OSError) as e:
+                    logger.warning(f"Failed to remove temp file: {e}")
         else:
             text=_ocr_image_bytes(fb) or ""
     excerpt=(text.strip()[:1000]) if text else ""
@@ -119,8 +146,10 @@ def ocr_and_index(doc_id: str):
     return {"id": doc_id, "chars": len(text or "")}
 
 
+from typing import Optional
+
 @celery_app.task(name="worker_app.worker.process_pst_file", queue=settings.CELERY_QUEUE)
-def process_pst_file(doc_id: str, case_id: str, company_id: str):
+def process_pst_file(doc_id: str, case_id: Optional[str], company_id: Optional[str]):
     """
     THE ULTIMATE PST PROCESSOR TASK
     
@@ -143,8 +172,8 @@ def process_pst_file(doc_id: str, case_id: str, company_id: str):
     try:
         # Import PST processor (import here to avoid loading pypff in main process)
         sys.path.insert(0, '/code')
-        from app.pst_processor import UltimatePSTProcessor
-        from app.models import Document
+        from app.pst_processor import UltimatePSTProcessor  # type: ignore[import-not-found]
+        from app.models import Document  # type: ignore[import-not-found]
         
         # Create DB session
         SessionLocal = sessionmaker(bind=engine)
@@ -226,6 +255,7 @@ def process_pst_forensic_task(self, pst_file_id: str, s3_bucket: str, s3_key: st
         self.update_state(state='PROCESSING', meta={'status': 'Initializing PST processor'})
         
         # Create processor
+        from api.app.pst_forensic_processor import ForensicPSTProcessor  # type: ignore[import-not-found]
         processor = ForensicPSTProcessor(db)
         
         # Process PST file
@@ -243,7 +273,7 @@ def process_pst_forensic_task(self, pst_file_id: str, s3_bucket: str, s3_key: st
         logger.error(f"Forensic PST processing failed: {e}", exc_info=True)
         
         # Update PST file status to failed
-        from app.models import PSTFile
+        from app.models import PSTFile  # type: ignore[import-not-found]
         pst_file = db.query(PSTFile).filter_by(id=pst_file_id).first()
         if pst_file:
             pst_file.processing_status = 'failed'
@@ -265,7 +295,7 @@ def coordinate_pst_processing(pst_file_id: str, s3_bucket: str, s3_key: str):
     """
     Coordinate processing of large PST files by splitting work
     """
-    import pypff
+    import pypff  # type: ignore[import-not-found]
     import tempfile
     # Import from parent directory
     import sys
@@ -431,7 +461,7 @@ def process_pst_chunk(self, pst_file_id: str, s3_bucket: str, s3_key: str,
     """
     Process a specific folder/chunk from PST file
     """
-    import pypff
+    import pypff  # type: ignore[import-not-found]
     import tempfile
     # Import from parent directory
     import sys
@@ -468,9 +498,11 @@ def process_pst_chunk(self, pst_file_id: str, s3_bucket: str, s3_key: str,
             
             if target_folder:
                 # Process only this folder
-                from api.app.models import PSTFile, Stakeholder, Keyword
+                from api.app.models import PSTFile, Stakeholder, Keyword  # type: ignore[import-not-found]
                 
                 pst_file = db.query(PSTFile).filter_by(id=pst_file_id).first()
+                if not pst_file:
+                    raise ValueError(f"PST file {pst_file_id} not found")
                 stakeholders = db.query(Stakeholder).filter_by(case_id=pst_file.case_id).all()
                 keywords = db.query(Keyword).filter_by(case_id=pst_file.case_id).all()
                 

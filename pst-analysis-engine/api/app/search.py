@@ -3,18 +3,26 @@ import time
 from opensearchpy import OpenSearch, RequestsHttpConnection
 from opensearchpy.exceptions import NotFoundError
 from .config import settings
-_client=None
 
 logger = logging.getLogger(__name__)
-def client():
-    global _client
-    if _client is None:
+
+class _OpenSearchClient:
+    """Thread-safe OpenSearch client singleton"""
+    _instance = None
+    
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is None:
+            cls._instance = cls._create_client()
+        return cls._instance
+    
+    @staticmethod
+    def _create_client():
         try:
-            # Get credentials from settings or environment
             opensearch_user = getattr(settings, 'OPENSEARCH_USER', 'admin')
             opensearch_pass = getattr(settings, 'OPENSEARCH_PASSWORD', 'admin')
             
-            _client = OpenSearch(
+            return OpenSearch(
                 hosts=[{"host": settings.OPENSEARCH_HOST, "port": settings.OPENSEARCH_PORT}],
                 http_auth=(opensearch_user, opensearch_pass) if opensearch_user else None,
                 http_compress=True,
@@ -23,10 +31,11 @@ def client():
                 connection_class=RequestsHttpConnection
             )
         except Exception as e:
-            import logging
-            logging.error(f"Failed to create OpenSearch client: {e}")
+            logger.error(f"Failed to create OpenSearch client: {e}")
             raise
-    return _client
+
+def client():
+    return _OpenSearchClient.get_instance()
 def ensure_index():
     body={"settings":{"index":{"number_of_shards":1,"number_of_replicas":0}},
           "mappings":{"properties":{

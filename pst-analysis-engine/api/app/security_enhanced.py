@@ -97,13 +97,18 @@ def validate_password_strength(password: str) -> Dict[str, Any]:
         errors.append("Password must be less than 128 characters")
     
     # Complexity checks
-    if not re.search(r'[A-Z]', password):
+    has_upper = bool(re.search(r'[A-Z]', password))
+    has_lower = bool(re.search(r'[a-z]', password))
+    has_digit = bool(re.search(r'\d', password))
+    has_special = bool(re.search(r'[!@#$%^&*(),.?":{}|<>]', password))
+    
+    if not has_upper:
         errors.append("Password must contain at least one uppercase letter")
-    if not re.search(r'[a-z]', password):
+    if not has_lower:
         errors.append("Password must contain at least one lowercase letter")
-    if not re.search(r'\d', password):
+    if not has_digit:
         errors.append("Password must contain at least one number")
-    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+    if not has_special:
         errors.append("Password must contain at least one special character")
     
     # Common password check
@@ -116,13 +121,13 @@ def validate_password_strength(password: str) -> Dict[str, Any]:
         score += 20
     if len(password) >= 12:
         score += 10
-    if re.search(r'[A-Z]', password):
+    if has_upper:
         score += 20
-    if re.search(r'[a-z]', password):
+    if has_lower:
         score += 20
-    if re.search(r'\d', password):
+    if has_digit:
         score += 15
-    if re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+    if has_special:
         score += 15
     
     return {

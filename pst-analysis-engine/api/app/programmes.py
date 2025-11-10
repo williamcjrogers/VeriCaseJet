@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from typing import List, Optional
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import io
 
@@ -17,6 +17,46 @@ from .auth import get_current_user_email
 
 router = APIRouter()
 
+# cSpell:ignore asta
+
+def _extract_project_dates(project_elem) -> tuple[Optional[str], Optional[str]]:
+    """Extract project start and finish dates from PROJECT element"""
+    if project_elem is None:
+        return None, None
+    
+    start_str = project_elem.get('START_DATE') or project_elem.get('start_date')
+    finish_str = project_elem.get('FINISH_DATE') or project_elem.get('finish_date')
+    
+    project_start = parse_asta_date(start_str) if start_str else None
+    project_finish = parse_asta_date(finish_str) if finish_str else None
+    
+    return project_start, project_finish
+
+def _parse_task_element(task) -> dict:
+    """Parse a single TASK element into activity dict"""
+    return {
+        'id': task.get('ID') or task.get('id'),
+        'name': task.get('NAME') or task.get('name') or task.text,
+        'start_date': parse_asta_date(task.get('START_DATE') or task.get('start_date')),
+        'finish_date': parse_asta_date(task.get('FINISH_DATE') or task.get('finish_date')),
+        'duration': task.get('DURATION') or task.get('duration') or '0',
+        'percent_complete': task.get('PERCENT_COMPLETE') or task.get('percent_complete') or '0',
+        'is_critical': task.get('CRITICAL') == 'true' or task.get('critical') == 'true',
+        'is_milestone': task.get('MILESTONE') == 'true' or task.get('milestone') == 'true',
+    }
+
+def _calculate_project_dates(activities: List[dict]) -> tuple[Optional[str], Optional[str]]:
+    """Calculate project start/finish from activities if not provided"""
+    if not activities:
+        return None, None
+    
+    start_dates = [a['start_date'] for a in activities if a['start_date']]
+    finish_dates = [a['finish_date'] for a in activities if a['finish_date']]
+    
+    project_start = min(start_dates) if start_dates else None
+    project_finish = max(finish_dates) if finish_dates else None
+    
+    return project_start, project_finish
 
 def parse_asta_xml(xml_content: bytes) -> dict:
     """
@@ -35,33 +75,12 @@ def parse_asta_xml(xml_content: bytes) -> dict:
         critical_path = []
         milestones = []
         
-        # Find project metadata
-        project_elem = root.find('.//PROJECT')
-        project_start = None
-        project_finish = None
-        
-        if project_elem is not None:
-            start_str = project_elem.get('START_DATE') or project_elem.get('start_date')
-            finish_str = project_elem.get('FINISH_DATE') or project_elem.get('finish_date')
-            
-            if start_str:
-                project_start = parse_asta_date(start_str)
-            if finish_str:
-                project_finish = parse_asta_date(finish_str)
+        # Extract project dates
+        project_start, project_finish = _extract_project_dates(root.find('.//PROJECT'))
         
         # Parse tasks/activities
         for task in root.findall('.//TASK'):
-            activity = {
-                'id': task.get('ID') or task.get('id'),
-                'name': task.get('NAME') or task.get('name') or task.text,
-                'start_date': parse_asta_date(task.get('START_DATE') or task.get('start_date')),
-                'finish_date': parse_asta_date(task.get('FINISH_DATE') or task.get('finish_date')),
-                'duration': task.get('DURATION') or task.get('duration') or '0',
-                'percent_complete': task.get('PERCENT_COMPLETE') or task.get('percent_complete') or '0',
-                'is_critical': task.get('CRITICAL') == 'true' or task.get('critical') == 'true',
-                'is_milestone': task.get('MILESTONE') == 'true' or task.get('milestone') == 'true',
-            }
-            
+            activity = _parse_task_element(task)
             activities.append(activity)
             
             if activity['is_critical']:
@@ -74,16 +93,11 @@ def parse_asta_xml(xml_content: bytes) -> dict:
                     'date': activity['start_date']
                 })
         
-        # If no project dates found, calculate from activities
-        if not project_start and activities:
-            dates = [a['start_date'] for a in activities if a['start_date']]
-            if dates:
-                project_start = min(dates)
-        
-        if not project_finish and activities:
-            dates = [a['finish_date'] for a in activities if a['finish_date']]
-            if dates:
-                project_finish = max(dates)
+        # Calculate dates from activities if not found
+        if not project_start or not project_finish:
+            calc_start, calc_finish = _calculate_project_dates(activities)
+            project_start = project_start or calc_start
+            project_finish = project_finish or calc_finish
         
         return {
             'activities': activities,
@@ -110,14 +124,14 @@ def parse_asta_date(date_str: Optional[str]) -> Optional[str]:
     try:
         dt = datetime.fromisoformat(date_str)
         return dt.isoformat()
-    except:
+    except (ValueError, TypeError):
         pass
     
     # Try DD/MM/YYYY
     try:
         dt = datetime.strptime(date_str, '%d/%m/%Y')
         return dt.isoformat()
-    except:
+    except (ValueError, TypeError):
         pass
     
     # Try other common formats
@@ -125,7 +139,7 @@ def parse_asta_date(date_str: Optional[str]) -> Optional[str]:
         try:
             dt = datetime.strptime(date_str, fmt)
             return dt.isoformat()
-        except:
+        except (ValueError, TypeError):
             continue
     
     return date_str  # Return as-is if can't parse
@@ -176,6 +190,11 @@ async def upload_programme(
     content = await file.read()
     
     # Determine file type and parse
+    if not file.filename:
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded file must have a filename."
+        )
     filename_lower = file.filename.lower()
     
     if filename_lower.endswith('.xml'):
@@ -210,7 +229,7 @@ async def upload_programme(
             case_id=case_id,
             document_id=document.id,
             programme_type=programme_type,
-            programme_date=datetime.fromisoformat(programme_date) if programme_date else datetime.now(),
+            programme_date=datetime.fromisoformat(programme_date) if programme_date else datetime.now(timezone.utc),
             version_number=version_number,
             activities=parsed_data['activities'],
             critical_path=parsed_data['critical_path'],
@@ -221,9 +240,9 @@ async def upload_programme(
         )
         db.add(programme)
         db.commit()
-    except Exception as e:
+    except (ValueError, TypeError, AttributeError) as e:
         import logging
-        logging.error(f"Error saving programme data: {e}")
+        logging.error(f"Error saving programme data: {e}", exc_info=True)
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to save programme data")
     db.refresh(programme)
@@ -389,7 +408,7 @@ async def compare_programmes(
         "as_built_programme": as_built_id,
         "total_delays": len(delays),
         "critical_delays": len(critical_delays),
-        "delays": sorted(delays, key=lambda x: abs(x['delay_days']), reverse=True)[:50],  # Top 50
+        "delays": sorted(delays, key=lambda x: abs(x['delay_days']), reverse=True)[:50] if delays else [],  # Top 50
         "critical_delays": critical_delays,
         "summary": {
             "longest_delay": max([d['delay_days'] for d in delays]) if delays else 0,
