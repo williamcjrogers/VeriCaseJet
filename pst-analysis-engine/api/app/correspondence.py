@@ -390,7 +390,7 @@ async def list_emails(
         ]
         
         # Update email meta with attachments
-        email_meta = e.meta.copy() if e.meta else {}
+        email_meta: dict = dict(e.meta) if e.meta else {}
         email_meta['attachments'] = attachment_list
         
         email_summaries.append(EmailMessageSummary(
