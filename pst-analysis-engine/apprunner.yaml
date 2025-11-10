@@ -29,8 +29,32 @@ run:
       value: "587"
     - name: EMAIL_FROM
       value: "noreply@vericase.com"
-    # IMPORTANT: Add these as environment variables in AWS Console or Secrets Manager:
-    # SECRET_KEY, DATABASE_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
-    # ADMIN_EMAIL, ADMIN_PASSWORD
-    # OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, GROK_API_KEY
-    # EMAIL_HOST_USER, EMAIL_HOST_PASSWORD
+    # Core settings
+    - name: SECRET_KEY
+      value: "f68ef46806a5165ac398f407bd167e7877ad83f7132e504a335f67be17c70778"
+    - name: DATABASE_URL
+      value: "postgresql://postgres:password@localhost:5432/vericase"
+    # Admin account
+    - name: ADMIN_EMAIL
+      value: "admin@vericase.com"
+    - name: ADMIN_PASSWORD
+      value: "ChangeThisPassword123!"
+    # AWS credentials (update these)
+    - name: AWS_ACCESS_KEY_ID
+      value: "your-access-key-here"
+    - name: AWS_SECRET_ACCESS_KEY
+      value: "your-secret-key-here"
+    # Email credentials
+    - name: EMAIL_HOST_USER
+      value: "your-email@gmail.com"
+    - name: EMAIL_HOST_PASSWORD
+      value: "your-app-password"
+    # AI API Keys (add your actual keys)
+    - name: OPENAI_API_KEY
+      value: "sk-your-openai-key"
+    - name: ANTHROPIC_API_KEY
+      value: "sk-ant-your-anthropic-key"
+    - name: GEMINI_API_KEY
+      value: "your-gemini-key"
+    - name: GROK_API_KEY
+      value: "your-grok-key"
