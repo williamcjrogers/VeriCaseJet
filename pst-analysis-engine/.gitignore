@@ -69,3 +69,8 @@ node_modules/
 # AWS
 .elasticbeanstalk/
 .aws/
+apprunner.yaml
+
+# Environment files with secrets
+.env.production
+.env.*.local

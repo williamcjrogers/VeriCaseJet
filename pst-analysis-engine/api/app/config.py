@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 from pydantic import Field, field_validator, model_validator
 import os
 import logging
+from typing import Dict
 
 from .logging_utils import install_log_sanitizer
 
@@ -131,6 +132,14 @@ class Settings(BaseSettings):
     CELERY_QUEUE: str = "ocr"
     TIKA_URL: str = "http://tika:9998"
     
+    # AWS Textract settings
+    USE_TEXTRACT: bool = True  # Use Textract as primary, Tika as fallback
+    TEXTRACT_MAX_FILE_SIZE_MB: int = 500  # Textract limit: 500MB total
+    TEXTRACT_MAX_PAGE_SIZE_MB: int = 10  # Textract limit: 10MB per page
+    TEXTRACT_MAX_PAGES: int = 500  # Textract limit: 500 pages
+    TEXTRACT_PAGE_THRESHOLD: int = 100  # Use Tika for PDFs over this many pages (cost/speed optimization)
+    AWS_REGION_FOR_TEXTRACT: str = "eu-west-2"  # Default region for Textract
+    
     # API settings
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
@@ -179,6 +188,9 @@ class Settings(BaseSettings):
     ENABLE_AI_DATASET_INSIGHTS: bool = True
     ENABLE_AI_NATURAL_LANGUAGE_QUERY: bool = True
     AI_DEFAULT_MODEL: str = "gemini"
+    AI_WEB_ACCESS_ENABLED: bool = False
+    AI_TASK_COMPLEXITY_DEFAULT: str = "basic"
+    AI_MODEL_PREFERENCES: Dict[str, str] = Field(default_factory=dict)
 
 try:
     settings = Settings()

@@ -429,16 +429,25 @@
                 <h2 style="margin-bottom: 20px;">Choose what you want to do:</h2>
                 
                 <div class="radio-group">
-                    <label class="radio-option">
-                        <input type="radio" name="profileType" value="users" />
+                    <label class="radio-option" style="border: 2px solid var(--vericase-teal); background: linear-gradient(135deg, rgba(23, 181, 163, 0.05) 0%, rgba(23, 181, 163, 0.1) 100%);">
+                        <input type="radio" name="profileType" value="intelligent" />
                         <div class="radio-option-content">
-                            <h3>Add Users / Team</h3>
-                            <p>Set up team members and their roles</p>
+                            <h3><i class="fas fa-robot" style="color: var(--vericase-teal); margin-right: 8px;"></i> Intelligent Configuration</h3>
+                            <p>Let AI guide you through setup. Just build your team and AI will configure everything correctly, avoiding errors.</p>
+                            <span style="display: inline-block; margin-top: 8px; padding: 4px 12px; background: var(--vericase-teal); color: white; border-radius: 12px; font-size: 12px; font-weight: 600;">RECOMMENDED</span>
                         </div>
                     </label>
 
                     <label class="radio-option">
-                        <input type="radio" name="profileType" value="project" checked />
+                        <input type="radio" name="profileType" value="users" />
+                        <div class="radio-option-content">
+                            <h3>Add Users / Team</h3>
+                            <p>Set up team members and their roles manually</p>
+                        </div>
+                    </label>
+
+                    <label class="radio-option">
+                        <input type="radio" name="profileType" value="project" />
                         <div class="radio-option-content">
                             <h3>Set up a Project</h3>
                             <p>Best for discovery or live projects where we're gathering material to see if a case exists.</p>

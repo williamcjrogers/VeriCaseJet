@@ -492,11 +492,17 @@
             <button class="btn btn-secondary" onclick="window.location.href='wizard.html'">
                 <i class="fas fa-plus"></i> New Profile
             </button>
+            <button class="btn" onclick="window.location.href='intelligent-wizard.html'" style="background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%); color: white; border: none;">
+                <i class="fas fa-robot"></i> Intelligent Setup
+            </button>
             <button class="btn btn-secondary" onclick="showSettings()">
                 <i class="fas fa-cog"></i> Settings
             </button>
             <button class="btn btn-secondary" id="adminApprovalBtn" onclick="window.location.href='admin-approvals.html'" style="display: none;">
                 <i class="fas fa-user-check"></i> <span id="pendingBadge"></span> Approvals
+            </button>
+            <button class="btn btn-secondary" id="adminSettingsBtn" onclick="window.location.href='admin-settings.html'" style="display: none;">
+                <i class="fas fa-sliders-h"></i> Admin Settings
             </button>
         </div>
     </div>
@@ -758,6 +764,7 @@
                 const user = JSON.parse(localStorage.getItem('user') || '{}');
                 if (user.role === 'ADMIN') {
                     document.getElementById('adminApprovalBtn').style.display = 'inline-flex';
+                    document.getElementById('adminSettingsBtn').style.display = 'inline-flex';
                     
                     // Check for pending users
                     const response = await fetch(`${apiUrl}/api/admin/users/pending`, {
