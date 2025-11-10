@@ -53,7 +53,35 @@ AWS_SECRET_ACCESS_KEY=<will-get-from-IAM>
 AWS_STORAGE_BUCKET_NAME=vericase-production
 ```
 
-### 6. Create & Deploy!
+### 6. Networking (CRITICAL ⚠️)
+
+**✅ Enable VPC connector** - This allows App Runner to connect to your private AWS resources
+
+**Configuration:**
+- **VPC**: Select `vpc-0880b8ccf488f527e`
+- **Subnets**: Select at least 2 subnets in different Availability Zones
+- **Security group**: Create new or select existing with these rules:
+
+**Required Outbound Rules:**
+```
+Type        Protocol    Port Range    Destination          Description
+PostgreSQL  TCP         5432          RDS Security Group   Database access
+Redis       TCP         6379          Redis Security Group Cache access
+HTTPS       TCP         443           OpenSearch endpoint  Search access
+```
+
+**Security Group Configuration Example:**
+```
+Outbound Rules:
+- Type: PostgreSQL (5432), Destination: sg-xxxxx (RDS Security Group)
+- Type: Custom TCP (6379), Destination: sg-yyyyy (Redis Security Group)  
+- Type: HTTPS (443), Destination: vpc-xxxxx.es.amazonaws.com (OpenSearch)
+- Type: All traffic, Destination: 0.0.0.0/0 (for S3 and external APIs)
+```
+
+⚠️ **Important**: Without proper VPC configuration, the app will not be able to connect to RDS, Redis, or OpenSearch!
+
+### 7. Create & Deploy!
 
 ## 🔧 Required AWS Resources (Create these first):
 
