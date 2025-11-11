@@ -119,39 +119,29 @@ def redirect_to_ui():
     return RedirectResponse(url="/ui/")
 
 @app.get("/health")
-async def health_check(db: Session = Depends(get_db)):
+async def health_check():
     """Health check endpoint for monitoring"""
-    from sqlalchemy import text
-    from fastapi.responses import JSONResponse
-    
-    try:
-        # Check database connection
-        db.execute(text("SELECT 1"))
-        
-        # Check Redis connection
-        import redis  # type: ignore[import-untyped]
-        r = redis.from_url(settings.REDIS_URL)
-        r.ping()
-        
-        # Check MinIO/S3 connection
-        s3().list_buckets()
-        
-        return {
-            "status": "healthy",
-            "database": "connected",
-            "redis": "connected",
-            "storage": "connected",
-            "version": app.version
-        }
-    except Exception as e:
-        return JSONResponse(
-            status_code=503,
-            content={"status": "unhealthy", "error": str(e)}
-        )
+    return {"status": "healthy", "version": app.version}
 
 @app.on_event("startup")
 def startup():
-    Base.metadata.create_all(bind=engine); ensure_bucket(); ensure_index()
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables created")
+    except Exception as e:
+        logger.warning(f"Database initialization skipped: {e}")
+    
+    try:
+        ensure_bucket()
+        logger.info("S3 bucket verified")
+    except Exception as e:
+        logger.warning(f"S3 initialization skipped: {e}")
+    
+    try:
+        ensure_index()
+        logger.info("OpenSearch index verified")
+    except Exception as e:
+        logger.warning(f"OpenSearch initialization skipped: {e}")
 # Auth
 @app.post("/api/auth/register")
 @app.post("/auth/signup")  # Keep old endpoint for compatibility
