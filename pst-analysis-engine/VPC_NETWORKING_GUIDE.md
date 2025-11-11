@@ -10,7 +10,7 @@ App Runner runs in an AWS-managed VPC by default. To access your private resourc
 
 ### Your VPC
 ```
-VPC ID: vpc-0880b8ccf488f527e
+VPC ID: vpc-0880b8ccf488f327e
 Region: eu-west-2 (London)
 ```
 
@@ -25,7 +25,7 @@ Subnet 2: subnet-yyyyy (eu-west-2b)
 
 **How to find your subnets:**
 1. Go to VPC Console → Subnets
-2. Filter by VPC ID: `vpc-0880b8ccf488f527e`
+2. Filter by VPC ID: `vpc-0880b8ccf488f327e`
 3. Select subnets from different AZs
 4. Ensure they have routes to NAT Gateway or Internet Gateway (for outbound internet access)
 
@@ -36,7 +36,7 @@ Subnet 2: subnet-yyyyy (eu-west-2b)
 2. Click "Create security group"
 3. **Name**: `apprunner-vericase-sg`
 4. **Description**: "Security group for VeriCase App Runner service"
-5. **VPC**: Select `vpc-0880b8ccf488f527e`
+5. **VPC**: Select `vpc-0880b8ccf488f327e`
 
 ### Required Outbound Rules
 
