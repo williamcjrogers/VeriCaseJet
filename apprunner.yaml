@@ -3,10 +3,9 @@ runtime: python311
 build:
   commands:
     build:
-      - cd pst-analysis-engine/api
       - python3 -m pip install --upgrade pip
-      - rm -rf vendor
-      - python3 -m pip install --no-cache-dir -r requirements.txt -t vendor
+      - rm -rf pst-analysis-engine/api/vendor
+      - python3 -m pip install --no-cache-dir -r pst-analysis-engine/api/requirements.txt -t pst-analysis-engine/api/vendor
 run:
   runtime-version: 3.11
   command: bash pst-analysis-engine/api/run_apprunner.sh
