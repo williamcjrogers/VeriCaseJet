@@ -3,11 +3,13 @@ runtime: python311
 build:
   commands:
     build:
+      - cd pst-analysis-engine/api
       - python3 -m pip install --upgrade pip
-      - python3 -m pip install -r pst-analysis-engine/api/requirements.txt
+      - rm -rf vendor
+      - python3 -m pip install --no-cache-dir -r requirements.txt -t vendor
 run:
   runtime-version: 3.11
-  command: bash pst-analysis-engine/api/start.sh
+  command: bash pst-analysis-engine/api/run_apprunner.sh
   network:
     port: 8000
     env: PORT
@@ -34,7 +36,7 @@ run:
     - name: JWT_SECRET
       value: "vK9mP2xR7nQ4wL8jF6hD3sA5tY1uE0iO9pM7nB4vC2xZ8wQ6rT3yU5gH1kJ4fN"
     - name: DATABASE_URL
-      value: "postgresql://VericaseDocsAdmin:Sunnyday8?!@database-1.cv8uwu0uqr7fau-west-2.rds.amazonaws.com:5432/postgres"
+      value: "postgresql://VericaseDocsAdmin:Sunnyday8%3F%21@database-1.cv8uwu0uqr7fau-west-2.rds.amazonaws.com:5432/postgres"
     # Admin account
     - name: ADMIN_EMAIL
       value: "admin@veri-case.com"
