@@ -39,6 +39,11 @@ if db_url:
             hostname = match.group(1)
             print(f"DATABASE_URL hostname: {hostname}")
             print(f"DATABASE_URL length: {len(db_url)} characters")
+            
+            # Check for corruption
+            if 'cv8uwu0uqr7fau-west-2' in hostname:
+                print(f"[WARN] Hostname appears corrupted!")
+                print(f"Expected: database-1.cv8uwu0uqr7f.eu-west-2.rds.amazonaws.com")
     except:
         pass
     print(f"DATABASE_URL: SET")
