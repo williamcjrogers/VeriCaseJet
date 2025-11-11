@@ -5,10 +5,9 @@ build:
     build:
       - pip install --upgrade pip
       - pip install -r pst-analysis-engine/api/requirements.txt
-      - cd pst-analysis-engine/api && alembic upgrade head
 run:
   runtime-version: 3.11
-  command: cd pst-analysis-engine/api && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+  command: bash pst-analysis-engine/api/start.sh
   network:
     port: 8000
     env: PORT
