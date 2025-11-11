@@ -8,7 +8,7 @@ build:
       - python3 -m pip install --no-cache-dir -r pst-analysis-engine/api/requirements.txt -t pst-analysis-engine/api/vendor
 run:
   runtime-version: 3.11
-  command: cd pst-analysis-engine/api && python3 app_runner_start.py
+  command: python3 /app/pst-analysis-engine/api/app_runner_start.py
   network:
     port: 8000
     env: PORT
