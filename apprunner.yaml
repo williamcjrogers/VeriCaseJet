@@ -3,8 +3,8 @@ runtime: python311
 build:
   commands:
     build:
-      - cd pst-analysis-engine && pip install --upgrade pip
-      - cd pst-analysis-engine && pip install -r requirements.txt
+      - pip install --upgrade pip
+      - pip install -r pst-analysis-engine/api/requirements.txt
       - cd pst-analysis-engine/api && alembic upgrade head
 run:
   runtime-version: 3.11
