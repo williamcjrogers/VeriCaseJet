@@ -3,12 +3,15 @@ runtime: python311
 build:
   commands:
     build:
-      - pip install --upgrade pip
-      - pip install -r api/requirements.txt
-      - cd api && alembic upgrade head
+      - python3 -m pip install --upgrade pip
+      - python3 -m pip install -r api/requirements.txt
+      # Note: Alembic migrations run at startup, not during build
 run:
   runtime-version: 3.11
-  command: cd api && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+  command: |
+    cd api &&
+    python3 apply_migrations.py &&
+    uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
   network:
     port: 8000
     env: PORT
