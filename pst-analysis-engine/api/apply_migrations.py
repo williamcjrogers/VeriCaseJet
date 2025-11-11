@@ -12,6 +12,11 @@ load_dotenv(Path(__file__).parent.parent / '.env')
 # Get database URL
 DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql+psycopg2://vericase:vericase@localhost:55432/vericase')
 
+# WORKAROUND: Fix corrupted hostname if it occurs
+if 'cv8uwu0uqr7fau-west-2' in DATABASE_URL:
+    print("[WARN] Detected corrupted hostname, fixing...")
+    DATABASE_URL = DATABASE_URL.replace('cv8uwu0uqr7fau-west-2', 'cv8uwu0uqr7f.eu-west-2')
+
 # Convert SQLAlchemy URL to psycopg2 format
 if DATABASE_URL.startswith('postgresql+psycopg2://'):
     DATABASE_URL = DATABASE_URL.replace('postgresql+psycopg2://', 'postgresql://')
