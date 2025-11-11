@@ -17,9 +17,7 @@ if [ ! -d "$VENDOR_DIR" ]; then
   exit 1
 fi
 
-echo "Running database migrations..."
-python3 apply_migrations.py
-
-echo "Starting uvicorn..."
-exec python3 -m uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --workers 2
+echo "⚠️  SKIPPING database migrations - VPC not configured"
+echo "Starting test app..."
+exec python3 -m uvicorn test_main:app --host 0.0.0.0 --port "${PORT:-8000}"
 
