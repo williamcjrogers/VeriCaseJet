@@ -1,4 +1,4 @@
-version: 1.0
+![1762832893518](image/apprunner.template/1762832893518.png)![1762832905711](image/apprunner.template/1762832905711.png)![1762832927098](image/apprunner.template/1762832927098.png)version: 1.0
 runtime: python311
 build:
   commands:
