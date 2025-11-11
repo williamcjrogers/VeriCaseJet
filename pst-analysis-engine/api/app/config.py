@@ -193,7 +193,7 @@ class Settings(BaseSettings):
     AI_MODEL_PREFERENCES: Dict[str, str] = Field(default_factory=dict)
 
 try:
-    settings = Settings()
+    settings = Settings(_env_file='.env', _env_file_encoding='utf-8')
 except Exception as exc:
     logging.critical("Failed to load settings: %s", exc)
     raise
