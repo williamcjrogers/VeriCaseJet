@@ -4,7 +4,7 @@ build:
   commands:
     build:
       - pip install --upgrade pip
-      - pip install -r pst-analysis-engine/api/requirements.txt
+      - pip install -r pst-analysis-engine/api/requirements-minimal.txt
 run:
   runtime-version: 3.11
   command: bash pst-analysis-engine/api/start.sh

@@ -2,7 +2,7 @@
 set -e
 
 echo "Running database migrations..."
-cd /app/pst-analysis-engine/api
+cd pst-analysis-engine/api
 alembic upgrade head
 
 echo "Starting application..."
