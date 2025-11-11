@@ -1,7 +1,7 @@
 #!/bin/bash
 # VeriCase App Runner VPC Configuration Script
 
-VPC_ID="vpc-0880b8ccf488f527e"
+VPC_ID="vpc-0880b8ccf488f327e"
 REGION="eu-west-2"
 APP_RUNNER_SERVICE="vericase-apprunner"
 
