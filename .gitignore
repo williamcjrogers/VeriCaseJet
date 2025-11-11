@@ -1,7 +1,7 @@
 # VeriCase .gitignore
 
 # Environment files with secrets
-apprunner.yaml
+# apprunner.yaml  # Commented out - needed for App Runner
 apprunner.local.yaml
 .env
 .env.local
