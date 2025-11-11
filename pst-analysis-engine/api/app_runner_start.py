@@ -29,7 +29,21 @@ for service, endpoint in endpoints.items():
 
 # Test environment
 print("\n=== Environment Check ===")
-print(f"DATABASE_URL: {'SET' if os.getenv('DATABASE_URL') else 'NOT SET'}")
+db_url = os.getenv('DATABASE_URL', '')
+if db_url:
+    # Extract just the hostname for display
+    try:
+        import re
+        match = re.search(r'@([^:/]+)', db_url)
+        if match:
+            hostname = match.group(1)
+            print(f"DATABASE_URL hostname: {hostname}")
+            print(f"DATABASE_URL length: {len(db_url)} characters")
+    except:
+        pass
+    print(f"DATABASE_URL: SET")
+else:
+    print(f"DATABASE_URL: NOT SET")
 print(f"AWS_REGION: {os.getenv('AWS_REGION', 'NOT SET')}")
 print(f"PORT: {os.getenv('PORT', '8000')}")
 

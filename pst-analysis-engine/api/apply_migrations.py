@@ -17,7 +17,13 @@ if DATABASE_URL.startswith('postgresql+psycopg2://'):
     DATABASE_URL = DATABASE_URL.replace('postgresql+psycopg2://', 'postgresql://')
 
 print(f"Connecting to database...")
-print(f"URL: {DATABASE_URL.replace(':vericase@', ':****@')}")
+# Extract and display just the hostname
+import re
+match = re.search(r'@([^:/]+)', DATABASE_URL)
+if match:
+    print(f"Host: {match.group(1)}")
+else:
+    print(f"URL: {DATABASE_URL[:50]}..." if len(DATABASE_URL) > 50 else DATABASE_URL)
 
 try:
     # Connect to PostgreSQL
