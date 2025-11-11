@@ -10,7 +10,7 @@ run:
   runtime-version: 3.11
   command: python3 /app/pst-analysis-engine/api/app_runner_start.py
   network:
-    port: 8000
+    port: 8010
     env: PORT
   env:
     - name: PYTHONUNBUFFERED
