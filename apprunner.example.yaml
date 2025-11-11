@@ -1,0 +1,89 @@
+version: 1.0
+runtime: python311
+build:
+  commands:
+    build:
+      - python3 -m pip install --upgrade pip
+      - python3 -m pip install -r pst-analysis-engine/api/requirements.txt
+run:
+  runtime-version: 3.11
+  command: bash pst-analysis-engine/api/start.sh
+  network:
+    port: 8000
+    env: PORT
+  env:
+    - name: PYTHONUNBUFFERED
+      value: "1"
+    - name: USE_AWS_SERVICES
+      value: "true"
+    - name: AWS_STORAGE_BUCKET_NAME
+      value: "vericase-data"
+    - name: S3_BUCKET_NAME
+      value: "vericase-data"
+    - name: AWS_S3_REGION_NAME
+      value: "eu-west-2"
+    - name: AWS_REGION
+      value: "eu-west-2"
+    - name: EMAIL_HOST
+      value: "smtp.gmail.com"
+    - name: EMAIL_PORT
+      value: "587"
+    - name: EMAIL_FROM
+      value: "noreply@vericase.com"
+    # Core settings - REPLACE WITH YOUR VALUES
+    - name: JWT_SECRET
+      value: "REPLACE_WITH_YOUR_JWT_SECRET"
+    - name: DATABASE_URL
+      value: "postgresql://USER:PASSWORD@HOST:5432/DATABASE"
+    # Admin account
+    - name: ADMIN_EMAIL
+      value: "admin@veri-case.com"
+    - name: ADMIN_PASSWORD
+      value: "REPLACE_WITH_SECURE_PASSWORD"
+    # AWS credentials - USE IAM ROLE INSTEAD
+    - name: AWS_ACCESS_KEY_ID
+      value: "REPLACE_OR_USE_IAM_ROLE"
+    - name: AWS_SECRET_ACCESS_KEY
+      value: "REPLACE_OR_USE_IAM_ROLE"
+    - name: S3_ACCESS_KEY
+      value: "REPLACE_OR_USE_IAM_ROLE"
+    - name: S3_SECRET_KEY
+      value: "REPLACE_OR_USE_IAM_ROLE"
+    - name: MINIO_BUCKET
+      value: "vericase-docs"
+    - name: REDIS_URL
+      value: "redis://YOUR_REDIS_HOST:6379/0"
+    # OpenSearch configuration
+    - name: OPENSEARCH_HOST
+      value: "YOUR_OPENSEARCH_HOST"
+    - name: OPENSEARCH_PORT
+      value: "443"
+    - name: OPENSEARCH_USE_SSL
+      value: "true"
+    - name: OPENSEARCH_VERIFY_CERTS
+      value: "true"
+    - name: OPENSEARCH_USER
+      value: "Admin"
+    - name: OPENSEARCH_PASSWORD
+      value: "REPLACE_WITH_YOUR_PASSWORD"
+    - name: OPENSEARCH_INDEX
+      value: "documents"
+    # Apache Tika configuration
+    - name: TIKA_URL
+      value: "http://YOUR_TIKA_HOST:9998"
+    # Email credentials (optional)
+    - name: EMAIL_HOST_USER
+      value: "admin@veri-case.com"
+    - name: EMAIL_HOST_PASSWORD
+      value: "REPLACE_WITH_YOUR_PASSWORD"
+    # AI API Keys
+    - name: OPENAI_API_KEY
+      value: "sk-proj-REPLACE_WITH_YOUR_KEY"
+    - name: ANTHROPIC_API_KEY
+      value: "sk-ant-REPLACE_WITH_YOUR_KEY"
+    - name: GEMINI_API_KEY
+      value: "REPLACE_WITH_YOUR_KEY"
+    - name: GROK_API_KEY
+      value: "REPLACE_WITH_YOUR_KEY"
+    - name: PERPLEXITY_API_KEY
+      value: "REPLACE_WITH_YOUR_KEY"

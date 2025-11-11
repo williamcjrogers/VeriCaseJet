@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 from pydantic import Field, field_validator, model_validator
+from pydantic_settings import SettingsConfigDict
 import os
 import logging
 from typing import Dict
@@ -9,6 +10,12 @@ from .logging_utils import install_log_sanitizer
 install_log_sanitizer()
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file='.env',
+        env_file_encoding='utf-8',
+        case_sensitive=True,
+        extra='ignore'
+    )
     # AWS mode flag - when true, use AWS S3 (IRSA) instead of MinIO
     USE_AWS_SERVICES: bool = False
     
@@ -193,7 +200,7 @@ class Settings(BaseSettings):
     AI_MODEL_PREFERENCES: Dict[str, str] = Field(default_factory=dict)
 
 try:
-    settings = Settings(_env_file='.env', _env_file_encoding='utf-8')
+    settings = Settings()  # type: ignore[call-arg]
 except Exception as exc:
     logging.critical("Failed to load settings: %s", exc)
     raise
