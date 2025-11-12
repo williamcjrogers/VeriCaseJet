@@ -373,6 +373,22 @@ def startup():
                 logger.info("AI features will be limited without API keys")
     except Exception as e:
         logger.warning(f"AWS Secrets Manager integration skipped: {e}")
+
+# AI Status endpoint
+@app.get("/api/ai/status")
+def get_ai_status(user = Depends(current_user)):
+    """Check which AI services are available"""
+    status = {
+        "openai": bool(settings.OPENAI_API_KEY),
+        "anthropic": bool(settings.CLAUDE_API_KEY),
+        "gemini": bool(settings.GEMINI_API_KEY),
+        "grok": bool(getattr(settings, 'GROK_API_KEY', None)),
+        "perplexity": bool(getattr(settings, 'PERPLEXITY_API_KEY', None)),
+        "any_available": False
+    }
+    status["any_available"] = any([status["openai"], status["anthropic"], status["gemini"], status["grok"], status["perplexity"]])
+    return status
+
 # Auth
 @app.post("/api/auth/register")
 @app.post("/auth/signup")  # Keep old endpoint for compatibility
