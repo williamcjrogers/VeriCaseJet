@@ -75,7 +75,7 @@ class DocumentListResponse(BaseModel):
 
 class PathListResponse(BaseModel):
     paths: List[str]
-app = FastAPI(title="VeriCase Docs API", version="0.3.3")  # Updated 2025-11-12 fix UI mount order
+app = FastAPI(title="VeriCase Docs API", version="0.3.4")  # Updated 2025-11-12 enhanced UI debug
 
 # Mount UI BEFORE routers (order matters in FastAPI!)
 _here = Path(__file__).resolve()
@@ -95,8 +95,8 @@ if UI_DIR:
         ui_path = UI_DIR.resolve()
         print(f"[STARTUP] Resolving to absolute path: {ui_path}")
         
-        # Mount with explicit settings
-        app.mount("/ui", StaticFiles(directory=str(ui_path), html=True), name="static_ui")
+        # Mount with explicit settings - try with check_dir=False first
+        app.mount("/ui", StaticFiles(directory=str(ui_path), html=True, check_dir=False), name="static_ui")
         
         logger.info(f"✓ UI mount complete")
         print(f"[STARTUP] ✓ UI mount complete at /ui")
@@ -149,16 +149,35 @@ async def health_check():
 async def debug_ui():
     """Debug endpoint to check UI mount status"""
     import os
+    
+    # Get all mounted apps
+    mounted_apps = []
+    for route in app.routes:
+        route_info = {
+            "path": getattr(route, 'path', 'N/A'),
+            "name": getattr(route, 'name', 'N/A'),
+            "type": type(route).__name__
+        }
+        if hasattr(route, 'app') and hasattr(route.app, 'directory'):
+            route_info["directory"] = str(route.app.directory)
+        mounted_apps.append(route_info)
+    
     ui_info = {
         "ui_dir_found": UI_DIR is not None,
         "ui_dir_path": str(UI_DIR) if UI_DIR else None,
+        "ui_dir_resolved": str(UI_DIR.resolve()) if UI_DIR else None,
         "candidates_checked": [str(c) for c in _ui_candidates],
         "candidates_exist": [c.exists() for c in _ui_candidates],
-        "app_mounts": list(app.routes),
-        "static_routes": [r for r in app.routes if hasattr(r, 'path') and 'ui' in str(getattr(r, 'path', ''))],
+        "mounted_routes": mounted_apps,
+        "static_file_mounts": [r for r in mounted_apps if r['type'] == 'Mount'],
     }
+    
     if UI_DIR and UI_DIR.exists():
-        ui_info["files_in_ui_dir"] = os.listdir(UI_DIR)[:10]
+        ui_info["files_in_ui_dir"] = sorted(os.listdir(UI_DIR))[:20]
+        # Check if wizard.html exists
+        wizard_path = UI_DIR / "wizard.html"
+        ui_info["wizard_exists"] = wizard_path.exists()
+        
     return ui_info
 
 @app.on_event("startup")
