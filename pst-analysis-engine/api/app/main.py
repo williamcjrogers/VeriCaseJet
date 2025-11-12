@@ -75,7 +75,7 @@ class DocumentListResponse(BaseModel):
 
 class PathListResponse(BaseModel):
     paths: List[str]
-app = FastAPI(title="VeriCase Docs API", version="0.3.5")  # Updated 2025-11-12 added direct UI serving
+app = FastAPI(title="VeriCase Docs API", version="0.3.6")  # Updated 2025-11-12 added admin user creation
 
 # Mount UI BEFORE routers (order matters in FastAPI!)
 _here = Path(__file__).resolve()
@@ -210,6 +210,37 @@ async def debug_ui():
         
     return ui_info
 
+@app.get("/debug/auth")
+async def debug_auth(db: Session = Depends(get_db)):
+    """Debug endpoint to check auth setup"""
+    from .models import User
+    
+    try:
+        admin = db.query(User).filter(User.email == "admin@veri-case.com").first()
+        user_count = db.query(User).count()
+        
+        result = {
+            "admin_exists": admin is not None,
+            "admin_email": admin.email if admin else None,
+            "admin_active": admin.is_active if admin else None,
+            "admin_verified": admin.email_verified if admin else None,
+            "total_users": user_count,
+            "tables_exist": True,
+            "admin_password_hash": admin.password_hash[:20] + "..." if admin and admin.password_hash else None
+        }
+        
+        # Check if admin user needs to be created
+        if not admin and os.getenv('ADMIN_EMAIL') and os.getenv('ADMIN_PASSWORD'):
+            result["admin_should_be_created"] = True
+            result["admin_email_env"] = os.getenv('ADMIN_EMAIL')
+            
+        return result
+    except Exception as e:
+        return {
+            "error": str(e),
+            "tables_exist": False
+        }
+
 @app.on_event("startup")
 def startup():
     if UI_DIR:
@@ -228,6 +259,35 @@ def startup():
         logger.info("Database tables created")
     except Exception as e:
         logger.warning(f"Database initialization skipped: {e}")
+    
+    # Create admin user if it doesn't exist
+    try:
+        from .models import User
+        from .auth import hash_password
+        db = SessionLocal()
+        try:
+            admin_email = os.getenv('ADMIN_EMAIL', 'admin@veri-case.com')
+            admin_password = os.getenv('ADMIN_PASSWORD', 'Sunnyday8?!')
+            
+            existing_admin = db.query(User).filter(User.email == admin_email).first()
+            if not existing_admin:
+                admin_user = User(
+                    email=admin_email,
+                    password_hash=hash_password(admin_password),
+                    role='ADMIN',
+                    is_active=True,
+                    email_verified=True,
+                    display_name='Administrator'
+                )
+                db.add(admin_user)
+                db.commit()
+                logger.info(f"Created admin user: {admin_email}")
+            else:
+                logger.info(f"Admin user already exists: {admin_email}")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Failed to create admin user: {e}")
     
     try:
         ensure_bucket()
