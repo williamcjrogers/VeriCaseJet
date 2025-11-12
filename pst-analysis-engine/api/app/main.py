@@ -7,7 +7,7 @@ from uuid import uuid4
 from fastapi import FastAPI, Depends, HTTPException, Query, Body, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select
@@ -75,7 +75,7 @@ class DocumentListResponse(BaseModel):
 
 class PathListResponse(BaseModel):
     paths: List[str]
-app = FastAPI(title="VeriCase Docs API", version="0.3.4")  # Updated 2025-11-12 enhanced UI debug
+app = FastAPI(title="VeriCase Docs API", version="0.3.5")  # Updated 2025-11-12 added direct UI serving
 
 # Mount UI BEFORE routers (order matters in FastAPI!)
 _here = Path(__file__).resolve()
@@ -139,6 +139,36 @@ if origins:
 @app.get("/", include_in_schema=False)
 def redirect_to_ui():
     return RedirectResponse(url="/ui/")
+
+@app.get("/ui-direct/{file_path:path}")
+async def serve_ui_direct(file_path: str):
+    """Direct UI file serving as a fallback if static mount fails"""
+    if not UI_DIR:
+        raise HTTPException(404, "UI directory not found")
+    
+    # Security: prevent directory traversal
+    if ".." in file_path or file_path.startswith("/"):
+        raise HTTPException(400, "Invalid file path")
+    
+    # Default to wizard.html if no file specified
+    if not file_path:
+        file_path = "wizard.html"
+    
+    full_path = UI_DIR / file_path
+    
+    if not full_path.exists() or not full_path.is_file():
+        raise HTTPException(404, f"File not found: {file_path}")
+    
+    # Determine content type
+    content_type = "text/html"
+    if file_path.endswith('.js'):
+        content_type = "application/javascript"
+    elif file_path.endswith('.css'):
+        content_type = "text/css"
+    elif file_path.endswith('.json'):
+        content_type = "application/json"
+    
+    return FileResponse(full_path, media_type=content_type)
 
 @app.get("/health")
 async def health_check():
