@@ -35,7 +35,7 @@ run:
     - name: JWT_SECRET
       value: "vK9mP2xR7nQ4wL8jF6hD3sA5tY1uE0iO9pM7nB4vC2xZ8wQ6rT3yU5gH1kJ4fN"
     - name: DATABASE_URL
-      value: "postgresql://VericaseDocsAdmin:Sunnyday8%3F%21@database-1.cv8uwu0uqr7f.eu-west-2.rds.amazonaws.com:5432/postgres?sslmode=require"
+      value: "postgresql://postgres:r(6CwS%3aC9heN%7ce%5dYgxHOP%7c%23%23SK%23)@database-1.cv8uwu0uqr7f.eu-west-2.rds.amazonaws.com:5432/postgres?sslmode=require"
     # Admin account
     - name: ADMIN_EMAIL
       value: "admin@veri-case.com"
