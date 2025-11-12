@@ -74,7 +74,39 @@ class DocumentListResponse(BaseModel):
 
 class PathListResponse(BaseModel):
     paths: List[str]
-app = FastAPI(title="VeriCase Docs API", version="0.3.1")  # Updated 2025-11-12 for UI fixes
+app = FastAPI(title="VeriCase Docs API", version="0.3.3")  # Updated 2025-11-12 fix UI mount order
+
+# Mount UI BEFORE routers (order matters in FastAPI!)
+_here = Path(__file__).resolve()
+_base_dir = _here.parent.parent  # /code or repo/api
+_ui_candidates = [
+    _base_dir / "ui",
+    _base_dir.parent / "ui",
+]
+print(f"[STARTUP] Looking for UI directory. Candidates: {_ui_candidates}")
+logger.info(f"Looking for UI directory. Candidates: {_ui_candidates}")
+UI_DIR = next((c for c in _ui_candidates if c.exists()), None)
+if UI_DIR:
+    print(f"[STARTUP] ✓ UI directory found: {UI_DIR}")
+    logger.info(f"✓ UI directory found and mounting at /ui: {UI_DIR}")
+    try:
+        # Ensure the path is absolute
+        ui_path = UI_DIR.resolve()
+        print(f"[STARTUP] Resolving to absolute path: {ui_path}")
+        
+        # Mount with explicit settings
+        app.mount("/ui", StaticFiles(directory=str(ui_path), html=True), name="static_ui")
+        
+        logger.info(f"✓ UI mount complete")
+        print(f"[STARTUP] ✓ UI mount complete at /ui")
+    except Exception as e:
+        logger.error(f"Failed to mount UI: {e}")
+        print(f"[STARTUP] ✗ Failed to mount UI: {e}")
+        import traceback
+        traceback.print_exc()
+else:
+    logger.warning("UI directory not found in candidates %s; /ui mount disabled", _ui_candidates)
+    print(f"[STARTUP] ✗ UI directory not found")
 
 # Include routers
 app.include_router(users_router)
@@ -102,28 +134,6 @@ app.include_router(unified_router)  # Unified endpoints for both projects and ca
 origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 if origins:
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
-_here = Path(__file__).resolve()
-_base_dir = _here.parent.parent  # /code or repo/api
-_ui_candidates = [
-    _base_dir / "ui",
-    _base_dir.parent / "ui",
-]
-print(f"[STARTUP] Looking for UI directory. Candidates: {_ui_candidates}")
-logger.info(f"Looking for UI directory. Candidates: {_ui_candidates}")
-UI_DIR = next((c for c in _ui_candidates if c.exists()), None)
-if UI_DIR:
-    print(f"[STARTUP] ✓ UI directory found: {UI_DIR}")
-    logger.info(f"✓ UI directory found and mounting at /ui: {UI_DIR}")
-    try:
-        app.mount("/ui", StaticFiles(directory=str(UI_DIR), html=True), name="ui")
-        logger.info(f"✓ UI mount complete")
-        print(f"[STARTUP] ✓ UI mount complete at /ui")
-    except Exception as e:
-        logger.error(f"Failed to mount UI: {e}")
-        print(f"[STARTUP] ✗ Failed to mount UI: {e}")
-else:
-    logger.warning("UI directory not found in candidates %s; /ui mount disabled", _ui_candidates)
-    print(f"[STARTUP] ✗ UI directory not found")
 
 @app.get("/", include_in_schema=False)
 def redirect_to_ui():
@@ -133,6 +143,22 @@ def redirect_to_ui():
 async def health_check():
     """Health check endpoint for monitoring"""
     return {"status": "healthy", "version": app.version}
+
+@app.get("/debug/ui")
+async def debug_ui():
+    """Debug endpoint to check UI mount status"""
+    import os
+    ui_info = {
+        "ui_dir_found": UI_DIR is not None,
+        "ui_dir_path": str(UI_DIR) if UI_DIR else None,
+        "candidates_checked": [str(c) for c in _ui_candidates],
+        "candidates_exist": [c.exists() for c in _ui_candidates],
+        "app_mounts": list(app.routes),
+        "static_routes": [r for r in app.routes if hasattr(r, 'path') and 'ui' in str(getattr(r, 'path', ''))],
+    }
+    if UI_DIR and UI_DIR.exists():
+        ui_info["files_in_ui_dir"] = os.listdir(UI_DIR)[:10]
+    return ui_info
 
 @app.on_event("startup")
 def startup():
