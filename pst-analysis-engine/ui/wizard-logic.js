@@ -169,23 +169,188 @@ const caseSteps = [
     }
 ];
 
+const AUTO_SAVE_INTERVAL_MS = 30000;
+const TOKEN_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
+let autoSaveIntervalId = null;
+let tokenRefreshIntervalId = null;
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    const authenticated = checkAuthentication();
     setupEventListeners();
-    loadDraft();
+    showDraftRecoveryBanner();
+
+    if (authenticated) {
+        startAutoSave();
+        scheduleTokenRefresh();
+    }
 });
 
 function setupEventListeners() {
     document.getElementById('btnContinue').onclick = nextStep;
     document.getElementById('btnBack').addEventListener('click', previousStep);
     document.getElementById('btnCancel').addEventListener('click', cancel);
-    document.getElementById('btnSaveDraft').addEventListener('click', saveDraft);
+    document.getElementById('btnSaveDraft').addEventListener('click', () => saveDraft(false));
     
     document.querySelectorAll('input[name="profileType"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
             wizardState.profileType = e.target.value;
         });
     });
+}
+
+function checkAuthentication() {
+    const token = localStorage.getItem('token') || localStorage.getItem('jwt');
+    
+    if (!token) {
+        showWizardMessage('You must be logged in to use the configuration wizard. Redirecting to login…', 'error', 5000);
+        setTimeout(() => {
+            window.location.href = 'login.html?redirect=' + encodeURIComponent(window.location.pathname);
+        }, 2500);
+        return false;
+    }
+    
+    return true;
+}
+
+function showDraftRecoveryBanner() {
+    const banner = document.getElementById('draftBanner');
+    if (!banner) {
+        return;
+    }
+    
+    if (getSavedDraft()) {
+        banner.style.display = 'flex';
+    } else {
+        banner.style.display = 'none';
+    }
+}
+
+function startAutoSave() {
+    if (autoSaveIntervalId) {
+        clearInterval(autoSaveIntervalId);
+    }
+    
+    autoSaveIntervalId = setInterval(() => {
+        saveDraft(true);
+    }, AUTO_SAVE_INTERVAL_MS);
+}
+
+function scheduleTokenRefresh() {
+    if (tokenRefreshIntervalId) {
+        clearInterval(tokenRefreshIntervalId);
+    }
+    
+    tokenRefreshIntervalId = setInterval(() => {
+        refreshToken().catch(() => {
+            // Errors handled within refreshToken
+        });
+    }, TOKEN_REFRESH_INTERVAL_MS);
+}
+
+async function refreshToken() {
+    const token = localStorage.getItem('token') || localStorage.getItem('jwt');
+    if (!token) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${getApiUrl()}/api/auth/refresh`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': getCsrfToken()
+            },
+            body: JSON.stringify({ token }),
+            credentials: 'same-origin'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data && data.access_token) {
+                localStorage.setItem('token', data.access_token);
+                localStorage.setItem('jwt', data.access_token);
+            }
+            return;
+        }
+        
+        if (response.status === 401 || response.status === 403) {
+            handleSessionExpired();
+            return;
+        }
+        
+        console.warn('Token refresh failed with status', response.status);
+    } catch (error) {
+        console.warn('Token refresh error:', error);
+    }
+}
+
+function handleSessionExpired() {
+    saveDraft(true);
+    showWizardMessage('Your session has expired. We saved your work — please log in again to continue.', 'error', 6000);
+    setTimeout(() => {
+        window.location.href = 'login.html?redirect=' + encodeURIComponent(window.location.pathname);
+    }, 3000);
+}
+
+function getSavedDraft() {
+    const draft = localStorage.getItem('wizardDraft');
+    if (!draft) {
+        return null;
+    }
+    
+    try {
+        return JSON.parse(draft);
+    } catch (e) {
+        console.warn('Failed to parse wizard draft', e);
+        return null;
+    }
+}
+
+function applyDraftState(draftState) {
+    if (!draftState) {
+        return;
+    }
+    
+    Object.assign(wizardState, draftState);
+    
+    if (wizardState.profileType && wizardState.profileType !== 'intelligent') {
+        const radio = document.querySelector(`input[name="profileType"][value="${wizardState.profileType}"]`);
+        if (radio) {
+            radio.checked = true;
+        }
+    }
+    
+    if (wizardState.currentStep > 0) {
+        document.getElementById('step-entry').classList.remove('active');
+        
+        const steps = wizardState.profileType === 'project' ? projectSteps : caseSteps;
+        wizardState.totalSteps = steps.length;
+        
+        updateStepIndicator(steps);
+        renderCurrentStep();
+        document.getElementById('btnBack').style.display = 'block';
+    }
+}
+
+function restoreDraft() {
+    const draftState = getSavedDraft();
+    if (!draftState) {
+        showWizardMessage('No saved draft found.', 'info');
+        return;
+    }
+    
+    applyDraftState(draftState);
+    showDraftRecoveryBanner();
+    showWizardMessage('Draft restored. You can continue where you left off.', 'success');
+}
+
+function clearDraft(showMessage = true) {
+    localStorage.removeItem('wizardDraft');
+    showDraftRecoveryBanner();
+    if (showMessage) {
+        showWizardMessage('Draft removed. You will start fresh next time.', 'info');
+    }
 }
 
 // Navigation functions
@@ -1163,10 +1328,7 @@ async function submitWizard() {
         const csrfToken = getCsrfToken();
 
         if (!token) {
-            showWizardMessage('Your session has expired. Please log in again to create a project or case.', 'error');
-            setTimeout(() => {
-                window.location.href = 'login.html';
-            }, 1200);
+            handleSessionExpired();
             return;
         }
         
@@ -1224,8 +1386,20 @@ async function submitWizard() {
         });
         
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || `Failed to create ${wizardState.profileType}`);
+            if (response.status === 401 || response.status === 403) {
+                handleSessionExpired();
+                return;
+            }
+            
+            let errorMessage = `Failed to create ${wizardState.profileType}`;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.detail || errorMessage;
+            } catch (parseError) {
+                console.warn('Failed to parse error response', parseError);
+            }
+            
+            throw new Error(errorMessage);
         }
         
         const result = await response.json();
@@ -1258,7 +1432,7 @@ async function submitWizard() {
 }
 
 // Draft management
-function saveDraft() {
+function saveDraft(silent = false) {
     // Save current step data
     const steps = wizardState.profileType === 'project' ? projectSteps : caseSteps;
     if (wizardState.currentStep > 0 && wizardState.currentStep <= steps.length) {
@@ -1266,37 +1440,12 @@ function saveDraft() {
         currentStepObj.save();
     }
     
-    localStorage.setItem('wizardDraft', JSON.stringify(wizardState));
-    showWizardMessage('Draft saved successfully!', 'success');
-}
-
-async function loadDraft() {
-    const draft = localStorage.getItem('wizardDraft');
-    if (draft) {
-        const shouldLoad = await confirmWizard('Would you like to continue from your saved draft?');
-        if (shouldLoad) {
-            Object.assign(wizardState, JSON.parse(draft));
-            if (wizardState.currentStep > 0) {
-                // Set radio button
-                document.querySelector(`input[name="profileType"][value="${wizardState.profileType}"]`).checked = true;
-                
-                // Hide entry screen
-                document.getElementById('step-entry').classList.remove('active');
-                
-                // Set up steps
-                const steps = wizardState.profileType === 'project' ? projectSteps : caseSteps;
-                wizardState.totalSteps = steps.length;
-                
-                // Update step indicator
-                updateStepIndicator(steps);
-                
-                // Render current step
-                renderCurrentStep();
-                
-                // Show back button
-                document.getElementById('btnBack').style.display = 'block';
-            }
+    if (wizardState.currentStep > 0) {
+        localStorage.setItem('wizardDraft', JSON.stringify(wizardState));
+        if (!silent) {
+            showWizardMessage('Draft saved successfully!', 'success');
         }
+        showDraftRecoveryBanner();
     }
 }
 
@@ -1357,3 +1506,7 @@ function confirmWizard(message) {
         overlay.querySelector('#wizardConfirmNo').onclick = () => onClose(false);
     });
 }
+
+// Expose draft helpers for banner buttons
+window.restoreWizardDraft = restoreDraft;
+window.clearWizardDraft = () => clearDraft(false);

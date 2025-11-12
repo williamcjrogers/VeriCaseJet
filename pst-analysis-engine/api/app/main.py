@@ -1,10 +1,12 @@
 import logging
 import uuid
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, List
+from threading import RLock
+from typing import Optional, List, Dict
 from uuid import uuid4
-from fastapi import FastAPI, Depends, HTTPException, Query, Body, Response
+from fastapi import FastAPI, Depends, HTTPException, Query, Body, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, FileResponse
@@ -19,13 +21,31 @@ if os.getenv('AWS_EXECUTION_ENV') or os.getenv('AWS_REGION'):
     update_production_config()
 
 from .config import settings
-from .db import Base, engine
-from .models import Document, DocStatus, User, ShareLink, Folder
+from .db import Base, engine, SessionLocal
+from .models import (
+    Document,
+    DocStatus,
+    User,
+    ShareLink,
+    Folder,
+    Case,
+    Company,
+    UserCompany,
+    UserRole,
+)
 from .storage import ensure_bucket, presign_put, presign_get, multipart_start, presign_part, multipart_complete, s3, get_object, put_object, delete_object
 from .search import ensure_index, search as os_search, delete_document as os_delete
 from .tasks import celery_app
 from .security import get_db, current_user, hash_password, verify_password, sign_token
+from .security_enhanced import (
+    generate_token,
+    is_account_locked,
+    handle_failed_login,
+    handle_successful_login,
+    record_login_attempt,
+)
 from .watermark import build_watermarked_pdf, normalize_watermark_text
+from .email_service import email_service
 from pydantic import BaseModel
 from .users import router as users_router
 from .sharing import router as sharing_router
@@ -47,6 +67,10 @@ from .auth_enhanced import router as auth_enhanced_router  # Enhanced authentica
 logger = logging.getLogger(__name__)
 bearer = HTTPBearer()
 
+CSRF_TOKEN_STORE: Dict[str, str] = {}
+CSRF_LOCK = RLock()
+CSRF_PATTERN = re.compile(r"^[a-f0-9]{64}$")
+
 
 def _parse_uuid(value: str) -> uuid.UUID:
     try:
@@ -54,6 +78,31 @@ def _parse_uuid(value: str) -> uuid.UUID:
     except (ValueError, AttributeError, TypeError) as e:
         logger.debug(f"Invalid UUID format: {value}")
         raise HTTPException(400, "invalid document id")
+
+
+def verify_csrf_token(
+    request: Request,
+    creds: HTTPAuthorizationCredentials = Depends(bearer),
+) -> None:
+    csrf_header = request.headers.get("X-CSRF-Token")
+
+    if not csrf_header:
+        raise HTTPException(status_code=403, detail="Missing CSRF token")
+
+    if not CSRF_PATTERN.match(csrf_header):
+        raise HTTPException(status_code=403, detail="Invalid CSRF token format")
+
+    token = creds.credentials
+
+    with CSRF_LOCK:
+        stored = CSRF_TOKEN_STORE.get(token)
+        if stored is None:
+            CSRF_TOKEN_STORE[token] = csrf_header
+            if len(CSRF_TOKEN_STORE) > 10000:
+                # Prune oldest entry to avoid unbounded growth
+                CSRF_TOKEN_STORE.pop(next(iter(CSRF_TOKEN_STORE)))
+        elif stored != csrf_header:
+            raise HTTPException(status_code=403, detail="CSRF token mismatch")
 
 
 class DocumentSummary(BaseModel):
@@ -75,7 +124,7 @@ class DocumentListResponse(BaseModel):
 
 class PathListResponse(BaseModel):
     paths: List[str]
-app = FastAPI(title="VeriCase Docs API", version="0.3.8")  # Updated 2025-11-12 added AWS Secrets Manager for AI keys
+app = FastAPI(title="VeriCase Docs API", version="0.3.9")  # Updated 2025-11-12 added AWS Secrets Manager for AI keys
 
 # Mount UI BEFORE routers (order matters in FastAPI!)
 _here = Path(__file__).resolve()
@@ -213,8 +262,6 @@ async def debug_ui():
 @app.get("/debug/auth")
 async def debug_auth(db: Session = Depends(get_db)):
     """Debug endpoint to check auth setup"""
-    from .models import User
-    
     try:
         admin = db.query(User).filter(User.email == "admin@veri-case.com").first()
         user_count = db.query(User).count()
@@ -262,9 +309,6 @@ def startup():
     
     # Create admin user if it doesn't exist
     try:
-        from .models import User
-        from .security import hash_password
-        from .db import SessionLocal
         db = SessionLocal()
         try:
             admin_email = os.getenv('ADMIN_EMAIL', 'admin@veri-case.com')
@@ -275,7 +319,7 @@ def startup():
                 admin_user = User(
                     email=admin_email,
                     password_hash=hash_password(admin_password),
-                    role='ADMIN',
+                    role=UserRole.ADMIN,
                     is_active=True,
                     email_verified=True,
                     display_name='Administrator'
@@ -338,12 +382,10 @@ def signup(payload: dict = Body(...), db: Session = Depends(get_db)):
     display_name = (payload.get("display_name") or payload.get("full_name") or "").strip()
     requires_approval = payload.get("requires_approval", True)  # Default to requiring approval
     
-    from .models import User
     if db.query(User).filter(User.email==email).first():
         raise HTTPException(409,"email already registered")
     
     # Generate verification token
-    from .security_enhanced import generate_token
     verification_token = generate_token()
     
     # Create user with pending approval status
@@ -354,7 +396,7 @@ def signup(payload: dict = Body(...), db: Session = Depends(get_db)):
         verification_token=verification_token,
         email_verified=False,
         is_active=not requires_approval,  # Inactive until admin approves
-        role='VIEWER'  # Default role, admin can change
+        role=UserRole.VIEWER  # Default role, admin can change
     )
     
     # Store additional signup info in meta
@@ -373,8 +415,6 @@ def signup(payload: dict = Body(...), db: Session = Depends(get_db)):
     
     # Send notification emails
     try:
-        from .email_service import email_service
-        
         # Email to user
         email_service.send_verification_email(
             to_email=email,
@@ -385,7 +425,7 @@ def signup(payload: dict = Body(...), db: Session = Depends(get_db)):
         # Email to admin if approval required
         if requires_approval:
             # Get admin users
-            admins = db.query(User).filter(User.role == 'ADMIN', User.is_active == True).all()
+            admins = db.query(User).filter(User.role == UserRole.ADMIN, User.is_active == True).all()
             for admin in admins:
                 try:
                     email_service.send_approval_notification(
@@ -434,9 +474,6 @@ def login(payload: dict = Body(...), db: Session = Depends(get_db)):
         user = db.query(User).filter(User.email == email).first()
         if user is None:
             raise HTTPException(status_code=401, detail="Invalid credentials")
-        
-        # Import enhanced security functions
-        from .security_enhanced import is_account_locked, handle_failed_login, handle_successful_login, record_login_attempt
         
         # Check if account is locked
         if is_account_locked(user):
@@ -493,7 +530,6 @@ def login(payload: dict = Body(...), db: Session = Depends(get_db)):
 
 @app.get("/api/auth/me")
 def get_current_user_info(creds: HTTPAuthorizationCredentials = Depends(bearer), db: Session = Depends(get_db)):
-    from .security import current_user
     user = current_user(creds, db)
     display_name = getattr(user, "display_name", None) or ""
     return {"id":str(user.id),"email":user.email,"display_name":display_name,"full_name":display_name}
@@ -501,9 +537,12 @@ def get_current_user_info(creds: HTTPAuthorizationCredentials = Depends(bearer),
 # Projects/Cases
 @app.post("/api/projects")
 @app.post("/api/cases")
-def create_case(payload: dict = Body(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
-    from .models import Case, Company, UserCompany
-    
+def create_case(
+    payload: dict = Body(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+    _: None = Depends(verify_csrf_token),
+):
     # Get or create company for this user
     user_company = db.query(UserCompany).filter(UserCompany.user_id == user.id, UserCompany.is_primary.is_(True)).first()
     if user_company:
@@ -545,7 +584,11 @@ def create_case(payload: dict = Body(...), db: Session = Depends(get_db), user: 
 
 # Uploads (presign and complete)
 @app.post("/uploads/init")
-def init_upload(body: dict = Body(...), user: User = Depends(current_user)):
+def init_upload(
+    body: dict = Body(...),
+    user: User = Depends(current_user),
+    _: None = Depends(verify_csrf_token),
+):
     """Initialize file upload - returns upload_id and presigned URL"""
     filename=body.get("filename"); ct=body.get("content_type") or "application/octet-stream"
     size=int(body.get("size") or 0)
@@ -564,15 +607,22 @@ def init_upload(body: dict = Body(...), user: User = Depends(current_user)):
     }
 
 @app.post("/uploads/presign")
-def presign_upload(body: dict = Body(...), user: User = Depends(current_user)):
+def presign_upload(
+    body: dict = Body(...),
+    user: User = Depends(current_user),
+    _: None = Depends(verify_csrf_token),
+):
     filename=body.get("filename"); ct=body.get("content_type") or "application/octet-stream"
     path=(body.get("path") or "").strip().strip("/")
     key=f"{path + '/' if path else ''}{uuid.uuid4()}/{filename}"
     url=presign_put(key, ct); return {"key":key, "url":url}
 @app.post("/uploads/complete")
-def complete_upload(body: dict = Body(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
-    from .models import Document, DocStatus
-    
+def complete_upload(
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+    _: None = Depends(verify_csrf_token),
+):
     # Support both new (upload_id) and legacy (key) formats
     upload_id = body.get("upload_id")
     filename = body.get("filename") or "file"
@@ -635,7 +685,11 @@ def complete_upload(body: dict = Body(...), db: Session = Depends(get_db), user:
         return {"id": str(doc.id), "status":"QUEUED", "ai_enabled": True}
 
 @app.post("/uploads/multipart/start")
-def multipart_start_ep(body: dict = Body(...), user: User = Depends(current_user)):
+def multipart_start_ep(
+    body: dict = Body(...),
+    user: User = Depends(current_user),
+    _: None = Depends(verify_csrf_token),
+):
     filename=body.get("filename"); ct=body.get("content_type") or "application/octet-stream"
     path=(body.get("path") or "").strip().strip("/"); key=f"{path + '/' if path else ''}{uuid.uuid4()}/{filename}"
     upload_id=multipart_start(key, ct); return {"key":key, "uploadId": upload_id}
@@ -643,7 +697,12 @@ def multipart_start_ep(body: dict = Body(...), user: User = Depends(current_user
 def multipart_part_url(key: str, uploadId: str, partNumber: int, user: User = Depends(current_user)):
     return {"url": presign_part(key, uploadId, partNumber)}
 @app.post("/uploads/multipart/complete")
-def multipart_complete_ep(body: dict = Body(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
+def multipart_complete_ep(
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+    _: None = Depends(verify_csrf_token),
+):
     key=body["key"]; upload_id=body["uploadId"]; parts=body["parts"]; multipart_complete(key, upload_id, parts)
     filename=body.get("filename") or "file"; ct=body.get("content_type") or "application/octet-stream"
     size=int(body.get("size") or 0); title=body.get("title"); path=body.get("path")
@@ -676,8 +735,6 @@ def list_documents(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    from .models import UserRole
-    
     # Admin sees all documents except other users' private documents
     if user.role == UserRole.ADMIN:
         # Start with all documents
@@ -829,7 +886,13 @@ def get_signed_url(doc_id: str, db: Session = Depends(get_db), user: User = Depe
 
 
 @app.patch("/documents/{doc_id}")
-def update_document(doc_id: str, body: dict = Body(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
+def update_document(
+    doc_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+    _: None = Depends(verify_csrf_token),
+):
     """Update document metadata (path, title, etc.)"""
     try:
         doc = db.get(Document, _parse_uuid(doc_id))
@@ -868,7 +931,12 @@ def update_document(doc_id: str, body: dict = Body(...), db: Session = Depends(g
         raise HTTPException(500, "Failed to update document")
 
 @app.delete("/documents/{doc_id}", status_code=204)
-def delete_document_endpoint(doc_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def delete_document_endpoint(
+    doc_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+    _: None = Depends(verify_csrf_token),
+):
     doc = db.get(Document, _parse_uuid(doc_id))
     if not doc or doc.owner_user_id != user.id:
         raise HTTPException(404, "not found")
@@ -969,7 +1037,12 @@ class FolderListResponse(BaseModel):
     folders: List[FolderInfo]
 
 @app.post("/folders")
-def create_folder(body: dict = Body(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
+def create_folder(
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+    _: None = Depends(verify_csrf_token),
+):
     """Create a new empty folder"""
     path = body.get("path", "").strip()
     path = validate_folder_path(path)
@@ -979,7 +1052,12 @@ def create_folder(body: dict = Body(...), db: Session = Depends(get_db), user: U
     return {"path": folder.path, "name": folder.name, "parent_path": folder.parent_path, "created": True, "created_at": folder.created_at}
 
 @app.patch("/folders")
-def rename_folder(body: dict = Body(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
+def rename_folder(
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+    _: None = Depends(verify_csrf_token),
+):
     """Rename a folder and update all document paths"""
     old_path = body.get("old_path", "").strip()
     new_path = body.get("new_path", "").strip()
@@ -1008,7 +1086,12 @@ def rename_folder(body: dict = Body(...), db: Session = Depends(get_db), user: U
         raise HTTPException(500, f"failed to rename folder: {str(e)}")
 
 @app.delete("/folders")
-def delete_folder(body: dict = Body(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
+def delete_folder(
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+    _: None = Depends(verify_csrf_token),
+):
     """Delete a folder and optionally its contents"""
     path = body.get("path", "").strip()
     recursive = body.get("recursive", False)
@@ -1026,8 +1109,6 @@ def delete_folder(body: dict = Body(...), db: Session = Depends(get_db), user: U
 @app.get("/folders", response_model=FolderListResponse)
 def list_folders(db: Session = Depends(get_db), user: User = Depends(current_user)):
     """List all folders with metadata including document counts"""
-    from .models import UserRole
-    
     # Admin sees all folders except other users' private folders
     if user.role == UserRole.ADMIN:
         doc_paths_stmt = (
