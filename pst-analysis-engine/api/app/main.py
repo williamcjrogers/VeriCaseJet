@@ -75,7 +75,7 @@ class DocumentListResponse(BaseModel):
 
 class PathListResponse(BaseModel):
     paths: List[str]
-app = FastAPI(title="VeriCase Docs API", version="0.3.6")  # Updated 2025-11-12 added admin user creation
+app = FastAPI(title="VeriCase Docs API", version="0.3.7")  # Updated 2025-11-12 fixed hash_password import
 
 # Mount UI BEFORE routers (order matters in FastAPI!)
 _here = Path(__file__).resolve()
@@ -263,7 +263,8 @@ def startup():
     # Create admin user if it doesn't exist
     try:
         from .models import User
-        from .auth import hash_password
+        from .security import hash_password
+        from .db import SessionLocal
         db = SessionLocal()
         try:
             admin_email = os.getenv('ADMIN_EMAIL', 'admin@veri-case.com')
