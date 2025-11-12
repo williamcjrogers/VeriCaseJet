@@ -498,17 +498,26 @@ function renderProjectIdentification() {
     container.innerHTML = `
         <h2>Step 1 of 3 — Identification</h2>
         
-        <div class="form-group">
-            <label>Project Name <span class="required">*</span></label>
-            <input type="text" id="projectName" required minlength="2" maxlength="200" 
-                   value="${escapeHtml(data.projectName || '')}" placeholder="Enter project name">
+        <div class="guidance-note">
+            <i class="fas fa-info-circle"></i> <strong>What to include:</strong> Provide basic identification details for your project. This helps organize and track your evidence.
         </div>
         
         <div class="form-group">
-            <label>Project Code <span class="required">*</span></label>
+            <label>Project Name <span class="required">*</span></label>
+            <input type="text" id="projectName" required minlength="2" maxlength="200" 
+                   value="${escapeHtml(data.projectName || '')}" 
+                   placeholder="e.g., Riverside Housing Development, City Centre Regeneration">
+            <span class="helper-text">Example: "Riverside Housing Development Phase 2" or "City Centre Office Block"</span>
+        </div>
+        
+        <div class="form-group">
+            <label>Project Code <span class="required">*</span> 
+                <i class="fas fa-question-circle tooltip" title="A unique identifier for this project. Use uppercase letters, numbers, hyphens. Example: PROJ-2024-001"></i>
+            </label>
             <input type="text" id="projectCode" required 
-                   value="${escapeHtml(data.projectCode || '')}" placeholder="Unique project code">
-            <span class="helper-text">Must be unique within your organization</span>
+                   value="${escapeHtml(data.projectCode || '')}" 
+                   placeholder="e.g., PROJ-2024-001, RHD-PHASE2, CCO-2024">
+            <span class="helper-text">Must be unique. Format: UPPERCASE-WITH-HYPHENS (e.g., PROJ-2024-001, ALPHA-TOWER)</span>
         </div>
         
         <div class="form-group">
@@ -516,11 +525,13 @@ function renderProjectIdentification() {
                 <i class="fas fa-info-circle tooltip" title="Ensure all pre‑commencement and relevant tendering period is accounted for"></i>
             </label>
             <input type="date" id="startDate" value="${escapeHtml(data.startDate || '')}">
+            <span class="helper-text">Include pre-commencement and tendering period if relevant</span>
         </div>
         
         <div class="form-group">
             <label>Completion Date</label>
             <input type="date" id="completionDate" value="${escapeHtml(data.completionDate || '')}">
+            <span class="helper-text">Planned or actual completion date</span>
         </div>
     `;
 }
@@ -534,15 +545,16 @@ function renderProjectStakeholders() {
         
         <h3>Key Stakeholders & Parties</h3>
         <div class="guidance-note">
-            Examples include United Living and names of: Employer's Agent, Client, Council, NHBC, Subcontractors, etc.
+            <i class="fas fa-users"></i> <strong>Who to include:</strong> List all key parties involved in the project. This helps identify correspondence and relationships.
+            <br><strong>Examples:</strong> Main Contractor (United Living), Employer's Agent (Smith & Co), Client (City Council), Subcontractors, NHBC, Building Control, etc.
         </div>
         
         <div class="table-container">
             <table id="stakeholdersTable">
                 <thead>
                     <tr>
-                        <th style="width: 40%">Role</th>
-                        <th style="width: 50%">Name/Organisation</th>
+                        <th style="width: 40%">Role <small style="font-weight: normal; opacity: 0.7;">(e.g., Main Contractor, Client)</small></th>
+                        <th style="width: 50%">Name/Organisation <small style="font-weight: normal; opacity: 0.7;">(e.g., United Living, City Council)</small></th>
                         <th style="width: 10%">Actions</th>
                     </tr>
                 </thead>
@@ -556,15 +568,16 @@ function renderProjectStakeholders() {
         
         <h3 style="margin-top: 30px;">Keywords (Heads of Claim / Relevant words)</h3>
         <div class="guidance-note">
-            Populate with keywords relevant to your potential claims / Heads of Claim. Include common variations so nothing is missed.
+            <i class="fas fa-tags"></i> <strong>What to include:</strong> Add keywords relevant to potential claims, disputes, or important project events. Include variations to catch all mentions.
+            <br><strong>Examples:</strong> "Delay" (delayed, postponed), "Variation" (change order, modification), "Relevant Event" (RE, relevant matter), "Section 278" (s278, highway works)
         </div>
         
         <div class="table-container">
             <table id="keywordsTable">
                 <thead>
                     <tr>
-                        <th style="width: 30%">Keyword</th>
-                        <th style="width: 60%">Variations/Synonyms</th>
+                        <th style="width: 30%">Keyword <small style="font-weight: normal; opacity: 0.7;">(e.g., Delay, Variation)</small></th>
+                        <th style="width: 60%">Variations/Synonyms <small style="font-weight: normal; opacity: 0.7;">(e.g., delayed, postponed, late)</small></th>
                         <th style="width: 10%">Actions</th>
                     </tr>
                 </thead>
@@ -661,12 +674,16 @@ function renderCaseIdentification() {
         
         <div class="form-group">
             <label>Claimant</label>
-            <input type="text" id="claimant" value="${data.claimant || ''}" placeholder="Free entry">
+            <input type="text" id="claimant" value="${data.claimant || ''}" 
+                   placeholder="e.g., United Living Construction Ltd, John Smith">
+            <span class="helper-text">The party bringing the claim</span>
         </div>
         
         <div class="form-group">
             <label>Defendant</label>
-            <input type="text" id="defendant" value="${data.defendant || ''}" placeholder="Free entry">
+            <input type="text" id="defendant" value="${data.defendant || ''}" 
+                   placeholder="e.g., City Council, ABC Developments Ltd">
+            <span class="helper-text">The party defending against the claim</span>
         </div>
         
         <div class="form-group">
@@ -688,7 +705,9 @@ function renderCaseIdentification() {
         
         <div class="form-group">
             <label>Client</label>
-            <input type="text" id="client" value="${data.client || ''}" placeholder="Free entry">
+            <input type="text" id="client" value="${data.client || ''}" 
+                   placeholder="e.g., United Living, Smith & Partners">
+            <span class="helper-text">Your client (the party you're representing)</span>
         </div>
     `;
 }
@@ -700,12 +719,17 @@ function renderCaseLegalTeam() {
     container.innerHTML = `
         <h2>Step 2 of 4 — Legal Team</h2>
         
+        <div class="guidance-note">
+            <i class="fas fa-users"></i> <strong>Who to include:</strong> List all legal team members and key parties involved in the case.
+            <br><strong>Examples:</strong> Solicitor (Smith & Co), Barrister (John Doe QC), Expert Witness (Dr. Jane Smith), Adjudicator, Opposing Counsel, etc.
+        </div>
+        
         <div class="table-container">
             <table id="legalTeamTable">
                 <thead>
                     <tr>
-                        <th style="width: 40%">Role/Area</th>
-                        <th style="width: 50%">Name/Organisation</th>
+                        <th style="width: 40%">Role/Area <small style="font-weight: normal; opacity: 0.7;">(e.g., Solicitor, Barrister, Expert)</small></th>
+                        <th style="width: 50%">Name/Organisation <small style="font-weight: normal; opacity: 0.7;">(e.g., Smith & Co, John Doe QC)</small></th>
                         <th style="width: 10%">Actions</th>
                     </tr>
                 </thead>
@@ -1178,6 +1202,11 @@ window.toggleCustomField = function(select, customInputId) {
     const customInput = document.getElementById(customInputId);
     if (select.value === 'Custom') {
         customInput.classList.add('visible');
+        // Clear the field when Custom is selected (don't pre-fill with "Custom")
+        if (customInput.value === '' || customInput.value === 'Custom') {
+            customInput.value = '';
+        }
+        customInput.focus();
     } else {
         customInput.classList.remove('visible');
     }
