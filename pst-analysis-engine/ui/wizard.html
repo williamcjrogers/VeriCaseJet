@@ -88,6 +88,54 @@
             padding: 40px;
         }
 
+        .draft-banner {
+            display: none;
+            background: #fef3c7;
+            border: 1px solid #fcd34d;
+            color: #92400e;
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .draft-banner i {
+            margin-right: 8px;
+        }
+
+        .draft-banner-actions {
+            display: flex;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .draft-banner .btn-secondary {
+            background: #fff7ed;
+            border: 1px solid #f59e0b;
+            color: #92400e;
+        }
+
+        .draft-banner .btn-secondary:hover {
+            background: #fde68a;
+            border-color: #d97706;
+            color: #7c2d12;
+        }
+
+        .draft-banner .btn-primary {
+            background: #f97316;
+            border: 1px solid #ea580c;
+            color: white;
+        }
+
+        .draft-banner .btn-primary:hover {
+            background: #ea580c;
+            border-color: #c2410c;
+        }
+
         .step-indicator {
             display: flex;
             justify-content: space-between;
@@ -419,6 +467,21 @@
         </div>
 
         <div class="wizard-content">
+            <div id="draftBanner" class="draft-banner">
+                <div class="draft-banner-text" style="display:flex; align-items:center; gap:8px;">
+                    <i class="fas fa-save"></i>
+                    <span><strong>Saved draft found.</strong> You can restore your last session or start fresh.</span>
+                </div>
+                <div class="draft-banner-actions">
+                    <button type="button" class="btn btn-secondary" onclick="clearWizardDraft()">
+                        <i class="fas fa-times"></i> Dismiss
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="restoreWizardDraft()">
+                        <i class="fas fa-sync"></i> Restore Draft
+                    </button>
+                </div>
+            </div>
+
             <!-- Step Indicator -->
             <div class="step-indicator" id="stepIndicator">
                 <!-- Steps will be dynamically populated based on profile type -->
