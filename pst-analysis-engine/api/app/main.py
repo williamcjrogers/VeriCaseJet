@@ -128,6 +128,19 @@ async def health_check():
 
 @app.on_event("startup")
 def startup():
+    # Log UI mount status
+    if UI_DIR:
+        logger.info(f"✓✓✓ UI MOUNTED at /ui from: {UI_DIR}")
+        # List files to confirm
+        try:
+            import os
+            files = os.listdir(UI_DIR)[:10]
+            logger.info(f"UI files available: {', '.join(files)}")
+        except Exception as e:
+            logger.error(f"Error listing UI files: {e}")
+    else:
+        logger.error(f"✗✗✗ UI NOT MOUNTED - candidates were: {_ui_candidates}")
+    
     try:
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created")
