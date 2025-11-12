@@ -74,7 +74,7 @@ class DocumentListResponse(BaseModel):
 
 class PathListResponse(BaseModel):
     paths: List[str]
-app = FastAPI(title="VeriCase Docs API", version="0.3.0")
+app = FastAPI(title="VeriCase Docs API", version="0.3.1")  # Updated 2025-11-12 for UI fixes
 
 # Include routers
 app.include_router(users_router)
@@ -108,14 +108,22 @@ _ui_candidates = [
     _base_dir / "ui",
     _base_dir.parent / "ui",
 ]
+print(f"[STARTUP] Looking for UI directory. Candidates: {_ui_candidates}")
 logger.info(f"Looking for UI directory. Candidates: {_ui_candidates}")
 UI_DIR = next((c for c in _ui_candidates if c.exists()), None)
 if UI_DIR:
+    print(f"[STARTUP] ✓ UI directory found: {UI_DIR}")
     logger.info(f"✓ UI directory found and mounting at /ui: {UI_DIR}")
-    app.mount("/ui", StaticFiles(directory=str(UI_DIR), html=True), name="ui")
-    logger.info(f"✓ UI mount complete")
+    try:
+        app.mount("/ui", StaticFiles(directory=str(UI_DIR), html=True), name="ui")
+        logger.info(f"✓ UI mount complete")
+        print(f"[STARTUP] ✓ UI mount complete at /ui")
+    except Exception as e:
+        logger.error(f"Failed to mount UI: {e}")
+        print(f"[STARTUP] ✗ Failed to mount UI: {e}")
 else:
     logger.warning("UI directory not found in candidates %s; /ui mount disabled", _ui_candidates)
+    print(f"[STARTUP] ✗ UI directory not found")
 
 @app.get("/", include_in_schema=False)
 def redirect_to_ui():
