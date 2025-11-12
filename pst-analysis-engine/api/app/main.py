@@ -108,9 +108,12 @@ _ui_candidates = [
     _base_dir / "ui",
     _base_dir.parent / "ui",
 ]
+logger.info(f"Looking for UI directory. Candidates: {_ui_candidates}")
 UI_DIR = next((c for c in _ui_candidates if c.exists()), None)
 if UI_DIR:
+    logger.info(f"✓ UI directory found and mounting at /ui: {UI_DIR}")
     app.mount("/ui", StaticFiles(directory=str(UI_DIR), html=True), name="ui")
+    logger.info(f"✓ UI mount complete")
 else:
     logger.warning("UI directory not found in candidates %s; /ui mount disabled", _ui_candidates)
 
