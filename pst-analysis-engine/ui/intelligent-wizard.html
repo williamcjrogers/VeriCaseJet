@@ -383,16 +383,14 @@
         }
 
         function showAIUnavailableMessage() {
-            addBotMessage("⚠️ **AI Configuration Assistant Unavailable**\n\nThe intelligent configuration wizard requires AI services to be configured. Please contact your system administrator to set up API keys for:\n\n• OpenAI (GPT models)\n• Anthropic (Claude models)\n• Google (Gemini models)\n• Or other supported AI providers\n\nOnce API keys are configured, this wizard will be able to guide you through system setup intelligently.\n\n**Alternative:** You can use the manual configuration wizard instead.", [
+            addBotMessage("⚠️ **AI Services Not Configured**\n\nThe intelligent configuration wizard uses AI to guide you through setup, but no AI API keys are currently configured.\n\n**To enable AI features:**\n1. Go to Dashboard → Settings → AI Configuration\n2. Add at least one API key (OpenAI, Anthropic, or Google)\n3. Save and return here\n\n**Alternative:** You can use the manual configuration wizard which doesn't require AI.", [
                 "Go to manual wizard",
                 "Go to dashboard",
-                "Contact admin"
+                "Open settings"
             ]);
             
-            // Disable input
-            document.getElementById('chatInput').disabled = true;
-            document.getElementById('chatInput').placeholder = 'AI services not available...';
-            document.getElementById('sendBtn').disabled = true;
+            // Don't fully disable - let them try anyway and get server error with instructions
+            document.getElementById('chatInput').placeholder = 'AI not configured - configure in settings first...';
         }
 
         function setupAutoResize() {
@@ -509,9 +507,11 @@
             
             if (!message) return;
             
-            // Check if AI is available
+            // Warn if AI is not available but let them try
             if (!aiAvailable) {
-                addBotMessage("AI services are not available. Please configure API keys or use the manual wizard.");
+                addBotMessage("⚠️ AI services are not configured. Please add API keys in Dashboard → Settings → AI Configuration first.");
+                input.disabled = false;
+                document.getElementById('sendBtn').disabled = false;
                 return;
             }
             
@@ -595,8 +595,8 @@
                 return;
             }
             
-            if (action === "Contact admin") {
-                addBotMessage("Please contact your system administrator to configure AI API keys. They will need to:\n\n1. Set up at least one AI provider (OpenAI, Anthropic, Google, etc.)\n2. Add the API key to AWS Secrets Manager or environment variables\n3. Restart the application\n\nFor AWS deployments, API keys should be stored in AWS Secrets Manager for security.");
+            if (action === "Open settings") {
+                window.location.href = 'dashboard.html?openSettings=ai';
                 return;
             }
             
