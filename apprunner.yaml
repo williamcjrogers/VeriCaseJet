@@ -77,14 +77,16 @@ run:
       value: "admin@veri-case.com"
     - name: EMAIL_HOST_PASSWORD
       value: "PLACEHOLDER"
-    # AI API Keys
+    # AI API Keys (loaded from AWS Secrets Manager at runtime)
     - name: OPENAI_API_KEY
-      value: "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"
+      value: ""  # Will be loaded from AWS Secrets Manager
     - name: ANTHROPIC_API_KEY
-      value: "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"
+      value: ""  # Will be loaded from AWS Secrets Manager
     - name: GEMINI_API_KEY
-      value: "AIzaSyCNfRrYZHyRxAXl92Y9k-lj-oOWQgX1Nns"
+      value: ""  # Will be loaded from AWS Secrets Manager
     - name: GROK_API_KEY
-      value: "xai-bx7NLmXWPvMy6TAq6W2s3ruIRsOAolfNS3aTSdebGg4slXwIo4eoI9iYiiaQ4TplSwy1mOMBx51fxFrG"
+      value: ""  # Will be loaded from AWS Secrets Manager
     - name: PERPLEXITY_API_KEY
-      value: "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"
+      value: ""  # Will be loaded from AWS Secrets Manager
+    - name: AWS_SECRETS_MANAGER_AI_KEYS
+      value: "vericase/ai-api-keys"  # Secret name in AWS Secrets Manager
