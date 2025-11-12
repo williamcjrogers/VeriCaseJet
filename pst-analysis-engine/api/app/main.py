@@ -75,7 +75,7 @@ class DocumentListResponse(BaseModel):
 
 class PathListResponse(BaseModel):
     paths: List[str]
-app = FastAPI(title="VeriCase Docs API", version="0.3.7")  # Updated 2025-11-12 fixed hash_password import
+app = FastAPI(title="VeriCase Docs API", version="0.3.8")  # Updated 2025-11-12 added AWS Secrets Manager for AI keys
 
 # Mount UI BEFORE routers (order matters in FastAPI!)
 _here = Path(__file__).resolve()
@@ -301,6 +301,34 @@ def startup():
         logger.info("OpenSearch index verified")
     except Exception as e:
         logger.warning(f"OpenSearch initialization skipped: {e}")
+    
+    # Load AI API keys from AWS Secrets Manager if configured
+    try:
+        secret_name = os.getenv('AWS_SECRETS_MANAGER_AI_KEYS')
+        if secret_name:
+            import json
+            import boto3
+            
+            logger.info(f"Loading AI API keys from AWS Secrets Manager: {secret_name}")
+            client = boto3.client('secretsmanager', region_name=os.getenv('AWS_REGION', 'eu-west-2'))
+            
+            try:
+                response = client.get_secret_value(SecretId=secret_name)
+                secret_data = json.loads(response['SecretString'])
+                
+                # Update environment variables with the loaded keys
+                for key_name in ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'GROK_API_KEY', 'PERPLEXITY_API_KEY']:
+                    if key_name in secret_data and secret_data[key_name]:
+                        os.environ[key_name] = secret_data[key_name]
+                        logger.info(f"✓ Loaded {key_name} from Secrets Manager")
+                    else:
+                        logger.warning(f"⚠ {key_name} not found in Secrets Manager")
+                        
+            except Exception as e:
+                logger.error(f"Failed to retrieve AI API keys from Secrets Manager: {e}")
+                logger.info("AI features will be limited without API keys")
+    except Exception as e:
+        logger.warning(f"AWS Secrets Manager integration skipped: {e}")
 # Auth
 @app.post("/api/auth/register")
 @app.post("/auth/signup")  # Keep old endpoint for compatibility
