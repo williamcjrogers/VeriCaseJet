@@ -75,6 +75,39 @@ for ui_path in ui_candidates:
     else:
         print(f"✗ UI directory not found: {ui_path}")
 
+# Run database migrations before starting the app
+print("\n=== Running Database Migrations ===")
+try:
+    # Add vendor to path first
+    vendor_path = os.path.join(os.path.dirname(__file__), 'vendor')
+    if os.path.exists(vendor_path):
+        sys.path.insert(0, vendor_path)
+    
+    # Run migrations directly
+    migrations_script = os.path.join(os.path.dirname(__file__), 'apply_migrations.py')
+    if os.path.exists(migrations_script):
+        result = subprocess.run(
+            [sys.executable, migrations_script],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env={**os.environ, 'PYTHONPATH': vendor_path}
+        )
+        print(result.stdout)
+        if result.stderr:
+            print(f"Stderr: {result.stderr}")
+        if result.returncode == 0:
+            print("✓ Database migrations completed successfully")
+        else:
+            print(f"⚠ Migrations exited with code {result.returncode}")
+    else:
+        print(f"⚠ Migration script not found: {migrations_script}")
+except Exception as e:
+    print(f"⚠ Could not run migrations: {e}")
+    import traceback
+    traceback.print_exc()
+    print("App will start anyway - migrations may need to be run manually")
+
 # Start the application with fallback
 print("\n=== Starting Application ===")
 try:
