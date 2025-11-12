@@ -340,16 +340,60 @@
         let configurationData = {};
         let currentStep = 'introduction';
         let finalConfiguration = null;
+        let aiAvailable = false;
 
         if (!token) {
             window.location.href = 'login.html';
         }
 
         // Initialize chat
-        window.addEventListener('DOMContentLoaded', () => {
-            startConversation();
+        window.addEventListener('DOMContentLoaded', async () => {
+            await checkAIAvailability();
+            if (aiAvailable) {
+                startConversation();
+            } else {
+                showAIUnavailableMessage();
+            }
             setupAutoResize();
         });
+
+        async function checkAIAvailability() {
+            try {
+                const response = await fetch(`${API_BASE}/api/ai/status`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const status = await response.json();
+                    aiAvailable = status.any_available;
+                    
+                    if (!aiAvailable) {
+                        console.warn('No AI services available. API keys need to be configured.');
+                    }
+                } else {
+                    console.error('Failed to check AI availability');
+                    aiAvailable = false;
+                }
+            } catch (error) {
+                console.error('Error checking AI availability:', error);
+                aiAvailable = false;
+            }
+        }
+
+        function showAIUnavailableMessage() {
+            addBotMessage("⚠️ **AI Configuration Assistant Unavailable**\n\nThe intelligent configuration wizard requires AI services to be configured. Please contact your system administrator to set up API keys for:\n\n• OpenAI (GPT models)\n• Anthropic (Claude models)\n• Google (Gemini models)\n• Or other supported AI providers\n\nOnce API keys are configured, this wizard will be able to guide you through system setup intelligently.\n\n**Alternative:** You can use the manual configuration wizard instead.", [
+                "Go to manual wizard",
+                "Go to dashboard",
+                "Contact admin"
+            ]);
+            
+            // Disable input
+            document.getElementById('chatInput').disabled = true;
+            document.getElementById('chatInput').placeholder = 'AI services not available...';
+            document.getElementById('sendBtn').disabled = true;
+        }
 
         function setupAutoResize() {
             const textarea = document.getElementById('chatInput');
@@ -465,6 +509,12 @@
             
             if (!message) return;
             
+            // Check if AI is available
+            if (!aiAvailable) {
+                addBotMessage("AI services are not available. Please configure API keys or use the manual wizard.");
+                return;
+            }
+            
             // Disable input while processing
             input.disabled = true;
             document.getElementById('sendBtn').disabled = true;
@@ -539,6 +589,17 @@
         }
 
         function handleQuickAction(action) {
+            // Handle AI unavailable actions
+            if (action === "Go to manual wizard") {
+                window.location.href = 'wizard.html';
+                return;
+            }
+            
+            if (action === "Contact admin") {
+                addBotMessage("Please contact your system administrator to configure AI API keys. They will need to:\n\n1. Set up at least one AI provider (OpenAI, Anthropic, Google, etc.)\n2. Add the API key to AWS Secrets Manager or environment variables\n3. Restart the application\n\nFor AWS deployments, API keys should be stored in AWS Secrets Manager for security.");
+                return;
+            }
+            
             // Handle special post-completion actions
             if (action === "Go to dashboard") {
                 storeProfileContext(finalConfiguration);

@@ -100,6 +100,19 @@ Visit: `https://YOUR-APP-URL/api/docs`
 - Look for AI endpoints
 - Test the endpoints to see if they return proper responses
 
+### Command-line Verification
+
+You can run the lightweight verifier in this repository to confirm the intelligent configuration endpoint responds:
+
+```bash
+python pst-analysis-engine/tools/check_intelligent_config.py --url http://localhost:8010 --token YOUR_JWT
+```
+
+Expected output:
+- `GET /health` should return `200 OK`
+- `POST /api/ai/intelligent-config` should return `200 OK` or a descriptive error if AI keys are missing
+- If you see `No connection could be made...`, make sure the API server is running locally (`START_SERVER.bat` or `python -m uvicorn app.main:app`)
+
 ### View Logs
 In App Runner console, check application logs for:
 - "Loading AI API keys from AWS Secrets Manager"
