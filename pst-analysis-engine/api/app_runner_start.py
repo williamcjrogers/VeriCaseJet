@@ -60,6 +60,21 @@ if os.path.exists(vendor_path):
 else:
     print(f"\n✗ Vendor directory not found: {vendor_path}")
 
+# Check UI directory
+print("\n=== UI Directory Check ===")
+ui_candidates = [
+    "/app/pst-analysis-engine/api/ui",
+    "/app/pst-analysis-engine/ui",
+    "/app/ui"
+]
+for ui_path in ui_candidates:
+    if os.path.exists(ui_path):
+        print(f"✓ UI directory found: {ui_path}")
+        files = os.listdir(ui_path)[:5]  # Show first 5 files
+        print(f"  Files: {', '.join(files)}...")
+    else:
+        print(f"✗ UI directory not found: {ui_path}")
+
 # Start the application with fallback
 print("\n=== Starting Application ===")
 try:
