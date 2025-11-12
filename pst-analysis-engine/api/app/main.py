@@ -51,7 +51,8 @@ bearer = HTTPBearer()
 def _parse_uuid(value: str) -> uuid.UUID:
     try:
         return uuid.UUID(str(value))
-    except (ValueError, AttributeError, TypeError):
+    except (ValueError, AttributeError, TypeError) as e:
+        logger.debug(f"Invalid UUID format: {value}")
         raise HTTPException(400, "invalid document id")
 
 
@@ -162,18 +163,16 @@ async def debug_ui():
 
 @app.on_event("startup")
 def startup():
-    # Log UI mount status
     if UI_DIR:
-        logger.info(f"✓✓✓ UI MOUNTED at /ui from: {UI_DIR}")
-        # List files to confirm
+        logger.info(f"UI MOUNTED at /ui from: {UI_DIR}")
         try:
             import os
             files = os.listdir(UI_DIR)[:10]
-            logger.info(f"UI files available: {', '.join(files)}")
+            logger.info(f"UI files: {', '.join(files)}")
         except Exception as e:
             logger.error(f"Error listing UI files: {e}")
     else:
-        logger.error(f"✗✗✗ UI NOT MOUNTED - candidates were: {_ui_candidates}")
+        logger.error(f"UI NOT MOUNTED - candidates: {_ui_candidates}")
     
     try:
         Base.metadata.create_all(bind=engine)
@@ -295,7 +294,7 @@ def login(payload: dict = Body(...), db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail="Email and password required")
         
         user = db.query(User).filter(User.email == email).first()
-        if not user:
+        if user is None:
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         # Import enhanced security functions
@@ -748,14 +747,18 @@ def delete_document_endpoint(doc_id: str, db: Session = Depends(get_db), user: U
     return Response(status_code=204)
 # Search
 @app.get("/search")
-def search(q: str = Query(..., min_length=1), path_prefix: Optional[str] = None, user: User = Depends(current_user)):
-    res=os_search(q, size=25, path_prefix=path_prefix); hits=[]
-    for h in res.get("hits",{}).get("hits",[]):
-        src=h.get("_source",{})
-        hits.append({"id":src.get("id"),"filename":src.get("filename"),"title":src.get("title"),
-                     "path":src.get("path"),"content_type":src.get("content_type"),"score":h.get("_score"),
-                     "snippet":" ... ".join(h.get("highlight",{}).get("text", src.get("text","")[:200:])) if h.get("highlight") else None})
-    return {"count": len(hits), "hits": hits}
+def search(q: str = Query(..., min_length=1, max_length=500), path_prefix: Optional[str] = None, user: User = Depends(current_user)):
+    try:
+        res=os_search(q, size=25, path_prefix=path_prefix); hits=[]
+        for h in res.get("hits",{}).get("hits",[]):
+            src=h.get("_source",{})
+            hits.append({"id":src.get("id"),"filename":src.get("filename"),"title":src.get("title"),
+                         "path":src.get("path"),"content_type":src.get("content_type"),"score":h.get("_score"),
+                         "snippet":" ... ".join(h.get("highlight",{}).get("text", src.get("text","")[:200:])) if h.get("highlight") else None})
+        return {"count": len(hits), "hits": hits}
+    except Exception as e:
+        logger.error(f"Search error: {e}")
+        raise HTTPException(500, "Search failed")
 # Share links
 @app.post("/shares")
 def create_share(body: dict = Body(...), db: Session = Depends(get_db), user: User = Depends(current_user)):
