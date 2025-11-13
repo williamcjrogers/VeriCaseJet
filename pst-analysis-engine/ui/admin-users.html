@@ -328,7 +328,7 @@
         <h1><img src="assets/LOGOTOBEUSED.png" alt="VeriCase" style="height: 28px; margin-right: 12px; vertical-align: middle;"><i class="fas fa-users-cog"></i> User Management</h1>
         <div class="header-actions">
             <span id="currentUser" style="color: #718096; font-size: 14px;"></span>
-            <a href="/ui/wizard.html" class="btn btn-secondary btn-sm">
+            <a href="dashboard.html" class="btn btn-secondary btn-sm">
                 <i class="fas fa-arrow-left"></i> Back to Dashboard
             </a>
         </div>
@@ -432,7 +432,7 @@
 
         // Check authentication
         if (!token) {
-            window.location.href = '/ui/login.html';
+            window.location.href = 'login.html';
         }
 
         // API Helper
@@ -454,13 +454,13 @@
             if (response.status === 401) {
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
-                window.location.href = '/ui/login.html';
+                window.location.href = 'login.html';
                 return;
             }
             
             if (response.status === 403) {
                 alert('You do not have admin privileges');
-                window.location.href = '/ui/wizard.html';
+                window.location.href = 'dashboard.html';
                 return;
             }
             
