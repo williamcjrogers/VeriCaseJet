@@ -311,7 +311,7 @@
     <header class="header">
         <h1><img src="assets/LOGOTOBEUSED.png" alt="VeriCase" style="height: 28px; margin-right: 12px; vertical-align: middle;"> User Profile</h1>
         <div class="header-actions">
-            <a href="/ui/wizard.html">← Back to Dashboard</a>
+            <a href="dashboard.html">← Back to Dashboard</a>
             <a href="#" id="logoutLink">Logout</a>
         </div>
     </header>
@@ -431,7 +431,7 @@
 
         // Check authentication
         if (!token) {
-            window.location.href = '/ui/login.html';
+            window.location.href = 'login.html';
         }
 
         // API Helper
@@ -454,7 +454,7 @@
                 // Token expired
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
-                window.location.href = '/ui/login.html';
+                window.location.href = 'login.html';
                 return;
             }
             
@@ -673,7 +673,7 @@
             
             localStorage.removeItem('token');
             localStorage.removeItem('user');
-            window.location.href = '/ui/login.html';
+            window.location.href = 'login.html';
         });
 
         // Initialize
