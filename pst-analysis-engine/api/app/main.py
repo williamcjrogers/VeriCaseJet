@@ -191,52 +191,22 @@ if origins:
 
 @app.get("/", include_in_schema=False)
 def redirect_to_ui():
-    return RedirectResponse(url="/ui-direct/login.html")
+    return RedirectResponse(url="/ui/login.html")
 
 @app.get("/login.html", include_in_schema=False)
 @app.get("/login", include_in_schema=False)
 def redirect_to_login():
-    return RedirectResponse(url="/ui-direct/login.html")
+    return RedirectResponse(url="/ui/login.html")
 
 @app.get("/wizard.html", include_in_schema=False)
 @app.get("/wizard", include_in_schema=False)
 def redirect_to_wizard():
-    return RedirectResponse(url="/ui-direct/wizard.html")
+    return RedirectResponse(url="/ui/wizard.html")
 
 @app.get("/dashboard.html", include_in_schema=False)
 @app.get("/dashboard", include_in_schema=False)
 def redirect_to_dashboard():
-    return RedirectResponse(url="/ui-direct/dashboard.html")
-
-@app.get("/ui-direct/{file_path:path}")
-async def serve_ui_direct(file_path: str):
-    """Direct UI file serving as a fallback if static mount fails"""
-    if not UI_DIR:
-        raise HTTPException(404, "UI directory not found")
-    
-    # Security: prevent directory traversal
-    if ".." in file_path or file_path.startswith("/"):
-        raise HTTPException(400, "Invalid file path")
-    
-    # Default to wizard.html if no file specified
-    if not file_path:
-        file_path = "wizard.html"
-    
-    full_path = UI_DIR / file_path
-    
-    if not full_path.exists() or not full_path.is_file():
-        raise HTTPException(404, f"File not found: {file_path}")
-    
-    # Determine content type
-    content_type = "text/html"
-    if file_path.endswith('.js'):
-        content_type = "application/javascript"
-    elif file_path.endswith('.css'):
-        content_type = "text/css"
-    elif file_path.endswith('.json'):
-        content_type = "application/json"
-    
-    return FileResponse(full_path, media_type=content_type)
+    return RedirectResponse(url="/ui/dashboard.html")
 
 @app.get("/health")
 async def health_check():
