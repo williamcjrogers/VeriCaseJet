@@ -191,8 +191,22 @@ if origins:
 
 @app.get("/", include_in_schema=False)
 def redirect_to_ui():
-    # TEMPORARY: Skip login until admin user creation is fixed
+    return RedirectResponse(url="/ui-direct/login.html")
+
+@app.get("/login.html", include_in_schema=False)
+@app.get("/login", include_in_schema=False)
+def redirect_to_login():
+    return RedirectResponse(url="/ui-direct/login.html")
+
+@app.get("/wizard.html", include_in_schema=False)
+@app.get("/wizard", include_in_schema=False)
+def redirect_to_wizard():
     return RedirectResponse(url="/ui-direct/wizard.html")
+
+@app.get("/dashboard.html", include_in_schema=False)
+@app.get("/dashboard", include_in_schema=False)
+def redirect_to_dashboard():
+    return RedirectResponse(url="/ui-direct/dashboard.html")
 
 @app.get("/ui-direct/{file_path:path}")
 async def serve_ui_direct(file_path: str):
