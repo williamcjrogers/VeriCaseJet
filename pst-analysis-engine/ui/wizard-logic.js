@@ -1356,7 +1356,6 @@ async function submitWizard() {
     
     try {
         const apiUrl = getApiUrl();
-        const token = localStorage.getItem('token') || localStorage.getItem('jwt') || 'TEMPORARY_BYPASS_TOKEN';
         const csrfToken = getCsrfToken();
 
         // TEMPORARY: Auth check disabled
@@ -1372,16 +1371,35 @@ async function submitWizard() {
             const identification = wizardState.data['project-identification'] || {};
             const stakeholdersData = wizardState.data['project-stakeholders'] || {};
             const keywordsData = wizardState.data['project-keywords'] || {};
-            
+
+            const normalizedContractType = keywordsData.contractType === 'Custom'
+                ? keywordsData.contractTypeCustom
+                : keywordsData.contractType;
+
             requestData = {
+                profile_type: 'project',
                 project_name: identification.projectName,
                 project_code: identification.projectCode,
-                start_date: identification.startDate || null,
-                completion_date: identification.completionDate || null,
-                contract_type: keywordsData.contractType === 'Custom' ? 
-                    keywordsData.contractTypeCustom : keywordsData.contractType,
-                stakeholders: stakeholdersData.stakeholders || [],
-                keywords: stakeholdersData.keywords || []
+                contract_type: normalizedContractType,
+                contractType: normalizedContractType,
+                company_name: identification.companyName || stakeholdersData.companyName || 'My Company',
+                details: {
+                    projectCode: identification.projectCode,
+                    projectName: identification.projectName,
+                    description: identification.description || '',
+                    startDate: identification.startDate || null,
+                    completionDate: identification.completionDate || null
+                },
+                stakeholders: {
+                    contractType: normalizedContractType,
+                    stakeholders: stakeholdersData.stakeholders || [],
+                    keywords: stakeholdersData.keywords || []
+                },
+                keywords: stakeholdersData.keywords || [],
+                metadata: {
+                    startDate: identification.startDate || null,
+                    completionDate: identification.completionDate || null
+                }
             };
         } else {
             endpoint = '/api/cases';
@@ -1389,21 +1407,41 @@ async function submitWizard() {
             const legalTeamData = wizardState.data['case-legal-team'] || {};
             const headsKeywordsData = wizardState.data['case-heads-keywords'] || {};
             const deadlinesData = wizardState.data['case-deadlines'] || {};
-            
+
+            const normalizedResolutionRoute = identification.resolutionRoute === 'Custom'
+                ? identification.resolutionRouteCustom
+                : identification.resolutionRoute;
+            const normalizedCaseStatus = identification.caseStatus === 'Custom'
+                ? identification.caseStatusCustom
+                : identification.caseStatus;
+
             requestData = {
+                profile_type: 'case',
                 case_name: identification.caseName,
                 case_id: identification.caseId || null,
-                resolution_route: identification.resolutionRoute === 'Custom' ? 
-                    identification.resolutionRouteCustom : identification.resolutionRoute,
-                claimant: identification.claimant || null,
-                defendant: identification.defendant || null,
-                case_status: identification.caseStatus === 'Custom' ? 
-                    identification.caseStatusCustom : identification.caseStatus,
-                client: identification.client || null,
+                case_status: normalizedCaseStatus,
+                contractType: normalizedResolutionRoute,
+                contract_type: normalizedResolutionRoute,
+                company_name: identification.client || 'My Company',
+                details: {
+                    projectCode: identification.caseId || null,
+                    projectName: identification.caseName,
+                    description: identification.description || ''
+                },
+                stakeholders: {
+                    contractType: normalizedResolutionRoute,
+                    claimant: identification.claimant || null,
+                    defendant: identification.defendant || null,
+                    client: identification.client || null
+                },
                 legal_team: legalTeamData.legalTeam || [],
                 heads_of_claim: headsKeywordsData.headsOfClaim || [],
                 keywords: headsKeywordsData.keywords || [],
-                deadlines: deadlinesData.deadlines || []
+                deadlines: deadlinesData.deadlines || [],
+                metadata: {
+                    deadlines: deadlinesData.deadlines || [],
+                    legalTeam: legalTeamData.legalTeam || []
+                }
             };
         }
         
@@ -1411,8 +1449,7 @@ async function submitWizard() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRF-Token': csrfToken,
-                'Authorization': `Bearer ${token}`
+                'X-CSRF-Token': csrfToken
             },
             body: JSON.stringify(requestData),
             credentials: 'same-origin'  // Include cookies for session-based auth
@@ -1583,11 +1620,15 @@ async function startIntelligentMode() {
 }
 
 async function checkAIAvailability() {
+    if (hasStoredAIKey()) {
+        aiAvailable = true;
+        return;
+    }
+
     try {
-        const token = localStorage.getItem('token') || localStorage.getItem('jwt') || 'TEMPORARY_BYPASS_TOKEN';
         const response = await fetch(`${getApiUrl()}/api/ai/status`, {
             headers: {
-                'Authorization': `Bearer ${token}`
+                'X-Requested-With': 'wizard'
             }
         });
         
@@ -1616,6 +1657,124 @@ function showAIUnavailableMessage() {
     ]);
     
     document.getElementById('chatInput').placeholder = 'AI not configured - enter API key or use manual wizard...';
+}
+
+function getStoredAIKeys() {
+    return {
+        openai: localStorage.getItem('ai_key_openai') || '',
+        anthropic: localStorage.getItem('ai_key_anthropic') || '',
+        google: localStorage.getItem('ai_key_google') || ''
+    };
+}
+
+function hasStoredAIKey() {
+    const keys = getStoredAIKeys();
+    return Object.values(keys).some(key => typeof key === 'string' && key.trim().length > 0);
+}
+
+function showAPIKeyEntryForm() {
+    const messagesDiv = document.getElementById('chatMessages');
+    if (!messagesDiv) return;
+
+    const existingForm = document.getElementById('aiKeyEntryMessage');
+    if (existingForm) {
+        existingForm.remove();
+    }
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message bot ai-key-message';
+    messageDiv.id = 'aiKeyEntryMessage';
+    messageDiv.innerHTML = `
+        <div class="message-avatar">
+            <i class="fas fa-key"></i>
+        </div>
+        <div class="message-content">
+            <strong>Enable AI guidance instantly</strong><br>
+            <p>Add an API key for one of the supported providers. Your key is stored locally in this browser only and used just for this session.</p>
+            <div class="ai-key-form">
+                <label for="aiProvider">Select provider</label>
+                <select id="aiProvider">
+                    <option value="openai">OpenAI (GPT-4/GPT-4.1)</option>
+                    <option value="anthropic">Anthropic (Claude)</option>
+                    <option value="google">Google (Gemini)</option>
+                </select>
+                <label for="aiApiKey">API key</label>
+                <input type="password" id="aiApiKey" placeholder="Enter API key, e.g. sk-..." autocomplete="off">
+                <div class="ai-key-actions">
+                    <button type="button" class="btn-primary" id="btnSaveAIKey">
+                        <i class="fas fa-check"></i> Save key
+                    </button>
+                    <button type="button" class="btn-secondary" id="btnCancelAIKey">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+            </div>
+            <small class="ai-key-disclaimer">Keys are stored locally for testing only. Configure AWS Secrets Manager for production.</small>
+        </div>
+    `;
+
+    messagesDiv.appendChild(messageDiv);
+    scrollChatToBottom();
+
+    const storedKeys = getStoredAIKeys();
+    const providerWithKey = Object.entries(storedKeys).find(([, value]) => value);
+    if (providerWithKey) {
+        messageDiv.querySelector('#aiProvider').value = providerWithKey[0];
+    }
+
+    messageDiv.querySelector('#btnSaveAIKey').onclick = saveAIKey;
+    messageDiv.querySelector('#btnCancelAIKey').onclick = () => {
+        messageDiv.remove();
+        addBotMessage("No worries. You can enter an API key at any time from the quick actions.", [
+            "Enter API key",
+            "Use manual wizard",
+            "Go to dashboard"
+        ]);
+    };
+}
+
+async function saveAIKey() {
+    const messageDiv = document.getElementById('aiKeyEntryMessage');
+    if (!messageDiv) return;
+
+    const providerSelect = messageDiv.querySelector('#aiProvider');
+    const keyInput = messageDiv.querySelector('#aiApiKey');
+    const provider = providerSelect.value;
+    const apiKey = (keyInput.value || '').trim();
+
+    if (!apiKey) {
+        keyInput.classList.add('input-error');
+        setTimeout(() => keyInput.classList.remove('input-error'), 1500);
+        addBotMessage("Please enter an API key so I can enable the intelligent assistant.", [
+            "Enter API key",
+            "Use manual wizard"
+        ]);
+        return;
+    }
+
+    localStorage.setItem(`ai_key_${provider}`, apiKey);
+
+    aiAvailable = true;
+    document.getElementById('chatInput').placeholder = 'Type your message...';
+
+    messageDiv.remove();
+
+    const providerNames = {
+        openai: 'OpenAI',
+        anthropic: 'Anthropic Claude',
+        google: 'Google Gemini'
+    };
+
+    addBotMessage(`Great! I've stored your ${providerNames[provider] || provider} API key for this browser session.`, [
+        "Continue configuration",
+        "Go to dashboard"
+    ]);
+
+    if (conversationHistory.length === 0) {
+        intelligentCurrentStep = 'introduction';
+        intelligentConfigData = {};
+        startConversation();
+    }
 }
 
 function setupChatInput() {
@@ -1756,12 +1915,10 @@ async function sendIntelligentMessage() {
     showTyping();
     
     try {
-        const token = localStorage.getItem('token') || localStorage.getItem('jwt') || 'TEMPORARY_BYPASS_TOKEN';
         const response = await fetch(`${getApiUrl()}/api/ai/intelligent-config`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 message: message,
