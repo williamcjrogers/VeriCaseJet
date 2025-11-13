@@ -354,15 +354,15 @@ function clearDraft(showMessage = true) {
 }
 
 // Navigation functions
-function nextStep() {
+async function nextStep() {
     // If on entry screen
     if (wizardState.currentStep === 0) {
         const selectedType = document.querySelector('input[name="profileType"]:checked').value;
         wizardState.profileType = selectedType;
         
         if (selectedType === 'intelligent') {
-            // Redirect to intelligent configuration wizard
-            window.location.href = 'intelligent-wizard.html';
+            // Start intelligent chat mode (no redirect)
+            await startIntelligentMode();
             return;
         }
         
@@ -1539,3 +1539,423 @@ function confirmWizard(message) {
 // Expose draft helpers for banner buttons
 window.restoreWizardDraft = restoreDraft;
 window.clearWizardDraft = () => clearDraft(false);
+
+// ============================================================================
+// Intelligent Chat Mode
+// ============================================================================
+
+let conversationHistory = [];
+let intelligentConfigData = {};
+let intelligentCurrentStep = 'introduction';
+let intelligentFinalConfiguration = null;
+let aiAvailable = false;
+
+async function startIntelligentMode() {
+    // Hide traditional wizard UI
+    document.getElementById('step-entry').style.display = 'none';
+    document.getElementById('dynamicSteps').style.display = 'none';
+    document.querySelector('.wizard-actions').style.display = 'none';
+    document.getElementById('stepIndicator').style.display = 'none';
+    document.getElementById('draftBanner').style.display = 'none';
+    document.getElementById('btnSaveDraft').style.display = 'none';
+    
+    // Show chat interface
+    document.getElementById('chatContainer').classList.add('active');
+    document.getElementById('progressBar').style.display = 'block';
+    
+    // Update header
+    document.getElementById('wizardHeaderTitle').innerHTML = '<i class="fas fa-robot"></i> Intelligent Configuration';
+    document.getElementById('wizardHeaderSubtitle').textContent = 'Let AI help you configure your system correctly';
+    
+    // Setup chat
+    setupChatInput();
+    await checkAIAvailability();
+    
+    if (aiAvailable) {
+        startConversation();
+    } else {
+        showAIUnavailableMessage();
+    }
+}
+
+async function checkAIAvailability() {
+    try {
+        const token = localStorage.getItem('token') || localStorage.getItem('jwt');
+        const response = await fetch(`${getApiUrl()}/api/ai/status`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (response.ok) {
+            const status = await response.json();
+            aiAvailable = status.any_available;
+            
+            if (!aiAvailable) {
+                console.warn('No AI services available. API keys need to be configured.');
+            }
+        } else {
+            console.error('Failed to check AI availability');
+            aiAvailable = false;
+        }
+    } catch (error) {
+        console.error('Error checking AI availability:', error);
+        aiAvailable = false;
+    }
+}
+
+function showAIUnavailableMessage() {
+    addBotMessage("⚠️ **AI Services Not Configured**\n\nThe intelligent configuration wizard uses AI to guide you through setup, but no AI API keys are currently configured.\n\n**To enable AI features:**\n1. Go to Dashboard → Settings → AI Configuration\n2. Add at least one API key (OpenAI, Anthropic, or Google)\n3. Save and return here\n\n**Alternative:** You can use the manual configuration wizard by clicking the Back button.", [
+        "Go to dashboard",
+        "Try anyway"
+    ]);
+    
+    document.getElementById('chatInput').placeholder = 'AI not configured - configure in settings first...';
+}
+
+function setupChatInput() {
+    const textarea = document.getElementById('chatInput');
+    const sendBtn = document.getElementById('sendBtn');
+    
+    textarea.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+    
+    textarea.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            sendIntelligentMessage();
+        }
+    });
+    
+    sendBtn.onclick = sendIntelligentMessage;
+}
+
+async function startConversation() {
+    addBotMessage("Hello! I'm your intelligent configuration assistant. I'll help you set up your VeriCase system quickly and correctly.");
+    
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    addBotMessage("Let's start with the basics - just the essential information needed to get you up and running. Once we have the basics configured, your system will be ready to use even before you upload any evidence or PST files.");
+    
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    addBotMessage("After you upload files, the **Refinement Wizard** will intelligently prompt you with more direct and specific questions based on the actual data it sees. The two wizards work together - I handle the initial setup, and the Refinement Wizard fine-tunes everything once it analyzes your evidence.");
+    
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    addBotMessage("Don't worry - you can always come back to this configuration wizard at any time to add more details. But the more we configure upfront, the better your initial analysis will be when you upload files.");
+    
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    addBotMessage("First, let's build your team. Who are the key people involved? You can tell me their names and roles, or I can guide you through it.", [
+        "I'll add team members",
+        "Show me how",
+        "I have a team list ready"
+    ]);
+}
+
+function addBotMessage(text, quickActions = []) {
+    const messagesDiv = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message bot';
+    
+    messageDiv.innerHTML = `
+        <div class="message-avatar">
+            <i class="fas fa-robot"></i>
+        </div>
+        <div class="message-content">
+            ${formatChatMessage(text)}
+            ${quickActions.length > 0 ? `
+                <div class="quick-actions">
+                    ${quickActions.map(action => `
+                        <button class="quick-action-btn" onclick="handleIntelligentQuickAction('${escapeHtml(action)}')">${escapeHtml(action)}</button>
+                    `).join('')}
+                </div>
+            ` : ''}
+        </div>
+    `;
+    
+    messagesDiv.appendChild(messageDiv);
+    scrollChatToBottom();
+}
+
+function addUserMessage(text) {
+    const messagesDiv = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message user';
+    
+    messageDiv.innerHTML = `
+        <div class="message-avatar">
+            <i class="fas fa-user"></i>
+        </div>
+        <div class="message-content">${escapeHtml(text)}</div>
+    `;
+    
+    messagesDiv.appendChild(messageDiv);
+    scrollChatToBottom();
+}
+
+function showTyping() {
+    const messagesDiv = document.getElementById('chatMessages');
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'message bot';
+    typingDiv.id = 'typingIndicator';
+    
+    typingDiv.innerHTML = `
+        <div class="message-avatar">
+            <i class="fas fa-robot"></i>
+        </div>
+        <div class="message-content">
+            <div class="typing-indicator">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        </div>
+    `;
+    
+    messagesDiv.appendChild(typingDiv);
+    scrollChatToBottom();
+}
+
+function hideTyping() {
+    const typing = document.getElementById('typingIndicator');
+    if (typing) typing.remove();
+}
+
+async function sendIntelligentMessage() {
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    // Warn if AI is not available but let them try
+    if (!aiAvailable) {
+        addBotMessage("⚠️ AI services are not configured. Please add API keys in Dashboard → Settings → AI Configuration first.");
+        return;
+    }
+    
+    // Disable input while processing
+    input.disabled = true;
+    document.getElementById('sendBtn').disabled = true;
+    
+    // Add user message
+    addUserMessage(message);
+    conversationHistory.push({ role: 'user', content: message });
+    input.value = '';
+    input.style.height = 'auto';
+    
+    // Show typing indicator
+    showTyping();
+    
+    try {
+        const token = localStorage.getItem('token') || localStorage.getItem('jwt');
+        const response = await fetch(`${getApiUrl()}/api/ai/intelligent-config`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                message: message,
+                conversation_history: conversationHistory,
+                current_step: intelligentCurrentStep,
+                configuration_data: intelligentConfigData
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to get AI response');
+        }
+
+        const data = await response.json();
+        
+        hideTyping();
+        
+        // Update configuration data
+        if (data.configuration_data) {
+            intelligentConfigData = { ...intelligentConfigData, ...data.configuration_data };
+        }
+        
+        // Update current step
+        if (data.next_step) {
+            intelligentCurrentStep = data.next_step;
+        }
+        
+        // Update progress
+        if (data.progress !== undefined) {
+            updateIntelligentProgress(data.progress);
+        }
+        
+        // Add bot response
+        addBotMessage(data.response, data.quick_actions || []);
+        
+        // If configuration is complete, capture final IDs and show summary
+        if (data.configuration_complete) {
+            intelligentFinalConfiguration = data.final_configuration || null;
+            storeIntelligentProfileContext(intelligentFinalConfiguration);
+            await showIntelligentConfigurationSummary(data.final_configuration);
+        }
+        
+    } catch (error) {
+        hideTyping();
+        console.error('Error:', error);
+        addBotMessage("I'm sorry, I encountered an error. Could you please try rephrasing your message?");
+    } finally {
+        input.disabled = false;
+        document.getElementById('sendBtn').disabled = false;
+        input.focus();
+    }
+}
+
+function handleIntelligentQuickAction(action) {
+    // Handle AI unavailable actions
+    if (action === "Go to dashboard") {
+        storeIntelligentProfileContext(intelligentFinalConfiguration);
+        let navigateUrl = 'dashboard.html';
+        if (intelligentFinalConfiguration) {
+            if (intelligentFinalConfiguration.project_id) {
+                navigateUrl = `dashboard.html?projectId=${intelligentFinalConfiguration.project_id}`;
+                localStorage.setItem('profileType', 'project');
+            } else if (intelligentFinalConfiguration.case_id) {
+                navigateUrl = `dashboard.html?caseId=${intelligentFinalConfiguration.case_id}`;
+                localStorage.setItem('profileType', 'case');
+            }
+        }
+        window.location.href = navigateUrl;
+        return;
+    }
+    
+    if (action === "Try anyway") {
+        // User wants to try even without AI configured
+        document.getElementById('chatInput').placeholder = 'Type your message...';
+        aiAvailable = true; // Let them try
+        return;
+    }
+    
+    if (action === "Review setup") {
+        let review = "**Current Configuration Summary:**\n\n";
+        if (intelligentConfigData.team_members && intelligentConfigData.team_members.length > 0) {
+            review += `**Team Members (${intelligentConfigData.team_members.length}):**\n`;
+            intelligentConfigData.team_members.forEach((member, idx) => {
+                review += `${idx + 1}. ${member.name || 'Unknown'}`;
+                if (member.role) review += ` - ${member.role}`;
+                if (member.email) review += ` (${member.email})`;
+                review += "\n";
+            });
+            review += "\n";
+        }
+        if (intelligentConfigData.project_name || intelligentConfigData.case_name) {
+            review += `**Project/Case:** ${intelligentConfigData.project_name || intelligentConfigData.case_name}\n`;
+        }
+        if (intelligentConfigData.project_code) {
+            review += `**Project Code:** ${intelligentConfigData.project_code}\n`;
+        }
+        if (intelligentConfigData.case_number) {
+            review += `**Case Number:** ${intelligentConfigData.case_number}\n`;
+        }
+        review += "\n";
+        if (intelligentConfigData.keywords && intelligentConfigData.keywords.length > 0) {
+            review += `**Keywords:** ${intelligentConfigData.keywords.join(', ')}\n\n`;
+        }
+        review += "Would you like to continue configuring, or go to the dashboard?";
+        addBotMessage(review, [
+            "Continue configuration",
+            "Go to dashboard"
+        ]);
+        return;
+    }
+    
+    // Default: send as message
+    document.getElementById('chatInput').value = action;
+    sendIntelligentMessage();
+}
+
+function updateIntelligentProgress(percentage) {
+    document.getElementById('progressFill').style.width = percentage + '%';
+}
+
+function storeIntelligentProfileContext(config) {
+    if (!config) return;
+    
+    if (config.project_id) {
+        localStorage.setItem('profileType', 'project');
+        localStorage.setItem('currentProjectId', config.project_id);
+        try {
+            localStorage.setItem('projectId', config.project_id);
+        } catch (e) {}
+    } else if (config.case_id) {
+        localStorage.setItem('profileType', 'case');
+        localStorage.setItem('currentCaseId', config.case_id);
+        try {
+            localStorage.setItem('caseId', config.case_id);
+        } catch (e) {}
+    }
+}
+
+async function showIntelligentConfigurationSummary(config) {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    let summary = "Perfect! I've configured the basics for your system:\n\n";
+    
+    if (config.team_members && config.team_members.length > 0) {
+        summary += `✓ **Team Members:** ${config.team_members.length} members added\n`;
+    }
+    
+    if (config.project_name || config.case_name) {
+        summary += `✓ **Project/Case:** ${config.project_name || config.case_name}\n`;
+    }
+    
+    if (config.project_code) {
+        summary += `✓ **Project Code:** ${config.project_code}\n`;
+    }
+    
+    if (config.case_number) {
+        summary += `✓ **Case Number:** ${config.case_number}\n`;
+    }
+    
+    if (config.keywords && config.keywords.length > 0) {
+        summary += `✓ **Keywords:** ${config.keywords.join(', ')}\n`;
+    }
+    
+    summary += "\n**Your system is ready to use!**\n\n";
+    summary += "Head to the dashboard to upload evidence, view correspondence, and access all features. Your configuration will work immediately with the basics we've set up.\n\n";
+    summary += "**What happens next:**\n";
+    summary += "• After you upload files, the **Refinement Wizard** will analyze your actual evidence\n";
+    summary += "• It will intelligently prompt you with direct, specific questions based on what it finds\n";
+    summary += "• For example: \"I found emails mentioning 'variation order #123' - is this a key document?\"\n";
+    summary += "• The two wizards work together - I handle initial setup, Refinement Wizard fine-tunes with real data\n\n";
+    summary += "**Benefits of configuring more now:**\n";
+    summary += "• Better initial analysis and categorization from the first upload\n";
+    summary += "• More accurate keyword matching and email threading from the start\n";
+    summary += "• Improved relationship mapping between team members\n";
+    summary += "• Faster evidence processing with fewer corrections needed\n";
+    summary += "• Example: If we configure contract types (FIDIC, JCT) now, emails will be categorized correctly immediately\n\n";
+    summary += "**Remember:** You can always come back to this configuration wizard at any time to add more details.\n\n";
+    summary += "**What would you like to do?**\n";
+    summary += "1. Continue with more configuration now (recommended for best initial results)\n";
+    summary += "2. Go to the project dashboard (from there you can upload evidence, view reports, and more)\n";
+    summary += "3. Review what we've set up";
+    
+    addBotMessage(summary, [
+        "Continue configuration",
+        "Go to dashboard",
+        "Review setup"
+    ]);
+}
+
+function formatChatMessage(text) {
+    // Convert markdown-style formatting to HTML
+    return escapeHtml(text)
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+}
+
+function scrollChatToBottom() {
+    const messagesDiv = document.getElementById('chatMessages');
+    if (messagesDiv) {
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+}
