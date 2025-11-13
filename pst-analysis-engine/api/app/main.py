@@ -187,7 +187,8 @@ if origins:
 
 @app.get("/", include_in_schema=False)
 def redirect_to_ui():
-    return RedirectResponse(url="/ui-direct/login.html")
+    # TEMPORARY: Skip login until admin user creation is fixed
+    return RedirectResponse(url="/ui-direct/wizard.html")
 
 @app.get("/ui-direct/{file_path:path}")
 async def serve_ui_direct(file_path: str):
