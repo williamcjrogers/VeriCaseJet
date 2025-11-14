@@ -1376,30 +1376,23 @@ async function submitWizard() {
                 ? keywordsData.contractTypeCustom
                 : keywordsData.contractType;
 
+            // Match the ProjectCreate schema from simple_cases.py
             requestData = {
-                profile_type: 'project',
-                project_name: identification.projectName,
-                project_code: identification.projectCode,
-                contract_type: normalizedContractType,
-                contractType: normalizedContractType,
-                company_name: identification.companyName || stakeholdersData.companyName || 'My Company',
-                details: {
-                    projectCode: identification.projectCode,
-                    projectName: identification.projectName,
-                    description: identification.description || '',
-                    startDate: identification.startDate || null,
-                    completionDate: identification.completionDate || null
-                },
-                stakeholders: {
-                    contractType: normalizedContractType,
-                    stakeholders: stakeholdersData.stakeholders || [],
-                    keywords: stakeholdersData.keywords || []
-                },
-                keywords: stakeholdersData.keywords || [],
-                metadata: {
-                    startDate: identification.startDate || null,
-                    completionDate: identification.completionDate || null
-                }
+                project_name: identification.projectName || 'Untitled Project',
+                project_code: identification.projectCode || `PROJ-${Date.now()}`,
+                start_date: identification.startDate || null,
+                completion_date: identification.completionDate || null,
+                contract_type: normalizedContractType || null,
+                stakeholders: (stakeholdersData.stakeholders || []).map(s => ({
+                    role: s.role || '',
+                    name: s.name || '',
+                    email: s.email || null,
+                    organization: s.name || null
+                })),
+                keywords: (stakeholdersData.keywords || []).map(k => ({
+                    name: k.name || '',
+                    variations: k.variations || null
+                }))
             };
         } else {
             endpoint = '/api/cases';
@@ -1415,33 +1408,33 @@ async function submitWizard() {
                 ? identification.caseStatusCustom
                 : identification.caseStatus;
 
+            // Match the CaseCreate schema from simple_cases.py
             requestData = {
-                profile_type: 'case',
-                case_name: identification.caseName,
+                case_name: identification.caseName || 'Untitled Case',
                 case_id: identification.caseId || null,
-                case_status: normalizedCaseStatus,
-                contractType: normalizedResolutionRoute,
-                contract_type: normalizedResolutionRoute,
-                company_name: identification.client || 'My Company',
-                details: {
-                    projectCode: identification.caseId || null,
-                    projectName: identification.caseName,
-                    description: identification.description || ''
-                },
-                stakeholders: {
-                    contractType: normalizedResolutionRoute,
-                    claimant: identification.claimant || null,
-                    defendant: identification.defendant || null,
-                    client: identification.client || null
-                },
-                legal_team: legalTeamData.legalTeam || [],
-                heads_of_claim: headsKeywordsData.headsOfClaim || [],
-                keywords: headsKeywordsData.keywords || [],
-                deadlines: deadlinesData.deadlines || [],
-                metadata: {
-                    deadlines: deadlinesData.deadlines || [],
-                    legalTeam: legalTeamData.legalTeam || []
-                }
+                resolution_route: normalizedResolutionRoute || 'TBC',
+                claimant: identification.claimant || null,
+                defendant: identification.defendant || null,
+                case_status: normalizedCaseStatus || 'discovery',
+                client: identification.client || null,
+                legal_team: (legalTeamData.legalTeam || []).map(t => ({
+                    role: t.role || '',
+                    name: t.name || ''
+                })),
+                heads_of_claim: (headsKeywordsData.headsOfClaim || []).map(h => ({
+                    head: h.head || '',
+                    status: h.status || 'Discovery',
+                    actions: h.actions || null
+                })),
+                keywords: (headsKeywordsData.keywords || []).map(k => ({
+                    name: k.name || '',
+                    variations: k.variations || null
+                })),
+                deadlines: (deadlinesData.deadlines || []).map(d => ({
+                    task: d.task || '',
+                    description: d.description || null,
+                    date: d.date || null
+                }))
             };
         }
         
