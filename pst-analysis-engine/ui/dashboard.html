@@ -999,7 +999,8 @@
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
                 return `${window.location.protocol}//localhost:8010`;
             }
-            return process.env.REACT_APP_API_URL || window.location.origin || '';
+            // For production, use the same origin (assuming API is hosted on same domain)
+            return window.location.origin;
         };
         const apiUrl = getApiUrl();
         
