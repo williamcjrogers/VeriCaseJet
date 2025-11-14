@@ -1012,10 +1012,13 @@ async def _upload_file_to_storage(file: UploadFile, s3_key: str, content_type: s
     size = file.file.tell()
     file.file.seek(0)
     
+    # Use S3_BUCKET for AWS compatibility
+    bucket = settings.S3_BUCKET or settings.MINIO_BUCKET
+    
     await asyncio.to_thread(
         s3().upload_fileobj,
         file.file,
-        settings.MINIO_BUCKET,
+        bucket,
         s3_key,
         ExtraArgs={"ContentType": content_type}
     )
@@ -1069,12 +1072,15 @@ async def upload_evidence(
     size = await _upload_file_to_storage(file, s3_key, content_type)
 
     # Record document metadata
+    # Use S3_BUCKET for AWS compatibility
+    bucket = settings.S3_BUCKET or settings.MINIO_BUCKET
+    
     document = Document(
         filename=file.filename,
         path=f"{profileType}/{profileId}",
         content_type=content_type,
         size=size,
-        bucket=settings.MINIO_BUCKET,
+        bucket=bucket,
         s3_key=s3_key,
         status=DocStatus.NEW,
         owner_user_id=user.id,
