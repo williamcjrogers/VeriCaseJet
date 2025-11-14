@@ -18,9 +18,11 @@ run:
     - name: USE_AWS_SERVICES
       value: "true"
     - name: AWS_STORAGE_BUCKET_NAME
-      value: "vericase-data"
+      value: "vericase-docs-prod-526015377510"
+    - name: S3_BUCKET
+      value: "vericase-docs-prod-526015377510"
     - name: S3_BUCKET_NAME
-      value: "vericase-data"
+      value: "vericase-docs-prod-526015377510"
     - name: AWS_S3_REGION_NAME
       value: "eu-west-2"
     - name: AWS_REGION
@@ -51,7 +53,7 @@ run:
     - name: S3_SECRET_KEY
       value: "7hT7ySs/GL+rl54vdbN3lnCtfgKb+vcouoJAkjH/"
     - name: MINIO_BUCKET
-      value: "vericase-docs"
+      value: "vericase-docs-prod-526015377510"
     - name: REDIS_URL
       value: "redis://clustercfg.vericase-redis.dbbgbx.euw2.cache.amazonaws.com:6379/0"
     # OpenSearch configuration
