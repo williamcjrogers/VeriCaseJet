@@ -1790,27 +1790,14 @@ function setupChatInput() {
 }
 
 async function startConversation() {
-    addBotMessage("Hello! I'm your intelligent configuration assistant. I'll help you set up your VeriCase system quickly and correctly.");
-    
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    addBotMessage("Let's start with the basics - just the essential information needed to get you up and running. Once we have the basics configured, your system will be ready to use even before you upload any evidence or PST files.");
-    
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    addBotMessage("After you upload files, the **Refinement Wizard** will intelligently prompt you with more direct and specific questions based on the actual data it sees. The two wizards work together - I handle the initial setup, and the Refinement Wizard fine-tunes everything once it analyzes your evidence.");
-    
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    addBotMessage("Don't worry - you can always come back to this configuration wizard at any time to add more details. But the more we configure upfront, the better your initial analysis will be when you upload files.");
-    
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    addBotMessage("First, let's build your team. Who are the key people involved? You can tell me their names and roles, or I can guide you through it.", [
-        "I'll add team members",
-        "Show me how",
-        "I have a team list ready"
-    ]);
+    addBotMessage(
+        "Welcome to VeriCase! I'll help you get set up quickly. Choose what you'd like to configure first:",
+        [
+            "Configure Team",
+            "Set up Project",
+            "Set up Case"
+        ]
+    );
 }
 
 function addBotMessage(text, quickActions = []) {
@@ -1998,6 +1985,25 @@ function handleIntelligentQuickAction(action) {
         // User wants to try even without AI configured
         document.getElementById('chatInput').placeholder = 'Type your message...';
         aiAvailable = true; // Let them try
+        return;
+    }
+    
+    // Handle new friendly quick actions
+    if (action === "Configure Team") {
+        document.getElementById('chatInput').value = "I want to add my team members";
+        sendIntelligentMessage();
+        return;
+    }
+    
+    if (action === "Set up Project") {
+        document.getElementById('chatInput').value = "I need to set up a project";
+        sendIntelligentMessage();
+        return;
+    }
+    
+    if (action === "Set up Case") {
+        document.getElementById('chatInput').value = "I need to set up a case";
+        sendIntelligentMessage();
         return;
     }
     

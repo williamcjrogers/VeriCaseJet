@@ -493,8 +493,17 @@ async def get_email_thread(
     else:
         raise HTTPException(400, "Email has no case_id or project_id")
 
-    # Find by message-id threading
-    if email.message_id:
+    # PRIORITY 1: Use thread_id if available (USP feature!)
+    if hasattr(email, 'thread_id') and email.thread_id:
+        thread_emails = db.query(EmailMessage).filter(
+            and_(
+                entity_filter,
+                EmailMessage.thread_id == email.thread_id
+            )
+        ).order_by(EmailMessage.date_sent).all()
+    
+    # FALLBACK 1: Find by message-id threading
+    if not thread_emails and email.message_id:
         # Find all emails with same conversation
         thread_emails = db.query(EmailMessage).filter(
             and_(
@@ -507,7 +516,7 @@ async def get_email_thread(
             )
         ).order_by(EmailMessage.date_sent).all()
 
-    # Fall back to conversation index
+    # FALLBACK 2: Use conversation index
     if not thread_emails and email.conversation_index:
         thread_emails = db.query(EmailMessage).filter(
             and_(
@@ -525,14 +534,64 @@ async def get_email_thread(
             'sender_name': e.sender_name,
             'date_sent': e.date_sent.isoformat() if e.date_sent else None,
             'has_attachments': e.has_attachments,
-            'is_current': str(e.id) == email_id
+            'is_current': str(e.id) == email_id,
+            'thread_id': getattr(e, 'thread_id', None)
         }
         for e in thread_emails
     ]
     
     return {
         'thread_size': len(thread_summaries),
+        'thread_id': getattr(email, 'thread_id', None),
         'emails': thread_summaries
+    }
+
+
+@router.get("/attachments/{attachment_id}/ocr-text")
+async def get_attachment_ocr_text(
+    attachment_id: str,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get OCR extracted text for an attachment
+    
+    Returns:
+    - extracted_text: The OCR'd text content
+    - has_been_ocred: Whether OCR has completed
+    - ocr_status: Processing status
+    """
+    # Try to find as EmailAttachment first
+    email_attachment = db.query(EmailAttachment).filter_by(id=attachment_id).first()
+    
+    if email_attachment:
+        return {
+            'attachment_id': str(email_attachment.id),
+            'filename': email_attachment.filename,
+            'has_been_ocred': email_attachment.has_been_ocred,
+            'extracted_text': email_attachment.extracted_text,
+            'ocr_status': 'completed' if email_attachment.has_been_ocred else 'processing',
+            'file_size': email_attachment.file_size,
+            'content_type': email_attachment.content_type
+        }
+    
+    # Fallback: try as Document (for backward compatibility)
+    document = db.query(Document).filter_by(id=attachment_id).first()
+    if not document:
+        raise HTTPException(404, "Attachment not found")
+    
+    # Check if it's an email attachment
+    is_attachment = document.meta and document.meta.get('is_email_attachment')
+    
+    return {
+        'attachment_id': str(document.id),
+        'filename': document.filename,
+        'has_been_ocred': document.status == DocStatus.READY,
+        'extracted_text': document.text_excerpt,
+        'ocr_status': 'completed' if document.status == DocStatus.READY else 'processing',
+        'file_size': document.size,
+        'content_type': document.content_type,
+        'is_email_attachment': is_attachment
     }
 
 
@@ -1258,4 +1317,3 @@ async def get_unified_keywords(
         }
         for k in keywords
     ]
-

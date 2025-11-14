@@ -14,6 +14,7 @@ Features:
 import pypff  # type: ignore  # pypff is installed in Docker container
 import hashlib
 import json
+import uuid
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 import tempfile
@@ -151,16 +152,16 @@ class UltimatePSTProcessor:
             # Process all folders recursively
             self._process_folder(root, pst_file_record, document, case_id, project_id, company_id, stats)
             
-            # Build thread relationships after all emails are extracted
-            # TODO: Update threading to work with EmailMessage model
-            # logger.info("Building email thread relationships...")
-            # self._build_thread_relationships(case_id, project_id)
+            # Build thread relationships after all emails are extracted (CRITICAL - USP FEATURE!)
+            logger.info("Building email thread relationships...")
+            self._build_thread_relationships(case_id, project_id)
             
-            # Count unique threads (threads_map values are dicts with thread_id)
+            # Count unique threads from the built thread_groups
             unique_threads = set()
             for thread_info in self.threads_map.values():
-                if isinstance(thread_info, dict) and 'thread_id' in thread_info:
-                    unique_threads.add(thread_info['thread_id'])
+                email_msg = thread_info.get('email_message')
+                if email_msg and hasattr(email_msg, 'thread_id') and email_msg.thread_id:
+                    unique_threads.add(email_msg.thread_id)
             stats['threads_identified'] = len(unique_threads)
             
             # Calculate stats
@@ -510,13 +511,78 @@ class UltimatePSTProcessor:
         
         return email_message
     
+    def _is_signature_image(self, filename: str, size: int, content_id: Optional[str], content_type: Optional[str]) -> bool:
+        """
+        Intelligent detection of signature logos and email disclaimers
+        
+        Filters out:
+        - Email signature logos (logo.png, signature.jpg, etc.)
+        - Embedded disclaimer images
+        - Outlook auto-generated images (image001.png, etc.)
+        - Small inline images under 50KB
+        
+        Returns True if this is a signature/disclaimer image that should be filtered
+        """
+        filename_lower = filename.lower() if filename else ''
+        
+        # Pattern-based detection for common signature image names
+        signature_patterns = [
+            r'^logo\d*\.(?:png|jpg|jpeg|gif|bmp)$',           # logo.png, logo1.png
+            r'^signature\d*\.(?:png|jpg|jpeg|gif|bmp)$',      # signature.jpg
+            r'^image\d{3,}\.(?:png|jpg|jpeg|gif|bmp)$',       # image001.png (Outlook default)
+            r'^~wrd\d+\.(?:png|jpg|jpeg|gif|bmp)$',           # ~WRD0001.png (Word embedded)
+            r'^banner\.(?:png|jpg|jpeg|gif|bmp)$',            # banner.png
+            r'^icon\.(?:png|jpg|jpeg|gif|bmp)$',              # icon.png
+            r'^header\.(?:png|jpg|jpeg|gif|bmp)$',            # header.png
+            r'^footer\.(?:png|jpg|jpeg|gif|bmp)$',            # footer.png
+            r'^disclaimer\.(?:png|jpg|jpeg|gif|bmp)$',        # disclaimer.png
+            r'^external.*\.(?:png|jpg|jpeg|gif|bmp)$',        # external warning images
+            r'^caution.*\.(?:png|jpg|jpeg|gif|bmp)$',         # caution images
+            r'^warning.*\.(?:png|jpg|jpeg|gif|bmp)$',         # warning images
+        ]
+        
+        for pattern in signature_patterns:
+            if re.match(pattern, filename_lower):
+                logger.debug(f"Filtering signature image (pattern match): {filename}")
+                return True
+        
+        # Size-based filtering: signatures and disclaimers are typically small
+        # Most signature logos are under 50KB
+        if size and size < 50000:  # 50KB threshold
+            # Check if it's an image type
+            if content_type and content_type.startswith('image/'):
+                # If it has a content_id, it's embedded (likely signature)
+                if content_id:
+                    logger.debug(f"Filtering small embedded image: {filename} ({size} bytes)")
+                    return True
+                    
+                # Very small images are usually icons/logos
+                if size < 10000:  # 10KB
+                    logger.debug(f"Filtering very small image: {filename} ({size} bytes)")
+                    return True
+        
+        # Inline images with content_id are usually embedded in email body (signatures)
+        # BUT: Only filter if they're also small (to preserve genuine embedded diagrams)
+        if content_id and size and size < 100000:  # 100KB threshold for cid: images
+            if content_type and content_type.startswith('image/'):
+                logger.debug(f"Filtering inline image: {filename} (cid:{content_id})")
+                return True
+        
+        return False
+    
     def _process_attachments(self, message, pst_file_record, parent_document, case_id, project_id, company_id, stats) -> List[Dict]:
         """
-        Extract and save ONLY the attachments (not the emails themselves)
+        Extract and save ONLY real attachments (FILTERS OUT signature logos and disclaimers)
+        
+        Signature Detection:
+        - Filters signature logos, disclaimers, and embedded images
+        - Preserves whitespace in email (filters don't affect email body)
+        - Only genuine document attachments are saved
         
         Returns list of attachment metadata dicts
         """
         attachments_info = []
+        filtered_signatures = 0
         
         for i in range(message.number_of_attachments):
             try:
@@ -533,6 +599,13 @@ class UltimatePSTProcessor:
                 
                 # Special handling for inline images
                 content_id = self._safe_get_attr(attachment, 'content_id', None)
+                
+                # SIGNATURE FILTERING: Skip signature logos and disclaimers
+                if self._is_signature_image(filename, size, content_id, content_type):
+                    filtered_signatures += 1
+                    logger.debug(f"Skipped signature/disclaimer image: {filename}")
+                    continue  # Skip this attachment - don't save it!
+                
                 is_inline = bool(content_id)
                 
                 # Read attachment data - pypff uses read_buffer method
@@ -603,7 +676,7 @@ class UltimatePSTProcessor:
                     size=size,
                     bucket=settings.S3_BUCKET,
                     s3_key=s3_key,
-                    status=DocStatus.READY,
+                    status=DocStatus.NEW,  # Set to NEW so OCR can process it
                     owner_user_id=getattr(parent_document, 'owner_user_id', None),
                     meta={
                         'is_email_attachment': True,
@@ -621,6 +694,20 @@ class UltimatePSTProcessor:
                 
                 # Store for deduplication
                 self.attachment_hashes[file_hash] = att_doc.id
+                
+                # ASYNC OCR: Queue OCR task immediately (non-blocking)
+                # This allows keyword search in attachments without slowing PST processing
+                try:
+                    from .tasks import celery_app
+                    celery_app.send_task(
+                        'worker_app.worker.ocr_and_index',
+                        args=[str(att_doc.id)],
+                        queue=getattr(settings, 'CELERY_QUEUE', 'vericase')
+                    )
+                    logger.debug(f"Queued OCR task for attachment: {safe_filename}")
+                except Exception as ocr_queue_error:
+                    logger.warning(f"Failed to queue OCR for {safe_filename}: {ocr_queue_error}")
+                    # Don't fail the entire PST processing if OCR queueing fails
                 
                 attachments_info.append({
                     'document_id': str(att_doc.id),
@@ -731,11 +818,124 @@ class UltimatePSTProcessor:
             logger.error(f"Error indexing email to OpenSearch: {e}")
     
     def _build_thread_relationships(self, case_id, project_id):
-        logger.info(
-            "Thread relationship builder is currently disabled for the EmailMessage schema. "
-            "A future update will reintroduce threading once the data model is finalized."
-        )
-        return
+        """
+        Build email thread relationships using multiple threading algorithms
+        
+        Threading hierarchy:
+        1. Message-ID / In-Reply-To / References (RFC 2822 standard)
+        2. Conversation-Index (Outlook proprietary)
+        3. Subject-based grouping (fallback)
+        """
+        logger.info(f"Building thread relationships for case_id={case_id}, project_id={project_id}")
+        
+        if not self.threads_map:
+            logger.info("No emails to thread")
+            return
+        
+        # Step 1: Build thread groups using message IDs
+        thread_groups = {}  # thread_id -> list of email_messages
+        message_id_to_email = {}  # message_id -> email_message
+        
+        # First pass: index all emails by message_id
+        for message_id, thread_info in self.threads_map.items():
+            if not message_id:
+                continue
+            email_message = thread_info.get('email_message')
+            if email_message:
+                message_id_to_email[message_id] = email_message
+        
+        # Second pass: assign thread IDs
+        for message_id, thread_info in self.threads_map.items():
+            email_message = thread_info.get('email_message')
+            if not email_message:
+                continue
+            
+            in_reply_to = thread_info.get('in_reply_to')
+            references = thread_info.get('references')
+            conversation_index = email_message.conversation_index
+            
+            # Try to find existing thread via in_reply_to
+            thread_id = None
+            if in_reply_to and in_reply_to in message_id_to_email:
+                parent_email = message_id_to_email[in_reply_to]
+                if hasattr(parent_email, 'thread_id') and parent_email.thread_id:
+                    thread_id = parent_email.thread_id
+            
+            # Try references (parse space or comma separated list)
+            if not thread_id and references:
+                ref_list = []
+                # Handle both space and comma separated
+                if ',' in references:
+                    ref_list = [r.strip().strip('<>') for r in references.split(',')]
+                else:
+                    ref_list = [r.strip().strip('<>') for r in references.split()]
+                
+                for ref_id in ref_list:
+                    if ref_id in message_id_to_email:
+                        parent_email = message_id_to_email[ref_id]
+                        if hasattr(parent_email, 'thread_id') and parent_email.thread_id:
+                            thread_id = parent_email.thread_id
+                            break
+            
+            # Try conversation index (Outlook threading)
+            if not thread_id and conversation_index:
+                # Look for other emails with same conversation index
+                for other_msg_id, other_info in self.threads_map.items():
+                    other_email = other_info.get('email_message')
+                    if (other_email and 
+                        other_email != email_message and
+                        other_email.conversation_index == conversation_index and
+                        hasattr(other_email, 'thread_id') and 
+                        other_email.thread_id):
+                        thread_id = other_email.thread_id
+                        break
+            
+            # Last resort: subject-based grouping (normalized subject)
+            if not thread_id:
+                subject = thread_info.get('subject', '')
+                if subject:
+                    # Normalize subject (remove Re:, Fwd:, etc.)
+                    normalized_subject = re.sub(r'^(re|fw|fwd):\s*', '', subject.lower().strip())
+                    # Look for other emails with same normalized subject
+                    for other_msg_id, other_info in self.threads_map.items():
+                        other_email = other_info.get('email_message')
+                        other_subject = other_info.get('subject', '')
+                        if (other_email and 
+                            other_email != email_message and
+                            other_subject):
+                            other_normalized = re.sub(r'^(re|fw|fwd):\s*', '', other_subject.lower().strip())
+                            if (normalized_subject == other_normalized and
+                                hasattr(other_email, 'thread_id') and
+                                other_email.thread_id):
+                                thread_id = other_email.thread_id
+                                break
+            
+            # Create new thread if none found
+            if not thread_id:
+                thread_id = f"thread_{len(thread_groups) + 1}_{uuid.uuid4().hex[:8]}"
+            
+            # Assign thread_id to email
+            email_message.thread_id = thread_id
+            
+            # Add to thread group
+            if thread_id not in thread_groups:
+                thread_groups[thread_id] = []
+            thread_groups[thread_id].append(email_message)
+        
+        # Update thread metadata in database (batch update)
+        try:
+            self.db.flush()
+            logger.info(f"Created {len(thread_groups)} unique threads")
+            
+            # Log thread statistics
+            thread_sizes = [len(emails) for emails in thread_groups.values()]
+            if thread_sizes:
+                avg_size = sum(thread_sizes) / len(thread_sizes)
+                max_size = max(thread_sizes)
+                logger.info(f"Thread stats: avg={avg_size:.1f} emails/thread, max={max_size} emails/thread")
+        except Exception as e:
+            logger.error(f"Error updating thread relationships: {e}")
+            self.db.rollback()
     
     def _extract_email_from_headers(self, message):
         """
