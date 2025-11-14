@@ -673,8 +673,8 @@
         
         // Get case/project ID from URL - check both caseId and case_id parameters
         const urlParams = new URLSearchParams(window.location.search);
-        caseId = urlParams.get('caseId') || urlParams.get('case_id');
-        projectId = urlParams.get('projectId') || urlParams.get('project_id');
+        let caseId = urlParams.get('caseId') || urlParams.get('case_id');
+        let projectId = urlParams.get('projectId') || urlParams.get('project_id');
         
         // For backwards compatibility, if neither is set, try generic ID
         if (!caseId && !projectId) {
@@ -3240,9 +3240,7 @@
 
         // ==================== AI CHAT FUNCTIONS ====================
         
-        // Global variables for AI chat
-        let projectId = null;
-        let caseId = null;
+        // Note: projectId and caseId are already declared at the top of the script
 
         /**
          * Toggle AI Chat Interface
