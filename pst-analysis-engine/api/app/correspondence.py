@@ -792,7 +792,7 @@ async def create_project(
 ):
     """Create new project"""
     
-    project_id = str(uuid.uuid4())
+    project_id = uuid.uuid4()  # Fixed: Use UUID object, not string
     
     # Generate default values if not provided
     project_name = request.project_name or f"Project {datetime.now().strftime('%Y%m%d-%H%M')}"
@@ -871,7 +871,7 @@ async def create_project(
         message += f'. Auto-generated: {", ".join(auto_generated)}'
     
     return {
-        'id': project_id,
+        'id': str(project_id),  # Convert UUID to string for JSON response
         'project_name': project_name,
         'project_code': project_code,
         'success': True,
