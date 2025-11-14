@@ -480,6 +480,7 @@ class EmailMessage(Base):
     in_reply_to = Column(String(512), nullable=True)
     email_references = Column(Text, nullable=True)  # For threading (renamed from references)
     conversation_index = Column(String(1024), nullable=True)
+    thread_id = Column(String(100), nullable=True, index=True)  # Computed thread ID for grouping
     
     # PST forensic data
     pst_message_offset = Column(Integer, nullable=True)  # Position in PST file

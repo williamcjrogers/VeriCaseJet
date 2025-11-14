@@ -1809,7 +1809,6 @@
         // ===========================
         // Global Configuration
         // ===========================
-        const API_BASE = window.location.origin;
 
         function onGridReady(params) {
             gridApi = params.api;
@@ -2424,50 +2423,355 @@
             // Show modal
             modal.style.display = 'flex';
             previewTitle.textContent = `Preview: ${fileName}`;
-            previewContent.innerHTML = '<div style="text-align: center; padding: 50px;">Loading preview...</div>';
+            previewContent.innerHTML = '<div style="text-align: center; padding: 50px;"><div class="spinner"></div><p style="margin-top: 20px;">Loading preview and OCR text...</p></div>';
             
             try {
-                const { url, content_type } = await getSignedUrlForDocument(documentId);
+                // Load both the file URL and OCR text in parallel
+                const [fileData, ocrData] = await Promise.all([
+                    getSignedUrlForDocument(documentId),
+                    fetch(`${API_BASE}/api/correspondence/attachments/${documentId}/ocr-text`, {
+                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('jwt') || ''}` }
+                    }).then(r => r.ok ? r.json() : null).catch(() => null)
+                ]);
+                
+                const { url, content_type } = fileData;
                 const lowerName = (fileName || '').toLowerCase();
                 const isImage = /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/.test(lowerName) || (content_type || '').startsWith('image/');
                 const isPdf = /\.pdf$/.test(lowerName) || content_type === 'application/pdf';
+                
+                // Build preview HTML with OCR panel
+                let previewHTML = '<div style="display: flex; height: 100%; gap: 20px;">';
+                
+                // Left panel: Document preview
+                previewHTML += '<div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">';
+                
                 if (isImage) {
-                    previewContent.innerHTML = `<div style="text-align:center;"><img src="${url}" style="max-width:100%;max-height:100%;object-fit:contain;"/></div>`;
+                    previewHTML += `
+                        <div style="flex: 1; display: flex; align-items: center; justify-content: center; background: #f3f4f6; border-radius: 8px; overflow: hidden;">
+                            <img src="${url}" style="max-width: 100%; max-height: 100%; object-fit: contain;"/>
+                        </div>`;
                 } else if (isPdf) {
-                    previewContent.innerHTML = `
-                        <div style="text-align: center; padding: 50px;">
+                    previewHTML += `
+                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f9fafb; border-radius: 8px; padding: 40px;">
                             <div style="font-size: 4rem; margin-bottom: 20px;">📄</div>
-                            <h3 style="color: #1f2937; margin-bottom: 10px;">${fileName || 'Document'}</h3>
-                            <p style="color: #6b7280; margin-bottom: 20px;">PDF preview will open in new tab.</p>
-                            <button onclick="window.open('${url}', '_blank')" 
-                                    style="background: #3b82f6; color: white; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer;">
-                                📖 Open PDF
+                            <h3 style="color: #1f2937; margin-bottom: 10px; text-align: center;">${fileName || 'Document'}</h3>
+                            <p style="color: #6b7280; margin-bottom: 20px; text-align: center;">Click below to open PDF in new tab</p>
+                            <button onclick="window.open('${url}', '_blank')"
+                                    style="background: #3b82f6; color: white; border: none; padding: 12px 24px; 
+                                           border-radius: 6px; cursor: pointer; font-weight: 500;">
+                                <i class="fas fa-external-link-alt"></i> Open PDF
                             </button>
                         </div>`;
                 } else {
-                    previewContent.innerHTML = `
-                        <div style="text-align:center; padding: 50px;">
-                            <div style="font-size: 3rem;">📎</div>
-                            <p style="color:#6b7280; margin: 10px 0 20px;">Preview not available for this file type.</p>
+                    previewHTML += `
+                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f9fafb; border-radius: 8px; padding: 40px;">
+                            <div style="font-size: 3rem; margin-bottom: 20px;">📎</div>
+                            <p style="color: #6b7280; margin-bottom: 20px;">Preview not available for this file type</p>
                             <button onclick="window.open('${url}', '_blank')" 
-                                    style="background:#10b981;color:#fff;border:none;padding:10px 24px;border-radius:6px;cursor:pointer;">
-                                ⬇ Download
+                                    style="background: #10b981; color: white; border: none; padding: 12px 24px;
+                                           border-radius: 6px; cursor: pointer; font-weight: 500;">
+                                <i class="fas fa-download"></i> Download File
                             </button>
                         </div>`;
                 }
+                
+                previewHTML += '</div>';
+                
+                // Right panel: OCR Text (if available)
+                if (ocrData && (ocrData.extracted_text || ocrData.ocr_status === 'processing')) {
+                    previewHTML += '<div style="flex: 1; display: flex; flex-direction: column; border-left: 2px solid #e5e7eb; padding-left: 20px; min-width: 0;">';
+                    previewHTML += '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">';
+                    previewHTML += '<h4 style="margin: 0; color: #1f2937; font-size: 1rem;"><i class="fas fa-font"></i> Extracted Text (OCR)</h4>';
+                    
+                    if (ocrData.extracted_text) {
+                        previewHTML += `
+                            <button onclick="copyOCRText()" title="Copy text to clipboard"
+                                    style="background: #10b981; color: white; border: none; padding: 6px 12px;
+                                           border-radius: 6px; cursor: pointer; font-size: 0.875rem; font-weight: 500;">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>`;
+                    }
+                    previewHTML += '</div>';
+                    
+                    if (ocrData.ocr_status === 'processing') {
+                        previewHTML += `
+                            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fef3c7; border-radius: 8px; padding: 20px;">
+                                <div class="spinner" style="width: 32px; height: 32px; border-width: 3px;"></div>
+                                <p style="margin-top: 16px; color: #92400e; font-weight: 500;">OCR Processing...</p>
+                                <p style="margin-top: 8px; color: #78350f; font-size: 0.875rem;">Text extraction in progress. Refresh to see results.</p>
+                            </div>`;
+                    } else if (ocrData.extracted_text) {
+                        // Highlight keywords in OCR text
+                        let highlightedText = ocrData.extracted_text;
+                        
+                        // Get keywords from current case/project (if available)
+                        try {
+                            const keywordsResponse = await fetch(`${API_BASE}/api/unified/${caseId || projectId}/keywords`, {
+                                headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('jwt') || ''}` }
+                            });
+                            if (keywordsResponse.ok) {
+                                const keywords = await keywordsResponse.json();
+                                keywords.forEach(k => {
+                                    const keyword = k.name || k.keyword_name;
+                                    if (keyword) {
+                                        // Escape special regex characters
+                                        const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                        const regex = new RegExp(`\\b${escapedKeyword}\\b`, 'gi');
+                                        highlightedText = highlightedText.replace(regex, match => 
+                                            `<mark style="background: #fef08a; padding: 2px 4px; border-radius: 2px; font-weight: 600;">${match}</mark>`
+                                        );
+                                    }
+                                });
+                            }
+                        } catch (e) {
+                            console.warn('Could not load keywords for highlighting:', e);
+                        }
+                        
+                        previewHTML += `
+                            <div id="ocrTextContent" style="flex: 1; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.875rem; line-height: 1.6; color: #374151; white-space: pre-wrap;">
+                                ${highlightedText}
+                            </div>
+                            <div style="margin-top: 12px; padding: 12px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">
+                                <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8125rem; color: #1e40af;">
+                                    <i class="fas fa-info-circle"></i>
+                                    <span><strong>Keywords highlighted</strong> in yellow. Text extracted using AWS Textract OCR.</span>
+                                </div>
+                            </div>`;
+                    } else {
+                        previewHTML += `
+                            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f9fafb; border-radius: 8px; padding: 20px;">
+                                <i class="fas fa-file-alt" style="font-size: 3rem; color: #9ca3af; margin-bottom: 16px;"></i>
+                                <p style="color: #6b7280; font-size: 0.875rem;">No text extracted</p>
+                                <p style="color: #9ca3af; font-size: 0.75rem; margin-top: 8px;">This file may not contain extractable text</p>
+                            </div>`;
+                    }
+                    
+                    previewHTML += '</div>';
+                }
+                
+                previewHTML += '</div>';
+                previewContent.innerHTML = previewHTML;
+                
             } catch (error) {
                 console.error('Error loading preview:', error);
                 previewContent.innerHTML = `
                     <div style="text-align: center; padding: 50px; color: #ef4444;">
-                        <p>Error loading preview</p>
+                        <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 20px;"></i>
+                        <p style="font-size: 1.125rem; font-weight: 600; margin-bottom: 10px;">Error loading preview</p>
+                        <p style="color: #6b7280; margin-bottom: 20px;">${error.message}</p>
                         <button onclick="downloadCurrentAttachment()" 
-                                style="margin-top: 20px; background: #3b82f6; color: white; border: none; padding: 10px 24px;
-                                       border-radius: 6px; cursor: pointer;">
-                            Try Downloading Instead
+                                style="background: #3b82f6; color: white; border: none; padding: 10px 24px;
+                                       border-radius: 6px; cursor: pointer; font-weight: 500;">
+                            <i class="fas fa-download"></i> Try Downloading Instead
                         </button>
                     </div>
                 `;
             }
+        };
+
+        // Function to close attachment preview
+        window.closeAttachmentPreview = function() {
+            const modal = document.getElementById('attachmentPreviewModal');
+            modal.style.display = 'none';
+            currentAttachment = null;
+        };
+        // Function to copy OCR text to clipboard
+        window.copyOCRText = async function() {
+            const ocrTextElement = document.getElementById('ocrTextContent');
+            if (!ocrTextElement) return;
+            
+            // Get text without HTML tags
+            const text = ocrTextElement.innerText || ocrTextElement.textContent;
+            
+            try {
+                await navigator.clipboard.writeText(text);
+                // Show success feedback
+                const button = event.target.closest('button');
+                const originalHTML = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                button.style.background = '#10b981';
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                    button.style.background = '#10b981';
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy text:', err);
+                alert('Failed to copy text. Please select and copy manually.');
+            }
+        };
+
+        // Function to preview attachment (accepts legacy args but uses document signed URL)
+        window.previewAttachment = async function(evidenceId, attachmentId, fileName) {
+            const modal = document.getElementById('attachmentPreviewModal');
+            const previewContent = document.getElementById('previewContent');
+            const previewTitle = document.getElementById('previewTitle');
+            
+            // Derive a documentId from legacy args (most data passes document_id as attachmentId)
+            const documentId = looksLikeUuid(attachmentId) ? attachmentId : evidenceId;
+
+            // Store current info
+            currentAttachment = { evidenceId: documentId, attachmentId: documentId, fileName };
+            
+            // Show modal
+            modal.style.display = 'flex';
+            previewTitle.textContent = `Preview: ${fileName}`;
+            previewContent.innerHTML = '<div style="text-align: center; padding: 50px;"><div class="spinner"></div><p style="margin-top: 20px; color: #6b7280;">Loading preview and OCR text...</p></div>';
+            
+            try {
+                // Load both the file URL and OCR text in parallel
+                const [fileData, ocrData] = await Promise.all([
+                    getSignedUrlForDocument(documentId),
+                    fetch(`${API_BASE}/api/correspondence/attachments/${documentId}/ocr-text`, {
+                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('jwt') || ''}` }
+                    }).then(r => r.ok ? r.json() : null).catch(() => null)
+                ]);
+                
+                const { url, content_type } = fileData;
+                const lowerName = (fileName || '').toLowerCase();
+                const isImage = /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/.test(lowerName) || (content_type || '').startsWith('image/');
+                const isPdf = /\.pdf$/.test(lowerName) || content_type === 'application/pdf';
+                
+                // Build preview HTML with OCR panel
+                let previewHTML = '<div style="display: flex; height: 100%; gap: 20px;">';
+                
+                // Left panel: Document preview (2/3 width)
+                previewHTML += '<div style="flex: 2; display: flex; flex-direction: column; min-width: 0;">';
+                
+                if (isImage) {
+                    previewHTML += `
+                        <div style="flex: 1; display: flex; align-items: center; justify-content: center; background: #f3f4f6; border-radius: 8px; overflow: hidden;">
+                            <img src="${url}" style="max-width: 100%; max-height: 100%; object-fit: contain;"/>
+                        </div>`;
+                } else if (isPdf) {
+                    previewHTML += `
+                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f9fafb; border-radius: 8px; padding: 40px;">
+                            <div style="font-size: 4rem; margin-bottom: 20px;">📄</div>
+                            <h3 style="color: #1f2937; margin-bottom: 10px; text-align: center;">${fileName || 'Document'}</h3>
+                            <p style="color: #6b7280; margin-bottom: 20px; text-align: center;">PDF viewer opens in new tab</p>
+                            <button onclick="window.open('${url}', '_blank')"
+                                    style="background: #3b82f6; color: white; border: none; padding: 12px 24px; 
+                                           border-radius: 6px; cursor: pointer; font-weight: 500; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);">
+                                <i class="fas fa-external-link-alt"></i> Open PDF
+                            </button>
+                        </div>`;
+                } else {
+                    previewHTML += `
+                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f9fafb; border-radius: 8px; padding: 40px;">
+                            <div style="font-size: 3rem; margin-bottom: 20px;">📎</div>
+                            <p style="color: #6b7280; margin-bottom: 20px; text-align: center;">Preview not available for this file type</p>
+                            <button onclick="window.open('${url}', '_blank')" 
+                                    style="background: #10b981; color: white; border: none; padding: 12px 24px;
+                                           border-radius: 6px; cursor: pointer; font-weight: 500;">
+                                <i class="fas fa-download"></i> Download File
+                            </button>
+                        </div>`;
+                }
+                
+                previewHTML += '</div>';
+                
+                // Right panel: OCR Text (1/3 width, if available)
+                if (ocrData && (ocrData.extracted_text || ocrData.ocr_status === 'processing')) {
+                    previewHTML += '<div style="flex: 1; display: flex; flex-direction: column; border-left: 2px solid #e5e7eb; padding-left: 20px; min-width: 0;">';
+                    previewHTML += '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 10px;">';
+                    previewHTML += '<h4 style="margin: 0; color: #1f2937; font-size: 0.95rem; flex: 1;"><i class="fas fa-scroll" style="color: #17B5A3;"></i> OCR Extracted Text</h4>';
+                    
+                    if (ocrData.extracted_text) {
+                        previewHTML += `
+                            <button onclick="copyOCRText()" title="Copy text to clipboard"
+                                    style="background: #10b981; color: white; border: none; padding: 6px 12px;
+                                           border-radius: 6px; cursor: pointer; font-size: 0.813rem; font-weight: 500; white-space: nowrap;">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>`;
+                    }
+                    previewHTML += '</div>';
+                    
+                    if (ocrData.ocr_status === 'processing') {
+                        previewHTML += `
+                            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fef3c7; border-radius: 8px; padding: 20px;">
+                                <div class="spinner" style="width: 32px; height: 32px; border-width: 3px;"></div>
+                                <p style="margin-top: 16px; color: #92400e; font-weight: 500; text-align: center;">Processing OCR...</p>
+                                <p style="margin-top: 8px; color: #78350f; font-size: 0.875rem; text-align: center;">Text extraction in progress.<br>Refresh preview in a moment.</p>
+                            </div>`;
+                    } else if (ocrData.extracted_text) {
+                        // Highlight keywords in OCR text
+                        let highlightedText = ocrData.extracted_text;
+                        
+                        // Get keywords from current case/project (if available)
+                        try {
+                            const entityId = caseId || projectId;
+                            if (entityId) {
+                                const keywordsResponse = await fetch(`${API_BASE}/api/unified/${entityId}/keywords`, {
+                                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('jwt') || ''}` }
+                                });
+                                if (keywordsResponse.ok) {
+                                    const keywords = await keywordsResponse.json();
+                                    keywords.forEach(k => {
+                                        const keyword = k.name || k.keyword_name;
+                                        if (keyword && keyword.length > 2) { // Only highlight keywords with 3+ chars
+                                            // Escape special regex characters
+                                            const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                            const regex = new RegExp(`(\\b${escapedKeyword}\\b)`, 'gi');
+                                            highlightedText = highlightedText.replace(regex, 
+                                                '<mark style="background: #fef08a; padding: 2px 4px; border-radius: 2px; font-weight: 600;">$1</mark>'
+                                            );
+                                        }
+                                    });
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Could not load keywords for highlighting:', e);
+                        }
+                        
+                        // Escape HTML but preserve our <mark> tags
+                        const textToDisplay = highlightedText
+                            .replace(/<mark/g, '__MARK_OPEN__')
+                            .replace(/<\/mark>/g, '__MARK_CLOSE__')
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/__MARK_OPEN__/g, '<mark')
+                            .replace(/__MARK_CLOSE__/g, '</mark>');
+                        
+                        previewHTML += `
+                            <div id="ocrTextContent" style="flex: 1; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; overflow-y: auto; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 0.875rem; line-height: 1.7; color: #374151; white-space: pre-wrap; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
+                                ${textToDisplay}
+                            </div>
+                            <div style="margin-top: 12px; padding: 10px 12px; background: #dcfce7; border-radius: 6px; border: 1px solid #86efac;">
+                                <div style="display: flex; align-items: center; gap: 8px; font-size: 0.8125rem; color: #166534;">
+                                    <i class="fas fa-check-circle"></i>
+                                    <span><mark style="background: #fef08a; padding: 1px 4px; border-radius: 2px; font-weight: 600;">Keywords</mark> highlighted • Extracted by AWS Textract</span>
+                                </div>
+                            </div>`;
+                    }
+                    
+                    previewHTML += '</div>';
+                }
+                
+                previewHTML += '</div>';
+                previewContent.innerHTML = previewHTML;
+                
+            } catch (error) {
+                console.error('Error loading preview:', error);
+                previewContent.innerHTML = `
+                    <div style="text-align: center; padding: 50px; color: #ef4444;">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 20px;"></i>
+                        <p style="font-size: 1.125rem; font-weight: 600; margin-bottom: 10px;">Error loading preview</p>
+                        <p style="color: #6b7280; margin-bottom: 20px;">${error.message}</p>
+                        <button onclick="downloadCurrentAttachment()" 
+                                style="background: #3b82f6; color: white; border: none; padding: 10px 24px;
+                                       border-radius: 6px; cursor: pointer; font-weight: 500;">
+                            <i class="fas fa-download"></i> Try Downloading Instead
+                        </button>
+                    </div>
+                `;
+            }
+        };
+
+        // Function to close attachment preview
+        window.closeAttachmentPreview = function() {
+            const modal = document.getElementById('attachmentPreviewModal');
+            modal.style.display = 'none';
+            currentAttachment = null;
         };
 
         // Function to close attachment preview

@@ -486,7 +486,7 @@
             <span id="profileName">Dashboard</span>
         </h1>
         <div class="top-bar-actions">
-            <button class="btn btn-primary" id="uploadBtn" onclick="openPstUpload()" disabled>
+            <button class="btn btn-primary" id="uploadBtn" onclick="openPstUpload()">
                 <i class="fas fa-cloud-upload-alt"></i> Upload Evidence
             </button>
             <button class="btn btn-secondary" onclick="window.location.href='wizard.html'">
@@ -675,23 +675,146 @@
 
     <script>
         // Define navigation functions first (before DOMContentLoaded)
-        function openPstUpload() {
-            const profileId = localStorage.getItem('currentProjectId') || localStorage.getItem('currentCaseId');
+        async function openPstUpload() {
+            let profileId = localStorage.getItem('currentProjectId') || localStorage.getItem('currentCaseId');
             const profileType = localStorage.getItem('profileType') || 'project';
+            
             if (!profileId) {
-                showContextualError(
-                    'No Profile Selected',
-                    'You need to create a profile before uploading evidence. Would you like to create one now?',
-                    [
-                        { text: 'Create Profile (Manual)', action: () => window.location.href = 'wizard.html' },
-                        { text: 'Intelligent Setup (AI)', action: () => window.location.href = 'wizard.html' },
-                        { text: 'Cancel', action: null }
-                    ]
-                );
+                // Show quick setup dialog
+                showQuickProfileDialog();
                 return;
             }
+            
             const param = profileType === 'project' ? 'projectId' : 'caseId';
             window.location.href = `pst-upload.html?${param}=${profileId}`;
+        }
+        
+        function showQuickProfileDialog() {
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+            
+            const content = document.createElement('div');
+            content.style.cssText = 'background: white; border-radius: 16px; padding: 2.5rem; max-width: 550px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);';
+            
+            content.innerHTML = `
+                <h3 style="color: var(--vericase-navy); margin: 0 0 0.75rem 0; font-size: 1.5rem;">
+                    <i class="fas fa-rocket" style="color: var(--vericase-teal);"></i> Quick Start
+                </h3>
+                <p style="color: var(--text-secondary); margin: 0 0 2rem 0; line-height: 1.6;">
+                    Get started immediately! Choose how to set up your profile:
+                </p>
+                
+                <div style="display: grid; gap: 1rem; margin-bottom: 2rem;">
+                    <div onclick="createQuickProfile()" style="padding: 1.5rem; border: 2px solid var(--vericase-teal); border-radius: 12px; cursor: pointer; background: linear-gradient(135deg, rgba(23, 181, 163, 0.05) 0%, rgba(23, 181, 163, 0.1) 100%); transition: all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 10px 20px rgba(23, 181, 163, 0.2)'" onmouseout="this.style.transform=''; this.style.boxShadow=''">
+                        <h4 style="color: var(--vericase-navy); margin: 0 0 0.5rem 0; font-size: 1.1rem;">
+                            <i class="fas fa-bolt" style="color: var(--vericase-teal);"></i> Quick Setup (Instant)
+                        </h4>
+                        <p style="color: var(--text-secondary); margin: 0; font-size: 0.875rem;">
+                            Creates a basic profile instantly so you can start uploading. Refine details later.
+                        </p>
+                        <div style="margin-top: 0.75rem; padding: 0.5rem 1rem; background: var(--vericase-teal); color: white; border-radius: 8px; display: inline-block; font-size: 0.75rem; font-weight: 600;">
+                            ⚡ RECOMMENDED
+                        </div>
+                    </div>
+                    
+                    <div onclick="document.getElementById('quickProfileModal').remove(); window.location.href='wizard.html'" style="padding: 1.5rem; border: 2px solid #e5e7eb; border-radius: 12px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--vericase-teal)'; this.style.background='#f9fafb'" onmouseout="this.style.borderColor='#e5e7eb'; this.style.background=''">
+                        <h4 style="color: var(--vericase-navy); margin: 0 0 0.5rem 0; font-size: 1.1rem;">
+                            <i class="fas fa-list-check"></i> Full Wizard (Detailed)
+                        </h4>
+                        <p style="color: var(--text-secondary); margin: 0; font-size: 0.875rem;">
+                            Configure everything step-by-step: team members, keywords, deadlines, etc.
+                        </p>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                    <button onclick="document.getElementById('quickProfileModal').remove()" class="btn btn-secondary">
+                        Cancel
+                    </button>
+                </div>
+            `;
+            
+            modal.id = 'quickProfileModal';
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+            
+            // Close on background click
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.remove();
+            });
+        }
+        
+        async function createQuickProfile() {
+            const modal = document.getElementById('quickProfileModal');
+            const content = modal.querySelector('div > div');
+            
+            // Show loading state
+            content.innerHTML = `
+                <div style="text-align: center; padding: 2rem;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 3rem; color: var(--vericase-teal); margin-bottom: 1rem;"></i>
+                    <h3 style="color: var(--vericase-navy); margin: 0 0 0.5rem 0;">Creating your profile...</h3>
+                    <p style="color: var(--text-secondary); margin: 0;">This will only take a moment</p>
+                </div>
+            `;
+            
+            try {
+                const timestamp = Date.now();
+                const projectData = {
+                    project_name: `Quick Start Project`,
+                    project_code: `QUICK-${timestamp}`,
+                    start_date: null,
+                    completion_date: null,
+                    contract_type: null,
+                    stakeholders: [],
+                    keywords: []
+                };
+                
+                const response = await fetch(`${apiUrl}/api/projects`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(projectData)
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to create profile');
+                }
+                
+                const result = await response.json();
+                
+                // Store profile ID
+                localStorage.setItem('profileType', 'project');
+                localStorage.setItem('currentProjectId', result.id);
+                localStorage.setItem('projectId', result.id);
+                
+                // Show success and redirect
+                content.innerHTML = `
+                    <div style="text-align: center; padding: 2rem;">
+                        <i class="fas fa-check-circle" style="font-size: 3rem; color: #10b981; margin-bottom: 1rem;"></i>
+                        <h3 style="color: var(--vericase-navy); margin: 0 0 0.5rem 0;">Profile created!</h3>
+                        <p style="color: var(--text-secondary); margin: 0;">Redirecting to upload...</p>
+                    </div>
+                `;
+                
+                setTimeout(() => {
+                    modal.remove();
+                    window.location.href = `pst-upload.html?projectId=${result.id}`;
+                }, 800);
+                
+            } catch (error) {
+                console.error('Error creating quick profile:', error);
+                content.innerHTML = `
+                    <div style="text-align: center; padding: 2rem;">
+                        <i class="fas fa-exclamation-circle" style="font-size: 3rem; color: #ef4444; margin-bottom: 1rem;"></i>
+                        <h3 style="color: var(--vericase-navy); margin: 0 0 0.5rem 0;">Unable to create profile</h3>
+                        <p style="color: var(--text-secondary); margin: 0 0 1.5rem 0;">Please try using the full wizard instead.</p>
+                        <button onclick="window.location.href='wizard.html'" class="btn btn-primary">
+                            Open Wizard
+                        </button>
+                    </div>
+                `;
+            }
         }
 
         function viewCorrespondence() {
@@ -879,10 +1002,8 @@
             return process.env.REACT_APP_API_URL || window.location.origin || '';
         };
         const apiUrl = getApiUrl();
-        const uploadBtn = document.getElementById('uploadBtn');
-        if (uploadBtn) {
-            uploadBtn.disabled = !profileId;
-        }
+        
+        // Upload button is always enabled - quick profile creation handles missing profileId
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', () => {
@@ -1044,6 +1165,140 @@
         if (openSettingsParam) {
             setTimeout(() => showSettings(openSettingsParam), 500);
         }
+        
+        // AI Key Management Functions
+        function saveLocalAIKey(provider) {
+            const inputId = `${provider}KeyInput`;
+            const input = document.getElementById(inputId);
+            const key = input.value.trim();
+            
+            if (!key) {
+                showKeyMessage(provider, 'Please enter an API key', 'error');
+                input.style.borderColor = '#ef4444';
+                setTimeout(() => input.style.borderColor = '#e5e7eb', 1500);
+                return;
+            }
+            
+            // Save to localStorage
+            localStorage.setItem(`ai_key_${provider}`, key);
+            
+            // Update status indicator
+            const statusEl = document.getElementById(`${provider}Status`);
+            if (statusEl) {
+                statusEl.className = 'status-indicator status-active';
+                statusEl.title = 'Configured (local)';
+            }
+            
+            // Clear input (for security)
+            input.value = '';
+            input.placeholder = '•••••••••• (saved)';
+            
+            showKeyMessage(provider, 'API key saved successfully!', 'success');
+            
+            // Update overall status
+            updateLocalAIStatus();
+        }
+        
+        function clearLocalAIKey(provider) {
+            if (!confirm(`Remove ${provider.toUpperCase()} API key from local storage?`)) {
+                return;
+            }
+            
+            localStorage.removeItem(`ai_key_${provider}`);
+            
+            // Update status indicator
+            const statusEl = document.getElementById(`${provider}Status`);
+            if (statusEl) {
+                statusEl.className = 'status-indicator status-inactive';
+                statusEl.title = 'Not configured';
+            }
+            
+            // Reset input placeholder
+            const inputId = `${provider}KeyInput`;
+            const input = document.getElementById(inputId);
+            if (input) {
+                input.value = '';
+                const placeholders = {
+                    openai: 'sk-...',
+                    anthropic: 'sk-ant-...',
+                    google: 'AI...'
+                };
+                input.placeholder = placeholders[provider] || 'Enter API key';
+            }
+            
+            showKeyMessage(provider, 'API key removed', 'info');
+            
+            // Update overall status
+            updateLocalAIStatus();
+        }
+        
+        function showKeyMessage(provider, message, type) {
+            const banner = document.getElementById('wizardBanner') || createBanner();
+            banner.textContent = `${provider.toUpperCase()}: ${message}`;
+            banner.style.background = type === 'error' ? '#fee2e2' : type === 'success' ? '#ecfdf5' : '#eef2ff';
+            banner.style.color = type === 'error' ? '#991b1b' : type === 'success' ? '#065f46' : '#1e3a8a';
+            banner.style.display = 'block';
+            setTimeout(() => banner.style.display = 'none', 3000);
+        }
+        
+        function createBanner() {
+            const el = document.createElement('div');
+            el.id = 'wizardBanner';
+            el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;display:none;padding:10px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;border-bottom:1px solid #e2e8f0;text-align:center;';
+            document.body.appendChild(el);
+            return el;
+        }
+        
+        function updateLocalAIStatus() {
+            const providers = ['openai', 'anthropic', 'google'];
+            let anyConfigured = false;
+            
+            providers.forEach(provider => {
+                const key = localStorage.getItem(`ai_key_${provider}`);
+                const statusEl = document.getElementById(`${provider}Status`);
+                
+                if (statusEl) {
+                    if (key && key.trim().length > 0) {
+                        statusEl.className = 'status-indicator status-active';
+                        statusEl.title = 'Configured (local)';
+                        anyConfigured = true;
+                    } else {
+                        statusEl.className = 'status-indicator status-inactive';
+                        statusEl.title = 'Not configured';
+                    }
+                }
+                
+                // Load existing keys into inputs (masked)
+                const inputId = `${provider}KeyInput`;
+                const input = document.getElementById(inputId);
+                if (input && key && key.trim().length > 0) {
+                    input.placeholder = '•••••••••• (saved)';
+                }
+            });
+            
+            // Update overall status
+            const overallStatus = document.getElementById('aiOverallStatus');
+            if (overallStatus) {
+                if (anyConfigured) {
+                    overallStatus.innerHTML = '<i class="fas fa-check-circle" style="color: #10b981;"></i> <strong>API keys configured locally</strong> - Intelligent features are available in this browser';
+                    overallStatus.style.background = '#ecfdf5';
+                    overallStatus.style.borderColor = '#10b981';
+                } else {
+                    overallStatus.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: #f59e0b;"></i> <strong>No local API keys configured</strong> - Add keys above to enable AI features';
+                    overallStatus.style.background = '#fffbeb';
+                    overallStatus.style.borderColor = '#fbbf24';
+                }
+            }
+        }
+        
+        // Load local AI status on settings open
+        const originalShowSettings = showSettings;
+        showSettings = function(tab = 'general') {
+            originalShowSettings(tab);
+            if (tab === 'ai') {
+                setTimeout(() => updateLocalAIStatus(), 100);
+            }
+        };
 
     </script>
     
@@ -1094,64 +1349,82 @@
                         <i class="fas fa-spinner fa-spin"></i> Checking AI service status...
                     </div>
                     
-                    <!-- Provider Status -->
-                    <div style="display: grid; gap: 1rem;">
-                        <div style="padding: 1rem; border: 2px solid #e5e7eb; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <strong style="color: var(--vericase-navy);">OpenAI (GPT-4, GPT-3.5)</strong>
-                                <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0.25rem 0 0 0;">For intelligent configuration and document analysis</p>
+                    <!-- API Key Entry Forms -->
+                    <div style="display: grid; gap: 1.5rem; margin-bottom: 2rem;">
+                        <!-- OpenAI -->
+                        <div class="ai-provider-card" style="padding: 1.5rem; border: 2px solid #e5e7eb; border-radius: 12px; background: white;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                                <div>
+                                    <h4 style="color: var(--vericase-navy); margin: 0 0 0.25rem 0;"><i class="fas fa-brain"></i> OpenAI (GPT-4)</h4>
+                                    <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">For intelligent configuration and document analysis</p>
+                                </div>
+                                <span id="openaiStatus" class="status-indicator status-inactive"></span>
                             </div>
-                            <span id="openaiStatus" class="status-indicator status-inactive"></span>
+                            <div style="display: flex; gap: 0.75rem; align-items: center;">
+                                <input type="password" id="openaiKeyInput" placeholder="sk-..." style="flex: 1; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.875rem;">
+                                <button onclick="saveLocalAIKey('openai')" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">
+                                    <i class="fas fa-save"></i> Save
+                                </button>
+                                <button onclick="clearLocalAIKey('openai')" class="btn btn-secondary" style="padding: 0.75rem 1rem;">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
                         </div>
                         
-                        <div style="padding: 1rem; border: 2px solid #e5e7eb; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <strong style="color: var(--vericase-navy);">Anthropic (Claude)</strong>
-                                <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0.25rem 0 0 0;">For advanced reasoning and analysis</p>
+                        <!-- Anthropic -->
+                        <div class="ai-provider-card" style="padding: 1.5rem; border: 2px solid #e5e7eb; border-radius: 12px; background: white;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                                <div>
+                                    <h4 style="color: var(--vericase-navy); margin: 0 0 0.25rem 0;"><i class="fas fa-robot"></i> Anthropic (Claude)</h4>
+                                    <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">For advanced reasoning and analysis</p>
+                                </div>
+                                <span id="anthropicStatus" class="status-indicator status-inactive"></span>
                             </div>
-                            <span id="anthropicStatus" class="status-indicator status-inactive"></span>
+                            <div style="display: flex; gap: 0.75rem; align-items: center;">
+                                <input type="password" id="anthropicKeyInput" placeholder="sk-ant-..." style="flex: 1; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.875rem;">
+                                <button onclick="saveLocalAIKey('anthropic')" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">
+                                    <i class="fas fa-save"></i> Save
+                                </button>
+                                <button onclick="clearLocalAIKey('anthropic')" class="btn btn-secondary" style="padding: 0.75rem 1rem;">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
                         </div>
                         
-                        <div style="padding: 1rem; border: 2px solid #e5e7eb; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <strong style="color: var(--vericase-navy);">Google (Gemini)</strong>
-                                <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0.25rem 0 0 0;">For multimodal analysis and processing</p>
+                        <!-- Google Gemini -->
+                        <div class="ai-provider-card" style="padding: 1.5rem; border: 2px solid #e5e7eb; border-radius: 12px; background: white;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                                <div>
+                                    <h4 style="color: var(--vericase-navy); margin: 0 0 0.25rem 0;"><i class="fas fa-lightbulb"></i> Google (Gemini)</h4>
+                                    <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">For multimodal analysis and processing</p>
+                                </div>
+                                <span id="googleStatus" class="status-indicator status-inactive"></span>
                             </div>
-                            <span id="geminiStatus" class="status-indicator status-inactive"></span>
-                        </div>
-                        
-                        <div style="padding: 1rem; border: 2px solid #e5e7eb; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <strong style="color: var(--vericase-navy);">xAI (Grok)</strong>
-                                <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0.25rem 0 0 0;">For real-time information and analysis</p>
+                            <div style="display: flex; gap: 0.75rem; align-items: center;">
+                                <input type="password" id="googleKeyInput" placeholder="AI..." style="flex: 1; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.875rem;">
+                                <button onclick="saveLocalAIKey('google')" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">
+                                    <i class="fas fa-save"></i> Save
+                                </button>
+                                <button onclick="clearLocalAIKey('google')" class="btn btn-secondary" style="padding: 0.75rem 1rem;">
+                                    <i class="fas fa-trash"></i>
+                                </button>
                             </div>
-                            <span id="grokStatus" class="status-indicator status-inactive"></span>
-                        </div>
-                        
-                        <div style="padding: 1rem; border: 2px solid #e5e7eb; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <strong style="color: var(--vericase-navy);">Perplexity</strong>
-                                <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0.25rem 0 0 0;">For research and information retrieval</p>
-                            </div>
-                            <span id="perplexityStatus" class="status-indicator status-inactive"></span>
                         </div>
                     </div>
                     
                     <!-- Configuration Instructions -->
-                    <div style="margin-top: 2rem; padding: 1.5rem; background: #fffbeb; border: 2px solid #fbbf24; border-radius: 8px;">
+                    <div style="margin-top: 2rem; padding: 1.5rem; background: #f0f9ff; border: 2px solid #3b82f6; border-radius: 8px;">
                         <h4 style="color: var(--vericase-navy); margin: 0 0 0.5rem 0;">
-                            <i class="fas fa-key"></i> How to Configure API Keys
+                            <i class="fas fa-info-circle"></i> About API Keys
                         </h4>
                         <p style="color: var(--text-secondary); margin: 0 0 1rem 0; font-size: 0.875rem;">
-                            API keys must be configured by a system administrator. Contact your admin to set up:
+                            <strong>Local Testing (Development):</strong> Use the forms above to store API keys in your browser's localStorage. Keys will persist in this browser only.
                         </p>
-                        <ol style="color: var(--text-secondary); font-size: 0.875rem; margin: 0; padding-left: 1.5rem;">
-                            <li style="margin-bottom: 0.5rem;"><strong>For AWS deployments:</strong> Add keys to AWS Secrets Manager (recommended for security)</li>
-                            <li style="margin-bottom: 0.5rem;"><strong>For local deployments:</strong> Add keys to environment variables or .env file</li>
-                            <li style="margin-bottom: 0.5rem;"><strong>Restart required:</strong> Application must be restarted after adding keys</li>
-                        </ol>
-                        <p style="color: var(--text-secondary); margin: 1rem 0 0 0; font-size: 0.875rem;">
-                            <i class="fas fa-info-circle"></i> At least one AI provider is required for intelligent features to work.
+                        <p style="color: var(--text-secondary); margin: 0 0 1rem 0; font-size: 0.875rem;">
+                            <strong>Production Deployment:</strong> API keys should be configured in AWS Secrets Manager or environment variables. Contact your system administrator.
+                        </p>
+                        <p style="color: var(--text-secondary); margin: 0; font-size: 0.875rem;">
+                            <i class="fas fa-shield-alt"></i> At least one AI provider is required for intelligent features to work. Keys stored locally are for development/testing only.
                         </p>
                     </div>
                 </div>
@@ -1194,4 +1467,3 @@
     </style>
 </body>
 </html>
-
