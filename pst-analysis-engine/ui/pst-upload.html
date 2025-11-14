@@ -281,6 +281,7 @@
             display: none;
         }
     </style>
+    <script src="config.js"></script>
 </head>
 <body>
     <div class="top-bar">
@@ -344,15 +345,9 @@
         const profileType = localStorage.getItem('profileType') || 'project';
         const token = localStorage.getItem('token');
         
-        // Get API URL with appropriate protocol
-        const getApiUrl = () => {
-            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                return `${window.location.protocol}//localhost:8010`;
-            }
-            // For production, use the same origin (assuming API is hosted on same domain)
-            return window.location.origin;
-        };
-        const apiUrl = getApiUrl();
+        // Use centralized configuration
+        const apiUrl = window.VeriCaseConfig ? window.VeriCaseConfig.apiUrl : window.location.origin;
+        console.log('PST Upload using API URL:', apiUrl);
 
         const uploadZone = document.getElementById('uploadZone');
         const fileInput = document.getElementById('fileInput');
