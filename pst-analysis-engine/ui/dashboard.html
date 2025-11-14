@@ -478,6 +478,7 @@
             }
         }
     </style>
+    <script src="config.js"></script>
 </head>
 <body>
     <div class="top-bar">
@@ -994,15 +995,9 @@
         // Load token
         const token = urlParams.get('token') || localStorage.getItem('token') || localStorage.getItem('jwt');
         
-        // Get API URL with appropriate protocol
-        const getApiUrl = () => {
-            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                return `${window.location.protocol}//localhost:8010`;
-            }
-            // For production, use the same origin (assuming API is hosted on same domain)
-            return window.location.origin;
-        };
-        const apiUrl = getApiUrl();
+        // Use centralized configuration
+        const apiUrl = window.VeriCaseConfig ? window.VeriCaseConfig.apiUrl : window.location.origin;
+        console.log('Dashboard using API URL:', apiUrl);
         
         // Upload button is always enabled - quick profile creation handles missing profileId
 
