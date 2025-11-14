@@ -43,15 +43,7 @@ run:
       value: "admin@veri-case.com"
     - name: ADMIN_PASSWORD
       value: "Sunnyday8?!"
-    # AWS credentials
-    - name: AWS_ACCESS_KEY_ID
-      value: "AKIAXU6HVVWBTCOQZZI3HX"
-    - name: AWS_SECRET_ACCESS_KEY
-      value: "7hT7ySs/GL+rl54vdbN3lnCtfgKb+vcouoJAkjH/"
-    - name: S3_ACCESS_KEY
-      value: "AKIAXU6HVVWBTCOQZZI3HX"
-    - name: S3_SECRET_KEY
-      value: "7hT7ySs/GL+rl54vdbN3lnCtfgKb+vcouoJAkjH/"
+    # AWS credentials removed - App Runner uses IAM Role (IRSA) automatically
     - name: MINIO_BUCKET
       value: "vericase-docs-prod-526015377510"
     - name: REDIS_URL
