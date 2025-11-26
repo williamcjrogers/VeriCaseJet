@@ -6,7 +6,7 @@ import boto3
 from boto3 import Session
 from botocore.client import Config
 from botocore.exceptions import ClientError
-from typing import Optional, Union
+from typing import Optional, Union, Any
 from .config import settings
 import time
 import html
@@ -214,7 +214,7 @@ def presign_part(key: str, upload_id: str, part_number: int, expires: int=3600, 
     )
     return url
 
-def multipart_complete(key: str, upload_id: str, parts: list, bucket: Optional[str] = None):
+def multipart_complete(key: str, upload_id: str, parts: list[dict[str, Any]], bucket: Optional[str] = None) -> dict[str, Any]:
     """Complete multipart upload to S3."""
     target_bucket = bucket or settings.MINIO_BUCKET
     return s3().complete_multipart_upload(

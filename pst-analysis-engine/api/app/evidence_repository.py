@@ -7,23 +7,24 @@ import uuid
 import hashlib
 import logging
 from datetime import datetime, date, timedelta
-from typing import Any, Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, Body
+from typing import Any
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func, desc
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from .security import get_db, current_user
 from .models import (
-    User, Case, Project, EmailMessage, PSTFile,
-    EvidenceItem, EvidenceCollection, EvidenceSource,
+    User, Case, Project, EmailMessage,
+    EvidenceItem, EvidenceCollection,
     EvidenceCorrespondenceLink, EvidenceRelation,
     EvidenceCollectionItem, EvidenceActivityLog,
-    EvidenceType, DocumentCategory, EvidenceSourceType,
+    EvidenceType, DocumentCategory,
     CorrespondenceLinkType, EvidenceRelationType
 )
 from .storage import presign_put, presign_get, s3
 from .config import settings
+from .cache import get_cached, set_cached
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +39,11 @@ class EvidenceUploadInitRequest(BaseModel):
     """Request to initiate evidence upload"""
     filename: str
     file_size: int
-    content_type: Optional[str] = None
-    case_id: Optional[str] = None
-    project_id: Optional[str] = None
-    collection_id: Optional[str] = None
-    tags: Optional[List[str]] = None
+    content_type: str | None = None
+    case_id: str | None = None
+    project_id: str | None = None
+    collection_id: str | None = None
+    tags: list[str] | None = None
 
 
 class EvidenceUploadInitResponse(BaseModel):
@@ -59,60 +60,60 @@ class EvidenceItemCreate(BaseModel):
     s3_key: str
     file_size: int
     file_hash: str
-    mime_type: Optional[str] = None
-    case_id: Optional[str] = None
-    project_id: Optional[str] = None
-    collection_id: Optional[str] = None
-    evidence_type: Optional[str] = None
-    title: Optional[str] = None
-    description: Optional[str] = None
-    document_date: Optional[date] = None
-    tags: Optional[List[str]] = None
+    mime_type: str | None = None
+    case_id: str | None = None
+    project_id: str | None = None
+    collection_id: str | None = None
+    evidence_type: str | None = None
+    title: str | None = None
+    description: str | None = None
+    document_date: date | None = None
+    tags: list[str] | None = None
 
 
 class EvidenceItemUpdate(BaseModel):
     """Update evidence item"""
-    title: Optional[str] = None
-    description: Optional[str] = None
-    evidence_type: Optional[str] = None
-    document_category: Optional[str] = None
-    document_date: Optional[date] = None
-    manual_tags: Optional[List[str]] = None
-    notes: Optional[str] = None
-    is_starred: Optional[bool] = None
-    is_privileged: Optional[bool] = None
-    is_confidential: Optional[bool] = None
-    case_id: Optional[str] = None
-    project_id: Optional[str] = None
-    collection_id: Optional[str] = None
+    title: str | None = None
+    description: str | None = None
+    evidence_type: str | None = None
+    document_category: str | None = None
+    document_date: date | None = None
+    manual_tags: list[str] | None = None
+    notes: str | None = None
+    is_starred: bool | None = None
+    is_privileged: bool | None = None
+    is_confidential: bool | None = None
+    case_id: str | None = None
+    project_id: str | None = None
+    collection_id: str | None = None
 
 
 class EvidenceItemSummary(BaseModel):
     """Evidence item summary for list view"""
     id: str
     filename: str
-    file_type: Optional[str] = None
-    mime_type: Optional[str] = None
-    file_size: Optional[int] = None
-    evidence_type: Optional[str] = None
-    document_category: Optional[str] = None
-    document_date: Optional[date] = None
-    title: Optional[str] = None
+    file_type: str | None = None
+    mime_type: str | None = None
+    file_size: int | None = None
+    evidence_type: str | None = None
+    document_category: str | None = None
+    document_date: date | None = None
+    title: str | None = None
     processing_status: str
     is_starred: bool = False
     is_reviewed: bool = False
     has_correspondence: bool = False
     correspondence_count: int = 0
     correspondence_link_count: int = 0  # Alias for frontend compatibility
-    auto_tags: List[str] = []
-    manual_tags: List[str] = []
-    case_id: Optional[str] = None
-    project_id: Optional[str] = None
-    source_type: Optional[str] = None
-    source_email_id: Optional[str] = None
-    source_email_subject: Optional[str] = None
-    source_email_from: Optional[str] = None
-    download_url: Optional[str] = None
+    auto_tags: list[str] = []
+    manual_tags: list[str] = []
+    case_id: str | None = None
+    project_id: str | None = None
+    source_type: str | None = None
+    source_email_id: str | None = None
+    source_email_subject: str | None = None
+    source_email_from: str | None = None
+    download_url: str | None = None
     created_at: datetime
 
 
@@ -120,48 +121,48 @@ class EvidenceItemDetail(BaseModel):
     """Full evidence item details"""
     id: str
     filename: str
-    original_path: Optional[str] = None
-    file_type: Optional[str] = None
-    mime_type: Optional[str] = None
-    file_size: Optional[int] = None
+    original_path: str | None = None
+    file_type: str | None = None
+    mime_type: str | None = None
+    file_size: int | None = None
     file_hash: str
-    evidence_type: Optional[str] = None
-    document_category: Optional[str] = None
-    document_date: Optional[date] = None
-    title: Optional[str] = None
-    author: Optional[str] = None
-    description: Optional[str] = None
-    page_count: Optional[int] = None
-    extracted_text: Optional[str] = None
-    extracted_parties: List[dict] = []
-    extracted_dates: List[dict] = []
-    extracted_amounts: List[dict] = []
-    extracted_references: List[dict] = []
-    auto_tags: List[str] = []
-    manual_tags: List[str] = []
+    evidence_type: str | None = None
+    document_category: str | None = None
+    document_date: date | None = None
+    title: str | None = None
+    author: str | None = None
+    description: str | None = None
+    page_count: int | None = None
+    extracted_text: str | None = None
+    extracted_parties: list[dict[str, Any]] = []
+    extracted_dates: list[dict[str, Any]] = []
+    extracted_amounts: list[dict[str, Any]] = []
+    extracted_references: list[dict[str, Any]] = []
+    auto_tags: list[str] = []
+    manual_tags: list[str] = []
     processing_status: str
-    source_type: Optional[str] = None
-    source_path: Optional[str] = None
+    source_type: str | None = None
+    source_path: str | None = None
     is_duplicate: bool = False
     is_starred: bool = False
     is_privileged: bool = False
     is_confidential: bool = False
     is_reviewed: bool = False
-    notes: Optional[str] = None
-    case_id: Optional[str] = None
-    project_id: Optional[str] = None
-    collection_id: Optional[str] = None
-    correspondence_links: List[dict] = []
-    relations: List[dict] = []
-    download_url: Optional[str] = None
+    notes: str | None = None
+    case_id: str | None = None
+    project_id: str | None = None
+    collection_id: str | None = None
+    correspondence_links: list[dict[str, Any]] = []
+    relations: list[dict[str, Any]] = []
+    download_url: str | None = None
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
 
 class EvidenceListResponse(BaseModel):
     """Paginated evidence list"""
     total: int
-    items: List[EvidenceItemSummary]
+    items: list[EvidenceItemSummary]
     page: int
     page_size: int
 
@@ -169,56 +170,56 @@ class EvidenceListResponse(BaseModel):
 class CollectionCreate(BaseModel):
     """Create collection"""
     name: str
-    description: Optional[str] = None
-    parent_id: Optional[str] = None
-    case_id: Optional[str] = None
-    project_id: Optional[str] = None
-    color: Optional[str] = None
-    icon: Optional[str] = None
-    filter_rules: Optional[dict] = None
+    description: str | None = None
+    parent_id: str | None = None
+    case_id: str | None = None
+    project_id: str | None = None
+    color: str | None = None
+    icon: str | None = None
+    filter_rules: dict[str, Any] | None = None
 
 
 class CollectionUpdate(BaseModel):
     """Update collection"""
-    name: Optional[str] = None
-    description: Optional[str] = None
-    color: Optional[str] = None
-    icon: Optional[str] = None
-    filter_rules: Optional[dict] = None
+    name: str | None = None
+    description: str | None = None
+    color: str | None = None
+    icon: str | None = None
+    filter_rules: dict[str, Any] | None = None
 
 
 class CollectionSummary(BaseModel):
     """Collection summary"""
     id: str
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     collection_type: str
-    parent_id: Optional[str] = None
+    parent_id: str | None = None
     item_count: int = 0
     is_system: bool = False
-    color: Optional[str] = None
-    icon: Optional[str] = None
-    case_id: Optional[str] = None
-    project_id: Optional[str] = None
+    color: str | None = None
+    icon: str | None = None
+    case_id: str | None = None
+    project_id: str | None = None
 
 
 class CorrespondenceLinkCreate(BaseModel):
     """Create correspondence link"""
-    email_message_id: Optional[str] = None
+    email_message_id: str | None = None
     link_type: str = "related"
-    correspondence_type: Optional[str] = None
-    correspondence_reference: Optional[str] = None
-    correspondence_date: Optional[date] = None
-    correspondence_from: Optional[str] = None
-    correspondence_to: Optional[str] = None
-    correspondence_subject: Optional[str] = None
-    context_snippet: Optional[str] = None
+    correspondence_type: str | None = None
+    correspondence_reference: str | None = None
+    correspondence_date: date | None = None
+    correspondence_from: str | None = None
+    correspondence_to: str | None = None
+    correspondence_subject: str | None = None
+    context_snippet: str | None = None
 
 
 class AssignRequest(BaseModel):
     """Assign evidence to case/project"""
-    case_id: Optional[str] = None
-    project_id: Optional[str] = None
+    case_id: str | None = None
+    project_id: str | None = None
 
 
 # ============================================================================
@@ -241,11 +242,11 @@ def log_activity(
     db: Session,
     action: str,
     user_id: uuid.UUID,
-    evidence_item_id: Optional[uuid.UUID] = None,
-    collection_id: Optional[uuid.UUID] = None,
-    details: Optional[dict] = None,
-    ip_address: Optional[str] = None
-):
+    evidence_item_id: uuid.UUID | None = None,
+    collection_id: uuid.UUID | None = None,
+    details: dict[str, Any] | None = None,
+    ip_address: str | None = None,
+) -> None:
     """Log evidence activity"""
     activity = EvidenceActivityLog(
         evidence_item_id=evidence_item_id,
@@ -395,13 +396,13 @@ async def complete_evidence_upload(
 @router.post("/upload/direct")
 async def direct_upload_evidence(
     file: UploadFile = File(...),
-    case_id: Optional[str] = Form(None),
-    project_id: Optional[str] = Form(None),
-    collection_id: Optional[str] = Form(None),
-    evidence_type: Optional[str] = Form(None),
-    tags: Optional[str] = Form(None),
-    db: Session = Depends(get_db)
-):
+    case_id: str | None = Form(None),
+    project_id: str | None = Form(None),
+    collection_id: str | None = Form(None),
+    evidence_type: str | None = Form(None),
+    tags: str | None = Form(None),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
     """
     Direct file upload (streams file to S3)
     For smaller files - convenience endpoint
@@ -497,24 +498,25 @@ async def direct_upload_evidence(
 async def list_evidence(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
-    search: Optional[str] = Query(None, description="Search in filename, title, text"),
-    evidence_type: Optional[str] = Query(None),
-    document_category: Optional[str] = Query(None),
-    date_from: Optional[date] = Query(None),
-    date_to: Optional[date] = Query(None),
-    tags: Optional[str] = Query(None, description="Comma-separated tags"),
-    has_correspondence: Optional[bool] = Query(None),
-    is_starred: Optional[bool] = Query(None),
-    is_reviewed: Optional[bool] = Query(None),
-    unassigned: Optional[bool] = Query(None, description="Only show items not in any case/project"),
-    case_id: Optional[str] = Query(None),
-    project_id: Optional[str] = Query(None),
-    collection_id: Optional[str] = Query(None),
-    processing_status: Optional[str] = Query(None),
+    search: str | None = Query(None, description="Search in filename, title, text"),
+    evidence_type: str | None = Query(None),
+    document_category: str | None = Query(None),
+    date_from: date | None = Query(None),
+    date_to: date | None = Query(None),
+    tags: str | None = Query(None, description="Comma-separated tags"),
+    has_correspondence: bool | None = Query(None),
+    is_starred: bool | None = Query(None),
+    is_reviewed: bool | None = Query(None),
+    include_email_info: bool = Query(False, description="Include emails from correspondence as evidence items"),
+    unassigned: bool | None = Query(None, description="Only show items not in any case/project"),
+    case_id: str | None = Query(None),
+    project_id: str | None = Query(None),
+    collection_id: str | None = Query(None),
+    processing_status: str | None = Query(None),
     sort_by: str = Query("created_at", description="Sort field"),
     sort_order: str = Query("desc", description="asc or desc"),
-    db: Session = Depends(get_db)
-):
+    db: Session = Depends(get_db),
+) -> EvidenceListResponse:
     """
     List evidence items with filtering and pagination
     """
@@ -629,7 +631,7 @@ async def list_evidence(
         }
     
     # Build response
-    summaries = []
+    summaries: list[EvidenceItemSummary] = []
     for item in items:
         corr_count = correspondence_counts.get(str(item.id), 0)
         
@@ -656,7 +658,7 @@ async def list_evidence(
             file_size=item.file_size,
             evidence_type=item.evidence_type,
             document_category=item.document_category,
-            document_date=item.document_date.date() if item.document_date else None,
+            document_date=item.document_date if isinstance(item.document_date, date) else (item.document_date.date() if item.document_date else None),
             title=item.title,
             processing_status=item.processing_status or 'pending',
             is_starred=item.is_starred or False,
@@ -676,8 +678,74 @@ async def list_evidence(
             created_at=item.created_at
         ))
     
+    # Include emails as evidence items if requested
+    email_total = 0
+    if include_email_info:
+        email_query = db.query(EmailMessage)
+        
+        if project_id:
+            email_query = email_query.filter(EmailMessage.project_id == uuid.UUID(project_id))
+        if case_id:
+            email_query = email_query.filter(EmailMessage.case_id == uuid.UUID(case_id))
+        
+        if search:
+            search_term = f"%{search}%"
+            email_query = email_query.filter(
+                or_(
+                    EmailMessage.subject.ilike(search_term),
+                    EmailMessage.sender_email.ilike(search_term),
+                    EmailMessage.body_text.ilike(search_term)
+                )
+            )
+        
+        if date_from:
+            email_query = email_query.filter(EmailMessage.date_sent >= date_from)
+        if date_to:
+            email_query = email_query.filter(EmailMessage.date_sent <= date_to)
+        
+        email_total = email_query.count()
+        
+        # Only fetch emails if we have room in pagination
+        if len(summaries) < page_size:
+            # Calculate offset for emails
+            evidence_count = total
+            email_offset = max(0, (page - 1) * page_size - evidence_count)
+            email_limit = page_size - len(summaries)
+            
+            if page == 1 or email_offset >= 0:
+                emails = email_query.order_by(desc(EmailMessage.date_sent)).offset(email_offset).limit(email_limit).all()
+                
+                for email in emails:
+                    summaries.append(EvidenceItemSummary(
+                        id=f"email-{email.id}",
+                        filename=f"{email.subject or 'No Subject'}.eml",
+                        file_type="eml",
+                        mime_type="message/rfc822",
+                        file_size=len(email.body_text or '') + len(email.body_html or ''),
+                        evidence_type="correspondence",
+                        document_category="email",
+                        document_date=email.date_sent.date() if email.date_sent else None,
+                        title=email.subject,
+                        processing_status='completed',
+                        is_starred=False,
+                        is_reviewed=False,
+                        has_correspondence=True,
+                        correspondence_count=1,
+                        correspondence_link_count=0,
+                        auto_tags=[],
+                        manual_tags=[],
+                        case_id=str(email.case_id) if email.case_id else None,
+                        project_id=str(email.project_id) if email.project_id else None,
+                        source_type="pst",
+                        source_email_id=str(email.id),
+                        source_email_subject=email.subject,
+                        source_email_from=email.sender_email,
+                        download_url=None,
+                        created_at=email.created_at
+                    ))
+    
     return EvidenceListResponse(
-        total=total,
+        total=total + email_total,
         items=summaries,
         page=page,
         page_size=page_size
@@ -1121,10 +1189,10 @@ async def delete_correspondence_link(
 @router.get("/collections")
 async def list_collections(
     include_system: bool = Query(True),
-    case_id: Optional[str] = Query(None),
-    project_id: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
-):
+    case_id: str | None = Query(None),
+    project_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+) -> list[CollectionSummary]:
     """List all collections"""
     query = db.query(EvidenceCollection)
     
@@ -1367,11 +1435,20 @@ async def remove_from_collection(
 
 @router.get("/stats")
 async def get_evidence_stats(
-    case_id: Optional[str] = Query(None),
-    project_id: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
-):
-    """Get evidence repository statistics"""
+    case_id: str | None = Query(None),
+    project_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Get evidence repository statistics (cached for 60 seconds)"""
+    # Build cache key
+    cache_key = f"evidence:stats:{case_id or 'all'}:{project_id or 'all'}"
+    
+    # Check cache first
+    cached = get_cached(cache_key)
+    if cached:
+        return cached
+    
+    # Cache miss - compute stats
     query = db.query(EvidenceItem)
     
     if case_id:
@@ -1410,14 +1487,19 @@ async def get_evidence_stats(
     week_ago = datetime.now() - timedelta(days=7)
     recent = query.filter(EvidenceItem.created_at >= week_ago).count()
     
-    return {
+    result = {
         'total': total,
         'unassigned': unassigned,
         'with_correspondence': with_correspondence,
         'recent_uploads': recent,
-        'by_type': {t: c for t, c in type_counts if t},
-        'by_status': {s: c for s, c in status_counts if s}
+        'by_type': {str(t): c for t, c in type_counts if t},
+        'by_status': {str(s): c for s, c in status_counts if s}
     }
+    
+    # Cache for 60 seconds (stats don't need to be real-time)
+    set_cached(cache_key, result, ttl_seconds=60)
+    
+    return result
 
 
 # ============================================================================
@@ -1881,10 +1963,10 @@ async def get_evidence_text_content(
 
 @router.post("/sync-attachments")
 async def sync_email_attachments_to_evidence(
-    project_id: Optional[str] = Query(None),
+    project_id: str | None = Query(None),
     db: Session = Depends(get_db),
-    user: User = Depends(current_user)
-):
+    user: User = Depends(current_user),
+) -> dict[str, Any]:
     """
     Sync email attachments to evidence repository.
     
@@ -1991,9 +2073,9 @@ async def sync_email_attachments_to_evidence(
 
 @router.get("/sync-status")
 async def get_sync_status(
-    project_id: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
-):
+    project_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
     """
     Get sync status between email_attachments and evidence_items.
     Shows how many attachments don't have corresponding evidence records.

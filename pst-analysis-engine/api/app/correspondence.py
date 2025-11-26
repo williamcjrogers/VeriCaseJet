@@ -8,7 +8,7 @@ import asyncio
 import os
 import logging
 from datetime import datetime
-from typing import Any, Annotated, cast
+from typing import Any, Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -16,13 +16,13 @@ from sqlalchemy import or_, and_, func
 from pydantic import BaseModel
 from pydantic.fields import Field
 
-from .security import get_db, current_user
+from .security import get_db
 from .models import (
     Case, PSTFile, EmailMessage, EmailAttachment,
     Stakeholder, Keyword, Project, User,
-    Company, UserCompany, Document, DocStatus, UserRole
+    Company, Document, DocStatus
 )
-from .storage import presign_put, presign_get, s3
+from .storage import presign_put, presign_get, s3, multipart_start, presign_part, multipart_complete
 from .config import settings
 from .tasks import celery_app
 
@@ -99,7 +99,38 @@ class PSTUploadInitResponse(BaseModel):
     upload_url: str
     s3_bucket: str
     s3_key: str
-    
+
+
+class PSTMultipartInitRequest(BaseModel):
+    """Request to initiate multipart PST upload for large files (>100MB)"""
+    case_id: str | None = None
+    filename: str
+    file_size: int
+    project_id: str | None = None
+    content_type: str = "application/vnd.ms-outlook"
+
+
+class PSTMultipartInitResponse(BaseModel):
+    """Response with multipart upload info"""
+    pst_file_id: str
+    upload_id: str
+    s3_bucket: str
+    s3_key: str
+    chunk_size: int  # Recommended chunk size in bytes
+
+
+class PSTMultipartPartResponse(BaseModel):
+    """Response with presigned URL for a single part"""
+    url: str
+    part_number: int
+
+
+class PSTMultipartCompleteRequest(BaseModel):
+    """Request to complete multipart upload"""
+    pst_file_id: str
+    upload_id: str
+    parts: list[dict[str, Any]]  # List of {ETag, PartNumber}
+
 
 class PSTProcessingStatus(BaseModel):
     """PST processing status"""
@@ -109,6 +140,30 @@ class PSTProcessingStatus(BaseModel):
     processed_emails: int
     progress_percent: float
     error_message: str | None = None
+
+
+class PSTFileInfo(BaseModel):
+    """PST file info for list view"""
+    id: str
+    filename: str
+    file_size_bytes: int | None
+    total_emails: int
+    processed_emails: int
+    processing_status: str
+    uploaded_at: datetime | None
+    processing_started_at: datetime | None
+    processing_completed_at: datetime | None
+    error_message: str | None = None
+    case_id: str | None = None
+    project_id: str | None = None
+
+
+class PSTFileListResponse(BaseModel):
+    """Response for listing PST files"""
+    items: list[PSTFileInfo]
+    total: int
+    page: int
+    page_size: int
 
 
 class EmailMessageSummary(BaseModel):
@@ -145,8 +200,10 @@ class EmailMessageSummary(BaseModel):
     planned_progress: float | None = None
     actual_progress: float | None = None
     category: str | None = None
+    suggested_category: str | None = None  # AI-suggested category based on content
     keywords: str | None = None
     stakeholder: str | None = None
+    stakeholder_role: str | None = None  # Party role from matched stakeholders
     priority: str | None = None
     status: str | None = None
     notes: str | None = None
@@ -268,6 +325,161 @@ async def init_pst_upload(
     )
 
 
+# ========================================
+# MULTIPART UPLOAD ENDPOINTS (for large PST files 100MB+)
+# ========================================
+
+# Recommended chunk size: 100MB for optimal performance
+MULTIPART_CHUNK_SIZE = 100 * 1024 * 1024  # 100MB
+
+
+@router.post("/pst/upload/multipart/init", response_model=PSTMultipartInitResponse)
+async def init_pst_multipart_upload(
+    request: PSTMultipartInitRequest,
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
+):
+    """
+    Initialize multipart PST file upload for large files (>100MB).
+    Returns upload_id and s3_key for subsequent part uploads.
+    """
+    # Get default admin user
+    default_user = db.query(User).filter(User.email == "admin@vericase.com").first()
+    if not default_user:
+        from .security import hash_password
+        from .models import UserRole
+        default_user = User(
+            email="admin@vericase.com",
+            password_hash=hash_password("admin123"),
+            role=UserRole.ADMIN,
+            is_active=True,
+            email_verified=True,
+            display_name="Administrator"
+        )
+        db.add(default_user)
+        db.commit()
+        db.refresh(default_user)
+    
+    # Verify case or project exists
+    if not request.case_id and not request.project_id:
+        raise HTTPException(400, "Either case_id or project_id must be provided")
+
+    if request.case_id:
+        case = db.query(Case).filter_by(id=request.case_id).first()
+        if not case:
+            raise HTTPException(404, "Case not found")
+        entity_prefix = f"case_{request.case_id}"
+    else:
+        project = db.query(Project).filter_by(id=request.project_id).first()
+        if not project:
+            raise HTTPException(404, "Project not found")
+        entity_prefix = f"project_{request.project_id}"
+
+    # Generate PST file record
+    pst_file_id = str(uuid.uuid4())
+    s3_bucket = settings.S3_PST_BUCKET or settings.S3_BUCKET
+    s3_key = f"{entity_prefix}/pst/{pst_file_id}/{request.filename}"
+    
+    # Start S3 multipart upload
+    upload_id = multipart_start(s3_key, request.content_type, bucket=s3_bucket)
+    
+    # Create PST file record with upload_id for tracking
+    pst_file = PSTFile(
+        id=pst_file_id,
+        filename=request.filename,
+        case_id=request.case_id,
+        project_id=request.project_id,
+        s3_bucket=s3_bucket,
+        s3_key=s3_key,
+        file_size_bytes=request.file_size,
+        processing_status='uploading',
+        uploaded_by=default_user.id
+    )
+    
+    db.add(pst_file)
+    db.commit()
+    
+    logger.info(f"Initiated multipart PST upload: {pst_file_id}, upload_id: {upload_id}")
+    
+    return PSTMultipartInitResponse(
+        pst_file_id=pst_file_id,
+        upload_id=upload_id,
+        s3_bucket=s3_bucket,
+        s3_key=s3_key,
+        chunk_size=MULTIPART_CHUNK_SIZE
+    )
+
+
+@router.get("/pst/upload/multipart/part", response_model=PSTMultipartPartResponse)
+async def get_pst_multipart_part_url(
+    pst_file_id: str = Query(..., description="PST file ID"),
+    upload_id: str = Query(..., description="Multipart upload ID"),
+    part_number: int = Query(..., ge=1, le=10000, description="Part number (1-10000)"),
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
+):
+    """
+    Get presigned URL for uploading a specific part of the multipart upload.
+    Parts must be numbered 1-10000 and uploaded in order or parallel.
+    """
+    # Verify PST file exists
+    pst_file = db.query(PSTFile).filter_by(id=pst_file_id).first()
+    if not pst_file:
+        raise HTTPException(404, "PST file not found")
+    
+    # Generate presigned URL for this part (valid for 4 hours)
+    url = presign_part(
+        pst_file.s3_key,
+        upload_id,
+        part_number,
+        expires=14400,
+        bucket=pst_file.s3_bucket
+    )
+    
+    return PSTMultipartPartResponse(
+        url=url,
+        part_number=part_number
+    )
+
+
+@router.post("/pst/upload/multipart/complete")
+async def complete_pst_multipart_upload(
+    request: PSTMultipartCompleteRequest,
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
+):
+    """
+    Complete multipart upload after all parts are uploaded.
+    Requires list of {ETag, PartNumber} for each uploaded part.
+    """
+    # Verify PST file exists
+    pst_file = db.query(PSTFile).filter_by(id=request.pst_file_id).first()
+    if not pst_file:
+        raise HTTPException(404, "PST file not found")
+    
+    try:
+        # Complete the multipart upload in S3
+        multipart_complete(
+            pst_file.s3_key,
+            request.upload_id,
+            request.parts,
+            bucket=pst_file.s3_bucket
+        )
+        
+        # Update PST file status
+        pst_file.processing_status = 'pending'
+        db.commit()
+        
+        logger.info(f"Completed multipart upload for PST: {request.pst_file_id}")
+        
+        return {
+            "success": True,
+            "pst_file_id": request.pst_file_id,
+            "message": "Upload complete. Call /pst/{pst_file_id}/process to start processing."
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to complete multipart upload: {e}")
+        raise HTTPException(500, f"Failed to complete upload: {str(e)}")
+
+
 @router.post("/pst/{pst_file_id}/process")
 async def start_pst_processing(
     pst_file_id: str,
@@ -374,6 +586,61 @@ async def get_pst_status(
         processed_emails=processed_emails,
         progress_percent=round(float(progress), 1),
         error_message=str(pst_file.error_message) if pst_file.error_message is not None else None,
+    )
+
+
+@router.get("/pst/files", response_model=PSTFileListResponse)
+async def list_pst_files(
+    project_id: Annotated[str | None, Query(description="Filter by project ID")] = None,
+    case_id: Annotated[str | None, Query(description="Filter by case ID")] = None,
+    status: Annotated[str | None, Query(description="Filter by processing status")] = None,
+    page: int = Query(1, ge=1),  # type: ignore[reportCallInDefaultInitializer]
+    page_size: int = Query(50, ge=1, le=200),  # type: ignore[reportCallInDefaultInitializer]
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
+):
+    """List uploaded PST files with filtering and pagination"""
+    query = db.query(PSTFile)
+    
+    # Apply filters
+    if project_id:
+        query = query.filter(PSTFile.project_id == project_id)
+    if case_id:
+        query = query.filter(PSTFile.case_id == case_id)
+    if status:
+        query = query.filter(PSTFile.processing_status == status)
+    
+    # Get total count
+    total = query.count()
+    
+    # Order by most recent first and paginate
+    query = query.order_by(PSTFile.uploaded_at.desc())
+    offset = (page - 1) * page_size
+    pst_files = query.offset(offset).limit(page_size).all()
+    
+    # Convert to response format
+    items = [
+        PSTFileInfo(
+            id=str(pst.id),
+            filename=pst.filename,
+            file_size_bytes=pst.file_size_bytes,
+            total_emails=pst.total_emails or 0,
+            processed_emails=pst.processed_emails or 0,
+            processing_status=pst.processing_status or 'pending',
+            uploaded_at=pst.uploaded_at,
+            processing_started_at=pst.processing_started_at,
+            processing_completed_at=pst.processing_completed_at,
+            error_message=pst.error_message,
+            case_id=str(pst.case_id) if pst.case_id else None,
+            project_id=str(pst.project_id) if pst.project_id else None,
+        )
+        for pst in pst_files
+    ]
+    
+    return PSTFileListResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size
     )
 
 
@@ -499,7 +766,7 @@ async def list_emails(
         has_attachments_val = len(attachment_list) > 0
         
         # Helper function to format recipients - handles None/null values and various formats
-        def format_recipients(recipients):
+        def format_recipients(recipients: list[Any] | str | None) -> str:
             if not recipients or recipients is None:
                 return ""
             if not isinstance(recipients, list):
@@ -507,7 +774,7 @@ async def list_emails(
                 if isinstance(recipients, str):
                     return recipients.strip()
                 return ""
-            formatted = []
+            formatted: list[str] = []
             try:
                 for recipient in recipients:
                     if isinstance(recipient, str):
@@ -521,9 +788,9 @@ async def list_emails(
                         if email_addr and name:
                             formatted.append(f"{name} <{email_addr}>")
                         elif email_addr:
-                            formatted.append(email_addr)
+                            formatted.append(str(email_addr))
                         elif name:
-                            formatted.append(name)
+                            formatted.append(str(name))
             except Exception as ex:
                 logger.warning(f"Error formatting recipients: {ex}")
                 return ""
@@ -533,8 +800,48 @@ async def list_emails(
         keywords_str = ", ".join(e.matched_keywords) if e.matched_keywords else None
         stakeholder_str = ", ".join(e.matched_stakeholders) if e.matched_stakeholders else None
         
+        # Look up stakeholder role from matched stakeholders
+        stakeholder_role = None
+        if e.matched_stakeholders and len(e.matched_stakeholders) > 0:
+            # Look up first matched stakeholder's role
+            first_stakeholder = db.query(Stakeholder).filter(
+                Stakeholder.project_id == project_id,
+                Stakeholder.name == e.matched_stakeholders[0]
+            ).first()
+            if first_stakeholder:
+                stakeholder_role = first_stakeholder.role
+        
+        # AI-assisted category suggestion based on subject and body content
+        def suggest_category(subject: str | None, body: str | None) -> str | None:
+            """Suggest a category based on email content patterns"""
+            text = f"{subject or ''} {body or ''}".lower()
+            
+            # Category patterns with keywords (ordered by specificity)
+            category_patterns = [
+                ('Compensation Event', ['compensation event', 'ce notice', 'ce-', 'compensation notice']),
+                ('Early Warning', ['early warning', 'ew notice', 'ew-', 'potential risk']),
+                ('Delay Notice', ['delay notice', 'extension of time', 'eot', 'time extension', 'programme delay', 'critical delay']),
+                ('Site Instruction', ['site instruction', 'si-', 'si ', 'instruction to', 'directed to']),
+                ('Variation', ['variation order', 'vo-', 'vo ', 'change order', 'additional works', 'omission']),
+                ('Payment', ['payment certificate', 'interim payment', 'valuation', 'invoice', 'final account', 'payment application']),
+                ('Meeting Minutes', ['meeting minutes', 'minutes of meeting', 'attendees:', 'action items', 'agenda']),
+                ('Technical Query', ['technical query', 'tq-', 'rfi', 'request for information', 'clarification required']),
+                ('Progress Update', ['progress report', 'weekly report', 'monthly report', 'status update', 'progress update']),
+                ('Quality Issue', ['quality issue', 'defect', 'snag', 'ncr', 'non-conformance', 'remedial']),
+                ('Safety/H&S', ['safety', 'health and safety', 'h&s', 'accident', 'incident', 'near miss', 'hazard']),
+                ('Contract Document', ['contract', 'specification', 'drawing', 'schedule', 'appendix']),
+            ]
+            
+            for category, keywords in category_patterns:
+                if any(kw in text for kw in keywords):
+                    return category
+            
+            return None
+        
+        suggested_category = suggest_category(e.subject, e.body_text_clean or e.body_text)
+        
         # Clean the email body - strip HTML tags and decode escape sequences
-        def clean_body_text(body_text_clean, body_html, body_text):
+        def clean_body_text(body_text_clean: str | None, body_html: str | None, body_text: str | None) -> str:
             """Return clean text for display in grid"""
             import re
             from html import unescape
@@ -660,8 +967,10 @@ async def list_emails(
             planned_progress=None,
             actual_progress=None,
             category=None,
+            suggested_category=suggested_category,  # AI-suggested category
             keywords=keywords_str,
             stakeholder=stakeholder_str,
+            stakeholder_role=stakeholder_role,  # Party role from matched stakeholders
             priority="Normal",  # Default priority
             status="Open",  # Default status
             notes=None,
@@ -674,6 +983,209 @@ async def list_emails(
         page=page,
         page_size=page_size
     )
+
+
+# ========================================
+# SERVER-SIDE ROW MODEL ENDPOINT (High Performance)
+# ========================================
+
+class ServerSideRequest(BaseModel):
+    """AG Grid Server-Side Row Model request"""
+    startRow: int = 0
+    endRow: int = 100
+    sortModel: list[dict] = Field(default_factory=list)
+    filterModel: dict = Field(default_factory=dict)
+    groupKeys: list[str] = Field(default_factory=list)
+    rowGroupCols: list[dict] = Field(default_factory=list)
+
+class ServerSideResponse(BaseModel):
+    """AG Grid Server-Side Row Model response"""
+    rows: list[dict]
+    lastRow: int  # -1 if more rows exist, otherwise total count
+    # Statistics for the stats bar
+    stats: dict = Field(default_factory=dict)
+
+@router.post("/emails/server-side")
+async def get_emails_server_side(
+    request: ServerSideRequest,
+    project_id: Annotated[str | None, Query(description="Project ID")] = None,
+    case_id: Annotated[str | None, Query(description="Case ID")] = None,
+    db: Session = Depends(get_db)
+) -> ServerSideResponse:
+    """
+    High-performance server-side endpoint for AG Grid.
+    Only loads the rows needed for display, enabling handling of 100k+ emails.
+    """
+    start_row = request.startRow
+    end_row = request.endRow
+    page_size = end_row - start_row
+    
+    # Build base query
+    if case_id:
+        query = db.query(EmailMessage).filter(EmailMessage.case_id == uuid.UUID(case_id))
+    elif project_id:
+        query = db.query(EmailMessage).filter(EmailMessage.project_id == uuid.UUID(project_id))
+    else:
+        query = db.query(EmailMessage)
+    
+    # Apply AG Grid filters
+    for col_id, filter_data in request.filterModel.items():
+        filter_type = filter_data.get('filterType', 'text')
+        filter_op = filter_data.get('type', 'contains')
+        filter_value = filter_data.get('filter', '')
+        
+        # Map column IDs to model attributes
+        column_map = {
+            'subject': EmailMessage.subject,
+            'sender_name': EmailMessage.sender_name,
+            'sender_email': EmailMessage.sender_email,
+            'date_sent': EmailMessage.date_sent,
+            'has_attachments': EmailMessage.has_attachments,
+            'body_text': EmailMessage.body_text,
+        }
+        
+        col = column_map.get(col_id)
+        if col is None:
+            continue
+        
+        if filter_type == 'text':
+            if filter_op == 'contains':
+                query = query.filter(col.ilike(f'%{filter_value}%'))
+            elif filter_op == 'notContains':
+                query = query.filter(~col.ilike(f'%{filter_value}%'))
+            elif filter_op == 'equals':
+                query = query.filter(col == filter_value)
+            elif filter_op == 'notEqual':
+                query = query.filter(col != filter_value)
+            elif filter_op == 'startsWith':
+                query = query.filter(col.ilike(f'{filter_value}%'))
+            elif filter_op == 'endsWith':
+                query = query.filter(col.ilike(f'%{filter_value}'))
+        elif filter_type == 'date':
+            date_from = filter_data.get('dateFrom')
+            date_to = filter_data.get('dateTo')
+            if date_from:
+                query = query.filter(col >= datetime.fromisoformat(date_from.replace('Z', '+00:00')))
+            if date_to:
+                query = query.filter(col <= datetime.fromisoformat(date_to.replace('Z', '+00:00')))
+        elif filter_type == 'set':
+            values = filter_data.get('values', [])
+            if values:
+                query = query.filter(col.in_(values))
+    
+    # Get total count (cached if possible)
+    total = query.count()
+    
+    # Apply sorting
+    if request.sortModel:
+        for sort in request.sortModel:
+            col_id = sort.get('colId', 'date_sent')
+            sort_dir = sort.get('sort', 'desc')
+            
+            column_map = {
+                'subject': EmailMessage.subject,
+                'sender_name': EmailMessage.sender_name,
+                'sender_email': EmailMessage.sender_email,
+                'date_sent': EmailMessage.date_sent,
+                'has_attachments': EmailMessage.has_attachments,
+            }
+            
+            col = column_map.get(col_id, EmailMessage.date_sent)
+            if sort_dir == 'desc':
+                query = query.order_by(col.desc())
+            else:
+                query = query.order_by(col.asc())
+    else:
+        # Default sort by date descending
+        query = query.order_by(EmailMessage.date_sent.desc())
+    
+    # Apply pagination
+    emails = query.offset(start_row).limit(page_size).all()
+    
+    # Convert to lightweight dicts (no expensive attachment lookups)
+    rows = []
+    for e in emails:
+        # Combine recipients from to/cc/bcc fields
+        recipients_list = []
+        if e.recipients_to:
+            recipients_list.extend(e.recipients_to)
+        if e.recipients_cc:
+            recipients_list.extend(e.recipients_cc)
+        
+        rows.append({
+            'id': str(e.id),
+            # Map to expected frontend field names
+            'email_subject': e.subject or '(No Subject)',
+            'subject': e.subject or '(No Subject)',
+            'email_from': e.sender_email or '',
+            'sender_name': e.sender_name or '',
+            'sender_email': e.sender_email or '',
+            'email_date': e.date_sent.isoformat() if e.date_sent else None,
+            'date_sent': e.date_sent.isoformat() if e.date_sent else None,
+            'email_to': e.recipients_to or [],
+            'email_cc': e.recipients_cc or [],
+            'recipients': recipients_list,
+            'recipients_to': e.recipients_to or [],
+            'recipients_cc': e.recipients_cc or [],
+            'has_attachments': e.has_attachments or False,
+            'attachment_count': getattr(e, 'attachment_count', 0) or 0,
+            'is_flagged': getattr(e, 'is_flagged', False),
+            'importance': getattr(e, 'importance', 'normal'),
+            'read_status': getattr(e, 'read_status', 'unread'),
+            'thread_id': str(e.thread_id) if getattr(e, 'thread_id', None) else None,
+            'conversation_index': getattr(e, 'conversation_index', None),
+            'categories': getattr(e, 'categories', []) or [],
+            'linked_activity_id': str(e.linked_activity_id) if getattr(e, 'linked_activity_id', None) else None,
+            'notes': getattr(e, 'notes', None),
+            # Body content for Message column - prefer clean text over raw
+            'email_body': e.body_text_clean or e.body_text or '',
+            'body_text': e.body_text or '',
+            'body_text_clean': e.body_text_clean or '',
+            'body_html': getattr(e, 'body_html', None),
+            'content': e.body_text_clean or e.body_text or '',
+        })
+    
+    # Determine lastRow: -1 if more data exists, otherwise total
+    last_row = total if end_row >= total else -1
+    
+    # Calculate statistics (only on first request to avoid repeated queries)
+    stats = {}
+    if start_row == 0:
+        # Build base query for stats (without pagination)
+        stats_query = db.query(EmailMessage)
+        if case_id:
+            stats_query = stats_query.filter(EmailMessage.case_id == uuid.UUID(case_id))
+        elif project_id:
+            stats_query = stats_query.filter(EmailMessage.project_id == uuid.UUID(project_id))
+        
+        # Total count
+        stats['total'] = total
+        
+        # Unique threads
+        thread_count = stats_query.filter(EmailMessage.thread_id.isnot(None)).distinct(EmailMessage.thread_id).count()
+        stats['uniqueThreads'] = thread_count
+        
+        # With attachments
+        with_attachments = stats_query.filter(EmailMessage.has_attachments == True).count()
+        stats['withAttachments'] = with_attachments
+        
+        # Date range
+        date_result = db.query(
+            func.min(EmailMessage.date_sent),
+            func.max(EmailMessage.date_sent)
+        )
+        if case_id:
+            date_result = date_result.filter(EmailMessage.case_id == uuid.UUID(case_id))
+        elif project_id:
+            date_result = date_result.filter(EmailMessage.project_id == uuid.UUID(project_id))
+        
+        min_date, max_date = date_result.first()
+        if min_date and max_date:
+            stats['dateRange'] = f"{min_date.strftime('%d/%m/%Y')} - {max_date.strftime('%d/%m/%Y')}"
+        else:
+            stats['dateRange'] = '-'
+    
+    return ServerSideResponse(rows=rows, lastRow=last_row, stats=stats)
 
 
 @router.get("/emails/{email_id}", response_model=EmailMessageDetail)
@@ -689,95 +1201,69 @@ async def get_email_detail(
     
     # Get attachments
     attachments = db.query(EmailAttachment).filter_by(email_message_id=email_id).all()
-    
+
     # Generate presigned URLs for attachments, filtering out embedded images
     attachment_list: list[dict[str, Any]] = []
     for att in attachments:
         try:
-            s3_key = cast(str | None, getattr(att, "s3_key", None))
-            s3_bucket = cast(str | None, getattr(att, "s3_bucket", None))
-            if s3_key is None or s3_bucket is None:
+            if att.s3_key is None or att.s3_bucket is None:
                 continue
-            filename = cast(str | None, getattr(att, "filename", None))
-            content_type = cast(str | None, getattr(att, "content_type", None))
-            file_size = cast(int | None, getattr(att, "file_size_bytes", None))
-            has_been_ocred = cast(bool, getattr(att, "has_been_ocred", False))
-            is_inline = cast(bool, getattr(att, "is_inline", False))
-            content_id = cast(str | None, getattr(att, "content_id", None))
-            
+
             # Build attachment data to check if it's embedded
             att_data = {
-                'filename': filename,
-                'content_type': content_type,
-                'file_size': file_size,
-                'is_inline': is_inline,
-                'content_id': content_id,
+                'filename': att.filename,
+                'content_type': att.content_type,
+                'file_size': att.file_size_bytes,
+                'is_inline': att.is_inline,
+                'content_id': att.content_id,
             }
-            
+
             # Skip embedded images
             if _is_embedded_image(att_data):
                 continue
-            
+
             download_url = presign_get(
-                s3_key,
+                att.s3_key,
                 expires=3600,
-                bucket=s3_bucket,
-                response_disposition=f'attachment; filename="{filename}"' if filename else "attachment",
+                bucket=att.s3_bucket,
+                response_disposition=f'attachment; filename="{att.filename}"' if att.filename else "attachment",
             )
             attachment_list.append({
-                'id': str(getattr(att, "id")),
-                'filename': filename,
-                'name': filename,  # Also include 'name' for frontend compatibility
-                'content_type': content_type,
-                'file_size': file_size,
-                'size': file_size,  # Also include 'size' for frontend compatibility
+                'id': str(att.id),
+                'filename': att.filename,
+                'name': att.filename,  # Also include 'name' for frontend compatibility
+                'content_type': att.content_type,
+                'file_size': att.file_size_bytes,
+                'size': att.file_size_bytes,  # Also include 'size' for frontend compatibility
                 'download_url': download_url,
-                'has_been_ocred': has_been_ocred,
-                'is_inline': is_inline,
-                'content_id': content_id,
-                'attachment_hash': cast(str | None, getattr(att, "attachment_hash", None)),
-                'is_duplicate': cast(bool, getattr(att, "is_duplicate", False)),
+                'has_been_ocred': att.has_been_ocred,
+                'is_inline': att.is_inline,
+                'content_id': att.content_id,
+                'attachment_hash': att.attachment_hash,
+                'is_duplicate': att.is_duplicate,
             })
         except Exception as e:
-            att_id = getattr(att, "id", None)
-            logger.error(f"Error generating presigned URL for attachment {att_id}: {e}")
-    
-    subject = cast(str | None, getattr(email, "subject", None))
-    sender_email = cast(str | None, getattr(email, "sender_email", None))
-    sender_name = cast(str | None, getattr(email, "sender_name", None))
-    recipients_to = cast(list[dict[str, Any]] | None, getattr(email, "recipients_to", None))
-    recipients_cc = cast(list[dict[str, Any]] | None, getattr(email, "recipients_cc", None))
-    date_sent = cast(datetime | None, getattr(email, "date_sent", None))
-    date_received = cast(datetime | None, getattr(email, "date_received", None))
-    body_text = cast(str | None, getattr(email, "body_text", None))
-    body_html = cast(str | None, getattr(email, "body_html", None))
-    body_text_clean = cast(str | None, getattr(email, "body_text_clean", None))
-    content_hash = cast(str | None, getattr(email, "content_hash", None))
-    has_attachments_value = cast(bool, getattr(email, "has_attachments", False))
-    matched_stakeholders = cast(list[str] | None, getattr(email, "matched_stakeholders", None))
-    matched_keywords = cast(list[str] | None, getattr(email, "matched_keywords", None))
-    importance = cast(str | None, getattr(email, "importance", None))
-    pst_message_path = cast(str | None, getattr(email, "pst_message_path", None))
+            logger.error(f"Error generating presigned URL for attachment {att.id}: {e}")
 
     return EmailMessageDetail(
-        id=str(getattr(email, "id")),
-        subject=subject,
-        sender_email=sender_email,
-        sender_name=sender_name,
-        recipients_to=recipients_to,
-        recipients_cc=recipients_cc,
-        date_sent=date_sent,
-        date_received=date_received,
-        body_text=body_text,
-        body_html=body_html,
-        body_text_clean=body_text_clean,
-        content_hash=content_hash,
-        has_attachments=has_attachments_value,
+        id=str(email.id),
+        subject=email.subject,
+        sender_email=email.sender_email,
+        sender_name=email.sender_name,
+        recipients_to=email.recipients_to,
+        recipients_cc=email.recipients_cc,
+        date_sent=email.date_sent,
+        date_received=email.date_received,
+        body_text=email.body_text,
+        body_html=email.body_html,
+        body_text_clean=email.body_text_clean,
+        content_hash=email.content_hash,
+        has_attachments=email.has_attachments,
         attachments=attachment_list,
-        matched_stakeholders=matched_stakeholders,
-        matched_keywords=matched_keywords,
-        importance=importance,
-        pst_message_path=pst_message_path,
+        matched_stakeholders=email.matched_stakeholders,
+        matched_keywords=email.matched_keywords,
+        importance=email.importance,
+        pst_message_path=email.pst_message_path,
     )
 
 
@@ -791,30 +1277,25 @@ async def get_attachment_signed_url(
         att_uuid = uuid.UUID(attachment_id)
     except ValueError:
         raise HTTPException(400, "Invalid attachment ID")
-    
+
     attachment = db.query(EmailAttachment).filter_by(id=att_uuid).first()
     if not attachment:
         raise HTTPException(404, "Attachment not found")
-    
-    s3_key = getattr(attachment, "s3_key", None)
-    s3_bucket = getattr(attachment, "s3_bucket", None)
-    filename = getattr(attachment, "filename", None)
-    content_type = getattr(attachment, "content_type", None)
-    
-    if not s3_key:
+
+    if not attachment.s3_key:
         raise HTTPException(404, "Attachment has no S3 key")
-    
+
     # Generate presigned URL for download
     url = presign_get(
-        s3_key,
+        attachment.s3_key,
         expires=3600,
-        bucket=s3_bucket,
+        bucket=attachment.s3_bucket,
     )
-    
+
     return {
         "url": url,
-        "filename": filename,
-        "content_type": content_type,
+        "filename": attachment.filename,
+        "content_type": attachment.content_type,
     }
 
 
@@ -824,97 +1305,83 @@ async def get_email_thread(
     db: Annotated[Session, Depends(get_db)],
 ):
     """Get full email thread containing this email"""
-    
+
     email = db.query(EmailMessage).filter_by(id=email_id).first()
     if not email:
         raise HTTPException(404, "Email not found")
-    
+
     # Build thread by finding all related emails
     thread_emails: list[EmailMessage] = []
 
-    case_id = cast(str | None, getattr(email, "case_id", None))
-    project_id = cast(str | None, getattr(email, "project_id", None))
-    if case_id is not None:
-        entity_filter = EmailMessage.case_id == case_id
-    elif project_id is not None:
-        entity_filter = EmailMessage.project_id == project_id
+    if email.case_id is not None:
+        entity_filter = EmailMessage.case_id == email.case_id
+    elif email.project_id is not None:
+        entity_filter = EmailMessage.project_id == email.project_id
     else:
         raise HTTPException(400, "Email has no case_id or project_id")
 
-    thread_id = cast(str | None, getattr(email, "thread_id", None))
-    if thread_id:
-        thread_emails = cast(
-            list[EmailMessage],
+    if email.thread_id:
+        thread_emails = list(
             db.query(EmailMessage)
             .filter(
                 and_(
                     entity_filter,
-                    EmailMessage.thread_id == thread_id,
+                    EmailMessage.thread_id == email.thread_id,
                 )
             )
             .order_by(EmailMessage.date_sent)
-            .all(),
+            .all()
         )
 
-    message_id = cast(str | None, getattr(email, "message_id", None))
-    if not thread_emails and message_id:
-        thread_emails = cast(
-            list[EmailMessage],
+    if not thread_emails and email.message_id:
+        thread_emails = list(
             db.query(EmailMessage)
             .filter(
                 and_(
                     entity_filter,
                     or_(
-                        EmailMessage.message_id == message_id,
-                        EmailMessage.in_reply_to == message_id,
-                        EmailMessage.email_references.contains(message_id),
+                        EmailMessage.message_id == email.message_id,
+                        EmailMessage.in_reply_to == email.message_id,
+                        EmailMessage.email_references.contains(email.message_id),
                     ),
                 )
             )
             .order_by(EmailMessage.date_sent)
-            .all(),
+            .all()
         )
 
-    conversation_index = cast(str | None, getattr(email, "conversation_index", None))
-    if not thread_emails and conversation_index:
-        thread_emails = cast(
-            list[EmailMessage],
+    if not thread_emails and email.conversation_index:
+        thread_emails = list(
             db.query(EmailMessage)
             .filter(
                 and_(
                     entity_filter,
-                    EmailMessage.conversation_index == conversation_index,
+                    EmailMessage.conversation_index == email.conversation_index,
                 )
             )
             .order_by(EmailMessage.date_sent)
-            .all(),
+            .all()
         )
 
     thread_summaries: list[dict[str, Any]] = []
     for e in thread_emails:
-        thread_email_id = str(getattr(e, "id"))
-        summary_subject = cast(str | None, getattr(e, "subject", None))
-        summary_sender_email = cast(str | None, getattr(e, "sender_email", None))
-        summary_sender_name = cast(str | None, getattr(e, "sender_name", None))
-        summary_date_sent = cast(datetime | None, getattr(e, "date_sent", None))
-        summary_has_attachments = cast(bool, getattr(e, "has_attachments", False))
-        summary_thread_id = cast(str | None, getattr(e, "thread_id", None))
+        thread_email_id = str(e.id)
         thread_summaries.append(
             {
                 'id': thread_email_id,
-                'subject': summary_subject,
-                'sender_email': summary_sender_email,
-                'sender_name': summary_sender_name,
-                'date_sent': summary_date_sent.isoformat() if summary_date_sent else None,
-                'has_attachments': summary_has_attachments,
+                'subject': e.subject,
+                'sender_email': e.sender_email,
+                'sender_name': e.sender_name,
+                'date_sent': e.date_sent.isoformat() if e.date_sent else None,
+                'has_attachments': e.has_attachments,
                 'is_current': thread_email_id == email_id,
-                'thread_id': summary_thread_id,
+                'thread_id': e.thread_id,
             }
         )
 
     return {
         'thread_size': len(thread_summaries),
-        'thread_id': thread_id,
+        'thread_id': email.thread_id,
         'emails': thread_summaries,
     }
 
@@ -926,56 +1393,40 @@ async def get_attachment_ocr_text(
 ):
     """
     Get OCR extracted text for an attachment
-    
+
     Returns:
     - extracted_text: The OCR'd text content
     - has_been_ocred: Whether OCR has completed
     - ocr_status: Processing status
     """
-    email_attachment = cast(
-        EmailAttachment | None,
-        db.query(EmailAttachment).filter_by(id=attachment_id).first(),
-    )
+    email_attachment = db.query(EmailAttachment).filter_by(id=attachment_id).first()
 
     if email_attachment:
-        attachment_id_value = str(getattr(email_attachment, "id"))
-        filename = cast(str | None, getattr(email_attachment, "filename", None))
-        has_been_ocred = cast(bool, getattr(email_attachment, "has_been_ocred", False))
-        extracted_text = cast(str | None, getattr(email_attachment, "extracted_text", None))
-        file_size = cast(int | None, getattr(email_attachment, "file_size", None))
-        content_type = cast(str | None, getattr(email_attachment, "content_type", None))
         return {
-            'attachment_id': attachment_id_value,
-            'filename': filename,
-            'has_been_ocred': has_been_ocred,
-            'extracted_text': extracted_text,
-            'ocr_status': 'completed' if has_been_ocred else 'processing',
-            'file_size': file_size,
-            'content_type': content_type,
+            'attachment_id': str(email_attachment.id),
+            'filename': email_attachment.filename,
+            'has_been_ocred': email_attachment.has_been_ocred,
+            'extracted_text': email_attachment.extracted_text,
+            'ocr_status': 'completed' if email_attachment.has_been_ocred else 'processing',
+            'file_size': email_attachment.file_size_bytes,
+            'content_type': email_attachment.content_type,
         }
 
     # Fallback: try as Document (for backward compatibility)
-    document = cast(Document | None, db.query(Document).filter_by(id=attachment_id).first())
+    document = db.query(Document).filter_by(id=attachment_id).first()
     if not document:
         raise HTTPException(404, "Attachment not found")
 
-    status = getattr(document, "status", None)
-    meta = cast(dict[str, Any] | None, getattr(document, "meta", None))
-    is_attachment = meta.get('is_email_attachment') if meta else None
-
-    filename = cast(str | None, getattr(document, "filename", None))
-    text_excerpt = cast(str | None, getattr(document, "text_excerpt", None))
-    file_size = cast(int | None, getattr(document, "size", None))
-    content_type = cast(str | None, getattr(document, "content_type", None))
+    is_attachment = document.meta.get('is_email_attachment') if document.meta else None
 
     return {
-        'attachment_id': str(getattr(document, "id")),
-        'filename': filename,
-        'has_been_ocred': status == DocStatus.READY,
-        'extracted_text': text_excerpt,
-        'ocr_status': 'completed' if status == DocStatus.READY else 'processing',
-        'file_size': file_size,
-        'content_type': content_type,
+        'attachment_id': str(document.id),
+        'filename': document.filename,
+        'has_been_ocred': document.status == DocStatus.READY,
+        'extracted_text': document.text_excerpt,
+        'ocr_status': 'completed' if document.status == DocStatus.READY else 'processing',
+        'file_size': document.size,
+        'content_type': document.content_type,
         'is_email_attachment': is_attachment,
     }
 
@@ -1663,6 +2114,365 @@ async def upload_evidence(
         "project_id": project_id,
         "s3_key": s3_key
     }
+
+
+@wizard_router.post("/evidence/upload-bulk")
+async def upload_evidence_bulk(
+    profileId: str | None = Form(None),  # type: ignore[reportCallInDefaultInitializer]
+    profileType: str = Form("project"),  # type: ignore[reportCallInDefaultInitializer]
+    files: list[UploadFile] = File(...),  # type: ignore[reportCallInDefaultInitializer]
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
+):
+    """
+    Bulk upload endpoint for multiple email files (.eml, .msg).
+    Parses emails directly and creates EmailMessage records in bulk.
+    Much more efficient than uploading one file at a time.
+    """
+    # Get default admin user
+    default_user = db.query(User).filter(User.email == "admin@vericase.com").first()
+    if not default_user:
+        from .security import hash_password
+        from .models import UserRole
+        default_user = User(
+            email="admin@vericase.com",
+            password_hash=hash_password("admin123"),
+            role=UserRole.ADMIN,
+            is_active=True,
+            email_verified=True,
+            display_name="Administrator"
+        )
+        db.add(default_user)
+        db.commit()
+        db.refresh(default_user)
+    
+    # If no profileId provided, use default project
+    if not profileId or profileId == "null" or profileId == "undefined":
+        default_project = _get_or_create_default_project(db, default_user)
+        profileId = str(default_project.id)
+        profileType = "project"
+    
+    try:
+        profile_uuid = uuid.UUID(profileId)
+    except ValueError:
+        default_project = _get_or_create_default_project(db, default_user)
+        profileId = str(default_project.id)
+        profile_uuid = default_project.id
+        profileType = "project"
+
+    # Get entity IDs
+    case_id, project_id, _company_id = _get_entity_ids(profile_uuid, profileType, db)
+    
+    # Create a dummy PSTFile record for bulk uploads (required for EmailMessage foreign key)
+    bucket = settings.S3_BUCKET or settings.MINIO_BUCKET
+    pst_file = PSTFile(
+        filename=f"bulk_upload_{uuid.uuid4().hex[:8]}.eml",
+        case_id=case_id,
+        project_id=project_id,
+        s3_bucket=bucket,
+        s3_key=f"bulk_uploads/{profileId}/{uuid.uuid4()}/emails",
+        file_size_bytes=0,
+        processing_status='completed',
+        uploaded_by=default_user.id,
+        total_emails=len(files),
+        processed_emails=0
+    )
+    db.add(pst_file)
+    db.commit()
+    db.refresh(pst_file)
+    
+    # Track results with explicit types
+    success_count = 0
+    failed_count = 0
+    processed_emails: list[dict[str, Any]] = []
+    error_list: list[dict[str, str]] = []
+    
+    for file in files:
+        try:
+            if not file.filename:
+                failed_count += 1
+                error_list.append({"file": "unknown", "error": "No filename"})
+                continue
+            
+            filename_lower = file.filename.lower()
+            content = await file.read()
+            
+            # Parse email based on file type
+            if filename_lower.endswith('.eml'):
+                email_data = _parse_eml_file(content)
+            elif filename_lower.endswith('.msg'):
+                email_data = _parse_msg_file(content, file.filename)
+            else:
+                # Store as regular file
+                s3_key = f"uploads/{profileType}/{profileId}/{uuid.uuid4()}_{file.filename}"
+                await _upload_bytes_to_storage(content, s3_key, file.content_type or "application/octet-stream")
+                success_count += 1
+                continue
+            
+            if not email_data:
+                failed_count += 1
+                error_list.append({"file": file.filename, "error": "Failed to parse email"})
+                continue
+            
+            # Create EmailMessage record
+            email_msg = EmailMessage(
+                pst_file_id=pst_file.id,
+                case_id=case_id,
+                project_id=project_id,
+                message_id=email_data.get("message_id"),
+                in_reply_to=email_data.get("in_reply_to"),
+                subject=email_data.get("subject"),
+                sender_email=email_data.get("sender_email"),
+                sender_name=email_data.get("sender_name"),
+                recipients_to=email_data.get("recipients_to", []),
+                recipients_cc=email_data.get("recipients_cc", []),
+                date_sent=email_data.get("date_sent"),
+                body_text=email_data.get("body_text"),
+                body_html=email_data.get("body_html"),
+                body_preview=email_data.get("body_preview"),
+                has_attachments=email_data.get("has_attachments", False),
+                importance=email_data.get("importance"),
+                pst_message_path=f"bulk_upload/{file.filename}",
+                meta={
+                    "source": "bulk_upload",
+                    "original_filename": file.filename,
+                    "attachments": email_data.get("attachments", [])
+                }
+            )
+            db.add(email_msg)
+            
+            success_count += 1
+            date_sent = email_data.get("date_sent")
+            processed_emails.append({
+                "filename": file.filename,
+                "subject": email_data.get("subject"),
+                "sender": email_data.get("sender_email"),
+                "date": date_sent.isoformat() if date_sent else None
+            })
+            
+        except Exception as e:
+            logger.error(f"Error processing {file.filename}: {e}")
+            failed_count += 1
+            error_list.append({"file": file.filename or "unknown", "error": str(e)})
+    
+    # Update PST file record with final count
+    pst_file.processed_emails = success_count
+    pst_file.total_emails = success_count
+    db.commit()
+    
+    return {
+        "total": len(files),
+        "success": success_count,
+        "failed": failed_count,
+        "emails": processed_emails,
+        "errors": error_list,
+        "project_id": project_id,
+        "pst_file_id": str(pst_file.id)
+    }
+
+
+def _parse_eml_file(content: bytes) -> dict[str, Any] | None:
+    """Parse .eml file content into email data"""
+    import email
+    from email.utils import parsedate_to_datetime, parseaddr
+    from datetime import timezone
+    
+    try:
+        msg = email.message_from_bytes(content)
+        
+        # Parse sender
+        from_header = msg.get("From", "")
+        sender_name, sender_email = parseaddr(from_header)
+        
+        # Parse recipients
+        to_header = msg.get("To", "")
+        recipients_to = [addr.strip() for addr in to_header.split(",") if addr.strip()]
+        
+        cc_header = msg.get("Cc", "")
+        recipients_cc = [addr.strip() for addr in cc_header.split(",") if addr.strip()]
+        
+        # Parse date
+        date_sent = None
+        date_str = msg.get("Date")
+        if date_str:
+            try:
+                date_sent = parsedate_to_datetime(date_str)
+                if date_sent.tzinfo is None:
+                    date_sent = date_sent.replace(tzinfo=timezone.utc)
+            except Exception:
+                pass
+        
+        # Extract body
+        body_text = None
+        body_html = None
+        
+        if msg.is_multipart():
+            for part in msg.walk():
+                content_type = part.get_content_type()
+                if content_type == "text/plain" and not body_text:
+                    try:
+                        body_text = part.get_payload(decode=True).decode("utf-8", errors="replace")
+                    except Exception:
+                        pass
+                elif content_type == "text/html" and not body_html:
+                    try:
+                        body_html = part.get_payload(decode=True).decode("utf-8", errors="replace")
+                    except Exception:
+                        pass
+        else:
+            content_type = msg.get_content_type()
+            try:
+                payload = msg.get_payload(decode=True)
+                if payload:
+                    text = payload.decode("utf-8", errors="replace")
+                    if content_type == "text/html":
+                        body_html = text
+                    else:
+                        body_text = text
+            except Exception:
+                pass
+        
+        # Check for attachments
+        attachments = []
+        has_attachments = False
+        if msg.is_multipart():
+            for part in msg.walk():
+                disp = part.get_content_disposition()
+                if disp == "attachment":
+                    has_attachments = True
+                    attachments.append({
+                        "filename": part.get_filename() or "attachment",
+                        "content_type": part.get_content_type(),
+                        "size": len(part.get_payload(decode=True) or b"")
+                    })
+        
+        return {
+            "message_id": msg.get("Message-ID"),
+            "in_reply_to": msg.get("In-Reply-To"),
+            "subject": msg.get("Subject"),
+            "sender_email": sender_email or from_header,
+            "sender_name": sender_name,
+            "recipients_to": recipients_to,
+            "recipients_cc": recipients_cc,
+            "date_sent": date_sent,
+            "body_text": body_text,
+            "body_html": body_html,
+            "body_preview": (body_text or "")[:500] if body_text else None,
+            "has_attachments": has_attachments,
+            "attachments": attachments,
+            "importance": msg.get("Importance") or msg.get("X-Priority")
+        }
+        
+    except Exception as e:
+        logger.error(f"Error parsing EML: {e}")
+        return None
+
+
+def _parse_msg_file(content: bytes, filename: str) -> dict[str, Any] | None:
+    """Parse .msg file content into email data"""
+    try:
+        # Try using extract_msg if available
+        import extract_msg  # type: ignore[import-not-found]
+        import tempfile
+        import os
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.msg') as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+        
+        try:
+            msg = extract_msg.Message(tmp_path)
+            
+            date_sent = None
+            if msg.date:
+                from datetime import timezone
+                date_sent = msg.date
+                if date_sent.tzinfo is None:
+                    date_sent = date_sent.replace(tzinfo=timezone.utc)
+            
+            # Extract recipients - handle different formats
+            to_list: list[str] = []
+            if msg.to:
+                if isinstance(msg.to, str):
+                    to_list = [msg.to]
+                elif hasattr(msg.to, '__iter__'):
+                    to_list = [r.email if hasattr(r, 'email') else str(r) for r in msg.to]
+            
+            cc_list: list[str] = []
+            if msg.cc:
+                if isinstance(msg.cc, str):
+                    cc_list = [msg.cc]
+                elif hasattr(msg.cc, '__iter__'):
+                    cc_list = [r.email if hasattr(r, 'email') else str(r) for r in msg.cc]
+            
+            # Extract attachments
+            attachments: list[dict[str, Any]] = []
+            has_attachments = False
+            if msg.attachments:
+                has_attachments = len(msg.attachments) > 0
+                for a in msg.attachments:
+                    att_name = getattr(a, 'longFilename', None) or getattr(a, 'shortFilename', 'attachment')
+                    att_data = getattr(a, 'data', None)
+                    attachments.append({
+                        "filename": att_name,
+                        "size": len(att_data) if att_data else 0
+                    })
+            
+            return {
+                "message_id": getattr(msg, 'messageId', None),
+                "in_reply_to": getattr(msg, 'inReplyTo', None),
+                "subject": msg.subject,
+                "sender_email": msg.sender,
+                "sender_name": getattr(msg, 'senderName', None),
+                "recipients_to": to_list,
+                "recipients_cc": cc_list,
+                "date_sent": date_sent,
+                "body_text": msg.body,
+                "body_html": getattr(msg, 'htmlBody', None),
+                "body_preview": (msg.body or "")[:500],
+                "has_attachments": has_attachments,
+                "attachments": attachments,
+                "importance": getattr(msg, 'importance', None)
+            }
+        finally:
+            os.unlink(tmp_path)
+            
+    except ImportError:
+        # Fallback: just extract basic info from filename
+        logger.warning("extract_msg not available, using fallback")
+        return {
+            "message_id": None,
+            "subject": filename.replace('.msg', ''),
+            "sender_email": "unknown",
+            "recipients_to": [],
+            "recipients_cc": [],
+            "date_sent": None,
+            "body_text": f"MSG file: {filename} (parsing requires extract_msg library)",
+            "body_html": None,
+            "body_preview": f"MSG file: {filename}",
+            "has_attachments": False,
+            "attachments": []
+        }
+    except Exception as e:
+        logger.error(f"Error parsing MSG file {filename}: {e}")
+        return None
+
+
+async def _upload_bytes_to_storage(content: bytes, s3_key: str, content_type: str) -> int:
+    """Upload bytes directly to S3/MinIO storage"""
+    # Use S3_BUCKET for AWS, MINIO_BUCKET for local
+    bucket = settings.S3_BUCKET or settings.MINIO_BUCKET
+    
+    try:
+        s3.put_object(  # type: ignore[union-attr]
+            Bucket=bucket,
+            Key=s3_key,
+            Body=content,
+            ContentType=content_type
+        )
+        return len(content)
+    except Exception as e:
+        logger.error(f"Error uploading to storage: {e}")
+        raise
 
 
 # ========================================

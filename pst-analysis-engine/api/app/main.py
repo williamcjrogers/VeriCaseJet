@@ -8,11 +8,32 @@ from typing import Optional, List, Dict
 from uuid import uuid4
 from fastapi import FastAPI, Depends, HTTPException, Query, Body, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select
+
+# Filter out favicon requests from access logs
+class FaviconFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if hasattr(record, 'args') and record.args:
+            # Check if this is a favicon request in uvicorn access log
+            args = record.args
+            if isinstance(args, tuple) and len(args) >= 3:
+                path = str(args[2]) if len(args) > 2 else ""
+                if "favicon" in path.lower():
+                    return False
+        # Also check message
+        msg = record.getMessage() if hasattr(record, 'getMessage') else str(getattr(record, 'msg', ''))
+        if 'favicon' in msg.lower():
+            return False
+        return True
+
+# Apply filter to uvicorn access logger
+uvicorn_access_logger = logging.getLogger("uvicorn.access")
+uvicorn_access_logger.addFilter(FaviconFilter())
 
 # Import production config helper if in production
 import os
@@ -62,9 +83,11 @@ from .simple_cases import router as simple_cases_router
 from .programmes import router as programmes_router
 from .correspondence import router as correspondence_router, wizard_router  # PST Analysis endpoints
 from .refinement import router as refinement_router  # AI refinement wizard
+from .ai_refinement import router as ai_refinement_router  # Enhanced AI refinement with intelligent questioning
 from .auth_enhanced import router as auth_enhanced_router  # Enhanced authentication
 from .evidence_repository import router as evidence_router  # Evidence repository
 from .deep_research import router as deep_research_router  # Deep Research Agent
+from .claims_module import router as claims_router  # Contentious Matters and Heads of Claim
 
 logger = logging.getLogger(__name__)
 bearer = HTTPBearer(auto_error=False)
@@ -181,9 +204,11 @@ app.include_router(cases_router)
 app.include_router(programmes_router)
 app.include_router(correspondence_router)  # PST Analysis & email correspondence
 app.include_router(refinement_router)  # AI refinement wizard endpoints
+app.include_router(ai_refinement_router)  # Enhanced AI refinement with intelligent questioning
 app.include_router(auth_enhanced_router)  # Enhanced authentication endpoints
 app.include_router(evidence_router)  # Evidence repository
 app.include_router(deep_research_router)  # Deep Research Agent
+app.include_router(claims_router)  # Contentious Matters and Heads of Claim
 
 # Import and include unified router
 from .correspondence import unified_router
@@ -192,6 +217,28 @@ app.include_router(unified_router)  # Unified endpoints for both projects and ca
 origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 if origins:
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+# GZip compression for responses > 500 bytes (significant bandwidth savings for large JSON responses)
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
+
+# Custom middleware for HTTP caching headers on static assets
+@app.middleware("http")
+async def add_cache_headers(request: Request, call_next):
+    """Add HTTP cache headers for static assets to reduce network requests"""
+    response = await call_next(request)
+    path = request.url.path
+    
+    # Cache static assets (CSS, JS, images, fonts) for 1 hour
+    if any(path.endswith(ext) for ext in ['.css', '.js', '.woff', '.woff2', '.ttf', '.eot']):
+        response.headers['Cache-Control'] = 'public, max-age=3600, immutable'
+    elif any(path.endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp']):
+        response.headers['Cache-Control'] = 'public, max-age=86400'  # 24 hours for images
+    elif path.startswith('/ui/') and path.endswith('.html'):
+        # HTML pages should revalidate more often
+        response.headers['Cache-Control'] = 'public, max-age=300, must-revalidate'  # 5 minutes
+    
+    return response
 
 @app.get("/", include_in_schema=False)
 def redirect_to_ui():
@@ -1196,5 +1243,28 @@ async def ui_root():
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
-    """Return 204 No Content to prevent 404 errors"""
-    return Response(status_code=204)
+    """Serve favicon from assets"""
+    import os
+    # Try to find the logo file in UI assets
+    for ui_path in [Path("/code/ui"), Path("/ui"), Path("ui")]:
+        favicon_path = ui_path / "assets" / "LOGOTOBEUSED.png"
+        if favicon_path.exists():
+            return FileResponse(
+                str(favicon_path),
+                media_type="image/png",
+                headers={"Cache-Control": "public, max-age=604800"}  # Cache for 1 week
+            )
+    # Fallback: return transparent 1x1 PNG
+    transparent_png = bytes([
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+        0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+        0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
+        0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+        0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
+        0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
+    ])
+    return Response(
+        content=transparent_png,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=604800"}
+    )

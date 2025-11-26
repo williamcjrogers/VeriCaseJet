@@ -1282,32 +1282,48 @@
             }
         };
 
-        // Initialize function
-        async function initPage() {
-            console.log('[Evidence] Initializing page...');
+        // Main initialization - runs when script loads
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('[Evidence] DOM ready, starting initialization...');
+            
             try {
-                // Initialize VeriCaseApp first
+                // Initialize VeriCaseApp
                 await VeriCaseApp.init();
                 projectId = VeriCaseApp.projectId;
                 caseId = VeriCaseApp.caseId;
-                console.log('[Evidence] VeriCaseApp initialized - projectId:', projectId);
-                
-                // Create grid - onGridReady will handle data loading
-                const gridDiv = document.getElementById('evidenceGrid');
-                agGrid.createGrid(gridDiv, gridOptions);
-                console.log('[Evidence] Grid created');
-            } catch (error) {
-                console.error('[Evidence] Initialization error:', error);
+                console.log('[Evidence] VeriCaseApp ready, projectId:', projectId);
+            } catch (e) {
+                console.warn('[Evidence] VeriCaseApp init issue:', e);
             }
-        }
-
-        // Initialize when DOM is ready
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => initPage());
-        } else {
-            // DOM already loaded, use setTimeout to ensure script is fully parsed
-            setTimeout(() => initPage(), 0);
-        }
+            
+            // Create the grid
+            const gridDiv = document.getElementById('evidenceGrid');
+            agGrid.createGrid(gridDiv, gridOptions);
+            console.log('[Evidence] Grid created');
+            
+            // Load data with small delay to ensure grid is ready
+            setTimeout(async () => {
+                try {
+                    await loadEvidence();
+                    console.log('[Evidence] Data loaded:', allEvidenceItems.length, 'items');
+                    loadCollections();
+                    loadStats();
+                } catch (err) {
+                    console.error('[Evidence] Load error:', err);
+                }
+            }, 100);
+        });
+        
+        // Fallback: Check after 2 seconds if data loaded, if not, trigger load
+        setTimeout(() => {
+            if (typeof allEvidenceItems !== 'undefined' && allEvidenceItems.length === 0 && typeof gridApi !== 'undefined' && gridApi) {
+                console.log('[Evidence] Fallback: triggering data load');
+                loadEvidence().then(() => {
+                    loadCollections();
+                    loadStats();
+                }).catch(e => console.error('[Evidence] Fallback load error:', e));
+            }
+        }, 2000);
         
         // Set up event listeners (run immediately, they'll work once DOM is ready)
         function setupEventListeners() {

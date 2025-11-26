@@ -18,16 +18,15 @@ import logging
 import uuid
 import json
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
+from typing import Annotated, Any, Callable, NotRequired, TypedDict, cast
 from enum import Enum
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass
 
-from fastapi import APIRouter, Depends, HTTPException, Body, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
 
-from .models import User, EmailMessage, Project, Case, Document, EvidenceItem
+from .models import User, EmailMessage, Project, Document
 from .db import get_db
 from .security import current_user
 from .ai_settings import get_ai_api_key, get_ai_model
@@ -35,6 +34,13 @@ from .ai_settings import get_ai_api_key, get_ai_model
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/deep-research", tags=["deep-research"])
+
+# Latest model defaults used when no explicit model is configured in Admin Settings
+LATEST_MODEL_DEFAULTS = {
+    "openai": "gpt-5.1",
+    "anthropic": "claude-4.5-opus",
+    "gemini": "gemini-3.0-pro",
+}
 
 
 # =============================================================================
@@ -57,20 +63,20 @@ class ResearchQuestion(BaseModel):
     id: str
     question: str
     rationale: str
-    dependencies: List[str] = []  # IDs of questions that must complete first
+    dependencies: list[str] = Field(default_factory=list)  # IDs of questions that must complete first
     status: str = "pending"
-    findings: Optional[str] = None
-    citations: List[Dict[str, Any]] = []
-    gaps: List[str] = []
-    completed_at: Optional[datetime] = None
+    findings: str | None = None
+    citations: list[dict[str, Any]] = Field(default_factory=list)
+    gaps: list[str] = Field(default_factory=list)
+    completed_at: datetime | None = None
 
 
 class ResearchPlan(BaseModel):
     """The DAG-structured research plan"""
     topic: str
     problem_statement: str
-    key_angles: List[str]
-    questions: List[ResearchQuestion]
+    key_angles: list[str]
+    questions: list[ResearchQuestion]
     estimated_time_minutes: int = 5
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -79,34 +85,51 @@ class ResearchSession(BaseModel):
     """Complete research session state"""
     id: str
     user_id: str
-    project_id: Optional[str] = None
-    case_id: Optional[str] = None
+    project_id: str | None = None
+    case_id: str | None = None
     topic: str
     status: ResearchStatus = ResearchStatus.PENDING
-    plan: Optional[ResearchPlan] = None
-    question_analyses: Dict[str, Dict[str, Any]] = {}
-    final_report: Optional[str] = None
-    key_themes: List[str] = []
+    plan: ResearchPlan | None = None
+    question_analyses: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    final_report: str | None = None
+    key_themes: list[str] = Field(default_factory=list)
     total_sources_analyzed: int = 0
     processing_time_seconds: float = 0
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 # In-memory session store (in production, use Redis or database)
-_research_sessions: Dict[str, ResearchSession] = {}
+_research_sessions: dict[str, ResearchSession] = {}
 
 
 # =============================================================================
 # Request/Response Models
 # =============================================================================
 
+class PlanQuestionPayload(TypedDict):
+    id: str
+    question: str
+    rationale: str
+    dependencies: NotRequired[list[str]]
+
+
+class PlanPayload(TypedDict):
+    problem_statement: str
+    key_angles: list[str]
+    questions: list[PlanQuestionPayload]
+    estimated_time_minutes: NotRequired[int]
+
+
 class StartResearchRequest(BaseModel):
     topic: str = Field(..., description="The research topic or question")
-    project_id: Optional[str] = None
-    case_id: Optional[str] = None
-    focus_areas: List[str] = Field(default=[], description="Optional focus areas to prioritize")
+    project_id: str | None = None
+    case_id: str | None = None
+    focus_areas: list[str] = Field(
+        default_factory=list,
+        description="Optional focus areas to prioritize"
+    )
 
 
 class StartResearchResponse(BaseModel):
@@ -118,18 +141,18 @@ class StartResearchResponse(BaseModel):
 class ApprovePlanRequest(BaseModel):
     session_id: str
     approved: bool
-    modifications: Optional[str] = None  # User feedback for plan modification
+    modifications: str | None = None  # User feedback for plan modification
 
 
 class ResearchStatusResponse(BaseModel):
     session_id: str
     status: str
-    plan: Optional[ResearchPlan] = None
-    progress: Dict[str, Any] = {}
-    final_report: Optional[str] = None
-    key_themes: List[str] = []
+    plan: ResearchPlan | None = None
+    progress: dict[str, Any] = Field(default_factory=dict)
+    final_report: str | None = None
+    key_themes: list[str] = Field(default_factory=list)
     processing_time_seconds: float = 0
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 # =============================================================================
@@ -173,25 +196,26 @@ class BaseAgent:
     async def _call_openai(self, prompt: str, system_prompt: str = "") -> str:
         import openai
         client = openai.AsyncOpenAI(api_key=self.openai_key)
-        messages = []
+        messages: list[dict[str, str]] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
         
         response = await client.chat.completions.create(
-            model=self.openai_model or "gpt-4-turbo",
+            model=self.openai_model or LATEST_MODEL_DEFAULTS["openai"],
             messages=messages,
             max_tokens=4000,
             temperature=0.3
         )
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+        return content or ""
     
     async def _call_anthropic(self, prompt: str, system_prompt: str = "") -> str:
         import anthropic
         client = anthropic.AsyncAnthropic(api_key=self.anthropic_key)
         
         response = await client.messages.create(
-            model=self.anthropic_model or "claude-sonnet-4-20250514",
+            model=self.anthropic_model or LATEST_MODEL_DEFAULTS["anthropic"],
             max_tokens=4000,
             system=system_prompt if system_prompt else "You are an expert legal and construction dispute analyst.",
             messages=[{"role": "user", "content": prompt}]
@@ -199,18 +223,20 @@ class BaseAgent:
         
         text = ""
         for block in response.content:
-            if hasattr(block, 'text'):
-                text += block.text
+            text_piece = getattr(block, "text", "")
+            if text_piece:
+                text += str(text_piece)
         return text
     
     async def _call_gemini(self, prompt: str, system_prompt: str = "") -> str:
-        import google.generativeai as genai
-        genai.configure(api_key=self.gemini_key)
+        import google.generativeai as genai  # type: ignore[reportMissingTypeStubs]
+        genai.configure(api_key=self.gemini_key)  # type: ignore[attr-defined]
         
-        model = genai.GenerativeModel(self.gemini_model or 'gemini-2.0-flash')
+        model = genai.GenerativeModel(self.gemini_model or LATEST_MODEL_DEFAULTS["gemini"])
         full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-        response = await asyncio.to_thread(model.generate_content, full_prompt)
-        return response.text
+        generate_fn = cast(Callable[[str], Any], model.generate_content)  # type: ignore[attr-defined]
+        response = await asyncio.to_thread(generate_fn, full_prompt)
+        return str(getattr(response, "text", ""))
 
 
 class PlannerAgent(BaseAgent):
@@ -240,7 +266,7 @@ Output your plan in the specified JSON format."""
         self,
         topic: str,
         evidence_context: str,
-        focus_areas: List[str] = []
+        focus_areas: list[str] | None = None
     ) -> ResearchPlan:
         """Generate a research plan as a DAG"""
         
@@ -293,14 +319,14 @@ Ensure questions form a valid DAG (no circular dependencies)."""
             elif "```" in response:
                 json_str = response.split("```")[1].split("```")[0]
             
-            plan_data = json.loads(json_str.strip())
+            plan_data = cast(PlanPayload, json.loads(json_str.strip()))
             
             questions = [
                 ResearchQuestion(
                     id=q["id"],
                     question=q["question"],
                     rationale=q["rationale"],
-                    dependencies=q.get("dependencies", [])
+                    dependencies=q.get("dependencies", []) or []
                 )
                 for q in plan_data["questions"]
             ]
@@ -310,7 +336,7 @@ Ensure questions form a valid DAG (no circular dependencies)."""
                 problem_statement=plan_data["problem_statement"],
                 key_angles=plan_data["key_angles"],
                 questions=questions,
-                estimated_time_minutes=plan_data.get("estimated_time_minutes", 5)
+                estimated_time_minutes=plan_data.get("estimated_time_minutes", 5) or 5
             )
             
         except (json.JSONDecodeError, KeyError) as e:
@@ -356,8 +382,8 @@ class SearcherAgent(BaseAgent):
     6. Evaluate and loop if more information needed
     """
     
-    _cross_encoder = None
-    _embedding_model = None
+    _cross_encoder: Any | None = None
+    _embedding_model: Any | None = None
     
     @classmethod
     def get_cross_encoder(cls):
@@ -386,9 +412,9 @@ class SearcherAgent(BaseAgent):
     def rerank_results(
         self,
         query: str,
-        documents: List[Dict[str, Any]],
+        documents: list[dict[str, Any]],
         top_k: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Rerank documents using cross-encoder for better relevance.
         
@@ -398,7 +424,7 @@ class SearcherAgent(BaseAgent):
         if not documents:
             return []
         
-        cross_encoder = self.get_cross_encoder()
+        cross_encoder: Any | None = self.get_cross_encoder()
         if cross_encoder is None:
             # Fallback: return documents as-is
             return documents[:top_k]
@@ -408,14 +434,14 @@ class SearcherAgent(BaseAgent):
             pairs = [(query, doc.get('content', doc.get('text', str(doc)))) for doc in documents]
             
             # Score all pairs
-            scores = cross_encoder.predict(pairs)
+            scores: list[float] = cast(list[float], cross_encoder.predict(pairs))
             
             # Sort by score descending
-            scored_docs = list(zip(documents, scores))
+            scored_docs: list[tuple[dict[str, Any], float]] = list(zip(documents, scores))
             scored_docs.sort(key=lambda x: x[1], reverse=True)
             
             # Return top-k with scores
-            result = []
+            result: list[dict[str, Any]] = []
             for doc, score in scored_docs[:top_k]:
                 doc_copy = dict(doc)
                 doc_copy['relevance_score'] = float(score)
@@ -430,10 +456,10 @@ class SearcherAgent(BaseAgent):
     def apply_mmr(
         self,
         query: str,
-        documents: List[Dict[str, Any]],
+        documents: list[dict[str, Any]],
         top_k: int = 5,
         diversity_weight: float = 0.3
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Apply Maximal Marginal Relevance to select diverse yet relevant documents.
         
@@ -449,7 +475,7 @@ class SearcherAgent(BaseAgent):
         if not documents or len(documents) <= top_k:
             return documents
         
-        embedding_model = self.get_embedding_model()
+        embedding_model: Any | None = self.get_embedding_model()
         if embedding_model is None:
             # Fallback: return first top_k documents
             return documents[:top_k]
@@ -458,39 +484,39 @@ class SearcherAgent(BaseAgent):
             import numpy as np
             
             # Get document texts
-            doc_texts = [doc.get('content', doc.get('text', str(doc))) for doc in documents]
+            doc_texts: list[str] = [doc.get('content', doc.get('text', str(doc))) for doc in documents]
             
             # Encode query and documents
-            query_embedding = embedding_model.encode([query])[0]
-            doc_embeddings = embedding_model.encode(doc_texts)
+            query_embedding = cast(np.ndarray, embedding_model.encode([query]))[0]
+            doc_embeddings = cast(np.ndarray, embedding_model.encode(doc_texts))
             
             # Calculate query-document similarities
-            query_sims = np.dot(doc_embeddings, query_embedding) / (
+            query_sims: np.ndarray = np.dot(doc_embeddings, query_embedding) / (
                 np.linalg.norm(doc_embeddings, axis=1) * np.linalg.norm(query_embedding)
             )
             
             # MMR selection
-            selected_indices = []
-            remaining_indices = list(range(len(documents)))
+            selected_indices: list[int] = []
+            remaining_indices: list[int] = list(range(len(documents)))
             
             for _ in range(min(top_k, len(documents))):
                 if not remaining_indices:
                     break
                 
-                mmr_scores = []
+                mmr_scores: list[tuple[int, float]] = []
                 for idx in remaining_indices:
                     # Relevance to query
-                    relevance = query_sims[idx]
+                    relevance = float(query_sims[idx])
                     
                     # Maximum similarity to already selected documents
                     if selected_indices:
                         selected_embeddings = doc_embeddings[selected_indices]
-                        similarities = np.dot(selected_embeddings, doc_embeddings[idx]) / (
+                        similarities = cast(np.ndarray, np.dot(selected_embeddings, doc_embeddings[idx]) / (
                             np.linalg.norm(selected_embeddings, axis=1) * np.linalg.norm(doc_embeddings[idx])
-                        )
-                        max_sim = np.max(similarities)
+                        ))
+                        max_sim = float(np.max(similarities)) if similarities.size else 0.0
                     else:
-                        max_sim = 0
+                        max_sim = 0.0
                     
                     # MMR score
                     mmr = (1 - diversity_weight) * relevance - diversity_weight * max_sim
@@ -502,7 +528,7 @@ class SearcherAgent(BaseAgent):
                 remaining_indices.remove(best_idx)
             
             # Return selected documents with MMR scores
-            result = []
+            result: list[dict[str, Any]] = []
             for idx in selected_indices:
                 doc_copy = dict(documents[idx])
                 doc_copy['mmr_score'] = float(query_sims[idx])
@@ -519,7 +545,7 @@ class SearcherAgent(BaseAgent):
         text: str,
         max_chunk_size: int = 1000,
         overlap: int = 100
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Split text into semantically coherent chunks.
         
@@ -528,7 +554,7 @@ class SearcherAgent(BaseAgent):
         if not text or len(text) <= max_chunk_size:
             return [text] if text else []
         
-        chunks = []
+        chunks: list[str] = []
         
         # Split by double newlines (paragraphs) first
         paragraphs = text.split('\n\n')
@@ -563,10 +589,10 @@ class SearcherAgent(BaseAgent):
     async def search_and_retrieve(
         self,
         query: str,
-        evidence_items: List[Dict[str, Any]],
+        evidence_items: list[dict[str, Any]],
         top_k: int = 10,
         apply_diversity: bool = True
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Full search pipeline: rerank -> chunk -> MMR diversify
         """
@@ -616,9 +642,9 @@ Always provide citations in the format: [Source: email/document ID, date, sender
         self,
         question: ResearchQuestion,
         evidence_context: str,
-        prior_findings: Dict[str, str] = {},
-        evidence_items: List[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        prior_findings: dict[str, str] | None = None,
+        evidence_items: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
         """
         Investigate a research question using intelligent evidence retrieval.
         
@@ -639,12 +665,18 @@ Always provide citations in the format: [Source: email/document ID, date, sender
                 )
                 
                 # Build context from ranked results
-                evidence_context = "\n\n---\n\n".join([
-                    f"[{e.get('type', 'EVIDENCE')} {e.get('id', 'unknown')}]\n"
-                    f"Relevance Score: {e.get('relevance_score', 'N/A'):.2f}\n"
-                    f"Content: {e.get('content', e.get('text', str(e)))[:800]}"
-                    for e in relevant_evidence
-                ])
+                evidence_context = "\n\n---\n\n".join(
+                    [
+                        "\n".join(
+                            [
+                                f"[{e.get('type', 'EVIDENCE')} {e.get('id', 'unknown')}]",
+                                f"Relevance Score: {float(e.get('relevance_score', 0.0)):.2f}",
+                                f"Content: {str(e.get('content', e.get('text', str(e))))[:800]}",
+                            ]
+                        )
+                        for e in relevant_evidence
+                    ]
+                )
                 
                 logger.info(f"Retrieved {len(relevant_evidence)} relevant evidence items using cross-encoder + MMR")
             except Exception as e:
@@ -693,7 +725,7 @@ Format your response as JSON:
             elif "```" in response:
                 json_str = response.split("```")[1].split("```")[0]
             
-            return json.loads(json_str.strip())
+            return cast(dict[str, Any], json.loads(json_str.strip()))
         except (json.JSONDecodeError, KeyError):
             # Return as plain findings
             return {
@@ -731,8 +763,8 @@ Write in a professional, authoritative tone suitable for legal proceedings."""
     async def synthesize(
         self,
         plan: ResearchPlan,
-        question_analyses: Dict[str, Dict[str, Any]]
-    ) -> tuple[str, List[str]]:
+        question_analyses: dict[str, dict[str, Any]]
+    ) -> tuple[str, list[str]]:
         """Synthesize all findings into a comprehensive report"""
         
         # First, identify themes
@@ -749,8 +781,8 @@ Write in a professional, authoritative tone suitable for legal proceedings."""
     async def _identify_themes(
         self,
         plan: ResearchPlan,
-        analyses: Dict[str, Dict[str, Any]]
-    ) -> List[str]:
+        analyses: dict[str, dict[str, Any]]
+    ) -> list[str]:
         """Identify emergent themes from all analyses"""
         
         findings_summary = "\n\n".join([
@@ -785,17 +817,18 @@ Output as JSON:
             elif "```" in response:
                 json_str = response.split("```")[1].split("```")[0]
             
-            data = json.loads(json_str.strip())
-            return [t["title"] for t in data.get("themes", [])]
-        except:
+            data = cast(dict[str, Any], json.loads(json_str.strip()))
+            themes_data = cast(list[dict[str, Any]], data.get("themes", []))
+            return [str(t.get("title", "")) for t in themes_data]
+        except Exception:
             return plan.key_angles  # Fallback to original angles
     
     async def _generate_sections(
         self,
         plan: ResearchPlan,
-        analyses: Dict[str, Dict[str, Any]],
-        themes: List[str]
-    ) -> Dict[str, str]:
+        analyses: dict[str, dict[str, Any]],
+        themes: list[str]
+    ) -> dict[str, str]:
         """Generate report sections for each theme"""
         
         all_findings = "\n\n".join([
@@ -803,7 +836,7 @@ Output as JSON:
             for q in plan.questions
         ])
         
-        sections = {}
+        sections: dict[str, str] = {}
         
         # Generate sections in parallel
         async def generate_section(theme: str) -> tuple[str, str]:
@@ -841,8 +874,8 @@ Write in professional legal report style."""
     def _assemble_report(
         self,
         plan: ResearchPlan,
-        sections: Dict[str, str],
-        themes: List[str]
+        sections: dict[str, str],
+        themes: list[str]
     ) -> str:
         """Assemble the final report"""
         
@@ -878,7 +911,7 @@ Write in professional legal report style."""
 class EvidenceContext:
     """Container for evidence context - both string and structured formats"""
     text: str  # String format for LLM prompts
-    items: List[Dict[str, Any]]  # Structured format for intelligent retrieval
+    items: list[dict[str, Any]]  # Structured format for intelligent retrieval
 
 
 class MasterAgent:
@@ -899,7 +932,7 @@ class MasterAgent:
         self.planner = PlannerAgent(db)
         self.synthesizer = SynthesizerAgent(db)
     
-    async def run_planning_phase(self, evidence_context: EvidenceContext, focus_areas: List[str] = []) -> ResearchPlan:
+    async def run_planning_phase(self, evidence_context: EvidenceContext, focus_areas: list[str] | None = None) -> ResearchPlan:
         """Phase 1: Create research plan"""
         self.session.status = ResearchStatus.PLANNING
         self.session.updated_at = datetime.now(timezone.utc)
@@ -929,7 +962,7 @@ class MasterAgent:
         self.session.updated_at = datetime.now(timezone.utc)
         
         plan = self.session.plan
-        completed = set()
+        completed: set[str] = set()
         
         # Topological sort and parallel execution
         while len(completed) < len(plan.questions):
@@ -944,7 +977,7 @@ class MasterAgent:
                 break
             
             # Execute ready questions in parallel with intelligent retrieval
-            async def investigate_question(q: ResearchQuestion) -> tuple[str, Dict]:
+            async def investigate_question(q: ResearchQuestion) -> tuple[str, dict[str, Any]]:
                 researcher = ResearcherAgent(self.db)
                 prior = {
                     dep: self.session.question_analyses.get(dep, {}).get("findings", "")
@@ -959,22 +992,23 @@ class MasterAgent:
                 )
                 return q.id, result
             
-            tasks = [investigate_question(q) for q in ready]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            for result in results:
+            tasks = [investigate_question(q) for q in ready]  # pyright: ignore[reportUnknownVariableType]
+            results = await asyncio.gather(*tasks, return_exceptions=True)  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
+
+            for result in results:  # pyright: ignore[reportUnknownVariableType]
                 if isinstance(result, tuple):
-                    qid, analysis = result
+                    qid: str = result[0]
+                    analysis: dict[str, Any] = result[1]  # pyright: ignore[reportUnknownVariableType]
                     self.session.question_analyses[qid] = analysis
                     completed.add(qid)
-                    
+
                     # Update question status in plan
                     for q in plan.questions:
                         if q.id == qid:
                             q.status = "completed"
-                            q.findings = analysis.get("findings", "")
-                            q.citations = analysis.get("citations", [])
-                            q.gaps = analysis.get("gaps", [])
+                            q.findings = analysis.get("findings", "")  # pyright: ignore[reportUnknownMemberType]
+                            q.citations = analysis.get("citations", [])  # pyright: ignore[reportUnknownMemberType]
+                            q.gaps = analysis.get("gaps", [])  # pyright: ignore[reportUnknownMemberType]
                             q.completed_at = datetime.now(timezone.utc)
                 else:
                     logger.error(f"Research failed: {result}")
@@ -1009,8 +1043,8 @@ class MasterAgent:
 async def build_evidence_context(
     db: Session,
     user_id: str,
-    project_id: Optional[str] = None,
-    case_id: Optional[str] = None,
+    project_id: str | None = None,
+    case_id: str | None = None,
     max_items: int = 100
 ) -> EvidenceContext:
     """
@@ -1021,8 +1055,8 @@ async def build_evidence_context(
     - Structured items for cross-encoder reranking and MMR
     """
     
-    context_parts = []
-    evidence_items = []
+    context_parts: list[str] = []
+    evidence_items: list[dict[str, Any]] = []
     
     # Get emails
     email_query = db.query(EmailMessage)
@@ -1032,7 +1066,7 @@ async def build_evidence_context(
         email_query = email_query.filter(EmailMessage.case_id == case_id)
     else:
         # Get from user's projects
-        projects = db.query(Project).filter(Project.owner_id == user_id).all()
+        projects = db.query(Project).filter(Project.owner_id == user_id).all()  # pyright: ignore[reportAny]
         project_ids = [str(p.id) for p in projects]
         if project_ids:
             email_query = email_query.filter(EmailMessage.project_id.in_(project_ids))
@@ -1070,7 +1104,7 @@ async def build_evidence_context(
     # Get documents
     doc_query = db.query(Document)
     if project_id:
-        doc_query = doc_query.filter(Document.project_id == project_id)
+        doc_query = doc_query.filter(Document.project_id == project_id)  # pyright: ignore[reportAny]
     
     documents = doc_query.limit(50).all()
     
@@ -1106,8 +1140,8 @@ async def build_evidence_context(
 async def start_research(
     request: StartResearchRequest,
     background_tasks: BackgroundTasks,
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    user: Annotated[User, Depends(current_user)],
+    db: Annotated[Session, Depends(get_db)]
 ):
     """
     Start a new deep research session.
@@ -1136,7 +1170,7 @@ async def start_research(
             )
             
             master = MasterAgent(db, session)
-            await master.run_planning_phase(evidence_context, request.focus_areas)
+            _ = await master.run_planning_phase(evidence_context, request.focus_areas)
             
         except Exception as e:
             logger.exception(f"Planning failed: {e}")
@@ -1155,7 +1189,7 @@ async def start_research(
 @router.get("/status/{session_id}", response_model=ResearchStatusResponse)
 async def get_research_status(
     session_id: str,
-    user: User = Depends(current_user)
+    user: Annotated[User, Depends(current_user)]
 ):
     """Get the current status of a research session"""
     
@@ -1189,8 +1223,8 @@ async def get_research_status(
 async def approve_research_plan(
     request: ApprovePlanRequest,
     background_tasks: BackgroundTasks,
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    user: Annotated[User, Depends(current_user)],
+    db: Annotated[Session, Depends(get_db)]
 ):
     """
     Approve or modify the research plan (Human-in-the-Loop).
@@ -1221,7 +1255,7 @@ async def approve_research_plan(
                     db, str(user.id), session.project_id, session.case_id
                 )
                 master = MasterAgent(db, session)
-                await master.run_planning_phase(evidence_context)
+                _ = await master.run_planning_phase(evidence_context)
             except Exception as e:
                 logger.exception(f"Plan regeneration failed: {e}")
                 session.status = ResearchStatus.FAILED
@@ -1242,7 +1276,7 @@ async def approve_research_plan(
             
             master = MasterAgent(db, session)
             await master.run_research_phase(evidence_context)
-            await master.run_synthesis_phase()
+            _ = await master.run_synthesis_phase()
             
             session.processing_time_seconds = (
                 datetime.now(timezone.utc) - start_time
@@ -1261,7 +1295,7 @@ async def approve_research_plan(
 @router.delete("/{session_id}")
 async def cancel_research(
     session_id: str,
-    user: User = Depends(current_user)
+    user: Annotated[User, Depends(current_user)]
 ):
     """Cancel a research session"""
     
@@ -1279,7 +1313,7 @@ async def cancel_research(
 
 @router.get("/sessions")
 async def list_research_sessions(
-    user: User = Depends(current_user),
+    user: Annotated[User, Depends(current_user)],
     limit: int = 20
 ):
     """List user's research sessions"""
@@ -1300,4 +1334,3 @@ async def list_research_sessions(
     user_sessions.sort(key=lambda x: x["created_at"], reverse=True)
     
     return {"sessions": user_sessions[:limit]}
-

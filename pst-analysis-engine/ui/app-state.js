@@ -74,7 +74,7 @@ window.VeriCaseApp = {
      */
     async _fetchProject(projectId) {
         try {
-            const response = await fetch(`${this.apiBase}/wizard/projects/${projectId}`, {
+            const response = await fetch(`${this.apiBase}/projects/${projectId}`, {
                 credentials: 'include'
             });
             if (response.ok) {

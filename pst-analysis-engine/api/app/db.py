@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.pool import QueuePool
 from .config import settings
 import os
 
@@ -22,7 +23,17 @@ try:
         print(f"DEBUG: Length of DATABASE_URL: {len(settings.DATABASE_URL)}")
         print("=" * 80)
     
-    engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
+    # Optimized connection pooling for high-performance
+    engine = create_engine(
+        settings.DATABASE_URL,
+        poolclass=QueuePool,
+        pool_pre_ping=True,           # Verify connections before using
+        pool_size=20,                  # Base number of connections to keep open
+        max_overflow=30,               # Allow up to 30 extra connections during peak load
+        pool_timeout=30,               # Wait up to 30s for a connection
+        pool_recycle=1800,             # Recycle connections every 30 min to avoid stale connections
+        echo=False,                    # Disable SQL logging for performance
+    )
 except Exception as e:
     import logging
     logging.error(f"Failed to create database engine: {e}")
