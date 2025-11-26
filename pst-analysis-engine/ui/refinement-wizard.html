@@ -560,33 +560,74 @@
                 // Show loading state
                 showLoadingState();
                 
+                console.log(`[Refinement] Loading discovery data for project: ${projectId}`);
+                console.log(`[Refinement] API URL: ${apiUrl}/api/refinement/${projectId}/discover`);
+                
                 // Fetch discovery data from API
                 const response = await fetch(`${apiUrl}/api/refinement/${projectId}/discover`, {
                     headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+                        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+                        'Accept': 'application/json'
                     }
                 });
                 
+                console.log(`[Refinement] Response status: ${response.status}`);
+                
                 if (!response.ok) {
-                    throw new Error('Failed to load discovery data');
+                    const errorText = await response.text();
+                    console.error(`[Refinement] API error: ${errorText}`);
+                    throw new Error(`API error (${response.status}): ${errorText}`);
                 }
                 
                 discoveryData = await response.json();
+                console.log('[Refinement] Discovery data:', discoveryData);
+                
+                // Check if we got valid data
+                if (!discoveryData || !discoveryData.summary) {
+                    throw new Error('Invalid discovery data received');
+                }
                 
                 // Update stats display
-                document.getElementById('projectName').textContent = 'Welbourne Primary School'; // TODO: Get from project
-                document.getElementById('emailCount').textContent = discoveryData.summary.total_emails_analyzed.toLocaleString();
-                document.getElementById('projectsFound').textContent = discoveryData.other_projects.length;
-                document.getElementById('peopleFound').textContent = discoveryData.people.length;
-                document.getElementById('orgsFound').textContent = discoveryData.parties.length;
-                document.getElementById('topicsFound').textContent = discoveryData.topics.length;
+                const projectNameEl = document.getElementById('projectName');
+                if (projectNameEl) {
+                    projectNameEl.textContent = localStorage.getItem('currentProjectName') || 'Project';
+                }
+                document.getElementById('emailCount').textContent = (discoveryData.summary?.total_emails_analyzed || 0).toLocaleString();
+                document.getElementById('projectsFound').textContent = (discoveryData.other_projects?.length || 0);
+                document.getElementById('peopleFound').textContent = (discoveryData.people?.length || 0);
+                document.getElementById('orgsFound').textContent = (discoveryData.parties?.length || 0);
+                document.getElementById('topicsFound').textContent = (discoveryData.topics?.length || 0);
                 
                 // Show first question
                 showCurrentQuestion();
                 
             } catch (error) {
-                console.error('Error loading discovery data:', error);
-                alert('Failed to analyze emails. Please try again.');
+                console.error('[Refinement] Error loading discovery data:', error);
+                
+                // Show more helpful error message
+                const container = document.getElementById('questionContainer');
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 3rem;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem; color: #ef4444;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <h3 style="color: #1f2937; margin-bottom: 0.5rem;">Unable to Analyze Emails</h3>
+                        <p style="color: #6b7280; margin-bottom: 1rem;">
+                            ${error.message || 'Failed to analyze emails. Please try again.'}
+                        </p>
+                        <p style="color: #9ca3af; font-size: 0.875rem; margin-bottom: 1.5rem;">
+                            Make sure your project has uploaded and processed PST files before using the AI refinement wizard.
+                        </p>
+                        <div style="display: flex; gap: 1rem; justify-content: center;">
+                            <button onclick="location.reload()" style="padding: 0.625rem 1.5rem; background: #667eea; color: white; border: none; border-radius: 0.375rem; cursor: pointer;">
+                                <i class="fas fa-sync-alt"></i> Retry
+                            </button>
+                            <button onclick="window.location.href='correspondence-enterprise.html?projectId=${projectId}'" style="padding: 0.625rem 1.5rem; background: #f3f4f6; color: #374151; border: none; border-radius: 0.375rem; cursor: pointer;">
+                                <i class="fas fa-envelope"></i> View Correspondence
+                            </button>
+                        </div>
+                    </div>
+                `;
             }
         }
         
@@ -878,42 +919,96 @@
             `;
             
             const urlParams = new URLSearchParams(window.location.search);
-            const projectId = urlParams.get('projectId');
+            let projectId = urlParams.get('projectId');
+            if (!projectId) {
+                projectId = localStorage.getItem('currentProjectId') || localStorage.getItem('projectId');
+            }
+            
+            if (!projectId) {
+                alert('No project ID found. Redirecting to dashboard...');
+                window.location.href = 'dashboard.html';
+                return;
+            }
             
             try {
+                console.log('[Refinement] Applying refinements for project:', projectId);
+                
                 // Prepare refinement data
                 const refinementData = {
-                    exclude_projects: refinementResults.excludeProjects,
-                    confirmed_parties: refinementResults.confirmedParties,
+                    exclude_projects: refinementResults.excludeProjects || [],
+                    confirmed_parties: refinementResults.confirmedParties || {},
                     exclude_people: refinementResults.excludePeople || [],
                     include_topics: refinementResults.includeTopics || [],
                     custom_filters: {}
                 };
+                
+                console.log('[Refinement] Refinement data:', refinementData);
                 
                 // Apply refinements via API
                 const response = await fetch(`${apiUrl}/api/refinement/${projectId}/apply-refinement`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+                        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+                        'Accept': 'application/json'
                     },
                     body: JSON.stringify(refinementData)
                 });
                 
+                console.log('[Refinement] Response status:', response.status);
+                
                 if (!response.ok) {
-                    throw new Error('Failed to apply refinements');
+                    const errorText = await response.text();
+                    console.error('[Refinement] API error:', errorText);
+                    throw new Error(`Failed to apply refinements: ${errorText}`);
                 }
                 
                 const result = await response.json();
-                console.log('Refinement applied:', result);
+                console.log('[Refinement] Refinement applied:', result);
                 
-                // Redirect to correspondence view with filters applied
-                window.location.href = 'correspondence-enterprise.html?projectId=' + projectId + '&refined=true';
+                // Show success message before redirect
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 3rem;">
+                        <div style="font-size: 4rem; color: #10b981; margin-bottom: 1rem;">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <h2 style="color: #1f2937; margin-bottom: 0.5rem;">Refinements Applied!</h2>
+                        <p style="color: #6b7280; margin-bottom: 1rem;">
+                            ${result.results?.excluded_count || 0} emails excluded based on your filters.
+                        </p>
+                        <p style="color: #9ca3af; font-size: 0.875rem;">
+                            Redirecting to correspondence view...
+                        </p>
+                    </div>
+                `;
+                
+                // Redirect after short delay
+                setTimeout(() => {
+                    window.location.href = `correspondence-enterprise.html?projectId=${projectId}&refined=true`;
+                }, 1500);
                 
             } catch (error) {
-                console.error('Error applying refinements:', error);
-                alert('Failed to apply refinements. Please try again.');
-                showReviewSummary(container);
+                console.error('[Refinement] Error applying refinements:', error);
+                
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 3rem;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem; color: #ef4444;">
+                            <i class="fas fa-exclamation-circle"></i>
+                        </div>
+                        <h3 style="color: #1f2937; margin-bottom: 0.5rem;">Failed to Apply Refinements</h3>
+                        <p style="color: #6b7280; margin-bottom: 1.5rem;">
+                            ${error.message || 'Please try again.'}
+                        </p>
+                        <div style="display: flex; gap: 1rem; justify-content: center;">
+                            <button onclick="showReviewSummary(document.getElementById('questionContainer'))" style="padding: 0.625rem 1.5rem; background: #667eea; color: white; border: none; border-radius: 0.375rem; cursor: pointer;">
+                                <i class="fas fa-arrow-left"></i> Back to Review
+                            </button>
+                            <button onclick="window.location.href='correspondence-enterprise.html?projectId=${projectId}'" style="padding: 0.625rem 1.5rem; background: #f3f4f6; color: #374151; border: none; border-radius: 0.375rem; cursor: pointer;">
+                                <i class="fas fa-envelope"></i> View Correspondence
+                            </button>
+                        </div>
+                    </div>
+                `;
             }
         }
     </script>

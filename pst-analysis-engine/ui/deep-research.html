@@ -1251,7 +1251,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
             btnStartResearch.innerHTML = '<span class="spinner"></span> Starting...';
 
             try {
-                const response = await secureApiFetch(`${API_BASE}/api/deep-research/start`, {
+                const response = await secureApiFetch(`/api/deep-research/start`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1303,7 +1303,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
             if (!currentSessionId) return;
 
             try {
-                const response = await secureApiFetch(`${API_BASE}/api/deep-research/status/${currentSessionId}`);
+                const response = await secureApiFetch(`/api/deep-research/status/${currentSessionId}`);
                 if (!response.ok) throw new Error('Failed to get status');
 
                 const data = await response.json();
@@ -1465,7 +1465,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
         // Plan actions
         document.getElementById('btnApprove').addEventListener('click', async () => {
             try {
-                const response = await secureApiFetch(`${API_BASE}/api/deep-research/approve-plan`, {
+                const response = await secureApiFetch(`/api/deep-research/approve-plan`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1501,7 +1501,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
             }
 
             try {
-                const response = await secureApiFetch(`${API_BASE}/api/deep-research/approve-plan`, {
+                const response = await secureApiFetch(`/api/deep-research/approve-plan`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1561,7 +1561,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
         // History
         async function loadHistory() {
             try {
-                const response = await secureApiFetch(`${API_BASE}/api/deep-research/sessions`);
+                const response = await secureApiFetch(`/api/deep-research/sessions`);
                 if (!response.ok) return;
 
                 const data = await response.json();
@@ -1599,7 +1599,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
             await updateStatus();
 
             // Only poll if not completed
-            const response = await secureApiFetch(`${API_BASE}/api/deep-research/status/${sessionId}`);
+            const response = await secureApiFetch(`/api/deep-research/status/${sessionId}`);
             const data = await response.json();
             if (!['completed', 'failed', 'cancelled'].includes(data.status)) {
                 startPolling();

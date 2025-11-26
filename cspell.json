@@ -65,6 +65,7 @@
     "Sanitise",
     "sanitisation",
     "mediabox",
+    "EXIF",
     "dotenv",
     "conname",
     "docversion",
@@ -84,7 +85,11 @@
     "Dmitry",
     "Batkovich",
     "timestamptz",
-    "jsonb"
+    "jsonb",
+    "previewable",
+    "asbuilt",
+    "autosizing",
+    "ufeff"
   ],
   "ignorePaths": [
     "node_modules",
