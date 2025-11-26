@@ -477,10 +477,9 @@
         // Update profile UI
         function updateProfileUI() {
             // Avatar
-            const initials = currentUser.display_name 
+            document.getElementById('avatar').textContent = currentUser.display_name
                 ? currentUser.display_name.split(' ').map(n => n[0]).join('').toUpperCase()
                 : currentUser.email[0].toUpperCase();
-            document.getElementById('avatar').textContent = initials;
             
             // Info
             document.getElementById('displayName').textContent = currentUser.display_name || 'No name set';
@@ -574,8 +573,7 @@
                 });
                 
                 if (response.ok) {
-                    const updated = await response.json();
-                    currentUser = updated;
+                    currentUser = await response.json();
                     updateProfileUI();
                     
                     alert.className = 'alert alert-success';
@@ -585,7 +583,9 @@
                     // Update stored user
                     localStorage.setItem('user', JSON.stringify(currentUser));
                 } else {
-                    throw new Error('Failed to update profile');
+                    alert.className = 'alert alert-error';
+                    alert.textContent = 'Failed to update profile. Please try again.';
+                    alert.style.display = 'block';
                 }
             } catch (error) {
                 alert.className = 'alert alert-error';
@@ -625,7 +625,10 @@
                     document.getElementById('passwordForm').reset();
                 } else {
                     const error = await response.json();
-                    throw new Error(error.detail || 'Failed to change password');
+                    const errorMsg = error.detail || 'Failed to change password';
+                    alert.className = 'alert alert-error';
+                    alert.textContent = errorMsg;
+                    alert.style.display = 'block';
                 }
             } catch (error) {
                 alert.className = 'alert alert-error';

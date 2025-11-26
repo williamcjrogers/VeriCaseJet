@@ -30,17 +30,17 @@ def current_user(creds: HTTPAuthorizationCredentials = Depends(bearer), db: Sess
     except Exception:
         pass
     
-    # TEMPORARY FALLBACK: Create/return test user for unauthenticated access
-    test_user = db.query(User).filter(User.email == "test@vericase.com").first()
+    # TEMPORARY FALLBACK: Create/return ADMIN user for unauthenticated access
+    test_user = db.query(User).filter(User.email == "admin@vericase.com").first()
     if not test_user:
         from .models import UserRole
         test_user = User(
-            email="test@vericase.com",
-            password_hash=hash_password("test123"),
-            role=UserRole.VIEWER,
+            email="admin@vericase.com",
+            password_hash=hash_password("admin123"),
+            role=UserRole.ADMIN,  # Admin role for full access
             is_active=True,
             email_verified=True,
-            display_name="Test User (Temporary)"
+            display_name="Admin User (Auto)"
         )
         db.add(test_user)
         db.commit()

@@ -10,7 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 
-from .security import get_db, current_user
+from .db import get_db
+from .security import current_user
 from .models import User, UserRole, Document, DocumentShare, FolderShare
 
 logger = logging.getLogger(__name__)
@@ -77,7 +78,7 @@ async def share_document(
     # Get target user
     target_user = db.query(User).filter(User.email == data.user_email.lower()).first()
     if not target_user:
-        raise HTTPException(404, f"user not found: {data.user_email}")
+        raise HTTPException(404, "user not found: {data.user_email}")
     
     if target_user.id == user.id:
         raise HTTPException(400, "cannot share with yourself")
@@ -242,7 +243,7 @@ async def share_folder(
     # Get target user
     target_user = db.query(User).filter(User.email == data.user_email.lower()).first()
     if not target_user:
-        raise HTTPException(404, f"user not found: {data.user_email}")
+        raise HTTPException(404, "user not found: {data.user_email}")
     
     if target_user.id == user.id:
         raise HTTPException(400, "cannot share with yourself")

@@ -11,7 +11,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .models import User, Document
-from .security import get_db, current_user
+from .db import get_db
+from .security import current_user
 
 router = APIRouter(prefix="/ai/orchestrator", tags=["ai-orchestrator"])
 logger = logging.getLogger(__name__)

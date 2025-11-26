@@ -1,10 +1,12 @@
 <!DOCTYPE html>
+<!--suppress HtmlFormInputWithoutLabel -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Management - VeriCase Admin</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Local Library -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -435,21 +437,16 @@
             window.location.href = 'login.html';
         }
 
-        // API Helper
+        // API Helper - now uses secureApiFetch so that Authorization and
+        // X-CSRF-Token are applied consistently.
         async function apiCall(endpoint, method = 'GET', body = null) {
-            const options = {
-                method,
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            };
+            const options = { method };
             
             if (body) {
                 options.body = JSON.stringify(body);
             }
             
-            const response = await fetch(`${apiUrl}${endpoint}`, options);
+            const response = await secureApiFetch(endpoint, options);
             
             if (response.status === 401) {
                 localStorage.removeItem('token');
@@ -524,7 +521,7 @@
                 return;
             }
 
-            const tableHTML = `
+            document.getElementById('tableContent').innerHTML = `
                 <table class="users-table">
                     <thead>
                         <tr>
@@ -538,13 +535,13 @@
                     </thead>
                     <tbody>
                         ${filteredUsers.map(user => {
-                            const initials = user.display_name 
+                            const initials = user.display_name
                                 ? user.display_name.split(' ').map(n => n[0]).join('').toUpperCase()
                                 : user.email[0].toUpperCase();
-                            const lastLogin = user.last_login_at 
+                            const lastLogin = user.last_login_at
                                 ? new Date(user.last_login_at).toLocaleDateString()
                                 : 'Never';
-                            
+
                             return `
                                 <tr>
                                     <td>
@@ -586,8 +583,6 @@
                     </tbody>
                 </table>
             `;
-
-            document.getElementById('tableContent').innerHTML = tableHTML;
         }
 
         // Search handler

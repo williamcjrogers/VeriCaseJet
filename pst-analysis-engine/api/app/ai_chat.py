@@ -15,8 +15,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
 
 from .models import User, EmailMessage, Project, Case, EmailAttachment
-from .security import get_db, current_user
+from .db import get_db
+from .security import current_user
 from .config import settings
+from .ai_settings import AISettings, get_ai_api_key, get_ai_model, get_ai_providers_status
 from .ai_models import (
     AIModelService,
     TaskComplexity,
@@ -84,12 +86,35 @@ class ChatResponse(BaseModel):
 class AIEvidenceOrchestrator:
     """Orchestrates multiple AI models for evidence analysis"""
     
-    def __init__(self):
-        self.openai_key = getattr(settings, 'OPENAI_API_KEY', None) or ""
-        self.anthropic_key = getattr(settings, 'CLAUDE_API_KEY', None) or ""
-        self.google_key = getattr(settings, 'GEMINI_API_KEY', None) or ""
-        self.grok_key = getattr(settings, 'GROK_API_KEY', None) or ""
+    def __init__(self, db: Session = None):
+        # Load API keys from database settings (with env var fallback)
+        self.db = db
+        self.openai_key = get_ai_api_key('openai', db) or ""
+        self.anthropic_key = get_ai_api_key('anthropic', db) or ""
+        self.google_key = get_ai_api_key('gemini', db) or ""
+        self.grok_key = get_ai_api_key('grok', db) or ""
+        self.perplexity_key = get_ai_api_key('perplexity', db) or ""
+        
+        # Load model selections from database
+        self.openai_model = get_ai_model('openai', db)
+        self.anthropic_model = get_ai_model('anthropic', db)
+        self.gemini_model = get_ai_model('gemini', db)
+        self.grok_model = get_ai_model('grok', db)
+        
         self.model_service = AIModelService()
+    
+    def refresh_settings(self, db: Session) -> None:
+        """Reload settings from database"""
+        AISettings.refresh_cache(db)
+        self.openai_key = get_ai_api_key('openai', db) or ""
+        self.anthropic_key = get_ai_api_key('anthropic', db) or ""
+        self.google_key = get_ai_api_key('gemini', db) or ""
+        self.grok_key = get_ai_api_key('grok', db) or ""
+        self.perplexity_key = get_ai_api_key('perplexity', db) or ""
+        self.openai_model = get_ai_model('openai', db)
+        self.anthropic_model = get_ai_model('anthropic', db)
+        self.gemini_model = get_ai_model('gemini', db)
+        self.grok_model = get_ai_model('grok', db)
     
     async def quick_search(self, query: str, emails: List[EmailMessage]) -> ModelResponse:
         """Quick evidence search using fastest model"""
@@ -375,24 +400,28 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
     
     # Model-specific methods with evidence focus
     
-    async def _query_gemini_flash(self, prompt: str, model_name: str = 'gemini-1.5-flash') -> str:
+    async def _query_gemini_flash(self, prompt: str, model_name: str = None) -> str:
         """Gemini Flash for quick responses"""
         try:
             import google.generativeai as genai
             genai.configure(api_key=self.google_key)
-            model = genai.GenerativeModel(model_name)
+            # Use configured model or fallback
+            actual_model = model_name or self.gemini_model or 'gemini-2.0-flash'
+            model = genai.GenerativeModel(actual_model)
             response = await asyncio.to_thread(model.generate_content, prompt)
             return response.text
         except Exception as e:
             raise Exception(f"Gemini error: {str(e)}")
     
-    async def _query_gpt_turbo(self, prompt: str, model_name: str = 'gpt-4-turbo') -> str:
+    async def _query_gpt_turbo(self, prompt: str, model_name: str = None) -> str:
         """GPT-4 Turbo for quick responses"""
         try:
             import openai
             client = openai.AsyncOpenAI(api_key=self.openai_key)
+            # Use configured model or fallback
+            actual_model = model_name or self.openai_model or 'gpt-4-turbo'
             response = await client.chat.completions.create(
-                model=model_name,
+                model=actual_model,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1000
             )
@@ -400,13 +429,15 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
         except Exception as e:
             raise Exception(f"GPT error: {str(e)}")
     
-    async def _query_claude_sonnet(self, prompt: str, model_name: str = 'claude-3-5-sonnet-20241022') -> str:
+    async def _query_claude_sonnet(self, prompt: str, model_name: str = None) -> str:
         """Claude Sonnet for structured quick responses"""
         try:
             import anthropic
             client = anthropic.AsyncAnthropic(api_key=self.anthropic_key)
+            # Use configured model or fallback
+            actual_model = model_name or self.anthropic_model or 'claude-sonnet-4-20250514'
             response = await client.messages.create(
-                model=model_name,
+                model=actual_model,
                 max_tokens=1200,
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -491,7 +522,7 @@ Provide a structured chronology with dates, events, and responsible parties."""
         try:
             import google.generativeai as genai
             genai.configure(api_key=self.google_key)
-            model = genai.GenerativeModel(model_override or 'gemini-2.0-flash-thinking-exp')
+            model = genai.GenerativeModel(model_override or 'gemini-2.0-flash')
             
             prompt = f"""You are analyzing construction dispute evidence to find patterns and connections.
 
@@ -567,11 +598,13 @@ Build a narrative that explains what happened and why it matters."""
             response = await client.messages.create(
                 model=model_override or "claude-opus-4-20250514",
                 max_tokens=4096,
-                thinking={
-                    "type": "enabled",
-                    "budget_tokens": 10000
-                },
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
+                extra_body={
+                    "thinking": {
+                        "type": "enabled",
+                        "budget_tokens": 10000
+                    }
+                }
             )
             
             processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
@@ -711,7 +744,10 @@ Provide a critical analysis identifying gaps and suggesting what's needed."""
         return synthesis
 
 
-orchestrator = AIEvidenceOrchestrator()
+def get_orchestrator(db: Session) -> AIEvidenceOrchestrator:
+    """Get orchestrator with fresh settings from database"""
+    orchestrator = AIEvidenceOrchestrator(db)
+    return orchestrator
 
 
 @router.post("/query", response_model=ChatResponse)
@@ -729,6 +765,9 @@ async def ai_evidence_query(
     start_time = datetime.now(timezone.utc)
     
     try:
+        # Get orchestrator with fresh settings
+        orchestrator = get_orchestrator(db)
+        
         # Get relevant emails
         emails = await _get_relevant_emails(db, user.id, request.project_id, request.case_id)
         
@@ -835,34 +874,129 @@ async def _get_relevant_emails(
 
 
 @router.get("/models/status")
-async def get_models_status(user: User = Depends(current_user)):
+async def get_models_status(
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db)
+):
     """Check which AI models are configured"""
+    # Refresh settings from database
+    orchestrator = get_orchestrator(db)
+    
     return {
         "models": {
             "gpt5_pro": {
                 "available": bool(orchestrator.openai_key),
-                "name": "GPT-5 Pro Deep Research",
+                "name": "OpenAI GPT",
+                "model": orchestrator.openai_model,
                 "task": "Chronology & Event Analysis"
             },
             "gemini_2_5": {
                 "available": bool(orchestrator.google_key),
-                "name": "Gemini 2.5 Pro Deep Think",
+                "name": "Google Gemini",
+                "model": orchestrator.gemini_model,
                 "task": "Pattern Recognition"
             },
             "claude_opus": {
                 "available": bool(orchestrator.anthropic_key),
-                "name": "Claude Opus 4.1 Extended Thinking",
+                "name": "Anthropic Claude",
+                "model": orchestrator.anthropic_model,
                 "task": "Narrative Construction"
             },
             "grok_4": {
                 "available": bool(orchestrator.grok_key),
-                "name": "Grok 4 Heavy",
+                "name": "xAI Grok",
+                "model": orchestrator.grok_model,
                 "task": "Gap Analysis"
+            },
+            "perplexity": {
+                "available": bool(orchestrator.perplexity_key),
+                "name": "Perplexity",
+                "task": "Evidence-Focused Queries"
             }
         },
-        "quick_search_available": bool(orchestrator.google_key or orchestrator.openai_key),
+        "quick_search_available": bool(orchestrator.google_key or orchestrator.openai_key or orchestrator.anthropic_key),
         "deep_research_available": bool(
             orchestrator.openai_key or orchestrator.google_key or 
             orchestrator.anthropic_key or orchestrator.grok_key
         )
     }
+
+
+@router.post("/models/test/{provider}")
+async def test_ai_provider(
+    provider: str,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db)
+):
+    """Test connection to a specific AI provider"""
+    import time
+    
+    orchestrator = get_orchestrator(db)
+    
+    test_prompt = "Reply with just 'OK' to confirm the connection works."
+    start_time = time.time()
+    
+    try:
+        if provider == 'openai':
+            if not orchestrator.openai_key:
+                return {"success": False, "error": "OpenAI API key not configured"}
+            response = await orchestrator._query_gpt_turbo(test_prompt)
+            model = orchestrator.openai_model
+            
+        elif provider == 'anthropic':
+            if not orchestrator.anthropic_key:
+                return {"success": False, "error": "Anthropic API key not configured"}
+            response = await orchestrator._query_claude_sonnet(test_prompt)
+            model = orchestrator.anthropic_model
+            
+        elif provider == 'gemini':
+            if not orchestrator.google_key:
+                return {"success": False, "error": "Gemini API key not configured"}
+            response = await orchestrator._query_gemini_flash(test_prompt)
+            model = orchestrator.gemini_model
+            
+        elif provider == 'grok':
+            if not orchestrator.grok_key:
+                return {"success": False, "error": "Grok API key not configured"}
+            # Test Grok
+            import openai
+            client = openai.AsyncOpenAI(
+                api_key=orchestrator.grok_key,
+                base_url="https://api.x.ai/v1"
+            )
+            result = await client.chat.completions.create(
+                model=orchestrator.grok_model or "grok-2-1212",
+                messages=[{"role": "user", "content": test_prompt}],
+                max_tokens=10
+            )
+            response = result.choices[0].message.content
+            model = orchestrator.grok_model
+            
+        elif provider == 'perplexity':
+            if not orchestrator.perplexity_key:
+                return {"success": False, "error": "Perplexity API key not configured"}
+            response = await query_perplexity_local(test_prompt, "Test context")
+            if not response:
+                return {"success": False, "error": "Perplexity returned no response"}
+            model = "pplx-7b-chat"
+            
+        else:
+            return {"success": False, "error": f"Unknown provider: {provider}"}
+        
+        elapsed = int((time.time() - start_time) * 1000)
+        
+        return {
+            "success": True,
+            "provider": provider,
+            "model": model,
+            "response_time": elapsed,
+            "response_preview": response[:100] if response else "OK"
+        }
+        
+    except Exception as e:
+        logger.error(f"AI provider test failed for {provider}: {e}")
+        return {
+            "success": False,
+            "provider": provider,
+            "error": str(e)
+        }

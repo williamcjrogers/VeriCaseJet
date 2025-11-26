@@ -91,6 +91,12 @@ class EvidenceLink(BaseModel):
     exhibit_number: Optional[str] = None
     notes: Optional[str] = None
     relevance_score: Optional[int] = None
+    as_planned_date: Optional[datetime] = None
+    as_planned_activity: Optional[str] = None
+    as_built_date: Optional[datetime] = None
+    as_built_activity: Optional[str] = None
+    delay_days: Optional[int] = 0
+    is_critical_path: bool = False
 
 class EvidenceOut(BaseModel):
     id: str
@@ -116,6 +122,13 @@ class EvidenceOut(BaseModel):
     content_type: Optional[str] = None
     meta: Optional[dict] = None
     thread_id: Optional[str] = None
+    attachments: Optional[List[dict]] = None
+    as_planned_date: Optional[datetime] = None
+    as_planned_activity: Optional[str] = None
+    as_built_date: Optional[datetime] = None
+    as_built_activity: Optional[str] = None
+    delay_days: Optional[int] = 0
+    is_critical_path: bool = False
     
     class Config:
         from_attributes = True
@@ -274,6 +287,10 @@ def get_case(
     current_user: User = Depends(get_current_user)
 ):
     """Get case details"""
+    # Sanitize case_id: convert string "null" to raise error
+    if case_id.lower() == "null":
+        raise HTTPException(status_code=400, detail="Invalid case ID")
+    
     # Single query to get case with counts
     result = (
         db.query(
@@ -416,18 +433,25 @@ def list_case_evidence(
                 document_filename=document.filename,
                 document_size=document.size,
                 document_content_type=document.content_type,
-            # Email-specific fields
-            email_from=evidence.email_from,
-            email_to=evidence.email_to,
-            email_cc=evidence.email_cc,
-            email_subject=evidence.email_subject,
-            email_date=evidence.email_date,
-            email_message_id=evidence.email_message_id,
-            content=evidence.content,
-            content_type=evidence.content_type,
-            meta=evidence.meta,
-            thread_id=evidence.thread_id
-        ))
+                # Email-specific fields
+                email_from=evidence.email_from,
+                email_to=evidence.email_to,
+                email_cc=evidence.email_cc,
+                email_subject=evidence.email_subject,
+                email_date=evidence.email_date,
+                email_message_id=evidence.email_message_id,
+                content=evidence.content,
+                content_type=evidence.content_type,
+                meta=evidence.meta,
+                thread_id=evidence.thread_id,
+                attachments=evidence.attachments,
+                as_planned_date=evidence.as_planned_date,
+                as_planned_activity=evidence.as_planned_activity,
+                as_built_date=evidence.as_built_date,
+                as_built_activity=evidence.as_built_activity,
+                delay_days=evidence.delay_days,
+                is_critical_path=evidence.is_critical_path
+            ))
         except Exception as e:
             logger.error(f"Error processing evidence record {evidence.id}: {e}")
             continue
@@ -462,7 +486,13 @@ def link_evidence(
         exhibit_number=data.exhibit_number,
         notes=data.notes,
         relevance_score=data.relevance_score,
-        added_by_id=current_user.id
+        added_by_id=current_user.id,
+        as_planned_date=data.as_planned_date,
+        as_planned_activity=data.as_planned_activity,
+        as_built_date=data.as_built_date,
+        as_built_activity=data.as_built_activity,
+        delay_days=data.delay_days,
+        is_critical_path=data.is_critical_path
     )
     db.add(evidence)
     db.commit()
@@ -480,7 +510,14 @@ def link_evidence(
         added_at=evidence.added_at,
         document_filename=document.filename,
         document_size=document.size,
-        document_content_type=document.content_type
+        document_content_type=document.content_type,
+        attachments=evidence.attachments,
+        as_planned_date=evidence.as_planned_date,
+        as_planned_activity=evidence.as_planned_activity,
+        as_built_date=evidence.as_built_date,
+        as_built_activity=evidence.as_built_activity,
+        delay_days=evidence.delay_days,
+        is_critical_path=evidence.is_critical_path
     )
 
 # ============================================================================

@@ -1,36 +1,52 @@
 {
   "include": [
-    "pst-analysis-engine/src",
     "api/app",
-    "worker"
+    "worker_app"
   ],
   "exclude": [
-    ".venv",
-    "venv",
-    "env",
-    "__pycache__",
+    "**/node_modules",
     "**/__pycache__",
-    "*.egg-info",
-    "build",
-    "dist",
-    ".eggs",
-    "**/*.pyc"
+    ".venv",
+    "data"
   ],
-  "ignore": [
-    ".venv/**",
-    "venv/**",
-    "env/**",
-    "__pycache__/**"
-  ],
-  "venvPath": ".",
-  "venv": ".venv",
-  "pythonVersion": "3.11",
   "typeCheckingMode": "basic",
-  "useLibraryCodeForTypes": true,
-  "reportMissingImports": "warning",
+  "reportMissingImports": true,
   "reportMissingTypeStubs": false,
-  "reportAttributeAccessIssue": "none",
+  "pythonVersion": "3.11",
+  "pythonPlatform": "Linux",
+  "executionEnvironments": [
+    {
+      "root": "api/app",
+      "pythonVersion": "3.11",
+      "extraPaths": [
+        "api/app"
+      ]
+    },
+    {
+      "root": "worker_app",
+      "pythonVersion": "3.11",
+      "extraPaths": [
+        "worker_app",
+        "api/app"
+      ]
+    }
+  ],
+  "reportGeneralTypeIssues": "none",
+  "reportOptionalMemberAccess": "warning",
+  "reportOptionalSubscript": "warning",
+  "reportPrivateImportUsage": "warning",
+  "reportCallInDefaultInitializer": "none",
+  "reportUnknownMemberType": "none",
+  "reportUnknownVariableType": "none",
+  "reportUnknownParameterType": "none",
+  "reportUnknownArgumentType": "none",
   "reportArgumentType": "none",
-  "reportGeneralTypeIssues": "none"
+  "reportAssignmentType": "none",
+  "reportAny": "none",
+  "reportUnnecessaryComparison": "none",
+  "reportUnnecessaryCast": "none",
+  "reportUnnecessaryIsInstance": "none",
+  "reportUnusedCallResult": "none",
+  "reportConstantRedefinition": "none"
 }
 

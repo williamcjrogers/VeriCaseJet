@@ -56,7 +56,10 @@
         try {
           const response = await fetch("/languages");
           if (!response.ok) {
-            throw new Error(`Request failed: ${response.status}`);
+            list.innerHTML = "";
+            status.textContent = `Error: Request failed: ${response.status}`;
+            status.classList.add("error");
+            return;
           }
           const languages = await response.json();
           list.innerHTML = "";

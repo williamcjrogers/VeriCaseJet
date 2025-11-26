@@ -13,7 +13,8 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from .security import get_db, current_user
+from .db import get_db
+from .security import current_user
 from .models import User, Document
 from .storage import get_object
 

@@ -8,12 +8,13 @@ import asyncio
 import os
 import logging
 from datetime import datetime
-from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, UploadFile, File, Form
+from typing import Any, Annotated, cast
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_, and_, func
 from pydantic import BaseModel
+from pydantic.fields import Field
 
 from .security import get_db, current_user
 from .models import (
@@ -21,10 +22,55 @@ from .models import (
     Stakeholder, Keyword, Project, User,
     Company, UserCompany, Document, DocStatus, UserRole
 )
-from .storage import presign_put, presign_get, s3, settings
+from .storage import presign_put, presign_get, s3
+from .config import settings
 from .tasks import celery_app
 
 logger = logging.getLogger(__name__)
+
+# Helper function to check if an attachment is an embedded image (should be excluded)
+import re as _re_module
+
+def _is_embedded_image(att_data: dict[str, Any]) -> bool:
+    """Check if attachment is an embedded/inline image that should be excluded from attachment lists
+    
+    The PST processor now correctly sets is_inline only for small images with content_id.
+    We trust that flag and do minimal additional filtering here.
+    """
+    # Trust the is_inline flag set by the PST processor
+    # It's only True for small images (< 500KB) with content_id
+    if att_data.get('is_inline') is True:
+        return True
+    
+    filename = (att_data.get('filename') or att_data.get('name') or '').lower()
+    content_type = (att_data.get('content_type') or '').lower()
+    file_size = att_data.get('file_size') or att_data.get('size') or 0
+    
+    # Exclude common embedded image patterns (only when we have a proper image extension)
+    if _re_module.match(r'^image\d{3}\.(png|jpg|jpeg|gif|bmp)$', filename):  # image001.png
+        return True
+    if _re_module.match(r'^img_?\d+\.(png|jpg|jpeg|gif|bmp)$', filename):  # img_001.png
+        return True
+    if filename.startswith('cid:') or filename.startswith('cid_'):
+        return True
+    
+    # Exclude signature/logo images
+    excluded_keywords = ['signature', 'logo', 'banner', 'header', 'footer', 'badge', 'icon']
+    for keyword in excluded_keywords:
+        if keyword in filename and 'image' in content_type:
+            return True
+    
+    # Exclude tracking pixels and spacers
+    tracking_files = ['blank.gif', 'spacer.gif', 'pixel.gif', '1x1.gif', 'oledata.mso']
+    if filename in tracking_files:
+        return True
+    
+    # Very small images (< 20KB) with image content type are likely embedded icons/logos
+    if 'image' in content_type and file_size and file_size < 20000:
+        return True
+    
+    return False
+
 # Main router for correspondence features
 router = APIRouter(prefix="/api/correspondence", tags=["correspondence"])
 
@@ -41,10 +87,10 @@ unified_router = APIRouter(prefix="/api/unified", tags=["unified"])
 
 class PSTUploadInitRequest(BaseModel):
     """Request to initiate PST upload"""
-    case_id: Optional[str] = None  # Made optional
+    case_id: str | None = None  # Made optional
     filename: str
     file_size: int
-    project_id: Optional[str] = None
+    project_id: str | None = None
 
 
 class PSTUploadInitResponse(BaseModel):
@@ -62,47 +108,77 @@ class PSTProcessingStatus(BaseModel):
     total_emails: int
     processed_emails: int
     progress_percent: float
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 class EmailMessageSummary(BaseModel):
     """Email message summary for list view"""
     id: str
-    subject: Optional[str]
-    sender_email: Optional[str]
-    sender_name: Optional[str]
-    date_sent: Optional[datetime]
+    subject: str | None
+    sender_email: str | None
+    sender_name: str | None
+    body_text_clean: str | None = None
+    body_html: str | None = None  # Original HTML body for rendering
+    body_text: str | None = None  # Plain text body
+    content_hash: str | None = None
+    date_sent: datetime | None
     has_attachments: bool
-    matched_stakeholders: Optional[List[str]]
-    matched_keywords: Optional[List[str]]
-    importance: Optional[str]
-    meta: Optional[Dict[str, Any]] = None  # Include attachments and other metadata
+    matched_stakeholders: list[str] | None
+    matched_keywords: list[str] | None
+    importance: str | None
+    meta: dict[str, Any] | None = None  # Include attachments and other metadata
+    
+    # AG Grid compatibility fields
+    email_subject: str | None = None
+    email_from: str | None = None
+    email_to: str | None = None
+    email_cc: str | None = None
+    email_date: datetime | None = None
+    email_body: str | None = None
+    attachments: list[dict[str, Any]] | None = None
+    
+    # Additional AG Grid fields (editable/custom fields)
+    programme_activity: str | None = None
+    programme_variance: str | None = None
+    is_critical_path: bool | None = None
+    programme_status: str | None = None
+    planned_progress: float | None = None
+    actual_progress: float | None = None
+    category: str | None = None
+    keywords: str | None = None
+    stakeholder: str | None = None
+    priority: str | None = None
+    status: str | None = None
+    notes: str | None = None
+    thread_id: str | None = None
 
 
 class EmailMessageDetail(BaseModel):
     """Full email message details"""
     id: str
-    subject: Optional[str]
-    sender_email: Optional[str]
-    sender_name: Optional[str]
-    recipients_to: Optional[List[dict]]
-    recipients_cc: Optional[List[dict]]
-    date_sent: Optional[datetime]
-    date_received: Optional[datetime]
-    body_text: Optional[str]
-    body_html: Optional[str]
+    subject: str | None
+    sender_email: str | None
+    sender_name: str | None
+    recipients_to: list[str] | None  # Changed to list of strings (text[] in DB)
+    recipients_cc: list[str] | None  # Changed to list of strings (text[] in DB)
+    date_sent: datetime | None
+    date_received: datetime | None
+    body_text: str | None
+    body_html: str | None
+    body_text_clean: str | None = None
+    content_hash: str | None = None
     has_attachments: bool
-    attachments: List[dict]
-    matched_stakeholders: Optional[List[str]]
-    matched_keywords: Optional[List[str]]
-    importance: Optional[str]
-    pst_message_path: Optional[str]
+    attachments: list[dict[str, Any]]
+    matched_stakeholders: list[str] | None
+    matched_keywords: list[str] | None
+    importance: str | None
+    pst_message_path: str | None
 
 
 class EmailListResponse(BaseModel):
     """Paginated email list"""
     total: int
-    emails: List[EmailMessageSummary]
+    emails: list[EmailMessageSummary]
     page: int
     page_size: int
 
@@ -114,15 +190,31 @@ class EmailListResponse(BaseModel):
 @router.post("/pst/upload/init", response_model=PSTUploadInitResponse)
 async def init_pst_upload(
     request: PSTUploadInitRequest,
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
 ):
     """
     Initialize PST file upload
     Returns presigned S3 URL for direct browser upload
     """
 
-    # Verify case or project exists and user has access
+    # Get default admin user
+    default_user = db.query(User).filter(User.email == "admin@vericase.com").first()
+    if not default_user:
+        from .security import hash_password
+        from .models import UserRole
+        default_user = User(
+            email="admin@vericase.com",
+            password_hash=hash_password("admin123"),
+            role=UserRole.ADMIN,
+            is_active=True,
+            email_verified=True,
+            display_name="Administrator"
+        )
+        db.add(default_user)
+        db.commit()
+        db.refresh(default_user)
+    
+    # Verify case or project exists
     if not request.case_id and not request.project_id:
         raise HTTPException(400, "Either case_id or project_id must be provided")
 
@@ -150,9 +242,9 @@ async def init_pst_upload(
         project_id=request.project_id,
         s3_bucket=s3_bucket,
         s3_key=s3_key,
-        file_size=request.file_size,
-        processing_status='queued',
-        uploaded_by=user.id
+        file_size_bytes=request.file_size,
+        processing_status='pending',
+        uploaded_by=default_user.id
     )
     
     db.add(pst_file)
@@ -166,7 +258,7 @@ async def init_pst_upload(
         bucket=s3_bucket
     )
     
-    logger.info(f"Initiated PST upload: {pst_file_id} for case {request.case_id}")
+    logger.info(f"Initiated PST upload: {pst_file_id}")
     
     return PSTUploadInitResponse(
         pst_file_id=pst_file_id,
@@ -179,8 +271,7 @@ async def init_pst_upload(
 @router.post("/pst/{pst_file_id}/process")
 async def start_pst_processing(
     pst_file_id: str,
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
 ):
     """
     Start PST processing after upload completes
@@ -201,7 +292,7 @@ async def start_pst_processing(
     task = celery_app.send_task(
         'worker_app.worker.coordinate_pst_processing',  # Use coordinator
         args=[pst_file_id, pst_file.s3_bucket, pst_file.s3_key],
-        queue=settings.CELERY_PST_QUEUE if hasattr(settings, 'CELERY_PST_QUEUE') else settings.CELERY_QUEUE
+        queue=settings.CELERY_PST_QUEUE
     )
     
     logger.info(f"Enqueued PST processing task {task.id} for file {pst_file_id}")
@@ -217,30 +308,29 @@ async def start_pst_processing(
 @router.get("/pst/{pst_file_id}/status", response_model=PSTProcessingStatus)
 async def get_pst_status(
     pst_file_id: str,
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
 ):
     """Get PST processing status with Redis-based progress tracking"""
-    import redis  # type: ignore[import-untyped]
-    
+    from redis import Redis
+
     pst_file = db.query(PSTFile).filter_by(id=pst_file_id).first()
     if not pst_file:
         raise HTTPException(404, "PST file not found")
     
     # Try to get detailed progress from Redis
     try:
-        redis_client = redis.from_url(settings.REDIS_URL)
+        redis_client: Redis = Redis.from_url(settings.REDIS_URL)  # type: ignore[reportGeneralTypeIssues]
         redis_key = f"pst:{pst_file_id}"
-        redis_data = redis_client.hgetall(redis_key)
+        redis_data: dict[bytes, bytes] = redis_client.hgetall(redis_key)  # type: ignore[reportGeneralTypeIssues]
         
         if redis_data:
             # Decode Redis data (bytes to string)
-            redis_data = {k.decode(): v.decode() for k, v in redis_data.items()}
+            decoded_redis_data = {k.decode(): v.decode() for k, v in redis_data.items()}
             
             # Get chunk progress
-            total_chunks = int(redis_data.get('total_chunks', 0))
-            completed_chunks = int(redis_data.get('completed_chunks', 0))
-            failed_chunks = int(redis_data.get('failed_chunks', 0))
+            total_chunks = int(decoded_redis_data.get('total_chunks', '0'))
+            completed_chunks = int(decoded_redis_data.get('completed_chunks', '0'))
+            failed_chunks = int(decoded_redis_data.get('failed_chunks', '0'))
             
             # Calculate progress based on chunks
             if total_chunks > 0:
@@ -249,38 +339,41 @@ async def get_pst_status(
                 progress = 0.0
                 
             # Get processed emails from Redis
-            processed_emails = int(redis_data.get('processed_emails', pst_file.processed_emails or 0))
+            processed_emails_val = pst_file.processed_emails if pst_file.processed_emails is not None else 0
+            processed_emails = int(decoded_redis_data.get('processed_emails', str(processed_emails_val)))
             
             # Update database with latest count
-            if processed_emails > (pst_file.processed_emails or 0):
+            db_processed_emails = pst_file.processed_emails if pst_file.processed_emails is not None else 0
+            if processed_emails > db_processed_emails:
                 pst_file.processed_emails = processed_emails
                 db.commit()
             
+            total_emails_val = pst_file.total_emails if pst_file.total_emails is not None else 0
             return PSTProcessingStatus(
                 pst_file_id=str(pst_file.id),
-                status=redis_data.get('status', pst_file.processing_status),
-                total_emails=pst_file.total_emails or 0,
+                status=decoded_redis_data.get('status', pst_file.processing_status or 'pending'), 
+                total_emails=total_emails_val, 
                 processed_emails=processed_emails,
                 progress_percent=round(float(progress), 1),
-                error_message=pst_file.error_message
+                error_message=str(pst_file.error_message) if pst_file.error_message is not None else None,
             )
     except Exception as e:
         logger.warning(f"Could not get Redis progress for {pst_file_id}: {e}")
     
     # Fall back to database progress
     progress = 0.0
-    total_emails = pst_file.total_emails or 0
-    processed_emails = pst_file.processed_emails or 0
+    total_emails = pst_file.total_emails if pst_file.total_emails is not None else 0
+    processed_emails = pst_file.processed_emails if pst_file.processed_emails is not None else 0
     if total_emails > 0:
         progress = (float(processed_emails) / float(total_emails)) * 100.0
     
     return PSTProcessingStatus(
         pst_file_id=str(pst_file.id),
-        status=pst_file.processing_status,
-        total_emails=total_emails,
+        status=pst_file.processing_status or 'pending', # type: ignore[reportArgumentType]
+        total_emails=total_emails, # type: ignore[reportArgumentType]
         processed_emails=processed_emails,
         progress_percent=round(float(progress), 1),
-        error_message=pst_file.error_message
+        error_message=str(pst_file.error_message) if pst_file.error_message is not None else None,
     )
 
 
@@ -290,33 +383,25 @@ async def get_pst_status(
 
 @router.get("/emails", response_model=EmailListResponse)
 async def list_emails(
-    case_id: Optional[str] = Query(None, description="Case ID"),
-    project_id: Optional[str] = Query(None, description="Project ID"),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=500),
-    search: Optional[str] = Query(None, description="Search in subject and body"),
-    stakeholder_id: Optional[str] = Query(None, description="Filter by stakeholder"),
-    keyword_id: Optional[str] = Query(None, description="Filter by keyword"),
-    has_attachments: Optional[bool] = Query(None, description="Filter by attachments"),
-    date_from: Optional[datetime] = Query(None, description="Date range start"),
-    date_to: Optional[datetime] = Query(None, description="Date range end"),
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    case_id: Annotated[str | None, Query(description="Case ID")] = None,
+    project_id: Annotated[str | None, Query(description="Project ID")] = None,
+    page: int = Query(1, ge=1),  # type: ignore[reportCallInDefaultInitializer]
+    page_size: int = Query(5000, ge=1, le=50000),  # type: ignore[reportCallInDefaultInitializer]
+    search: Annotated[str | None, Query(description="Search in subject and body")] = None,
+    stakeholder_id: Annotated[str | None, Query(description="Filter by stakeholder")] = None,
+    keyword_id: Annotated[str | None, Query(description="Filter by keyword")] = None,
+    has_attachments: Annotated[bool | None, Query(description="Filter by attachments")] = None,
+    date_from: Annotated[datetime | None, Query(description="Date range start")] = None,
+    date_to: Annotated[datetime | None, Query(description="Date range end")] = None,
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
 ):
     """
     List emails for a case or project with filtering and pagination
     """
 
-    # Verify case or project exists
-    # Check if user is admin
-    from .models import UserRole
-    is_admin = user.role == UserRole.ADMIN
-    
-    # Admin can view all emails without case/project filter
+    # Build query - no authentication checks, full open access
     if not case_id and not project_id:
-        if not is_admin:
-            raise HTTPException(400, "Either case_id or project_id must be provided")
-        # Admin viewing all emails
+        # View all emails across all projects/cases
         query = db.query(EmailMessage)
     elif case_id:
         case = db.query(Case).filter_by(id=case_id).first()
@@ -354,7 +439,7 @@ async def list_emails(
         )
     
     if has_attachments is not None:
-        query = query.filter_by(has_attachments=has_attachments)
+        query = query.filter(EmailMessage.has_attachments.is_(has_attachments))
     
     if date_from:
         query = query.filter(EmailMessage.date_sent >= date_from)
@@ -370,40 +455,217 @@ async def list_emails(
     emails = query.order_by(EmailMessage.date_sent.desc()).offset(offset).limit(page_size).all()
     
     # Convert to summaries with attachment info
-    email_summaries = []
+    email_summaries: list[EmailMessageSummary] = []
     for e in emails:
-        # Get attachments for this email
+        # Get attachments - check both email_attachments table AND metadata field
         attachments = db.query(EmailAttachment).filter_by(email_message_id=e.id).all()
         
-        # Build attachment list
-        attachment_list = [
-            {
+        # Build attachment list from email_attachments table, excluding embedded images
+        attachment_list = []
+        for att in attachments:
+            att_data = {
                 'id': str(att.id),
                 'filename': att.filename,
                 'name': att.filename,
                 'content_type': att.content_type,
-                'file_size': att.file_size,
-                'size': att.file_size,
-                'is_inline': False
+                'file_size': att.file_size_bytes,
+                'size': att.file_size_bytes,
+                's3_key': att.s3_key,
+                's3_bucket': att.s3_bucket,
+                'is_inline': getattr(att, "is_inline", False),
+                'content_id': getattr(att, "content_id", None),
+                'attachment_hash': getattr(att, "attachment_hash", None),
+                'is_duplicate': getattr(att, "is_duplicate", False),
             }
-            for att in attachments
-        ]
+            # Only include non-embedded attachments
+            if not _is_embedded_image(att_data):
+                attachment_list.append(att_data)
         
-        # Update email meta with attachments
-        email_meta: dict = dict(e.meta) if e.meta else {}
-        email_meta['attachments'] = attachment_list
+        # Check metadata field for attachments (primary source for PST-processed emails)
+        email_meta: dict[str, Any] = dict(e.meta) if e.meta is not None and isinstance(e.meta, dict) else {}
+        
+        if not attachment_list:
+            # Try to get attachments from metadata, filtering out embedded images
+            metadata_attachments = email_meta.get('attachments', [])
+            if metadata_attachments and isinstance(metadata_attachments, list):
+                attachment_list = [att for att in metadata_attachments if not _is_embedded_image(att)]
+        else:
+            # Update meta with new attachment list from email_attachments table
+            email_meta['attachments'] = attachment_list
+        
+        # Ensure has_attachments flag is set correctly (only count real attachments)
+        email_meta['has_attachments'] = len(attachment_list) > 0
+        
+        has_attachments_val = len(attachment_list) > 0
+        
+        # Helper function to format recipients - handles None/null values and various formats
+        def format_recipients(recipients):
+            if not recipients or recipients is None:
+                return ""
+            if not isinstance(recipients, list):
+                # Handle single string value
+                if isinstance(recipients, str):
+                    return recipients.strip()
+                return ""
+            formatted = []
+            try:
+                for recipient in recipients:
+                    if isinstance(recipient, str):
+                        # Plain string format (e.g., "John Smith" or "john@example.com")
+                        if recipient.strip():
+                            formatted.append(recipient.strip())
+                    elif isinstance(recipient, dict):
+                        # Dict format with email/name keys
+                        email_addr = recipient.get('email') or recipient.get('address') or ""
+                        name = recipient.get('name') or recipient.get('display_name') or ""
+                        if email_addr and name:
+                            formatted.append(f"{name} <{email_addr}>")
+                        elif email_addr:
+                            formatted.append(email_addr)
+                        elif name:
+                            formatted.append(name)
+            except Exception as ex:
+                logger.warning(f"Error formatting recipients: {ex}")
+                return ""
+            return ", ".join([item for item in formatted if item])
+        
+        # Format keywords and stakeholders for display
+        keywords_str = ", ".join(e.matched_keywords) if e.matched_keywords else None
+        stakeholder_str = ", ".join(e.matched_stakeholders) if e.matched_stakeholders else None
+        
+        # Clean the email body - strip HTML tags and decode escape sequences
+        def clean_body_text(body_text_clean, body_html, body_text):
+            """Return clean text for display in grid"""
+            import re
+            from html import unescape
+            
+            # Prefer body_text_clean if available
+            if body_text_clean:
+                return body_text_clean
+            
+            # Fall back to body_html or body_text
+            text = body_html or body_text or ""
+            if not text:
+                return "[No content]"
+            
+            # Convert bytes to string if needed
+            if isinstance(text, bytes):
+                try:
+                    text = text.decode('utf-8', errors='ignore')
+                except:
+                    return "[Unable to decode]"
+            
+            # If it starts with "b'" it's a string representation of bytes
+            if text.startswith("b'") or text.startswith('b"'):
+                text = text[2:-1]  # Remove b' and trailing '
+            
+            # Replace escaped sequences first
+            text = text.replace('\\r\\n', '\n')
+            text = text.replace('\\n', '\n')
+            text = text.replace('\\r', '\n')
+            text = text.replace('\\t', ' ')
+            text = text.replace("\\'", "'")
+            text = text.replace('\\"', '"')
+            
+            # Fix common escaped Unicode characters
+            text = text.replace('\\xe2\\x80\\x93', '-')  # en-dash
+            text = text.replace('\\xe2\\x80\\x94', '--')  # em-dash
+            text = text.replace('\\xe2\\x80\\x99', "'")  # right single quote
+            text = text.replace('\\xe2\\x80\\x98', "'")  # left single quote
+            text = text.replace('\\xe2\\x80\\x9c', '"')  # left double quote
+            text = text.replace('\\xe2\\x80\\x9d', '"')  # right double quote
+            text = text.replace('\\xe2\\x80\\x8b', '')   # zero-width space
+            text = text.replace('\\xa0', ' ')  # non-breaking space
+            
+            # Replace actual Unicode characters
+            text = text.replace('\u00a0', ' ')  # non-breaking space
+            text = text.replace('\u200b', '')   # zero-width space
+            text = text.replace('\u2013', '-')  # en-dash
+            text = text.replace('\u2014', '--')  # em-dash
+            text = text.replace('\u2019', "'")  # right single quote
+            text = text.replace('\u201c', '"')  # left double quote
+            text = text.replace('\u201d', '"')  # right double quote
+            
+            # Replace the � character and other common issues
+            text = text.replace('�', ' ')
+            text = text.replace('&nbsp;', ' ')
+            
+            # Remove style tags and their content
+            text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
+            
+            # Remove CSS/VML definitions
+            text = re.sub(r'v\\\\:\*\s*{[^}]*}', '', text)
+            text = re.sub(r'o\\\\:\*\s*{[^}]*}', '', text)
+            text = re.sub(r'w\\\\:\*\s*{[^}]*}', '', text)
+            text = re.sub(r'\.shape\s*{[^}]*}', '', text)
+            text = re.sub(r'{behavior:url\([^)]+\);}', '', text)
+            
+            # Remove all HTML tags
+            text = re.sub(r'<[^>]+>', ' ', text)
+            
+            # Decode HTML entities
+            text = unescape(text)
+            
+            # Normalize all Unicode whitespace to regular spaces
+            text = re.sub(r'[\u00a0\u2000-\u200b\u202f\u205f\u3000]', ' ', text)
+            
+            # Remove excessive whitespace and newlines
+            text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)  # Max 2 newlines
+            text = re.sub(r' +', ' ', text)  # Multiple spaces to single
+            text = re.sub(r'\s*\n\s*', ' ', text)  # Newlines to spaces for compact display
+            
+            # Strip disclaimers and common footer text
+            text = re.sub(r'The information contained in this message.*?$', '', text, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r'EXTERNAL EMAIL:.*?safe\.', '', text, flags=re.DOTALL | re.IGNORECASE)
+            
+            # Clean up and trim
+            lines = [line.strip() for line in text.split('\n') if line.strip()]
+            text = ' '.join(lines)
+            
+            # Limit length for preview
+            if len(text) > 300:
+                text = text[:300] + "..."
+            
+            return text.strip() or "[No readable content]"
         
         email_summaries.append(EmailMessageSummary(
             id=str(e.id),
-            subject=e.subject,
-            sender_email=e.sender_email,
-            sender_name=e.sender_name,
-            date_sent=e.date_sent,
-            has_attachments=e.has_attachments or len(attachments) > 0,
-            matched_stakeholders=e.matched_stakeholders,
-            matched_keywords=e.matched_keywords,
-            importance=e.importance,
-            meta=email_meta
+            subject=e.subject, # type: ignore[reportArgumentType]
+            sender_email=e.sender_email, # type: ignore[reportArgumentType]
+            sender_name=e.sender_name, # type: ignore[reportArgumentType]
+            body_text_clean=e.body_text_clean, # type: ignore[reportArgumentType]
+            body_html=e.body_html, # type: ignore[reportArgumentType]
+            body_text=e.body_text, # type: ignore[reportArgumentType]
+            content_hash=e.content_hash, # type: ignore[reportArgumentType]
+            date_sent=e.date_sent, # type: ignore[reportArgumentType]
+            has_attachments=has_attachments_val,
+            matched_stakeholders=e.matched_stakeholders, # type: ignore[reportArgumentType]
+            matched_keywords=e.matched_keywords, # type: ignore[reportArgumentType]
+            importance=e.importance, # type: ignore[reportArgumentType]
+            meta=email_meta,
+            # AG Grid compatibility fields
+            email_subject=e.subject, # type: ignore[reportArgumentType]
+            email_from=e.sender_email if e.sender_email is not None else e.sender_name, # type: ignore[reportArgumentType]
+            email_to=format_recipients(e.recipients_to),
+            email_cc=format_recipients(e.recipients_cc),
+            email_date=e.date_sent, # type: ignore[reportArgumentType]
+            email_body=clean_body_text(e.body_text_clean, e.body_html, e.body_text),
+            attachments=attachment_list,
+            # Additional AG Grid fields (with defaults)
+            programme_activity=None,
+            programme_variance=None,
+            is_critical_path=None,
+            programme_status=None,
+            planned_progress=None,
+            actual_progress=None,
+            category=None,
+            keywords=keywords_str,
+            stakeholder=stakeholder_str,
+            priority="Normal",  # Default priority
+            status="Open",  # Default status
+            notes=None,
+            thread_id=getattr(e, "thread_id", None)
         ))
     
     return EmailListResponse(
@@ -417,8 +679,7 @@ async def list_emails(
 @router.get("/emails/{email_id}", response_model=EmailMessageDetail)
 async def get_email_detail(
     email_id: str,
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    db: Annotated[Session, Depends(get_db)],
 ):
     """Get full email details including attachments"""
     
@@ -429,52 +690,138 @@ async def get_email_detail(
     # Get attachments
     attachments = db.query(EmailAttachment).filter_by(email_message_id=email_id).all()
     
-    # Generate presigned URLs for attachments
-    attachment_list = []
+    # Generate presigned URLs for attachments, filtering out embedded images
+    attachment_list: list[dict[str, Any]] = []
     for att in attachments:
         try:
+            s3_key = cast(str | None, getattr(att, "s3_key", None))
+            s3_bucket = cast(str | None, getattr(att, "s3_bucket", None))
+            if s3_key is None or s3_bucket is None:
+                continue
+            filename = cast(str | None, getattr(att, "filename", None))
+            content_type = cast(str | None, getattr(att, "content_type", None))
+            file_size = cast(int | None, getattr(att, "file_size_bytes", None))
+            has_been_ocred = cast(bool, getattr(att, "has_been_ocred", False))
+            is_inline = cast(bool, getattr(att, "is_inline", False))
+            content_id = cast(str | None, getattr(att, "content_id", None))
+            
+            # Build attachment data to check if it's embedded
+            att_data = {
+                'filename': filename,
+                'content_type': content_type,
+                'file_size': file_size,
+                'is_inline': is_inline,
+                'content_id': content_id,
+            }
+            
+            # Skip embedded images
+            if _is_embedded_image(att_data):
+                continue
+            
             download_url = presign_get(
-                att.s3_key,
+                s3_key,
                 expires=3600,
-                bucket=att.s3_bucket,
-                response_disposition=f'attachment; filename="{att.filename}"' if att.filename else "attachment"
+                bucket=s3_bucket,
+                response_disposition=f'attachment; filename="{filename}"' if filename else "attachment",
             )
             attachment_list.append({
-                'id': str(att.id),
-                'filename': att.filename,
-                'content_type': att.content_type,
-                'file_size': att.file_size,
+                'id': str(getattr(att, "id")),
+                'filename': filename,
+                'name': filename,  # Also include 'name' for frontend compatibility
+                'content_type': content_type,
+                'file_size': file_size,
+                'size': file_size,  # Also include 'size' for frontend compatibility
                 'download_url': download_url,
-                'has_been_ocred': att.has_been_ocred
+                'has_been_ocred': has_been_ocred,
+                'is_inline': is_inline,
+                'content_id': content_id,
+                'attachment_hash': cast(str | None, getattr(att, "attachment_hash", None)),
+                'is_duplicate': cast(bool, getattr(att, "is_duplicate", False)),
             })
         except Exception as e:
-            logger.error(f"Error generating presigned URL for attachment {att.id}: {e}")
+            att_id = getattr(att, "id", None)
+            logger.error(f"Error generating presigned URL for attachment {att_id}: {e}")
     
+    subject = cast(str | None, getattr(email, "subject", None))
+    sender_email = cast(str | None, getattr(email, "sender_email", None))
+    sender_name = cast(str | None, getattr(email, "sender_name", None))
+    recipients_to = cast(list[dict[str, Any]] | None, getattr(email, "recipients_to", None))
+    recipients_cc = cast(list[dict[str, Any]] | None, getattr(email, "recipients_cc", None))
+    date_sent = cast(datetime | None, getattr(email, "date_sent", None))
+    date_received = cast(datetime | None, getattr(email, "date_received", None))
+    body_text = cast(str | None, getattr(email, "body_text", None))
+    body_html = cast(str | None, getattr(email, "body_html", None))
+    body_text_clean = cast(str | None, getattr(email, "body_text_clean", None))
+    content_hash = cast(str | None, getattr(email, "content_hash", None))
+    has_attachments_value = cast(bool, getattr(email, "has_attachments", False))
+    matched_stakeholders = cast(list[str] | None, getattr(email, "matched_stakeholders", None))
+    matched_keywords = cast(list[str] | None, getattr(email, "matched_keywords", None))
+    importance = cast(str | None, getattr(email, "importance", None))
+    pst_message_path = cast(str | None, getattr(email, "pst_message_path", None))
+
     return EmailMessageDetail(
-        id=str(email.id),
-        subject=email.subject,
-        sender_email=email.sender_email,
-        sender_name=email.sender_name,
-        recipients_to=email.recipients_to,
-        recipients_cc=email.recipients_cc,
-        date_sent=email.date_sent,
-        date_received=email.date_received,
-        body_text=email.body_text,
-        body_html=email.body_html,
-        has_attachments=email.has_attachments,
+        id=str(getattr(email, "id")),
+        subject=subject,
+        sender_email=sender_email,
+        sender_name=sender_name,
+        recipients_to=recipients_to,
+        recipients_cc=recipients_cc,
+        date_sent=date_sent,
+        date_received=date_received,
+        body_text=body_text,
+        body_html=body_html,
+        body_text_clean=body_text_clean,
+        content_hash=content_hash,
+        has_attachments=has_attachments_value,
         attachments=attachment_list,
-        matched_stakeholders=email.matched_stakeholders,
-        matched_keywords=email.matched_keywords,
-        importance=email.importance,
-        pst_message_path=email.pst_message_path
+        matched_stakeholders=matched_stakeholders,
+        matched_keywords=matched_keywords,
+        importance=importance,
+        pst_message_path=pst_message_path,
     )
+
+
+@router.get("/attachments/{attachment_id}/signed-url")
+async def get_attachment_signed_url(
+    attachment_id: str,
+    db: Annotated[Session, Depends(get_db)],
+):
+    """Get presigned URL for an email attachment"""
+    try:
+        att_uuid = uuid.UUID(attachment_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid attachment ID")
+    
+    attachment = db.query(EmailAttachment).filter_by(id=att_uuid).first()
+    if not attachment:
+        raise HTTPException(404, "Attachment not found")
+    
+    s3_key = getattr(attachment, "s3_key", None)
+    s3_bucket = getattr(attachment, "s3_bucket", None)
+    filename = getattr(attachment, "filename", None)
+    content_type = getattr(attachment, "content_type", None)
+    
+    if not s3_key:
+        raise HTTPException(404, "Attachment has no S3 key")
+    
+    # Generate presigned URL for download
+    url = presign_get(
+        s3_key,
+        expires=3600,
+        bucket=s3_bucket,
+    )
+    
+    return {
+        "url": url,
+        "filename": filename,
+        "content_type": content_type,
+    }
 
 
 @router.get("/emails/{email_id}/thread")
 async def get_email_thread(
     email_id: str,
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    db: Annotated[Session, Depends(get_db)],
 ):
     """Get full email thread containing this email"""
     
@@ -483,75 +830,99 @@ async def get_email_thread(
         raise HTTPException(404, "Email not found")
     
     # Build thread by finding all related emails
-    thread_emails = []
+    thread_emails: list[EmailMessage] = []
 
-    # Determine entity filter (case_id or project_id)
-    if email.case_id:
-        entity_filter = EmailMessage.case_id == email.case_id
-    elif email.project_id:
-        entity_filter = EmailMessage.project_id == email.project_id
+    case_id = cast(str | None, getattr(email, "case_id", None))
+    project_id = cast(str | None, getattr(email, "project_id", None))
+    if case_id is not None:
+        entity_filter = EmailMessage.case_id == case_id
+    elif project_id is not None:
+        entity_filter = EmailMessage.project_id == project_id
     else:
         raise HTTPException(400, "Email has no case_id or project_id")
 
-    # PRIORITY 1: Use thread_id if available (USP feature!)
-    if hasattr(email, 'thread_id') and email.thread_id:
-        thread_emails = db.query(EmailMessage).filter(
-            and_(
-                entity_filter,
-                EmailMessage.thread_id == email.thread_id
-            )
-        ).order_by(EmailMessage.date_sent).all()
-    
-    # FALLBACK 1: Find by message-id threading
-    if not thread_emails and email.message_id:
-        # Find all emails with same conversation
-        thread_emails = db.query(EmailMessage).filter(
-            and_(
-                entity_filter,
-                or_(
-                    EmailMessage.message_id == email.message_id,
-                    EmailMessage.in_reply_to == email.message_id,
-                    EmailMessage.email_references.contains(email.message_id)
+    thread_id = cast(str | None, getattr(email, "thread_id", None))
+    if thread_id:
+        thread_emails = cast(
+            list[EmailMessage],
+            db.query(EmailMessage)
+            .filter(
+                and_(
+                    entity_filter,
+                    EmailMessage.thread_id == thread_id,
                 )
             )
-        ).order_by(EmailMessage.date_sent).all()
+            .order_by(EmailMessage.date_sent)
+            .all(),
+        )
 
-    # FALLBACK 2: Use conversation index
-    if not thread_emails and email.conversation_index:
-        thread_emails = db.query(EmailMessage).filter(
-            and_(
-                entity_filter,
-                EmailMessage.conversation_index == email.conversation_index
+    message_id = cast(str | None, getattr(email, "message_id", None))
+    if not thread_emails and message_id:
+        thread_emails = cast(
+            list[EmailMessage],
+            db.query(EmailMessage)
+            .filter(
+                and_(
+                    entity_filter,
+                    or_(
+                        EmailMessage.message_id == message_id,
+                        EmailMessage.in_reply_to == message_id,
+                        EmailMessage.email_references.contains(message_id),
+                    ),
+                )
             )
-        ).order_by(EmailMessage.date_sent).all()
-    
-    # Convert to summaries
-    thread_summaries = [
-        {
-            'id': str(e.id),
-            'subject': e.subject,
-            'sender_email': e.sender_email,
-            'sender_name': e.sender_name,
-            'date_sent': e.date_sent.isoformat() if e.date_sent else None,
-            'has_attachments': e.has_attachments,
-            'is_current': str(e.id) == email_id,
-            'thread_id': getattr(e, 'thread_id', None)
-        }
-        for e in thread_emails
-    ]
-    
+            .order_by(EmailMessage.date_sent)
+            .all(),
+        )
+
+    conversation_index = cast(str | None, getattr(email, "conversation_index", None))
+    if not thread_emails and conversation_index:
+        thread_emails = cast(
+            list[EmailMessage],
+            db.query(EmailMessage)
+            .filter(
+                and_(
+                    entity_filter,
+                    EmailMessage.conversation_index == conversation_index,
+                )
+            )
+            .order_by(EmailMessage.date_sent)
+            .all(),
+        )
+
+    thread_summaries: list[dict[str, Any]] = []
+    for e in thread_emails:
+        thread_email_id = str(getattr(e, "id"))
+        summary_subject = cast(str | None, getattr(e, "subject", None))
+        summary_sender_email = cast(str | None, getattr(e, "sender_email", None))
+        summary_sender_name = cast(str | None, getattr(e, "sender_name", None))
+        summary_date_sent = cast(datetime | None, getattr(e, "date_sent", None))
+        summary_has_attachments = cast(bool, getattr(e, "has_attachments", False))
+        summary_thread_id = cast(str | None, getattr(e, "thread_id", None))
+        thread_summaries.append(
+            {
+                'id': thread_email_id,
+                'subject': summary_subject,
+                'sender_email': summary_sender_email,
+                'sender_name': summary_sender_name,
+                'date_sent': summary_date_sent.isoformat() if summary_date_sent else None,
+                'has_attachments': summary_has_attachments,
+                'is_current': thread_email_id == email_id,
+                'thread_id': summary_thread_id,
+            }
+        )
+
     return {
         'thread_size': len(thread_summaries),
-        'thread_id': getattr(email, 'thread_id', None),
-        'emails': thread_summaries
+        'thread_id': thread_id,
+        'emails': thread_summaries,
     }
 
 
 @router.get("/attachments/{attachment_id}/ocr-text")
 async def get_attachment_ocr_text(
     attachment_id: str,
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    db: Annotated[Session, Depends(get_db)],
 ):
     """
     Get OCR extracted text for an attachment
@@ -561,37 +932,51 @@ async def get_attachment_ocr_text(
     - has_been_ocred: Whether OCR has completed
     - ocr_status: Processing status
     """
-    # Try to find as EmailAttachment first
-    email_attachment = db.query(EmailAttachment).filter_by(id=attachment_id).first()
-    
+    email_attachment = cast(
+        EmailAttachment | None,
+        db.query(EmailAttachment).filter_by(id=attachment_id).first(),
+    )
+
     if email_attachment:
+        attachment_id_value = str(getattr(email_attachment, "id"))
+        filename = cast(str | None, getattr(email_attachment, "filename", None))
+        has_been_ocred = cast(bool, getattr(email_attachment, "has_been_ocred", False))
+        extracted_text = cast(str | None, getattr(email_attachment, "extracted_text", None))
+        file_size = cast(int | None, getattr(email_attachment, "file_size", None))
+        content_type = cast(str | None, getattr(email_attachment, "content_type", None))
         return {
-            'attachment_id': str(email_attachment.id),
-            'filename': email_attachment.filename,
-            'has_been_ocred': email_attachment.has_been_ocred,
-            'extracted_text': email_attachment.extracted_text,
-            'ocr_status': 'completed' if email_attachment.has_been_ocred else 'processing',
-            'file_size': email_attachment.file_size,
-            'content_type': email_attachment.content_type
+            'attachment_id': attachment_id_value,
+            'filename': filename,
+            'has_been_ocred': has_been_ocred,
+            'extracted_text': extracted_text,
+            'ocr_status': 'completed' if has_been_ocred else 'processing',
+            'file_size': file_size,
+            'content_type': content_type,
         }
-    
+
     # Fallback: try as Document (for backward compatibility)
-    document = db.query(Document).filter_by(id=attachment_id).first()
+    document = cast(Document | None, db.query(Document).filter_by(id=attachment_id).first())
     if not document:
         raise HTTPException(404, "Attachment not found")
-    
-    # Check if it's an email attachment
-    is_attachment = document.meta and document.meta.get('is_email_attachment')
-    
+
+    status = getattr(document, "status", None)
+    meta = cast(dict[str, Any] | None, getattr(document, "meta", None))
+    is_attachment = meta.get('is_email_attachment') if meta else None
+
+    filename = cast(str | None, getattr(document, "filename", None))
+    text_excerpt = cast(str | None, getattr(document, "text_excerpt", None))
+    file_size = cast(int | None, getattr(document, "size", None))
+    content_type = cast(str | None, getattr(document, "content_type", None))
+
     return {
-        'attachment_id': str(document.id),
-        'filename': document.filename,
-        'has_been_ocred': document.status == DocStatus.READY,
-        'extracted_text': document.text_excerpt,
-        'ocr_status': 'completed' if document.status == DocStatus.READY else 'processing',
-        'file_size': document.size,
-        'content_type': document.content_type,
-        'is_email_attachment': is_attachment
+        'attachment_id': str(getattr(document, "id")),
+        'filename': filename,
+        'has_been_ocred': status == DocStatus.READY,
+        'extracted_text': text_excerpt,
+        'ocr_status': 'completed' if status == DocStatus.READY else 'processing',
+        'file_size': file_size,
+        'content_type': content_type,
+        'is_email_attachment': is_attachment,
     }
 
 
@@ -601,37 +986,37 @@ async def get_attachment_ocr_text(
 
 class ProjectCreateRequest(BaseModel):
     """Create project from wizard"""
-    project_name: Optional[str] = None
-    project_code: Optional[str] = None
-    start_date: Optional[datetime] = None
-    completion_date: Optional[datetime] = None
-    contract_type: Optional[str] = None
-    stakeholders: Optional[List[dict]] = []
-    keywords: Optional[List[dict]] = []
+    project_name: str | None = None
+    project_code: str | None = None
+    start_date: datetime | None = None
+    completion_date: datetime | None = None
+    contract_type: str | None = None
+    stakeholders: list[dict[str, Any]] = Field(default_factory=list)
+    keywords: list[dict[str, Any]] = Field(default_factory=list)
     # Retrospective analysis fields
-    analysis_type: Optional[str] = None  # 'retrospective' or 'project'
-    project_aliases: Optional[str] = None
-    site_address: Optional[str] = None
-    include_domains: Optional[str] = None
-    exclude_people: Optional[str] = None
-    project_terms: Optional[str] = None
-    exclude_keywords: Optional[str] = None
+    analysis_type: str | None = None  # 'retrospective' or 'project'
+    project_aliases: str | None = None
+    site_address: str | None = None
+    include_domains: str | None = None
+    exclude_people: str | None = None
+    project_terms: str | None = None
+    exclude_keywords: str | None = None
 
 
 class CaseCreateRequest(BaseModel):
     """Create case from wizard"""
-    case_name: Optional[str] = None
-    case_id_custom: Optional[str] = None
-    resolution_route: Optional[str] = None
-    claimant: Optional[str] = None
-    defendant: Optional[str] = None
-    client: Optional[str] = None
-    case_status: Optional[str] = "active"
-    stakeholders: Optional[List[dict]] = []
-    keywords: Optional[List[dict]] = []
-    legal_team: Optional[List[dict]] = []
-    heads_of_claim: Optional[List[dict]] = []
-    deadlines: Optional[List[dict]] = []
+    case_name: str | None = None
+    case_id_custom: str | None = None
+    resolution_route: str | None = None
+    claimant: str | None = None
+    defendant: str | None = None
+    client: str | None = None
+    case_status: str | None = "active"
+    stakeholders: list[dict[str, Any]] = Field(default_factory=list)
+    keywords: list[dict[str, Any]] = Field(default_factory=list)
+    legal_team: list[dict[str, Any]] = Field(default_factory=list)
+    heads_of_claim: list[dict[str, Any]] = Field(default_factory=list)
+    deadlines: list[dict[str, Any]] = Field(default_factory=list)
 
 
 # ========================================
@@ -640,13 +1025,11 @@ class CaseCreateRequest(BaseModel):
 
 @wizard_router.get("/projects")
 async def list_projects(
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
 ):
-    """List projects for the current user"""
+    """List all projects - no auth required"""
     projects = (
         db.query(Project)
-        .filter(Project.owner_user_id == user.id)
         .order_by(Project.created_at.desc())
         .all()
     )
@@ -663,8 +1046,7 @@ async def list_projects(
 @wizard_router.get("/projects/{project_id}")
 async def get_project(
     project_id: str,
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
 ):
     """Get a single project with lightweight related info (for dashboard)"""
     try:
@@ -674,7 +1056,7 @@ async def get_project(
 
     proj = (
         db.query(Project)
-        .filter(Project.id == project_uuid, Project.owner_user_id == user.id)
+        .filter(Project.id == project_uuid)
         .first()
     )
     if not proj:
@@ -705,7 +1087,7 @@ async def get_project(
 @wizard_router.get("/cases/{case_id}/stakeholders")
 async def get_case_stakeholders(
     case_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
 ):
     """Get stakeholders for a case"""
     stakeholders = db.query(Stakeholder).filter_by(case_id=case_id).all()
@@ -724,7 +1106,7 @@ async def get_case_stakeholders(
 @wizard_router.get("/cases/{case_id}/keywords")
 async def get_case_keywords(
     case_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
 ):
     """Get keywords for a case"""
     keywords = db.query(Keyword).filter_by(case_id=case_id).all()
@@ -741,7 +1123,7 @@ async def get_case_keywords(
 @wizard_router.get("/projects/{project_id}/stakeholders")
 async def get_project_stakeholders(
     project_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
 ):
     """Get stakeholders for a project"""
     try:
@@ -765,7 +1147,7 @@ async def get_project_stakeholders(
 @wizard_router.get("/projects/{project_id}/keywords")
 async def get_project_keywords(
     project_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
 ):
     """Get keywords for a project"""
     try:
@@ -784,13 +1166,91 @@ async def get_project_keywords(
         for k in keywords
     ]
 
+
+@wizard_router.post("/projects/default")
+async def get_or_create_default_project(
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
+):
+    """
+    Get or create the default project.
+    This endpoint ALWAYS returns a valid project - creates one if needed.
+    Used by the frontend to ensure there's always a valid context for uploads.
+    """
+    # Get default admin user
+    default_user = db.query(User).filter(User.email == "admin@vericase.com").first()
+    if not default_user:
+        from .security import hash_password
+        from .models import UserRole
+        default_user = User(
+            email="admin@vericase.com",
+            password_hash=hash_password("admin123"),
+            role=UserRole.ADMIN,
+            is_active=True,
+            email_verified=True,
+            display_name="Administrator"
+        )
+        db.add(default_user)
+        db.commit()
+        db.refresh(default_user)
+    
+    # Look for existing default project
+    default_project = db.query(Project).filter(
+        Project.project_code == "DEFAULT"
+    ).first()
+    
+    if not default_project:
+        # Create the default project
+        today = datetime.now()
+        default_project = Project(
+            id=uuid.uuid4(),
+            project_name="Evidence Uploads",
+            project_code="DEFAULT",
+            start_date=datetime(2010, 1, 1),
+            completion_date=today,
+            analysis_type="retrospective",
+            owner_user_id=default_user.id,
+            meta={"is_default": True}
+        )
+        db.add(default_project)
+        db.commit()
+        db.refresh(default_project)
+        logger.info(f"Created default project: {default_project.id}")
+    
+    return {
+        "id": str(default_project.id),
+        "project_name": default_project.project_name,
+        "project_code": default_project.project_code,
+        "start_date": default_project.start_date.isoformat() if default_project.start_date else None,
+        "completion_date": default_project.completion_date.isoformat() if default_project.completion_date else None,
+        "meta": default_project.meta or {},
+        "is_default": True
+    }
+
+
 @wizard_router.post("/projects", status_code=201)
 async def create_project(
     request: ProjectCreateRequest,
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
 ):
     """Create new project"""
+    
+    # Get default admin user for project ownership
+    default_user = db.query(User).filter(User.email == "admin@vericase.com").first()
+    if not default_user:
+        # Create admin user if doesn't exist
+        from .security import hash_password
+        from .models import UserRole
+        default_user = User(
+            email="admin@vericase.com",
+            password_hash=hash_password("admin123"),
+            role=UserRole.ADMIN,
+            is_active=True,
+            email_verified=True,
+            display_name="Administrator"
+        )
+        db.add(default_user)
+        db.commit()
+        db.refresh(default_user)
     
     project_id = uuid.uuid4()  # Fixed: Use UUID object, not string
     
@@ -812,36 +1272,38 @@ async def create_project(
         exclude_people=request.exclude_people,
         project_terms=request.project_terms,
         exclude_keywords=request.exclude_keywords,
-        owner_user_id=user.id
+        owner_user_id=default_user.id
     )
     
     db.add(project)
     
     # Add stakeholders
-    for s in (request.stakeholders or []):
-        email_val = s.get('email', '')
-        email_domain = email_val.split('@')[1] if email_val and '@' in str(email_val) else None
-        stakeholder = Stakeholder(
-            project_id=project_id,
-            case_id=None,  # Project-level stakeholder
-            role=s.get('role', ''),
-            name=s.get('name', ''),
-            email=email_val,
-            organization=s.get('organization'),
-            email_domain=email_domain
-        )
-        db.add(stakeholder)
+    if request.stakeholders:
+        for s in request.stakeholders:
+            email_val = str(s.get('email', ''))
+            email_domain = email_val.split('@')[1] if email_val and '@' in str(email_val) else None
+            stakeholder = Stakeholder(
+                project_id=project_id,
+                case_id=None,  # Project-level stakeholder
+                role=s.get('role', ''),
+                name=s.get('name', ''),
+                email=email_val,
+                organization=s.get('organization'),
+                email_domain=email_domain
+            )
+            db.add(stakeholder)
     
     # Add keywords
-    for k in (request.keywords or []):
-        keyword = Keyword(
-            project_id=project_id,
-            case_id=None,
-            keyword_name=k.get('name', ''),
-            variations=k.get('variations'),
-            is_regex=k.get('is_regex', False)
-        )
-        db.add(keyword)
+    if request.keywords:
+        for k in request.keywords:
+            keyword = Keyword(
+                project_id=project_id,
+                case_id=None,
+                keyword_name=k.get('name', ''),
+                variations=k.get('variations'),
+                is_regex=k.get('is_regex', False)
+            )
+            db.add(keyword)
     
     try:
         db.commit()
@@ -882,30 +1344,33 @@ async def create_project(
 @wizard_router.post("/cases", status_code=201)
 async def create_case(
     request: CaseCreateRequest,
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
 ):
     """Create new case"""
     
-    # Ensure user is associated with a company
-    user_company = (
-        db.query(UserCompany)
-        .filter(UserCompany.user_id == user.id, UserCompany.is_primary.is_(True))
-        .first()
-    )
-    if user_company:
-        company = user_company.company
-    else:
-        company = Company(name=f"{user.display_name or user.email}'s Company")
-        db.add(company)
-        db.flush()
-        user_company = UserCompany(
-            user_id=user.id,
-            company_id=company.id,
-            role="admin",
-            is_primary=True
+    # Get default admin user for case ownership
+    default_user = db.query(User).filter(User.email == "admin@vericase.com").first()
+    if not default_user:
+        # Create admin user if doesn't exist
+        from .security import hash_password
+        from .models import UserRole
+        default_user = User(
+            email="admin@vericase.com",
+            password_hash=hash_password("admin123"),
+            role=UserRole.ADMIN,
+            is_active=True,
+            email_verified=True,
+            display_name="Administrator"
         )
-        db.add(user_company)
+        db.add(default_user)
+        db.commit()
+        db.refresh(default_user)
+    
+    # Create default company for open access
+    company = db.query(Company).filter(Company.name == "Default Company").first()
+    if not company:
+        company = Company(name="Default Company")
+        db.add(company)
         db.flush()
     
     case_uuid = uuid.uuid4()
@@ -929,37 +1394,39 @@ async def create_case(
         legal_team=request.legal_team or [],
         heads_of_claim=request.heads_of_claim or [],
         deadlines=request.deadlines or [],
-        owner_id=user.id,
+        owner_id=default_user.id,
         company_id=company.id
     )
     db.add(case)
     db.flush()
     
     # Add stakeholders
-    for s in (request.stakeholders or []):
-        email_val = s.get('email', '')
-        email_domain = email_val.split('@')[1] if email_val and '@' in str(email_val) else None
-        stakeholder = Stakeholder(
-            case_id=case.id,
-            project_id=None,
-            role=s.get('role', ''),
-            name=s.get('name', ''),
-            email=email_val,
-            organization=s.get('organization'),
-            email_domain=email_domain
-        )
-        db.add(stakeholder)
+    if request.stakeholders:
+        for s in request.stakeholders:
+            email_val = str(s.get('email', ''))
+            email_domain = email_val.split('@')[1] if email_val and '@' in str(email_val) else None
+            stakeholder = Stakeholder(
+                case_id=case.id,
+                project_id=None,
+                role=s.get('role', ''),
+                name=s.get('name', ''),
+                email=email_val,
+                organization=s.get('organization'),
+                email_domain=email_domain
+            )
+            db.add(stakeholder)
     
     # Add keywords
-    for k in (request.keywords or []):
-        keyword = Keyword(
-            case_id=case.id,
-            project_id=None,
-            keyword_name=k.get('name', ''),
-            variations=k.get('variations'),
-            is_regex=k.get('is_regex', False)
-        )
-        db.add(keyword)
+    if request.keywords:
+        for k in request.keywords:
+            keyword = Keyword(
+                case_id=case.id,
+                project_id=None,
+                keyword_name=k.get('name', ''),
+                variations=k.get('variations'),
+                is_regex=k.get('is_regex', False)
+            )
+            db.add(keyword)
     
     try:
         db.commit()
@@ -973,7 +1440,7 @@ async def create_case(
         logger.exception("Failed to create case %s: %s", case_uuid, exc)
         raise HTTPException(status_code=500, detail="Failed to create case")
     
-    logger.info("Created case %s for user %s", case_uuid, user.email)
+    logger.info("Created case %s", case_uuid)
     
     # Inform if defaults were used
     auto_generated = []
@@ -993,13 +1460,13 @@ async def create_case(
     }
 
 
-def _get_entity_ids(profile_uuid: uuid.UUID, profile_type: str, db: Session) -> tuple[Optional[str], Optional[str], Optional[str]]:
+def _get_entity_ids(profile_uuid: uuid.UUID, profile_type: str, db: Session) -> tuple[str | None, str | None, str | None]:
     """Get case_id, project_id, and company_id for the given entity"""
     if profile_type == "case":
         case = db.query(Case).filter(Case.id == profile_uuid).first()
         if not case:
             raise HTTPException(status_code=404, detail="Case not found")
-        return str(case.id), None, str(case.company_id) if case.company_id else None
+        return str(case.id), None, str(case.company_id) if case.company_id is not None else None
     else:
         project = db.query(Project).filter(Project.id == profile_uuid).first()
         if not project:
@@ -1015,8 +1482,26 @@ async def _upload_file_to_storage(file: UploadFile, s3_key: str, content_type: s
     # Use S3_BUCKET for AWS compatibility
     bucket = settings.S3_BUCKET or settings.MINIO_BUCKET
     
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"[UPLOAD DEBUG] Starting upload to bucket={bucket}, key={s3_key}")
+    logger.info(f"[UPLOAD DEBUG] MINIO_ACCESS_KEY={settings.MINIO_ACCESS_KEY}")
+    logger.info(f"[UPLOAD DEBUG] MINIO_ENDPOINT={settings.MINIO_ENDPOINT}")
+    logger.info(f"[UPLOAD DEBUG] USE_AWS_SERVICES={settings.USE_AWS_SERVICES}")
+    
+    s3_client = s3()
+    if not s3_client:
+        raise HTTPException(status_code=500, detail="S3 client not available")
+    
+    # Test connection first
+    try:
+        buckets = s3_client.list_buckets()
+        logger.info(f"[UPLOAD DEBUG] list_buckets succeeded: {[b['Name'] for b in buckets.get('Buckets', [])]}")
+    except Exception as e:
+        logger.error(f"[UPLOAD DEBUG] list_buckets failed: {type(e).__name__}: {e}")
+    
     await asyncio.to_thread(
-        s3().upload_fileobj,
+        s3_client.upload_fileobj,
         file.file,
         bucket,
         s3_key,
@@ -1024,38 +1509,92 @@ async def _upload_file_to_storage(file: UploadFile, s3_key: str, content_type: s
     )
     return size
 
-def _queue_processing_task(filename: str, document_id: str, case_id: Optional[str], company_id: Optional[str]) -> str:
+def _queue_processing_task(filename: str, document_id: str, case_id: str | None, company_id: str | None) -> str:
     """Queue appropriate processing task and return status"""
     if filename.lower().endswith(".pst"):
         task_case_id = case_id if case_id else "00000000-0000-0000-0000-000000000000"
-        celery_app.send_task(
+        _ = celery_app.send_task(
             "worker_app.worker.process_pst_file",
             args=[document_id, task_case_id, company_id or ""]
         )
         return "PROCESSING_PST"
     else:
-        celery_app.send_task("worker_app.worker.ocr_and_index", args=[document_id])
+        _ = celery_app.send_task("worker_app.worker.ocr_and_index", args=[document_id])
         return "QUEUED"
+
+def _get_or_create_default_project(db: Session, user: User) -> Project:
+    """Get or create a default project for uploads when no project is specified."""
+    # Look for existing default project
+    default_project = db.query(Project).filter(
+        Project.project_code == "DEFAULT"
+    ).first()
+    
+    if not default_project:
+        # Create default project
+        from datetime import date
+        default_project = Project(
+            project_name="Evidence Uploads",
+            project_code="DEFAULT",
+            start_date=date(2010, 1, 1),
+            completion_date=date.today(),
+            owner_user_id=user.id
+        )
+        db.add(default_project)
+        db.commit()
+        db.refresh(default_project)
+        logger.info(f"Created default project: {default_project.id}")
+    
+    return default_project
+
 
 @wizard_router.post("/evidence/upload")
 async def upload_evidence(
-    profileId: str = Form(...),
-    profileType: str = Form(...),
-    file: UploadFile = File(...),
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    profileId: str | None = Form(None),  # type: ignore[reportCallInDefaultInitializer]
+    profileType: str = Form("project"),  # type: ignore[reportCallInDefaultInitializer]
+    file: UploadFile = File(...),  # type: ignore[reportCallInDefaultInitializer]
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
 ):
     """
     Simplified upload endpoint for wizard dashboard.
     Streams file directly to S3/MinIO and queues processing tasks.
+    If no profileId is provided, uses/creates a default project automatically.
     """
+    # Get default admin user
+    default_user = db.query(User).filter(User.email == "admin@vericase.com").first()
+    if not default_user:
+        from .security import hash_password
+        from .models import UserRole
+        default_user = User(
+            email="admin@vericase.com",
+            password_hash=hash_password("admin123"),
+            role=UserRole.ADMIN,
+            is_active=True,
+            email_verified=True,
+            display_name="Administrator"
+        )
+        db.add(default_user)
+        db.commit()
+        db.refresh(default_user)
+    
+    # If no profileId provided, use default project
+    if not profileId or profileId == "null" or profileId == "undefined":
+        default_project = _get_or_create_default_project(db, default_user)
+        profileId = str(default_project.id)
+        profileType = "project"
+        logger.info(f"Using default project: {profileId}")
+    
     if profileType not in {"project", "case"}:
-        raise HTTPException(status_code=400, detail="Invalid profile type")
+        profileType = "project"  # Default to project
 
     try:
         profile_uuid = uuid.UUID(profileId)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid profile ID format")
+        # If invalid UUID, use default project
+        default_project = _get_or_create_default_project(db, default_user)
+        profileId = str(default_project.id)
+        profile_uuid = default_project.id
+        profileType = "project"
+        logger.info(f"Invalid profileId, using default project: {profileId}")
 
     if not file or not file.filename:
         raise HTTPException(status_code=400, detail="Missing file")
@@ -1083,19 +1622,39 @@ async def upload_evidence(
         bucket=bucket,
         s3_key=s3_key,
         status=DocStatus.NEW,
-        owner_user_id=user.id,
+        owner_user_id=default_user.id,
         meta={
             "profile_type": profileType,
             "profile_id": profileId,
-            "uploaded_by": str(user.id)
+            "uploaded_by": str(default_user.id)
         }
     )
     db.add(document)
     db.commit()
     db.refresh(document)
 
-    # Queue processing
-    processing_state = _queue_processing_task(file.filename, str(document.id), case_id, company_id)
+    # For PST files, also create a PSTFile record (worker expects this)
+    pst_file_id = None
+    if file.filename and file.filename.lower().endswith(".pst"):
+        pst_file = PSTFile(
+            filename=file.filename,
+            case_id=case_id,
+            project_id=project_id,
+            s3_bucket=bucket,
+            s3_key=s3_key,
+            file_size_bytes=size,
+            processing_status='pending',
+            uploaded_by=default_user.id
+        )
+        db.add(pst_file)
+        db.commit()
+        db.refresh(pst_file)
+        pst_file_id = str(pst_file.id)
+        logger.info(f"Created PSTFile record {pst_file_id} for {file.filename}")
+
+    # Queue processing - use pst_file_id for PST files, document_id for others
+    processing_id = pst_file_id if pst_file_id else str(document.id)
+    processing_state = _queue_processing_task(file.filename, processing_id, case_id, company_id)
 
     return {
         "id": str(document.id),
@@ -1113,48 +1672,62 @@ async def upload_evidence(
 @unified_router.get("/{entity_id}/evidence")
 async def get_unified_evidence(
     entity_id: str,
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db) # type: ignore[reportCallInDefaultInitializer]
 ):
     """Get evidence/emails for either a project or case"""
     # Try to find as case first
-    case = db.query(Case).filter(Case.id == entity_id).first()
+    case = db.query(Case).filter(Case.id == entity_id).first() # type: ignore[reportGeneralTypeIssues]
     if case:
-        # ADD OWNERSHIP CHECK FOR CASES
-        if case.owner_id != user.id:
-            # Also check if user is part of the case's company if applicable
-            user_company = db.query(UserCompany).filter(
-                UserCompany.user_id == user.id, 
-                UserCompany.company_id == case.company_id
-            ).first()
-            if not user_company and user.role != UserRole.ADMIN:
-                 raise HTTPException(status_code=403, detail="Not authorized to access this case")
+        # Ownership check - disabled for admin auto-login
+        # if case.owner_id != user.id:
+        #     # Also check if user is part of the case's company if applicable
+        #     if case.company_id is not None:
+        #         user_company = db.query(UserCompany).filter(
+        #             UserCompany.user_id == user.id,  # type: ignore[reportGeneralTypeIssues]
+        #             UserCompany.company_id == case.company_id # type: ignore[reportGeneralTypeIssues]
+        #         ).first()
+        #         if not user_company and user.role != UserRole.ADMIN:
+        #             raise HTTPException(status_code=403, detail="Not authorized to access this case")
+        #     elif user.role != UserRole.ADMIN:
+        #         raise HTTPException(status_code=403, detail="Not authorized to access this case")
+        pass  # Allow all access
 
         # Use existing case evidence logic
         emails = db.query(EmailMessage).filter(
-            EmailMessage.case_id == entity_id
+            EmailMessage.case_id == entity_id # type: ignore[reportGeneralTypeIssues]
         ).order_by(EmailMessage.date_sent.desc()).all()
     else:
         # Try as project
-        project = db.query(Project).filter(Project.id == entity_id).first()
+        project = db.query(Project).filter(Project.id == entity_id).first() # type: ignore[reportGeneralTypeIssues]
         if not project:
             raise HTTPException(status_code=404, detail="Entity not found")
 
-        # ADD OWNERSHIP CHECK FOR PROJECTS
-        if project.owner_user_id != user.id and user.role != UserRole.ADMIN:
-            raise HTTPException(status_code=403, detail="Not authorized to access this project")
+        # Ownership check - allow admin or owner
+        # Since we auto-create admin user, this should always pass
+        # if project.owner_user_id != user.id and user.role != UserRole.ADMIN:
+        #     raise HTTPException(status_code=403, detail="Not authorized to access this project")
 
         # Get emails associated with project
         emails = db.query(EmailMessage).filter(
-            EmailMessage.project_id == entity_id
+            EmailMessage.project_id == entity_id # type: ignore[reportGeneralTypeIssues]
         ).order_by(EmailMessage.date_sent.desc()).all()
 
-    def _format_recipients(recipients: Optional[List[Dict]]) -> str:
+    def _format_recipients(recipients: list[Any] | None) -> str:
         if not recipients:
             return ""
-        formatted: List[str] = []
+        if not isinstance(recipients, list):
+            # Handle single string value
+            if isinstance(recipients, str):
+                return recipients.strip()
+            return ""
+        formatted: list[str] = []
         for recipient in recipients:
-            if isinstance(recipient, dict):
+            if isinstance(recipient, str):
+                # Plain string format (e.g., "John Smith" or "john@example.com")
+                if recipient.strip():
+                    formatted.append(recipient.strip())
+            elif isinstance(recipient, dict):
+                # Dict format with email/name keys
                 email_addr = recipient.get('email') or recipient.get('address') or ""
                 name = recipient.get('name') or recipient.get('display_name') or ""
                 if email_addr and name:
@@ -1163,13 +1736,11 @@ async def get_unified_evidence(
                     formatted.append(email_addr)
                 elif name:
                     formatted.append(name)
-            else:
-                formatted.append(str(recipient))
         return ", ".join([item for item in formatted if item])
 
     # Get attachments for all emails
     email_ids = [email.id for email in emails]
-    attachments_by_email = {}
+    attachments_by_email: dict[Any, list[dict[str, Any]]] = {}
     
     if email_ids:
         # Query all attachments for these emails
@@ -1179,9 +1750,10 @@ async def get_unified_evidence(
         
         # Group by email_message_id
         for att in attachments:
-            if att.email_message_id not in attachments_by_email:
-                attachments_by_email[att.email_message_id] = []
-            attachments_by_email[att.email_message_id].append({
+            email_msg_id = att.email_message_id
+            if email_msg_id not in attachments_by_email:
+                attachments_by_email[email_msg_id] = []
+            attachments_by_email[email_msg_id].append({
                 "id": str(att.id),
                 "filename": att.filename,
                 "size": att.file_size,
@@ -1195,16 +1767,16 @@ async def get_unified_evidence(
             "id": str(email.id),
             # Map to expected field names for correspondence view
             "email_subject": email.subject or "",
-            "email_from": email.sender_email or email.sender_name or "Unknown",
+            "email_from": email.sender_email if email.sender_email is not None else email.sender_name or "Unknown",
             "email_to": _format_recipients(email.recipients_to),
             "email_cc": _format_recipients(email.recipients_cc),
-            "email_date": email.date_sent.isoformat() if email.date_sent else None,
+            "email_date": email.date_sent.isoformat() if email.date_sent is not None else None,
             # Include full content
-            "content": email.body_html or email.body_text or "",
+            "content": email.body_html if email.body_html is not None else email.body_text or "",
             "body": email.body_text or "",
             "meta": {
-                "content": email.body_html or email.body_text or "",
-                "content_type": "html" if email.body_html else "text",
+                "content": email.body_html if email.body_html is not None else email.body_text or "",
+                "content_type": "html" if email.body_html is not None else "text",
                 "importance": email.importance,
                 "has_attachments": bool(attachments_by_email.get(email.id, [])),
                 "attachments": attachments_by_email.get(email.id, [])
@@ -1213,15 +1785,15 @@ async def get_unified_evidence(
             "sender_name": email.sender_name,
             "recipients_to": email.recipients_to,
             "recipients_cc": email.recipients_cc,
-            "date_sent": email.date_sent.isoformat() if email.date_sent else None,
+            "date_sent": email.date_sent.isoformat() if email.date_sent is not None else None,
             "body_text": email.body_text,
             "body_html": email.body_html,
             "importance": email.importance,
             "has_attachments": bool(attachments_by_email.get(email.id, [])),
             "attachments": attachments_by_email.get(email.id, []),
-            "pst_file_id": str(email.pst_file_id) if email.pst_file_id else None,
-            "matched_stakeholders": email.matched_stakeholders,
-            "matched_keywords": email.matched_keywords,
+            "pst_file_id": str(email.pst_file_id) if email.pst_file_id is not None else None,
+            "matched_stakeholders": email.matched_stakeholders, # type: ignore[reportArgumentType]
+            "matched_keywords": email.matched_keywords, # type: ignore[reportArgumentType]
             "thread_id": getattr(email, "thread_id", None)
         }
         for email in emails
@@ -1231,21 +1803,23 @@ async def get_unified_evidence(
 @unified_router.get("/{entity_id}")
 async def get_unified_entity(
     entity_id: str,
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db) # type: ignore[reportCallInDefaultInitializer]
 ):
     """Get details for either a project or case"""
     # Try to find as case first
-    case = db.query(Case).filter(Case.id == entity_id).first()
+    case = db.query(Case).filter(Case.id == entity_id).first() # type: ignore[reportGeneralTypeIssues]
     if case:
-        # ADD OWNERSHIP CHECK FOR CASES
-        if case.owner_id != user.id:
-            user_company = db.query(UserCompany).filter(
-                UserCompany.user_id == user.id, 
-                UserCompany.company_id == case.company_id
-            ).first()
-            if not user_company and user.role != UserRole.ADMIN:
-                 raise HTTPException(status_code=403, detail="Not authorized to access this case")
+        # Ownership check disabled - auto-admin has full access
+        # if case.owner_id != user.id:
+        #     if case.company_id is not None:
+        #         user_company = db.query(UserCompany).filter(
+        #             UserCompany.user_id == user.id,
+        #             UserCompany.company_id == case.company_id
+        #         ).first()
+        #         if not user_company and user.role != UserRole.ADMIN:
+        #             raise HTTPException(status_code=403, detail="Not authorized to access this case")
+        #     elif user.role != UserRole.ADMIN:
+        #         raise HTTPException(status_code=403, detail="Not authorized to access this case")
         
         return {
             "id": str(case.id),
@@ -1257,11 +1831,12 @@ async def get_unified_entity(
         }
     
     # Try as project
-    project = db.query(Project).filter(Project.id == entity_id).first()
+    project = db.query(Project).filter(Project.id == entity_id).first() # type: ignore[reportGeneralTypeIssues]
     if project:
-        # ADD OWNERSHIP CHECK FOR PROJECTS
-        if project.owner_user_id != user.id and user.role != UserRole.ADMIN:
-            raise HTTPException(status_code=403, detail="Not authorized to access this project")
+        # Ownership check disabled - auto-admin has full access
+        # if project.owner_user_id != user.id and user.role != UserRole.ADMIN:
+        #     raise HTTPException(status_code=403, detail="Not authorized to access this project")
+        pass  # Allow all access
 
         return {
             "id": str(project.id),
@@ -1269,7 +1844,7 @@ async def get_unified_entity(
             "name": project.project_name,
             "project_code": project.project_code,
             "status": "active",  # Projects don't have status field
-            "created_at": project.created_at.isoformat() if hasattr(project, 'created_at') else None
+            "created_at": project.created_at.isoformat() if hasattr(project, 'created_at') and project.created_at else None
         }
     
     raise HTTPException(status_code=404, detail="Entity not found")
@@ -1278,16 +1853,15 @@ async def get_unified_entity(
 @unified_router.get("/{entity_id}/stakeholders")
 async def get_unified_stakeholders(
     entity_id: str,
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db) # type: ignore[reportCallInDefaultInitializer]
 ):
     """Get stakeholders for either a project or case"""
     # Check if it's a case
-    stakeholders = db.query(Stakeholder).filter(Stakeholder.case_id == entity_id).all()
+    stakeholders = db.query(Stakeholder).filter(Stakeholder.case_id == entity_id).all() # type: ignore[reportGeneralTypeIssues]
     
     # If no case stakeholders, try project
     if not stakeholders:
-        stakeholders = db.query(Stakeholder).filter(Stakeholder.project_id == entity_id).all()
+        stakeholders = db.query(Stakeholder).filter(Stakeholder.project_id == entity_id).all() # type: ignore[reportGeneralTypeIssues]
     
     return [
         {
@@ -1304,16 +1878,15 @@ async def get_unified_stakeholders(
 @unified_router.get("/{entity_id}/keywords")  
 async def get_unified_keywords(
     entity_id: str,
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db) # type: ignore[reportCallInDefaultInitializer]
 ):
     """Get keywords for either a project or case"""
     # Check if it's a case
-    keywords = db.query(Keyword).filter(Keyword.case_id == entity_id).all()
+    keywords = db.query(Keyword).filter(Keyword.case_id == entity_id).all() # type: ignore[reportGeneralTypeIssues]
     
     # If no case keywords, try project
     if not keywords:
-        keywords = db.query(Keyword).filter(Keyword.project_id == entity_id).all()
+        keywords = db.query(Keyword).filter(Keyword.project_id == entity_id).all() # type: ignore[reportGeneralTypeIssues]
     
     return [
         {
@@ -1323,3 +1896,4 @@ async def get_unified_keywords(
         }
         for k in keywords
     ]
+

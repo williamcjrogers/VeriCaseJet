@@ -8,7 +8,7 @@ from typing import Optional, List
 import logging
 from pathlib import Path
 import jinja2
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 
 from .config import settings
@@ -214,7 +214,7 @@ If you didn't request this, please ignore this email. Your password won't be cha
                 alert_title=alert_messages.get(alert_type),
                 details=details,
                 frontend_url=self.frontend_url,
-                timestamp=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+                timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
             )
         except Exception:
             # Fallback HTML
@@ -227,7 +227,7 @@ If you didn't request this, please ignore this email. Your password won't be cha
                     <div style="background: #f7fafc; border: 1px solid #e2e8f0; 
                                 border-radius: 5px; padding: 20px; margin: 20px 0;">
                         <h3 style="margin-top: 0;">{alert_messages.get(alert_type)}</h3>
-                        <p>Time: {datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")}</p>
+                        <p>Time: {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}</p>
                         {f"<p>IP Address: {details.get('ip_address', 'Unknown')}</p>" if details.get('ip_address') else ""}
                         {f"<p>Device: {details.get('user_agent', 'Unknown')}</p>" if details.get('user_agent') else ""}
                     </div>
@@ -245,7 +245,7 @@ If you didn't request this, please ignore this email. Your password won't be cha
     
     def send_account_locked(self, to_email: str, user_name: str, locked_until: datetime, attempts: int):
         """Send account locked notification"""
-        minutes_locked = int((locked_until - datetime.utcnow()).total_seconds() / 60)
+        minutes_locked = int((locked_until - datetime.now(timezone.utc)).total_seconds() / 60)
         
         html_content = f"""
         <html>

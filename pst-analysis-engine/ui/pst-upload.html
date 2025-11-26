@@ -282,6 +282,7 @@
         }
     </style>
     <script src="config.js"></script>
+    <script src="app-state.js"></script>
 </head>
 <body>
     <div class="top-bar">
@@ -340,14 +341,14 @@
     </div>
 
     <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const profileId = urlParams.get('projectId') || urlParams.get('caseId');
-        const profileType = localStorage.getItem('profileType') || 'project';
-        const token = localStorage.getItem('token');
-        
         // Use centralized configuration
         const apiUrl = window.VeriCaseConfig ? window.VeriCaseConfig.apiUrl : window.location.origin;
         console.log('PST Upload using API URL:', apiUrl);
+        
+        // Initialize app state - this will get or create a default project
+        VeriCaseApp.init().then(() => {
+            console.log('VeriCaseApp initialized:', VeriCaseApp.projectId);
+        });
 
         const uploadZone = document.getElementById('uploadZone');
         const fileInput = document.getElementById('fileInput');
@@ -408,14 +409,19 @@
         }
 
         async function startUpload() {
+            let lastResponse = null;
             for (let i = 0; i < selectedFiles.length; i++) {
-                await uploadFile(selectedFiles[i], i);
+                lastResponse = await uploadFile(selectedFiles[i], i);
             }
             
             // After all uploads complete, redirect to correspondence view
             setTimeout(() => {
                 alert('All files uploaded successfully! Processing has begun. You can review emails in the correspondence view.');
-                goToCorrespondence();
+                // If we got a project_id from the response, update VeriCaseApp state
+                if (lastResponse && lastResponse.project_id) {
+                    VeriCaseApp.projectId = lastResponse.project_id;
+                }
+                VeriCaseApp.gotoCorrespondence();
             }, 1000);
         }
 
@@ -432,21 +438,30 @@
                 // Create form data
                 const formData = new FormData();
                 formData.append('file', file);
-                formData.append('profileId', profileId);
-                formData.append('profileType', profileType);
+                // Use VeriCaseApp for project context
+                if (VeriCaseApp.projectId) {
+                    formData.append('profileId', VeriCaseApp.projectId);
+                    formData.append('profileType', 'project');
+                } else if (VeriCaseApp.caseId) {
+                    formData.append('profileId', VeriCaseApp.caseId);
+                    formData.append('profileType', 'case');
+                } else {
+                    // No context - backend will use default project
+                    formData.append('profileType', 'project');
+                }
 
                 // Upload file
                 const response = await fetch(`${apiUrl}/api/evidence/upload`, {
                     method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    },
                     body: formData
                 });
 
                 if (!response.ok) {
                     throw new Error('Upload failed');
                 }
+                
+                // Parse response data
+                const data = await response.json();
 
                 // Simulate progress
                 for (let progress = 0; progress <= 100; progress += 10) {
@@ -462,11 +477,15 @@
 
                 statusEl.textContent = 'Complete';
                 statusEl.className = 'file-status status-complete';
+                
+                // Return the response data
+                return data;
 
             } catch (error) {
                 console.error('Upload error:', error);
                 statusEl.textContent = 'Error';
                 statusEl.className = 'file-status status-error';
+                return null;
             }
         }
 
@@ -495,16 +514,7 @@
         }
 
         function goToDashboard() {
-            window.location.href = `dashboard.html?${profileType}Id=${profileId}`;
-        }
-
-        function goToCorrespondence() {
-            if (!profileId) {
-                goToDashboard();
-                return;
-            }
-            const param = profileType === 'project' ? 'projectId' : 'caseId';
-            window.location.href = `correspondence-enterprise.html?${param}=${profileId}`;
+            VeriCaseApp.gotoDashboard();
         }
     </script>
 </body>

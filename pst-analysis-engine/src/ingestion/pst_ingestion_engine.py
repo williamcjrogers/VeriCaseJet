@@ -7,7 +7,7 @@ import logging
 import os
 import re
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from email.parser import Parser
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -42,7 +42,7 @@ class PSTIngestionEngine:
             "successful": 0,
             "failed": 0,
             "attachments": 0,
-            "start_time": datetime.utcnow().isoformat(),
+            "start_time": datetime.now(timezone.utc).isoformat(),
             "threads_identified": 0,
         }
 
@@ -95,7 +95,7 @@ class PSTIngestionEngine:
             pst.close()
             conn.commit()
 
-            stats["end_time"] = datetime.utcnow().isoformat()
+            stats["end_time"] = datetime.now(timezone.utc).isoformat()
             stats["threads_identified"] = len({tid for tid in thread_by_msgid.values() if tid})
             stats["duration_seconds"] = self._compute_duration(stats)
             logger.info(
@@ -307,7 +307,7 @@ class PSTIngestionEngine:
             ",".join(identified_stakeholders),
             len(attachment_records),
             1 if attachment_records else 0,
-            datetime.utcnow().isoformat(),
+            datetime.now(timezone.utc).isoformat(),
             os.path.basename(pst_path),
         )
 
@@ -463,6 +463,30 @@ class PSTIngestionEngine:
                 emails.update(email_pattern.findall(lower))
         return emails, tokens
 
+    @staticmethod
+    def _is_noise_attachment(filename: str, size_bytes: int, is_inline: bool = False) -> bool:
+        """
+        Returns True if the attachment is likely a signature image or noise.
+        """
+        filename_lower = (filename or "").lower()
+        
+        # 1. Tiny files are almost always spacers or icons (< 4KB)
+        if size_bytes < 4000:
+            return True
+
+        # 2. Common "Inline Image" names from Outlook
+        # e.g. image001.png, image002.jpg often used for signatures
+        # Filter if < 25KB
+        if "image00" in filename_lower and size_bytes < 25000:
+            return True
+
+        # 3. Explicit "logo" or "signature" naming
+        # Filter if < 50KB
+        if ("logo" in filename_lower or "signature" in filename_lower) and size_bytes < 50000:
+            return True
+            
+        return False
+
     def _store_attachment(
         self,
         *,
@@ -480,8 +504,16 @@ class PSTIngestionEngine:
         if not isinstance(data, (bytes, bytearray)):
             return False
 
+        # Check for noise attachment
+        size = len(data)
+        filename = str(attachment.get("name", ""))
+        is_inline = bool(attachment.get("is_inline"))
+        
+        if self._is_noise_attachment(filename, size, is_inline):
+            return False  # Skip noise
+
         hash_hex = hashlib.sha256(data).hexdigest()
-        ext = Path(str(attachment.get("name", ""))).suffix
+        ext = Path(filename).suffix
         safe_name = f"{hash_hex}{ext or ''}"
         dest_dir = self.attachments_root / "attachments" / profile_id
         dest_dir.mkdir(parents=True, exist_ok=True)
@@ -502,18 +534,18 @@ class PSTIngestionEngine:
             (
                 profile_id,
                 email_message_id,
-                attachment.get("name", "attachment"),
+                filename,
                 str(dest_path),
-                attachment.get("size", 0),
+                size,
                 attachment.get("mime_type", ""),
                 pst_source,
                 hash_hex,
-                1 if attachment.get("is_inline") else 0,
+                1 if is_inline else 0,
                 sender,
                 date_sent,
                 ",".join(keywords),
                 ",".join(stakeholders),
-                datetime.utcnow().isoformat(),
+                datetime.now(timezone.utc).isoformat(),
                 None,
             ),
         )

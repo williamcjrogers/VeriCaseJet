@@ -146,7 +146,7 @@ def discover_other_projects(emails: List[EmailMessage], current_project: str) ->
     current_project_lower = current_project.lower()
     
     for email in emails:
-        text_to_search = f"{email.subject or ''} {email.body_text or ''}"
+        text_to_search = "{email.subject or ''} {email.body_text or ''}"
         
         for pattern in PROJECT_PATTERNS:
             matches = re.findall(pattern, text_to_search, re.IGNORECASE)
@@ -320,13 +320,13 @@ def format_date_range(date_range_dict: Any) -> str:
     if isinstance(start_val, datetime) and isinstance(end_val, datetime):
         start = start_val.strftime("%b %Y")
         end = end_val.strftime("%b %Y")
-        return f"{start} - {end}"
+        return "{start} - {end}"
     return "Unknown"
 
 def process_email_topics(email: EmailMessage, topic_stats: Dict, topic_keywords: Dict, urgency_words: List) -> None:
     subject_val = str(email.subject) if email.subject else ""
     body_val = str(email.body_text) if email.body_text else ""
-    text_to_search = f"{subject_val} {body_val}".lower()
+    text_to_search = "{subject_val} {body_val}".lower()
     
     # Check urgency
     urgency_count = sum(1 for word in urgency_words if word in text_to_search)
@@ -373,7 +373,7 @@ def infer_organization_from_domain(domain: str) -> str:
     if 'council' in domain or 'gov' in domain:
         parts = org_name.split('.')
         if len(parts) > 1:
-            return f"{parts[0].title()} Council"
+            return "{parts[0].title()} Council"
     
     # Capitalize parts
     parts = org_name.split('.')
@@ -430,7 +430,7 @@ async def apply_refinement(
     
     # In production, we'd store this in a refinement_filters table
     # For now, we'll update the project metadata
-    meta_val: dict = cast(dict, project.meta).copy() if (project.meta and isinstance(project.meta, dict)) else {}
+    meta_val: dict = cast(Dict[str, Any], project.meta).copy() if (project.meta and isinstance(project.meta, dict)) else {}
     meta_val["active_refinement"] = filter_data
     project.meta = meta_val
     db.commit()
@@ -449,7 +449,7 @@ async def apply_refinement(
         # Check if email mentions excluded projects
         subject_val = str(email.subject) if email.subject else ""
         body_val = str(email.body_text) if email.body_text else ""
-        email_text = f"{subject_val} {body_val}".lower()
+        email_text = "{subject_val} {body_val}".lower()
         for excluded_project in refinement.exclude_projects:
             if excluded_project.lower() in email_text:
                 should_exclude = True
@@ -465,7 +465,7 @@ async def apply_refinement(
         
         # Update email metadata
         if should_exclude:
-            email_meta: dict = cast(dict, email.meta).copy() if (email.meta and isinstance(email.meta, dict)) else {}
+            email_meta: dict = cast(Dict[str, Any], email.meta).copy() if (email.meta and isinstance(email.meta, dict)) else {}
             email_meta["excluded_by_refinement"] = filter_id
             email.meta = email_meta
             excluded_count += 1
@@ -516,7 +516,7 @@ async def clear_refinement_filters(
         raise HTTPException(404, "Project not found")
     
     # Clear project metadata
-    meta_val = cast(dict, project.meta).copy() if (project.meta and isinstance(project.meta, dict)) else {}
+    meta_val = cast(Dict[str, Any], project.meta).copy() if (project.meta and isinstance(project.meta, dict)) else {}
     if meta_val and "active_refinement" in meta_val:
         del meta_val["active_refinement"]
         project.meta = meta_val
@@ -528,7 +528,7 @@ async def clear_refinement_filters(
     
     cleared_count = 0
     for email in emails:
-        email_meta = cast(dict, email.meta).copy() if (email.meta and isinstance(email.meta, dict)) else {}
+        email_meta = cast(Dict[str, Any], email.meta).copy() if (email.meta and isinstance(email.meta, dict)) else {}
         if email_meta and "excluded_by_refinement" in email_meta:
             del email_meta["excluded_by_refinement"]
             email.meta = email_meta

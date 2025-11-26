@@ -50,56 +50,47 @@
             debugMode: false, // Set to true for additional logging
         },
         
-        // Helper function to make API calls with proper error handling
+        // Helper function to make API calls with proper error handling.
+        // Delegates to secureApiFetch so that Authorization and X-CSRF-Token
+        // are applied consistently across the frontend.
         async apiCall(endpoint, options = {}) {
-            const url = this.apiUrl + endpoint;
-            
-            // Add default headers
-            const headers = {
-                'Content-Type': 'application/json',
-                ...options.headers
-            };
-            
-            // Add auth token if available
-            const token = localStorage.getItem('token') || localStorage.getItem('jwt');
-            if (token && !headers.Authorization) {
-                headers.Authorization = `Bearer ${token}`;
-            }
-            
+            let response;
             try {
-                const response = await fetch(url, {
-                    ...options,
-                    headers
-                });
-                
-                if (!response.ok) {
-                    // Log error details for debugging
-                    if (this.features.debugMode) {
-                        console.error(`API call failed: ${response.status} ${response.statusText}`);
-                        console.error('URL:', url);
-                        console.error('Response:', await response.text());
-                    }
-                    
-                    // Handle specific error codes
-                    if (response.status === 401) {
-                        // Unauthorized - redirect to login
-                        console.error('Authentication failed - redirecting to login');
-                        // Don't redirect if we're already on login page
-                        if (!window.location.pathname.includes('login')) {
-                            localStorage.removeItem('token');
-                            localStorage.removeItem('jwt');
-                            window.location.href = '/index.html';
-                        }
-                    }
-                    
-                    throw new Error(`API call failed: ${response.status} ${response.statusText}`);
-                }
-                
-                return response;
+                response = await secureApiFetch(endpoint, options);
             } catch (error) {
                 console.error('API call error:', error);
                 throw error;
             }
+
+            if (!response.ok) {
+                // Log error details for debugging
+                if (this.features.debugMode) {
+                    console.error(`API call failed: ${response.status} ${response.statusText}`);
+                    console.error('Endpoint:', endpoint);
+                    try {
+                        const text = await response.clone().text();
+                        console.error('Response:', text);
+                    } catch (e) {
+                        // ignore body read errors
+                    }
+                }
+
+                // Handle specific error codes
+                if (response.status === 401) {
+                    console.error('Authentication failed - redirecting to login');
+                    if (!window.location.pathname.includes('login')) {
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('jwt');
+                        window.location.href = '/index.html';
+                    }
+                }
+
+                const error = new Error(`API call failed: ${response.status} ${response.statusText}`);
+                console.error('API call error:', error);
+                throw error;
+            }
+
+            return response;
         },
         
         // Initialize configuration

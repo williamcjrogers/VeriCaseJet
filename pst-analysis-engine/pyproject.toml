@@ -48,3 +48,19 @@ exclude = [
 
 [tool.pylint]
 ignore = [".venv", "venv", "env", "__pycache__"]
+
+[tool.black]
+line-length = 88
+skip-string-normalization = false
+skip-magic-trailing-comma = false
+# Keep includes simple; Black will follow pyproject discovery.
+include = '\\.pyi?$'
+exclude = [
+  ".venv",
+  "venv",
+  "env",
+  "__pycache__",
+  "*.egg-info",
+  "build",
+  "dist"
+]

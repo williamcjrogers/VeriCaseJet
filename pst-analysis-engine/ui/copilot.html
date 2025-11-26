@@ -660,8 +660,7 @@
         // Suggestion cards
         document.querySelectorAll('.suggestion-card').forEach(card => {
             card.addEventListener('click', () => {
-                const prompt = card.dataset.prompt;
-                messageInput.value = prompt;
+                messageInput.value = card.dataset.prompt;
                 messageInput.dispatchEvent(new Event('input'));
                 messageInput.focus();
             });
@@ -703,6 +702,21 @@
             // Show typing indicator
             const typingId = addTypingIndicator();
 
+            const handleError = (error) => {
+                removeTypingIndicator(typingId);
+                console.error('AI Error:', error);
+                
+                // Show detailed error message
+                let errorMsg = '❌ Error: ' + (error.message || 'Unknown error occurred');
+                
+                // Check if token expired
+                if (error.message && error.message.includes('401')) {
+                    errorMsg = '❌ Your session has expired. Please <a href="wizard.html" style="color: #667eea; text-decoration: underline;">log in again</a>.';
+                }
+                
+                addMessage('assistant', errorMsg);
+            };
+
             try {
                 // Call AI API
                 const response = await fetch(`${API_BASE}/ai/orchestrator/query`, {
@@ -722,7 +736,8 @@
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('API Error Response:', errorText);
-                    throw new Error(`API returned ${response.status}: ${errorText}`);
+                    handleError(new Error(`API returned ${response.status}: ${errorText}`));
+                    return;
                 }
 
                 const data = await response.json();
@@ -738,21 +753,10 @@
                     // Save to history
                     saveChatToHistory(message, data.answer);
                 } else {
-                    throw new Error('No answer field in response: ' + JSON.stringify(data));
+                    handleError(new Error('No answer field in response: ' + JSON.stringify(data)));
                 }
             } catch (error) {
-                removeTypingIndicator(typingId);
-                console.error('AI Error:', error);
-                
-                // Show detailed error message
-                let errorMsg = '❌ Error: ' + (error.message || 'Unknown error occurred');
-                
-                // Check if token expired
-                if (error.message && error.message.includes('401')) {
-                    errorMsg = '❌ Your session has expired. Please <a href="wizard.html" style="color: #667eea; text-decoration: underline;">log in again</a>.';
-                }
-                
-                addMessage('assistant', errorMsg);
+                handleError(error);
             }
 
             // Scroll to bottom
@@ -775,8 +779,7 @@
             contentDiv.className = 'message-content';
             
             // Parse markdown-like formatting
-            const formattedContent = formatMessage(content);
-            contentDiv.innerHTML = formattedContent;
+            contentDiv.innerHTML = formatMessage(content);
             
             messageDiv.appendChild(avatar);
             messageDiv.appendChild(contentDiv);

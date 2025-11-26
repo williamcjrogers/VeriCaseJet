@@ -110,11 +110,11 @@ class AIModelService:
         },
         "gemini-2.5-flash": {
             "provider": "google",
-            "model": "gemini-1.5-flash",
+            "model": "gemini-2.0-flash",
         },
         "gemini-2.5-pro-deep-think": {
             "provider": "google",
-            "model": "gemini-1.5-pro",
+            "model": "gemini-2.0-flash-thinking-exp-01-21",
         },
         "grok-4-heavy": {
             "provider": "grok",
