@@ -1,0 +1,7 @@
+-- DEPRECATED
+-- This ad-hoc script has been integrated into the official migration path.
+-- Please use:
+-- 1. api/migrations/20251113_fix_user_role_enum_step1.sql (Enum schema update)
+-- 2. api/migrations/20251113_fix_user_role_enum_step2.sql (Data migration)
+--
+-- Do not run this file.
