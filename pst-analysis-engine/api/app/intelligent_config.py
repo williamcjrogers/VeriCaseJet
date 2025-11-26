@@ -9,6 +9,7 @@ from pydantic import BaseModel
 import logging
 from .security import current_user
 from .db import get_db
+from .models import User
 from .config import settings
 from .ai_models import (
     AIModelService,
@@ -453,7 +454,7 @@ Be helpful, ask clarifying questions when needed, and make the process feel natu
 async def intelligent_configuration(
     request: ConfigMessage = Body(...),
     db: Session = Depends(get_db),
-    user = Depends(current_user)
+    user: User = Depends(current_user)
 ):
     """
     AI-powered intelligent configuration endpoint.
@@ -629,7 +630,7 @@ async def create_configuration(config_data: Dict, db: Session, user) -> Dict[str
         
         if not user_company:
             # Create a default company if none exists
-            company = Company(name="My Company")
+            company = Company(company_name="My Company")
             db.add(company)
             db.flush()
             user_company = UserCompany(

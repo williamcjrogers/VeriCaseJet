@@ -2,6 +2,13 @@
 set -e
 
 echo "=== VeriCase Startup ==="
-cd pst-analysis-engine/api
-echo "Starting on port ${PORT:-8000}..."
-exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1
+
+# Wait for Postgres (simple check or just rely on depends_on + retry)
+# In production, we might want a proper wait-for-it script, but for now:
+
+echo "Running migrations..."
+python /code/apply_migrations.py
+
+echo "Starting Uvicorn..."
+# Use exec to replace shell with uvicorn process
+exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1

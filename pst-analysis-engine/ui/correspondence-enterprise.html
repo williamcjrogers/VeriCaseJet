@@ -456,6 +456,7 @@
         }
     </style>
     <script src="config.js"></script>
+    <script src="app-state.js"></script>
 </head>
 <body>
     <!-- Header -->
@@ -474,6 +475,9 @@
         <div class="header-right">
             <button class="btn" onclick="goToDashboard()">
                 <i class="fas fa-home"></i> Dashboard
+            </button>
+            <button class="btn" onclick="window.location.href='deep-research.html'" style="background: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%); color: white; border: none;">
+                <i class="fas fa-atom"></i> Deep Research
             </button>
             <button class="btn" onclick="exportToExcel()">
                 <i class="fas fa-file-excel"></i> Export Excel
@@ -505,9 +509,9 @@
             
             <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
                 <div style="flex: 1; position: relative;">
-                    <textarea id="aiQuery" placeholder="Ask a question about your evidence... e.g., 'What are the key delay events?' or 'Summarize the dispute timeline'" 
-                              style="width: 100%; min-height: 80px; padding: 1rem; border: 2px solid #E5E7EB; border-radius: 12px; font-size: 0.9375rem; font-family: inherit; resize: vertical;"
-                              onkeydown="if(event.key==='Enter' && event.ctrlKey) aiQuickSearch()"></textarea>
+                    <label for="aiQuery"></label><textarea id="aiQuery" placeholder="Ask a question about your evidence... e.g., 'What are the key delay events?' or 'Summarize the dispute timeline'"
+                                                           style="width: 100%; min-height: 80px; padding: 1rem; border: 2px solid #E5E7EB; border-radius: 12px; font-size: 0.9375rem; font-family: inherit; resize: vertical;"
+                                                           onkeydown="if(event.key==='Enter' && event.ctrlKey) aiQuickSearch()"></textarea>
                     <div style="position: absolute; bottom: 0.75rem; right: 0.75rem; font-size: 0.75rem; color: var(--text-muted);">
                         Ctrl+Enter for Quick Search
                     </div>
@@ -550,7 +554,7 @@
             </button>
             <div class="search-box">
                 <i class="fas fa-search"></i>
-                <input type="text" id="quickFilter" placeholder="Quick search emails..." onkeyup="onQuickFilterChanged()">
+                <label for="quickFilter"></label><input type="text" id="quickFilter" placeholder="Quick search emails..." onkeyup="onQuickFilterChanged()">
             </div>
             <button class="btn" onclick="toggleAdvancedFilter()">
                 <i class="fas fa-filter"></i> Advanced Filter
@@ -671,42 +675,25 @@
         const API_BASE = window.VeriCaseConfig ? window.VeriCaseConfig.apiUrl : window.location.origin;
         console.log('Correspondence using API URL:', API_BASE);
         
-        // Get case/project ID from URL - check both caseId and case_id parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        let caseId = urlParams.get('caseId') || urlParams.get('case_id');
-        let projectId = urlParams.get('projectId') || urlParams.get('project_id');
+        // Initialize VeriCaseApp - it will handle URL params and default project
+        let caseId = null;
+        let projectId = null;
+        const isAdmin = true; // Open access mode
         
-        // For backwards compatibility, if neither is set, try generic ID
-        if (!caseId && !projectId) {
-            const genericId = urlParams.get('caseId') || urlParams.get('case_id') || urlParams.get('projectId') || urlParams.get('project_id');
-            // Determine if it's a project or case based on localStorage
-            const profileType = localStorage.getItem('profileType');
-            if (profileType === 'project') {
-                projectId = genericId;
-            } else {
-                caseId = genericId;
-            }
-        }
-        
-        // Check if user is admin - admins can view all correspondence
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
-        const isAdmin = user.role === 'ADMIN';
-        
-        // Validate we have a case/project ID - STOP execution if invalid (unless admin)
-        if (!isAdmin && (!caseId && !projectId)) {
-            alert('No case or project selected. Redirecting to wizard...');
-            window.location.href = 'wizard.html';
-            throw new Error('Invalid case ID - stopping execution'); // STOP HERE!
-        }
-        
-        // For admin without specific project/case, show all emails
-        if (isAdmin && !caseId && !projectId) {
-            console.log('Admin mode: Showing all correspondence');
-            // Set a flag for admin mode
-            window.adminViewAll = true;
-        }
-        
-        window.caseId = caseId; // Make it globally available for other functions
+        // Initialize state immediately
+        (async function initState() {
+            await VeriCaseApp.init();
+            caseId = VeriCaseApp.caseId;
+            projectId = VeriCaseApp.projectId;
+            window.caseId = caseId; // Make it globally available for other functions
+            console.log('VeriCaseApp initialized - projectId:', projectId, 'caseId:', caseId);
+            
+            // Update URL if needed (so bookmarks work)
+            VeriCaseApp.updateUrl();
+            
+            // Now load the emails
+            loadEmails();
+        })();
         
         let gridApi;
         let columnApi;
@@ -715,7 +702,7 @@
         let showFullContent = true; // Default to showing full content
 
         // Column Definitions with Enterprise Features
-        const columnDefs = [
+        let columnDefs = [
             {
                 headerName: '',
                 field: 'selection',
@@ -769,6 +756,28 @@
             {
                 headerName: 'To',
                 field: 'email_to',
+                width: 220,
+                wrapText: true,
+                autoHeight: true,
+                cellStyle: {
+                    'white-space': 'normal',
+                    'line-height': '1.4',
+                    'padding-top': '8px',
+                    'padding-bottom': '8px'
+                },
+                valueGetter: params => {
+                    const to = params.data.email_to;
+                    if (!to || to === '-') return '-';
+                    return to;
+                },
+                filter: 'agSetColumnFilter',
+                filterParams: {
+                    buttons: ['apply', 'clear', 'reset']
+                }
+            },
+            {
+                headerName: 'CC',
+                field: 'email_cc',
                 width: 200,
                 wrapText: true,
                 autoHeight: true,
@@ -779,58 +788,14 @@
                     'padding-bottom': '8px'
                 },
                 valueGetter: params => {
-                    // First check the direct field
-                    if (params.data.email_to) return params.data.email_to;
-                    
-                    // Try to extract from HTML content if available
-                    const content = params.data.meta?.content || params.data.content || '';
-                    if (content.includes('<html') || content.includes('To:')) {
-                        // Look for To: in the email headers within the HTML
-                        const toMatch = content.match(/<b>To:<\/b>\s*([^<\n]+)/i) || 
-                                       content.match(/To:\s*([^<\n]+)/i);
-                        if (toMatch) {
-                            return toMatch[1].trim()
-                                .replace(/&lt;/g, '<')
-                                .replace(/&gt;/g, '>')
-                                .replace(/&amp;/g, '&');
-                        }
-                    }
-                    return '-';
+                    const cc = params.data.email_cc;
+                    if (!cc || cc === '-') return '-';
+                    return cc;
                 },
-                filter: 'agTextColumnFilter'
-            },
-            {
-                headerName: 'CC',
-                field: 'email_cc',
-                width: 150,
-                wrapText: true,
-                autoHeight: true,
-                cellStyle: {
-                    'white-space': 'normal',
-                    'line-height': '1.4',
-                    'padding-top': '8px',
-                    'padding-bottom': '8px'
-                },
-                valueGetter: params => {
-                    // First check the direct field
-                    if (params.data.email_cc) return params.data.email_cc;
-                    
-                    // Try to extract from HTML content if available
-                    const content = params.data.meta?.content || params.data.content || '';
-                    if (content.includes('<html') || content.includes('Cc:')) {
-                        // Look for Cc: in the email headers within the HTML
-                        const ccMatch = content.match(/<b>Cc:<\/b>\s*([^<\n]+)/i) || 
-                                       content.match(/Cc:\s*([^<\n]+)/i);
-                        if (ccMatch) {
-                            return ccMatch[1].trim()
-                                .replace(/&lt;/g, '<')
-                                .replace(/&gt;/g, '>')
-                                .replace(/&amp;/g, '&');
-                        }
-                    }
-                    return '-';
-                },
-                filter: 'agTextColumnFilter'
+                filter: 'agSetColumnFilter',
+                filterParams: {
+                    buttons: ['apply', 'clear', 'reset']
+                }
             },
             {
                 headerName: 'Attachments',
@@ -845,95 +810,38 @@
                     'padding-bottom': '8px'
                 },
                 valueGetter: params => {
-                    // Get attachments from meta field (excluding embedded images)
-                    const attachments = params.data.meta?.attachments || [];
-                    // AGGRESSIVE FILTERING - Remove ALL embedded images and signatures
+                    // Get attachments from both direct field and meta field
+                    const attachments = params.data.attachments || params.data.meta?.attachments || [];
+                    // Only filter explicit inline images - keep everything else
                     const realAttachments = attachments.filter(att => {
-                        // Check multiple conditions to exclude embedded images
                         if (att.is_inline === true) return false;
                         if (att.content_id) return false;
-                        
-                        const filename = (att.name || att.filename || '').toLowerCase();
-                        
-                        // Exclude common embedded image patterns
-                        if (filename.match(/^image\d{3}\.(png|jpg|jpeg|gif|bmp)$/)) return false; // image001.png etc
-                        if (filename.match(/^img_?\d+\.(png|jpg|jpeg|gif|bmp)$/)) return false; // img_001.png, img001.png
-                        if (filename.match(/^cid[:_]/)) return false; // cid: references
-                        if (filename.match(/^[\da-f]{8,}\.(png|jpg|jpeg|gif|bmp)$/)) return false; // hash-like names
-                        if (filename.match(/^[\da-f]{32}\.(png|jpg|jpeg|gif|bmp)$/)) return false; // MD5 hash names
-                        if (filename.includes('signature')) return false; // signature images
-                        if (filename.includes('logo')) return false; // logos
-                        if (filename.includes('banner')) return false; // email banners
-                        if (filename.includes('header')) return false; // header images
-                        if (filename.includes('footer')) return false; // footer images
-                        if (filename.includes('badge')) return false; // badge images
-                        if (filename.includes('icon')) return false; // icon images
-                        if (filename === 'blank.gif') return false; // tracking pixels
-                        if (filename === 'spacer.gif') return false; // layout spacers
-                        if (filename === 'pixel.gif') return false; // tracking pixels
-                        if (filename === '1x1.gif') return false; // 1x1 tracking pixels
-                        if (filename.match(/^attem*p*\d*\.(png|jpg|jpeg|gif|bmp)$/)) return false; // attempted inline images
-                        if (filename.match(/^oledata\.mso$/)) return false; // Outlook OLE data
-                        if (filename.match(/^image\.(png|jpg|jpeg|gif|bmp)$/)) return false; // generic image.png
-                        
-                        // Exclude by content type if it's marked as inline
-                        if (att.content_type && att.content_type.includes('image') && att.size < 50000) {
-                            // Small images (< 50KB) are likely embedded
-                            return false;
-                        }
-                        
-                        // Only include real document attachments
                         return true;
                     });
-                    return realAttachments.map(att => att.name || att.filename || 'Unnamed').join(', ') || '-';
+                    if (realAttachments.length === 0) return 'None';
+                    // Show count and first few names
+                    const names = realAttachments.map(att => att.filename || att.name || 'File').slice(0, 3);
+                    const suffix = realAttachments.length > 3 ? ` (+${realAttachments.length - 3} more)` : '';
+                    return `📎 ${names.join(', ')}${suffix}`;
                 },
                 cellRenderer: params => {
-                    const attachments = params.data.meta?.attachments || [];
-                    // AGGRESSIVE FILTERING - Remove ALL embedded images and signatures
+                    // Get attachments from both direct field and meta field
+                    const attachments = params.data.attachments || params.data.meta?.attachments || [];
+                    // Only filter explicit inline images
                     const realAttachments = attachments.filter(att => {
-                        // Check multiple conditions to exclude embedded images
                         if (att.is_inline === true) return false;
                         if (att.content_id) return false;
-                        
-                        const filename = (att.name || att.filename || '').toLowerCase();
-                        
-                        // Exclude common embedded image patterns
-                        if (filename.match(/^image\d{3}\.(png|jpg|jpeg|gif|bmp)$/)) return false;
-                        if (filename.match(/^img_?\d+\.(png|jpg|jpeg|gif|bmp)$/)) return false;
-                        if (filename.match(/^cid[:_]/)) return false;
-                        if (filename.match(/^[\da-f]{8,}\.(png|jpg|jpeg|gif|bmp)$/)) return false;
-                        if (filename.match(/^[\da-f]{32}\.(png|jpg|jpeg|gif|bmp)$/)) return false;
-                        if (filename.includes('signature')) return false;
-                        if (filename.includes('logo')) return false;
-                        if (filename.includes('banner')) return false;
-                        if (filename.includes('header')) return false;
-                        if (filename.includes('footer')) return false;
-                        if (filename.includes('badge')) return false;
-                        if (filename.includes('icon')) return false;
-                        if (filename === 'blank.gif') return false;
-                        if (filename === 'spacer.gif') return false;
-                        if (filename === 'pixel.gif') return false;
-                        if (filename === '1x1.gif') return false;
-                        if (filename.match(/^attem*p*\d*\.(png|jpg|jpeg|gif|bmp)$/)) return false;
-                        if (filename.match(/^oledata\.mso$/)) return false;
-                        if (filename.match(/^image\.(png|jpg|jpeg|gif|bmp)$/)) return false;
-                        
-                        // Exclude small images
-                        if (att.content_type && att.content_type.includes('image') && att.size < 50000) {
-                            return false;
-                        }
-                        
                         return true;
                     });
                     
-                    if (realAttachments.length === 0) return '-';
+                    if (realAttachments.length === 0) return '<span style="color:#9ca3af;">None</span>';
                     
                     const rowId = params.node.id;
                     const evidenceId = params.data.id;
                     
                     // Create clickable attachment links
                     const attachmentLinks = realAttachments.map((att, index) => {
-                        const fileName = att.name || att.filename || 'Unnamed';
+                        const fileName = att.filename || att.name || 'Unnamed';
                         const fileExt = fileName.split('.').pop().toLowerCase();
                         const attachmentId = att.id || index;
                         
@@ -991,295 +899,76 @@
                 headerName: 'Message',
                 field: 'email_body',
                 flex: 2,
-                minWidth: 500,
-                autoHeight: true,
+                minWidth: 400,
+                autoHeight: false,
                 wrapText: true,
                 valueGetter: params => {
-                    // Extract body content from meta field
-                    let content = params.data.meta?.content || params.data.content || '';
-                    
-                    // Clean up escaped newlines and other escape sequences
-                    if (typeof content === 'string') {
-                        // Remove Python bytes prefix
-                        if (content.startsWith("b'") || content.startsWith('b"')) {
-                            content = content.slice(2, -1);
-                        }
-                        
-                        // Clean escape sequences
-                        content = content
-                            .replace(/\\r\\n/g, '\n')
-                            .replace(/\\n/g, '\n')
-                            .replace(/\\t/g, '    ')
-                            .replace(/\\'/g, "'")
-                            .replace(/\\"/g, '"')
-                            .replace(/\\\\/g, '\\')
-                            .replace(/\\x([0-9a-fA-F]{2})/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
-                        
-                        // If it's HTML, extract the text content
-                        if (content.includes('<html') || content.includes('<body')) {
-                            // Extract text between body tags
-                            const bodyMatch = content.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-                            if (bodyMatch) {
-                                let bodyContent = bodyMatch[1];
-                                
-                                // Remove style and script tags
-                                bodyContent = bodyContent.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-                                bodyContent = bodyContent.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
-                                
-                                // Remove the EXTERNAL EMAIL warning table
-                                bodyContent = bodyContent.replace(/<table[^>]*background:#FFF2CC[^>]*>[\s\S]*?EXTERNAL EMAIL:[\s\S]*?<\/table>/gi, '');
-                                
-                                // Keep embedded images in HTML (they're part of email content, not attachments)
-                                // Note: We'll handle cid: images later in formatContent since they need special treatment
-                                
-                                // Find the main message content
-                                let messageContent = bodyContent;
-                                
-                                // AGGRESSIVE THREAD REMOVAL - Extract ONLY the current message
-                                const threadMarkers = [
-                                    /-----\s*Original Message\s*-----/i,
-                                    /<div[^>]*>[\s\S]*?From:.*?<br>.*?Sent:.*?<br>.*?To:.*?<br>/i,
-                                    /From:.*?[\r\n]+.*?Sent:.*?[\r\n]+.*?To:.*?[\r\n]+.*?Subject:/is,
-                                    /On\s+.+?\s+wrote:/i,
-                                    /<blockquote/i,
-                                    /<div[^>]*class=["']gmail_quote["'][^>]*>/i,
-                                    />+\s*On\s+\d{1,2}\/\d{1,2}\/\d{4}/i,
-                                    />+\s*From:/i,
-                                    /_{10,}/,  // Long underscores
-                                    /[-]{10,}/, // Long dashes
-                                    /[*]{10,}/, // Long asterisks
-                                    /\n{2,}From:\s+/m,  // Double newline followed by From:
-                                    /\n{2,}On\s+.*wrote:/m,  // Double newline followed by On...wrote
-                                    /\n{2,}----/m,  // Double newline followed by dashes
-                                    /________________________________________/
-                                ];
-                                
-                                // Find the earliest thread marker position
-                                let cutoffIndex = messageContent.length;
-                                for (const marker of threadMarkers) {
-                                    const match = messageContent.search ? messageContent.search(marker) : messageContent.match(marker);
-                                    if (match && (typeof match === 'number' ? match : match.index) > 20) {
-                                        const index = typeof match === 'number' ? match : match.index;
-                                        if (index < cutoffIndex) {
-                                            cutoffIndex = index;
-                                        }
-                                    }
-                                }
-                                
-                                // Extract only up to the cutoff
-                                if (cutoffIndex < messageContent.length) {
-                                    messageContent = messageContent.substring(0, cutoffIndex);
-                                }
-                                
-                                // Extract main content from WordSection1 if present
-                                const wordSection = messageContent.match(/<div class=WordSection1>([\s\S]*?)(?:<div|$)/i);
-                                if (wordSection) {
-                                    messageContent = wordSection[1];
-                                }
-                                
-                                // Store the HTML content (preserve images and formatting)
-                                const htmlContent = messageContent;
-                                
-                                // Also create a plain text version for search/preview
-                                const plainText = messageContent
-                                    .replace(/<p class=MsoNormal><o:p>&nbsp;<\/o:p><\/p>/gi, '\n') // Empty Office paragraphs
-                                    .replace(/<o:p>&nbsp;<\/o:p>/gi, ' ') // Empty Office inline tags
-                                    .replace(/<br\s*\/?>/gi, '\n')
-                                    .replace(/<\/p>/gi, '\n')
-                                    .replace(/<p[^>]*>/gi, '')
-                                    .replace(/<\/div>/gi, '\n')
-                                    .replace(/<div[^>]*>/gi, '')
-                                    .replace(/<[^>]+>/g, '') // Remove all remaining HTML tags
-                                    .replace(/&nbsp;/g, ' ')
-                                    .replace(/&amp;/g, '&')
-                                    .replace(/&lt;/g, '<')
-                                    .replace(/&gt;/g, '>')
-                                    .replace(/&quot;/g, '"')
-                                    .replace(/&#39;/g, "'")
-                                    .replace(/\n{2,}/g, '\n') // Replace multiple newlines with single newline
-                                    .replace(/^\s+|\s+$/g, '') // Trim start and end
-                                    .replace(/[ \t]+/g, ' ') // Collapse multiple spaces/tabs to single space
-                                    .trim();
-                                
-                                // Store both HTML and plain text
-                                content = {html: htmlContent, text: plainText};
-                            }
-                        }
-                        
-                        // Handle plain text content if not HTML
-                        if (typeof content === 'string') {
-                            // AGGRESSIVE thread removal for plain text
-                            const plainThreadMarkers = [
-                                /-----\s*Original Message\s*-----/i,
-                                /From:.*?[\r\n]+.*?Sent:.*?[\r\n]+.*?To:/is,
-                                /On\s+.+?\s+wrote:/i,
-                                />+\s*On\s+\d{1,2}\/\d{1,2}\/\d{4}/i,
-                                />+\s*From:/i,
-                                /_{10,}/,
-                                /[-]{10,}/,
-                                /[*]{10,}/,
-                                /\n{2,}From:\s+/m,
-                                /\n{2,}On\s+.*wrote:/m,
-                                /________________________________________/
-                            ];
-                            
-                            let cutoffIndex = content.length;
-                            for (const marker of plainThreadMarkers) {
-                                const match = content.search ? content.search(marker) : content.match(marker);
-                                if (match && (typeof match === 'number' ? match : match.index) > 20) {
-                                    const index = typeof match === 'number' ? match : match.index;
-                                    if (index < cutoffIndex) {
-                                        cutoffIndex = index;
-                                    }
-                                }
-                            }
-                            
-                            if (cutoffIndex < content.length) {
-                                content = content.substring(0, cutoffIndex);
-                            }
-                            
-                            // Final cleanup - but DON'T remove RE:/FW: prefixes
-                            content = content.trim();
-                            
-                            // Return as text-only object
-                            return {text: content || 'No message content available', html: null};
-                        }
-                        
-                        // Return the content object with HTML and text
-                        return content || {text: 'No message content available', html: null};
-                    }
-                    // Return plain text if no HTML extraction was done
-                    return typeof content === 'object' ? content : {text: content || 'No message content available', html: null};
+                    // Use clean text for grid display (no signatures/HTML)
+                    // body_text_clean is pre-processed to remove signatures
+                    const cleanText = params.data.body_text_clean || params.data.body_text || '';
+                    return cleanText;
                 },
                 cellRenderer: params => {
-                    const contentObj = params.value || {text: 'No content available', html: null};
-                    const content = typeof contentObj === 'string' ? contentObj : contentObj.text || 'No content available';
-                    const htmlContent = typeof contentObj === 'object' ? contentObj.html : null;
-                    const rowId = params.node.id;
-                    const isExpanded = params.api.getRowNode(rowId)?.data?.expanded;
+                    const textContent = params.value || 'No content available';
                     
-                    // Format the content for better readability
-                    const formatContent = (text, useHtml = false) => {
-                        if (useHtml && htmlContent) {
-                            // Clean up HTML and handle images
-                            let cleanedHtml = htmlContent
-                                .replace(/<o:p>&nbsp;<\/o:p>/gi, '') // Remove empty Office tags
-                                .replace(/<p class=MsoNormal><o:p>&nbsp;<\/o:p><\/p>/gi, '<br>'); // Convert empty paragraphs to breaks
-                            
-                            // Handle images: replace cid: with placeholders, keep real URLs
-                            // First, replace cid: images with placeholder since they won't load without the actual attachment data
-                            cleanedHtml = cleanedHtml.replace(/<img([^>]*src=["']?cid:[^"'>]*["']?[^>]*)>/gi, 
-                                '<div style="display: inline-block; padding: 8px 12px; margin: 4px 0; background: #f3f4f6; border: 1px dashed #9ca3af; border-radius: 4px; color: #6b7280; font-size: 0.875rem; font-style: italic;">' +
-                                '<svg style="display: inline; width: 16px; height: 16px; margin-right: 4px; vertical-align: text-bottom;" fill="currentColor" viewBox="0 0 20 20">' +
-                                '<path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/>' +
-                                '</svg>Embedded Image</div>');
-                            
-                            // Keep real images with valid URLs (http/https/data) and make them responsive
-                            cleanedHtml = cleanedHtml.replace(/<img([^>]*src=["']?(?:https?:\/\/|data:)[^"'>]*["']?[^>]*)>/gi, 
-                                '<img$1 style="max-width: 100%; height: auto; display: inline-block; margin: 4px 0;">');
-                            
-                            return cleanedHtml;
-                        }
+                    // Clean the text for grid display - strip any remaining HTML and signatures
+                    const cleanTextForGrid = (text) => {
+                        if (!text) return 'No content available';
                         
-                        // First escape HTML for security (for plain text)
-                        let formatted = text
-                            .replace(/&/g, '&amp;')
-                            .replace(/</g, '&lt;')
-                            .replace(/>/g, '&gt;')
-                            .replace(/"/g, '&quot;')
-                            .replace(/'/g, '&#39;');
+                        let cleaned = text;
                         
-                        // Convert line breaks to HTML breaks - maintain original email format with single spacing
-                        const lines = formatted.split('\n');
-                        const formattedLines = [];
+                        // Remove any HTML tags that might have slipped through
+                        cleaned = cleaned.replace(/<[^>]*>/g, ' ');
                         
-                        for (const line of lines) {
-                            const trimmedLine = line.trim();
-                            // Keep all lines, including empty ones, to preserve original email formatting
-                            if (trimmedLine === '') {
-                                formattedLines.push(''); // Empty line becomes a single break when joined
-                            } else {
-                                formattedLines.push(line);
+                        // Remove signature markers and everything after
+                        const signatureMarkers = [
+                            /^--\s*$/m,                           // Standard signature delimiter
+                            /^_{3,}/m,                            // Underscores
+                            /^-{3,}/m,                            // Dashes
+                            /Regards,?\s*$/im,                    // "Regards"
+                            /Kind regards,?\s*$/im,               // "Kind regards"
+                            /Best regards,?\s*$/im,               // "Best regards"
+                            /Thanks,?\s*$/im,                     // "Thanks"
+                            /Many thanks,?\s*$/im,                // "Many thanks"
+                            /Sent from my iPhone/i,               // Mobile signatures
+                            /Sent from my iPad/i,
+                            /Get Outlook for/i,
+                            /This email and any attachments/i,    // Disclaimer text
+                            /CONFIDENTIAL/i,
+                            /This message is intended/i
+                        ];
+                        
+                        for (const marker of signatureMarkers) {
+                            const match = cleaned.match(marker);
+                            if (match && match.index !== undefined) {
+                                cleaned = cleaned.substring(0, match.index);
                             }
                         }
                         
-                        return formattedLines.join('<br>');
+                        // Clean up whitespace
+                        cleaned = cleaned.replace(/\s+/g, ' ').trim();
+                        
+                        // Remove common email artifacts
+                        cleaned = cleaned.replace(/&nbsp;/g, ' ');
+                        cleaned = cleaned.replace(/\[cid:[^\]]+\]/g, ''); // Remove image references
+                        
+                        return cleaned;
                     };
                     
-                    if (isExpanded === false) {
-                        // Preview mode - show first 150 characters in an attractive card
-                        const preview = content.substring(0, 150);
-                        const hasMore = content.length > 150;
-                        const formattedPreview = formatContent(preview);
+                    const cleanedText = cleanTextForGrid(textContent);
+                    
+                    // Show truncated preview (max 300 chars for cleaner grid)
+                    const maxLength = 300;
+                    const displayText = cleanedText.length > maxLength 
+                        ? cleanedText.substring(0, maxLength) + '...' 
+                        : cleanedText;
                         
                         return `
-                            <div style="padding: 8px; cursor: pointer; transition: all 0.2s ease;" 
-                                 onclick="toggleEmailContent(${rowId})"
-                                 onmouseover="this.style.backgroundColor='#f9fafb'" 
-                                 onmouseout="this.style.backgroundColor='transparent'">
-                                <div style="color: #374151; font-size: 0.875rem; line-height: 1.4; 
-                                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-                                    ${formattedPreview}${hasMore ? '<span style="color: #6b7280;">...</span>' : ''}
-                                </div>
-                                ${hasMore ? `
-                                    <div style="margin-top: 8px;">
-                                        <span style="display: inline-flex; align-items: center; gap: 4px;
-                                                padding: 4px 10px; font-size: 0.75rem; font-weight: 500;
-                                                background: linear-gradient(135deg, #3b82f6, #2563eb); 
-                                                color: white; border-radius: 12px; cursor: pointer;
-                                                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                                                transition: transform 0.2s, box-shadow 0.2s;"
-                                                onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'"
-                                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'">
-                                            <svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20">
-                                                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
-                                                <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
-                                            </svg>
-                                            Read Full Message
-                                        </span>
-                                    </div>
-                                ` : ''}
+                        <div style="padding: 8px; font-size: 0.85rem; line-height: 1.5; color: #374151; 
+                                    max-height: 100px; overflow: hidden; text-overflow: ellipsis;">
+                            ${displayText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
                             </div>
                         `;
-                    } else {
-                        // Full content mode - show HTML if available for images, otherwise formatted text
-                        const formattedContent = formatContent(content, true); // Use HTML mode when available
-                        
-                        // Only add smart formatting if we're showing plain text
-                        const enhancedContent = htmlContent ? formattedContent : formattedContent
-                            // Highlight monetary values
-                            .replace(/([£$€]\d+(?:,\d{3})*(?:\.\d{2})?)/g, '<span style="color: #059669; font-weight: 600;">$1</span>')
-                            // Highlight email addresses
-                            .replace(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g, '<span style="color: #2563eb; text-decoration: underline;">$1</span>')
-                            // Highlight dates
-                            .replace(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{1,2}\s(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s\d{2,4})/gi, '<span style="color: #7c3aed; font-weight: 500;">$1</span>');
-                        
-                        return `
-                            <div style="padding: 8px;">
-                                <div style="background: linear-gradient(to bottom, #ffffff, #fafafa); 
-                                     border: 1px solid #e5e7eb; border-radius: 6px; 
-                                     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-                                     overflow: hidden;">
-                                    <div style="max-height: 400px; overflow-y: auto; padding: 12px 16px;
-                                         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                                         font-size: 0.9rem; line-height: 1.5; color: #1f2937;">
-                                        ${enhancedContent}
-                                    </div>
-                                </div>
-                                <div style="margin-top: 10px; display: flex; gap: 8px;">
-                                    <button onclick="toggleEmailContent(${rowId})" 
-                                            style="padding: 6px 14px; font-size: 0.8rem; font-weight: 500;
-                                                   background: #6b7280; color: white; border: none; 
-                                                   border-radius: 6px; cursor: pointer;
-                                                   transition: background 0.2s;"
-                                            onmouseover="this.style.backgroundColor='#4b5563'"
-                                            onmouseout="this.style.backgroundColor='#6b7280'">
-                                        ✕ Collapse
-                                    </button>
-                                </div>
-                            </div>
-                        `;
-                    }
                 },
                 filter: 'agTextColumnFilter'
             },
@@ -1706,6 +1395,283 @@
         ];
 
         // Grid Options with Enterprise Features
+        // Override with streamlined columns
+        columnDefs = [
+            {
+                headerName: '',
+                field: 'selection',
+                width: 50,
+                checkboxSelection: true,
+                headerCheckboxSelection: true,
+                pinned: 'left'
+            },
+            {
+                headerName: 'Date/Time',
+                field: 'email_date',
+                width: 160,
+                sort: 'desc',
+                cellRenderer: (params) => {
+                    if (!params.value) return '-';
+                    const date = new Date(params.value);
+                    return `
+                        <div style="display: flex; flex-direction: column;">
+                            <span style="font-weight: 600;">${date.toLocaleDateString()}</span>
+                            <span style="font-size: 0.75rem; color: var(--text-muted);">${date.toLocaleTimeString()}</span>
+                        </div>
+                    `;
+                },
+                filter: 'agDateColumnFilter'
+            },
+            {
+                headerName: 'From',
+                field: 'email_from',
+                width: 200,
+                wrapText: true,
+                autoHeight: true,
+                cellRenderer: params => params.value ? `<span style="font-weight: 500;">${params.value}</span>` : '-',
+                filter: 'agSetColumnFilter'
+            },
+            {
+                headerName: 'To',
+                field: 'email_to',
+                width: 220,
+                wrapText: true,
+                autoHeight: true,
+                valueGetter: params => params.data.email_to || '-',
+                cellRenderer: params => {
+                    if (!params.value || params.value === '-') return '-';
+                    return `<span style="font-weight: 500;">${params.value}</span>`;
+                },
+                filter: 'agSetColumnFilter'
+            },
+            {
+                headerName: 'CC',
+                field: 'email_cc',
+                width: 200,
+                wrapText: true,
+                autoHeight: true,
+                valueGetter: params => params.data.email_cc || '-',
+                cellRenderer: params => {
+                    if (!params.value || params.value === '-') return '-';
+                    return `<span style="font-weight: 500;">${params.value}</span>`;
+                },
+                filter: 'agSetColumnFilter'
+            },
+            {
+                headerName: 'Subject',
+                field: 'email_subject',
+                flex: 1,
+                minWidth: 220,
+                cellRenderer: params => params.value
+                    ? `<div style="display:flex;flex-direction:column;gap:4px;"><span style="font-weight:700;color:var(--vericase-navy);">${params.value}</span><span style="font-size:0.8rem;color:var(--text-muted);">Thread: ${params.data?.thread_id || 'N/A'}</span></div>`
+                    : '-',
+                filter: 'agTextColumnFilter'
+            },
+            {
+                headerName: 'Message',
+                field: 'email_body',
+                flex: 2,
+                minWidth: 350,
+                autoHeight: true,
+                wrapText: true,
+                valueGetter: params => {
+                    // Return both clean text (for preview) and HTML (for full view)
+                    const htmlBody = params.data.body_html;
+                    const textBody = params.data.body_text_clean || params.data.body_text || '';
+                    return { html: htmlBody, text: textBody };
+                },
+                cellRenderer: params => {
+                    const contentObj = params.value || { text: 'No content', html: null };
+                    const htmlContent = contentObj.html;
+                    const textContent = contentObj.text || 'No content';
+                    const rowId = params.node.id;
+                    const quotedRowId = `'${rowId}'`;
+                    const isExpanded = params.data.expanded === true;
+                    
+                    // Clean text for preview - remove signatures
+                    const getCleanPreview = (text) => {
+                        let cleaned = text;
+                        cleaned = cleaned.replace(/<[^>]*>/g, ' ');
+                        const signaturePatterns = [
+                            /\n--\s*\n[\s\S]*/,
+                            /\nRegards,?\s*\n[\s\S]*/i,
+                            /\nKind regards,?\s*\n[\s\S]*/i,
+                            /\nBest regards,?\s*\n[\s\S]*/i,
+                            /\nThanks,?\s*\n[\s\S]*/i,
+                            /\nMany thanks,?\s*\n[\s\S]*/i,
+                            /\nSent from my iPhone[\s\S]*/i,
+                            /\nGet Outlook for[\s\S]*/i,
+                            /\nThis email and any attachments[\s\S]*/i,
+                            /\n_{10,}[\s\S]*/,
+                            /\n-{10,}[\s\S]*/
+                        ];
+                        for (const pattern of signaturePatterns) {
+                            cleaned = cleaned.replace(pattern, '');
+                        }
+                        cleaned = cleaned.replace(/&nbsp;/g, ' ').replace(/\[cid:[^\]]+\]/g, '').replace(/\s+/g, ' ').trim();
+                        return cleaned;
+                    };
+                    
+                    // Clean HTML for full view - keep signatures but remove scripts/dangerous content
+                    const cleanHtmlForFullView = (html) => {
+                        if (!html) return null;
+                        let cleaned = html;
+                        cleaned = cleaned.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+                        cleaned = cleaned.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+                        cleaned = cleaned.replace(/<table[^>]*>[\s\S]*?EXTERNAL EMAIL[\s\S]*?<\/table>/gi, '');
+                        cleaned = cleaned.replace(/EXTERNAL EMAIL:.*?(?=<|$)/gi, '');
+                        cleaned = cleaned.replace(/-----\s*Original Message\s*-----[\s\S]*/i, '');
+                        cleaned = cleaned.replace(/<o:p>&nbsp;<\/o:p>/gi, '');
+                        cleaned = cleaned.replace(/<o:p><\/o:p>/gi, '');
+                        cleaned = cleaned.replace(/<img([^>]*)>/gi, '<img$1 style="max-width: 100%; height: auto;">');
+                        return cleaned;
+                    };
+                    
+                    if (!isExpanded) {
+                        // PREVIEW MODE - clean text, no signatures
+                        const cleanPreview = getCleanPreview(textContent);
+                        const preview = cleanPreview.substring(0, 200);
+                        const hasMore = cleanPreview.length > 200 || htmlContent;
+                        
+                        return `
+                            <div style="padding: 8px;">
+                                <div style="color: #374151; font-size: 0.85rem; line-height: 1.5;">
+                                    ${preview.replace(/</g, '&lt;').replace(/>/g, '&gt;')}${hasMore ? '...' : ''}
+                                </div>
+                                ${hasMore ? `
+                                    <div style="margin-top: 8px;">
+                                        <span onclick="toggleEmailContent(${quotedRowId})" 
+                                              style="display: inline-flex; align-items: center; gap: 4px;
+                                                     padding: 4px 10px; font-size: 0.75rem; font-weight: 500;
+                                                     background: #3b82f6; color: white; border-radius: 12px; cursor: pointer;">
+                                            <i class="fas fa-expand-alt"></i> View Full
+                                        </span>
+                                    </div>
+                                ` : ''}
+                            </div>`;
+                    } else {
+                        // EXPANDED MODE - full HTML with signatures and formatting
+                        const displayContent = htmlContent 
+                            ? cleanHtmlForFullView(htmlContent) 
+                            : textContent.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+                        
+                        return `
+                            <div style="padding: 12px;">
+                                <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; 
+                                            font-size: 0.9rem; line-height: 1.6; color: #1f2937;
+                                            max-height: 500px; overflow-y: auto;">
+                                    ${displayContent}
+                                </div>
+                                <div style="margin-top: 8px;">
+                                    <span onclick="toggleEmailContent(${quotedRowId})" 
+                                          style="display: inline-flex; align-items: center; gap: 4px;
+                                                 padding: 4px 10px; font-size: 0.75rem; font-weight: 500;
+                                                 background: #6b7280; color: white; border-radius: 12px; cursor: pointer;">
+                                        <i class="fas fa-compress-alt"></i> Collapse
+                                    </span>
+                                </div>
+                            </div>`;
+                    }
+                },
+                filter: 'agTextColumnFilter'
+            },
+            {
+                headerName: 'Attachments',
+                field: 'attachments',
+                width: 200,
+                wrapText: true,
+                autoHeight: true,
+                valueGetter: params => {
+                    const attachments = params.data.attachments || params.data.meta?.attachments || [];
+                    // Only filter explicit inline - keep generic attachment names
+                    const filtered = attachments.filter(att => {
+                        if (att.is_inline === true) return false;
+                        if (att.content_id) return false;
+                        return true;
+                    });
+                    if (!filtered.length) return '-';
+                    return `${filtered.length} file(s)`;
+                },
+                cellRenderer: params => {
+                    const attachments = params.data.attachments || params.data.meta?.attachments || [];
+                    const filtered = attachments.filter(att => {
+                        if (att.is_inline === true) return false;
+                        if (att.content_id) return false;
+                        return true;
+                    });
+                    if (!filtered.length) return '<span style="color: var(--text-muted);">None</span>';
+                    // Show count with paperclip icon and first few names
+                    const fileNames = filtered.slice(0, 3).map(att => att.filename || att.name || 'File');
+                    const suffix = filtered.length > 3 ? ` <span style="color:var(--text-muted);">(+${filtered.length - 3})</span>` : '';
+                    return `<span style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
+                        <i class="fas fa-paperclip" style="color:var(--vericase-teal);"></i>
+                        ${fileNames.join(', ')}${suffix}
+                    </span>`;
+                },
+                cellStyle: { overflow: 'hidden', 'white-space': 'normal', 'line-height': '1.4' }
+            },
+            {
+                headerName: 'Keywords',
+                field: 'keywords',
+                width: 180,
+                valueGetter: params => {
+                    const keywords = params.data.keywords || params.data.matched_keywords || params.data.meta?.keywords;
+                    if (Array.isArray(keywords)) return keywords;
+                    if (typeof keywords === 'string') return keywords.split(',').map(k => k.trim()).filter(Boolean);
+                    return [];
+                },
+                cellRenderer: params => {
+                    const keywords = params.value || [];
+                    if (!keywords.length) return '<span style="color: var(--text-muted);">None</span>';
+                    return keywords.map(k => `<span style="display: inline-block; background: #ECFDF3; color: #166534; padding: 4px 8px; border-radius: 999px; margin: 2px; font-weight: 600;">${k}</span>`).join('');
+                },
+                filter: 'agSetColumnFilter'
+            },
+            {
+                headerName: 'Stakeholder',
+                field: 'stakeholder',
+                width: 160,
+                valueGetter: params => params.data.stakeholder || (params.data.matched_stakeholders || []).join(', ') || '',
+                cellRenderer: params => params.value
+                    ? `<div style="display: flex; align-items: center; gap: 8px;"><i class="fas fa-user-circle" style="color: var(--primary);"></i><span style="font-weight: 600;">${params.value}</span></div>`
+                    : '-',
+                filter: 'agSetColumnFilter'
+            },
+            {
+                headerName: 'Priority',
+                field: 'priority',
+                width: 110,
+                cellRenderer: params => {
+                    const priority = params.value || 'Normal';
+                    const colors = { High: '#FEE2E2', Normal: '#EFF6FF', Low: '#ECFDF3' };
+                    const textColors = { High: '#B91C1C', Normal: '#1D4ED8', Low: '#166534' };
+                    return `<span style="display:inline-block;padding:6px 12px;border-radius:999px;background:${colors[priority] || '#E5E7EB'};color:${textColors[priority] || '#374151'};font-weight:700;">${priority}</span>`;
+                },
+                filter: 'agSetColumnFilter'
+            },
+            {
+                headerName: 'Status',
+                field: 'status',
+                width: 120,
+                cellRenderer: params => {
+                    const status = params.value || 'Open';
+                    const colors = { 'Open': '#EFF6FF', 'In Progress': '#FEF3C7', 'Closed': '#ECFDF3' };
+                    const textColors = { 'Open': '#1D4ED8', 'In Progress': '#B45309', 'Closed': '#166534' };
+                    return `<span style="display:inline-block;padding:6px 12px;border-radius:999px;background:${colors[status] || '#E5E7EB'};color:${textColors[status] || '#374151'};font-weight:700;">${status}</span>`;
+                },
+                filter: 'agSetColumnFilter'
+            },
+            {
+                headerName: 'Notes',
+                field: 'notes',
+                width: 200,
+                wrapText: true,
+                autoHeight: true,
+                cellRenderer: params => params.value ? params.value : '<span style="color: var(--text-muted);">No notes</span>',
+                filter: 'agTextColumnFilter'
+            }
+        ];
+
         const gridOptions = {
             columnDefs: columnDefs,
             defaultColDef: {
@@ -1762,8 +1728,8 @@
             
             // Pagination
             pagination: true,
-            paginationPageSize: 50,
-            paginationPageSizeSelector: [20, 50, 100, 200, 500],
+            paginationPageSize: 5000,
+            paginationPageSizeSelector: [1000, 2000, 5000, 10000],
             
             // Row grouping
             groupDisplayType: 'multipleColumns',
@@ -1816,7 +1782,29 @@
         }
 
         function onFirstDataRendered(params) {
+            try {
+                // Auto-size all columns based on content
+                const allColumnIds = params.api.getColumns().map(col => col.getColId());
+                params.api.autoSizeColumns(allColumnIds, false);
+                
+                // After autosizing, ensure columns fill the viewport if there's extra space
+                const gridEl = document.getElementById('correspondenceGrid');
+                if (gridEl) {
+                    const gridWidth = gridEl.offsetWidth;
+                    let totalColumnWidth = 0;
+                    params.api.getColumns().forEach(col => {
+                        totalColumnWidth += col.getActualWidth();
+                    });
+                    
+                    // If columns don't fill the grid, stretch them proportionally
+                    if (totalColumnWidth < gridWidth - 50) {
             params.api.sizeColumnsToFit();
+                    }
+                }
+            } catch (e) {
+                console.warn('Auto-size columns error:', e);
+            }
+            
             updateStatistics();
         }
 
@@ -1826,21 +1814,20 @@
                 const token = localStorage.getItem('token') || localStorage.getItem('jwt') || '';
                 
                 // Build API URL based on whether we have a project/case ID
+                // Fetch all emails (up to 50000) - AG Grid handles client-side pagination
                 let apiUrl;
                 if (projectId) {
-                    apiUrl = `${API_BASE}/api/correspondence/emails?project_id=${projectId}`;
+                    apiUrl = `${API_BASE}/api/correspondence/emails?project_id=${projectId}&page_size=50000`;
                 } else if (caseId) {
-                    apiUrl = `${API_BASE}/api/unified/${caseId}/evidence`;
+                    apiUrl = `${API_BASE}/api/unified/${caseId}/evidence?page_size=50000`;
                 } else if (isAdmin) {
                     // Admin viewing all emails without specific project/case
-                    apiUrl = `${API_BASE}/api/correspondence/emails?page_size=500`;
+                    apiUrl = `${API_BASE}/api/correspondence/emails?page_size=50000`;
                 } else {
                     throw new Error('No project or case ID specified');
                 }
                 
-                const response = await fetch(apiUrl, {
-                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-                });
+                const response = await fetch(apiUrl);
                 if (!response.ok) throw new Error('Failed to load emails');
                 
                 const data = await response.json();
@@ -1864,6 +1851,13 @@
                     ...email,
                     expanded: showFullContent // Set initial state to show full content
                 }));
+                
+                // Debug: Log first email's attachments
+                if (allEmails.length > 0) {
+                    console.log('First email attachments:', allEmails[0].attachments);
+                    console.log('First email meta.attachments:', allEmails[0].meta?.attachments);
+                    console.log('First email has_attachments:', allEmails[0].has_attachments);
+                }
                 
                 gridApi.setGridOption('rowData', allEmails);
                 updateStatistics();
@@ -1914,12 +1908,24 @@
             }
         }
 
+        function resolveEntityId() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const caseIdParam = urlParams.get('caseId');
+            const projectIdParam = urlParams.get('projectId');
+            const storedCase = localStorage.getItem('currentCaseId');
+            const storedProject = localStorage.getItem('currentProjectId');
+            // Prefer an explicit case id, fall back to project id if present
+            return caseIdParam || storedCase || projectIdParam || storedProject || null;
+        }
+
         async function loadCaseInfo() {
             try {
-                const token = localStorage.getItem('token') || localStorage.getItem('jwt') || '';
-                const response = await fetch(`${API_BASE}/api/unified/${caseId}`, {
-                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-                });
+                const entityId = resolveEntityId();
+                if (!entityId || entityId === 'null') {
+                    console.warn('No case/project id found for unified info; skipping loadCaseInfo');
+                    return;
+                }
+                const response = await fetch(`${API_BASE}/api/unified/${entityId}`);
                 if (response.ok) {
                     const entityData = await response.json();
                     if (entityData.type === 'case') {
@@ -1974,10 +1980,18 @@
         function showEmailDetails(email) {
             const detailContent = document.getElementById('detailContent');
             
-            let content = email.meta?.content || email.content || 'No content available';
+            // Debug: Log email data to check attachments
+            console.log('showEmailDetails called with email:', email.id, email.email_subject);
+            console.log('  - email.attachments:', email.attachments);
+            console.log('  - email.meta?.attachments:', email.meta?.attachments);
+            console.log('  - email.has_attachments:', email.has_attachments);
             
-            // Clean up escaped characters
-            if (typeof content === 'string') {
+            // Use body_text_clean first (properly cleaned by backend), then fallback
+            let content = email.body_text_clean || email.body_text || email.meta?.content || email.content || '';
+            let htmlContent = email.body_html || null;
+            
+            // Clean up escaped characters if still present
+            if (typeof content === 'string' && content) {
                 // Remove Python bytes prefix if present
                 if (content.startsWith("b'") || content.startsWith('b"')) {
                     content = content.slice(2, -1);
@@ -1985,16 +1999,29 @@
                 
                 // Clean up escape sequences
                 content = content
-                    .replace(/\\r\\n/g, '\n')    // Replace \r\n with newline
-                    .replace(/\\n/g, '\n')        // Replace \n with newline
-                    .replace(/\\t/g, '    ')      // Replace \t with spaces
-                    .replace(/\\'/g, "'")         // Replace \' with '
-                    .replace(/\\"/g, '"')         // Replace \" with "
-                    .replace(/\\\\/g, '\\')       // Replace \\ with \
-                    .replace(/\\x([0-9a-fA-F]{2})/g, (match, hex) => String.fromCharCode(parseInt(hex, 16))); // Unicode escapes
+                    .replace(/\\r\\n/g, '\n')
+                    .replace(/\\n/g, '\n')
+                    .replace(/\\t/g, '    ')
+                    .replace(/\\'/g, "'")
+                    .replace(/\\"/g, '"')
+                    .replace(/\\\\/g, '\\')
+                    .replace(/\\x([0-9a-fA-F]{2})/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+                
+                // Remove zero-width characters
+                content = content.replace(/[\u200b\u200c\u200d\ufeff\u00ad]/g, '');
+                
+                // Decode HTML entities
+                const textarea = document.createElement('textarea');
+                textarea.innerHTML = content;
+                content = textarea.value;
             }
             
-            const attachments = email.meta?.attachments || [];
+            if (!content && !htmlContent) {
+                content = 'No content available';
+            }
+            
+            // Prioritize direct attachments field over meta.attachments
+            const attachments = email.attachments || email.meta?.attachments || [];
             
             detailContent.innerHTML = `
                 <div class="email-header">
@@ -2022,43 +2049,89 @@
                 
                 <div class="email-body">
                     ${(() => {
-                        // Content is already cleaned in showEmailDetails function
-                        const isHtml = email.meta?.content_type === 'html' || 
-                                      content.includes('<html') || 
-                                      content.includes('<body');
+                        // Check if we have HTML content
+                        const hasHtmlContent = htmlContent && (
+                            htmlContent.includes('<html') || 
+                            htmlContent.includes('<body') ||
+                            htmlContent.includes('<div') ||
+                            htmlContent.includes('<p>')
+                        );
                         
-                        if (isHtml) {
-                            // For HTML emails, render in iframe
-                            return `<iframe srcdoc="${content.replace(/"/g, '&quot;')}" 
-                                    style="width: 100%; height: 500px; border: none; background: white;"
-                                    sandbox="allow-same-origin"></iframe>`;
+                        if (hasHtmlContent) {
+                            // For HTML emails, render in iframe with sanitized content
+                            const safeHtml = htmlContent
+                                .replace(/"/g, '&quot;')
+                                .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')  // Remove scripts
+                                .replace(/on\w+\s*=/gi, 'data-disabled-');  // Disable event handlers
+                            return `<iframe srcdoc="${safeHtml}" 
+                                    style="width: 100%; min-height: 400px; height: auto; border: 1px solid #e5e7eb; 
+                                           background: white; border-radius: 0.5rem;"
+                                    sandbox="allow-same-origin"
+                                    onload="this.style.height = this.contentWindow.document.body.scrollHeight + 'px'"></iframe>`;
                         } else {
-                            // For plain text emails
-                            return `<pre style="white-space: pre-wrap; font-family: inherit; margin: 0; 
-                                    line-height: 1.5; background: #f8fafc; padding: 1rem; border-radius: 0.5rem;">${content}</pre>`;
+                            // For plain text emails - properly formatted
+                            const escapedContent = (content || 'No content available')
+                                .replace(/&/g, '&amp;')
+                                .replace(/</g, '&lt;')
+                                .replace(/>/g, '&gt;');
+                            return `<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+                                    margin: 0; line-height: 1.6; background: #f8fafc; padding: 1.5rem; border-radius: 0.5rem;
+                                    color: #1e293b; font-size: 0.95rem;">${escapedContent}</div>`;
                         }
                     })()}
                 </div>
                 
                 ${attachments.length > 0 ? `
                 <div class="email-attachments">
-                    <div class="attachments-header">
-                        <i class="fas fa-paperclip"></i>
-                        <span>Attachments (${attachments.length})</span>
+                    <div class="attachments-header" style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb;">
+                        <i class="fas fa-paperclip" style="color: #3b82f6;"></i>
+                        <span style="font-weight: 600; color: #1e293b;">Attachments (${attachments.filter(a => !a.is_inline).length})</span>
                     </div>
+                    
+                    <!-- Inline Preview Area -->
+                    <div id="inlinePreviewArea" style="display: none; margin-bottom: 16px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #f1f5f9; border-bottom: 1px solid #e5e7eb;">
+                            <span id="inlinePreviewTitle" style="font-weight: 500; color: #475569; font-size: 0.9rem;"></span>
+                            <button onclick="closeInlinePreview()" style="background: none; border: none; cursor: pointer; color: #64748b; font-size: 1.2rem;">&times;</button>
+                        </div>
+                        <div id="inlinePreviewContent" style="min-height: 200px; max-height: 400px; overflow: auto; background: #fafafa;"></div>
+                    </div>
+                    
                     <div class="attachment-list">
-                        ${attachments.map(att => `
-                            <div class="attachment-item" onclick="downloadAttachment('${att.document_id}', '${att.filename}')">
-                                <div class="attachment-icon">
-                                    <i class="fas fa-file"></i>
+                        ${attachments.filter(att => !att.is_inline).map(att => {
+                            const filename = att.filename || att.name || 'Attachment';
+                            const size = att.size || att.file_size || 0;
+                            const contentType = att.content_type || 'application/octet-stream';
+                            const docId = att.document_id || att.attachment_id || att.id;
+                            const icon = getFileIcon(contentType, filename);
+                            const ext = filename.split('.').pop()?.toLowerCase() || '';
+                            const isPreviewable = ['jpg','jpeg','png','gif','webp','bmp','pdf','txt','html','htm','xml','json','csv'].includes(ext) || 
+                                                  contentType.startsWith('image/') || contentType === 'application/pdf' || contentType.startsWith('text/');
+                            return `
+                            <div class="attachment-item" style="display: flex; align-items: center; gap: 12px; padding: 10px; 
+                                        background: #f8fafc; border-radius: 6px; margin-bottom: 8px; border: 1px solid #e2e8f0;">
+                                <div class="attachment-icon" style="font-size: 1.5rem; color: #64748b;">
+                                    ${icon}
                                 </div>
-                                <div class="attachment-info">
-                                    <div class="attachment-name">${att.filename}</div>
-                                    <div class="attachment-size">${formatFileSize(att.size)}</div>
+                                <div class="attachment-info" style="flex: 1; min-width: 0;">
+                                    <div class="attachment-name" style="font-weight: 500; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${filename}">${filename}</div>
+                                    <div class="attachment-size" style="font-size: 0.85rem; color: #64748b;">${formatFileSize(size)}</div>
                                 </div>
+                                <div style="display: flex; gap: 6px;">
+                                    ${isPreviewable ? `
+                                    <button onclick="showInlinePreview('${docId}', '${filename.replace(/'/g, "\\'")}', '${contentType}')" 
+                                            style="background: #3b82f6; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;"
+                                            title="Preview">
+                                        <i class="fas fa-eye"></i>
+                                    </button>` : ''}
+                                    <button onclick="downloadAttachment('${docId}', '${filename.replace(/'/g, "\\'")}')" 
+                                            style="background: #10b981; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;"
+                                            title="Download">
                                 <i class="fas fa-download"></i>
+                                    </button>
                             </div>
-                        `).join('')}
+                            </div>`;
+                        }).join('')}
                     </div>
                 </div>` : ''}
             `;
@@ -2087,12 +2160,12 @@
 
         async function showStakeholderFilter() {
             try {
-                // Fetch stakeholders for this case/project
-                const caseId = localStorage.getItem('currentCaseId');
-                const token = localStorage.getItem('token') || localStorage.getItem('jwt') || '';
-                const response = await fetch(`${API_BASE}/api/unified/${caseId}/stakeholders`, {
-                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-                });
+                const entityId = resolveEntityId();
+                if (!entityId || entityId === 'null') {
+                    console.warn('No case/project id found for stakeholders; skipping');
+                    return;
+                }
+                const response = await fetch(`${API_BASE}/api/unified/${entityId}/stakeholders`);
                 const stakeholders = await response.json();
                 
                 // Get current filter
@@ -2146,11 +2219,12 @@
         async function showKeywordFilter() {
             try {
                 // Fetch keywords for this case/project
-                const caseId = localStorage.getItem('currentCaseId');
-                const token = localStorage.getItem('token') || localStorage.getItem('jwt') || '';
-                const response = await fetch(`${API_BASE}/api/unified/${caseId}/keywords`, {
-                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-                });
+                const entityId = resolveEntityId();
+                if (!entityId || entityId === 'null') {
+                    console.warn('No case/project id found for keywords; skipping');
+                    return;
+                }
+                const response = await fetch(`${API_BASE}/api/unified/${entityId}/keywords`);
                 const keywords = await response.json();
                 
                 // Create filter modal
@@ -2392,15 +2466,174 @@
             return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
         }
 
+        function getFileIcon(contentType, filename) {
+            const ext = (filename || '').split('.').pop()?.toLowerCase() || '';
+            const type = (contentType || '').toLowerCase();
+            
+            if (type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) {
+                return '<i class="fas fa-file-image" style="color: #10b981;"></i>';
+            }
+            if (type === 'application/pdf' || ext === 'pdf') {
+                return '<i class="fas fa-file-pdf" style="color: #ef4444;"></i>';
+            }
+            if (type.includes('word') || ['doc', 'docx'].includes(ext)) {
+                return '<i class="fas fa-file-word" style="color: #2563eb;"></i>';
+            }
+            if (type.includes('excel') || type.includes('spreadsheet') || ['xls', 'xlsx', 'csv'].includes(ext)) {
+                return '<i class="fas fa-file-excel" style="color: #22c55e;"></i>';
+            }
+            if (type.includes('powerpoint') || type.includes('presentation') || ['ppt', 'pptx'].includes(ext)) {
+                return '<i class="fas fa-file-powerpoint" style="color: #f97316;"></i>';
+            }
+            if (type.includes('zip') || type.includes('compressed') || ['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+                return '<i class="fas fa-file-archive" style="color: #f59e0b;"></i>';
+            }
+            if (type.startsWith('text/') || ['txt', 'log', 'md'].includes(ext)) {
+                return '<i class="fas fa-file-alt" style="color: #6b7280;"></i>';
+            }
+            if (['dwg', 'dxf', 'dgn'].includes(ext)) {
+                return '<i class="fas fa-drafting-compass" style="color: #8b5cf6;"></i>';
+            }
+            return '<i class="fas fa-file" style="color: #64748b;"></i>';
+        }
+
+        // Inline preview functions for attachment panel
+        async function showInlinePreview(docId, filename, contentType) {
+            const previewArea = document.getElementById('inlinePreviewArea');
+            const previewTitle = document.getElementById('inlinePreviewTitle');
+            const previewContent = document.getElementById('inlinePreviewContent');
+            
+            if (!previewArea || !previewContent) {
+                console.error('Inline preview elements not found');
+                // Fall back to modal preview
+                await previewAttachment(null, docId, filename);
+                return;
+            }
+            
+            previewArea.style.display = 'block';
+            previewTitle.textContent = filename;
+            previewContent.innerHTML = '<div style="text-align: center; padding: 40px;"><div class="spinner"></div><p style="margin-top: 16px; color: #64748b;">Loading preview...</p></div>';
+            
+            try {
+                const fileData = await getSignedUrlForDocument(docId);
+                const { url, content_type } = fileData;
+                const ext = (filename || '').split('.').pop()?.toLowerCase() || '';
+                const type = (content_type || contentType || '').toLowerCase();
+                
+                const isImage = type.startsWith('image/') || ['jpg','jpeg','png','gif','webp','bmp','svg'].includes(ext);
+                const isPdf = type === 'application/pdf' || ext === 'pdf';
+                const isText = type.startsWith('text/') || ['txt','html','htm','xml','json','csv','log','md'].includes(ext);
+                
+                if (isImage) {
+                    previewContent.innerHTML = `
+                        <div style="display: flex; align-items: center; justify-content: center; padding: 20px; background: #f8fafc;">
+                            <img src="${url}" style="max-width: 100%; max-height: 350px; object-fit: contain; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" 
+                                 onerror="this.parentElement.innerHTML='<p style=\\'color: #ef4444;\\'>Failed to load image</p>'" />
+                        </div>
+                        <div style="padding: 8px 12px; background: #f1f5f9; border-top: 1px solid #e5e7eb; text-align: center;">
+                            <a href="${url}" target="_blank" style="color: #3b82f6; text-decoration: none; font-size: 0.85rem;">
+                                <i class="fas fa-external-link-alt"></i> Open in new tab
+                            </a>
+                        </div>`;
+                } else if (isPdf) {
+                    previewContent.innerHTML = `
+                        <iframe src="${url}#toolbar=1&navpanes=0" style="width: 100%; height: 350px; border: none;"></iframe>
+                        <div style="padding: 8px 12px; background: #f1f5f9; border-top: 1px solid #e5e7eb; text-align: center;">
+                            <a href="${url}" target="_blank" style="color: #3b82f6; text-decoration: none; font-size: 0.85rem;">
+                                <i class="fas fa-external-link-alt"></i> Open PDF in new tab
+                            </a>
+                        </div>`;
+                } else if (isText) {
+                    // Fetch and display text content
+                    try {
+                        const textResp = await fetch(url);
+                        const text = await textResp.text();
+                        const escapedText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                        previewContent.innerHTML = `
+                            <pre style="margin: 0; padding: 16px; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.85rem; 
+                                        white-space: pre-wrap; word-wrap: break-word; background: #1e293b; color: #e2e8f0; 
+                                        max-height: 350px; overflow: auto;">${escapedText}</pre>
+                            <div style="padding: 8px 12px; background: #f1f5f9; border-top: 1px solid #e5e7eb; text-align: center;">
+                                <a href="${url}" target="_blank" style="color: #3b82f6; text-decoration: none; font-size: 0.85rem;">
+                                    <i class="fas fa-external-link-alt"></i> Open in new tab
+                                </a>
+                            </div>`;
+                    } catch (e) {
+                        previewContent.innerHTML = `
+                            <div style="text-align: center; padding: 40px; color: #ef4444;">
+                                <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 12px;"></i>
+                                <p>Failed to load text content</p>
+                            </div>`;
+                    }
+                } else {
+                    // Non-previewable file type - show info and download option
+                    previewContent.innerHTML = `
+                        <div style="text-align: center; padding: 40px; background: #f8fafc;">
+                            <div style="font-size: 3rem; margin-bottom: 16px; color: #64748b;">
+                                ${getFileIcon(type, filename)}
+                            </div>
+                            <p style="color: #475569; margin-bottom: 8px; font-weight: 500;">${filename}</p>
+                            <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 20px;">Preview not available for this file type</p>
+                            <div style="display: flex; gap: 12px; justify-content: center;">
+                                <a href="${url}" target="_blank" 
+                                   style="background: #3b82f6; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 500;">
+                                    <i class="fas fa-external-link-alt"></i> Open
+                                </a>
+                                <a href="${url}" download="${filename}"
+                                   style="background: #10b981; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 500;">
+                                    <i class="fas fa-download"></i> Download
+                                </a>
+                            </div>
+                        </div>`;
+                }
+            } catch (error) {
+                console.error('Preview error:', error);
+                previewContent.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #ef4444;">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 12px;"></i>
+                        <p style="font-weight: 500;">Failed to load preview</p>
+                        <p style="font-size: 0.85rem; color: #64748b; margin-top: 8px;">${error.message || 'Unknown error'}</p>
+                    </div>`;
+            }
+        }
+        
+        function closeInlinePreview() {
+            const previewArea = document.getElementById('inlinePreviewArea');
+            if (previewArea) {
+                previewArea.style.display = 'none';
+            }
+        }
+
+        async function previewOrDownloadAttachment(docId, filename, contentType) {
+            const ext = (filename || '').split('.').pop()?.toLowerCase() || '';
+            const type = (contentType || '').toLowerCase();
+            
+            // Previewable types
+            const previewable = 
+                type.startsWith('image/') || 
+                type === 'application/pdf' ||
+                ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'pdf'].includes(ext);
+            
+            if (previewable) {
+                await previewAttachment(null, docId, filename);
+            } else {
+                await downloadAttachment(docId, filename);
+            }
+        }
+
         // Store current attachment info for download
         let currentAttachment = null;
 
         // Helpers for signed URL previews/downloads
         async function getSignedUrlForDocument(documentId) {
-            const token = localStorage.getItem('token') || localStorage.getItem('jwt') || '';
-            const resp = await fetch(`${API_BASE}/documents/${documentId}/signed_url`, {
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-            });
+            // Try the email attachments endpoint first (for PST-extracted attachments)
+            let resp = await fetch(`${API_BASE}/api/correspondence/attachments/${documentId}/signed-url`);
+            if (resp.ok) {
+                return resp.json(); // { url, filename, content_type }
+            }
+            
+            // Fall back to documents endpoint (for uploaded documents)
+            resp = await fetch(`${API_BASE}/documents/${documentId}/signed_url`);
             if (!resp.ok) throw new Error('Failed to get signed URL');
             return resp.json(); // { url, filename, content_type }
         }
@@ -2429,9 +2662,7 @@
                 // Load both the file URL and OCR text in parallel
                 const [fileData, ocrData] = await Promise.all([
                     getSignedUrlForDocument(documentId),
-                    fetch(`${API_BASE}/api/correspondence/attachments/${documentId}/ocr-text`, {
-                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('jwt') || ''}` }
-                    }).then(r => r.ok ? r.json() : null).catch(() => null)
+                    fetch(`${API_BASE}/api/correspondence/attachments/${documentId}/ocr-text`).then(r => r.ok ? r.json() : null).catch(() => null)
                 ]);
                 
                 const { url, content_type } = fileData;
@@ -2506,9 +2737,12 @@
                         
                         // Get keywords from current case/project (if available)
                         try {
-                            const keywordsResponse = await fetch(`${API_BASE}/api/unified/${caseId || projectId}/keywords`, {
-                                headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('jwt') || ''}` }
-                            });
+                            const entityId = resolveEntityId();
+                            if (!entityId || entityId === 'null') {
+                                console.warn('No case/project id found for keyword load; skipping');
+                                return [];
+                            }
+                            const keywordsResponse = await fetch(`${API_BASE}/api/unified/${entityId}/keywords`);
                             if (keywordsResponse.ok) {
                                 const keywords = await keywordsResponse.json();
                                 keywords.forEach(k => {
@@ -2621,9 +2855,7 @@
                 // Load both the file URL and OCR text in parallel
                 const [fileData, ocrData] = await Promise.all([
                     getSignedUrlForDocument(documentId),
-                    fetch(`${API_BASE}/api/correspondence/attachments/${documentId}/ocr-text`, {
-                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('jwt') || ''}` }
-                    }).then(r => r.ok ? r.json() : null).catch(() => null)
+                    fetch(`${API_BASE}/api/correspondence/attachments/${documentId}/ocr-text`).then(r => r.ok ? r.json() : null).catch(() => null)
                 ]);
                 
                 const { url, content_type } = fileData;
@@ -2698,8 +2930,8 @@
                         
                         // Get keywords from current case/project (if available)
                         try {
-                            const entityId = caseId || projectId;
-                            if (entityId) {
+                            const entityId = resolveEntityId();
+                            if (entityId && entityId !== 'null') {
                                 const keywordsResponse = await fetch(`${API_BASE}/api/unified/${entityId}/keywords`, {
                                     headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('jwt') || ''}` }
                                 });
@@ -2827,11 +3059,7 @@
         window.linkActivityToEmail = async function(emailId) {
             try {
                 // Fetch available programme activities from uploaded Asta programme files
-                const response = await fetch(`${API_BASE}/api/cases/${caseId}/programme/activities`, {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
+                const response = await fetch(`${API_BASE}/api/cases/${caseId}/programme/activities`);
                 
                 if (!response.ok) {
                     throw new Error('Failed to load programme activities');

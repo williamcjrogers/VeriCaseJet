@@ -10,7 +10,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .models import User, UserRole
-from .security import get_db, current_user
+from .db import get_db
+from .security import current_user
 from .email_service import email_service
 
 logger = logging.getLogger(__name__)
@@ -123,12 +124,12 @@ async def approve_or_reject_user(
                 approved=True
             )
         except Exception as e:
-            logger.error(f"Failed to send approval email: {e}")
+            logger.error("Failed to send approval email: {e}")
         
-        logger.info(f"Admin {admin.email} approved user {user.email}")
+        logger.info("Admin {admin.email} approved user {user.email}")
         
         return {
-            "message": f"User {user.email} approved successfully",
+            "message": "User {user.email} approved successfully",
             "user_id": str(user.id),
             "email": user.email,
             "role": user.role.value
@@ -147,16 +148,16 @@ async def approve_or_reject_user(
                 reason=rejection_reason
             )
         except Exception as e:
-            logger.error(f"Failed to send rejection email: {e}")
+            logger.error("Failed to send rejection email: {e}")
         
-        logger.info(f"Admin {admin.email} rejected user {user.email}")
+        logger.info("Admin {admin.email} rejected user {user.email}")
         
         # Delete the user
         db.delete(user)
         db.commit()
         
         return {
-            "message": f"User {user.email} rejected and removed",
+            "message": "User {user.email} rejected and removed",
             "user_id": str(user.id),
             "email": user.email
         }

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VeriCase - User Approvals (Admin)</title>
+    <!-- Local Library -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="brand-styles.css">
     <style>
@@ -247,8 +248,8 @@
 
         async function loadPendingUsers() {
             try {
-                const response = await fetch(`${apiUrl}/api/admin/users/pending`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                const response = await secureApiFetch('/api/admin/users/pending', {
+                    method: 'GET'
                 });
 
                 if (!response.ok) {
@@ -257,7 +258,14 @@
                         window.location.href = 'dashboard.html';
                         return;
                     }
-                    throw new Error('Failed to load pending users');
+                    console.error('Error loading pending users: Failed to load pending users');
+                    document.getElementById('usersList').innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Error loading users: Failed to load pending users</p>
+                    </div>
+                `;
+                    return;
                 }
 
                 const users = await response.json();
@@ -282,8 +290,8 @@
 
         async function loadUserStats() {
             try {
-                const response = await fetch(`${apiUrl}/api/admin/users/all`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                const response = await secureApiFetch('/api/admin/users/all', {
+                    method: 'GET'
                 });
 
                 if (response.ok) {
@@ -361,12 +369,8 @@
             if (!confirm(`Approve ${userEmail}?`)) return;
 
             try {
-                const response = await fetch(`${apiUrl}/api/admin/users/approve`, {
+                const response = await secureApiFetch('/api/admin/users/approve', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
                     body: JSON.stringify({
                         user_id: userId,
                         approved: true,
@@ -375,7 +379,9 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Approval failed');
+                    console.error('Error approving user: Approval failed');
+                    alert('Failed to approve user');
+                    return;
                 }
 
                 alert(`✅ ${userEmail} approved successfully!`);
@@ -391,12 +397,8 @@
             if (reason === null) return;  // Cancelled
 
             try {
-                const response = await fetch(`${apiUrl}/api/admin/users/approve`, {
+                const response = await secureApiFetch('/api/admin/users/approve', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
                     body: JSON.stringify({
                         user_id: userId,
                         approved: false,
@@ -405,7 +407,9 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Rejection failed');
+                    console.error('Error rejecting user: Rejection failed');
+                    alert('Failed to reject user');
+                    return;
                 }
 
                 alert(`❌ ${userEmail} rejected`);

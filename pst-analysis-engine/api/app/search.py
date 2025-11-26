@@ -56,7 +56,7 @@ def ensure_index():
     while time.time() < deadline:
         try:
             c = client()
-            if not c.indices.exists(settings.OPENSEARCH_INDEX):
+            if not c.indices.exists(index=settings.OPENSEARCH_INDEX):
                 c.indices.create(index=settings.OPENSEARCH_INDEX, body=body)
             logger.info("OpenSearch index '%s' is ready", settings.OPENSEARCH_INDEX)
             return
@@ -124,7 +124,9 @@ def index_email_in_opensearch(
     date_sent: str = None,
     has_attachments: bool = False,
     matched_stakeholders: list = None,
-    matched_keywords: list = None
+    matched_keywords: list = None,
+    body_text_clean: str = None,
+    content_hash: str = None,
 ):
     """Index email message for full-text search"""
     try:
@@ -132,7 +134,7 @@ def index_email_in_opensearch(
         
         # Ensure emails index exists
         c = client()
-        if not c.indices.exists(email_index):
+        if not c.indices.exists(index=email_index):
             c.indices.create(
                 index=email_index,
                 body={
@@ -144,13 +146,15 @@ def index_email_in_opensearch(
                             'type': {'type': 'keyword'},
                             'subject': {'type': 'text', 'analyzer': 'english'},
                             'body': {'type': 'text', 'analyzer': 'english'},
+                            'body_clean': {'type': 'text', 'analyzer': 'english'},
                             'sender_email': {'type': 'keyword'},
                             'sender_name': {'type': 'text'},
                             'recipients': {'type': 'keyword'},
                             'date_sent': {'type': 'date'},
                             'has_attachments': {'type': 'boolean'},
                             'matched_stakeholders': {'type': 'keyword'},
-                            'matched_keywords': {'type': 'keyword'}
+                            'matched_keywords': {'type': 'keyword'},
+                            'content_hash': {'type': 'keyword'}
                         }
                     }
                 }
@@ -162,13 +166,15 @@ def index_email_in_opensearch(
             'type': 'email',
             'subject': subject,
             'body': body_text[:50000] if body_text else "",
+            'body_clean': (body_text_clean or body_text or "")[:50000],
             'sender_email': sender_email,
             'sender_name': sender_name,
             'recipients': [r.get('email', '') for r in recipients] if recipients else [],
             'date_sent': date_sent,
             'has_attachments': has_attachments,
             'matched_stakeholders': matched_stakeholders or [],
-            'matched_keywords': matched_keywords or []
+            'matched_keywords': matched_keywords or [],
+            'content_hash': content_hash,
         }
         
         c.index(index=email_index, id=email_id, body=doc)

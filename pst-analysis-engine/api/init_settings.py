@@ -39,15 +39,15 @@ def init_default_settings():
                     description=setting_data['description']
                 )
                 db.add(setting)
-                print(f"Created default setting: {setting_data['key']} = {setting_data['value']}")
+                print("Created default setting: {setting_data['key']} = {setting_data['value']}")
             else:
-                print(f"Setting {setting_data['key']} already exists")
+                print("Setting {setting_data['key']} already exists")
         
         db.commit()
         print("Default settings initialized successfully!")
         
     except Exception as e:
-        print(f"Error initializing settings: {e}")
+        print("Error initializing settings: {e}")
         db.rollback()
     finally:
         db.close()

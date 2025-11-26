@@ -17,6 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     autopoint \
     python3-dev \
     pst-utils \
+    tesseract-ocr \
+    ocrmypdf \
+    libpff-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Build and install libpff from source (required for pypff)
@@ -33,7 +36,17 @@ RUN git clone https://github.com/libyal/libpff.git /tmp/libpff && \
 COPY requirements.txt /code/requirements.txt
 RUN pip install --no-cache-dir -r /code/requirements.txt
 
-COPY app /code/app
+# Copy application code
+COPY api/app /code/app
+
+# Copy migration scripts
+COPY api/migrations /code/migrations
+COPY api/apply_migrations.py /code/apply_migrations.py
+
+# Copy and setup startup script
+COPY api/start.sh /code/start.sh
+RUN sed -i 's/\r$//' /code/start.sh
+RUN chmod +x /code/start.sh
 
 EXPOSE 8000
-CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000"]
+CMD ["/code/start.sh"]

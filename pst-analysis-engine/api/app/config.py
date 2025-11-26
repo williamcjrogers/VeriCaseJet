@@ -1,9 +1,7 @@
-from pydantic_settings import BaseSettings
-from pydantic import Field, field_validator, model_validator
-from pydantic_settings import SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator, model_validator, ValidationInfo
 import os
 import logging
-from typing import Dict
 
 from .logging_utils import install_log_sanitizer
 
@@ -42,6 +40,7 @@ class Settings(BaseSettings):
         description="S3 secret key - MUST be provided via environment variable"
     )
     S3_ATTACHMENTS_BUCKET: str | None = None
+    S3_PST_BUCKET: str | None = None
     AWS_REGION: str = "us-east-1"
     
     # AWS Credentials (optional - for non-IRSA deployments)
@@ -66,7 +65,7 @@ class Settings(BaseSettings):
     
     @field_validator('MINIO_ACCESS_KEY', 'MINIO_SECRET_KEY', 'S3_ACCESS_KEY', 'S3_SECRET_KEY', 'DATABASE_URL')
     @classmethod
-    def validate_secrets_not_default(cls, v: str | None, info):
+    def validate_secrets_not_default(cls, v: str | None, info: ValidationInfo):
         """Prevent use of weak/default credentials in any environment."""
         if v is None:
             return v
@@ -96,9 +95,9 @@ class Settings(BaseSettings):
                     raise ValueError("DATABASE_URL uses default credentials in production")
         else:
             # Warn in non-production environments
-            if info.field_name in {"MINIO_ACCESS_KEY", "S3_ACCESS_KEY"} and v.lower() in weak_access_keys:
+            if info.field_name in {"MINIO_ACCESS_KEY", "S3_ACCESS_KEY"} and isinstance(v, str) and v.lower() in weak_access_keys:
                 logging.warning("%s uses default value - override via environment variable", info.field_name)
-            if info.field_name in {"MINIO_SECRET_KEY", "S3_SECRET_KEY"} and v.lower() in weak_secret_keys:
+            if info.field_name in {"MINIO_SECRET_KEY", "S3_SECRET_KEY"} and isinstance(v, str) and v.lower() in weak_secret_keys:
                 logging.warning("%s uses default value - override via environment variable", info.field_name)
         
         return v
@@ -136,7 +135,9 @@ class Settings(BaseSettings):
     
     # Other services
     REDIS_URL: str = "redis://redis:6379/0"
-    CELERY_QUEUE: str = "ocr"
+    # Celery queue name; use "celery" so the default worker binds without extra flags
+    CELERY_QUEUE: str = "celery"
+    CELERY_PST_QUEUE: str = "celery"  # Dedicated queue for PST processing (can be same as CELERY_QUEUE)
     TIKA_URL: str = "http://tika:9998"
     
     # AWS Textract settings
@@ -146,6 +147,11 @@ class Settings(BaseSettings):
     TEXTRACT_MAX_PAGES: int = 500  # Textract limit: 500 pages
     TEXTRACT_PAGE_THRESHOLD: int = 100  # Use Tika for PDFs over this many pages (cost/speed optimization)
     AWS_REGION_FOR_TEXTRACT: str = "eu-west-2"  # Default region for Textract
+
+    # Backwards-compatible alias for older code/docs that used `settings.use_textract`
+    @property
+    def use_textract(self) -> bool:  # pragma: no cover - simple alias
+        return self.USE_TEXTRACT
     
     # API settings
     API_HOST: str = "0.0.0.0"
@@ -197,7 +203,7 @@ class Settings(BaseSettings):
     AI_DEFAULT_MODEL: str = "gemini"
     AI_WEB_ACCESS_ENABLED: bool = False
     AI_TASK_COMPLEXITY_DEFAULT: str = "basic"
-    AI_MODEL_PREFERENCES: Dict[str, str] = Field(default_factory=dict)
+    AI_MODEL_PREFERENCES: dict[str, str] = Field(default_factory=dict)
 
 try:
     settings = Settings()  # type: ignore[call-arg]

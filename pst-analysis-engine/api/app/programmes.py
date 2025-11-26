@@ -12,8 +12,8 @@ import json
 import io
 
 from .db import get_db
-from .models import Programme, DelayEvent, Case, Document, Evidence
-from .auth import get_current_user_email
+from .models import Programme, DelayEvent, Case, Document, Evidence, User
+from .security import current_user
 
 router = APIRouter()
 
@@ -171,7 +171,7 @@ async def upload_programme(
     programme_date: str = Form(...),
     version_number: Optional[str] = Form(None),
     db: Session = Depends(get_db),
-    current_user: str = Depends(get_current_user_email)
+    user: "User" = Depends(current_user)
 ):
     """
     Upload and parse Asta Powerproject or PDF programme
@@ -218,7 +218,7 @@ async def upload_programme(
             filename=file.filename,
             file_size=len(content),
             mime_type=file.content_type or 'application/octet-stream',
-            uploaded_by=current_user,
+            uploaded_by=user.email,
             s3_key=f"programmes/{case_id}/{file.filename}"
         )
         db.add(document)
@@ -227,7 +227,7 @@ async def upload_programme(
         # Create programme record
         programme = Programme(
             case_id=case_id,
-            document_id=document.id,
+            programme_name=file.filename,
             programme_type=programme_type,
             programme_date=datetime.fromisoformat(programme_date) if programme_date else datetime.now(timezone.utc),
             version_number=version_number,
@@ -236,7 +236,12 @@ async def upload_programme(
             milestones=parsed_data['milestones'],
             project_start=datetime.fromisoformat(parsed_data['project_start']) if parsed_data.get('project_start') else None,
             project_finish=datetime.fromisoformat(parsed_data['project_finish']) if parsed_data.get('project_finish') else None,
-            notes=f"Uploaded by {current_user}. {parsed_data['total_activities']} activities parsed."
+            notes=f"Uploaded by {user.email}. {parsed_data['total_activities']} activities parsed.",
+            filename=file.filename,
+            s3_bucket="vericase-programmes",
+            s3_key=f"programmes/{case_id}/{file.filename}",
+            file_format=file.filename.split('.')[-1].upper(),
+            uploaded_by=user.id
         )
         db.add(programme)
         db.commit()
@@ -262,7 +267,7 @@ async def upload_programme(
 async def get_programme(
     programme_id: int,
     db: Session = Depends(get_db),
-    current_user: str = Depends(get_current_user_email)
+    user: "User" = Depends(current_user)
 ):
     """Get programme details"""
     try:
@@ -296,7 +301,7 @@ async def get_programme(
 async def list_case_programmes(
     case_id: int,
     db: Session = Depends(get_db),
-    current_user: str = Depends(get_current_user_email)
+    user: "User" = Depends(current_user)
 ):
     """List all programmes for a case"""
     programmes = db.query(Programme).filter(Programme.case_id == case_id).order_by(Programme.programme_date.desc()).all()
@@ -320,7 +325,7 @@ async def compare_programmes(
     as_planned_id: int,
     as_built_id: int,
     db: Session = Depends(get_db),
-    current_user: str = Depends(get_current_user_email)
+    user: "User" = Depends(current_user)
 ):
     """
     Compare as-planned vs as-built programmes to identify delays
@@ -383,7 +388,8 @@ async def compare_programmes(
                         # Create delay event record
                         delay_event = DelayEvent(
                             case_id=as_planned.case_id,
-                            programme_id=as_built.id,
+                            as_planned_programme_id=as_planned.id,
+                            as_built_programme_id=as_built.id,
                             activity_id=activity_id,
                             activity_name=planned['name'],
                             planned_start=datetime.fromisoformat(planned_start) if planned_start else None,
@@ -393,7 +399,7 @@ async def compare_programmes(
                             delay_days=delay_days,
                             is_on_critical_path=True,
                             delay_type='critical',
-                            notes=f"Auto-detected from programme comparison"
+                            description=f"Auto-detected from programme comparison"
                         )
                         db.add(delay_event)
             
@@ -422,7 +428,7 @@ async def compare_programmes(
 async def list_delays(
     case_id: int,
     db: Session = Depends(get_db),
-    current_user: str = Depends(get_current_user_email)
+    user: "User" = Depends(current_user)
 ):
     """List all delay events for a case"""
     delays = db.query(DelayEvent).filter(DelayEvent.case_id == case_id).order_by(DelayEvent.delay_days.desc()).all()
@@ -449,7 +455,7 @@ async def link_correspondence_to_delay(
     delay_id: int,
     evidence_ids: List[int],
     db: Session = Depends(get_db),
-    current_user: str = Depends(get_current_user_email)
+    user: "User" = Depends(current_user)
 ):
     """Link correspondence (evidence) to a delay event"""
     delay = db.query(DelayEvent).filter(DelayEvent.id == delay_id).first()

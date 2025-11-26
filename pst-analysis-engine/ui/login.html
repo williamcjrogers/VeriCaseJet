@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VeriCase - Dispute Intelligence Platform</title>
+    <!-- Local Library -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="brand-styles.css">
     <style>
@@ -285,8 +286,8 @@
             </button>
         </form>
 
-        <div class="register-link" style="margin-top: 1.5rem; text-align: center; padding-top: 1.5rem; border-top: 1px solid var(--gray-200);">
-            Don't have an account? <a href="signup.html" style="color: var(--vericase-teal); text-decoration: none; font-weight: 700;">Create Account</a>
+        <div class="register-link" style="margin-top: 1.5rem; text-align: center; padding-top: 1.5rem; border-top: 1px solid var(--gray-200); color: var(--text-secondary); font-size: 0.875rem;">
+            Don't have an account? Contact your administrator for access.
         </div>
 
         <div class="features">
@@ -330,15 +331,29 @@
             btnSpinner.style.display = 'inline-block';
             
             try {
-                const response = await fetch(`${apiUrl}/api/auth/login`, {
+                // Use enhanced login endpoint that matches backend (`login_secure`)
+                const response = await fetch(`${apiUrl}/api/auth/login-secure`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
+                    body: JSON.stringify({
+                        email,
+                        password,
+                        remember_me: document.getElementById('remember').checked || false
+                    })
                 });
                 
                 if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.detail || 'Login failed');
+                    let errorMsg = 'Login failed';
+                    try {
+                        const error = await response.json();
+                        errorMsg = error.detail || errorMsg;
+                    } catch (e) {
+                        // Ignore JSON parse error
+                    }
+                
+                    errorDiv.textContent = errorMsg;
+                    errorDiv.style.display = 'block';
+                    return;
                 }
                 
                 const data = await response.json();

@@ -76,8 +76,8 @@ services:
 
   api:
     build: 
-      context: ./api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: api/Dockerfile
     image: vericase/api:latest
     restart: always
     env_file: .env
@@ -108,8 +108,8 @@ services:
 
   worker:
     build:
-      context: ./worker
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: worker/Dockerfile
     image: vericase/worker:latest
     restart: always
     env_file: .env
@@ -137,8 +137,8 @@ services:
   # Celery Beat for scheduled tasks (if needed)
   beat:
     build:
-      context: ./worker
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: worker/Dockerfile
     image: vericase/worker:latest
     restart: always
     env_file: .env
@@ -153,8 +153,8 @@ services:
   # Flower for monitoring Celery tasks
   flower:
     build:
-      context: ./worker
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: worker/Dockerfile
     image: vericase/worker:latest
     restart: always
     env_file: .env

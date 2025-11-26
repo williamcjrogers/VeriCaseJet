@@ -5,7 +5,8 @@ Favorites API endpoints for starring/bookmarking documents
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select
-from .security import get_db, current_user
+from .db import get_db
+from .security import current_user
 from .models import User, Document, Favorite
 from typing import List
 from pydantic import BaseModel

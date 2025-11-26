@@ -9,7 +9,7 @@ from .models import User, Document, DocumentVersion
 from .storage import presign_get
 from typing import List, Optional
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 router = APIRouter(prefix="/versions", tags=["versions"])
@@ -125,7 +125,7 @@ def create_version(
     if 'new_content_type' in body:
         document.content_type = body['new_content_type']
     
-    document.updated_at = datetime.utcnow()
+    document.updated_at = datetime.now(timezone.utc)
     
     db.commit()
     db.refresh(version)
@@ -187,7 +187,7 @@ def restore_version(
     document.filename = version.filename
     document.size = version.size
     document.content_type = version.content_type
-    document.updated_at = datetime.utcnow()
+    document.updated_at = datetime.now(timezone.utc)
     
     db.commit()
     

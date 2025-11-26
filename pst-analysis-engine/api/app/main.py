@@ -63,6 +63,8 @@ from .programmes import router as programmes_router
 from .correspondence import router as correspondence_router, wizard_router  # PST Analysis endpoints
 from .refinement import router as refinement_router  # AI refinement wizard
 from .auth_enhanced import router as auth_enhanced_router  # Enhanced authentication
+from .evidence_repository import router as evidence_router  # Evidence repository
+from .deep_research import router as deep_research_router  # Deep Research Agent
 
 logger = logging.getLogger(__name__)
 bearer = HTTPBearer(auto_error=False)
@@ -141,8 +143,8 @@ print(f"[STARTUP] Looking for UI directory. Candidates: {_ui_candidates}")
 logger.info(f"Looking for UI directory. Candidates: {_ui_candidates}")
 UI_DIR = next((c for c in _ui_candidates if c.exists()), None)
 if UI_DIR:
-    print(f"[STARTUP] ✓ UI directory found: {UI_DIR}")
-    logger.info(f"✓ UI directory found and mounting at /ui: {UI_DIR}")
+    print(f"[STARTUP] [OK] UI directory found: {UI_DIR}")
+    logger.info(f"[OK] UI directory found and mounting at /ui: {UI_DIR}")
     try:
         # Ensure the path is absolute
         ui_path = UI_DIR.resolve()
@@ -151,16 +153,16 @@ if UI_DIR:
         # Mount with explicit settings - try with check_dir=False first
         app.mount("/ui", StaticFiles(directory=str(ui_path), html=True, check_dir=False), name="static_ui")
         
-        logger.info(f"✓ UI mount complete")
-        print(f"[STARTUP] ✓ UI mount complete at /ui")
+        logger.info(f"[OK] UI mount complete")
+        print(f"[STARTUP] [OK] UI mount complete at /ui")
     except Exception as e:
         logger.error(f"Failed to mount UI: {e}")
-        print(f"[STARTUP] ✗ Failed to mount UI: {e}")
+        print(f"[STARTUP] [ERROR] Failed to mount UI: {e}")
         import traceback
         traceback.print_exc()
 else:
     logger.warning("UI directory not found in candidates %s; /ui mount disabled", _ui_candidates)
-    print(f"[STARTUP] ✗ UI directory not found")
+    print(f"[STARTUP] [WARNING] UI directory not found")
 
 # Include routers
 app.include_router(users_router)
@@ -180,9 +182,11 @@ app.include_router(programmes_router)
 app.include_router(correspondence_router)  # PST Analysis & email correspondence
 app.include_router(refinement_router)  # AI refinement wizard endpoints
 app.include_router(auth_enhanced_router)  # Enhanced authentication endpoints
+app.include_router(evidence_router)  # Evidence repository
+app.include_router(deep_research_router)  # Deep Research Agent
 
 # Import and include unified router
-from app.correspondence import unified_router
+from .correspondence import unified_router
 app.include_router(unified_router)  # Unified endpoints for both projects and cases
 
 origins=[o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
@@ -353,7 +357,7 @@ def startup():
                 for key_name in ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'GROK_API_KEY', 'PERPLEXITY_API_KEY']:
                     if key_name in secret_data and secret_data[key_name]:
                         os.environ[key_name] = secret_data[key_name]
-                        logger.info(f"✓ Loaded {key_name} from Secrets Manager")
+                        logger.info(f"[OK] Loaded {key_name} from Secrets Manager")
                     else:
                         logger.warning(f"⚠ {key_name} not found in Secrets Manager")
                         

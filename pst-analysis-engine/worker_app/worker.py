@@ -104,6 +104,38 @@ def _fetch_doc(doc_id: str):
         elif not doc.get("metadata"):
             doc["metadata"] = {}
         return doc
+
+def _fetch_pst_file(pst_id: str):
+    """Fetch PST file info from pst_files table."""
+    with engine.begin() as conn:
+        row = conn.execute(text("""
+            SELECT id::text, filename, s3_bucket as bucket, s3_key, case_id::text, project_id::text, 
+                   file_size_bytes as file_size, processing_status, uploaded_by::text
+            FROM pst_files WHERE id::text=:i
+        """), {"i": pst_id}).mappings().first()
+        if not row:
+            return None
+        return dict(row)
+
+def _update_pst_status(pst_id: str, status: str, error_msg: str | None = None, 
+                       total_emails: int | None = None, processed_emails: int | None = None):
+    """Update PST file processing status."""
+    with engine.begin() as conn:
+        if error_msg is not None:
+            conn.execute(text("""
+                UPDATE pst_files SET processing_status=:s, error_message=:e, 
+                processing_completed_at=CURRENT_TIMESTAMP WHERE id::text=:i
+            """), {"s": status, "e": error_msg, "i": pst_id})
+        elif total_emails is not None:
+            conn.execute(text("""
+                UPDATE pst_files SET processing_status=:s, total_emails=:t, processed_emails=:p,
+                processing_completed_at=CURRENT_TIMESTAMP WHERE id::text=:i
+            """), {"s": status, "t": total_emails, "p": processed_emails or total_emails, "i": pst_id})
+        else:
+            conn.execute(text("""
+                UPDATE pst_files SET processing_status=:s, processing_started_at=CURRENT_TIMESTAMP 
+                WHERE id::text=:i
+            """), {"s": status, "i": pst_id})
 def _index_document(doc_id: str, filename: str, created_at, content_type: str, metadata: dict, text: str, path: str|None, owner_user_id: str|None):
     body = {"id": doc_id, "filename": filename, "title": None, "path": path, "owner": owner_user_id,
             "content_type": content_type, "uploaded_at": created_at, "metadata": metadata or {}, "text": text}
@@ -248,7 +280,7 @@ def ocr_and_index(doc_id: str):
 
 
 @celery_app.task(name="worker_app.worker.process_pst_file", queue=settings.CELERY_QUEUE)
-def process_pst_file(doc_id: str, case_id: str, company_id: str):
+def process_pst_file(doc_id: str, case_id: str | None = None, company_id: str | None = None):
     """
     THE ULTIMATE PST PROCESSOR TASK
     
@@ -266,7 +298,7 @@ def process_pst_file(doc_id: str, case_id: str, company_id: str):
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     
-    logger.info(f"Starting PST processing for document {doc_id}")
+    logger.info(f"Starting PST processing for PST file {doc_id}")
     
     try:
         # Import PST processor (import here to avoid loading pypff in main process)
@@ -279,14 +311,16 @@ def process_pst_file(doc_id: str, case_id: str, company_id: str):
         db = SessionLocal()
         
         try:
-            # Get document info
-            doc = _fetch_doc(doc_id)
-            if not doc:
-                logger.error(f"Document {doc_id} not found")
-                return {"error": "Document not found"}
+            # Get PST file info from pst_files table
+            pst_file = _fetch_pst_file(doc_id)
+            if not pst_file:
+                logger.error(f"PST file {doc_id} not found in pst_files table")
+                return {"error": "PST file not found"}
             
-            # Update status
-            _update_status(doc_id, "PROCESSING", "Extracting PST file...")
+            # Update status to processing
+            _update_pst_status(doc_id, "processing")
+            
+            logger.info(f"Processing PST: {pst_file['filename']} from {pst_file['bucket']}/{pst_file['s3_key']}")
             
             # Initialize processor
             processor = UltimatePSTProcessor(
@@ -295,17 +329,21 @@ def process_pst_file(doc_id: str, case_id: str, company_id: str):
                 opensearch_client=os_client
             )
             
-            # Process PST
+            # Process PST - use case_id and project_id from the pst_file record
             stats = processor.process_pst(
-                pst_s3_key=doc["s3_key"],
+                pst_s3_key=pst_file["s3_key"],
                 document_id=doc_id,
-                case_id=case_id,
-                company_id=company_id
+                case_id=pst_file.get("case_id"),
+                company_id=pst_file.get("project_id")  # project_id maps to company_id in processor
             )
             
-            # Update document status with stats
-            excerpt = f"PST processed: {stats['total_emails']} emails, {stats['total_attachments']} attachments, {stats['threads_identified']} threads"
-            _update_status(doc_id, "READY", excerpt)
+            # Update PST file status with stats
+            _update_pst_status(
+                doc_id, 
+                "completed",
+                total_emails=stats.get('total_emails', 0),
+                processed_emails=stats.get('processed_emails', stats.get('total_emails', 0))
+            )
             
             logger.info(f"PST processing completed: {stats}")
             
@@ -316,5 +354,5 @@ def process_pst_file(doc_id: str, case_id: str, company_id: str):
             
     except Exception as e:
         logger.error(f"PST processing failed: {e}", exc_info=True)
-        _update_status(doc_id, "FAILED", f"PST processing error: {str(e)}")
+        _update_pst_status(doc_id, "failed", error_msg=str(e))
         raise

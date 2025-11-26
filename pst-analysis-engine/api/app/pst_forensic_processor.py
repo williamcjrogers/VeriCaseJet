@@ -12,8 +12,9 @@ import logging
 import tempfile
 import os
 import re
+import asyncio
 from datetime import datetime
-from typing import Dict, List, Optional, Set, Tuple, cast
+from typing import Dict, List, Optional, Set, Tuple
 from email.utils import parseaddr
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -54,7 +55,7 @@ class ForensicPSTProcessor:
             tmp.flush()
             return tmp.name
         except Exception as e:
-            logger.error(f"Failed to stream PST: {e}")
+            logger.error("Failed to stream PST: {e}")
             tmp.close()
             if os.path.exists(tmp.name):
                 os.unlink(tmp.name)
@@ -72,7 +73,7 @@ class ForensicPSTProcessor:
         try:
             return stakeholder_query.all(), keyword_query.all()
         except Exception as e:
-            logger.error(f"Failed to load tagging assets: {e}")
+            logger.error("Failed to load tagging assets: {e}")
             return [], []
 
     def _process_pst_path(
@@ -111,12 +112,12 @@ class ForensicPSTProcessor:
         
         Returns statistics about extraction
         """
-        logger.info(f"Starting forensic PST processing for file_id={pst_file_id}")
+        logger.info("Starting forensic PST processing for file_id={pst_file_id}")
         
         # Get PST file record
         pst_file = self.db.query(PSTFile).filter_by(id=pst_file_id).first()
         if not pst_file:
-            raise ValueError(f"PST file {pst_file_id} not found")
+            raise ValueError("PST file {pst_file_id} not found")
         
         # Update status
         pst_file.processing_status = 'processing'
@@ -147,7 +148,7 @@ class ForensicPSTProcessor:
             logger.info("✓ PST processing complete: %s", stats)
         
         except Exception as e:
-            logger.error(f"Error processing PST: {e}", exc_info=True)
+            logger.error("Error processing PST: {e}", exc_info=True)
             pst_file.processing_status = 'failed'
             pst_file.error_message = str(e)
             self.db.commit()
@@ -199,18 +200,18 @@ class ForensicPSTProcessor:
                 if self.processed_count % 50 == 0:
                     pst_file.processed_emails = self.processed_count
                     self.db.commit()
-                    logger.info(f"Progress: {self.processed_count}/{self.total_count} emails")
+                    logger.info("Progress: {self.processed_count}/{self.total_count} emails")
                     
             except Exception as e:
-                logger.error(f"Error extracting email at index {i}: {e}")
-                stats['errors'].append(f"Email {i}: {str(e)}")
+                logger.error("Error extracting email at index {i}: {e}")
+                stats['errors'].append("Email {i}: {str(e)}")
         
         # Process subfolders
         num_folders = folder.get_number_of_sub_folders()
         for i in range(num_folders):
             sub_folder = folder.get_sub_folder(i)
-            folder_name = sub_folder.get_name() or f"Folder{i}"
-            sub_path = f"{folder_path}/{folder_name}"
+            folder_name = sub_folder.get_name() or "Folder{i}"
+            sub_path = "{folder_path}/{folder_name}"
             
             self._process_folder_recursive(
                 sub_folder,
@@ -311,11 +312,11 @@ class ForensicPSTProcessor:
                 body_preview = body_text[:BODY_SIZE_LIMIT]
                 # Support both projects and cases
                 if pst_file.project_id:
-                    body_full_s3_key = f"project_{pst_file.project_id}/email_bodies/{message_id or message_offset}.txt"
+                    body_full_s3_key = "project_{pst_file.project_id}/email_bodies/{message_id or message_offset}.txt"
                 elif pst_file.case_id:
-                    body_full_s3_key = f"case_{pst_file.case_id}/email_bodies/{message_id or message_offset}.txt"
+                    body_full_s3_key = "case_{pst_file.case_id}/email_bodies/{message_id or message_offset}.txt"
                 else:
-                    body_full_s3_key = f"email_bodies/{message_id or message_offset}.txt"
+                    body_full_s3_key = "email_bodies/{message_id or message_offset}.txt"
                 try:
                     put_object(
                         body_full_s3_key,
@@ -325,7 +326,7 @@ class ForensicPSTProcessor:
                     )
                     body_text = None
                 except Exception as e:
-                    logger.warning(f"Failed to store body in S3: {e}")
+                    logger.warning("Failed to store body in S3: {e}")
                 
             # Create email message record
             email_msg = EmailMessage(
@@ -375,20 +376,20 @@ class ForensicPSTProcessor:
                         attachment = message.get_attachment(i)
                         self._extract_attachment(attachment, email_msg, stats)
                     except Exception as e:
-                        logger.error(f"Error extracting attachment {i}: {e}")
-                        stats['errors'].append(f"Attachment {i}: {str(e)}")
+                        logger.error("Error extracting attachment {i}: {e}")
+                        stats['errors'].append("Attachment {i}: {str(e)}")
             
             # Index in OpenSearch (if enabled)
             if settings.OPENSEARCH_HOST and hasattr(self, 'opensearch') and self.opensearch:
                 try:
                     self._index_email(email_msg)
                 except Exception as e:
-                    logger.warning(f"OpenSearch indexing failed for email {email_msg.id}: {e}")
+                    logger.warning("OpenSearch indexing failed for email {email_msg.id}: {e}")
             
             stats['total_emails'] += 1
             
         except Exception as e:
-            logger.error(f"Error extracting email message: {e}", exc_info=True)
+            logger.error("Error extracting email message: {e}", exc_info=True)
             raise
     
     def _extract_attachment(
@@ -400,18 +401,18 @@ class ForensicPSTProcessor:
         """Extract email attachment to S3"""
         
         try:
-            filename = attachment.get_name() or f"attachment_{stats['total_attachments']}"
+            filename = attachment.get_name() or "attachment_{stats['total_attachments']}"
             size = attachment.get_size()
             
             # Get attachment data
             try:
                 data = attachment.read_buffer(size) if size > 0 else b''
             except Exception as e:
-                logger.error(f"Failed to read attachment: {e}")
+                logger.error("Failed to read attachment: {e}")
                 return
             
             if not data:
-                logger.warning(f"Empty attachment: {filename}")
+                logger.warning("Empty attachment: {filename}")
                 return
             
             # Calculate hash for deduplication
@@ -420,7 +421,7 @@ class ForensicPSTProcessor:
             
             # Check if we've seen this attachment before
             if file_hash in self.attachment_hashes:
-                logger.debug(f"Duplicate attachment detected: {filename}")
+                logger.debug("Duplicate attachment detected: {filename}")
                 # Still create a record, but link to existing S3 file
                 existing_s3_key = self.attachment_hashes[file_hash]
                 s3_key = existing_s3_key
@@ -430,11 +431,11 @@ class ForensicPSTProcessor:
                 s3_bucket = getattr(settings, 'S3_ATTACHMENTS_BUCKET', None) or settings.S3_BUCKET
                 # Support both projects and cases
                 if email_msg.project_id:
-                    s3_key = f"project_{email_msg.project_id}/attachments/{email_msg.id}/{filename}"
+                    s3_key = "project_{email_msg.project_id}/attachments/{email_msg.id}/{filename}"
                 elif email_msg.case_id:
-                    s3_key = f"case_{email_msg.case_id}/attachments/{email_msg.id}/{filename}"
+                    s3_key = "case_{email_msg.case_id}/attachments/{email_msg.id}/{filename}"
                 else:
-                    s3_key = f"attachments/{email_msg.id}/{filename}"
+                    s3_key = "attachments/{email_msg.id}/{filename}"
                 
                 try:
                     put_object(
@@ -446,7 +447,7 @@ class ForensicPSTProcessor:
                     self.attachment_hashes[file_hash] = s3_key
                     stats['unique_attachments'] += 1
                 except Exception as e:
-                    logger.error(f"Failed to upload attachment: {e}")
+                    logger.error("Failed to upload attachment: {e}")
                     raise
             
             # Create attachment record
@@ -457,14 +458,18 @@ class ForensicPSTProcessor:
                 file_size=size,
                 s3_bucket=s3_bucket,
                 s3_key=s3_key,
-                has_been_ocred=False
+                has_been_ocred=False,
+                attachment_hash=file_hash,
+                is_inline=False,
+                content_id=None,
+                is_duplicate=(file_hash in self.attachment_hashes),
             )
             
             self.db.add(attachment_record)
             stats['total_attachments'] += 1
             
         except Exception as e:
-            logger.error(f"Error extracting attachment: {e}", exc_info=True)
+            logger.error("Error extracting attachment: {e}", exc_info=True)
             raise
     
     def _extract_header(self, headers: str, header_name: str) -> Optional[str]:
@@ -472,7 +477,7 @@ class ForensicPSTProcessor:
         if not headers:
             return None
         
-        pattern = rf'{header_name}:\s*(.+?)(?:\r?\n(?!\s)|$)'
+        pattern = '{header_name}:\s*(.+?)(?:\r?\n(?!\s)|$)'
         match = re.search(pattern, headers, re.IGNORECASE | re.MULTILINE)
         if match:
             return match.group(1).strip()
@@ -502,7 +507,7 @@ class ForensicPSTProcessor:
                         'email': email
                     })
         except Exception as e:
-            logger.warning(f"Error parsing {recipient_type} recipients: {e}")
+            logger.warning("Error parsing {recipient_type} recipients: {e}")
         
         return recipients
     
@@ -553,7 +558,7 @@ class ForensicPSTProcessor:
         """Auto-tag email with matching keywords"""
         matched = []
         
-        search_text = f"{subject} {body_text}".lower()
+        search_text = "{subject} {body_text}".lower()
         
         for keyword in keywords:
             # Build search terms (keyword + variations)
@@ -620,10 +625,12 @@ class ForensicPSTProcessor:
                 date_sent=email_msg.date_sent.isoformat() if email_msg.date_sent else None,
                 has_attachments=email_msg.has_attachments,
                 matched_stakeholders=email_msg.matched_stakeholders or [],
-                matched_keywords=email_msg.matched_keywords or []
+                matched_keywords=email_msg.matched_keywords or [],
+                body_text_clean=getattr(email_msg, "body_text_clean", None),
+                content_hash=getattr(email_msg, "content_hash", None),
             )
         except Exception as e:
-            logger.warning(f"Failed to index email {email_msg.id} in OpenSearch: {e}")
+            logger.warning("Failed to index email {email_msg.id} in OpenSearch: {e}")
     
     def _build_email_threads(self, entity_id: str, is_project: bool = False) -> List[Dict]:
         """Build email threads using Message-ID and In-Reply-To headers"""
@@ -639,7 +646,7 @@ class ForensicPSTProcessor:
         message_id_map: Dict[str, EmailMessage] = {}
         for email in emails:
             try:
-                message_identifier = cast(Optional[str], email.message_id)
+                message_identifier = email.message_id
                 if message_identifier:
                     message_id_map[message_identifier] = email
             except (AttributeError, TypeError):
@@ -661,22 +668,22 @@ class ForensicPSTProcessor:
         for thread_emails in threads.values():
             thread_emails.sort(key=lambda e: e.date_sent or datetime.min)
         
-        logger.info(f"Built {len(threads)} email threads from {len(emails)} emails")
+        logger.info("Built {len(threads)} email threads from {len(emails)} emails")
         
         return [{'root_id': k, 'emails': v} for k, v in threads.items()]
     
     def _find_thread_root(self, email: EmailMessage, message_id_map: Dict[str, EmailMessage]) -> str:
         """Find the root message of an email thread"""
         
-        in_reply_to = cast(Optional[str], email.in_reply_to)
+        in_reply_to = email.in_reply_to
         if not in_reply_to:
-            return cast(Optional[str], email.message_id) or str(email.id)
+            return email.message_id or str(email.id)
         
         current = email
         seen: Set[str] = set()
         
         while True:
-            parent_ref = cast(Optional[str], current.in_reply_to)
+            parent_ref = current.in_reply_to
             if not parent_ref or parent_ref in seen:
                 break
             
@@ -687,7 +694,7 @@ class ForensicPSTProcessor:
             
             current = parent
         
-        return cast(Optional[str], current.message_id) or str(current.id)
+        return current.message_id or str(current.id)
 
 
 # Helper function for Celery tasks
@@ -701,5 +708,5 @@ async def process_pst_forensic(
     Wrapper function for Celery task
     """
     processor = ForensicPSTProcessor(db)
-    return await processor.process_pst_file(pst_file_id, s3_bucket, s3_key)
+    return await asyncio.to_thread(processor.process_pst_file, pst_file_id, s3_bucket, s3_key)
 

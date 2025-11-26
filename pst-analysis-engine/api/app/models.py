@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, DateTime, Text, JSON, Enum, Integer, ForeignKey, Boolean, Index
+from sqlalchemy import Column, String, DateTime, Text, JSON, Enum, Integer, ForeignKey, Boolean, Index, ARRAY
 from sqlalchemy.sql import func, expression
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
@@ -190,7 +190,7 @@ class Company(Base):
     """Multi-tenant company workspace"""
     __tablename__="companies"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String(255), nullable=False)
+    company_name = Column(String(255), nullable=False)
     domain = Column(String(255), unique=True, nullable=True)
     subscription_tier = Column(String(50), default="professional")
     storage_limit_gb = Column(Integer, default=100)
@@ -288,7 +288,7 @@ class Evidence(Base):
     thread_id = Column(String(100), nullable=True, index=True)  # Computed thread ID
     content = Column(Text, nullable=True)  # Email body stored directly
     content_type = Column(String(50), nullable=True)  # html or text
-    attachments = Column(JSON, nullable=True)  # Array of attachment info
+    attachments = Column(JSONB, nullable=True)  # Array of attachment info
     relevance_score = Column(Integer, nullable=True)
     notes = Column(Text)
     meta = Column("metadata", JSON, nullable=True)
@@ -449,22 +449,22 @@ class PSTFile(Base):
     __tablename__ = "pst_files"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     filename = Column(String(512), nullable=False)
-    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
+    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)  # Fixed: DB allows NULL
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
-    s3_bucket = Column(String(128), nullable=False)
+    s3_bucket = Column(String(128), nullable=True)  # Fixed: DB allows NULL
     s3_key = Column(String(2048), nullable=False)
-    file_size = Column(Integer, nullable=True)
+    file_size_bytes = Column("file_size_bytes", Integer, nullable=True)  # Fixed: Match DB column name
     total_emails = Column(Integer, default=0)
     processed_emails = Column(Integer, default=0)
-    processing_status = Column(String(50), default='queued')  # queued, processing, completed, failed
-    processing_started_at = Column(DateTime(timezone=True), nullable=True)
-    processing_completed_at = Column(DateTime(timezone=True), nullable=True)
+    processing_status = Column(String(50), default='pending')  # Fixed: Match DB default
+    processing_started_at = Column(DateTime(timezone=False), nullable=True)  # Fixed: DB has no timezone
+    processing_completed_at = Column(DateTime(timezone=False), nullable=True)  # Fixed: DB has no timezone
     error_message = Column(Text, nullable=True)
     uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     uploader = relationship("User")
     case = relationship("Case")
     project = relationship("Project")
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    uploaded_at = Column("uploaded_at", DateTime(timezone=False), server_default=func.now())  # Fixed: Match DB column name
 
 
 class EmailMessage(Base):
@@ -490,13 +490,17 @@ class EmailMessage(Base):
     subject = Column(Text, nullable=True)
     sender_email = Column(String(512), nullable=True, index=True)
     sender_name = Column(String(512), nullable=True)
-    recipients_to = Column(JSON, nullable=True)  # Array of recipients
-    recipients_cc = Column(JSON, nullable=True)
-    recipients_bcc = Column(JSON, nullable=True)
+    recipients_to = Column(ARRAY(Text), nullable=True)  # Array of recipients
+    recipients_cc = Column(ARRAY(Text), nullable=True)
+    recipients_bcc = Column(ARRAY(Text), nullable=True)
     date_sent = Column(DateTime(timezone=True), nullable=True, index=True)
     date_received = Column(DateTime(timezone=True), nullable=True)
     body_text = Column(Text, nullable=True)
     body_html = Column(Text, nullable=True)
+
+    # Canonical body and deduplication
+    body_text_clean = Column(Text, nullable=True)  # Top-message canonical text (quotes stripped, normalised)
+    content_hash = Column(String(128), nullable=True)  # Hash of canonical body + key metadata
     
     # Flags
     has_attachments = Column(Boolean, default=False)
@@ -529,6 +533,8 @@ class EmailMessage(Base):
         Index('idx_email_project_has_attachments', 'project_id', 'has_attachments'),
         Index('idx_email_conversation', 'case_id', 'conversation_index'),
         Index('idx_email_project_conversation', 'project_id', 'conversation_index'),
+        Index('idx_email_case_content_hash', 'case_id', 'content_hash'),
+        Index('idx_email_project_content_hash', 'project_id', 'content_hash'),
     )
 
 
@@ -536,12 +542,18 @@ class EmailAttachment(Base):
     """Email attachments extracted from PST files"""
     __tablename__ = "email_attachments"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email_message_id = Column(UUID(as_uuid=True), ForeignKey("email_messages.id"), nullable=False)
-    filename = Column(String(512), nullable=False)
+    email_message_id = Column(UUID(as_uuid=True), ForeignKey("email_messages.id"), nullable=True)
+    filename = Column(String(512), nullable=True)
     content_type = Column(String(128), nullable=True)
-    file_size = Column(Integer, nullable=True)
-    s3_bucket = Column(String(128), nullable=False)
-    s3_key = Column(String(2048), nullable=False)
+    file_size_bytes = Column(Integer, nullable=True)
+    s3_bucket = Column(String(128), nullable=True)
+    s3_key = Column(String(2048), nullable=True)
+
+    # Deduplication and inline metadata
+    attachment_hash = Column(String(128), nullable=True)
+    is_inline = Column(Boolean, default=False)
+    content_id = Column(String(512), nullable=True)
+    is_duplicate = Column(Boolean, default=False)
     
     # OCR/extraction status
     has_been_ocred = Column(Boolean, default=False)
@@ -549,6 +561,10 @@ class EmailAttachment(Base):
     
     email_message = relationship("EmailMessage")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index('idx_email_attachment_hash', 'attachment_hash'),
+    )
 
 
 class Stakeholder(Base):
@@ -634,3 +650,437 @@ class AppSetting(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     updater = relationship("User")
+
+
+# ============================================================================
+# EVIDENCE REPOSITORY MODELS
+# Case-independent evidence management system
+# ============================================================================
+
+class EvidenceType(str, PyEnum):
+    """Classification of evidence types"""
+    CONTRACT = "contract"
+    VARIATION = "variation"
+    DRAWING = "drawing"
+    SPECIFICATION = "specification"
+    PROGRAMME = "programme"
+    INVOICE = "invoice"
+    PAYMENT_CERTIFICATE = "payment_certificate"
+    MEETING_MINUTES = "meeting_minutes"
+    SITE_INSTRUCTION = "site_instruction"
+    RFI = "rfi"
+    NOTICE = "notice"
+    LETTER = "letter"
+    EMAIL = "email"
+    PHOTO = "photo"
+    EXPERT_REPORT = "expert_report"
+    CLAIM = "claim"
+    EOT_NOTICE = "eot_notice"
+    DELAY_NOTICE = "delay_notice"
+    PROGRESS_REPORT = "progress_report"
+    QUALITY_RECORD = "quality_record"
+    OTHER = "other"
+
+
+class DocumentCategory(str, PyEnum):
+    """Construction-specific document categories"""
+    JCT_RELEVANT_EVENT = "jct_relevant_event"
+    JCT_EXTENSION_TIME = "jct_extension_time"
+    JCT_LOSS_EXPENSE = "jct_loss_expense"
+    NEC_COMPENSATION_EVENT = "nec_compensation_event"
+    NEC_EARLY_WARNING = "nec_early_warning"
+    FIDIC_CLAIM = "fidic_claim"
+    FIDIC_VARIATION = "fidic_variation"
+    CONTEMPORANEOUS = "contemporaneous"
+    RETROSPECTIVE = "retrospective"
+    WITNESS_STATEMENT = "witness_statement"
+    TECHNICAL = "technical"
+    FINANCIAL = "financial"
+    LEGAL = "legal"
+    CORRESPONDENCE = "correspondence"
+    OTHER = "other"
+
+
+class EvidenceSourceType(str, PyEnum):
+    """Source types for evidence provenance"""
+    PST_ATTACHMENT = "pst_attachment"
+    DIRECT_UPLOAD = "direct_upload"
+    BULK_IMPORT = "bulk_import"
+    EMAIL_EXPORT = "email_export"
+    SCAN = "scan"
+    API = "api"
+    MIGRATION = "migration"
+
+
+class CorrespondenceLinkType(str, PyEnum):
+    """Types of links between evidence and correspondence"""
+    ATTACHMENT = "attachment"
+    MENTIONED = "mentioned"
+    RELATED = "related"
+    SAME_THREAD = "same_thread"
+    REPLY_TO = "reply_to"
+    FORWARDS = "forwards"
+    REFERENCES = "references"
+
+
+class EvidenceRelationType(str, PyEnum):
+    """Types of relationships between evidence items"""
+    SUPERSEDES = "supersedes"
+    REFERENCES = "references"
+    RESPONDS_TO = "responds_to"
+    AMENDS = "amends"
+    DUPLICATE = "duplicate"
+    VERSION_OF = "version_of"
+    RELATED = "related"
+    CONTRADICTS = "contradicts"
+
+
+class EvidenceProcessingStatus(str, PyEnum):
+    """Processing status for evidence items"""
+    PENDING = "pending"
+    PROCESSING = "processing"
+    READY = "ready"
+    FAILED = "failed"
+    ARCHIVED = "archived"
+
+
+class EvidenceSource(Base):
+    """Track provenance of evidence (PST files, bulk imports, etc.)"""
+    __tablename__ = "evidence_sources"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Source identification
+    source_type = Column(String(50), nullable=False)
+    source_name = Column(String(500), nullable=False)
+    source_path = Column(Text, nullable=True)
+    source_description = Column(Text, nullable=True)
+    
+    # For PST files (optional link)
+    pst_file_id = Column(UUID(as_uuid=True), ForeignKey("pst_files.id"), nullable=True)
+    
+    # Original file storage
+    original_s3_bucket = Column(String(128), nullable=True)
+    original_s3_key = Column(String(2048), nullable=True)
+    original_hash = Column(String(128), nullable=True)
+    original_size = Column(Integer, nullable=True)
+    
+    # Processing statistics
+    total_items = Column(Integer, default=0)
+    processed_items = Column(Integer, default=0)
+    failed_items = Column(Integer, default=0)
+    duplicate_items = Column(Integer, default=0)
+    
+    # Processing status
+    status = Column(String(50), default='pending')
+    error_message = Column(Text, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Optional associations
+    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
+    
+    # Audit
+    uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    pst_file = relationship("PSTFile")
+    case = relationship("Case")
+    project = relationship("Project")
+    uploader = relationship("User")
+
+
+class EvidenceCollection(Base):
+    """Virtual folders for organizing evidence"""
+    __tablename__ = "evidence_collections"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Collection info
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    collection_type = Column(String(50), default='manual')  # manual, smart, auto_date, auto_type
+    
+    # Smart collection rules
+    filter_rules = Column(JSONB, default=dict)
+    
+    # Hierarchy support
+    parent_id = Column(UUID(as_uuid=True), ForeignKey("evidence_collections.id"), nullable=True)
+    path = Column(Text, nullable=True)  # Materialized path
+    depth = Column(Integer, default=0)
+    
+    # Optional associations
+    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
+    
+    # Display settings
+    color = Column(String(20), nullable=True)
+    icon = Column(String(50), nullable=True)
+    sort_order = Column(Integer, default=0)
+    is_system = Column(Boolean, default=False)
+    
+    # Statistics
+    item_count = Column(Integer, default=0)
+    
+    # Audit
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    parent = relationship("EvidenceCollection", remote_side=[id], backref="children")
+    case = relationship("Case")
+    project = relationship("Project")
+    creator = relationship("User")
+
+
+class EvidenceItem(Base):
+    """Core evidence repository - NOT case-dependent"""
+    __tablename__ = "evidence_items"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Core file metadata
+    filename = Column(String(512), nullable=False)
+    original_path = Column(Text, nullable=True)
+    file_type = Column(String(50), nullable=True)
+    mime_type = Column(String(128), nullable=True)
+    file_size = Column(Integer, nullable=True)
+    file_hash = Column(String(128), nullable=False)  # SHA-256
+    
+    # Storage
+    s3_bucket = Column(String(128), nullable=False)
+    s3_key = Column(String(2048), nullable=False)
+    thumbnail_s3_key = Column(String(2048), nullable=True)
+    
+    # Classification
+    evidence_type = Column(String(100), nullable=True)
+    document_category = Column(String(100), nullable=True)
+    
+    # Auto-extracted metadata
+    document_date = Column(DateTime(timezone=False), nullable=True)
+    document_date_confidence = Column(Integer, nullable=True)  # 0-100
+    title = Column(String(500), nullable=True)
+    author = Column(String(255), nullable=True)
+    description = Column(Text, nullable=True)
+    page_count = Column(Integer, nullable=True)
+    
+    # Full-text content
+    extracted_text = Column(Text, nullable=True)
+    text_language = Column(String(10), default='en')
+    
+    # Entity extraction (auto-populated)
+    extracted_parties = Column(JSONB, default=list)
+    extracted_dates = Column(JSONB, default=list)
+    extracted_amounts = Column(JSONB, default=list)
+    extracted_references = Column(JSONB, default=list)
+    extracted_locations = Column(JSONB, default=list)
+    
+    # Auto-tagging
+    auto_tags = Column(JSONB, default=list)
+    manual_tags = Column(JSONB, default=list)
+    keywords_matched = Column(JSONB, default=list)
+    stakeholders_matched = Column(JSONB, default=list)
+    
+    # Comprehensive metadata (from extraction service)
+    extracted_metadata = Column(JSONB, nullable=True)  # Full metadata from MetadataExtractor
+    metadata_extracted_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Classification confidence
+    classification_confidence = Column(Integer, nullable=True)  # 0-100
+    classification_method = Column(String(50), nullable=True)
+    
+    # Processing status
+    processing_status = Column(String(50), default='pending')
+    processing_error = Column(Text, nullable=True)
+    ocr_completed = Column(Boolean, default=False)
+    ai_analyzed = Column(Boolean, default=False)
+    processed_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Provenance
+    source_type = Column(String(50), nullable=True)
+    source_id = Column(UUID(as_uuid=True), ForeignKey("evidence_sources.id"), nullable=True)
+    source_path = Column(Text, nullable=True)
+    source_email_id = Column(UUID(as_uuid=True), ForeignKey("email_messages.id"), nullable=True)
+    
+    # Optional associations (NULL = unassigned)
+    case_id = Column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
+    collection_id = Column(UUID(as_uuid=True), ForeignKey("evidence_collections.id"), nullable=True)
+    
+    # Flags
+    is_duplicate = Column(Boolean, default=False)
+    duplicate_of_id = Column(UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=True)
+    is_privileged = Column(Boolean, default=False)
+    is_confidential = Column(Boolean, default=False)
+    is_starred = Column(Boolean, default=False)
+    is_reviewed = Column(Boolean, default=False)
+    reviewed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # User notes
+    notes = Column(Text, nullable=True)
+    
+    # Audit
+    uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    source = relationship("EvidenceSource")
+    source_email = relationship("EmailMessage")
+    case = relationship("Case")
+    project = relationship("Project")
+    collection = relationship("EvidenceCollection")
+    duplicate_of = relationship("EvidenceItem", remote_side=[id])
+    uploader = relationship("User", foreign_keys=[uploaded_by])
+    reviewer = relationship("User", foreign_keys=[reviewed_by])
+    
+    # Indexes defined in __table_args__
+    __table_args__ = (
+        Index('idx_evidence_items_hash', 'file_hash'),
+        Index('idx_evidence_items_type', 'evidence_type'),
+        Index('idx_evidence_items_date', 'document_date'),
+        Index('idx_evidence_items_status', 'processing_status'),
+        Index('idx_evidence_items_case', 'case_id'),
+        Index('idx_evidence_items_project', 'project_id'),
+        Index('idx_evidence_items_auto_tags', 'auto_tags', postgresql_using='gin'),
+        Index('idx_evidence_items_manual_tags', 'manual_tags', postgresql_using='gin'),
+    )
+
+
+class EvidenceCorrespondenceLink(Base):
+    """Links evidence items to emails/correspondence"""
+    __tablename__ = "evidence_correspondence_links"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Evidence item
+    evidence_item_id = Column(UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=False)
+    
+    # Link type and confidence
+    link_type = Column(String(50), nullable=False)
+    link_confidence = Column(Integer, nullable=True)  # 0-100
+    link_method = Column(String(50), nullable=True)
+    
+    # Target: Email message
+    email_message_id = Column(UUID(as_uuid=True), ForeignKey("email_messages.id"), nullable=True)
+    
+    # OR: External correspondence
+    correspondence_type = Column(String(50), nullable=True)
+    correspondence_reference = Column(String(500), nullable=True)
+    correspondence_date = Column(DateTime(timezone=False), nullable=True)
+    correspondence_from = Column(String(255), nullable=True)
+    correspondence_to = Column(String(255), nullable=True)
+    correspondence_subject = Column(Text, nullable=True)
+    
+    # Context
+    context_snippet = Column(Text, nullable=True)
+    page_reference = Column(String(50), nullable=True)
+    
+    # Flags
+    is_auto_linked = Column(Boolean, default=False)
+    is_verified = Column(Boolean, default=False)
+    
+    # Audit
+    linked_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    verified_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Relationships
+    evidence_item = relationship("EvidenceItem", backref="correspondence_links")
+    email_message = relationship("EmailMessage")
+    linker = relationship("User", foreign_keys=[linked_by])
+    verifier = relationship("User", foreign_keys=[verified_by])
+
+
+class EvidenceRelation(Base):
+    """Relationships between evidence items"""
+    __tablename__ = "evidence_relations"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Source and target
+    source_evidence_id = Column(UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=False)
+    target_evidence_id = Column(UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=False)
+    
+    # Relation details
+    relation_type = Column(String(50), nullable=False)
+    relation_direction = Column(String(20), default='unidirectional')
+    
+    # Context
+    description = Column(Text, nullable=True)
+    confidence = Column(Integer, nullable=True)  # 0-100
+    detection_method = Column(String(50), nullable=True)
+    
+    # Flags
+    is_auto_detected = Column(Boolean, default=False)
+    is_verified = Column(Boolean, default=False)
+    
+    # Audit
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    verified_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Relationships
+    source_evidence = relationship("EvidenceItem", foreign_keys=[source_evidence_id], backref="outgoing_relations")
+    target_evidence = relationship("EvidenceItem", foreign_keys=[target_evidence_id], backref="incoming_relations")
+    creator = relationship("User", foreign_keys=[created_by])
+    verifier = relationship("User", foreign_keys=[verified_by])
+
+
+class EvidenceCollectionItem(Base):
+    """Junction table: evidence items can be in multiple collections"""
+    __tablename__ = "evidence_collection_items"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    collection_id = Column(UUID(as_uuid=True), ForeignKey("evidence_collections.id"), nullable=False)
+    evidence_item_id = Column(UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=False)
+    
+    # Order within collection
+    sort_order = Column(Integer, default=0)
+    
+    # How added
+    added_method = Column(String(50), default='manual')
+    
+    # Audit
+    added_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    added_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    collection = relationship("EvidenceCollection", backref="items")
+    evidence_item = relationship("EvidenceItem", backref="collection_memberships")
+    adder = relationship("User")
+
+
+class EvidenceActivityLog(Base):
+    """Audit trail for evidence access and modifications"""
+    __tablename__ = "evidence_activity_log"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Target
+    evidence_item_id = Column(UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=True)
+    collection_id = Column(UUID(as_uuid=True), ForeignKey("evidence_collections.id"), nullable=True)
+    
+    # Action
+    action = Column(String(50), nullable=False)
+    action_details = Column(JSONB, nullable=True)
+    
+    # Actor
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(Text, nullable=True)
+    
+    # Timestamp
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    evidence_item = relationship("EvidenceItem")
+    collection = relationship("EvidenceCollection")
+    user = relationship("User")

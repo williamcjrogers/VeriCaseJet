@@ -7,8 +7,10 @@ import os
 def update_production_config():
     """Update configuration for AWS production deployment"""
     
-    # If running in AWS, set USE_AWS_SERVICES
-    if os.getenv('AWS_EXECUTION_ENV') or os.getenv('AWS_REGION'):
+    # If running in actual AWS environment (not just having AWS_REGION set), enable AWS mode
+    # AWS_EXECUTION_ENV is set by AWS Lambda/ECS/etc.
+    # Only enable AWS mode if explicitly in AWS execution environment
+    if os.getenv('AWS_EXECUTION_ENV'):
         os.environ['USE_AWS_SERVICES'] = 'true'
     
     # Map AWS S3 variables to expected format

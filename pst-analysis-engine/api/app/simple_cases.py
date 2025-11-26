@@ -92,7 +92,7 @@ def list_cases_simple(db: Session = Depends(get_db)):
             result.append({
                 "id": str(case.id),
                 "name": case.name or "Untitled Case",
-                "case_number": getattr(case, 'case_number', f"CASE-{case.id}"),
+                "case_number": getattr(case, 'case_number', "CASE-{case.id}"),
                 "description": case.description,
                 "project_name": getattr(case, 'project_name', None),
                 "contract_type": getattr(case, 'contract_type', None),
@@ -252,8 +252,8 @@ def get_stakeholder_suggestions(search: Optional[str] = None, db: Session = Depe
             if safe_search:
                 query = query.filter(
                     or_(
-                        Stakeholder.name.ilike(f"%{safe_search}%"),
-                        Stakeholder.organization.ilike(f"%{safe_search}%")
+                        Stakeholder.name.ilike("%{safe_search}%"),
+                        Stakeholder.organization.ilike("%{safe_search}%")
                     )
                 )
         
@@ -296,13 +296,13 @@ def create_case_simple(case_data: CaseCreate, db: Session = Depends(get_db)):
     """Create a case without authentication (for testing)"""
     try:
         # Generate case number if not provided
-        case_number = case_data.case_id or f"CASE-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid.uuid4().hex[:4].upper()}"
+        case_number = case_data.case_id or "CASE-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid.uuid4().hex[:4].upper()}"
         
         case = Case(
             id=uuid.uuid4(),
             name=case_data.case_name,
             case_number=case_number,
-            description=f"Resolution: {case_data.resolution_route}, Client: {case_data.client or 'N/A'}",
+            description="Resolution: {case_data.resolution_route}, Client: {case_data.client or 'N/A'}",
             status=case_data.case_status or "discovery",
             owner_id=uuid.uuid4(),  # Mock user ID
             company_id=uuid.uuid4()  # Mock company ID
@@ -351,7 +351,7 @@ def create_case_simple(case_data: CaseCreate, db: Session = Depends(get_db)):
         return {
             "id": new_id,
             "case_name": case_data.case_name,
-            "case_number": case_data.case_id or f"CASE-{new_id[:8]}",
+            "case_number": case_data.case_id or "CASE-{new_id[:8]}",
             "status": "active",
             "created_at": datetime.now(timezone.utc).isoformat()
         }
