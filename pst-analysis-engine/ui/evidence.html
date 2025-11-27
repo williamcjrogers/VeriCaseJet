@@ -1197,13 +1197,13 @@
                 headerHeight: 44,
                 onRowClicked: params => showDetail(params.data),
                 onGridReady: params => {
-                    gridApi = params.api;
                     loadAllData();
                 }
             };
 
             const gridDiv = document.getElementById('evidenceGrid');
-            new agGrid.Grid(gridDiv, gridOptions);
+            // Use createGrid API (v31+) instead of deprecated new Grid()
+            gridApi = agGrid.createGrid(gridDiv, gridOptions);
         }
 
         // ============================================
