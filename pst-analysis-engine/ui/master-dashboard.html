@@ -1540,9 +1540,9 @@
                 console.log('[Prefetch] Starting evidence data prefetch...');
                 const startTime = performance.now();
                 
-                // Prefetch evidence items, collections, and stats in parallel
+                // Prefetch ALL evidence items, collections, and stats in parallel
                 const [itemsRes, collectionsRes, statsRes] = await Promise.all([
-                    fetch('/api/evidence/items?page=1&page_size=100&include_email_info=true'),
+                    fetch('/api/evidence/items?page=1&page_size=10000&include_email_info=true'),  // Load ALL items
                     fetch('/api/evidence/collections?include_system=true'),
                     fetch('/api/evidence/stats')
                 ]);

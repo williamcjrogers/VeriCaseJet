@@ -1279,7 +1279,7 @@
         async function refreshDataInBackground() {
             try {
                 console.log('[Evidence] Background refresh starting...');
-                const response = await fetch(`${apiUrl}/api/evidence/items?page=1&page_size=100&include_email_info=true`);
+                const response = await fetch(`${apiUrl}/api/evidence/items?page=1&page_size=10000&include_email_info=true`);
                 if (response.ok) {
                     const data = await response.json();
                     const newItems = data.items || [];
@@ -1303,7 +1303,7 @@
             try {
                 const params = new URLSearchParams();
                 params.append('page', '1');
-                params.append('page_size', '100');  // Load 100 at a time for faster initial render
+                params.append('page_size', '10000');  // Load ALL evidence items
                 params.append('include_email_info', 'true');
                 
                 const activeCollection = document.querySelector('.collection-item.active');
