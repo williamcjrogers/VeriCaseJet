@@ -1531,9 +1531,53 @@
             }
         }
 
+        // === PREFETCH EVIDENCE DATA FOR FASTER TAB SWITCHING ===
+        async function prefetchEvidenceData() {
+            try {
+                // Wait a moment for main dashboard to render, then prefetch
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                console.log('[Prefetch] Starting evidence data prefetch...');
+                const startTime = performance.now();
+                
+                // Prefetch evidence items, collections, and stats in parallel
+                const [itemsRes, collectionsRes, statsRes] = await Promise.all([
+                    fetch('/api/evidence/items?page=1&page_size=100&include_email_info=true'),
+                    fetch('/api/evidence/collections?include_system=true'),
+                    fetch('/api/evidence/stats')
+                ]);
+                
+                if (itemsRes.ok && collectionsRes.ok && statsRes.ok) {
+                    const [items, collections, stats] = await Promise.all([
+                        itemsRes.json(),
+                        collectionsRes.json(),
+                        statsRes.json()
+                    ]);
+                    
+                    // Store in sessionStorage for evidence page to use
+                    const prefetchData = {
+                        items: items.items || [],
+                        collections: collections.collections || collections || [],
+                        stats: stats,
+                        timestamp: Date.now()
+                    };
+                    
+                    sessionStorage.setItem('vericase_evidence_prefetch', JSON.stringify(prefetchData));
+                    
+                    const duration = (performance.now() - startTime).toFixed(0);
+                    console.log(`[Prefetch] Evidence data cached (${prefetchData.items.length} items) in ${duration}ms`);
+                }
+            } catch (err) {
+                console.warn('[Prefetch] Evidence prefetch failed (non-critical):', err.message);
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             // Load dashboard data
             loadDashboard();
+            
+            // Prefetch evidence data in background for faster tab switching
+            prefetchEvidenceData();
 
             // Filter tabs
             document.querySelectorAll('.filter-tab').forEach(tab => {
