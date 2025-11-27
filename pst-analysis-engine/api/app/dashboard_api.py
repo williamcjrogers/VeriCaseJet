@@ -268,7 +268,12 @@ async def get_dashboard_overview(
         total_emails=total_emails,
         total_evidence=total_evidence,
         items_needing_attention=sum(1 for w in work_items if w.pst_count == 0),
-        recent_activity_count=len([w for w in work_items if w.updated_at and w.updated_at > datetime.now(timezone.utc) - timedelta(days=7)])
+        recent_activity_count=len([
+            w for w in work_items 
+            if w.updated_at and (
+                w.updated_at.replace(tzinfo=timezone.utc) if w.updated_at.tzinfo is None else w.updated_at
+            ) > datetime.now(timezone.utc) - timedelta(days=7)
+        ])
     )
     
     # Build permissions based on user role

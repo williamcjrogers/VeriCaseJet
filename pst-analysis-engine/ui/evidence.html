@@ -1207,26 +1207,103 @@
         }
 
         // ============================================
-        // DATA LOADING
+        // DATA LOADING (with prefetch support)
         // ============================================
         
+        // Check for prefetched data from master dashboard
+        function getPrefetchedData() {
+            try {
+                const cached = sessionStorage.getItem('vericase_evidence_prefetch');
+                if (cached) {
+                    const data = JSON.parse(cached);
+                    // Only use if cached within last 5 minutes
+                    const MAX_AGE = 5 * 60 * 1000;
+                    if (Date.now() - data.timestamp < MAX_AGE) {
+                        console.log('[Evidence] Using prefetched data from dashboard');
+                        return data;
+                    }
+                    // Clear stale cache
+                    sessionStorage.removeItem('vericase_evidence_prefetch');
+                }
+            } catch (e) {
+                console.warn('[Evidence] Prefetch cache read failed:', e);
+            }
+            return null;
+        }
+        
         async function loadAllData() {
-            // Show loading skeletons
-            VericaseUI.Loading.showSkeleton('.grid-wrapper');
+            const prefetched = getPrefetchedData();
             
-            // Load all data in parallel
-            await Promise.all([
-                loadEvidence(),
-                loadCollections(),
-                loadStats()
-            ]);
+            if (prefetched) {
+                // Use prefetched data - instant render!
+                console.log('[Evidence] Rendering from prefetched cache...');
+                const startTime = performance.now();
+                
+                allEvidenceItems = prefetched.items;
+                
+                // Render grid immediately
+                document.querySelector('.grid-wrapper').innerHTML = '<div id="evidenceGrid" class="ag-theme-alpine" style="height: 100%;"></div>';
+                initGrid();
+                updateCategoryCounts();
+                applyFilters();
+                
+                // Render collections and stats
+                if (prefetched.collections) {
+                    renderCollections(prefetched.collections);
+                }
+                if (prefetched.stats) {
+                    renderStats(prefetched.stats);
+                }
+                
+                const duration = (performance.now() - startTime).toFixed(0);
+                VericaseUI.Toast.success(`Loaded ${allEvidenceItems.length} items instantly (cached) in ${duration}ms`);
+                
+                // Clear used cache
+                sessionStorage.removeItem('vericase_evidence_prefetch');
+                
+                // Background refresh to get fresh data
+                setTimeout(() => refreshDataInBackground(), 1000);
+            } else {
+                // Normal loading with skeletons
+                VericaseUI.Loading.showSkeleton('.grid-wrapper');
+                
+                await Promise.all([
+                    loadEvidence(),
+                    loadCollections(),
+                    loadStats()
+                ]);
+            }
+        }
+        
+        // Silent background refresh
+        async function refreshDataInBackground() {
+            try {
+                console.log('[Evidence] Background refresh starting...');
+                const response = await fetch(`${apiUrl}/api/evidence/items?page=1&page_size=100&include_email_info=true`);
+                if (response.ok) {
+                    const data = await response.json();
+                    const newItems = data.items || [];
+                    
+                    // Only update if there's a difference
+                    if (newItems.length !== allEvidenceItems.length) {
+                        allEvidenceItems = newItems;
+                        updateCategoryCounts();
+                        applyFilters();
+                        console.log('[Evidence] Background refresh complete - data updated');
+                    } else {
+                        console.log('[Evidence] Background refresh complete - no changes');
+                    }
+                }
+            } catch (e) {
+                console.warn('[Evidence] Background refresh failed:', e);
+            }
         }
 
         async function loadEvidence() {
             try {
                 const params = new URLSearchParams();
                 params.append('page', '1');
-                params.append('page_size', '500');
+                params.append('page_size', '100');  // Load 100 at a time for faster initial render
                 params.append('include_email_info', 'true');
                 
                 const activeCollection = document.querySelector('.collection-item.active');
@@ -1338,58 +1415,67 @@
             gridApi.setGridOption('rowData', filtered);
         }
 
+        // Render collections data (can be called with fetched or prefetched data)
+        function renderCollections(collections) {
+            const list = document.getElementById('collectionList');
+            const collectionArray = Array.isArray(collections) ? collections : (collections.collections || []);
+            
+            let html = `
+                <div class="collection-item active" data-id="">
+                    <i class="fas fa-folder"></i>
+                    All Evidence
+                </div>
+            `;
+            
+            collectionArray.forEach(c => {
+                const icon = c.is_system ? 'fa-folder-open' : 'fa-folder';
+                html += `
+                    <div class="collection-item" data-id="${c.id}">
+                        <i class="fas ${icon}"></i>
+                        ${escapeHtml(c.name)}
+                        <span class="collection-count">${c.item_count || 0}</span>
+                    </div>
+                `;
+            });
+            
+            list.innerHTML = html;
+            
+            // Re-attach click handlers
+            list.querySelectorAll('.collection-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    list.querySelectorAll('.collection-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                    loadEvidence();
+                });
+            });
+        }
+        
         async function loadCollections() {
             try {
                 const response = await fetch(`${apiUrl}/api/evidence/collections?include_system=true`);
-                
                 if (response.ok) {
                     const collections = await response.json();
-                    const list = document.getElementById('collectionList');
-                    
-                    let html = `
-                        <div class="collection-item active" data-id="">
-                            <i class="fas fa-folder"></i>
-                            All Evidence
-                        </div>
-                    `;
-                    
-                    collections.forEach(c => {
-                        const icon = c.is_system ? 'fa-folder-open' : 'fa-folder';
-                        html += `
-                            <div class="collection-item" data-id="${c.id}">
-                                <i class="fas ${icon}"></i>
-                                ${escapeHtml(c.name)}
-                                <span class="collection-count">${c.item_count || 0}</span>
-                            </div>
-                        `;
-                    });
-                    
-                    list.innerHTML = html;
-                    
-                    // Re-attach click handlers
-                    list.querySelectorAll('.collection-item').forEach(item => {
-                        item.addEventListener('click', () => {
-                            list.querySelectorAll('.collection-item').forEach(i => i.classList.remove('active'));
-                            item.classList.add('active');
-                            loadEvidence();
-                        });
-                    });
+                    renderCollections(collections);
                 }
             } catch (error) {
                 console.error('Error loading collections:', error);
             }
         }
 
+        // Render stats data (can be called with fetched or prefetched data)
+        function renderStats(stats) {
+            document.getElementById('totalCount').textContent = (stats.total || 0).toLocaleString();
+            document.getElementById('unassignedCount').textContent = (stats.unassigned || 0).toLocaleString();
+            document.getElementById('linkedCount').textContent = (stats.with_correspondence || 0).toLocaleString();
+            document.getElementById('recentCount').textContent = (stats.recent_uploads || 0).toLocaleString();
+        }
+        
         async function loadStats() {
             try {
                 const response = await fetch(`${apiUrl}/api/evidence/stats`);
-                
                 if (response.ok) {
                     const stats = await response.json();
-                    document.getElementById('totalCount').textContent = (stats.total || 0).toLocaleString();
-                    document.getElementById('unassignedCount').textContent = (stats.unassigned || 0).toLocaleString();
-                    document.getElementById('linkedCount').textContent = (stats.with_correspondence || 0).toLocaleString();
-                    document.getElementById('recentCount').textContent = (stats.recent_uploads || 0).toLocaleString();
+                    renderStats(stats);
                 }
             } catch (error) {
                 console.error('Error loading stats:', error);
