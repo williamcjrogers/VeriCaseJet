@@ -39,11 +39,11 @@ router = APIRouter(prefix="/api/ai-refinement", tags=["ai-refinement"])
 # =============================================================================
 
 LATEST_MODEL_DEFAULTS = {
-    "openai": "gpt-4o",
-    "anthropic": "claude-sonnet-4-20250514",
-    "gemini": "gemini-2.0-flash",
-    "grok": "grok-2-1212",
-    "perplexity": "sonar-pro",
+    "openai": "gpt-5.1-2025-11-13",          # GPT-5.1 Flagship
+    "anthropic": "claude-opus-4-5-20251101",  # Claude Opus 4.5 Extended Thinking
+    "gemini": "gemini-3.0-pro",               # Gemini 3.0 Pro (1M+ context)
+    "grok": "grok-4-1-fast-reasoning",        # Grok 4.1 Thinking (chain-of-thought)
+    "perplexity": "sonar-pro",                # Sonar Pro (200k context, 2x citations)
 }
 
 # Spam/Newsletter detection patterns
@@ -741,6 +741,14 @@ Only include references that appear to be OTHER projects (is_other_project: true
                     reasoning_val: str = str(result.get("reasoning") or "")
                     action_val: str = str(result.get("recommended_action") or "review")
                     
+                    # Convert any sets to lists for JSON serialization
+                    serializable_ref_data: dict[str, Any] = {}
+                    for k, v in ref_data_result.items():
+                        if isinstance(v, set):
+                            serializable_ref_data[k] = list(v)
+                        else:
+                            serializable_ref_data[k] = v
+
                     detected_items.append(DetectedItem(
                         id=f"proj_{uuid.uuid4().hex[:8]}",
                         item_type="other_project",
@@ -751,7 +759,7 @@ Only include references that appear to be OTHER projects (is_other_project: true
                         confidence=ConfidenceLevel(confidence_val),
                         ai_reasoning=reasoning_val,
                         recommended_action=action_val,
-                        metadata={"pattern_matches": ref_data_result}
+                        metadata={"pattern_matches": serializable_ref_data}
                     ))
         except (json.JSONDecodeError, KeyError) as e:
             logger.warning(f"Failed to parse AI response for project detection: {e}")

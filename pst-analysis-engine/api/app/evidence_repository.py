@@ -517,7 +517,7 @@ async def direct_upload_evidence(
 async def list_evidence(
     db: DbSession,
     page: Annotated[int, Query(ge=1)] = 1,
-    page_size: Annotated[int, Query(ge=1, le=500)] = 50,
+    page_size: Annotated[int, Query(ge=1, le=10000)] = 50,  # Allow up to 10k for full loads
     search: Annotated[str | None, Query(description="Search in filename, title, text")] = None,
     evidence_type: Annotated[str | None, Query()] = None,
     document_category: Annotated[str | None, Query()] = None,

@@ -1279,7 +1279,13 @@
         async function refreshDataInBackground() {
             try {
                 console.log('[Evidence] Background refresh starting...');
-                const response = await fetch(`${apiUrl}/api/evidence/items?page=1&page_size=10000&include_email_info=true`);
+                const params = new URLSearchParams();
+                params.append('page', '1');
+                params.append('page_size', '10000');
+                params.append('include_email_info', 'true');
+                if (projectId) params.append('project_id', projectId);
+                
+                const response = await fetch(`${apiUrl}/api/evidence/items?${params.toString()}`);
                 if (response.ok) {
                     const data = await response.json();
                     const newItems = data.items || [];
@@ -1305,6 +1311,9 @@
                 params.append('page', '1');
                 params.append('page_size', '10000');  // Load ALL evidence items
                 params.append('include_email_info', 'true');
+                
+                // Include project_id if we have one
+                if (projectId) params.append('project_id', projectId);
                 
                 const activeCollection = document.querySelector('.collection-item.active');
                 const collectionId = activeCollection?.dataset.id;

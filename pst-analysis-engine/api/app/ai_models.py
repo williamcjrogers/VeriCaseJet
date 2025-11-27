@@ -34,24 +34,25 @@ class ModelPriorityManager:
     """
 
     BASIC_ORDER = [
-        "sonnet-4.5",
-        "chatgpt-5",
-        "gemini-2.5-flash",
-        "perplexity-local",
+        "claude-sonnet-4",
+        "gpt-4o",
+        "gemini-2-flash",
+        "perplexity-sonar",
     ]
 
     MODERATE_ORDER = [
-        "chatgpt-5",
-        "sonnet-4.5",
-        "gemini-2.5-flash",
-        "perplexity-local",
+        "gpt-4o",
+        "claude-sonnet-4",
+        "gemini-2-flash",
+        "grok-3",
     ]
 
     DEEP_RESEARCH_ORDER = [
-        "chatgpt-5-pro-deep-research",
-        "sonnet-4.5-extended",
-        "gemini-2.5-pro-deep-think",
-        "grok-4-heavy",
+        "gpt-5.1-reasoning",
+        "claude-opus-4-extended",
+        "gemini-3-pro",
+        "grok-4-thinking",
+        "sonar-pro",
     ]
 
     @staticmethod
@@ -76,71 +77,93 @@ class AIModelService:
 
     MODELS: dict[TaskComplexity, ModelConfig] = {
         TaskComplexity.BASIC: {
-            "primary": "sonnet-4.5",
-            "fallbacks": ["chatgpt-5", "gemini-2.5-flash", "perplexity-local"],
+            "primary": "claude-sonnet-4",
+            "fallbacks": ["gpt-4o", "gemini-2-flash", "perplexity-sonar"],
             "features": ["fast", "structured", "conversational"],
         },
         TaskComplexity.MODERATE: {
-            "primary": "chatgpt-5",
-            "fallbacks": ["sonnet-4.5", "gemini-2.5-flash", "perplexity-local"],
+            "primary": "gpt-5.1",
+            "fallbacks": ["claude-sonnet-4", "gemini-3-pro", "grok-3"],
             "features": ["analysis", "extraction", "structured"],
         },
         TaskComplexity.DEEP_RESEARCH: {
-            "primary": "chatgpt-5-pro-deep-research",
+            "primary": "gpt-5.1-reasoning",
             "fallbacks": [
-                "sonnet-4.5-extended",
-                "gemini-2.5-pro-deep-think",
-                "grok-4-heavy",
+                "claude-opus-4-extended",
+                "gemini-3-pro",
+                "grok-4-thinking",
+                "sonar-pro",
             ],
-            "features": ["comprehensive", "analytical", "extended_context"],
+            "features": ["comprehensive", "analytical", "extended_context", "reasoning"],
         },
     }
 
     MODEL_API_MAP: dict[str, dict[str, str]] = {
         # Friendly name -> provider + actual model identifier
-        "sonnet-4.5": {
+        # ============ ANTHROPIC (Claude) ============
+        "claude-sonnet-4": {
             "provider": "anthropic",
-            "model": "claude-3-5-sonnet-20241022",
+            "model": "claude-sonnet-4-20250514",
         },
-        "sonnet-4.5-extended": {
+        "claude-opus-4-extended": {
             "provider": "anthropic",
-            "model": "claude-3-opus-20240229",
+            "model": "claude-opus-4-5-20251101",  # Latest Opus 4.5 with extended thinking
         },
-        "chatgpt-5": {
+        # ============ OPENAI (GPT) ============
+        "gpt-4o": {
             "provider": "openai",
-            "model": "gpt-4-turbo",
+            "model": "gpt-4o",
         },
-        "chatgpt-5-pro-deep-research": {
+        "gpt-5.1": {
             "provider": "openai",
-            "model": "o1-preview",
+            "model": "gpt-5.1-2025-11-13",  # Latest flagship
         },
-        "gemini-2.5-flash": {
+        "gpt-5.1-reasoning": {
+            "provider": "openai",
+            "model": "gpt-5.1-2025-11-13",  # With effort: "high" for deep reasoning
+            "reasoning_effort": "high",
+        },
+        # ============ GOOGLE (Gemini) ============
+        "gemini-2-flash": {
             "provider": "google",
             "model": "gemini-2.0-flash",
         },
-        "gemini-2.5-pro-deep-think": {
+        "gemini-3-pro": {
             "provider": "google",
-            "model": "gemini-2.0-flash-thinking-exp-01-21",
+            "model": "gemini-3.0-pro",  # Flagship multimodal, 1M+ context
         },
-        "grok-4-heavy": {
-            "provider": "grok",
-            "model": "grok-2-1212",
+        # ============ XAI (Grok) ============
+        "grok-3": {
+            "provider": "xai",
+            "model": "grok-3",
         },
-        "perplexity-local": {
+        "grok-4-thinking": {
+            "provider": "xai",
+            "model": "grok-4-1-fast-reasoning",  # Exposes chain-of-thought
+        },
+        # ============ PERPLEXITY ============
+        "perplexity-sonar": {
             "provider": "perplexity",
-            "model": "pplx-7b-chat",
+            "model": "sonar",
+        },
+        "sonar-pro": {
+            "provider": "perplexity",
+            "model": "sonar-pro",  # Deep research, 200k context, 2x citations
         },
     }
 
     MODEL_LABELS: dict[str, str] = {
-        "sonnet-4.5": "Sonnet 4.5",
-        "sonnet-4.5-extended": "Sonnet 4.5 Extended Thinking",
-        "chatgpt-5": "ChatGPT 5",
-        "chatgpt-5-pro-deep-research": "ChatGPT 5 Pro Deep Research",
-        "gemini-2.5-flash": "Gemini 2.5 Flash",
-        "gemini-2.5-pro-deep-think": "Gemini 2.5 Pro Deep Think",
-        "grok-4-heavy": "Grok 4 Heavy",
-        "perplexity-local": "Perplexity Local Mode",
+        "claude-sonnet-4": "Claude Sonnet 4",
+        "claude-opus-4-extended": "Claude Opus 4.5 Extended Thinking",
+        "gpt-4o": "GPT-4o",
+        "gpt-5.1": "GPT-5.1 Flagship",
+        "gpt-5.1-reasoning": "GPT-5.1 Deep Reasoning",
+        "gemini-2-flash": "Gemini 2.0 Flash",
+        "gemini-3-pro": "Gemini 3.0 Pro",
+        "grok-3": "Grok 3",
+        "grok-4-thinking": "Grok 4.1 Thinking",
+        "perplexity-sonar": "Perplexity Sonar",
+        "sonar-pro": "Perplexity Sonar Pro (Deep Research)",
     }
 
     @classmethod
@@ -208,20 +231,19 @@ async def query_perplexity_local(prompt: str, context: str) -> str | None:
     }
 
     payload: dict[str, Any] = {
-        "model": "pplx-7b-chat",
+        "model": "sonar-pro",  # Deep research model with 200k context
         "messages": [
             {
                 "role": "system",
-                "content": "You are Perplexity operating in offline mode. Use ONLY the supplied context.",
+                "content": "You are Perplexity Sonar Pro. Analyze the supplied context thoroughly and provide comprehensive insights.",
             },
             {
                 "role": "user",
                 "content": f"Context:\n{context}\n\nPrompt:\n{prompt}",
             },
         ],
-        # Never hit the public web unless explicitly enabled
+        # Control web search based on settings
         "search_web": bool(getattr(settings, "AI_WEB_ACCESS_ENABLED", False)),
-        "search_recency": "off",
         "temperature": 0.2,
         "top_p": 0.9,
     }
