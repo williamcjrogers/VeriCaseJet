@@ -1,25 +1,24 @@
-# pyright: reportMissingTypeStubs=false, reportDeprecatedType=false
+# pyright: reportMissingTypeStubs=false
 """
 AI Evidence Assistant - Multi-Model Deep Research
 Helps users understand their evidence, build chronologies, and develop narratives
-Uses GPT-5 Pro, Gemini 2.5 Pro, Claude Opus 4.1, and Grok 4 for comprehensive analysis
+Uses GPT-5.1, Gemini 3 Pro, Claude Opus 4.5, and Grok 4.1 for comprehensive analysis
 """
 import logging
 import asyncio
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
+from typing import Any
 from enum import Enum
 
 from fastapi import APIRouter, Depends, HTTPException, Body
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
+from sqlalchemy import or_
 
-from .models import User, EmailMessage, Project, Case, EmailAttachment
+from .models import User, EmailMessage, Project, Case
 from .db import get_db
 from .security import current_user
-from .config import settings
-from .ai_settings import AISettings, get_ai_api_key, get_ai_model, get_ai_providers_status
+from .ai_settings import AISettings, get_ai_api_key, get_ai_model
 from .ai_models import (
     AIModelService,
     TaskComplexity,
@@ -40,8 +39,8 @@ class ResearchMode(str, Enum):
 class ResearchPlan(BaseModel):
     """Research plan for deep analysis"""
     objective: str
-    analysis_steps: List[str]
-    models_assigned: Dict[str, str]  # model -> task
+    analysis_steps: list[str]
+    models_assigned: dict[str, str]  # model -> task
     estimated_time: str
 
 
@@ -52,7 +51,7 @@ class ModelResponse(BaseModel):
     response: str
     confidence: float
     processing_time: float
-    key_findings: List[str]
+    key_findings: list[str]
 
 
 class EvidenceSource(BaseModel):
@@ -67,19 +66,19 @@ class EvidenceSource(BaseModel):
 class ChatRequest(BaseModel):
     query: str
     mode: ResearchMode
-    project_id: Optional[str] = None
-    case_id: Optional[str] = None
+    project_id: str | None = None
+    case_id: str | None = None
 
 
 class ChatResponse(BaseModel):
     query: str
     mode: str
-    plan: Optional[ResearchPlan] = None
+    plan: ResearchPlan | None = None
     answer: str
-    model_responses: List[ModelResponse]
-    sources: List[EvidenceSource]
-    chronology_events: List[Dict[str, Any]]
-    key_findings: List[str]
+    model_responses: list[ModelResponse]
+    sources: list[EvidenceSource]
+    chronology_events: list[dict[str, Any]]
+    key_findings: list[str]
     processing_time: float
     timestamp: datetime
 
@@ -117,7 +116,7 @@ class AIEvidenceOrchestrator:
         self.gemini_model = get_ai_model('gemini', db)
         self.grok_model = get_ai_model('grok', db)
     
-    async def quick_search(self, query: str, emails: List[EmailMessage]) -> ModelResponse:
+    async def quick_search(self, query: str, emails: list[EmailMessage]) -> ModelResponse:
         """Quick evidence search using fastest model"""
         start_time = datetime.now(timezone.utc)
 
@@ -137,7 +136,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
             "quick_search", TaskComplexity.BASIC, model_config
         )
 
-        attempts: List[str] = []
+        attempts: list[str] = []
 
         for candidate in candidate_models:
             resolved = AIModelService.resolve_model(candidate)
@@ -181,7 +180,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
         error_detail = attempts or ["No AI models configured. Add API keys to .env"]
         raise HTTPException(500, f"Quick search failed -> {', '.join(error_detail)}")
     
-    async def deep_research(self, query: str, emails: List[EmailMessage]) -> tuple[ResearchPlan, List[ModelResponse]]:
+    async def deep_research(self, query: str, emails: list[EmailMessage]) -> tuple[ResearchPlan, list[ModelResponse]]:
         """
         Deep multi-model evidence research:
         1. Create research plan
@@ -260,7 +259,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
         
         return plan, valid_responses
     
-    async def _create_evidence_plan(self, query: str, emails: List[EmailMessage]) -> ResearchPlan:
+    async def _create_evidence_plan(self, query: str, emails: list[EmailMessage]) -> ResearchPlan:
         """Create strategic research plan for evidence analysis"""
         
         # Analyze query type
@@ -351,15 +350,17 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
         }
         
         plan_data = plans.get(focus, plans["general_analysis"])
-        
+        steps = plan_data["steps"]
+        models = plan_data["models"]
+
         return ResearchPlan(
             objective=query,
-            analysis_steps=plan_data["steps"],
-            models_assigned=plan_data["models"],
+            analysis_steps=steps if isinstance(steps, list) else [],
+            models_assigned=models if isinstance(models, dict) else {},
             estimated_time="30-60 seconds"
         )
-    
-    def _build_evidence_context(self, emails: List[EmailMessage], detailed: bool = False) -> str:
+
+    def _build_evidence_context(self, emails: list[EmailMessage], detailed: bool = False) -> str:
         """Build evidence context from emails"""
         if not emails:
             return "No evidence available."
@@ -387,7 +388,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
         
         return "\n\n".join(context_parts)
     
-    def _extract_key_findings(self, text: str) -> List[str]:
+    def _extract_key_findings(self, text: str) -> list[str]:
         """Extract key findings from AI response"""
         # Simple extraction - look for bullet points or numbered lists
         findings = []
@@ -407,7 +408,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
             import google.generativeai as genai  # pyright: ignore[reportMissingTypeStubs]
             genai.configure(api_key=self.google_key)
             # Use configured model or fallback
-            actual_model: str = model_name or self.gemini_model or 'gemini-2.0-flash'
+            actual_model: str = model_name or self.gemini_model or 'gemini-3.0-pro'
             model = genai.GenerativeModel(actual_model)
             response = await asyncio.to_thread(model.generate_content, prompt)
             return response.text
@@ -420,7 +421,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
             import openai
             client = openai.AsyncOpenAI(api_key=self.openai_key)
             # Use configured model or fallback
-            actual_model: str = model_name or self.openai_model or 'gpt-4-turbo'
+            actual_model: str = model_name or self.openai_model or 'gpt-5.1-2025-11-13'
             response = await client.chat.completions.create(
                 model=actual_model,
                 messages=[{"role": "user", "content": prompt}],
@@ -454,8 +455,8 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
         self,
         query: str,
         context: str,
-        emails: List[EmailMessage],
-        model_override: Optional[str] = None,
+        emails: list[EmailMessage],
+        model_override: str | None = None,
         friendly_name: str = "ChatGPT 5 Pro Deep Research",
     ) -> ModelResponse:
         """GPT-5 Pro: Build chronology and identify key events"""
@@ -481,7 +482,7 @@ Focus on:
 Provide a structured chronology with dates, events, and responsible parties."""
 
             response = await client.chat.completions.create(
-                model=model_override or "o1-preview",  # GPT-5 equivalent with deep reasoning
+                model=model_override or "gpt-5.1-2025-11-13",  # GPT-5.1 with reasoning effort: high
                 messages=[{"role": "user", "content": prompt}]
             )
             
@@ -513,8 +514,8 @@ Provide a structured chronology with dates, events, and responsible parties."""
         self,
         query: str,
         context: str,
-        emails: List[EmailMessage],
-        model_override: Optional[str] = None,
+        emails: list[EmailMessage],
+        model_override: str | None = None,
         friendly_name: str = "Gemini 2.5 Pro Deep Think",
     ) -> ModelResponse:
         """Gemini 2.5 Pro: Find patterns and connections in evidence"""
@@ -523,7 +524,7 @@ Provide a structured chronology with dates, events, and responsible parties."""
         try:
             import google.generativeai as genai
             genai.configure(api_key=self.google_key)
-            model = genai.GenerativeModel(model_override or 'gemini-2.0-flash')
+            model = genai.GenerativeModel(model_override or 'gemini-3.0-pro')
             
             prompt = f"""You are analyzing construction dispute evidence to find patterns and connections.
 
@@ -544,7 +545,7 @@ Identify patterns that tell the story of what happened."""
             response = await asyncio.to_thread(model.generate_content, prompt)
             processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
             
-            log_model_selection("deep_research", friendly_name, f"Gemini:{model_override or 'gemini-2.0-flash-thinking-exp'}")
+            log_model_selection("deep_research", friendly_name, f"Gemini:{model_override or 'gemini-3.0-pro'}")
             
             return ModelResponse(
                 model=friendly_name,
@@ -569,8 +570,8 @@ Identify patterns that tell the story of what happened."""
         self,
         query: str,
         context: str,
-        emails: List[EmailMessage],
-        model_override: Optional[str] = None,
+        emails: list[EmailMessage],
+        model_override: str | None = None,
         friendly_name: str = "Sonnet 4.5 Extended Thinking",
     ) -> ModelResponse:
         """Claude Opus 4.1: Build coherent narrative from evidence"""
@@ -597,7 +598,7 @@ Focus on:
 Build a narrative that explains what happened and why it matters."""
 
             response = await client.messages.create(
-                model=model_override or "claude-opus-4-20250514",
+                model=model_override or "claude-opus-4-5-20251101",
                 max_tokens=4096,
                 messages=[{"role": "user", "content": prompt}],
                 extra_body={
@@ -641,8 +642,8 @@ Build a narrative that explains what happened and why it matters."""
         self,
         query: str,
         context: str,
-        emails: List[EmailMessage],
-        model_override: Optional[str] = None,
+        emails: list[EmailMessage],
+        model_override: str | None = None,
         friendly_name: str = "Grok 4 Heavy",
     ) -> ModelResponse:
         """Grok 4: Identify gaps and missing evidence"""
@@ -672,16 +673,16 @@ Focus on:
 Provide a critical analysis identifying gaps and suggesting what's needed."""
 
             response = await client.chat.completions.create(
-                model=model_override or "grok-2-1212",
+                model=model_override or "grok-4-1-fast-reasoning",
                 messages=[
-                    {"role": "system", "content": "You are Grok, providing critical analysis of legal evidence."},
+                    {"role": "system", "content": "You are Grok 4.1, providing critical analysis of legal evidence with chain-of-thought reasoning."},
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=3000
             )
-            
+
             processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
-            log_model_selection("deep_research", friendly_name, f"Grok:{model_override or 'grok-2-1212'}")
+            log_model_selection("deep_research", friendly_name, f"Grok:{model_override or 'grok-4-1-fast-reasoning'}")
             
             return ModelResponse(
                 model=friendly_name,
@@ -702,7 +703,7 @@ Provide a critical analysis identifying gaps and suggesting what's needed."""
                 key_findings=[]
             )
     
-    def synthesize_evidence_analysis(self, model_responses: List[ModelResponse], query: str) -> str:
+    def synthesize_evidence_analysis(self, model_responses: list[ModelResponse], query: str) -> str:
         """Synthesize multiple model analyses into comprehensive answer"""
         valid_responses = [r for r in model_responses if r.confidence > 0]
         
@@ -838,9 +839,9 @@ async def ai_evidence_query(
 async def _get_relevant_emails(
     db: Session,
     user_id: str,
-    project_id: Optional[str],
-    case_id: Optional[str]
-) -> List[EmailMessage]:
+    project_id: str | None,
+    case_id: str | None
+) -> list[EmailMessage]:
     """Get relevant emails for analysis"""
     try:
         query = db.query(EmailMessage)
@@ -966,7 +967,7 @@ async def test_ai_provider(
                 base_url="https://api.x.ai/v1"
             )
             result = await client.chat.completions.create(
-                model=orchestrator.grok_model or "grok-2-1212",
+                model=orchestrator.grok_model or "grok-4-1-fast-reasoning",
                 messages=[{"role": "user", "content": test_prompt}],
                 max_tokens=10
             )
@@ -979,7 +980,7 @@ async def test_ai_provider(
             response = await query_perplexity_local(test_prompt, "Test context")
             if not response:
                 return {"success": False, "error": "Perplexity returned no response"}
-            model = "pplx-7b-chat"
+            model = "sonar-pro"
             
         else:
             return {"success": False, "error": f"Unknown provider: {provider}"}

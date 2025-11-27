@@ -48,13 +48,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/deep-research", tags=["deep-research"])
 
-# Latest model defaults used when no explicit model is configured in Admin Settings
+# Latest flagship model defaults for Deep Research (use most powerful models)
 LATEST_MODEL_DEFAULTS = {
-    "openai": "gpt-4o",
-    "anthropic": "claude-sonnet-4-20250514",
-    "gemini": "gemini-2.0-flash",
-    "grok": "grok-2-1212",
-    "perplexity": "sonar-pro",
+    "openai": "gpt-5.1-2025-11-13",        # GPT-5.1 Flagship with configurable reasoning
+    "anthropic": "claude-opus-4-5-20251101", # Claude Opus 4.5 - smartest for complex tasks
+    "gemini": "gemini-3.0-pro",             # Gemini 3.0 Pro - 1M+ context multimodal
+    "grok": "grok-4-1-fast-reasoning",      # Grok 4.1 Thinking - chain-of-thought reasoning
+    "perplexity": "sonar-pro",              # Sonar Pro - 200k context, 2x citations
 }
 
 
