@@ -2,11 +2,14 @@
 Intelligent Configuration API
 AI-powered chatbot that guides users through system configuration
 """
-from fastapi import APIRouter, Depends, HTTPException, Body
+import asyncio
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any, Optional, Tuple
-from pydantic import BaseModel
+from typing import Annotated, Any, Callable, TYPE_CHECKING, TypeGuard, cast
+from pydantic import BaseModel, Field
 import logging
+import re
+
 from .security import current_user
 from .db import get_db
 from .models import User
@@ -18,19 +21,62 @@ from .ai_models import (
     query_perplexity_local,
 )
 
+if TYPE_CHECKING:
+    from openai.types.chat import (
+        ChatCompletionMessageParam,
+        ChatCompletionUserMessageParam,
+    )
+else:  # pragma: no cover - fallback types when OpenAI package isn't available
+    ChatCompletionMessageParam = Any  # type: ignore[assignment]
+    ChatCompletionUserMessageParam = dict[str, Any]  # type: ignore[assignment]
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ai", tags=["intelligent-config"])
 
-try:
-    DEFAULT_COMPLEXITY = TaskComplexity(
-        getattr(settings, "AI_TASK_COMPLEXITY_DEFAULT", "basic").lower()
-    )
-except ValueError:
-    DEFAULT_COMPLEXITY = TaskComplexity.BASIC
+
+def _determine_default_complexity() -> TaskComplexity:
+    """Return default task complexity from settings."""
+    try:
+        default_value = getattr(settings, "AI_TASK_COMPLEXITY_DEFAULT", "basic").lower()
+        return TaskComplexity(default_value)
+    except ValueError:
+        return TaskComplexity.BASIC
 
 
-def validate_project_code_format(project_code: str) -> Tuple[bool, str]:
+DEFAULT_COMPLEXITY: TaskComplexity = _determine_default_complexity()
+
+
+def _is_list_of_dicts(value: object) -> TypeGuard[list[dict[str, Any]]]:
+    """Runtime check ensuring value is a list of dicts."""
+    if not isinstance(value, list):
+        return False
+    value_list = cast(list[object], value)
+    return all(isinstance(item, dict) for item in value_list)
+
+
+TEAM_PATTERNS = [
+    r'(?:team member|member|person|user|stakeholder)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+    r'([A-Z][a-z]+\s+[A-Z][a-z]+)\s+(?:is|as|role|works as)',
+    r'email[:\s]+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
+]
+
+NAME_PATTERNS = [
+    r'(?:project|case)[:\s]+["\']?([^"\'\n]+)["\']?',
+    r'name[:\s]+["\']?([^"\'\n]+)["\']?',
+]
+
+KEYWORD_PATTERNS = [
+    r'keyword[s]?[:\s]+([^\.\n]+)',
+    r'(?:terms?|phrases?)[:\s]+([^\.\n]+)',
+]
+
+COMPLETION_SIGNALS = ['complete', 'finished', 'done', 'ready', 'all set', 'configured']
+
+DETAIL_TRIGGERS = ["analyze", "analyse", "extract", "complex", "detailed", "breakdown"]
+
+
+def validate_project_code_format(project_code: str) -> tuple[bool, str]:
     """
     Validate project code format.
     Returns (is_valid, error_message)
@@ -43,14 +89,13 @@ def validate_project_code_format(project_code: str) -> Tuple[bool, str]:
         return False, "Project code must be 100 characters or less"
     
     # Allow alphanumeric, hyphens, underscores, spaces (but recommend no spaces)
-    import re
     if not re.match(r'^[A-Za-z0-9\-_\s]+$', project_code):
         return False, "Project code can only contain letters, numbers, hyphens, and underscores"
     
     return True, ""
 
 
-def validate_case_number_format(case_number: str) -> Tuple[bool, str]:
+def validate_case_number_format(case_number: str) -> tuple[bool, str]:
     """
     Validate case number format.
     Returns (is_valid, error_message)
@@ -63,7 +108,6 @@ def validate_case_number_format(case_number: str) -> Tuple[bool, str]:
         return False, "Case number must be 100 characters or less"
     
     # Allow alphanumeric, hyphens, underscores, spaces (but recommend no spaces)
-    import re
     if not re.match(r'^[A-Za-z0-9\-_\s]+$', case_number):
         return False, "Case number can only contain letters, numbers, hyphens, and underscores"
     
@@ -77,7 +121,6 @@ def format_project_code(project_code: str) -> str:
     - Replace spaces with hyphens
     - Remove special characters except hyphens and underscores
     """
-    import re
     # Convert to uppercase
     formatted = project_code.upper()
     # Replace spaces with hyphens
@@ -94,7 +137,6 @@ def format_case_number(case_number: str) -> str:
     - Replace spaces with hyphens
     - Remove special characters except hyphens and underscores
     """
-    import re
     # Convert to uppercase
     formatted = case_number.upper()
     # Replace spaces with hyphens
@@ -104,7 +146,7 @@ def format_case_number(case_number: str) -> str:
     return formatted
 
 
-async def check_project_code_unique(project_code: str, db: Session) -> Tuple[bool, str]:
+async def check_project_code_unique(project_code: str, db: Session) -> tuple[bool, str]:
     """
     Check if project code is unique in database.
     Returns (is_unique, error_message)
@@ -117,7 +159,7 @@ async def check_project_code_unique(project_code: str, db: Session) -> Tuple[boo
     return True, ""
 
 
-async def check_case_number_unique(case_number: str, db: Session) -> Tuple[bool, str]:
+async def check_case_number_unique(case_number: str, db: Session) -> tuple[bool, str]:
     """
     Check if case number is unique in database.
     Returns (is_unique, error_message)
@@ -130,51 +172,67 @@ async def check_case_number_unique(case_number: str, db: Session) -> Tuple[bool,
     return True, ""
 
 
-def has_minimum_config(config_data: Dict) -> bool:
+def has_minimum_config(config_data: dict[str, Any]) -> bool:
     """Check if we have minimum required configuration"""
-    has_team = bool(config_data.get('team_members') and len(config_data.get('team_members', [])) > 0)
+    team_members = cast(list[Any] | None, config_data.get('team_members'))
+    has_team = bool(team_members and len(team_members) > 0)
     has_project_name = bool(config_data.get('project_name') or config_data.get('case_name'))
     # Require project_code or case_number - these are essential identifiers
-    has_project_code = bool(config_data.get('project_code'))
-    has_case_number = bool(config_data.get('case_number'))
-    
+    # Must be non-empty strings
+    project_code = config_data.get('project_code')
+    case_number = config_data.get('case_number')
+    has_project_code = isinstance(project_code, str) and bool(project_code.strip())
+    has_case_number = isinstance(case_number, str) and bool(case_number.strip())
+
     return has_team and has_project_name and (has_project_code or has_case_number)
 
 
 def _parse_natural_language_response(
-    response_text: str, 
-    current_step: str, 
-    config_data: Dict, 
-    user_message: str
-) -> Dict:
+    response_text: str,
+    current_step: str,
+    config_data: dict[str, Any],
+) -> dict[str, Any]:
     """Parse natural language AI response and extract configuration data"""
-    import re
-    
-    extracted = {}
+    extracted: dict[str, Any] = {}
     next_step = current_step
     
-    # Extract team members (names, emails, roles)
-    team_patterns = [
-        r'(?:team member|member|person|user|stakeholder)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
-        r'([A-Z][a-z]+\s+[A-Z][a-z]+)\s+(?:is|as|role|works as)',
-        r'email[:\s]+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'
-    ]
+    def _extract_matches(patterns: list[str]) -> list[str]:
+        matches: list[str] = []
+        for pattern in patterns:
+            for match in re.finditer(pattern, response_text, re.IGNORECASE):
+                for group in match.groups():
+                    if group:
+                        matches.append(group.strip())
+        return matches
     
-    # Extract project/case name
-    name_patterns = [
-        r'(?:project|case)[:\s]+["\']?([^"\'\n]+)["\']?',
-        r'name[:\s]+["\']?([^"\'\n]+)["\']?'
-    ]
+    team_matches = _extract_matches(TEAM_PATTERNS)
+    if team_matches and not config_data.get('team_members'):
+        extracted['team_members'] = [{'name': name} for name in team_matches]
     
-    # Extract keywords
-    keyword_patterns = [
-        r'keyword[s]?[:\s]+([^\.\n]+)',
-        r'(?:terms?|phrases?)[:\s]+([^\.\n]+)'
-    ]
+    name_match = None
+    for pattern in NAME_PATTERNS:
+        match = re.search(pattern, response_text, re.IGNORECASE)
+        if match:
+            name_match = match.group(1).strip()
+            break
+    if name_match:
+        if 'project' in response_text.lower():
+            extracted.setdefault('project_name', name_match)
+        else:
+            extracted.setdefault('case_name', name_match)
     
-    # Check for completion signals
-    completion_signals = ['complete', 'finished', 'done', 'ready', 'all set', 'configured']
-    if any(signal in response_text.lower() for signal in completion_signals):
+    keyword_matches = _extract_matches(KEYWORD_PATTERNS)
+    if keyword_matches and not config_data.get('keywords'):
+        normalized_keywords = [
+            keyword.strip(" ,.;")
+            for fragment in keyword_matches
+            for keyword in fragment.split(',')
+            if keyword.strip(" ,.;")
+        ]
+        if normalized_keywords:
+            extracted['keywords'] = normalized_keywords
+    
+    if any(signal in response_text.lower() for signal in COMPLETION_SIGNALS):
         if has_minimum_config(config_data):
             next_step = 'complete'
     
@@ -202,7 +260,6 @@ async def _get_ai_config_response(
     prompt: str, task_complexity: TaskComplexity = DEFAULT_COMPLEXITY
 ) -> str:
     """Get AI response for configuration using task-aware model selection."""
-    import asyncio
 
     if isinstance(task_complexity, str):
         try:
@@ -211,9 +268,8 @@ async def _get_ai_config_response(
             task_complexity = TaskComplexity.BASIC
 
     normalized_prompt = prompt.lower()
-    detail_triggers = ["analyze", "analyse", "extract", "complex", "detailed", "breakdown"]
     if task_complexity == TaskComplexity.BASIC and any(
-        term in normalized_prompt for term in detail_triggers
+        term in normalized_prompt for term in DETAIL_TRIGGERS
     ):
         task_complexity = TaskComplexity.MODERATE
 
@@ -222,7 +278,7 @@ async def _get_ai_config_response(
         "configuration", task_complexity, model_config
     )
 
-    errors: List[str] = []
+    errors: list[str] = []
 
     for candidate in candidates:
         resolved = AIModelService.resolve_model(candidate)
@@ -245,9 +301,13 @@ async def _get_ai_config_response(
                 )
                 response_text = ""
                 for block in response.content:
-                    if hasattr(block, "text"):
-                        response_text += block.text
-                response_text = response_text or response.content[0].text
+                    block_text = getattr(block, "text", None)
+                    if isinstance(block_text, str):
+                        response_text += block_text
+                if not response_text and response.content:
+                    fallback_text = getattr(response.content[0], "text", None)
+                    if isinstance(fallback_text, str):
+                        response_text = fallback_text
                 log_model_selection("configuration", display_name, f"Anthropic:{model_name}")
                 return response_text
 
@@ -255,26 +315,42 @@ async def _get_ai_config_response(
                 import openai
 
                 client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+                messages: list[ChatCompletionMessageParam] = []
+                user_message: ChatCompletionUserMessageParam = {
+                    "role": "user",
+                    "content": prompt,
+                }
+                messages.append(user_message)
                 response = await client.chat.completions.create(
                     model=model_name,
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=messages,
                     max_tokens=2000,
                 )
-                response_text = response.choices[0].message.content
+                message_content = response.choices[0].message.content
+                response_text = message_content or ""
                 log_model_selection("configuration", display_name, f"OpenAI:{model_name}")
                 return response_text
 
             if provider == "google" and settings.GEMINI_API_KEY:
-                import google.generativeai as genai
-
-                genai.configure(api_key=settings.GEMINI_API_KEY)
-                model = genai.GenerativeModel(model_name)
-                response = await asyncio.to_thread(model.generate_content, prompt)
-                response_text = getattr(response, "text", "") or ""
-                if not response_text and getattr(response, "candidates", None):
-                    parts = response.candidates[0].content.parts
-                    if parts and hasattr(parts[0], "text"):
-                        response_text = parts[0].text
+                try:
+                    import google.generativeai as genai  # pyright: ignore[reportMissingTypeStubs]
+                except ImportError as exc:
+                    logger.warning("Gemini provider unavailable: %s", exc)
+                    continue
+                
+                configure_fn = cast(Callable[..., Any], getattr(genai, "configure"))
+                generative_model_cls = cast(Callable[[str], Any], getattr(genai, "GenerativeModel"))
+                
+                configure_fn(api_key=settings.GEMINI_API_KEY)
+                model: object = generative_model_cls(model_name)
+                generate_fn = cast(Callable[[str], Any], getattr(model, "generate_content"))
+                response_obj: object = await asyncio.to_thread(generate_fn, prompt)
+                response_text = ""
+                text_attr = getattr(response_obj, "text", None)
+                if isinstance(text_attr, str):
+                    response_text = text_attr
+                if not response_text:
+                    response_text = str(response_obj)
                 if response_text:
                     log_model_selection("configuration", display_name, f"Gemini:{model_name}")
                     return response_text
@@ -291,28 +367,36 @@ async def _get_ai_config_response(
 
     detail = "No AI services available. Please configure at least one AI API key."
     if errors:
-        detail = f"All AI services failed -> {', '.join(errors)}"
+        # Limit error messages to prevent overly long HTTP responses and excessive detail
+        safe_errors: list[str] = []
+        for err in errors[:3]:  # Only include first 3 errors
+            # Remove provider prefix and truncate to safe length
+            msg = err.split(':', 1)[-1].strip() if ':' in err else str(err)
+            if len(msg) > 50:
+                msg = msg[:50] + '...'
+            safe_errors.append(msg)
+        detail = f"All AI services failed -> {', '.join(safe_errors)}"
     raise HTTPException(status_code=503, detail=detail)
 
 
 class ConfigMessage(BaseModel):
     message: str
-    conversation_history: List[Dict[str, str]] = []
+    conversation_history: list[dict[str, str]] = Field(default_factory=list)
     current_step: str = "introduction"
-    configuration_data: Dict[str, Any] = {}
+    configuration_data: dict[str, Any] = Field(default_factory=dict)
 
 
 class ConfigResponse(BaseModel):
     response: str
-    next_step: Optional[str] = None
-    configuration_data: Optional[Dict[str, Any]] = None
-    quick_actions: Optional[List[str]] = None
-    progress: Optional[int] = None
+    next_step: str | None = None
+    configuration_data: dict[str, Any] | None = None
+    quick_actions: list[str] | None = None
+    progress: int | None = None
     configuration_complete: bool = False
-    final_configuration: Optional[Dict[str, Any]] = None
+    final_configuration: dict[str, Any] | None = None
 
 
-def build_configuration_prompt(message: str, conversation_history: List[Dict], current_step: str, config_data: Dict) -> str:
+def build_configuration_prompt(message: str, conversation_history: list[dict[str, str]], current_step: str, config_data: dict[str, Any]) -> str:
     """Build a comprehensive prompt for AI to understand configuration needs"""
     
     prompt = """You are an intelligent configuration assistant for VeriCase, a legal case management and evidence analysis system.
@@ -452,9 +536,9 @@ Be helpful, ask clarifying questions when needed, and make the process feel natu
 
 @router.post("/intelligent-config", response_model=ConfigResponse)
 async def intelligent_configuration(
-    request: ConfigMessage = Body(...),
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user)
+    request: Annotated[ConfigMessage, Body(...)],
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(current_user)],
 ):
     """
     AI-powered intelligent configuration endpoint.
@@ -479,82 +563,87 @@ async def intelligent_configuration(
         response_text = ai_response_text
         
         # Try to extract JSON from response
-        parsed = None
+        parsed: dict[str, Any] | None = None
         json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_text, re.DOTALL)
         
         if json_match:
             try:
-                parsed = json.loads(json_match.group(0))
+                parsed_candidate: object = json.loads(json_match.group(0))
+                if isinstance(parsed_candidate, dict):
+                    parsed = parsed_candidate
             except json.JSONDecodeError:
                 pass
         
         # If no valid JSON found, parse natural language response
-        if not parsed:
+        if parsed is None:
             parsed = _parse_natural_language_response(
-                response_text, 
-                request.current_step, 
+                response_text,
+                request.current_step,
                 request.configuration_data,
-                request.message
             )
         
         # Merge extracted data with existing configuration
-        updated_config = {**request.configuration_data}
-        if 'extracted_data' in parsed:
-            updated_config.update(parsed['extracted_data'])
+        updated_config: dict[str, Any] = {**request.configuration_data}
+        extracted_data = parsed.get('extracted_data')
+        if isinstance(extracted_data, dict):
+            updated_config.update(cast(dict[str, Any], extracted_data))
         
-        # Format and validate project_code/case_number if provided
-        if updated_config.get('project_code'):
-            formatted_code = format_project_code(updated_config['project_code'])
+        # Format project_code/case_number if provided (uniqueness will be checked during creation)
+        project_code_value = updated_config.get('project_code')
+        if isinstance(project_code_value, str):
+            formatted_code = format_project_code(project_code_value)
             updated_config['project_code'] = formatted_code
-            # Check uniqueness
-            is_unique, error_msg = await check_project_code_unique(formatted_code, db)
-            if not is_unique:
-                # Return error to user
-                return ConfigResponse(
-                    response=f"I see you want to use project code '{formatted_code}', but that code already exists. {error_msg} Please choose a different code.",
-                    next_step=request.current_step,
-                    configuration_data=updated_config,
-                    quick_actions=['Try a different code', 'Add suffix', 'Let me suggest one'],
-                    progress=calculate_progress(request.current_step, updated_config),
-                    configuration_complete=False
-                )
-        
-        if updated_config.get('case_number'):
-            formatted_number = format_case_number(updated_config['case_number'])
+
+        case_number_value = updated_config.get('case_number')
+        if isinstance(case_number_value, str):
+            formatted_number = format_case_number(case_number_value)
             updated_config['case_number'] = formatted_number
-            # Check uniqueness
-            is_unique, error_msg = await check_case_number_unique(formatted_number, db)
-            if not is_unique:
-                # Return error to user
-                return ConfigResponse(
-                    response=f"I see you want to use case number '{formatted_number}', but that number already exists. {error_msg} Please choose a different number.",
-                    next_step=request.current_step,
-                    configuration_data=updated_config,
-                    quick_actions=['Try a different number', 'Add suffix', 'Let me suggest one'],
-                    progress=calculate_progress(request.current_step, updated_config),
-                    configuration_complete=False
-                )
         
-        # Determine next step
-        next_step = parsed.get('next_step', request.current_step)
+      
+        next_step_value= parsed.get('next_step')
+        if isinstance(next_step_value, str):
+            next_step = next_step_value
+        else:
+            next_step = request.current_step
         
         # Check if configuration is complete
-        is_complete = parsed.get('is_complete', False) or (
-            next_step == 'complete' and 
+        parsed_is_complete = parsed.get('is_complete')
+        is_complete_flag = parsed_is_complete if isinstance(parsed_is_complete, bool) else False
+        is_complete = is_complete_flag or (
+            next_step == 'complete' and
             has_minimum_config(updated_config)
         )
         
         # If complete, create the actual configuration
-        final_config = None
+        final_config: dict[str, Any] | None = None
         if is_complete:
             final_config = await create_configuration(updated_config, db, user)
         
+        response_value = parsed.get('response')
+        if not isinstance(response_value, str):
+            response_value = "I understand. Let me help you with that."
+        
+        quick_actions_field = parsed.get('quick_actions')
+        if isinstance(quick_actions_field, list):
+            quick_actions_value: list[str] = []
+            for action_obj in cast(list[object], quick_actions_field):
+                if isinstance(action_obj, str):
+                    quick_actions_value.append(action_obj)
+            if not quick_actions_value:
+                quick_actions_value = get_default_quick_actions(next_step)
+        else:
+            quick_actions_value = get_default_quick_actions(next_step)
+        
+        progress_value = parsed.get('progress')
+        if not isinstance(progress_value, int):
+            progress_value = calculate_progress(next_step, updated_config)
+        
         return ConfigResponse(
-            response=parsed.get('response', 'I understand. Let me help you with that.'),
+            response=response_value,
             next_step=next_step,
             configuration_data=updated_config,
-            quick_actions=parsed.get('quick_actions', get_default_quick_actions(next_step)),
-            progress=parsed.get('progress', calculate_progress(next_step, updated_config)),
+            quick_actions=quick_actions_value,
+            progress=progress_value,
             configuration_complete=is_complete,
             final_configuration=final_config
         )
@@ -567,7 +656,7 @@ async def intelligent_configuration(
         )
 
 
-def calculate_progress(step: str, config_data: Dict) -> int:
+def calculate_progress(step: str, config_data: dict[str, Any]) -> int:
     """Calculate progress percentage based on current step and data collected"""
     step_weights = {
         'introduction': 0,
@@ -581,19 +670,21 @@ def calculate_progress(step: str, config_data: Dict) -> int:
     base_progress = step_weights.get(step, 0)
     
     # Add bonus for data collected
-    if config_data.get('team_members'):
+    team_members_value = config_data.get('team_members')
+    if isinstance(team_members_value, list) and team_members_value:
         base_progress += 5
-    if config_data.get('project_name') or config_data.get('case_name'):
+    if isinstance(config_data.get('project_name'), str) or isinstance(config_data.get('case_name'), str):
         base_progress += 5
-    if config_data.get('project_code') or config_data.get('case_number'):
+    if isinstance(config_data.get('project_code'), str) or isinstance(config_data.get('case_number'), str):
         base_progress += 10  # IDs are critical
-    if config_data.get('keywords'):
+    keywords_value = config_data.get('keywords')
+    if isinstance(keywords_value, list) and keywords_value:
         base_progress += 5
     
     return min(base_progress, 100)
 
 
-def get_default_quick_actions(step: str) -> List[str]:
+def get_default_quick_actions(step: str) -> list[str]:
     """Get default quick action buttons based on current step"""
     actions_map = {
         'introduction': ['I\'ll add team members', 'Show me how', 'I have a team list ready'],
@@ -608,12 +699,15 @@ def get_default_quick_actions(step: str) -> List[str]:
     return actions_map.get(step, ['Continue', 'Skip', 'Help'])
 
 
-async def create_configuration(config_data: Dict, db: Session, user) -> Dict[str, Any]:
+async def create_configuration(
+    config_data: dict[str, Any],
+    db: Session,
+    user: User,
+) -> dict[str, Any]:
     """Create the actual configuration in the database"""
     from .models import Project, Case, UserCompany, Company
-    from datetime import datetime
     
-    result = {
+    result: dict[str, Any] = {
         'team_members': [],
         'project_id': None,
         'case_id': None,
@@ -645,17 +739,29 @@ async def create_configuration(config_data: Dict, db: Session, user) -> Dict[str
         company_id = user_company.company_id
         
         # Create team members (if provided)
-        if config_data.get('team_members'):
+        team_members_raw = config_data.get('team_members')
+        team_members_value: list[dict[str, Any]] | None = None
+        if _is_list_of_dicts(team_members_raw):
+            if team_members_raw:
+                team_members_value = team_members_raw
+        if team_members_value:
             # Note: In a real implementation, you'd create User records or link existing ones
-            result['team_members'] = config_data['team_members']
+            result['team_members'] = team_members_value
         
         # Create project or case
-        profile_type = config_data.get('profile_type', 'project')
-        name = config_data.get('project_name') or config_data.get('case_name', 'Untitled')
+        profile_type_raw = config_data.get('profile_type')
+        profile_type = profile_type_raw if isinstance(profile_type_raw, str) and profile_type_raw else 'project'
+        project_name_raw = config_data.get('project_name')
+        project_name_value = project_name_raw if isinstance(project_name_raw, str) else None
+        case_name_raw = config_data.get('case_name')
+        case_name_value = case_name_raw if isinstance(case_name_raw, str) else None
+        resolved_name = project_name_value if isinstance(project_name_value, str) and project_name_value else case_name_value
+        name = resolved_name if isinstance(resolved_name, str) and resolved_name else 'Untitled'
         
         if profile_type == 'project':
             # Require project_code
-            project_code = config_data.get('project_code')
+            project_code_raw = config_data.get('project_code')
+            project_code = project_code_raw if isinstance(project_code_raw, str) and project_code_raw else None
             if not project_code:
                 raise ValueError("Project code is required but not provided")
             
@@ -664,16 +770,22 @@ async def create_configuration(config_data: Dict, db: Session, user) -> Dict[str
             if existing:
                 raise ValueError(f"Project code '{project_code}' already exists")
             
+            roles_value = config_data.get('roles')
+            keywords_value = config_data.get('keywords')
+            contract_type_value = config_data.get('contract_type')
+            contract_type_str = contract_type_value if isinstance(contract_type_value, str) else None
+            desc_raw: object = config_data.get('description', '')
+            description_str = str(desc_raw) if desc_raw else ''
             project = Project(
                 project_name=name,
                 project_code=project_code,
-                description=config_data.get('description', ''),
-                contract_type=config_data.get('contract_type'),
+                description=description_str,
+                contract_type=contract_type_str,
                 owner_user_id=user.id,
                 meta={
-                    'team_members': config_data.get('team_members', []),
-                    'roles': config_data.get('roles', []),
-                    'keywords': config_data.get('keywords', []),
+                    'team_members': team_members_value or [],
+                    'roles': roles_value if isinstance(roles_value, list) else [],
+                    'keywords': keywords_value if isinstance(keywords_value, list) else [],
                     'configured_by_ai': True
                 }
             )
@@ -684,7 +796,8 @@ async def create_configuration(config_data: Dict, db: Session, user) -> Dict[str
             result['project_code'] = project.project_code
         else:
             # Require case_number
-            case_number = config_data.get('case_number')
+            case_number_raw = config_data.get('case_number')
+            case_number = case_number_raw if isinstance(case_number_raw, str) and case_number_raw else None
             if not case_number:
                 raise ValueError("Case number is required but not provided")
             
@@ -693,13 +806,17 @@ async def create_configuration(config_data: Dict, db: Session, user) -> Dict[str
             if existing:
                 raise ValueError(f"Case number '{case_number}' already exists")
             
+            contract_type_value = config_data.get('contract_type')
+            dispute_type_value = config_data.get('dispute_type')
+            case_desc_raw: object = config_data.get('description', '')
+            case_description_str = str(case_desc_raw) if case_desc_raw else ''
             case = Case(
                 name=name,
                 case_number=case_number,
-                description=config_data.get('description', ''),
-                project_name=config_data.get('project_name'),
-                contract_type=config_data.get('contract_type'),
-                dispute_type=config_data.get('dispute_type'),
+                description=case_description_str,
+                project_name=project_name_value if isinstance(project_name_value, str) else None,
+                contract_type=contract_type_value if isinstance(contract_type_value, str) else None,
+                dispute_type=dispute_type_value if isinstance(dispute_type_value, str) else None,
                 owner_id=user.id,
                 company_id=company_id,
                 status="active"
@@ -718,4 +835,3 @@ async def create_configuration(config_data: Dict, db: Session, user) -> Dict[str
         raise
     
     return result
-

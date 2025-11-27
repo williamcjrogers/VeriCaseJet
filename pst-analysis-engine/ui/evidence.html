@@ -7,518 +7,692 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.3/styles/ag-grid.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.3/styles/ag-theme-alpine.css">
+    <link rel="stylesheet" href="brand-styles.css">
+    <link rel="stylesheet" href="design-system.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="config.js"></script>
     <script src="app-state.js"></script>
+    <script src="vericase-ui.js"></script>
+    <script src="nav-shell.js"></script>
     <style>
-        :root {
-            --vericase-teal: #17B5A3;
-            --vericase-teal-dark: #129B8B;
-            --vericase-navy: #1F2937;
-            --bg-primary: #f8fafc;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        /* ============================================
+           PAGE-SPECIFIC STYLES
+           ============================================ */
+        
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: var(--bg-primary);
-            color: var(--vericase-navy);
-            -webkit-font-smoothing: antialiased;
-        }
-
-        .container {
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
             overflow: hidden;
         }
-
-        .header {
-            padding: 0.75rem 1.5rem;
-            border-bottom: 1px solid #e2e8f0;
-            background: white;
+        
+        .evidence-layout {
             display: flex;
-            align-items: center;
-            justify-content: space-between;
+            height: calc(100vh - 64px);
+            overflow: hidden;
         }
-
-        .logo {
-            color: var(--vericase-teal);
-            font-weight: 700;
-            font-size: 1.25rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .nav-buttons {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .btn {
-            padding: 0.5rem 1rem;
-            border: none;
-            border-radius: 0.5rem;
-            font-size: 0.875rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            transition: all 0.2s;
-            text-decoration: none;
-        }
-
-        .btn-primary {
-            background: var(--vericase-teal);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: var(--vericase-teal-dark);
-        }
-
-        .btn-secondary {
-            background: #f1f5f9;
-            color: #475569;
-        }
-
-        .btn-secondary:hover {
-            background: #e2e8f0;
-        }
-
-        .btn-ghost {
-            background: transparent;
-            color: #64748b;
-        }
-
-        .btn-ghost:hover {
-            background: #f1f5f9;
-        }
-
-        .btn-sm {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.75rem;
-        }
-
+        
+        /* Toolbar */
         .toolbar {
-            padding: 0.75rem 1.5rem;
+            padding: 16px 24px;
             background: white;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid var(--gray-200);
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 12px;
             flex-wrap: wrap;
         }
-
-        .search-input {
-            padding: 0.5rem 1rem;
-            border: 1px solid #e2e8f0;
-            border-radius: 0.5rem;
-            width: 300px;
+        
+        .search-container {
+            position: relative;
+            flex: 1;
+            max-width: 400px;
+        }
+        
+        .search-container input {
+            width: 100%;
+            padding: 10px 16px 10px 42px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-lg);
             font-size: 0.875rem;
+            transition: all var(--duration-fast);
+            background: var(--gray-50);
+        }
+        
+        .search-container input:focus {
             outline: none;
-        }
-
-        .search-input:focus {
             border-color: var(--vericase-teal);
-        }
-
-        .filter-select {
-            padding: 0.5rem 1rem;
-            border: 1px solid #e2e8f0;
-            border-radius: 0.5rem;
-            font-size: 0.875rem;
             background: white;
-            cursor: pointer;
+            box-shadow: 0 0 0 3px rgba(23, 181, 163, 0.1);
         }
-
-        .checkbox-label {
+        
+        .search-container i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            pointer-events: none;
+            transition: color var(--duration-fast);
+        }
+        
+        .search-container:focus-within i {
+            color: var(--vericase-teal);
+        }
+        
+        .filter-group {
             display: flex;
             align-items: center;
-            gap: 0.25rem;
-            cursor: pointer;
-            font-size: 0.875rem;
-            color: #475569;
+            gap: 8px;
         }
-
-        .spacer {
+        
+        .filter-select {
+            padding: 10px 32px 10px 14px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            font-size: 0.8125rem;
+            background: white;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236B7280' d='M3 4.5L6 7.5L9 4.5'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            transition: all var(--duration-fast);
+        }
+        
+        .filter-select:hover {
+            border-color: var(--gray-300);
+        }
+        
+        .filter-select:focus {
+            outline: none;
+            border-color: var(--vericase-teal);
+        }
+        
+        .checkbox-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-full);
+            font-size: 0.8125rem;
+            cursor: pointer;
+            transition: all var(--duration-fast);
+            user-select: none;
+            background: white;
+        }
+        
+        .checkbox-pill:hover {
+            border-color: var(--gray-300);
+        }
+        
+        .checkbox-pill.active {
+            background: rgba(23, 181, 163, 0.1);
+            border-color: var(--vericase-teal);
+            color: var(--vericase-teal-dark);
+        }
+        
+        .checkbox-pill input {
+            display: none;
+        }
+        
+        .toolbar-spacer {
             flex: 1;
         }
-
+        
+        /* Stats Bar */
         .stats-bar {
-            padding: 0.5rem 1.5rem;
-            background: #f1f5f9;
+            padding: 10px 24px;
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
             display: flex;
-            gap: 2rem;
-            font-size: 0.75rem;
-            color: #64748b;
+            gap: 32px;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
         }
-
+        
         .stat-item {
             display: flex;
             align-items: center;
-            gap: 0.25rem;
+            gap: 8px;
         }
-
+        
         .stat-value {
-            font-weight: 600;
-            color: #1e293b;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-size: 0.9375rem;
         }
-
-        .main-content {
-            flex: 1;
+        
+        /* Category Tabs */
+        .category-tabs {
             display: flex;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .sidebar {
-            width: 240px;
+            gap: 0;
             background: white;
-            border-right: 1px solid #e2e8f0;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            border-bottom: 1px solid var(--gray-200);
+            padding: 0 24px;
         }
-
-        .sidebar-header {
-            padding: 1rem;
-            font-weight: 600;
-            font-size: 0.875rem;
-            color: #1e293b;
-            border-bottom: 1px solid #e2e8f0;
-        }
-
-        .collection-list {
-            flex: 1;
-            overflow: auto;
-            padding: 0.5rem;
-        }
-
-        .collection-item {
-            padding: 0.5rem 0.75rem;
-            border-radius: 0.375rem;
-            cursor: pointer;
+        
+        .category-tab {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 8px;
+            padding: 14px 20px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
             font-size: 0.875rem;
-            color: #475569;
-            transition: all 0.15s;
+            font-weight: 500;
+            cursor: pointer;
+            position: relative;
+            transition: all var(--duration-fast);
         }
-
+        
+        .category-tab::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--vericase-teal);
+            transform: scaleX(0);
+            transition: transform var(--duration-normal) var(--ease-out-expo);
+        }
+        
+        .category-tab:hover {
+            color: var(--text-primary);
+        }
+        
+        .category-tab.active {
+            color: var(--vericase-teal);
+        }
+        
+        .category-tab.active::after {
+            transform: scaleX(1);
+        }
+        
+        .tab-count {
+            background: var(--gray-200);
+            color: var(--text-secondary);
+            padding: 2px 8px;
+            border-radius: var(--radius-full);
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: all var(--duration-fast);
+        }
+        
+        .category-tab.active .tab-count {
+            background: rgba(23, 181, 163, 0.15);
+            color: var(--vericase-teal-dark);
+        }
+        
+        /* Collections Sidebar */
+        .collections-sidebar {
+            width: 240px;
+            background: white;
+            border-right: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+        
+        .sidebar-section-title {
+            padding: 16px 16px 8px;
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+        }
+        
+        .collection-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 8px 16px;
+        }
+        
+        .collection-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            transition: all var(--duration-fast);
+        }
+        
         .collection-item:hover {
-            background: #f1f5f9;
+            background: var(--gray-100);
+            color: var(--text-primary);
         }
-
+        
         .collection-item.active {
-            background: #e0f2fe;
-            color: #0369a1;
+            background: rgba(23, 181, 163, 0.1);
+            color: var(--vericase-teal-dark);
         }
-
+        
+        .collection-item i {
+            font-size: 1rem;
+            width: 20px;
+            text-align: center;
+            opacity: 0.7;
+        }
+        
+        .collection-item.active i {
+            opacity: 1;
+            color: var(--vericase-teal);
+        }
+        
         .collection-count {
             margin-left: auto;
-            font-size: 0.75rem;
-            color: #94a3b8;
+            background: var(--gray-200);
+            padding: 2px 8px;
+            border-radius: var(--radius-full);
+            font-size: 0.6875rem;
+            font-weight: 600;
         }
-
+        
+        .collection-item.active .collection-count {
+            background: rgba(23, 181, 163, 0.2);
+            color: var(--vericase-teal-dark);
+        }
+        
+        /* Grid Container */
         .grid-container {
             flex: 1;
             display: flex;
             flex-direction: column;
+            min-width: 0;
+            background: var(--gray-50);
+            position: relative;
+        }
+        
+        .grid-wrapper {
+            flex: 1;
+            padding: 16px;
             overflow: hidden;
         }
-
-        /* Enhanced Detail Panel */
-        .detail-panel {
-            width: 480px;
-            background: white;
-            border-left: 1px solid #e2e8f0;
+        
+        #evidenceGrid {
+            height: 100%;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+        
+        /* AG-Grid Premium Styling */
+        .ag-theme-alpine {
+            --ag-background-color: white;
+            --ag-header-background-color: var(--gray-50);
+            --ag-odd-row-background-color: white;
+            --ag-row-hover-color: rgba(23, 181, 163, 0.05);
+            --ag-selected-row-background-color: rgba(23, 181, 163, 0.1);
+            --ag-font-family: var(--font-sans);
+            --ag-font-size: 13px;
+            --ag-row-border-color: var(--gray-100);
+            --ag-header-foreground-color: var(--text-secondary);
+            --ag-border-color: var(--gray-200);
+            --ag-cell-horizontal-padding: 16px;
+        }
+        
+        .ag-theme-alpine .ag-root-wrapper {
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+        }
+        
+        .ag-theme-alpine .ag-header {
+            border-bottom: 2px solid var(--gray-200);
+        }
+        
+        .ag-theme-alpine .ag-header-cell {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.6875rem;
+            letter-spacing: 0.05em;
+        }
+        
+        .ag-theme-alpine .ag-row {
+            transition: background-color var(--duration-fast);
+        }
+        
+        .ag-theme-alpine .ag-row:hover {
+            background-color: rgba(23, 181, 163, 0.04) !important;
+        }
+        
+        .ag-theme-alpine .ag-row-selected {
+            background-color: rgba(23, 181, 163, 0.08) !important;
+        }
+        
+        /* Grid Cell Renderers */
+        .grid-thumbnail {
+            width: 36px;
+            height: 36px;
+            object-fit: cover;
+            border-radius: var(--radius-sm);
+            background: var(--gray-100);
+        }
+        
+        .grid-file-icon {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--gray-100);
+            border-radius: var(--radius-sm);
+            font-size: 1rem;
+        }
+        
+        .grid-file-icon.pdf { background: #FEE2E2; color: #DC2626; }
+        .grid-file-icon.word { background: #DBEAFE; color: #2563EB; }
+        .grid-file-icon.excel { background: #D1FAE5; color: #059669; }
+        .grid-file-icon.image { background: #EDE9FE; color: #7C3AED; }
+        .grid-file-icon.email { background: #FEF3C7; color: #D97706; }
+        
+        .file-info {
             display: flex;
             flex-direction: column;
-            overflow: hidden;
+            gap: 2px;
+            min-width: 0;
         }
-
+        
+        .file-name {
+            font-weight: 500;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .file-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: var(--radius-full);
+            font-size: 0.6875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+        
+        .status-processed { background: #D1FAE5; color: #065F46; }
+        .status-processing { background: #FEF3C7; color: #92400E; }
+        .status-pending { background: #E0E7FF; color: #3730A3; }
+        .status-error { background: #FEE2E2; color: #991B1B; }
+        
+        .star-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: var(--gray-300);
+            font-size: 1rem;
+            padding: 4px;
+            transition: all var(--duration-fast);
+        }
+        
+        .star-btn:hover {
+            color: var(--warning);
+            transform: scale(1.15);
+        }
+        
+        .star-btn.starred {
+            color: var(--warning);
+        }
+        
+        /* Detail Panel */
+        .detail-panel {
+            width: 420px;
+            background: white;
+            border-left: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            transform: translateX(100%);
+            opacity: 0;
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            z-index: 50;
+            box-shadow: -8px 0 30px rgba(0, 0, 0, 0.1);
+            transition: transform var(--duration-slow) var(--ease-out-expo), 
+                        opacity var(--duration-normal);
+        }
+        
+        .detail-panel.open {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        
         .detail-header {
-            padding: 1rem;
-            border-bottom: 1px solid #e2e8f0;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--gray-200);
             display: flex;
             align-items: center;
             justify-content: space-between;
+            background: var(--gray-50);
         }
-
+        
         .detail-header h3 {
-            font-size: 1rem;
+            font-size: 0.9375rem;
             font-weight: 600;
         }
-
+        
         .detail-header-actions {
             display: flex;
-            gap: 0.25rem;
+            gap: 8px;
         }
-
+        
         .close-btn {
-            background: none;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
             border: none;
+            border-radius: var(--radius-sm);
             cursor: pointer;
-            font-size: 1.25rem;
-            color: #64748b;
-            padding: 0.25rem;
+            color: var(--text-muted);
+            transition: all var(--duration-fast);
         }
-
+        
         .close-btn:hover {
-            color: #1e293b;
+            background: var(--gray-200);
+            color: var(--text-primary);
         }
-
+        
         .detail-body {
             flex: 1;
-            overflow: auto;
-            padding: 0;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
         }
-
+        
         /* Preview Section */
         .preview-section {
-            background: #1e293b;
-            padding: 1rem;
+            background: var(--gray-900);
             min-height: 200px;
+            max-height: 300px;
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
+            overflow: hidden;
         }
-
+        
+        .preview-section img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .preview-section iframe {
+            width: 100%;
+            height: 280px;
+            border: none;
+        }
+        
         .preview-placeholder {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 0.5rem;
-            color: #94a3b8;
+            gap: 8px;
+            color: var(--gray-500);
         }
-
+        
         .preview-placeholder i {
-            font-size: 3rem;
-            opacity: 0.5;
+            font-size: 2.5rem;
         }
-
-        .preview-placeholder span {
-            font-size: 0.75rem;
-        }
-
-        .preview-image {
-            max-width: 100%;
-            max-height: 300px;
-            object-fit: contain;
-            border-radius: 0.25rem;
-        }
-
-        .preview-pdf {
-            width: 100%;
-            height: 300px;
-            border: none;
-            border-radius: 0.25rem;
-            background: white;
-        }
-
-        .preview-text {
-            background: #0f172a;
-            color: #e2e8f0;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 0.75rem;
-            padding: 1rem;
-            border-radius: 0.25rem;
-            max-height: 280px;
-            overflow: auto;
-            white-space: pre-wrap;
-            word-break: break-word;
-            width: 100%;
-        }
-
+        
         .preview-expand-btn {
             position: absolute;
-            top: 0.5rem;
-            right: 0.5rem;
-            background: rgba(0,0,0,0.5);
+            bottom: 12px;
+            right: 12px;
+            background: rgba(0, 0, 0, 0.6);
             color: white;
             border: none;
-            border-radius: 0.25rem;
-            padding: 0.25rem 0.5rem;
-            cursor: pointer;
+            padding: 6px 12px;
+            border-radius: var(--radius-md);
             font-size: 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all var(--duration-fast);
         }
-
+        
         .preview-expand-btn:hover {
-            background: rgba(0,0,0,0.7);
+            background: rgba(0, 0, 0, 0.8);
         }
-
-        /* Metadata Sections */
+        
+        /* Metadata Content */
         .metadata-content {
-            padding: 1rem;
+            padding: 16px 20px;
         }
-
+        
         .detail-section {
-            margin-bottom: 1.25rem;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--gray-100);
         }
-
+        
+        .detail-section:last-child {
+            border-bottom: none;
+        }
+        
         .detail-section-header {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 0.75rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid #e2e8f0;
+            gap: 10px;
+            margin-bottom: 12px;
         }
-
+        
         .detail-section-header i {
             color: var(--vericase-teal);
+            font-size: 0.875rem;
         }
-
+        
         .detail-section-header h4 {
             font-size: 0.8125rem;
             font-weight: 600;
-            color: #374151;
-        }
-
-        .detail-label {
-            font-size: 0.6875rem;
-            color: #64748b;
-            margin-bottom: 0.125rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
+            color: var(--text-secondary);
         }
-
-        .detail-value {
-            font-size: 0.8125rem;
-            color: #1e293b;
-        }
-
+        
         .detail-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 0.75rem;
+            gap: 12px;
         }
-
+        
         .detail-item {
-            margin-bottom: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
         }
-
+        
+        .detail-label {
+            font-size: 0.6875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+        
+        .detail-value {
+            font-size: 0.875rem;
+            color: var(--text-primary);
+        }
+        
         .tag-list {
             display: flex;
             flex-wrap: wrap;
-            gap: 0.375rem;
+            gap: 6px;
         }
-
+        
         .tag {
-            padding: 0.125rem 0.5rem;
-            background: #e2e8f0;
-            border-radius: 0.25rem;
-            font-size: 0.6875rem;
-            color: #475569;
-        }
-
-        .tag-blue {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .tag-teal {
-            background: #ccfbf1;
-            color: #0f766e;
-        }
-
-        .tag-yellow {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .tag-purple {
-            background: #f3e8ff;
-            color: #6b21a8;
-        }
-
-        /* Metadata Pills */
-        .metadata-pill {
             display: inline-flex;
             align-items: center;
-            gap: 0.25rem;
-            padding: 0.25rem 0.5rem;
-            background: #f1f5f9;
-            border-radius: 1rem;
+            gap: 4px;
+            padding: 4px 10px;
+            background: var(--gray-100);
+            border-radius: var(--radius-full);
             font-size: 0.75rem;
-            color: #475569;
+            color: var(--text-secondary);
         }
-
-        .metadata-pill i {
-            font-size: 0.625rem;
-        }
-
-        /* Link Cards */
-        .link-card {
-            padding: 0.5rem;
-            background: #f8fafc;
-            border-radius: 0.25rem;
-            margin-bottom: 0.5rem;
-            font-size: 0.8125rem;
-            border: 1px solid #e2e8f0;
-        }
-
-        .link-card:hover {
-            background: #f1f5f9;
-        }
-
-        .link-card-title {
-            font-weight: 500;
-            color: #0f172a;
-        }
-
-        .link-card-meta {
-            color: #64748b;
-            font-size: 0.75rem;
-        }
-
-        /* Action Buttons in Detail */
+        
+        .tag-blue { background: #DBEAFE; color: #1E40AF; }
+        .tag-teal { background: rgba(23, 181, 163, 0.15); color: var(--vericase-teal-dark); }
+        .tag-purple { background: #EDE9FE; color: #5B21B6; }
+        .tag-yellow { background: #FEF3C7; color: #92400E; }
+        
+        /* Detail Actions */
         .detail-actions {
-            padding: 1rem;
-            border-top: 1px solid #e2e8f0;
+            padding: 16px 20px;
+            border-top: 1px solid var(--gray-200);
             display: flex;
-            gap: 0.5rem;
+            gap: 12px;
+            background: var(--gray-50);
         }
-
+        
         .detail-actions .btn {
             flex: 1;
-            justify-content: center;
         }
-
+        
         /* Full-Screen Preview Modal */
         .preview-modal {
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.9);
-            z-index: 1000;
-            display: none;
-            flex-direction: column;
-        }
-
-        .preview-modal.active {
+            inset: 0;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: var(--z-modal);
             display: flex;
+            flex-direction: column;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity var(--duration-normal), visibility var(--duration-normal);
         }
-
+        
+        .preview-modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
         .preview-modal-header {
-            padding: 1rem;
+            padding: 16px 24px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             color: white;
         }
-
+        
         .preview-modal-title {
             font-weight: 500;
             max-width: 70%;
@@ -526,312 +700,158 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-
+        
         .preview-modal-actions {
             display: flex;
-            gap: 0.5rem;
+            gap: 8px;
         }
-
+        
         .preview-modal-actions .btn {
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
-
+        
         .preview-modal-actions .btn:hover {
-            background: rgba(255,255,255,0.2);
+            background: rgba(255, 255, 255, 0.2);
         }
-
+        
         .preview-modal-body {
             flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 2rem;
+            padding: 24px;
             overflow: auto;
         }
-
+        
         .preview-modal-content {
             max-width: 100%;
             max-height: 100%;
         }
-
+        
         .preview-modal-content img {
             max-width: 100%;
             max-height: calc(100vh - 150px);
             object-fit: contain;
         }
-
+        
         .preview-modal-content iframe {
             width: 90vw;
             height: calc(100vh - 150px);
             border: none;
             background: white;
-            border-radius: 0.5rem;
+            border-radius: var(--radius-lg);
         }
-
+        
         .preview-modal-content pre {
-            background: #0f172a;
-            color: #e2e8f0;
-            padding: 2rem;
-            border-radius: 0.5rem;
+            background: var(--gray-900);
+            color: var(--gray-300);
+            padding: 24px;
+            border-radius: var(--radius-lg);
             max-width: 90vw;
             max-height: calc(100vh - 150px);
             overflow: auto;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 0.875rem;
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
             white-space: pre-wrap;
             word-break: break-word;
         }
-
-        /* Loading States */
-        .loading-spinner {
-            animation: spin 1s linear infinite;
+        
+        /* Link Cards */
+        .link-card {
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-md);
+            padding: 12px;
+            margin-bottom: 8px;
+            transition: all var(--duration-fast);
         }
-
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+        
+        .link-card:hover {
+            border-color: var(--vericase-teal);
+            background: white;
         }
-
-        .loading-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(255,255,255,0.8);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10;
+        
+        .link-card-title {
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 4px;
         }
-
-        /* AG Grid theme customization */
-        .ag-theme-alpine {
-            --ag-header-background-color: #f8fafc;
-            --ag-odd-row-background-color: #ffffff;
-            --ag-row-hover-color: #f0fdfa;
-            --ag-selected-row-background-color: #e0f2fe;
+        
+        .link-card-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
         }
-
-        /* Thumbnail in grid */
-        .grid-thumbnail {
-            width: 32px;
-            height: 32px;
-            object-fit: cover;
-            border-radius: 0.25rem;
-            background: #f1f5f9;
-        }
-
-        .grid-thumbnail-placeholder {
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #f1f5f9;
-            border-radius: 0.25rem;
-            color: #64748b;
-            font-size: 0.875rem;
-        }
-
-        /* EXIF/GPS Section */
+        
+        /* GPS Link */
         .gps-map-link {
             display: inline-flex;
             align-items: center;
-            gap: 0.25rem;
-            color: #0369a1;
+            gap: 6px;
+            color: var(--vericase-blue);
             text-decoration: none;
-            font-size: 0.75rem;
+            font-size: 0.8125rem;
         }
-
+        
         .gps-map-link:hover {
             text-decoration: underline;
         }
-
-        /* Status badges */
-        .status-badge {
-            padding: 0.125rem 0.375rem;
-            border-radius: 0.25rem;
-            font-size: 0.6875rem;
-            font-weight: 500;
+        
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .collections-sidebar {
+                display: none;
+            }
         }
-
-        .status-ready {
-            background: #dcfce7;
-            color: #166534;
-        }
-
-        .status-processing {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .status-pending {
-            background: #e0e7ff;
-            color: #3730a3;
-        }
-
-        .status-error {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        /* Category Tabs */
-        .category-tabs {
-            display: flex;
-            gap: 0;
-            background: white;
-            border-bottom: 1px solid #e2e8f0;
-            padding: 0 1.5rem;
-        }
-
-        .category-tab {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.875rem 1.5rem;
-            border: none;
-            background: transparent;
-            color: #64748b;
-            font-size: 0.875rem;
-            font-weight: 500;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: all 0.2s;
-        }
-
-        .category-tab:hover {
-            color: #1e293b;
-            background: #f8fafc;
-        }
-
-        .category-tab.active {
-            color: var(--vericase-teal);
-            border-bottom-color: var(--vericase-teal);
-            background: #f0fdfa;
-        }
-
-        .category-tab i {
-            font-size: 1rem;
-        }
-
-        .tab-count {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 1.5rem;
-            height: 1.25rem;
-            padding: 0 0.375rem;
-            background: #e2e8f0;
-            border-radius: 0.625rem;
-            font-size: 0.6875rem;
-            font-weight: 600;
-        }
-
-        .category-tab.active .tab-count {
-            background: var(--vericase-teal);
-            color: white;
-        }
-
-        /* File type icon colors */
-        .file-icon-pdf { color: #dc2626; }
-        .file-icon-word { color: #2563eb; }
-        .file-icon-excel { color: #16a34a; }
-        .file-icon-powerpoint { color: #ea580c; }
-        .file-icon-image { color: #8b5cf6; }
-        .file-icon-text { color: #64748b; }
-        .file-icon-archive { color: #78716c; }
-        .file-icon-audio { color: #ec4899; }
-        .file-icon-video { color: #f43f5e; }
-        .file-icon-other { color: #94a3b8; }
-
-        /* Source email cell */
-        .source-email {
-            display: flex;
-            flex-direction: column;
-            gap: 0.125rem;
-            line-height: 1.2;
-        }
-
-        .source-email-subject {
-            font-size: 0.75rem;
-            color: #1e293b;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 200px;
-        }
-
-        .source-email-from {
-            font-size: 0.6875rem;
-            color: #64748b;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 200px;
-        }
-
-        /* File type badge */
-        .file-type-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-            padding: 0.125rem 0.5rem;
-            background: #f1f5f9;
-            border-radius: 0.25rem;
-            font-size: 0.6875rem;
-            font-weight: 500;
-            text-transform: uppercase;
+        
+        @media (max-width: 768px) {
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .search-container {
+                max-width: 100%;
+            }
+            
+            .filter-group {
+                flex-wrap: wrap;
+            }
+            
+            .detail-panel {
+                width: 100%;
+            }
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.3/dist/ag-grid-community.min.js"></script>
 </head>
-<body>
-    <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <div class="logo">
-                <span>📁</span> VeriCase Evidence Repository
-            </div>
-            <div class="nav-buttons">
-                <button class="btn btn-secondary" onclick="window.location.href='contentious-matters.html'">
-                    ⚖️ Claims
-                </button>
-                <button class="btn btn-secondary" onclick="VeriCaseApp.gotoCorrespondence()">
-                    📨 Correspondence
-                </button>
-                <button class="btn btn-secondary" onclick="VeriCaseApp.gotoDashboard()">
-                    🏠 Dashboard
-                </button>
-            </div>
-        </div>
+<body class="preload">
+    <!-- Category Tabs -->
+    <div class="category-tabs">
+        <button class="category-tab active" data-category="documents" id="tabDocuments">
+            <i class="fas fa-file-alt"></i> Documents
+            <span class="tab-count" id="docCount">0</span>
+        </button>
+        <button class="category-tab" data-category="images" id="tabImages">
+            <i class="fas fa-image"></i> Images & Media
+            <span class="tab-count" id="imgCount">0</span>
+        </button>
+        <button class="category-tab" data-category="all" id="tabAll">
+            <i class="fas fa-layer-group"></i> All Files
+            <span class="tab-count" id="allCount">0</span>
+        </button>
+    </div>
 
-        <!-- Category Tabs -->
-        <div class="category-tabs">
-            <button class="category-tab active" data-category="documents" id="tabDocuments">
-                <i class="fas fa-file-alt"></i> Documents
-                <span class="tab-count" id="docCount">0</span>
-            </button>
-            <button class="category-tab" data-category="images" id="tabImages">
-                <i class="fas fa-image"></i> Images & Media
-                <span class="tab-count" id="imgCount">0</span>
-            </button>
-            <button class="category-tab" data-category="all" id="tabAll">
-                <i class="fas fa-layer-group"></i> All Files
-                <span class="tab-count" id="allCount">0</span>
-            </button>
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <div class="search-container">
+            <i class="fas fa-search"></i>
+            <input type="text" id="searchInput" placeholder="Search evidence by name, content, or tags...">
         </div>
-
-        <!-- Toolbar -->
-        <div class="toolbar">
-            <input 
-                type="text" 
-                class="search-input" 
-                id="searchInput"
-                placeholder="Search evidence..."
-            >
-            
+        
+        <div class="filter-group">
             <select class="filter-select" id="fileTypeFilter">
                 <option value="">All File Types</option>
                 <option value="pdf">PDF Documents</option>
@@ -851,93 +871,104 @@
                 <option value="error">Error</option>
             </select>
 
-            <label class="checkbox-label">
+            <label class="checkbox-pill" id="unassignedPill">
                 <input type="checkbox" id="unassignedFilter">
-                Unassigned only
+                <i class="fas fa-inbox"></i>
+                Unassigned
             </label>
 
-            <label class="checkbox-label">
+            <label class="checkbox-pill" id="starredPill">
                 <input type="checkbox" id="starredFilter">
-                Starred only
+                <i class="fas fa-star"></i>
+                Starred
             </label>
-
-            <div class="spacer"></div>
-
-            <input type="file" id="fileInput" multiple style="display: none;">
-            <button class="btn btn-primary" id="uploadBtn">
-                <i class="fas fa-upload"></i> Upload Evidence
-            </button>
-
-            <button class="btn btn-secondary" id="refreshBtn">
-                <i class="fas fa-sync-alt"></i> Refresh
-            </button>
         </div>
 
-        <!-- Stats Bar -->
-        <div class="stats-bar">
-            <div class="stat-item">
-                <span class="stat-value" id="totalCount">0</span> Total Items
-            </div>
-            <div class="stat-item">
-                <span class="stat-value" id="unassignedCount">0</span> Unassigned
-            </div>
-            <div class="stat-item">
-                <span class="stat-value" id="linkedCount">0</span> With Links
-            </div>
-            <div class="stat-item">
-                <span class="stat-value" id="recentCount">0</span> Recent (7d)
-            </div>
-        </div>
+        <div class="toolbar-spacer"></div>
 
-        <!-- Main Content -->
-        <div class="main-content">
-            <!-- Collections Sidebar -->
-            <div class="sidebar">
-                <div class="sidebar-header">Collections</div>
-                <div class="collection-list" id="collectionList">
-                    <div class="collection-item active" data-id="">
-                        📁 All Evidence
-                    </div>
+        <input type="file" id="fileInput" multiple style="display: none;">
+        <button class="btn btn-vericase" id="uploadBtn">
+            <i class="fas fa-upload"></i>
+            <span class="btn-text">Upload Evidence</span>
+        </button>
+
+        <button class="btn btn-ghost" id="refreshBtn" title="Refresh">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+    </div>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <i class="fas fa-archive"></i>
+            <span class="stat-value" id="totalCount">—</span>
+            <span>Total Items</span>
+        </div>
+        <div class="stat-item">
+            <i class="fas fa-inbox"></i>
+            <span class="stat-value" id="unassignedCount">—</span>
+            <span>Unassigned</span>
+        </div>
+        <div class="stat-item">
+            <i class="fas fa-link"></i>
+            <span class="stat-value" id="linkedCount">—</span>
+            <span>With Links</span>
+        </div>
+        <div class="stat-item">
+            <i class="fas fa-clock"></i>
+            <span class="stat-value" id="recentCount">—</span>
+            <span>Recent (7d)</span>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="evidence-layout">
+        <!-- Collections Sidebar -->
+        <div class="collections-sidebar">
+            <div class="sidebar-section-title">Collections</div>
+            <div class="collection-list" id="collectionList">
+                <div class="collection-item active" data-id="">
+                    <i class="fas fa-folder"></i>
+                    All Evidence
                 </div>
             </div>
+        </div>
 
-            <!-- Grid -->
-            <div class="grid-container">
-                <div id="evidenceGrid" class="ag-theme-alpine" style="flex: 1; width: 100%;"></div>
+        <!-- Grid Container -->
+        <div class="grid-container">
+            <div class="grid-wrapper">
+                <div id="evidenceGrid" class="ag-theme-alpine"></div>
             </div>
-
-            <!-- Enhanced Detail Panel -->
-            <div class="detail-panel" id="detailPanel" style="display: none;">
+            
+            <!-- Detail Panel -->
+            <div class="detail-panel" id="detailPanel">
                 <div class="detail-header">
                     <h3>Evidence Details</h3>
                     <div class="detail-header-actions">
-                        <button class="btn btn-ghost btn-sm" id="extractMetadataBtn" title="Extract Metadata">
+                        <button class="btn btn-ghost btn-icon btn-sm" id="extractMetadataBtn" title="Extract Metadata">
                             <i class="fas fa-magic"></i>
                         </button>
-                        <button class="close-btn" id="closeDetailBtn">✕</button>
+                        <button class="close-btn" id="closeDetailBtn" title="Close">
+                            <i class="fas fa-times"></i>
+                        </button>
                     </div>
                 </div>
                 <div class="detail-body" id="detailBody">
-                    <!-- Preview Section -->
                     <div class="preview-section" id="previewSection">
                         <div class="preview-placeholder">
                             <i class="fas fa-file"></i>
                             <span>Select an item to preview</span>
                         </div>
                     </div>
-                    
-                    <!-- Metadata Content -->
                     <div class="metadata-content" id="metadataContent">
                         <!-- Populated dynamically -->
                     </div>
                 </div>
-                
-                <!-- Action Buttons -->
                 <div class="detail-actions">
-                    <button class="btn btn-primary" id="downloadBtn">
+                    <button class="btn btn-vericase" id="downloadBtn">
                         <i class="fas fa-download"></i> Download
                     </button>
-                    <button class="btn btn-secondary" id="previewFullBtn">
+                    <button class="btn btn-ghost" id="previewFullBtn">
                         <i class="fas fa-expand"></i> Full Preview
                     </button>
                 </div>
@@ -966,25 +997,21 @@
     </div>
 
     <script>
-        // Configuration
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        
         const apiUrl = window.VeriCaseConfig ? window.VeriCaseConfig.apiUrl : window.location.origin;
         
-        // Grid instance
         let gridApi = null;
         let selectedEvidence = null;
         let currentPreviewData = null;
-        
-        // Project/Case IDs - will be set by VeriCaseApp
         let projectId = null;
         let caseId = null;
-        
-        // Current category filter: 'documents', 'images', or 'all'
         let currentCategory = 'documents';
-        
-        // Cache for all evidence items (for client-side filtering)
         let allEvidenceItems = [];
 
-        // Evidence type labels and icons
+        // Evidence type configuration
         const typeConfig = {
             contract: { label: 'Contract', icon: 'fa-file-contract', color: '#1e40af' },
             variation: { label: 'Variation', icon: 'fa-exchange-alt', color: '#92400e' },
@@ -1008,23 +1035,10 @@
             other: { label: 'Other', icon: 'fa-file', color: '#64748b' }
         };
 
-        // MIME type to preview type mapping
-        const mimePreviewMap = {
-            'application/pdf': 'pdf',
-            'image/jpeg': 'image',
-            'image/png': 'image',
-            'image/gif': 'image',
-            'image/webp': 'image',
-            'image/svg+xml': 'image',
-            'text/plain': 'text',
-            'text/csv': 'text',
-            'text/html': 'text',
-            'application/json': 'text',
-            'application/xml': 'text',
-            'text/xml': 'text'
-        };
-
-        // Get file icon
+        // ============================================
+        // UTILITY FUNCTIONS
+        // ============================================
+        
         function getFileIcon(mimeType, evidenceType) {
             if (evidenceType && typeConfig[evidenceType]) {
                 return typeConfig[evidenceType].icon;
@@ -1041,394 +1055,209 @@
             }
             return 'fa-file';
         }
+        
+        function getFileIconClass(mimeType) {
+            if (!mimeType) return '';
+            if (mimeType === 'application/pdf') return 'pdf';
+            if (mimeType.includes('word')) return 'word';
+            if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'excel';
+            if (mimeType.startsWith('image/')) return 'image';
+            if (mimeType.includes('outlook') || mimeType === 'message/rfc822') return 'email';
+            return '';
+        }
 
-        // Format file size
         function formatFileSize(bytes) {
-            if (!bytes) return '';
+            if (!bytes) return '—';
             const k = 1024;
             const sizes = ['B', 'KB', 'MB', 'GB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
         }
 
-        // Format date
         function formatDate(dateStr) {
             if (!dateStr) return '—';
-            const date = new Date(dateStr);
-            return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-        }
-
-        // Get file type info based on MIME type and extension
-        function getFileTypeInfo(mimeType, filename) {
-            const ext = (filename || '').split('.').pop()?.toLowerCase() || '';
-            
-            // PDF
-            if (mimeType === 'application/pdf' || ext === 'pdf') {
-                return { icon: 'fa-file-pdf', label: 'PDF', colorClass: 'file-icon-pdf' };
-            }
-            // Word
-            if (mimeType?.includes('word') || ['doc', 'docx', 'rtf'].includes(ext)) {
-                return { icon: 'fa-file-word', label: 'Word', colorClass: 'file-icon-word' };
-            }
-            // Excel
-            if (mimeType?.includes('excel') || mimeType?.includes('spreadsheet') || ['xls', 'xlsx', 'csv'].includes(ext)) {
-                return { icon: 'fa-file-excel', label: 'Excel', colorClass: 'file-icon-excel' };
-            }
-            // PowerPoint
-            if (mimeType?.includes('powerpoint') || mimeType?.includes('presentation') || ['ppt', 'pptx'].includes(ext)) {
-                return { icon: 'fa-file-powerpoint', label: 'PPT', colorClass: 'file-icon-powerpoint' };
-            }
-            // Images
-            if (mimeType?.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'tiff'].includes(ext)) {
-                return { icon: 'fa-image', label: 'Image', colorClass: 'file-icon-image' };
-            }
-            // Text
-            if (mimeType?.startsWith('text/') || ['txt', 'md', 'log', 'json', 'xml', 'html'].includes(ext)) {
-                return { icon: 'fa-file-alt', label: 'Text', colorClass: 'file-icon-text' };
-            }
-            // Archive
-            if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
-                return { icon: 'fa-file-archive', label: 'Archive', colorClass: 'file-icon-archive' };
-            }
-            // Audio
-            if (mimeType?.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'm4a'].includes(ext)) {
-                return { icon: 'fa-file-audio', label: 'Audio', colorClass: 'file-icon-audio' };
-            }
-            // Video
-            if (mimeType?.startsWith('video/') || ['mp4', 'avi', 'mov', 'wmv', 'mkv'].includes(ext)) {
-                return { icon: 'fa-file-video', label: 'Video', colorClass: 'file-icon-video' };
-            }
-            // Default
-            return { icon: 'fa-file', label: ext.toUpperCase() || 'File', colorClass: 'file-icon-other' };
-        }
-
-        // Check if file is an image (for filtering)
-        function isImageFile(mimeType, filename) {
-            const ext = (filename || '').split('.').pop()?.toLowerCase() || '';
-            return mimeType?.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'tiff', 'ico'].includes(ext);
-        }
-
-        // Grid column definitions
-        const columnDefs = [
-            {
-                field: 'is_starred',
-                headerName: '',
-                width: 40,
-                cellRenderer: params => {
-                    const starred = params.value;
-                    return `<span style="cursor: pointer; color: ${starred ? '#f59e0b' : '#cbd5e1'}; font-size: 1.1rem;">★</span>`;
-                },
-                onCellClicked: params => toggleStar(params.data.id)
-            },
-            {
-                field: 'file_type_icon',
-                headerName: 'Type',
-                width: 70,
-                cellRenderer: params => {
-                    const data = params.data;
-                    const typeInfo = getFileTypeInfo(data.mime_type, data.filename);
-                    return `<div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
-                        <i class="fas ${typeInfo.icon} ${typeInfo.colorClass}" style="font-size: 1.25rem;"></i>
-                        <span style="font-size: 0.5625rem; color: #64748b; text-transform: uppercase;">${typeInfo.label}</span>
-                    </div>`;
-                }
-            },
-            {
-                field: 'filename',
-                headerName: 'Filename',
-                flex: 2,
-                minWidth: 200,
-                cellRenderer: params => {
-                    const data = params.data;
-                    const title = data.title || data.filename;
-                    const truncated = title.length > 50 ? title.substring(0, 47) + '...' : title;
-                    return `<span title="${title}">${truncated}</span>`;
-                }
-            },
-            {
-                field: 'source_email',
-                headerName: 'Source',
-                flex: 1.5,
-                minWidth: 180,
-                cellRenderer: params => {
-                    const data = params.data;
-                    // Try to get email info from the data
-                    const subject = data.source_email_subject || data.email_subject || '';
-                    const from = data.source_email_from || data.email_from || '';
-                    
-                    if (!subject && !from) {
-                        if (data.source_type === 'pst_extraction') {
-                            return '<span style="color: #64748b; font-size: 0.75rem;"><i class="fas fa-envelope" style="margin-right: 0.25rem;"></i>Email attachment</span>';
-                        }
-                        return '<span style="color: #94a3b8; font-size: 0.75rem;">—</span>';
-                    }
-                    
-                    return `<div class="source-email">
-                        <div class="source-email-subject" title="${escapeHtml(subject)}">
-                            <i class="fas fa-envelope" style="margin-right: 0.25rem; color: #0369a1; font-size: 0.625rem;"></i>
-                            ${escapeHtml(subject) || 'No subject'}
-                        </div>
-                        <div class="source-email-from" title="${escapeHtml(from)}">${escapeHtml(from)}</div>
-                    </div>`;
-                }
-            },
-            {
-                field: 'file_size',
-                headerName: 'Size',
-                width: 80,
-                valueFormatter: params => formatFileSize(params.value)
-            },
-            {
-                field: 'document_date',
-                headerName: 'Date',
-                width: 100,
-                valueFormatter: params => formatDate(params.value)
-            },
-            {
-                field: 'page_count',
-                headerName: 'Pages',
-                width: 65,
-                cellRenderer: params => {
-                    const count = params.value;
-                    if (!count) return '<span style="color: #cbd5e1;">—</span>';
-                    return `<span>${count}</span>`;
-                }
-            },
-            {
-                field: 'processing_status',
-                headerName: 'Status',
-                width: 85,
-                cellRenderer: params => {
-                    const status = params.value || 'pending';
-                    const statusClass = `status-${status}`;
-                    return `<span class="status-badge ${statusClass}">${status}</span>`;
-                }
-            },
-            {
-                field: 'created_at',
-                headerName: 'Uploaded',
-                width: 95,
-                sortable: true,
-                valueFormatter: params => formatDate(params.value)
-            },
-            {
-                field: 'claim_status',
-                headerName: 'Claim Status',
-                width: 110,
-                cellRenderer: params => {
-                    const status = params.data.claim_status || 'none';
-                    const statusConfig = {
-                        'none': { bg: '#f3f4f6', color: '#6b7280', label: 'None' },
-                        'contentious_matter': { bg: '#fef3c7', color: '#92400e', label: 'Matter' },
-                        'head_of_claim': { bg: '#fee2e2', color: '#991b1b', label: 'Claim' }
-                    };
-                    const cfg = statusConfig[status] || statusConfig['none'];
-                    return `<span style="padding: 3px 8px; border-radius: 10px; font-size: 0.7rem; 
-                                       font-weight: 600; background: ${cfg.bg}; color: ${cfg.color};">
-                                ${cfg.label}
-                            </span>`;
-                }
-            },
-            {
-                field: 'linked_to',
-                headerName: 'Linked To',
-                width: 140,
-                cellRenderer: params => {
-                    const linkedTo = params.data.linked_matter_name || params.data.linked_claim_name;
-                    if (!linkedTo) return '<span style="color: #cbd5e1;">—</span>';
-                    const isMatter = params.data.linked_matter_name;
-                    const icon = isMatter ? 'fa-exclamation-triangle' : 'fa-gavel';
-                    const iconColor = isMatter ? '#f59e0b' : '#ef4444';
-                    return `<div style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 0.75rem;"
-                                 onclick="openLinkedItem('${params.data.id}')">
-                                <i class="fas ${icon}" style="color: ${iconColor};"></i>
-                                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${linkedTo}</span>
-                            </div>`;
-                }
-            },
-            {
-                field: 'claim_notes',
-                headerName: 'Notes',
-                width: 150,
-                cellRenderer: params => {
-                    const notes = params.data.claim_notes || '';
-                    if (!notes) {
-                        return `<span style="color: #cbd5e1; font-style: italic; font-size: 0.75rem;">+ Add notes</span>`;
-                    }
-                    return `<div style="font-size: 0.75rem; max-width: 140px; overflow: hidden; 
-                                       text-overflow: ellipsis; white-space: nowrap;" 
-                                 title="${notes.replace(/"/g, '&quot;')}">${notes}</div>`;
-                }
-            }
-        ];
-
-        // Grid options
-        const gridOptions = {
-            columnDefs: columnDefs,
-            defaultColDef: {
-                resizable: true,
-                sortable: true
-            },
-            rowData: [],
-            rowSelection: 'single',
-            animateRows: true,
-            enableCellTextSelection: true,
-            suppressCellFocus: true,
-            onRowClicked: event => showDetail(event.data),
-            onGridReady: params => {
-                console.log('[Evidence] Grid ready');
-                gridApi = params.api;
-                params.api.sizeColumnsToFit();
-            }
-        };
-
-        // Main initialization - runs when script loads
-        document.addEventListener('DOMContentLoaded', async () => {
-            console.log('[Evidence] DOM ready, starting initialization...');
-            
             try {
-                // Initialize VeriCaseApp
-                await VeriCaseApp.init();
-                projectId = VeriCaseApp.projectId;
-                caseId = VeriCaseApp.caseId;
-                console.log('[Evidence] VeriCaseApp ready, projectId:', projectId);
-            } catch (e) {
-                console.warn('[Evidence] VeriCaseApp init issue:', e);
-            }
-            
-            // Create the grid
-            const gridDiv = document.getElementById('evidenceGrid');
-            agGrid.createGrid(gridDiv, gridOptions);
-            console.log('[Evidence] Grid created');
-            
-            // Load data with small delay to ensure grid is ready
-            setTimeout(async () => {
-                try {
-                    await loadEvidence();
-                    console.log('[Evidence] Data loaded:', allEvidenceItems.length, 'items');
-                    loadCollections();
-                    loadStats();
-                } catch (err) {
-                    console.error('[Evidence] Load error:', err);
-                }
-            }, 100);
-        });
-        
-        // Fallback: Check after 2 seconds if data loaded, if not, trigger load
-        setTimeout(() => {
-            if (typeof allEvidenceItems !== 'undefined' && allEvidenceItems.length === 0 && typeof gridApi !== 'undefined' && gridApi) {
-                console.log('[Evidence] Fallback: triggering data load');
-                loadEvidence().then(() => {
-                    loadCollections();
-                    loadStats();
-                }).catch(e => console.error('[Evidence] Fallback load error:', e));
-            }
-        }, 2000);
-        
-        // Set up event listeners (run immediately, they'll work once DOM is ready)
-        function setupEventListeners() {
-            // Event listeners
-            document.getElementById('searchInput')?.addEventListener('input', debounce(applyFilters, 300));
-            document.getElementById('fileTypeFilter')?.addEventListener('change', applyFilters);
-            document.getElementById('statusFilter')?.addEventListener('change', applyFilters);
-            document.getElementById('unassignedFilter')?.addEventListener('change', applyFilters);
-            document.getElementById('starredFilter')?.addEventListener('change', applyFilters);
-            document.getElementById('refreshBtn')?.addEventListener('click', () => { loadEvidence(); loadStats(); });
-            document.getElementById('uploadBtn')?.addEventListener('click', () => document.getElementById('fileInput').click());
-            document.getElementById('fileInput')?.addEventListener('change', handleFileUpload);
-            
-            // Category tab handlers
-            document.querySelectorAll('.category-tab').forEach(tab => {
-                tab.addEventListener('click', () => {
-                    document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
-                    tab.classList.add('active');
-                    currentCategory = tab.dataset.category;
-                    applyFilters();
-                });
-            });
-            document.getElementById('closeDetailBtn')?.addEventListener('click', hideDetail);
-            document.getElementById('downloadBtn')?.addEventListener('click', downloadCurrentFile);
-            document.getElementById('previewFullBtn')?.addEventListener('click', openFullPreview);
-            document.getElementById('extractMetadataBtn')?.addEventListener('click', extractMetadata);
-            document.getElementById('closePreviewModal')?.addEventListener('click', closePreviewModal);
-            document.getElementById('modalDownloadBtn')?.addEventListener('click', downloadCurrentFile);
-            
-            // Close modal on escape
-            document.addEventListener('keydown', e => {
-                if (e.key === 'Escape') closePreviewModal();
-            });
-            
-            // Collection click (reload from server since collections are server-filtered)
-            document.getElementById('collectionList')?.addEventListener('click', e => {
-                const item = e.target.closest('.collection-item');
-                if (item) {
-                    document.querySelectorAll('.collection-item').forEach(i => i.classList.remove('active'));
-                    item.classList.add('active');
-                    loadEvidence(); // Reload from server for collection filtering
-                }
-            });
-
-            // Drag and drop
-            const gridDiv2 = document.getElementById('evidenceGrid');
-            if (gridDiv2) {
-                gridDiv2.addEventListener('dragover', e => { e.preventDefault(); gridDiv2.classList.add('dragover'); });
-                gridDiv2.addEventListener('dragleave', () => gridDiv2.classList.remove('dragover'));
-                gridDiv2.addEventListener('drop', e => { e.preventDefault(); gridDiv2.classList.remove('dragover'); handleFileUpload({ target: { files: e.dataTransfer.files } }); });
+                const d = new Date(dateStr);
+                return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+            } catch {
+                return dateStr;
             }
         }
-        
-        // Set up listeners after DOM is ready
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', setupEventListeners);
-        } else {
-            setupEventListeners();
+
+        function isImageFile(mimeType, filename) {
+            if (mimeType?.startsWith('image/')) return true;
+            const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.tiff', '.tif'];
+            return imageExts.some(ext => filename?.toLowerCase().endsWith(ext));
         }
 
-        // Debounce helper
-        function debounce(fn, delay) {
-            let timeout;
-            return (...args) => {
-                clearTimeout(timeout);
-                timeout = setTimeout(() => fn(...args), delay);
+        function getFileTypeInfo(mimeType, filename) {
+            const ext = filename?.split('.').pop()?.toLowerCase() || '';
+            if (mimeType === 'application/pdf' || ext === 'pdf') return { label: 'PDF', class: 'pdf' };
+            if (mimeType?.includes('word') || ['doc', 'docx'].includes(ext)) return { label: 'Word', class: 'word' };
+            if (mimeType?.includes('excel') || mimeType?.includes('spreadsheet') || ['xls', 'xlsx', 'csv'].includes(ext)) return { label: 'Excel', class: 'excel' };
+            if (mimeType?.includes('powerpoint') || mimeType?.includes('presentation') || ['ppt', 'pptx'].includes(ext)) return { label: 'PPT', class: 'ppt' };
+            if (mimeType?.startsWith('text/') || ['txt', 'log', 'md'].includes(ext)) return { label: 'Text', class: 'text' };
+            if (mimeType?.startsWith('image/')) return { label: 'Image', class: 'image' };
+            return { label: ext.toUpperCase() || 'File', class: '' };
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ============================================
+        // GRID SETUP
+        // ============================================
+        
+        function initGrid() {
+            const gridOptions = {
+                columnDefs: [
+                    {
+                        field: 'thumbnail',
+                        headerName: '',
+                        width: 60,
+                        sortable: false,
+                        filter: false,
+                        cellRenderer: params => {
+                            const icon = getFileIcon(params.data.mime_type, params.data.evidence_type);
+                            const iconClass = getFileIconClass(params.data.mime_type);
+                            if (params.data.mime_type?.startsWith('image/') && params.data.download_url) {
+                                return `<img src="${params.data.download_url}" class="grid-thumbnail" alt="" loading="lazy">`;
+                            }
+                            return `<div class="grid-file-icon ${iconClass}"><i class="fas ${icon}"></i></div>`;
+                        }
+                    },
+                    {
+                        field: 'filename',
+                        headerName: 'Name',
+                        flex: 2,
+                        minWidth: 200,
+                        cellRenderer: params => {
+                            const typeInfo = getFileTypeInfo(params.data.mime_type, params.data.filename);
+                            return `
+                                <div class="file-info">
+                                    <span class="file-name">${escapeHtml(params.data.title || params.data.filename)}</span>
+                                    <span class="file-meta">${typeInfo.label} • ${formatFileSize(params.data.file_size)}</span>
+                                </div>
+                            `;
+                        }
+                    },
+                    {
+                        field: 'document_date',
+                        headerName: 'Date',
+                        width: 120,
+                        valueFormatter: params => formatDate(params.value)
+                    },
+                    {
+                        field: 'processing_status',
+                        headerName: 'Status',
+                        width: 120,
+                        cellRenderer: params => {
+                            const status = params.value || 'pending';
+                            return `<span class="status-badge status-${status}">${status}</span>`;
+                        }
+                    },
+                    {
+                        field: 'correspondence_count',
+                        headerName: 'Links',
+                        width: 80,
+                        cellRenderer: params => {
+                            const count = params.value || 0;
+                            if (count > 0) {
+                                return `<span style="color: var(--vericase-teal);"><i class="fas fa-link"></i> ${count}</span>`;
+                            }
+                            return `<span style="color: var(--text-muted);">—</span>`;
+                        }
+                    },
+                    {
+                        field: 'is_starred',
+                        headerName: '',
+                        width: 50,
+                        sortable: false,
+                        filter: false,
+                        cellRenderer: params => {
+                            const starred = params.value;
+                            return `<button class="star-btn ${starred ? 'starred' : ''}" onclick="event.stopPropagation(); toggleStar('${params.data.id}')">
+                                <i class="fas fa-star"></i>
+                            </button>`;
+                        }
+                    }
+                ],
+                defaultColDef: {
+                    sortable: true,
+                    filter: true,
+                    resizable: true
+                },
+                rowSelection: 'single',
+                animateRows: true,
+                rowHeight: 56,
+                headerHeight: 44,
+                onRowClicked: params => showDetail(params.data),
+                onGridReady: params => {
+                    gridApi = params.api;
+                    loadAllData();
+                }
             };
+
+            const gridDiv = document.getElementById('evidenceGrid');
+            new agGrid.Grid(gridDiv, gridOptions);
         }
 
-        // Load evidence from server
+        // ============================================
+        // DATA LOADING
+        // ============================================
+        
+        async function loadAllData() {
+            // Show loading skeletons
+            VericaseUI.Loading.showSkeleton('.grid-wrapper');
+            
+            // Load all data in parallel
+            await Promise.all([
+                loadEvidence(),
+                loadCollections(),
+                loadStats()
+            ]);
+        }
+
         async function loadEvidence() {
             try {
                 const params = new URLSearchParams();
                 params.append('page', '1');
-                params.append('page_size', '500'); // API max is 500
-                params.append('include_email_info', 'true'); // Get source email info
+                params.append('page_size', '500');
+                params.append('include_email_info', 'true');
                 
                 const activeCollection = document.querySelector('.collection-item.active');
                 const collectionId = activeCollection?.dataset.id;
                 if (collectionId) params.append('collection_id', collectionId);
-                
-                // NOTE: Don't filter by project_id for evidence repository
-                // Evidence should be visible across all projects for review
-                // Project filtering happens via collections if needed
                 
                 const response = await fetch(`${apiUrl}/api/evidence/items?${params.toString()}`);
                 
                 if (response.ok) {
                     const data = await response.json();
                     allEvidenceItems = data.items || [];
+                    
+                    // Restore grid
+                    document.querySelector('.grid-wrapper').innerHTML = '<div id="evidenceGrid" class="ag-theme-alpine" style="height: 100%;"></div>';
+                    initGrid();
+                    
                     updateCategoryCounts();
                     applyFilters();
+                    
+                    VericaseUI.Toast.success(`Loaded ${allEvidenceItems.length} evidence items`);
                 } else {
-                    console.error('Failed to load evidence');
-                    allEvidenceItems = [];
-                    gridApi.setGridOption('rowData', []);
+                    throw new Error('Failed to load evidence');
                 }
             } catch (error) {
                 console.error('Error loading evidence:', error);
+                VericaseUI.Toast.error('Failed to load evidence');
                 allEvidenceItems = [];
-                gridApi.setGridOption('rowData', []);
+                if (gridApi) gridApi.setGridOption('rowData', []);
             }
         }
 
-        // Update category tab counts
         function updateCategoryCounts() {
             let docCount = 0;
             let imgCount = 0;
@@ -1441,22 +1270,22 @@
                 }
             });
             
-            document.getElementById('docCount').textContent = docCount;
-            document.getElementById('imgCount').textContent = imgCount;
-            document.getElementById('allCount').textContent = allEvidenceItems.length;
+            document.getElementById('docCount').textContent = docCount.toLocaleString();
+            document.getElementById('imgCount').textContent = imgCount.toLocaleString();
+            document.getElementById('allCount').textContent = allEvidenceItems.length.toLocaleString();
         }
 
-        // Apply filters to cached evidence items
         function applyFilters() {
+            if (!gridApi) return;
+            
             let filtered = [...allEvidenceItems];
             
-            // Category filter (documents vs images)
+            // Category filter
             if (currentCategory === 'documents') {
                 filtered = filtered.filter(item => !isImageFile(item.mime_type, item.filename));
             } else if (currentCategory === 'images') {
                 filtered = filtered.filter(item => isImageFile(item.mime_type, item.filename));
             }
-            // 'all' shows everything
             
             // Search filter
             const search = document.getElementById('searchInput').value.toLowerCase().trim();
@@ -1507,75 +1336,85 @@
             }
             
             gridApi.setGridOption('rowData', filtered);
-            
-            // Force grid to render (fixes virtual scroll rendering issue)
-            setTimeout(() => {
-                gridApi.sizeColumnsToFit();
-            }, 100);
         }
 
-        // Load collections
         async function loadCollections() {
             try {
-                // Load all collections - don't filter by project
-                let url = `${apiUrl}/api/evidence/collections?include_system=true`;
-                
-                const response = await fetch(url);
+                const response = await fetch(`${apiUrl}/api/evidence/collections?include_system=true`);
                 
                 if (response.ok) {
                     const collections = await response.json();
                     const list = document.getElementById('collectionList');
                     
-                    let html = '<div class="collection-item active" data-id="">📁 All Evidence</div>';
+                    let html = `
+                        <div class="collection-item active" data-id="">
+                            <i class="fas fa-folder"></i>
+                            All Evidence
+                        </div>
+                    `;
                     
                     collections.forEach(c => {
-                        const icon = c.is_system ? '📂' : '📁';
+                        const icon = c.is_system ? 'fa-folder-open' : 'fa-folder';
                         html += `
                             <div class="collection-item" data-id="${c.id}">
-                                ${icon} ${c.name}
+                                <i class="fas ${icon}"></i>
+                                ${escapeHtml(c.name)}
                                 <span class="collection-count">${c.item_count || 0}</span>
                             </div>
                         `;
                     });
                     
                     list.innerHTML = html;
+                    
+                    // Re-attach click handlers
+                    list.querySelectorAll('.collection-item').forEach(item => {
+                        item.addEventListener('click', () => {
+                            list.querySelectorAll('.collection-item').forEach(i => i.classList.remove('active'));
+                            item.classList.add('active');
+                            loadEvidence();
+                        });
+                    });
                 }
             } catch (error) {
                 console.error('Error loading collections:', error);
             }
         }
 
-        // Load stats
         async function loadStats() {
             try {
-                // Don't filter stats by project - show all evidence stats
-                let url = `${apiUrl}/api/evidence/stats`;
-                
-                const response = await fetch(url);
+                const response = await fetch(`${apiUrl}/api/evidence/stats`);
                 
                 if (response.ok) {
                     const stats = await response.json();
-                    document.getElementById('totalCount').textContent = stats.total || 0;
-                    document.getElementById('unassignedCount').textContent = stats.unassigned || 0;
-                    document.getElementById('linkedCount').textContent = stats.with_correspondence || 0;
-                    document.getElementById('recentCount').textContent = stats.recent_uploads || 0;
+                    document.getElementById('totalCount').textContent = (stats.total || 0).toLocaleString();
+                    document.getElementById('unassignedCount').textContent = (stats.unassigned || 0).toLocaleString();
+                    document.getElementById('linkedCount').textContent = (stats.with_correspondence || 0).toLocaleString();
+                    document.getElementById('recentCount').textContent = (stats.recent_uploads || 0).toLocaleString();
                 }
             } catch (error) {
                 console.error('Error loading stats:', error);
             }
         }
 
-        // Open linked matter/claim
-        function openLinkedItem(evidenceId) {
-            window.open('contentious-matters.html', '_blank');
-        }
-
-        // Show detail panel with preview and metadata
+        // ============================================
+        // DETAIL PANEL
+        // ============================================
+        
         async function showDetail(evidence) {
             if (!evidence) return;
             
+            const panel = document.getElementById('detailPanel');
+            panel.classList.add('open');
+            
+            // Show loading state
+            document.getElementById('previewSection').innerHTML = `
+                <div class="preview-placeholder">
+                    <div class="loading" style="width: 32px; height: 32px; border-width: 3px;"></div>
+                    <span>Loading preview...</span>
+                </div>
+            `;
+            
             try {
-                // Get full details and preview data
                 const [detailRes, previewRes, metadataRes] = await Promise.all([
                     fetch(`${apiUrl}/api/evidence/items/${evidence.id}`),
                     fetch(`${apiUrl}/api/evidence/items/${evidence.id}/preview`),
@@ -1590,20 +1429,15 @@
                     selectedEvidence = detail;
                     currentPreviewData = preview;
                     
-                    // Render preview section
                     renderPreview(preview, detail);
-                    
-                    // Render metadata section
                     renderMetadata(detail, metadata?.metadata);
-                    
-                    document.getElementById('detailPanel').style.display = 'flex';
                 }
             } catch (error) {
                 console.error('Error loading detail:', error);
+                VericaseUI.Toast.error('Failed to load evidence details');
             }
         }
 
-        // Render preview section
         function renderPreview(preview, detail) {
             const section = document.getElementById('previewSection');
             
@@ -1617,12 +1451,12 @@
                 return;
             }
 
-            let previewHtml = '';
+            let html = '';
             
             switch (preview.preview_type) {
                 case 'image':
-                    previewHtml = `
-                        <img src="${preview.preview_url}" class="preview-image" alt="${detail.filename}">
+                    html = `
+                        <img src="${preview.preview_url}" alt="${detail.filename}">
                         <button class="preview-expand-btn" onclick="openFullPreview()">
                             <i class="fas fa-expand"></i> Expand
                         </button>
@@ -1630,8 +1464,8 @@
                     break;
                     
                 case 'pdf':
-                    previewHtml = `
-                        <iframe src="${preview.preview_url}#toolbar=0" class="preview-pdf"></iframe>
+                    html = `
+                        <iframe src="${preview.preview_url}#toolbar=0"></iframe>
                         <button class="preview-expand-btn" onclick="openFullPreview()">
                             <i class="fas fa-expand"></i> Expand
                         </button>
@@ -1639,78 +1473,51 @@
                     break;
                     
                 case 'text':
-                    const content = preview.preview_content || 'No content available';
-                    const truncated = content.length > 2000 ? content.substring(0, 2000) + '\n\n... (truncated)' : content;
-                    previewHtml = `
-                        <pre class="preview-text">${escapeHtml(truncated)}</pre>
-                        <button class="preview-expand-btn" onclick="openFullPreview()">
-                            <i class="fas fa-expand"></i> Full Text
-                        </button>
-                    `;
-                    break;
-                    
                 case 'office':
-                    const officeContent = preview.preview_content || 'Text extraction available in full preview';
-                    const officeText = typeof officeContent === 'string' ? officeContent : JSON.stringify(officeContent, null, 2);
-                    const truncatedOffice = officeText.length > 1500 ? officeText.substring(0, 1500) + '\n\n... (truncated)' : officeText;
-                    previewHtml = `
-                        <pre class="preview-text">${escapeHtml(truncatedOffice)}</pre>
+                    const content = preview.preview_content || 'No content available';
+                    const contentStr = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+                    const truncated = contentStr.length > 1000 ? contentStr.substring(0, 1000) + '\n...' : contentStr;
+                    html = `
+                        <pre style="color: var(--gray-400); font-size: 0.75rem; padding: 16px; margin: 0; overflow: auto; max-height: 100%;">${escapeHtml(truncated)}</pre>
                         <button class="preview-expand-btn" onclick="openFullPreview()">
                             <i class="fas fa-expand"></i> Full Text
                         </button>
-                    `;
-                    break;
-                    
-                case 'email':
-                    const email = preview.preview_content || {};
-                    previewHtml = `
-                        <div class="preview-text" style="padding: 1rem;">
-                            <div style="margin-bottom: 0.5rem;"><strong>From:</strong> ${email.from || '—'}</div>
-                            <div style="margin-bottom: 0.5rem;"><strong>To:</strong> ${email.to?.join(', ') || '—'}</div>
-                            ${email.cc?.length ? `<div style="margin-bottom: 0.5rem;"><strong>CC:</strong> ${email.cc.join(', ')}</div>` : ''}
-                            <div style="margin-bottom: 0.5rem;"><strong>Subject:</strong> ${email.subject || '—'}</div>
-                            <div style="margin-bottom: 0.5rem;"><strong>Date:</strong> ${formatDate(email.date)}</div>
-                            <hr style="margin: 0.5rem 0; border-color: #334155;">
-                            <div style="white-space: pre-wrap;">${escapeHtml(email.body_preview || '')}</div>
-                        </div>
                     `;
                     break;
                     
                 default:
-                    previewHtml = `
+                    html = `
                         <div class="preview-placeholder">
                             <i class="fas ${getFileIcon(detail.mime_type, detail.evidence_type)}"></i>
                             <span>${detail.filename}</span>
-                            <span style="font-size: 0.625rem; margin-top: 0.5rem;">Click "Full Preview" to download</span>
                         </div>
                     `;
             }
             
-            section.innerHTML = previewHtml;
+            section.innerHTML = html;
         }
 
-        // Render metadata section
         function renderMetadata(detail, extractedMeta) {
             const content = document.getElementById('metadataContent');
             const meta = extractedMeta || detail.extracted_metadata || {};
             
             let html = '';
             
-            // Basic Info Section
+            // Basic Info
             html += `
                 <div class="detail-section">
                     <div class="detail-section-header">
                         <i class="fas fa-info-circle"></i>
                         <h4>Basic Information</h4>
                     </div>
-                    <div class="detail-item">
+                    <div class="detail-item" style="margin-bottom: 12px;">
                         <div class="detail-label">Filename</div>
-                        <div class="detail-value">${detail.filename}</div>
+                        <div class="detail-value" style="word-break: break-all;">${escapeHtml(detail.filename)}</div>
                     </div>
                     ${detail.title && detail.title !== detail.filename ? `
-                        <div class="detail-item">
+                        <div class="detail-item" style="margin-bottom: 12px;">
                             <div class="detail-label">Title</div>
-                            <div class="detail-value">${detail.title}</div>
+                            <div class="detail-value">${escapeHtml(detail.title)}</div>
                         </div>
                     ` : ''}
                     <div class="detail-grid">
@@ -1723,21 +1530,23 @@
                             <div class="detail-value">${formatFileSize(detail.file_size)}</div>
                         </div>
                         <div class="detail-item">
-                            <div class="detail-label">MIME Type</div>
-                            <div class="detail-value" style="font-size: 0.75rem;">${detail.mime_type || '—'}</div>
-                        </div>
-                        <div class="detail-item">
                             <div class="detail-label">Status</div>
                             <div class="detail-value">
                                 <span class="status-badge status-${detail.processing_status || 'pending'}">${detail.processing_status || 'pending'}</span>
                             </div>
                         </div>
+                        ${detail.document_date ? `
+                            <div class="detail-item">
+                                <div class="detail-label">Document Date</div>
+                                <div class="detail-value">${formatDate(detail.document_date)}</div>
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
             
-            // Document Properties Section (if available)
-            if (meta.author || meta.title || meta.created_date || meta.page_count || detail.document_date) {
+            // Document Properties
+            if (meta.author || meta.created_date || meta.page_count) {
                 html += `
                     <div class="detail-section">
                         <div class="detail-section-header">
@@ -1748,25 +1557,7 @@
                             ${meta.author || detail.author ? `
                                 <div class="detail-item">
                                     <div class="detail-label">Author</div>
-                                    <div class="detail-value">${meta.author || detail.author}</div>
-                                </div>
-                            ` : ''}
-                            ${meta.creator ? `
-                                <div class="detail-item">
-                                    <div class="detail-label">Creator</div>
-                                    <div class="detail-value">${meta.creator}</div>
-                                </div>
-                            ` : ''}
-                            ${detail.document_date || meta.created_date ? `
-                                <div class="detail-item">
-                                    <div class="detail-label">Document Date</div>
-                                    <div class="detail-value">${formatDate(detail.document_date || meta.created_date)}</div>
-                                </div>
-                            ` : ''}
-                            ${meta.modified_date ? `
-                                <div class="detail-item">
-                                    <div class="detail-label">Modified</div>
-                                    <div class="detail-value">${formatDate(meta.modified_date)}</div>
+                                    <div class="detail-value">${escapeHtml(meta.author || detail.author)}</div>
                                 </div>
                             ` : ''}
                             ${meta.page_count || detail.page_count ? `
@@ -1775,22 +1566,16 @@
                                     <div class="detail-value">${meta.page_count || detail.page_count}</div>
                                 </div>
                             ` : ''}
-                            ${meta.word_count ? `
+                            ${meta.created_date ? `
                                 <div class="detail-item">
-                                    <div class="detail-label">Word Count</div>
-                                    <div class="detail-value">${meta.word_count.toLocaleString()}</div>
+                                    <div class="detail-label">Created</div>
+                                    <div class="detail-value">${formatDate(meta.created_date)}</div>
                                 </div>
                             ` : ''}
-                            ${meta.company ? `
+                            ${meta.modified_date ? `
                                 <div class="detail-item">
-                                    <div class="detail-label">Company</div>
-                                    <div class="detail-value">${meta.company}</div>
-                                </div>
-                            ` : ''}
-                            ${meta.producer ? `
-                                <div class="detail-item">
-                                    <div class="detail-label">Producer</div>
-                                    <div class="detail-value" style="font-size: 0.75rem;">${meta.producer}</div>
+                                    <div class="detail-label">Modified</div>
+                                    <div class="detail-value">${formatDate(meta.modified_date)}</div>
                                 </div>
                             ` : ''}
                         </div>
@@ -1798,7 +1583,7 @@
                 `;
             }
             
-            // Image EXIF Section
+            // Image EXIF
             if (meta.width || meta.camera_make || meta.date_taken) {
                 html += `
                     <div class="detail-section">
@@ -1813,16 +1598,10 @@
                                     <div class="detail-value">${meta.width} × ${meta.height} px</div>
                                 </div>
                             ` : ''}
-                            ${meta.color_mode ? `
-                                <div class="detail-item">
-                                    <div class="detail-label">Color Mode</div>
-                                    <div class="detail-value">${meta.color_mode}</div>
-                                </div>
-                            ` : ''}
                             ${meta.camera_make ? `
                                 <div class="detail-item">
                                     <div class="detail-label">Camera</div>
-                                    <div class="detail-value">${meta.camera_make} ${meta.camera_model || ''}</div>
+                                    <div class="detail-value">${escapeHtml(meta.camera_make)} ${escapeHtml(meta.camera_model || '')}</div>
                                 </div>
                             ` : ''}
                             ${meta.date_taken ? `
@@ -1831,38 +1610,14 @@
                                     <div class="detail-value">${formatDate(meta.date_taken)}</div>
                                 </div>
                             ` : ''}
-                            ${meta.focal_length ? `
-                                <div class="detail-item">
-                                    <div class="detail-label">Focal Length</div>
-                                    <div class="detail-value">${meta.focal_length}mm</div>
-                                </div>
-                            ` : ''}
-                            ${meta.f_number ? `
-                                <div class="detail-item">
-                                    <div class="detail-label">Aperture</div>
-                                    <div class="detail-value">f/${meta.f_number}</div>
-                                </div>
-                            ` : ''}
-                            ${meta.exposure_time ? `
-                                <div class="detail-item">
-                                    <div class="detail-label">Exposure</div>
-                                    <div class="detail-value">${meta.exposure_time}s</div>
-                                </div>
-                            ` : ''}
-                            ${meta.iso_speed ? `
-                                <div class="detail-item">
-                                    <div class="detail-label">ISO</div>
-                                    <div class="detail-value">${meta.iso_speed}</div>
-                                </div>
-                            ` : ''}
                         </div>
                         ${meta.gps_latitude && meta.gps_longitude ? `
-                            <div class="detail-item" style="margin-top: 0.5rem;">
+                            <div class="detail-item" style="margin-top: 12px;">
                                 <div class="detail-label">Location</div>
                                 <a href="https://www.google.com/maps?q=${meta.gps_latitude},${meta.gps_longitude}" target="_blank" class="gps-map-link">
                                     <i class="fas fa-map-marker-alt"></i>
                                     ${meta.gps_latitude.toFixed(6)}, ${meta.gps_longitude.toFixed(6)}
-                                    <i class="fas fa-external-link-alt" style="font-size: 0.5rem;"></i>
+                                    <i class="fas fa-external-link-alt" style="font-size: 0.6rem;"></i>
                                 </a>
                             </div>
                         ` : ''}
@@ -1870,25 +1625,7 @@
                 `;
             }
             
-            // Construction References Section
-            if (meta.drawing_number || meta.project_reference || meta.document_reference || meta.revision_number) {
-                html += `
-                    <div class="detail-section">
-                        <div class="detail-section-header">
-                            <i class="fas fa-building"></i>
-                            <h4>Construction References</h4>
-                        </div>
-                        <div class="tag-list">
-                            ${meta.drawing_number ? `<span class="tag tag-purple"><i class="fas fa-drafting-compass"></i> ${meta.drawing_number}</span>` : ''}
-                            ${meta.project_reference ? `<span class="tag tag-teal"><i class="fas fa-folder"></i> ${meta.project_reference}</span>` : ''}
-                            ${meta.document_reference ? `<span class="tag tag-blue"><i class="fas fa-hashtag"></i> ${meta.document_reference}</span>` : ''}
-                            ${meta.revision_number ? `<span class="tag tag-yellow"><i class="fas fa-code-branch"></i> Rev ${meta.revision_number}</span>` : ''}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Tags Section
+            // Tags
             if ((detail.auto_tags?.length > 0 || detail.manual_tags?.length > 0)) {
                 html += `
                     <div class="detail-section">
@@ -1897,23 +1634,8 @@
                             <h4>Tags</h4>
                         </div>
                         <div class="tag-list">
-                            ${(detail.manual_tags || []).map(t => `<span class="tag tag-blue">${t}</span>`).join('')}
-                            ${(detail.auto_tags || []).map(t => `<span class="tag">${t}</span>`).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Extracted References
-            if (detail.extracted_references?.length > 0) {
-                html += `
-                    <div class="detail-section">
-                        <div class="detail-section-header">
-                            <i class="fas fa-link"></i>
-                            <h4>Extracted References</h4>
-                        </div>
-                        <div class="tag-list">
-                            ${detail.extracted_references.map(r => `<span class="tag tag-yellow">${r.reference || r}</span>`).join('')}
+                            ${(detail.manual_tags || []).map(t => `<span class="tag tag-teal">${escapeHtml(t)}</span>`).join('')}
+                            ${(detail.auto_tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}
                         </div>
                     </div>
                 `;
@@ -1930,11 +1652,8 @@
                         ${detail.correspondence_links.map(link => `
                             <div class="link-card">
                                 ${link.email ? `
-                                    <div class="link-card-title">${link.email.subject || 'No subject'}</div>
-                                    <div class="link-card-meta">${link.email.sender_email || ''} • ${formatDate(link.email.date_sent)}</div>
-                                ` : link.external_correspondence ? `
-                                    <div class="link-card-title">${link.external_correspondence.subject || link.external_correspondence.reference || 'External'}</div>
-                                    <div class="link-card-meta">${link.external_correspondence.type || ''} • ${link.external_correspondence.date || ''}</div>
+                                    <div class="link-card-title">${escapeHtml(link.email.subject || 'No subject')}</div>
+                                    <div class="link-card-meta">${escapeHtml(link.email.sender || '')} • ${formatDate(link.email.date)}</div>
                                 ` : ''}
                                 <div class="link-card-meta">${link.link_type} • ${link.link_confidence ? link.link_confidence + '% confidence' : 'Manual link'}</div>
                             </div>
@@ -1943,8 +1662,8 @@
                 `;
             }
             
-            // File Hash (for forensic purposes)
-            if (meta.sha256 || detail.file_hash) {
+            // Forensic Data
+            if (detail.file_hash) {
                 html += `
                     <div class="detail-section">
                         <div class="detail-section-header">
@@ -1953,15 +1672,9 @@
                         </div>
                         <div class="detail-item">
                             <div class="detail-label">SHA-256 Hash</div>
-                            <div class="detail-value" style="font-family: monospace; font-size: 0.6875rem; word-break: break-all;">${meta.sha256 || detail.file_hash}</div>
+                            <div class="detail-value" style="font-family: var(--font-mono); font-size: 0.625rem; word-break: break-all;">${detail.file_hash}</div>
                         </div>
-                        ${meta.md5 ? `
-                            <div class="detail-item">
-                                <div class="detail-label">MD5 Hash</div>
-                                <div class="detail-value" style="font-family: monospace; font-size: 0.6875rem;">${meta.md5}</div>
-                            </div>
-                        ` : ''}
-                        <div class="detail-item">
+                        <div class="detail-item" style="margin-top: 8px;">
                             <div class="detail-label">Uploaded</div>
                             <div class="detail-value">${formatDate(detail.created_at)}</div>
                         </div>
@@ -1972,14 +1685,16 @@
             content.innerHTML = html;
         }
 
-        // Hide detail panel
         function hideDetail() {
-            document.getElementById('detailPanel').style.display = 'none';
+            document.getElementById('detailPanel').classList.remove('open');
             selectedEvidence = null;
             currentPreviewData = null;
         }
 
-        // Toggle star
+        // ============================================
+        // ACTIONS
+        // ============================================
+        
         async function toggleStar(evidenceId) {
             try {
                 const response = await fetch(`${apiUrl}/api/evidence/items/${evidenceId}/star`, {
@@ -1987,14 +1702,21 @@
                 });
                 
                 if (response.ok) {
-                    loadEvidence();
+                    const result = await response.json();
+                    // Update local data
+                    const item = allEvidenceItems.find(i => i.id === evidenceId);
+                    if (item) {
+                        item.is_starred = result.is_starred;
+                        applyFilters();
+                    }
+                    VericaseUI.Toast.success(result.is_starred ? 'Added to starred' : 'Removed from starred');
                 }
             } catch (error) {
                 console.error('Error toggling star:', error);
+                VericaseUI.Toast.error('Failed to update star status');
             }
         }
 
-        // Download current file
         function downloadCurrentFile() {
             if (currentPreviewData?.download_url) {
                 window.open(currentPreviewData.download_url, '_blank');
@@ -2003,7 +1725,6 @@
             }
         }
 
-        // Open full preview modal
         async function openFullPreview() {
             if (!selectedEvidence || !currentPreviewData) return;
             
@@ -2026,7 +1747,6 @@
                     
                 case 'text':
                 case 'office':
-                    // Get full text content
                     try {
                         const response = await fetch(`${apiUrl}/api/evidence/items/${selectedEvidence.id}/text-content?max_length=100000`);
                         if (response.ok) {
@@ -2035,30 +1755,18 @@
                         } else {
                             html = `<pre>${escapeHtml(currentPreviewData.preview_content || 'Could not load text content')}</pre>`;
                         }
-                    } catch (e) {
+                    } catch {
                         html = `<pre>${escapeHtml(currentPreviewData.preview_content || 'Could not load text content')}</pre>`;
                     }
                     break;
                     
-                case 'email':
-                    const email = currentPreviewData.preview_content || {};
-                    html = `<pre style="max-width: 800px;">
-From: ${email.from || '—'}
-To: ${email.to?.join(', ') || '—'}
-${email.cc?.length ? 'CC: ' + email.cc.join(', ') + '\n' : ''}Subject: ${email.subject || '—'}
-Date: ${formatDate(email.date)}
-${'─'.repeat(60)}
-
-${email.body_preview || '(No content)'}</pre>`;
-                    break;
-                    
                 default:
                     html = `
-                        <div style="text-align: center; color: #94a3b8;">
-                            <i class="fas ${getFileIcon(selectedEvidence.mime_type, selectedEvidence.evidence_type)}" style="font-size: 5rem; margin-bottom: 1rem;"></i>
+                        <div style="text-align: center; color: var(--gray-400);">
+                            <i class="fas ${getFileIcon(selectedEvidence.mime_type, selectedEvidence.evidence_type)}" style="font-size: 4rem; margin-bottom: 1rem;"></i>
                             <p>Preview not available for this file type</p>
-                            <p style="font-size: 0.875rem; margin-top: 0.5rem;">${selectedEvidence.filename}</p>
-                            <button class="btn btn-primary" style="margin-top: 1rem;" onclick="downloadCurrentFile()">
+                            <p style="font-size: 0.875rem; margin-top: 0.5rem;">${escapeHtml(selectedEvidence.filename)}</p>
+                            <button class="btn btn-vericase" style="margin-top: 1rem;" onclick="downloadCurrentFile()">
                                 <i class="fas fa-download"></i> Download File
                             </button>
                         </div>
@@ -2069,12 +1777,10 @@ ${email.body_preview || '(No content)'}</pre>`;
             modal.classList.add('active');
         }
 
-        // Close preview modal
         function closePreviewModal() {
             document.getElementById('previewModal').classList.remove('active');
         }
 
-        // Extract metadata
         async function extractMetadata() {
             if (!selectedEvidence) return;
             
@@ -2088,60 +1794,151 @@ ${email.body_preview || '(No content)'}</pre>`;
                 });
                 
                 if (response.ok) {
-                    // Refresh the detail view
                     await showDetail(selectedEvidence);
+                    VericaseUI.Toast.success('Metadata extracted successfully');
                 } else {
-                    console.error('Metadata extraction failed');
+                    VericaseUI.Toast.error('Failed to extract metadata');
                 }
             } catch (error) {
                 console.error('Error extracting metadata:', error);
+                VericaseUI.Toast.error('Failed to extract metadata');
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fas fa-magic"></i>';
             }
         }
 
-        // Handle file upload
         async function handleFileUpload(event) {
             const files = event.target.files;
             if (!files || files.length === 0) return;
             
             const uploadBtn = document.getElementById('uploadBtn');
             uploadBtn.disabled = true;
-            uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+            uploadBtn.classList.add('loading');
+            
+            const toast = VericaseUI.Toast.info(`Uploading ${files.length} file(s)...`, { duration: 0 });
             
             try {
+                let successCount = 0;
                 for (const file of files) {
                     const formData = new FormData();
                     formData.append('file', file);
                     if (projectId) formData.append('project_id', projectId);
                     if (caseId) formData.append('case_id', caseId);
                     
-                    await fetch(`${apiUrl}/api/evidence/upload/direct`, {
+                    const response = await fetch(`${apiUrl}/api/evidence/upload/direct`, {
                         method: 'POST',
                         body: formData
                     });
+                    
+                    if (response.ok) successCount++;
                 }
+                
+                VericaseUI.Toast.dismiss(toast);
+                VericaseUI.Toast.success(`Successfully uploaded ${successCount} file(s)`);
                 
                 loadEvidence();
                 loadStats();
             } catch (error) {
                 console.error('Upload error:', error);
-                alert('Upload failed. Please try again.');
+                VericaseUI.Toast.dismiss(toast);
+                VericaseUI.Toast.error('Upload failed. Please try again.');
             } finally {
                 uploadBtn.disabled = false;
-                uploadBtn.innerHTML = '<i class="fas fa-upload"></i> Upload Evidence';
+                uploadBtn.classList.remove('loading');
                 document.getElementById('fileInput').value = '';
             }
         }
 
-        // Escape HTML
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // Inject navigation shell
+            VericaseShell.inject({
+                title: 'Evidence Repository',
+                headerActions: ''
+            });
+            
+            // Get project context
+            projectId = VericaseShell.getProjectId();
+            
+            // Initialize grid
+            initGrid();
+            
+            // Category tabs
+            document.querySelectorAll('.category-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    currentCategory = tab.dataset.category;
+                    applyFilters();
+                });
+            });
+            
+            // Search with debounce
+            let searchTimeout;
+            document.getElementById('searchInput').addEventListener('input', () => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(applyFilters, 300);
+            });
+            
+            // Filters
+            document.getElementById('fileTypeFilter').addEventListener('change', applyFilters);
+            document.getElementById('statusFilter').addEventListener('change', applyFilters);
+            
+            // Checkbox pills
+            document.getElementById('unassignedFilter').addEventListener('change', (e) => {
+                document.getElementById('unassignedPill').classList.toggle('active', e.target.checked);
+                applyFilters();
+            });
+            
+            document.getElementById('starredFilter').addEventListener('change', (e) => {
+                document.getElementById('starredPill').classList.toggle('active', e.target.checked);
+                applyFilters();
+            });
+            
+            // Upload
+            document.getElementById('uploadBtn').addEventListener('click', () => {
+                document.getElementById('fileInput').click();
+            });
+            document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+            
+            // Refresh
+            document.getElementById('refreshBtn').addEventListener('click', () => {
+                VericaseUI.Toast.info('Refreshing...');
+                loadAllData();
+            });
+            
+            // Detail panel
+            document.getElementById('closeDetailBtn').addEventListener('click', hideDetail);
+            document.getElementById('downloadBtn').addEventListener('click', downloadCurrentFile);
+            document.getElementById('previewFullBtn').addEventListener('click', openFullPreview);
+            document.getElementById('extractMetadataBtn').addEventListener('click', extractMetadata);
+            
+            // Preview modal
+            document.getElementById('closePreviewModal').addEventListener('click', closePreviewModal);
+            document.getElementById('modalDownloadBtn').addEventListener('click', downloadCurrentFile);
+            document.getElementById('previewModal').addEventListener('click', (e) => {
+                if (e.target === document.getElementById('previewModal')) {
+                    closePreviewModal();
+                }
+            });
+            
+            // Escape key to close panels
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    hideDetail();
+                    closePreviewModal();
+                }
+            });
+            
+            // Remove preload class after initial render
+            requestAnimationFrame(() => {
+                document.body.classList.remove('preload');
+            });
+        });
     </script>
 </body>
 </html>

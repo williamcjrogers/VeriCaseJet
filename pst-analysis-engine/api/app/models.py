@@ -1343,3 +1343,38 @@ class ItemComment(Base):
         Index('idx_item_comments_parent', 'parent_comment_id'),
         Index('idx_item_comments_created', 'created_at'),
     )
+
+
+# =============================================================================
+# AI Refinement Session Storage
+# =============================================================================
+
+class RefinementSessionDB(Base):
+    """
+    Persistent storage for AI refinement sessions.
+    Sessions are stored in the database to survive server restarts.
+    """
+    __tablename__ = "refinement_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUID as string
+    project_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(50), default="active")  # active, awaiting_answers, ready_to_apply, applied, cancelled, failed
+    current_stage: Mapped[str] = mapped_column(String(50), default="initial_analysis")
+
+    # Store complex data as JSON
+    questions_asked: Mapped[list[Any] | None] = mapped_column(JSONB, nullable=True, default=list)
+    answers_received: Mapped[list[Any] | None] = mapped_column(JSONB, nullable=True, default=list)
+    analysis_results: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True, default=dict)
+    exclusion_rules: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True, default=dict)
+
+    # Timestamps
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+
+    # Indexes
+    __table_args__ = (
+        Index('idx_refinement_sessions_project', 'project_id'),
+        Index('idx_refinement_sessions_user', 'user_id'),
+        Index('idx_refinement_sessions_status', 'status'),
+    )

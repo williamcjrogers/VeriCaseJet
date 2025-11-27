@@ -24,6 +24,7 @@ async def debug_upload_pst(
     db: Session = Depends(get_db),
     user: User = Depends(current_user_enhanced)
 ) -> dict[str, str]:
+    # pyright: reportCallInDefaultInitializer=false, reportUnknownArgumentType=false, reportUnknownMemberType=false
     """
     BYPASS ENDPOINT: Directly upload a PST and create necessary wrapper objects (Case, Company).
     """

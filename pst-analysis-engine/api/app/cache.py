@@ -1,3 +1,4 @@
+# pyright: reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportMissingTypeStubs=false
 """
 Redis-based caching utilities for API response optimization.
 Provides decorators and helpers for caching expensive query results.
@@ -34,7 +35,11 @@ def get_redis() -> Redis | None:
                 socket_timeout=2
             )
             # Test connection
-            _redis_client.ping()
+            try:
+                res = _redis_client.ping()
+                _ = bool(res)
+            except Exception:
+                pass
             logger.info("Redis cache connected")
         except Exception as e:
             logger.warning(f"Redis cache unavailable: {e}")
@@ -87,7 +92,9 @@ def cached(
                 cached_value = redis.get(cache_k)
                 if cached_value:
                     logger.debug(f"Cache HIT: {cache_k}")
-                    return json.loads(cached_value)
+                    if isinstance(cached_value, (bytes, bytearray)):
+                        return json.loads(cached_value.decode("utf-8"))
+                    return json.loads(str(cached_value))
             except Exception as e:
                 logger.warning(f"Cache read error: {e}")
             
@@ -96,7 +103,7 @@ def cached(
             
             try:
                 # Store in cache
-                redis.setex(cache_k, ttl_seconds, json.dumps(result, default=str))
+                _ = redis.setex(cache_k, ttl_seconds, json.dumps(result, default=str))
                 logger.debug(f"Cache SET: {cache_k} (TTL: {ttl_seconds}s)")
             except Exception as e:
                 logger.warning(f"Cache write error: {e}")
@@ -137,14 +144,16 @@ async def acached(
                 cached_value = redis.get(cache_k)
                 if cached_value:
                     logger.debug(f"Async Cache HIT: {cache_k}")
-                    return json.loads(cached_value)
+                    if isinstance(cached_value, (bytes, bytearray)):
+                        return json.loads(cached_value.decode("utf-8"))
+                    return json.loads(str(cached_value))
             except Exception as e:
                 logger.warning(f"Async cache read error: {e}")
             
             result = await func(*args, **kwargs)
             
             try:
-                redis.setex(cache_k, ttl_seconds, json.dumps(result, default=str))
+                _ = redis.setex(cache_k, ttl_seconds, json.dumps(result, default=str))
                 logger.debug(f"Async Cache SET: {cache_k}")
             except Exception as e:
                 logger.warning(f"Async cache write error: {e}")

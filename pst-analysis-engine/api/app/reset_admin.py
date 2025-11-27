@@ -1,8 +1,7 @@
 import os
-import sys
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from app.security import hash_password
+from .security import hash_password
 
 # Database URL inside container
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg2://vericase:vericase@postgres:5432/vericase")
@@ -28,7 +27,7 @@ def reset_admin_password():
         if user:
             print(f"Found user {email}. Reseting password and UNLOCKING account...")
             # Reset password AND clear lockout fields
-            session.execute(
+            _ = session.execute(
                 text("""
                     UPDATE users 
                     SET password_hash = :new_hash,

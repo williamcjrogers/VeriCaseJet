@@ -7,7 +7,7 @@ import uuid
 import hashlib
 import logging
 from datetime import datetime, date, timedelta
-from typing import Any
+from typing import Any, Annotated, cast
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func, desc
@@ -29,6 +29,25 @@ from .cache import get_cached, set_cached
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/evidence", tags=["evidence-repository"])
+
+DbSession = Annotated[Session, Depends(get_db)]
+CurrentUser = Annotated[User, Depends(current_user)]
+
+def _safe_dict_list(value: list[Any] | None) -> list[dict[str, Any]]:
+    """Return only dict entries to satisfy type expectations."""
+    if value is None:
+        return []
+    result: list[dict[str, Any]] = []
+    for idx in range(len(value)):
+        entry_typed: object = value[idx]
+        if isinstance(entry_typed, dict):
+            # Use cast to explicitly type the dict for the type checker
+            typed_dict = cast(dict[str, Any], entry_typed)
+            typed_entry: dict[str, Any] = {}
+            for k in typed_dict:
+                typed_entry[str(k)] = typed_dict[k]
+            result.append(typed_entry)
+    return result
 
 
 # ============================================================================
@@ -286,14 +305,13 @@ def get_default_user(db: Session) -> User:
 @router.post("/upload/init", response_model=EvidenceUploadInitResponse)
 async def init_evidence_upload(
     request: EvidenceUploadInitRequest,
-    db: Session = Depends(get_db)
+    db: DbSession,
 ):
     """
     Initialize evidence file upload
     Returns presigned S3 URL for direct browser upload
     Case/project association is optional
     """
-    user = get_default_user(db)
     
     # Generate evidence file record
     evidence_id = str(uuid.uuid4())
@@ -326,7 +344,7 @@ async def init_evidence_upload(
 @router.post("/upload/complete")
 async def complete_evidence_upload(
     request: EvidenceItemCreate,
-    db: Session = Depends(get_db)
+    db: DbSession,
 ):
     """
     Complete evidence upload after file is uploaded to S3
@@ -395,13 +413,13 @@ async def complete_evidence_upload(
 
 @router.post("/upload/direct")
 async def direct_upload_evidence(
-    file: UploadFile = File(...),
-    case_id: str | None = Form(None),
-    project_id: str | None = Form(None),
-    collection_id: str | None = Form(None),
-    evidence_type: str | None = Form(None),
-    tags: str | None = Form(None),
-    db: Session = Depends(get_db),
+    file: Annotated[UploadFile, File(...)],
+    db: DbSession,
+    case_id: Annotated[str | None, Form()] = None,
+    project_id: Annotated[str | None, Form()] = None,
+    collection_id: Annotated[str | None, Form()] = None,
+    evidence_type: Annotated[str | None, Form()] = None,
+    tags: Annotated[str | None, Form()] = None,
 ) -> dict[str, Any]:
     """
     Direct file upload (streams file to S3)
@@ -433,12 +451,13 @@ async def direct_upload_evidence(
     s3_key = f"evidence/{date_prefix}/{evidence_id}/{safe_filename}"
     
     s3_client = s3()
-    s3_client.put_object(
-        Bucket=s3_bucket,
-        Key=s3_key,
-        Body=content,
-        ContentType=file.content_type or "application/octet-stream"
-    )
+    if s3_client is not None:  # pyright: ignore[reportUnnecessaryComparison]
+        s3_client.put_object(
+            Bucket=s3_bucket,
+            Key=s3_key,
+            Body=content,
+            ContentType=file.content_type or "application/octet-stream"
+        )
     
     # Parse tags
     tag_list = []
@@ -496,26 +515,26 @@ async def direct_upload_evidence(
 
 @router.get("/items", response_model=EvidenceListResponse)
 async def list_evidence(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=500),
-    search: str | None = Query(None, description="Search in filename, title, text"),
-    evidence_type: str | None = Query(None),
-    document_category: str | None = Query(None),
-    date_from: date | None = Query(None),
-    date_to: date | None = Query(None),
-    tags: str | None = Query(None, description="Comma-separated tags"),
-    has_correspondence: bool | None = Query(None),
-    is_starred: bool | None = Query(None),
-    is_reviewed: bool | None = Query(None),
-    include_email_info: bool = Query(False, description="Include emails from correspondence as evidence items"),
-    unassigned: bool | None = Query(None, description="Only show items not in any case/project"),
-    case_id: str | None = Query(None),
-    project_id: str | None = Query(None),
-    collection_id: str | None = Query(None),
-    processing_status: str | None = Query(None),
-    sort_by: str = Query("created_at", description="Sort field"),
-    sort_order: str = Query("desc", description="asc or desc"),
-    db: Session = Depends(get_db),
+    db: DbSession,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=500)] = 50,
+    search: Annotated[str | None, Query(description="Search in filename, title, text")] = None,
+    evidence_type: Annotated[str | None, Query()] = None,
+    document_category: Annotated[str | None, Query()] = None,
+    date_from: Annotated[date | None, Query()] = None,
+    date_to: Annotated[date | None, Query()] = None,
+    tags: Annotated[str | None, Query(description="Comma-separated tags")] = None,
+    has_correspondence: Annotated[bool | None, Query()] = None,
+    is_starred: Annotated[bool | None, Query()] = None,
+    is_reviewed: Annotated[bool | None, Query()] = None,
+    include_email_info: Annotated[bool, Query(description="Include emails from correspondence as evidence items")] = False,
+    unassigned: Annotated[bool | None, Query(description="Only show items not in any case/project")] = None,
+    case_id: Annotated[str | None, Query()] = None,
+    project_id: Annotated[str | None, Query()] = None,
+    collection_id: Annotated[str | None, Query()] = None,
+    processing_status: Annotated[str | None, Query()] = None,
+    sort_by: Annotated[str, Query(description="Sort field")] = "created_at",
+    sort_order: Annotated[str, Query(description="asc or desc")] = "desc",
 ) -> EvidenceListResponse:
     """
     List evidence items with filtering and pagination
@@ -604,7 +623,7 @@ async def list_evidence(
     
     # Get correspondence counts for items
     item_ids = [item.id for item in items]
-    correspondence_counts = {}
+    correspondence_counts: dict[str, int] = {}
     if item_ids:
         counts = db.query(
             EvidenceCorrespondenceLink.evidence_item_id,
@@ -613,7 +632,16 @@ async def list_evidence(
             EvidenceCorrespondenceLink.evidence_item_id.in_(item_ids)
         ).group_by(EvidenceCorrespondenceLink.evidence_item_id).all()
         
-        correspondence_counts = {str(item_id): count for item_id, count in counts}
+        for count_row in counts:
+            row_id: object = count_row[0]
+            row_count: object = count_row[1]
+            if row_id is not None:
+                count_val: int = 0
+                if isinstance(row_count, int):
+                    count_val = row_count
+                elif row_count is not None:
+                    count_val = int(str(row_count))
+                correspondence_counts[str(row_id)] = count_val
     
     # Get source email info for items with source_email_id
     email_info = {}
@@ -675,7 +703,7 @@ async def list_evidence(
             source_email_subject=source_email_subject,
             source_email_from=source_email_from,
             download_url=download_url,
-            created_at=item.created_at
+            created_at=item.created_at or datetime.now()
         ))
     
     # Include emails as evidence items if requested
@@ -741,7 +769,7 @@ async def list_evidence(
                         source_email_subject=email.subject,
                         source_email_from=email.sender_email,
                         download_url=None,
-                        created_at=email.created_at
+                        created_at=email.created_at or datetime.now()
                     ))
     
     return EvidenceListResponse(
@@ -755,7 +783,7 @@ async def list_evidence(
 @router.get("/items/{evidence_id}", response_model=EvidenceItemDetail)
 async def get_evidence_detail(
     evidence_id: str,
-    db: Session = Depends(get_db)
+    db: DbSession,
 ):
     """Get full evidence item details"""
     try:
@@ -772,9 +800,9 @@ async def get_evidence_detail(
         EvidenceCorrespondenceLink.evidence_item_id == evidence_uuid
     ).all()
     
-    correspondence_links = []
+    correspondence_links: list[dict[str, Any]] = []
     for link in links:
-        link_data = {
+        link_data: dict[str, Any] = {
             'id': str(link.id),
             'link_type': link.link_type,
             'link_confidence': link.link_confidence,
@@ -789,7 +817,7 @@ async def get_evidence_detail(
                 link_data['email'] = {
                     'id': str(email.id),
                     'subject': email.subject,
-                    'sender': email.sender_email,
+                    'sender': email.sender_email or email.sender_name,
                     'date': email.date_sent.isoformat() if email.date_sent else None
                 }
         else:
@@ -811,11 +839,11 @@ async def get_evidence_detail(
         )
     ).all()
     
-    relation_list = []
+    relation_list: list[dict[str, Any]] = []
     for rel in relations:
         other_id = rel.target_evidence_id if rel.source_evidence_id == evidence_uuid else rel.source_evidence_id
         other_item = db.query(EvidenceItem).filter(EvidenceItem.id == other_id).first()
-        relation_list.append({
+        rel_data: dict[str, Any] = {
             'id': str(rel.id),
             'relation_type': rel.relation_type,
             'direction': 'outgoing' if rel.source_evidence_id == evidence_uuid else 'incoming',
@@ -825,7 +853,8 @@ async def get_evidence_detail(
                 'filename': other_item.filename,
                 'title': other_item.title
             } if other_item else None
-        })
+        }
+        relation_list.append(rel_data)
     
     # Generate download URL
     download_url = presign_get(
@@ -850,16 +879,16 @@ async def get_evidence_detail(
         file_hash=item.file_hash,
         evidence_type=item.evidence_type,
         document_category=item.document_category,
-        document_date=item.document_date.date() if item.document_date else None,
+        document_date=item.document_date if isinstance(item.document_date, date) else (item.document_date.date() if item.document_date else None),
         title=item.title,
         author=item.author,
         description=item.description,
         page_count=item.page_count,
         extracted_text=item.extracted_text[:5000] if item.extracted_text else None,
-        extracted_parties=item.extracted_parties or [],
-        extracted_dates=item.extracted_dates or [],
-        extracted_amounts=item.extracted_amounts or [],
-        extracted_references=item.extracted_references or [],
+        extracted_parties=_safe_dict_list(item.extracted_parties),
+        extracted_dates=_safe_dict_list(item.extracted_dates),
+        extracted_amounts=_safe_dict_list(item.extracted_amounts),
+        extracted_references=_safe_dict_list(item.extracted_references),
         auto_tags=item.auto_tags or [],
         manual_tags=item.manual_tags or [],
         processing_status=item.processing_status or 'pending',
@@ -877,7 +906,7 @@ async def get_evidence_detail(
         correspondence_links=correspondence_links,
         relations=relation_list,
         download_url=download_url,
-        created_at=item.created_at,
+        created_at=item.created_at or datetime.now(),
         updated_at=item.updated_at
     )
 
@@ -886,7 +915,7 @@ async def get_evidence_detail(
 async def update_evidence(
     evidence_id: str,
     updates: EvidenceItemUpdate,
-    db: Session = Depends(get_db)
+    db: DbSession
 ):
     """Update evidence item metadata"""
     try:
@@ -899,11 +928,12 @@ async def update_evidence(
         raise HTTPException(404, "Evidence item not found")
     
     # Apply updates
-    update_data = updates.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        if field in ['case_id', 'project_id', 'collection_id'] and value:
-            value = uuid.UUID(value)
-        setattr(item, field, value)
+    update_data = updates.model_dump(exclude_unset=True)
+    for field, value in update_data.items():  # pyright: ignore[reportAny]
+        typed_value = value  # pyright: ignore[reportAny]
+        if field in ['case_id', 'project_id', 'collection_id'] and typed_value:
+            typed_value = uuid.UUID(str(typed_value))  # pyright: ignore[reportAny]
+        setattr(item, field, typed_value)
     
     # Log activity
     user = get_default_user(db)
@@ -922,7 +952,7 @@ async def update_evidence(
 @router.delete("/items/{evidence_id}")
 async def delete_evidence(
     evidence_id: str,
-    db: Session = Depends(get_db)
+    db: DbSession
 ):
     """Delete evidence item"""
     try:
@@ -944,7 +974,8 @@ async def delete_evidence(
     # Delete from S3
     try:
         s3_client = s3()
-        s3_client.delete_object(Bucket=item.s3_bucket, Key=item.s3_key)
+        if s3_client is not None:  # pyright: ignore[reportUnnecessaryComparison]
+            s3_client.delete_object(Bucket=item.s3_bucket, Key=item.s3_key)
     except Exception as e:
         logger.warning(f"Failed to delete S3 object: {e}")
     
@@ -959,7 +990,7 @@ async def delete_evidence(
 async def assign_evidence(
     evidence_id: str,
     assignment: AssignRequest,
-    db: Session = Depends(get_db)
+    db: DbSession
 ):
     """Assign evidence to a case and/or project"""
     try:
@@ -1006,7 +1037,7 @@ async def assign_evidence(
 @router.post("/items/{evidence_id}/star")
 async def toggle_star(
     evidence_id: str,
-    db: Session = Depends(get_db)
+    db: DbSession
 ):
     """Toggle starred status"""
     try:
@@ -1031,8 +1062,8 @@ async def toggle_star(
 @router.get("/items/{evidence_id}/correspondence")
 async def get_evidence_correspondence(
     evidence_id: str,
-    db: Session = Depends(get_db)
-):
+    db: DbSession
+) -> dict[str, Any]:
     """Get all correspondence linked to evidence item"""
     try:
         evidence_uuid = uuid.UUID(evidence_id)
@@ -1043,9 +1074,9 @@ async def get_evidence_correspondence(
         EvidenceCorrespondenceLink.evidence_item_id == evidence_uuid
     ).all()
     
-    result = []
+    result: list[dict[str, Any]] = []
     for link in links:
-        link_data = {
+        link_data: dict[str, Any] = {
             'id': str(link.id),
             'link_type': link.link_type,
             'link_confidence': link.link_confidence,
@@ -1089,7 +1120,7 @@ async def get_evidence_correspondence(
 async def link_evidence_to_email(
     evidence_id: str,
     link_request: CorrespondenceLinkCreate,
-    db: Session = Depends(get_db)
+    db: DbSession
 ):
     """Manually link evidence to an email or external correspondence"""
     try:
@@ -1162,7 +1193,7 @@ async def link_evidence_to_email(
 @router.delete("/correspondence-links/{link_id}")
 async def delete_correspondence_link(
     link_id: str,
-    db: Session = Depends(get_db)
+    db: DbSession
 ):
     """Delete a correspondence link"""
     try:
@@ -1188,10 +1219,10 @@ async def delete_correspondence_link(
 
 @router.get("/collections")
 async def list_collections(
-    include_system: bool = Query(True),
-    case_id: str | None = Query(None),
-    project_id: str | None = Query(None),
-    db: Session = Depends(get_db),
+    db: DbSession,
+    include_system: Annotated[bool, Query()] = True,
+    case_id: Annotated[str | None, Query()] = None,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> list[CollectionSummary]:
     """List all collections"""
     query = db.query(EvidenceCollection)
@@ -1241,7 +1272,7 @@ async def list_collections(
 @router.post("/collections")
 async def create_collection(
     collection: CollectionCreate,
-    db: Session = Depends(get_db)
+    db: DbSession
 ):
     """Create a new collection"""
     user = get_default_user(db)
@@ -1296,7 +1327,7 @@ async def create_collection(
 async def update_collection(
     collection_id: str,
     updates: CollectionUpdate,
-    db: Session = Depends(get_db)
+    db: DbSession
 ):
     """Update a collection"""
     try:
@@ -1313,8 +1344,8 @@ async def update_collection(
     if collection.is_system:
         raise HTTPException(403, "Cannot modify system collections")
     
-    update_data = updates.dict(exclude_unset=True)
-    for field, value in update_data.items():
+    update_data = updates.model_dump(exclude_unset=True)
+    for field, value in update_data.items():  # pyright: ignore[reportAny]
         setattr(collection, field, value)
     
     db.commit()
@@ -1326,7 +1357,7 @@ async def update_collection(
 @router.delete("/collections/{collection_id}")
 async def delete_collection(
     collection_id: str,
-    db: Session = Depends(get_db)
+    db: DbSession
 ):
     """Delete a collection"""
     try:
@@ -1353,7 +1384,7 @@ async def delete_collection(
 async def add_to_collection(
     collection_id: str,
     evidence_id: str,
-    db: Session = Depends(get_db)
+    db: DbSession
 ):
     """Add evidence item to collection"""
     try:
@@ -1405,7 +1436,7 @@ async def add_to_collection(
 async def remove_from_collection(
     collection_id: str,
     evidence_id: str,
-    db: Session = Depends(get_db)
+    db: DbSession
 ):
     """Remove evidence item from collection"""
     try:
@@ -1435,9 +1466,9 @@ async def remove_from_collection(
 
 @router.get("/stats")
 async def get_evidence_stats(
-    case_id: str | None = Query(None),
-    project_id: str | None = Query(None),
-    db: Session = Depends(get_db),
+    db: DbSession,
+    case_id: Annotated[str | None, Query()] = None,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
     """Get evidence repository statistics (cached for 60 seconds)"""
     # Build cache key
@@ -1446,7 +1477,7 @@ async def get_evidence_stats(
     # Check cache first
     cached = get_cached(cache_key)
     if cached:
-        return cached
+        return cached  # pyright: ignore[reportAny]
     
     # Cache miss - compute stats
     query = db.query(EvidenceItem)
@@ -1459,13 +1490,13 @@ async def get_evidence_stats(
     total = query.count()
     
     # Count by type
-    type_counts = db.query(
+    type_counts_raw = db.query(
         EvidenceItem.evidence_type,
         func.count(EvidenceItem.id)
     ).group_by(EvidenceItem.evidence_type).all()
     
     # Count by status
-    status_counts = db.query(
+    status_counts_raw = db.query(
         EvidenceItem.processing_status,
         func.count(EvidenceItem.id)
     ).group_by(EvidenceItem.processing_status).all()
@@ -1479,25 +1510,55 @@ async def get_evidence_stats(
     ).count()
     
     # Count with correspondence
-    with_correspondence = db.query(
+    with_correspondence_raw: object = db.query(
         func.count(func.distinct(EvidenceCorrespondenceLink.evidence_item_id))
-    ).scalar() or 0
+    ).scalar()
+    with_correspondence: int = 0
+    if isinstance(with_correspondence_raw, int):
+        with_correspondence = with_correspondence_raw
+    elif with_correspondence_raw is not None:
+        with_correspondence = int(str(with_correspondence_raw))
     
     # Recent uploads (last 7 days)
     week_ago = datetime.now() - timedelta(days=7)
     recent = query.filter(EvidenceItem.created_at >= week_ago).count()
     
-    result = {
+    # Build typed dictionaries
+    by_type: dict[str, int] = {}
+    for row in type_counts_raw:
+        type_val: object = row[0]
+        count_val: object = row[1]
+        if type_val is not None:
+            count_int: int = 0
+            if isinstance(count_val, int):
+                count_int = count_val
+            elif count_val is not None:
+                count_int = int(str(count_val))
+            by_type[str(type_val)] = count_int
+    
+    by_status: dict[str, int] = {}
+    for row in status_counts_raw:
+        status_val: object = row[0]
+        status_count_val: object = row[1]
+        if status_val is not None:
+            status_count_int: int = 0
+            if isinstance(status_count_val, int):
+                status_count_int = status_count_val
+            elif status_count_val is not None:
+                status_count_int = int(str(status_count_val))
+            by_status[str(status_val)] = status_count_int
+    
+    result: dict[str, Any] = {
         'total': total,
         'unassigned': unassigned,
         'with_correspondence': with_correspondence,
         'recent_uploads': recent,
-        'by_type': {str(t): c for t, c in type_counts if t},
-        'by_status': {str(s): c for s, c in status_counts if s}
+        'by_type': by_type,
+        'by_status': by_status
     }
     
     # Cache for 60 seconds (stats don't need to be real-time)
-    set_cached(cache_key, result, ttl_seconds=60)
+    _ = set_cached(cache_key, result, ttl_seconds=60)
     
     return result
 
@@ -1524,9 +1585,9 @@ async def get_evidence_types():
 @router.get("/items/{evidence_id}/metadata")
 async def get_evidence_metadata(
     evidence_id: str,
-    extract_fresh: bool = Query(False, description="Force re-extraction of metadata"),
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user)
+    db: DbSession,
+    user: CurrentUser,
+    extract_fresh: Annotated[bool, Query(description="Force re-extraction of metadata")] = False,
 ):
     """
     Get comprehensive metadata for an evidence item.
@@ -1589,8 +1650,8 @@ async def get_evidence_metadata(
 @router.get("/items/{evidence_id}/preview")
 async def get_evidence_preview(
     evidence_id: str,
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user)
+    db: DbSession,
+    user: CurrentUser
 ):
     """
     Get preview data for an evidence item.
@@ -1701,8 +1762,8 @@ async def get_evidence_preview(
 @router.post("/items/{evidence_id}/extract-metadata")
 async def trigger_metadata_extraction(
     evidence_id: str,
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user)
+    db: DbSession,
+    user: CurrentUser
 ):
     """
     Trigger asynchronous metadata extraction for an evidence item.
@@ -1731,16 +1792,18 @@ async def trigger_metadata_extraction(
         item.metadata_extracted_at = datetime.now()
         
         # Update evidence type and category based on extraction
-        if metadata.get('mime_type'):
-            mime = metadata['mime_type']
+        mime_raw = metadata.get('mime_type')
+        if mime_raw is not None:
+            mime: str = str(mime_raw)  # pyright: ignore[reportAny]
+            # Use string literals for evidence types to avoid Any issues
             if mime.startswith('image/'):
-                item.evidence_type = EvidenceType.image
+                item.evidence_type = 'image'
             elif mime == 'application/pdf':
-                item.evidence_type = EvidenceType.pdf
+                item.evidence_type = 'pdf'
             elif 'word' in mime or mime.endswith('.document'):
-                item.evidence_type = EvidenceType.word_document
+                item.evidence_type = 'word_document'
             elif 'excel' in mime or 'spreadsheet' in mime:
-                item.evidence_type = EvidenceType.spreadsheet
+                item.evidence_type = 'spreadsheet'
         
         # Extract title from metadata if not set
         if not item.title and metadata.get('title'):
@@ -1755,23 +1818,28 @@ async def trigger_metadata_extraction(
             item.page_count = metadata['page_count']
         
         # Extract document date - check multiple possible fields
-        doc_date = None
+        doc_date_val: str | datetime | None = None
         date_fields = ['created_date', 'modified_date', 'date_taken', 'email_date']
         for field in date_fields:
-            if metadata.get(field):
-                doc_date = metadata[field]
+            field_val = metadata.get(field)
+            if field_val is not None:
+                if isinstance(field_val, str):
+                    doc_date_val = field_val
+                elif isinstance(field_val, datetime):
+                    doc_date_val = field_val
                 break
         
-        if doc_date:
+        if doc_date_val is not None:
             try:
-                if isinstance(doc_date, str):
+                if isinstance(doc_date_val, str):
                     # Handle ISO format dates
-                    parsed_date = datetime.fromisoformat(doc_date.replace('Z', '+00:00'))
+                    parsed_date = datetime.fromisoformat(doc_date_val.replace('Z', '+00:00'))
                     item.document_date = parsed_date
-                elif isinstance(doc_date, datetime):
-                    item.document_date = doc_date
+                else:
+                    # doc_date_val is datetime at this point
+                    item.document_date = doc_date_val
             except Exception as e:
-                logger.warning(f"Could not parse date {doc_date}: {e}")
+                logger.warning(f"Could not parse date {doc_date_val}: {e}")
         
         item.processing_status = 'processed'
         db.commit()
@@ -1791,9 +1859,9 @@ async def trigger_metadata_extraction(
 @router.get("/items/{evidence_id}/thumbnail")
 async def get_evidence_thumbnail(
     evidence_id: str,
-    size: str = Query("medium", description="Thumbnail size: small (64), medium (200), large (400)"),
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user)
+    db: DbSession,
+    user: CurrentUser,
+    size: Annotated[str, Query(description="Thumbnail size: small (64), medium (200), large (400)")] = "medium",
 ):
     """
     Get thumbnail URL for an evidence item (images and PDFs).
@@ -1872,9 +1940,9 @@ async def get_evidence_thumbnail(
 @router.get("/items/{evidence_id}/text-content")
 async def get_evidence_text_content(
     evidence_id: str,
-    max_length: int = Query(50000, description="Maximum characters to return"),
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user)
+    db: DbSession,
+    user: CurrentUser,
+    max_length: Annotated[int, Query(description="Maximum characters to return")] = 50000,
 ):
     """
     Get extracted text content from an evidence item.
@@ -1963,9 +2031,9 @@ async def get_evidence_text_content(
 
 @router.post("/sync-attachments")
 async def sync_email_attachments_to_evidence(
-    project_id: str | None = Query(None),
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user),
+    db: DbSession,
+    user: CurrentUser,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
     """
     Sync email attachments to evidence repository.
@@ -2021,8 +2089,11 @@ async def sync_email_attachments_to_evidence(
                 error_count += 1
                 continue
             
-            # Determine file type from extension
+            # Determine file type from extension (truncate to 50 chars max for DB column)
             file_ext = os.path.splitext(att.filename or '')[1].lower().lstrip('.') if att.filename else ''
+            # Only use extension if it looks like a real extension (short, no spaces)
+            if len(file_ext) > 20 or ' ' in file_ext:
+                file_ext = ''  # Not a real extension, likely a malformed filename
             
             # Create EvidenceItem
             evidence_item = EvidenceItem(
@@ -2073,8 +2144,8 @@ async def sync_email_attachments_to_evidence(
 
 @router.get("/sync-status")
 async def get_sync_status(
-    project_id: str | None = Query(None),
-    db: Session = Depends(get_db),
+    db: DbSession,
+    project_id: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
     """
     Get sync status between email_attachments and evidence_items.
@@ -2126,10 +2197,10 @@ async def get_sync_status(
 
 @router.post("/extract-all-metadata")
 async def extract_all_metadata(
-    limit: int = Query(100, description="Max items to process"),
-    force: bool = Query(False, description="Re-extract even if already processed"),
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user)
+    db: DbSession,
+    user: CurrentUser,
+    limit: Annotated[int, Query(description="Max items to process")] = 100,
+    force: Annotated[bool, Query(description="Re-extract even if already processed")] = False,
 ):
     """
     Bulk extract metadata for evidence items.
@@ -2165,24 +2236,28 @@ async def extract_all_metadata(
             item.metadata_extracted_at = datetime.now()
             
             # Extract document date
-            doc_date = None
+            doc_date_val: str | datetime | None = None
             date_fields = ['created_date', 'modified_date', 'date_taken', 'email_date']
             for field in date_fields:
-                if metadata.get(field):
-                    doc_date = metadata[field]
+                field_val = metadata.get(field)
+                if field_val is not None:
+                    if isinstance(field_val, str):
+                        doc_date_val = field_val
+                    elif isinstance(field_val, datetime):
+                        doc_date_val = field_val
                     break
             
-            if doc_date:
+            if doc_date_val is not None:
                 try:
-                    if isinstance(doc_date, str):
-                        parsed_date = datetime.fromisoformat(doc_date.replace('Z', '+00:00'))
+                    if isinstance(doc_date_val, str):
+                        parsed_date = datetime.fromisoformat(doc_date_val.replace('Z', '+00:00'))
                         item.document_date = parsed_date
                         updated_dates += 1
-                    elif isinstance(doc_date, datetime):
-                        item.document_date = doc_date
+                    else:
+                        item.document_date = doc_date_val
                         updated_dates += 1
-                except:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Could not parse date {doc_date_val}: {e}")
             
             # Update other fields
             if metadata.get('author') and not item.author:
@@ -2215,4 +2290,3 @@ async def extract_all_metadata(
             EvidenceItem.metadata_extracted_at.is_(None)
         ).scalar() or 0
     }
-

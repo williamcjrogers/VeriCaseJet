@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, TypedDict, cast
 
 import aiohttp
 
@@ -55,7 +55,7 @@ class ModelPriorityManager:
     ]
 
     @staticmethod
-    def get_model_order(task: str, complexity: TaskComplexity) -> List[str]:
+    def get_model_order(task: str, complexity: TaskComplexity) -> list[str]:
         if complexity == TaskComplexity.DEEP_RESEARCH:
             return ModelPriorityManager.DEEP_RESEARCH_ORDER
         if complexity == TaskComplexity.MODERATE:
@@ -63,12 +63,18 @@ class ModelPriorityManager:
         return ModelPriorityManager.BASIC_ORDER
 
 
+class ModelConfig(TypedDict, total=False):
+    primary: str
+    fallbacks: list[str]
+    features: list[str]
+
+
 class AIModelService:
     """
     Provides centralized selection and metadata for all AI tasks.
     """
 
-    MODELS: Dict[TaskComplexity, Dict[str, object]] = {
+    MODELS: dict[TaskComplexity, ModelConfig] = {
         TaskComplexity.BASIC: {
             "primary": "sonnet-4.5",
             "fallbacks": ["chatgpt-5", "gemini-2.5-flash", "perplexity-local"],
@@ -90,7 +96,7 @@ class AIModelService:
         },
     }
 
-    MODEL_API_MAP: Dict[str, Dict[str, str]] = {
+    MODEL_API_MAP: dict[str, dict[str, str]] = {
         # Friendly name -> provider + actual model identifier
         "sonnet-4.5": {
             "provider": "anthropic",
@@ -126,7 +132,7 @@ class AIModelService:
         },
     }
 
-    MODEL_LABELS: Dict[str, str] = {
+    MODEL_LABELS: dict[str, str] = {
         "sonnet-4.5": "Sonnet 4.5",
         "sonnet-4.5-extended": "Sonnet 4.5 Extended Thinking",
         "chatgpt-5": "ChatGPT 5",
@@ -138,9 +144,10 @@ class AIModelService:
     }
 
     @classmethod
-    def select_model(cls, task_type: str, complexity: TaskComplexity | str) -> Dict[str, object]:
+    def select_model(cls, task_type: str, complexity: TaskComplexity | str) -> ModelConfig:
         resolved_complexity = cls._ensure_complexity(complexity)
-        model_config = dict(cls.MODELS.get(resolved_complexity, cls.MODELS[TaskComplexity.BASIC]))
+        base_config = cls.MODELS.get(resolved_complexity, cls.MODELS[TaskComplexity.BASIC])
+        model_config: ModelConfig = {**base_config}
 
         preferences = getattr(settings, "AI_MODEL_PREFERENCES", {}) or {}
         override_key = f"{task_type}:{resolved_complexity.value}"
@@ -155,22 +162,22 @@ class AIModelService:
         cls,
         task_type: str,
         complexity: TaskComplexity | str,
-        model_config: Dict[str, object],
-    ) -> List[str]:
+        model_config: ModelConfig,
+    ) -> list[str]:
         resolved_complexity = cls._ensure_complexity(complexity)
         baseline = ModelPriorityManager.get_model_order(task_type, resolved_complexity)
-        candidate_list: List[str] = []
+        candidate_list: list[str] = []
         for candidate in [
             model_config.get("primary"),
             *model_config.get("fallbacks", []),
             *baseline,
         ]:
-            if candidate and candidate not in candidate_list:
+            if isinstance(candidate, str) and candidate not in candidate_list:
                 candidate_list.append(candidate)
         return candidate_list
 
     @classmethod
-    def resolve_model(cls, friendly_name: str) -> Optional[Dict[str, str]]:
+    def resolve_model(cls, friendly_name: str) -> dict[str, str] | None:
         return cls.MODEL_API_MAP.get(friendly_name)
 
     @classmethod
@@ -187,7 +194,7 @@ class AIModelService:
             return TaskComplexity.BASIC
 
 
-async def query_perplexity_local(prompt: str, context: str) -> Optional[str]:
+async def query_perplexity_local(prompt: str, context: str) -> str | None:
     """
     Query Perplexity with web search disabled so we only rely on provided evidence.
     """
@@ -195,12 +202,12 @@ async def query_perplexity_local(prompt: str, context: str) -> Optional[str]:
     if not api_key:
         return None
 
-    headers = {
+    headers: dict[str, str] = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
 
-    payload = {
+    payload: dict[str, Any] = {
         "model": "pplx-7b-chat",
         "messages": [
             {
@@ -228,11 +235,22 @@ async def query_perplexity_local(prompt: str, context: str) -> Optional[str]:
                 json=payload,
             ) as response:
                 response.raise_for_status()
-                data = await response.json()
-                choices = data.get("choices") or []
-                if not choices:
+                data: dict[str, Any] = await response.json()
+                choices_raw = data.get("choices")
+                if not isinstance(choices_raw, list) or not choices_raw:
                     return None
-                return choices[0].get("message", {}).get("content")
+                first_choice_raw = cast(object, choices_raw[0])
+                if not isinstance(first_choice_raw, dict):
+                    return None
+                first_choice = cast(dict[str, object], first_choice_raw)
+                message_raw = first_choice.get("message")
+                if not isinstance(message_raw, dict):
+                    return None
+                message = cast(dict[str, object], message_raw)
+                content = message.get("content")
+                if isinstance(content, str):
+                    return content
+                return None
     except Exception as exc:
         logger.warning("Perplexity offline query failed: %s", exc)
         return None

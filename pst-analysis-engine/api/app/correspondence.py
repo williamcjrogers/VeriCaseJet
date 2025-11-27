@@ -1,3 +1,4 @@
+# pyright: reportCallInDefaultInitializer=false, reportDeprecatedType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportUnknownParameterType=false
 """
 Correspondence API Endpoints
 Email correspondence management for PST analysis
@@ -15,6 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import or_, and_, func
 from pydantic import BaseModel
 from pydantic.fields import Field
+import re as _re_module
 
 from .security import get_db
 from .models import (
@@ -29,8 +31,6 @@ from .tasks import celery_app
 logger = logging.getLogger(__name__)
 
 # Helper function to check if an attachment is an embedded image (should be excluded)
-import re as _re_module
-
 def _is_embedded_image(att_data: dict[str, Any]) -> bool:
     """Check if attachment is an embedded/inline image that should be excluded from attachment lists
     
@@ -495,15 +495,22 @@ async def start_pst_processing(
     if not pst_file:
         raise HTTPException(404, "PST file not found")
     
-    # Verify case access
-    case = db.query(Case).filter_by(id=pst_file.case_id).first()
-    if not case:
-        raise HTTPException(404, "Case not found")
+    # Verify access - PST can be linked to either a project or a case
+    if pst_file.project_id:
+        project = db.query(Project).filter_by(id=pst_file.project_id).first()
+        if not project:
+            raise HTTPException(404, "Project not found")
+    elif pst_file.case_id:
+        case = db.query(Case).filter_by(id=pst_file.case_id).first()
+        if not case:
+            raise HTTPException(404, "Case not found")
+    else:
+        raise HTTPException(400, "PST file not linked to any project or case")
     
-    # Enqueue Celery task using coordinator for better scalability
+    # Enqueue Celery task for PST processing
     task = celery_app.send_task(
-        'worker_app.worker.coordinate_pst_processing',  # Use coordinator
-        args=[pst_file_id, pst_file.s3_bucket, pst_file.s3_key],
+        'worker_app.worker.process_pst_file',
+        args=[pst_file_id],  # Pass PST file ID - worker fetches details from DB
         queue=settings.CELERY_PST_QUEUE
     )
     
@@ -859,7 +866,7 @@ async def list_emails(
             if isinstance(text, bytes):
                 try:
                     text = text.decode('utf-8', errors='ignore')
-                except:
+                except Exception:
                     return "[Unable to decode]"
             
             # If it starts with "b'" it's a string representation of bytes
@@ -1166,7 +1173,7 @@ async def get_emails_server_side(
         stats['uniqueThreads'] = thread_count
         
         # With attachments
-        with_attachments = stats_query.filter(EmailMessage.has_attachments == True).count()
+        with_attachments = stats_query.filter(EmailMessage.has_attachments.is_(True)).count()
         stats['withAttachments'] = with_attachments
         
         # Date range
@@ -2706,4 +2713,3 @@ async def get_unified_keywords(
         }
         for k in keywords
     ]
-

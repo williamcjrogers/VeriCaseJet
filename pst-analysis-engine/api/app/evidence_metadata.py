@@ -19,7 +19,7 @@ import hashlib
 import logging
 import mimetypes
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any
 from dataclasses import dataclass, asdict
 import httpx
 from PIL import Image
@@ -46,90 +46,90 @@ class FileMetadata:
     extension: str
     
     # Hash for integrity/dedup
-    sha256: Optional[str] = None
-    md5: Optional[str] = None
+    sha256: str | None = None
+    md5: str | None = None
     
     # Document metadata
-    title: Optional[str] = None
-    author: Optional[str] = None
-    creator: Optional[str] = None
-    producer: Optional[str] = None
-    subject: Optional[str] = None
-    keywords: Optional[List[str]] = None
-    description: Optional[str] = None
+    title: str | None = None
+    author: str | None = None
+    creator: str | None = None
+    producer: str | None = None
+    subject: str | None = None
+    keywords: list[str] | None = None
+    description: str | None = None
     
     # Dates
-    created_date: Optional[datetime] = None
-    modified_date: Optional[datetime] = None
+    created_date: datetime | None = None
+    modified_date: datetime | None = None
     
     # PDF specific
-    page_count: Optional[int] = None
-    pdf_version: Optional[str] = None
-    is_encrypted: Optional[bool] = None
-    has_forms: Optional[bool] = None
+    page_count: int | None = None
+    pdf_version: str | None = None
+    is_encrypted: bool | None = None
+    has_forms: bool | None = None
     
     # Image specific
-    width: Optional[int] = None
-    height: Optional[int] = None
-    color_mode: Optional[str] = None
-    dpi: Optional[Tuple[int, int]] = None
+    width: int | None = None
+    height: int | None = None
+    color_mode: str | None = None
+    dpi: tuple[int, int] | None = None
     
     # EXIF data for images
-    camera_make: Optional[str] = None
-    camera_model: Optional[str] = None
-    date_taken: Optional[datetime] = None
-    gps_latitude: Optional[float] = None
-    gps_longitude: Optional[float] = None
-    exposure_time: Optional[str] = None
-    f_number: Optional[float] = None
-    iso_speed: Optional[int] = None
-    focal_length: Optional[float] = None
+    camera_make: str | None = None
+    camera_model: str | None = None
+    date_taken: datetime | None = None
+    gps_latitude: float | None = None
+    gps_longitude: float | None = None
+    exposure_time: str | None = None
+    f_number: float | None = None
+    iso_speed: int | None = None
+    focal_length: float | None = None
     
     # Office document specific
-    company: Optional[str] = None
-    manager: Optional[str] = None
-    category: Optional[str] = None
-    revision: Optional[int] = None
-    last_author: Optional[str] = None
-    word_count: Optional[int] = None
-    char_count: Optional[int] = None
-    paragraph_count: Optional[int] = None
-    slide_count: Optional[int] = None
+    company: str | None = None
+    manager: str | None = None
+    category: str | None = None
+    revision: int | None = None
+    last_author: str | None = None
+    word_count: int | None = None
+    char_count: int | None = None
+    paragraph_count: int | None = None
+    slide_count: int | None = None
     
     # Audio/Video specific
-    duration_seconds: Optional[float] = None
-    bitrate: Optional[int] = None
-    sample_rate: Optional[int] = None
-    channels: Optional[int] = None
-    codec: Optional[str] = None
+    duration_seconds: float | None = None
+    bitrate: int | None = None
+    sample_rate: int | None = None
+    channels: int | None = None
+    codec: str | None = None
     
     # Email specific (for .msg/.eml)
-    email_from: Optional[str] = None
-    email_to: Optional[List[str]] = None
-    email_cc: Optional[List[str]] = None
-    email_subject: Optional[str] = None
-    email_date: Optional[datetime] = None
-    has_attachments: Optional[bool] = None
-    attachment_count: Optional[int] = None
+    email_from: str | None = None
+    email_to: list[str] | None = None
+    email_cc: list[str] | None = None
+    email_subject: str | None = None
+    email_date: datetime | None = None
+    has_attachments: bool | None = None
+    attachment_count: int | None = None
     
     # Text content preview
-    text_preview: Optional[str] = None
-    text_length: Optional[int] = None
-    language: Optional[str] = None
-    encoding: Optional[str] = None
+    text_preview: str | None = None
+    text_length: int | None = None
+    language: str | None = None
+    encoding: str | None = None
     
     # Construction/Legal specific
-    document_reference: Optional[str] = None
-    project_reference: Optional[str] = None
-    drawing_number: Optional[str] = None
-    revision_number: Optional[str] = None
+    document_reference: str | None = None
+    project_reference: str | None = None
+    drawing_number: str | None = None
+    revision_number: str | None = None
     
     # Extraction status
     extraction_status: str = "pending"
-    extraction_error: Optional[str] = None
-    extracted_at: Optional[datetime] = None
+    extraction_error: str | None = None
+    extracted_at: datetime | None = None
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary, handling datetime and special type serialization"""
         result = {}
         for key, value in asdict(self).items():
@@ -207,7 +207,7 @@ class MetadataExtractor:
             logger.warning(f"Tika server not available: {e}")
             return False
     
-    async def extract_metadata(self, s3_key: str, bucket: str = None) -> FileMetadata:
+    async def extract_metadata(self, s3_key: str, bucket: str | None = None) -> FileMetadata:
         """
         Extract comprehensive metadata from a file.
         
@@ -344,7 +344,7 @@ class MetadataExtractor:
         except Exception as e:
             logger.warning(f"Error extracting image metadata: {e}")
     
-    def _parse_gps_info(self, gps_info: Dict) -> Optional[Dict[str, float]]:
+    def _parse_gps_info(self, gps_info: dict) -> dict[str, float] | None:
         """Parse GPS EXIF data to lat/lon coordinates"""
         try:
             gps_tags = {GPSTAGS.get(key, key): value for key, value in gps_info.items()}
@@ -415,7 +415,7 @@ class MetadataExtractor:
         except Exception as e:
             logger.warning(f"Error extracting PDF metadata: {e}")
     
-    def _parse_pdf_date(self, date_str: str) -> Optional[datetime]:
+    def _parse_pdf_date(self, date_str: str) -> datetime | None:
         """Parse PDF date format (D:YYYYMMDDHHmmSS)"""
         try:
             if date_str.startswith("D:"):
@@ -623,7 +623,7 @@ def get_metadata_extractor() -> MetadataExtractor:
     return _extractor
 
 
-async def extract_evidence_metadata(s3_key: str, bucket: str = None) -> Dict[str, Any]:
+async def extract_evidence_metadata(s3_key: str, bucket: str | None = None) -> dict[str, Any]:
     """
     Convenience function to extract metadata and return as dict.
     

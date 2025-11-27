@@ -1,11 +1,12 @@
 """
 Simple Cases API for testing without authentication
 """
+from typing import Annotated, cast
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, or_
-from typing import List, Optional
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 import uuid
 import re
@@ -24,34 +25,35 @@ def validate_search_input(search: str) -> str:
     return sanitized[:100]
 
 router = APIRouter(prefix="/api", tags=["simple-cases"])
+DbDep = Annotated[Session, Depends(get_db)]
 
 # Pydantic models for request/response validation
 class StakeholderCreate(BaseModel):
     role: str
     name: str
-    email: Optional[str] = None
-    organization: Optional[str] = None
+    email: str | None = None
+    organization: str | None = None
 
 class KeywordCreate(BaseModel):
     name: str
-    variations: Optional[str] = None
+    variations: str | None = None
 
 class ProjectCreate(BaseModel):
     project_name: str = Field(..., min_length=2, max_length=200)
     project_code: str = Field(..., min_length=1)
-    start_date: Optional[datetime] = None
-    completion_date: Optional[datetime] = None
-    contract_type: Optional[str] = None
-    stakeholders: List[StakeholderCreate] = []
-    keywords: List[KeywordCreate] = []
+    start_date: datetime | None = None
+    completion_date: datetime | None = None
+    contract_type: str | None = None
+    stakeholders: list[StakeholderCreate] = Field(default_factory=list)
+    keywords: list[KeywordCreate] = Field(default_factory=list)
     # Additional fields for retrospective analysis
-    project_aliases: Optional[str] = None
-    site_address: Optional[str] = None
-    include_domains: Optional[str] = None
-    exclude_people: Optional[str] = None
-    project_terms: Optional[str] = None
-    exclude_keywords: Optional[str] = None
-    analysis_type: Optional[str] = "project"
+    project_aliases: str | None = None
+    site_address: str | None = None
+    include_domains: str | None = None
+    exclude_people: str | None = None
+    project_terms: str | None = None
+    exclude_keywords: str | None = None
+    analysis_type: str | None = "project"
 
 class LegalTeamMember(BaseModel):
     role: str
@@ -60,34 +62,34 @@ class LegalTeamMember(BaseModel):
 class HeadOfClaim(BaseModel):
     head: str
     status: str = "Discovery"
-    actions: Optional[str] = None
+    actions: str | None = None
 
 class Deadline(BaseModel):
     task: str
-    description: Optional[str] = None
-    date: Optional[datetime] = None
+    description: str | None = None
+    date: datetime | None = None
 
 class CaseCreate(BaseModel):
     case_name: str = Field(..., min_length=2, max_length=200)
-    case_id: Optional[str] = None
-    resolution_route: Optional[str] = "TBC"
-    claimant: Optional[str] = None
-    defendant: Optional[str] = None
-    case_status: Optional[str] = "discovery"
-    client: Optional[str] = None
-    legal_team: List[LegalTeamMember] = []
-    heads_of_claim: List[HeadOfClaim] = []
-    keywords: List[KeywordCreate] = []
-    deadlines: List[Deadline] = []
+    case_id: str | None = None
+    resolution_route: str | None = "TBC"
+    claimant: str | None = None
+    defendant: str | None = None
+    case_status: str | None = "discovery"
+    client: str | None = None
+    legal_team: list[LegalTeamMember] = Field(default_factory=list)
+    heads_of_claim: list[HeadOfClaim] = Field(default_factory=list)
+    keywords: list[KeywordCreate] = Field(default_factory=list)
+    deadlines: list[Deadline] = Field(default_factory=list)
 
 @router.get("/cases")
-def list_cases_simple(db: Session = Depends(get_db)):
+def list_cases_simple(db: DbDep) -> list[dict[str, str | int | None]]:
     """List all cases without authentication (for testing)"""
     try:
         # Using SQLAlchemy ORM which parameterizes queries safely
         cases = db.query(Case).order_by(desc(Case.created_at)).limit(50).all()
         
-        result = []
+        result: list[dict[str, str | int | None]] = []
         for case in cases:
             result.append({
                 "id": str(case.id),
@@ -105,7 +107,7 @@ def list_cases_simple(db: Session = Depends(get_db)):
         
         return result
         
-    except Exception as e:
+    except Exception:
         # Return mock data if database fails
         return [
             {
@@ -125,7 +127,7 @@ def list_cases_simple(db: Session = Depends(get_db)):
 
 # Project endpoints
 @router.post("/projects")
-def create_project(project_data: ProjectCreate, db: Session = Depends(get_db)):
+def create_project(project_data: ProjectCreate, db: DbDep) -> dict[str, str]:
     """Create a project with stakeholders and keywords"""
     try:
         # Check if project code already exists
@@ -192,7 +194,7 @@ def create_project(project_data: ProjectCreate, db: Session = Depends(get_db)):
         
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         # Return mock response if database fails
         new_id = str(uuid.uuid4())
         return {
@@ -204,13 +206,13 @@ def create_project(project_data: ProjectCreate, db: Session = Depends(get_db)):
         }
 
 @router.get("/projects")
-def list_projects(db: Session = Depends(get_db)):
+def list_projects(db: DbDep) -> list[dict[str, str | None]]:
     """List all projects without authentication"""
     try:
         # Using SQLAlchemy ORM which parameterizes queries safely
         projects = db.query(Project).order_by(desc(Project.created_at)).limit(50).all()
         
-        result = []
+        result: list[dict[str, str | None]] = []
         for project in projects:
             result.append({
                 "id": str(project.id),
@@ -225,7 +227,7 @@ def list_projects(db: Session = Depends(get_db)):
         
         return result
         
-    except Exception as e:
+    except Exception:
         # Return mock data if database fails
         return [
             {
@@ -241,7 +243,7 @@ def list_projects(db: Session = Depends(get_db)):
         ]
 
 @router.get("/stakeholder-suggestions")
-def get_stakeholder_suggestions(search: Optional[str] = None, db: Session = Depends(get_db)):
+def get_stakeholder_suggestions(db: DbDep, search: str | None = None) -> list[dict[str, str]]:
     """Get autocomplete suggestions for stakeholders"""
     try:
         query = db.query(Stakeholder.name, Stakeholder.organization).distinct()
@@ -252,19 +254,21 @@ def get_stakeholder_suggestions(search: Optional[str] = None, db: Session = Depe
             if safe_search:
                 query = query.filter(
                     or_(
-                        Stakeholder.name.ilike("%{safe_search}%"),
-                        Stakeholder.organization.ilike("%{safe_search}%")
+                        Stakeholder.name.ilike(f"%{safe_search}%"),
+                        Stakeholder.organization.ilike(f"%{safe_search}%")
                     )
                 )
         
-        results = query.limit(20).all()
+        results = cast(list[tuple[str | None, str | None]], query.limit(20).all())
         
-        suggestions = []
-        for name, org in results:
-            if name:
-                suggestions.append({"value": name, "type": "name"})
-            if org and org != name:
-                suggestions.append({"value": org, "type": "organization"})
+        suggestions: list[dict[str, str]] = []
+        for raw_name, raw_org in results:
+            name_val = str(raw_name) if raw_name else None
+            org_val = str(raw_org) if raw_org else None
+            if name_val:
+                suggestions.append({"value": name_val, "type": "name"})
+            if org_val and org_val != name_val:
+                suggestions.append({"value": org_val, "type": "organization"})
         
         return suggestions
         
@@ -278,7 +282,7 @@ def get_stakeholder_suggestions(search: Optional[str] = None, db: Session = Depe
         ]
 
 @router.get("/keyword-suggestions")
-def get_keyword_suggestions(db: Session = Depends(get_db)):
+def get_keyword_suggestions() -> list[dict[str, str]]:
     """Get pre-populated keywords"""
     # These are always the same pre-populated keywords
     return [
@@ -292,7 +296,7 @@ def get_keyword_suggestions(db: Session = Depends(get_db)):
     ]
 
 @router.post("/cases")
-def create_case_simple(case_data: CaseCreate, db: Session = Depends(get_db)):
+def create_case_simple(case_data: CaseCreate, db: DbDep) -> dict[str, str]:
     """Create a case without authentication (for testing)"""
     try:
         # Generate case number if not provided
@@ -345,7 +349,7 @@ def create_case_simple(case_data: CaseCreate, db: Session = Depends(get_db)):
             "created_at": case.created_at.isoformat() if case.created_at else datetime.now(timezone.utc).isoformat()
         }
         
-    except Exception as e:
+    except Exception:
         # Return mock response if database fails
         new_id = str(uuid.uuid4())
         return {

@@ -1,5 +1,6 @@
 """Folder management functions and endpoints"""
-from typing import Optional
+from collections.abc import Callable
+import logging
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
@@ -46,7 +47,7 @@ def validate_folder_path(path: str) -> str:
     return path
 
 
-def get_parent_path(path: str) -> Optional[str]:
+def get_parent_path(path: str) -> str | None:
     """Get parent path from a path"""
     if not path or "/" not in path:
         return None
@@ -183,7 +184,15 @@ def rename_folder_and_docs(db: Session, owner_user_id: str, old_path: str, new_n
     return documents_updated
 
 
-def delete_folder_and_docs(db: Session, owner_user_id: str, path: str, recursive: bool, delete_object_func, os_delete_func, logger) -> tuple:
+def delete_folder_and_docs(
+    db: Session,
+    owner_user_id: str,
+    path: str,
+    recursive: bool,
+    delete_object_func: Callable[[str], None],
+    os_delete_func: Callable[[str], None],
+    logger: logging.Logger,
+) -> tuple[int, int]:
     """Delete a folder and optionally its contents"""
     path = validate_folder_path(path)
     

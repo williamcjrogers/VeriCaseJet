@@ -17,7 +17,7 @@ import html
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Any
 import tempfile
 import os
 import logging
@@ -44,16 +44,16 @@ class UltimatePSTProcessor:
     - Handles corrupted/password-protected PSTs
     """
     
-    def __init__(self, db: Session, s3_client, opensearch_client=None):
+    def __init__(self, db: Session, s3_client: Any, opensearch_client: Any = None):
         self.db = db
         self.s3 = s3_client
         self.opensearch = opensearch_client
-        self.threads_map = {}
+        self.threads_map: dict[str, Any] = {}
         self.processed_count = 0
         self.total_count = 0
-        self.attachment_hashes = {}  # For deduplication
+        self.attachment_hashes: dict[str, Any] = {}  # For deduplication
         
-    def process_pst(self, pst_s3_key: str, document_id: int, case_id: int = None, company_id: int = None, project_id: int = None) -> Dict:
+    def process_pst(self, pst_s3_key: str, document_id: int, case_id: int | None = None, company_id: int | None = None, project_id: int | None = None) -> dict[str, Any]:
         """
         Main entry point - process PST from S3
         
@@ -319,7 +319,7 @@ class UltimatePSTProcessor:
                 logger.warning(f"Skipping subfolder {i} in {current_path}: {str(e)[:100]}")
                 stats['errors'].append(f"Subfolder {i} in {current_path}: {str(e)[:50]}")
     
-    def _clean_body_text(self, text: Optional[str]) -> Optional[str]:
+    def _clean_body_text(self, text: str | None) -> str | None:
         """
         Clean body text for display:
         - Strip HTML tags and CSS
@@ -421,7 +421,7 @@ class UltimatePSTProcessor:
             from_email = sender_name  # Fallback to sender name if no email found
         
         # Get recipients from transport headers (pypff doesn't have display_to/cc/bcc)
-        def _normalize_recipients(raw: Optional[str]) -> List[str]:
+        def _normalize_recipients(raw: str | None) -> list[str]:
             if not raw:
                 return []
             # Handle bytes
@@ -476,7 +476,7 @@ class UltimatePSTProcessor:
         
         # Extract body content (prefer HTML, fallback to plain text)
         # pypff returns bytes, need to decode properly
-        def _decode_body(raw) -> Optional[str]:
+        def _decode_body(raw: Any) -> str | None:
             if raw is None:
                 return None
             if isinstance(raw, bytes):
@@ -532,7 +532,7 @@ class UltimatePSTProcessor:
 
         # Process attachments (THESE we DO save!)
         # Note: Attachments are processed AFTER creating the EmailMessage so we can link them
-        attachments_info: List[Dict] = []
+        attachments_info: list[dict[str, Any]] = []
         num_attachments = 0
         try:
             num_attachments = message.number_of_attachments
@@ -641,7 +641,7 @@ class UltimatePSTProcessor:
         
         return email_message
     
-    def _get_attachment_property(self, attachment, property_id: int) -> Optional[str]:
+    def _get_attachment_property(self, attachment: Any, property_id: int) -> str | None:
         """Extract a string property from attachment record sets using MAPI property ID"""
         try:
             if hasattr(attachment, 'record_sets'):
@@ -671,7 +671,7 @@ class UltimatePSTProcessor:
             logger.debug(f"Could not get property {hex(property_id)}: {e}")
         return None
     
-    def _get_attachment_filename(self, attachment, index: int) -> str:
+    def _get_attachment_filename(self, attachment: Any, index: int) -> str:
         """Extract attachment filename from MAPI properties"""
         # MAPI Property IDs for attachment filenames:
         # 0x3707 = PR_ATTACH_LONG_FILENAME (preferred)
@@ -711,7 +711,7 @@ class UltimatePSTProcessor:
         
         return f"attachment_{index}"
     
-    def _get_attachment_content_type(self, attachment, filename: str) -> str:
+    def _get_attachment_content_type(self, attachment: Any, filename: str) -> str:
         """Get attachment content type from MAPI properties or guess from filename"""
         import mimetypes
         
@@ -732,7 +732,7 @@ class UltimatePSTProcessor:
         guessed_type, _ = mimetypes.guess_type(filename)
         return guessed_type or 'application/octet-stream'
     
-    def _is_signature_image(self, filename: str, size: int, content_id: Optional[str], content_type: Optional[str]) -> bool:
+    def _is_signature_image(self, filename: str, size: int, content_id: str | None, content_type: str | None) -> bool:
         """
         Intelligent detection of signature logos and email disclaimers
         
@@ -791,7 +791,7 @@ class UltimatePSTProcessor:
         
         return False
     
-    def _process_attachments(self, message, email_message: EmailMessage, pst_file_record, parent_document, case_id, project_id, company_id, stats) -> List[Dict]:
+    def _process_attachments(self, message: Any, email_message: EmailMessage, pst_file_record: Any, parent_document: Any, case_id: Any, project_id: Any, company_id: Any, stats: dict[str, Any]) -> list[dict[str, Any]]:
         """
         Extract and save ONLY real attachments (FILTERS OUT signature logos and disclaimers)
         
@@ -1008,7 +1008,7 @@ class UltimatePSTProcessor:
         return attachments_info
     
     @staticmethod
-    def _sanitize_attachment_filename(filename: Optional[str], fallback: str) -> str:
+    def _sanitize_attachment_filename(filename: str | None, fallback: str) -> str:
         """
         Prevent path traversal and control characters in attachment filenames.
         Returns a safe filename or a fallback value when the provided name is empty.
@@ -1021,7 +1021,7 @@ class UltimatePSTProcessor:
         name = name.strip('._')
         return name or fallback
     
-    def _get_header(self, message, header_name: str) -> Optional[str]:
+    def _get_header(self, message: Any, header_name: str) -> str | None:
         """
         Extract specific header from message transport headers
         """
@@ -1058,7 +1058,7 @@ class UltimatePSTProcessor:
             logger.debug(f"Could not extract header {header_name}: {e}")
         return None
     
-    def _index_to_opensearch(self, email_message: EmailMessage, email_data: Dict, content: str):
+    def _index_to_opensearch(self, email_message: EmailMessage, email_data: dict[str, Any], content: str) -> None:
         """Index email to OpenSearch for full-text search"""
         # cspell:ignore opensearch
         if not self.opensearch:

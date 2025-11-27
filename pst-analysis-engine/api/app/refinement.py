@@ -4,7 +4,7 @@ PST Refinement Wizard - AI-powered discovery and filtering
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, distinct, case
-from typing import List, Dict, Optional, Any, cast
+from typing import Any, cast
 from datetime import datetime, timezone
 from collections import defaultdict
 import re
@@ -27,8 +27,8 @@ class DiscoveredProject(BaseModel):
     """Other project references found in emails"""
     name: str
     count: int
-    email_samples: List[str]
-    patterns: List[str]  # Where found: subject, body, attachments
+    email_samples: list[str]
+    patterns: list[str]  # Where found: subject, body, attachments
 
 class DiscoveredParty(BaseModel):
     """Organizations identified in emails"""
@@ -36,15 +36,15 @@ class DiscoveredParty(BaseModel):
     organization: str
     confidence: float
     email_count: int
-    domain: Optional[str]
-    sample_people: List[str]
+    domain: str | None
+    sample_people: list[str]
 
 class DiscoveredPerson(BaseModel):
     """Individual people found"""
     name: str
     email: str
-    organization: Optional[str]
-    role: Optional[str]
+    organization: str | None
+    role: str | None
     email_count: int
     first_seen: datetime
     last_seen: datetime
@@ -54,30 +54,30 @@ class DiscoveredTopic(BaseModel):
     topic: str
     count: int
     date_range: str
-    keywords: List[str]
+    keywords: list[str]
     urgency_indicators: int  # Count of urgent language
 
 class DiscoveryResponse(BaseModel):
     """Complete discovery results"""
-    other_projects: List[DiscoveredProject]
-    parties: List[DiscoveredParty]
-    people: List[DiscoveredPerson]
-    topics: List[DiscoveredTopic]
-    summary: Dict[str, Any]
+    other_projects: list[DiscoveredProject]
+    parties: list[DiscoveredParty]
+    people: list[DiscoveredPerson]
+    topics: list[DiscoveredTopic]
+    summary: dict[str, Any]
 
 class RefinementRequest(BaseModel):
     """User's refinement choices"""
-    exclude_projects: List[str]
-    confirmed_parties: Dict[str, str]  # role -> organization
-    exclude_people: List[str]
-    include_topics: List[str]
-    custom_filters: Optional[Dict[str, Any]] = {}
+    exclude_projects: list[str]
+    confirmed_parties: dict[str, str]  # role -> organization
+    exclude_people: list[str]
+    include_topics: list[str]
+    custom_filters: dict[str, Any] | None = None
 
 class RefinementFilter(BaseModel):
     """Stored refinement filter"""
     id: str
     project_id: str
-    filter_data: Dict[str, Any]
+    filter_data: dict[str, Any]
     created_at: datetime
     created_by: str
     is_active: bool = True
@@ -140,9 +140,9 @@ async def discover_evidence_patterns(
     return DiscoveryResponse(**discovery_results)
 
 
-def discover_other_projects(emails: List[EmailMessage], current_project: str) -> List[DiscoveredProject]:
+def discover_other_projects(emails: list[EmailMessage], current_project: str) -> list[DiscoveredProject]:
     """Find references to other projects"""
-    project_mentions: Dict[str, Dict[str, Any]] = defaultdict(lambda: {"count": 0, "samples": []})
+    project_mentions: dict[str, dict[str, Any]] = defaultdict(lambda: {"count": 0, "samples": []})
     current_project_lower = current_project.lower()
     
     for email in emails:
@@ -174,9 +174,9 @@ def discover_other_projects(emails: List[EmailMessage], current_project: str) ->
     return discovered_projects
 
 
-def discover_parties(emails: List[EmailMessage], db: Session) -> List[DiscoveredParty]:
+def discover_parties(emails: list[EmailMessage], db: Session) -> list[DiscoveredParty]:
     """Identify organizations and their roles"""
-    domain_stats: Dict[str, Dict[str, Any]] = defaultdict(lambda: {"count": 0, "people": set()})
+    domain_stats: dict[str, dict[str, Any]] = defaultdict(lambda: {"count": 0, "people": set()})
     
     # Analyze sender domains
     for email in emails:
@@ -216,10 +216,10 @@ def discover_parties(emails: List[EmailMessage], db: Session) -> List[Discovered
     return discovered_parties
 
 
-def discover_people(emails: List[EmailMessage]) -> List[DiscoveredPerson]:
+def discover_people(emails: list[EmailMessage]) -> list[DiscoveredPerson]:
     """Extract individual people and their details"""
     # Use None as sentinel; will be replaced with actual email dates
-    people_map: Dict[tuple, Dict[str, Any]] = defaultdict(lambda: {
+    people_map: dict[tuple[str, str], dict[str, Any]] = defaultdict(lambda: {
         "count": 0, 
         "first_seen": None, 
         "last_seen": None,
@@ -266,7 +266,7 @@ def discover_people(emails: List[EmailMessage]) -> List[DiscoveredPerson]:
     return discovered_people
 
 
-def discover_topics(emails: List[EmailMessage], db: Session) -> List[DiscoveredTopic]:
+def discover_topics(emails: list[EmailMessage], db: Session) -> list[DiscoveredTopic]:
     """Identify key topics and themes"""
     # Common construction dispute topics
     topic_keywords = {
@@ -278,7 +278,7 @@ def discover_topics(emails: List[EmailMessage], db: Session) -> List[DiscoveredT
         "H&S Incidents": ["accident", "incident", "safety", "injury", "near miss", "hse"],
     }
     
-    topic_stats: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
+    topic_stats: dict[str, dict[str, Any]] = defaultdict(lambda: {
         "count": 0, 
         "keywords_found": set(),
         "date_range": {"start": None, "end": None},
@@ -293,7 +293,7 @@ def discover_topics(emails: List[EmailMessage], db: Session) -> List[DiscoveredT
     # Convert to response format
     return build_topic_responses(topic_stats)
 
-def build_topic_responses(topic_stats: Dict[str, Dict[str, Any]]) -> List[DiscoveredTopic]:
+def build_topic_responses(topic_stats: dict[str, dict[str, Any]]) -> list[DiscoveredTopic]:
     """Convert topic statistics into response format"""
     discovered_topics = []
     for topic, stats in sorted(topic_stats.items(), key=lambda x: int(x[1]["count"]), reverse=True):
@@ -323,7 +323,7 @@ def format_date_range(date_range_dict: Any) -> str:
         return "{start} - {end}"
     return "Unknown"
 
-def process_email_topics(email: EmailMessage, topic_stats: Dict, topic_keywords: Dict, urgency_words: List) -> None:
+def process_email_topics(email: EmailMessage, topic_stats: dict[str, dict[str, Any]], topic_keywords: dict[str, list[str]], urgency_words: list[str]) -> None:
     subject_val = str(email.subject) if email.subject else ""
     body_val = str(email.body_text) if email.body_text else ""
     text_to_search = "{subject_val} {body_val}".lower()
@@ -349,7 +349,7 @@ def process_email_topics(email: EmailMessage, topic_stats: Dict, topic_keywords:
             if date_sent_val and isinstance(date_sent_val, datetime):
                 update_topic_dates(topic_stats[topic], date_sent_val)
 
-def update_topic_dates(stats: Dict, date: datetime) -> None:
+def update_topic_dates(stats: dict[str, Any], date: datetime) -> None:
     date_range = stats["date_range"]
     if isinstance(date_range, dict):
         if date_range["start"] is None:
@@ -383,7 +383,7 @@ def infer_organization_from_domain(domain: str) -> str:
     return org_name.title()
 
 
-def infer_role_from_content(emails: List[EmailMessage], domain: str) -> Optional[str]:
+def infer_role_from_content(emails: list[EmailMessage], domain: str) -> str | None:
     """Try to determine organization's role from email content"""
     # Simple heuristic based on domain patterns
     domain_lower = domain.lower()

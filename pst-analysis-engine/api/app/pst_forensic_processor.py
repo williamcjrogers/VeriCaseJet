@@ -14,7 +14,7 @@ import os
 import re
 import asyncio
 from datetime import datetime
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any
 from email.utils import parseaddr
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -61,7 +61,7 @@ class ForensicPSTProcessor:
                 os.unlink(tmp.name)
             raise
 
-    def _load_tagging_assets(self, pst_file: PSTFile) -> Tuple[List[Stakeholder], List[Keyword]]:
+    def _load_tagging_assets(self, pst_file: PSTFile) -> tuple[list[Stakeholder], list[Keyword]]:
         stakeholder_query = self.db.query(Stakeholder)
         keyword_query = self.db.query(Keyword)
         if pst_file.case_id:
@@ -80,7 +80,7 @@ class ForensicPSTProcessor:
         self,
         pst_path: str,
         pst_file: PSTFile,
-        stats: Dict
+        stats: dict[str, Any]
     ) -> None:
         pst = pypff.file()
         pst.open(pst_path)
@@ -106,7 +106,7 @@ class ForensicPSTProcessor:
         pst_file_id: str,
         s3_bucket: str,
         s3_key: str
-    ) -> Dict:
+    ) -> dict[str, Any]:
         """
         Main entry point for PST processing
         
@@ -170,13 +170,13 @@ class ForensicPSTProcessor:
     
     def _process_folder_recursive(
         self,
-        folder,
+        folder: Any,
         pst_file: PSTFile,
-        stakeholders: List[Stakeholder],
-        keywords: List[Keyword],
-        stats: Dict,
+        stakeholders: list[Stakeholder],
+        keywords: list[Keyword],
+        stats: dict[str, Any],
         folder_path: str = "Root"
-    ):
+    ) -> None:
         """Process all emails in folder and subfolders"""
         
         # Process messages in current folder
@@ -224,14 +224,14 @@ class ForensicPSTProcessor:
     
     def _extract_email_message(
         self,
-        message,
+        message: Any,
         pst_file: PSTFile,
         folder_path: str,
         message_offset: int,
-        stakeholders: List[Stakeholder],
-        keywords: List[Keyword],
-        stats: Dict
-    ):
+        stakeholders: list[Stakeholder],
+        keywords: list[Keyword],
+        stats: dict[str, Any]
+    ) -> None:
         """Extract single email message with forensic metadata"""
         
         # Extract email headers and content
@@ -394,10 +394,10 @@ class ForensicPSTProcessor:
     
     def _extract_attachment(
         self,
-        attachment,
+        attachment: Any,
         email_msg: EmailMessage,
-        stats: Dict
-    ):
+        stats: dict[str, Any]
+    ) -> None:
         """Extract email attachment to S3"""
         
         try:
@@ -472,7 +472,7 @@ class ForensicPSTProcessor:
             logger.error("Error extracting attachment: {e}", exc_info=True)
             raise
     
-    def _extract_header(self, headers: str, header_name: str) -> Optional[str]:
+    def _extract_header(self, headers: str, header_name: str) -> str | None:
         """Extract specific header from RFC822 headers"""
         if not headers:
             return None
@@ -483,7 +483,7 @@ class ForensicPSTProcessor:
             return match.group(1).strip()
         return None
     
-    def _extract_recipients(self, message, recipient_type: str) -> List[Dict]:
+    def _extract_recipients(self, message: Any, recipient_type: str) -> list[dict[str, str]]:
         """Extract recipients as list of {name, email} dicts"""
         recipients = []
         
@@ -515,9 +515,9 @@ class ForensicPSTProcessor:
         self,
         sender_email: str,
         sender_name: str,
-        all_recipients: List[Dict],
-        stakeholders: List[Stakeholder]
-    ) -> List[Stakeholder]:
+        all_recipients: list[dict[str, str]],
+        stakeholders: list[Stakeholder]
+    ) -> list[Stakeholder]:
         """Auto-tag email with matching stakeholders"""
         matched = []
         
@@ -553,8 +553,8 @@ class ForensicPSTProcessor:
         self,
         subject: str,
         body_text: str,
-        keywords: List[Keyword]
-    ) -> List[Keyword]:
+        keywords: list[Keyword]
+    ) -> list[Keyword]:
         """Auto-tag email with matching keywords"""
         matched = []
         
@@ -632,7 +632,7 @@ class ForensicPSTProcessor:
         except Exception as e:
             logger.warning("Failed to index email {email_msg.id} in OpenSearch: {e}")
     
-    def _build_email_threads(self, entity_id: str, is_project: bool = False) -> List[Dict]:
+    def _build_email_threads(self, entity_id: str, is_project: bool = False) -> list[dict[str, Any]]:
         """Build email threads using Message-ID and In-Reply-To headers"""
 
         # Get all emails for the case or project
@@ -643,7 +643,7 @@ class ForensicPSTProcessor:
             emails = query.filter_by(case_id=entity_id).all()
         
         # Build message_id to email map
-        message_id_map: Dict[str, EmailMessage] = {}
+        message_id_map: dict[str, EmailMessage] = {}
         for email in emails:
             try:
                 message_identifier = email.message_id
@@ -672,7 +672,7 @@ class ForensicPSTProcessor:
         
         return [{'root_id': k, 'emails': v} for k, v in threads.items()]
     
-    def _find_thread_root(self, email: EmailMessage, message_id_map: Dict[str, EmailMessage]) -> str:
+    def _find_thread_root(self, email: EmailMessage, message_id_map: dict[str, EmailMessage]) -> str:
         """Find the root message of an email thread"""
         
         in_reply_to = email.in_reply_to
@@ -680,7 +680,7 @@ class ForensicPSTProcessor:
             return email.message_id or str(email.id)
         
         current = email
-        seen: Set[str] = set()
+        seen: set[str] = set()
         
         while True:
             parent_ref = current.in_reply_to
@@ -703,7 +703,7 @@ async def process_pst_forensic(
     s3_bucket: str,
     s3_key: str,
     db: Session
-) -> Dict:
+) -> dict[str, Any]:
     """
     Wrapper function for Celery task
     """

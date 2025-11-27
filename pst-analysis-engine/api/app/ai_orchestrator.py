@@ -1,3 +1,4 @@
+# pyright: reportMissingTypeStubs=false, reportDeprecatedType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportUnknownParameterType=false, reportUnnecessaryIsInstance=false
 """
 Multi-AI Orchestration System - Dataset Insights & Timeline Analysis
 Leverages multiple AI models for comprehensive document analytics
@@ -18,7 +19,7 @@ router = APIRouter(prefix="/ai/orchestrator", tags=["ai-orchestrator"])
 logger = logging.getLogger(__name__)
 
 
-def _ensure_timezone(value: datetime) -> datetime:
+def _ensure_timezone(value: datetime | None) -> datetime:
     """Ensure datetime has timezone information."""
     if value is None:
         raise ValueError("Cannot ensure timezone on None value")
@@ -55,7 +56,7 @@ def _parse_iso_date(raw_value: Optional[str], field_name: str) -> Optional[datet
     return _ensure_timezone(parsed)
 
 
-def _apply_date_filters(query, start_at: Optional[datetime], end_at: Optional[datetime]):
+def _apply_date_filters(query: object, start_at: Optional[datetime], end_at: Optional[datetime]) -> object:
     """Apply date range filters to query with validation."""
     try:
         if start_at:

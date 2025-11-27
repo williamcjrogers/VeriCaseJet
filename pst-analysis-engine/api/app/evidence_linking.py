@@ -7,7 +7,7 @@ import re
 import uuid
 import logging
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any
 from dataclasses import dataclass
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func
@@ -29,23 +29,23 @@ logger = logging.getLogger(__name__)
 class LinkSuggestion:
     """A suggested link between evidence and correspondence"""
     email_id: str
-    email_subject: Optional[str]
-    email_sender: Optional[str]
-    email_date: Optional[datetime]
+    email_subject: str | None
+    email_sender: str | None
+    email_date: datetime | None
     link_type: str
     confidence: int  # 0-100
     method: str  # How the link was detected
-    context: Optional[str] = None  # Why we think they're linked
+    context: str | None = None  # Why we think they're linked
 
 
 @dataclass
 class ClassificationResult:
     """Result of evidence type classification"""
     evidence_type: str
-    document_category: Optional[str]
+    document_category: str | None
     confidence: int
     method: str
-    extracted_data: Dict[str, Any]
+    extracted_data: dict[str, Any]
 
 
 # ============================================================================
@@ -184,8 +184,8 @@ class EvidenceClassifier:
     def classify(
         self,
         filename: str,
-        file_type: Optional[str] = None,
-        extracted_text: Optional[str] = None
+        file_type: str | None = None,
+        extracted_text: str | None = None
     ) -> ClassificationResult:
         """
         Classify an evidence item
@@ -195,7 +195,7 @@ class EvidenceClassifier:
         document_category = None
         confidence = 0
         method = 'default'
-        extracted_data: Dict[str, Any] = {
+        extracted_data: dict[str, Any] = {
             'references': [],
             'amounts': [],
             'dates': [],
@@ -285,10 +285,10 @@ class EvidenceLinkingEngine:
     def find_correspondence_links(
         self,
         evidence_item: EvidenceItem,
-        case_id: Optional[uuid.UUID] = None,
-        project_id: Optional[uuid.UUID] = None,
+        case_id: uuid.UUID | None = None,
+        project_id: uuid.UUID | None = None,
         max_results: int = 20
-    ) -> List[LinkSuggestion]:
+    ) -> list[LinkSuggestion]:
         """
         Find correspondence (emails) that may be related to this evidence item
         Returns list of suggestions sorted by confidence
@@ -354,7 +354,7 @@ class EvidenceLinkingEngine:
             suggestions.extend(party_suggestions)
         
         # Deduplicate by email_id, keeping highest confidence
-        seen: Dict[str, LinkSuggestion] = {}
+        seen: dict[str, LinkSuggestion] = {}
         for s in suggestions:
             if s.email_id not in seen or s.confidence > seen[s.email_id].confidence:
                 seen[s.email_id] = s
@@ -367,9 +367,9 @@ class EvidenceLinkingEngine:
     def _find_by_filename_mention(
         self,
         filename: str,
-        case_id: Optional[uuid.UUID],
-        project_id: Optional[uuid.UUID]
-    ) -> List[LinkSuggestion]:
+        case_id: uuid.UUID | None,
+        project_id: uuid.UUID | None
+    ) -> list[LinkSuggestion]:
         """Find emails that mention this filename in subject or body"""
         suggestions = []
         
@@ -426,10 +426,10 @@ class EvidenceLinkingEngine:
     
     def _find_by_references(
         self,
-        references: List[Dict[str, Any]],
-        case_id: Optional[uuid.UUID],
-        project_id: Optional[uuid.UUID]
-    ) -> List[LinkSuggestion]:
+        references: list[dict[str, Any]],
+        case_id: uuid.UUID | None,
+        project_id: uuid.UUID | None
+    ) -> list[LinkSuggestion]:
         """Find emails that mention the same reference numbers"""
         suggestions = []
         
@@ -473,10 +473,10 @@ class EvidenceLinkingEngine:
     def _find_by_date_proximity(
         self,
         doc_date: datetime,
-        case_id: Optional[uuid.UUID],
-        project_id: Optional[uuid.UUID],
+        case_id: uuid.UUID | None,
+        project_id: uuid.UUID | None,
         days_range: int = 7
-    ) -> List[LinkSuggestion]:
+    ) -> list[LinkSuggestion]:
         """Find emails sent within N days of document date"""
         suggestions = []
         
@@ -520,11 +520,11 @@ class EvidenceLinkingEngine:
     
     def _find_by_parties(
         self,
-        parties: List[Dict[str, Any]],
-        author: Optional[str],
-        case_id: Optional[uuid.UUID],
-        project_id: Optional[uuid.UUID]
-    ) -> List[LinkSuggestion]:
+        parties: list[dict[str, Any]],
+        author: str | None,
+        case_id: uuid.UUID | None,
+        project_id: uuid.UUID | None
+    ) -> list[LinkSuggestion]:
         """Find emails involving the same parties as the document"""
         suggestions = []
         
@@ -576,8 +576,8 @@ class EvidenceLinkingEngine:
     def find_duplicate_evidence(
         self,
         file_hash: str,
-        exclude_id: Optional[uuid.UUID] = None
-    ) -> List[EvidenceItem]:
+        exclude_id: uuid.UUID | None = None
+    ) -> list[EvidenceItem]:
         """Find evidence items with the same file hash (duplicates)"""
         query = self.db.query(EvidenceItem).filter(
             EvidenceItem.file_hash == file_hash
@@ -592,7 +592,7 @@ class EvidenceLinkingEngine:
         self,
         evidence_item: EvidenceItem,
         max_results: int = 10
-    ) -> List[Tuple[EvidenceItem, str, int]]:
+    ) -> list[tuple[EvidenceItem, str, int]]:
         """
         Find related evidence items based on:
         - Same references
@@ -662,7 +662,7 @@ class EvidenceLinkingEngine:
         evidence_item: EvidenceItem,
         user_id: uuid.UUID,
         confidence_threshold: int = 70
-    ) -> List[EvidenceCorrespondenceLink]:
+    ) -> list[EvidenceCorrespondenceLink]:
         """
         Automatically create links for high-confidence suggestions
         Returns list of created links
@@ -710,7 +710,7 @@ class EvidenceLinkingEngine:
     def classify_and_enrich(
         self,
         evidence_item: EvidenceItem
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Classify evidence type and extract metadata
         Updates the evidence item in-place
@@ -758,11 +758,11 @@ class EvidenceLinkingEngine:
 
 def process_evidence_batch(
     db: Session,
-    evidence_ids: List[uuid.UUID],
+    evidence_ids: list[uuid.UUID],
     user_id: uuid.UUID,
     auto_link: bool = True,
     classify: bool = True
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Process a batch of evidence items
     - Classify each item

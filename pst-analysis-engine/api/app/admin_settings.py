@@ -1,19 +1,25 @@
+from __future__ import annotations
+
 """
 Admin settings management endpoints
 Allows admins to modify application settings like Textract page threshold
 """
-from fastapi import APIRouter, Depends, HTTPException, Body
-from sqlalchemy.orm import Session
-from typing import List, Dict, Any
-from pydantic import BaseModel
-from .security import current_user
-from .models import User, UserRole, AppSetting
-from .db import get_db
 import logging
+from typing import Annotated
+
+from fastapi import APIRouter, Body, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from .db import get_db
+from .models import AppSetting, User, UserRole
+from .security import current_user
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin/settings", tags=["admin-settings"])
+
+DbSession = Annotated[Session, Depends(get_db)]
 
 
 class SettingResponse(BaseModel):
@@ -29,17 +35,20 @@ class SettingUpdate(BaseModel):
     description: str | None = None
 
 
-def _require_admin(user: User = Depends(current_user)) -> User:
+def _require_admin(user: Annotated[User, Depends(current_user)]) -> User:
     """Ensure user is an admin"""
     if user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
 
-@router.get("", response_model=List[SettingResponse])
+AdminDep = Annotated[User, Depends(_require_admin)]
+
+
+@router.get("", response_model=list[SettingResponse])
 def list_settings(
-    db: Session = Depends(get_db),
-    admin: User = Depends(_require_admin)
+    db: DbSession,
+    admin: AdminDep,
 ):
     """List all application settings"""
     settings = db.query(AppSetting).order_by(AppSetting.key).all()
@@ -58,8 +67,8 @@ def list_settings(
 @router.get("/{key}", response_model=SettingResponse)
 def get_setting(
     key: str,
-    db: Session = Depends(get_db),
-    admin: User = Depends(_require_admin)
+    db: DbSession,
+    admin: AdminDep,
 ):
     """Get a specific setting by key"""
     setting = db.query(AppSetting).filter(AppSetting.key == key).first()
@@ -78,9 +87,9 @@ def get_setting(
 @router.put("/{key}", response_model=SettingResponse)
 def update_setting(
     key: str,
-    update: SettingUpdate = Body(...),
-    db: Session = Depends(get_db),
-    admin: User = Depends(_require_admin)
+    db: DbSession,
+    admin: AdminDep,
+    update: Annotated[SettingUpdate, Body(...)],
 ):
     """Update a setting (creates if doesn't exist)"""
     setting = db.query(AppSetting).filter(AppSetting.key == key).first()
