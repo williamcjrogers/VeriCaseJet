@@ -1,3 +1,4 @@
+# pyright: reportDeprecatedType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportUnknownParameterType=false
 """
 Case Management API
 Handles cases, evidence linking, issues, claims, and chronology

@@ -3,8 +3,7 @@ User Management API Endpoints
 Handles user profile, password changes, and admin operations
 """
 import logging
-from datetime import datetime, timedelta
-from typing import List, Optional
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
@@ -23,15 +22,15 @@ router = APIRouter(prefix="/users", tags=["users"])
 class UserProfile(BaseModel):
     id: str
     email: str
-    display_name: Optional[str] = None
+    display_name: str | None = None
     role: str
     is_active: bool
     created_at: datetime
-    last_login_at: Optional[datetime] = None
+    last_login_at: datetime | None = None
 
 
 class UpdateProfileRequest(BaseModel):
-    display_name: Optional[str] = None
+    display_name: str | None = None
 
 
 class ChangePasswordRequest(BaseModel):
@@ -42,23 +41,23 @@ class ChangePasswordRequest(BaseModel):
 class UserListItem(BaseModel):
     id: str
     email: str
-    display_name: Optional[str] = None
+    display_name: str | None = None
     role: str
     is_active: bool
     created_at: datetime
-    last_login_at: Optional[datetime] = None
+    last_login_at: datetime | None = None
 
 
 class UpdateUserRequest(BaseModel):
-    role: Optional[str] = None
-    is_active: Optional[bool] = None
-    display_name: Optional[str] = None
+    role: str | None = None
+    is_active: bool | None = None
+    display_name: str | None = None
 
 
 class CreateUserRequest(BaseModel):
     email: str
-    display_name: Optional[str] = None
-    role: Optional[str] = "VIEWER"
+    display_name: str | None = None
+    role: str | None = "VIEWER"
     send_invite: bool = True
 
 
@@ -208,7 +207,7 @@ def create_user(
         raise HTTPException(status_code=500, detail="Failed to create user")
 
 
-@router.get("", response_model=List[UserListItem])
+@router.get("", response_model=list[UserListItem])
 def list_users(
         db: Session = Depends(get_db),
         admin: User = Depends(require_admin)
@@ -345,13 +344,12 @@ def create_invitation(
     )
 
 
-@router.get("/invitations", response_model=List[InvitationResponse])
+@router.get("/invitations", response_model=list[InvitationResponse])
 def list_invitations(
         db: Session = Depends(get_db),
         admin: User = Depends(require_admin)
 ):
     """List all active invitations (admin only)"""
-    from datetime import timezone
     now = datetime.now(timezone.utc)
     invitations = db.query(UserInvitation).filter(
         UserInvitation.expires_at > now
@@ -392,7 +390,6 @@ def revoke_invitation(
 @router.get("/invitations/{token}/validate")
 def validate_invitation(token: str, db: Session = Depends(get_db)):
     """Validate invitation token (public endpoint)"""
-    from datetime import timezone
     now = datetime.now(timezone.utc)
     invitation = db.query(UserInvitation).filter(
         UserInvitation.token == token,
@@ -416,7 +413,6 @@ def accept_invitation(
         db: Session = Depends(get_db)
 ):
     """Accept invitation and create account (public endpoint)"""
-    from datetime import timezone
     now = datetime.now(timezone.utc)
     invitation = db.query(UserInvitation).filter(
         UserInvitation.token == token,

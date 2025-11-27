@@ -3,6 +3,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.pool import QueuePool
 from .config import settings
 import os
+from typing import Any
 
 try:
     # DEBUG: Print environment variables (only in debug mode)
@@ -40,7 +41,7 @@ except Exception as e:
     # Re-raise the exception as this is critical
     raise
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+Base: Any = declarative_base()
 
 
 def get_db():

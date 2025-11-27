@@ -1,13 +1,13 @@
+from __future__ import annotations
+
 """
 AI Settings Manager - Loads AI configuration from database with fallback to environment variables
 """
 import logging
-from typing import Optional
-from functools import lru_cache
 from sqlalchemy.orm import Session
 
-from .models import AppSetting
 from .config import settings as env_settings
+from .models import AppSetting
 
 logger = logging.getLogger(__name__)
 
@@ -18,16 +18,16 @@ class AISettings:
     Settings are cached but can be refreshed on demand.
     """
     
-    _cache: dict = {}
+    _cache: dict[str, str] = {}
     _cache_valid: bool = False
     
     # Default models for each provider
-    DEFAULT_MODELS = {
-        'openai': 'gpt-4-turbo',
+    DEFAULT_MODELS: dict[str, str] = {
+        'openai': 'gpt-4o',
         'anthropic': 'claude-sonnet-4-20250514',
         'gemini': 'gemini-2.0-flash',
         'grok': 'grok-2-1212',
-        'perplexity': 'pplx-7b-chat'
+        'perplexity': 'sonar-pro'
     }
     
     @classmethod
@@ -56,7 +56,7 @@ class AISettings:
             cls._cache_valid = False
     
     @classmethod
-    def get(cls, key: str, db: Optional[Session] = None, default: Optional[str] = None) -> Optional[str]:
+    def get(cls, key: str, db: Session | None = None, default: str | None = None) -> str | None:
         """
         Get an AI setting value.
         Priority: Database > Environment Variable > Default
@@ -86,37 +86,37 @@ class AISettings:
         
         env_var = env_map.get(key)
         if env_var:
-            env_value = getattr(env_settings, env_var, None)
-            if env_value:
-                return env_value
+            env_value_raw: object | None = getattr(env_settings, env_var, None)
+            if env_value_raw is not None:
+                return str(env_value_raw)
         
         return default
     
     @classmethod
-    def get_api_key(cls, provider: str, db: Optional[Session] = None) -> Optional[str]:
+    def get_api_key(cls, provider: str, db: Session | None = None) -> str | None:
         """Get API key for a specific provider"""
         key = f"{provider}_api_key"
         return cls.get(key, db)
     
     @classmethod
-    def get_model(cls, provider: str, db: Optional[Session] = None) -> str:
+    def get_model(cls, provider: str, db: Session | None = None) -> str:
         """Get selected model for a specific provider"""
         key = f"{provider}_model"
         return cls.get(key, db) or cls.DEFAULT_MODELS.get(provider, '')
     
     @classmethod
-    def get_default_provider(cls, db: Optional[Session] = None) -> str:
+    def get_default_provider(cls, db: Session | None = None) -> str:
         """Get the default AI provider"""
         return cls.get('ai_default_provider', db) or 'gemini'
     
     @classmethod
-    def is_web_search_enabled(cls, db: Optional[Session] = None) -> bool:
+    def is_web_search_enabled(cls, db: Session | None = None) -> bool:
         """Check if web search is enabled for AI queries"""
         value = cls.get('ai_web_search_enabled', db)
         return value == 'true' if value else False
     
     @classmethod
-    def get_all_configured_providers(cls, db: Optional[Session] = None) -> dict:
+    def get_all_configured_providers(cls, db: Session | None = None) -> dict[str, dict[str, str | bool]]:
         """Get status of all AI providers"""
         providers = {
             'openai': {
@@ -154,12 +154,12 @@ class AISettings:
 
 
 # Convenience functions for direct import
-def get_ai_api_key(provider: str, db: Optional[Session] = None) -> Optional[str]:
+def get_ai_api_key(provider: str, db: Session | None = None) -> str | None:
     return AISettings.get_api_key(provider, db)
 
-def get_ai_model(provider: str, db: Optional[Session] = None) -> str:
+def get_ai_model(provider: str, db: Session | None = None) -> str:
     return AISettings.get_model(provider, db)
 
-def get_ai_providers_status(db: Optional[Session] = None) -> dict:
+def get_ai_providers_status(db: Session | None = None) -> dict[str, dict[str, str | bool]]:
     return AISettings.get_all_configured_providers(db)
 

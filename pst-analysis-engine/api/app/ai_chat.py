@@ -1,3 +1,4 @@
+# pyright: reportMissingTypeStubs=false, reportDeprecatedType=false
 """
 AI Evidence Assistant - Multi-Model Deep Research
 Helps users understand their evidence, build chronologies, and develop narratives
@@ -86,7 +87,7 @@ class ChatResponse(BaseModel):
 class AIEvidenceOrchestrator:
     """Orchestrates multiple AI models for evidence analysis"""
     
-    def __init__(self, db: Session = None):
+    def __init__(self, db: Session | None = None):
         # Load API keys from database settings (with env var fallback)
         self.db = db
         self.openai_key = get_ai_api_key('openai', db) or ""
@@ -403,10 +404,10 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
     async def _query_gemini_flash(self, prompt: str, model_name: str = None) -> str:
         """Gemini Flash for quick responses"""
         try:
-            import google.generativeai as genai
+            import google.generativeai as genai  # pyright: ignore[reportMissingTypeStubs]
             genai.configure(api_key=self.google_key)
             # Use configured model or fallback
-            actual_model = model_name or self.gemini_model or 'gemini-2.0-flash'
+            actual_model: str = model_name or self.gemini_model or 'gemini-2.0-flash'
             model = genai.GenerativeModel(actual_model)
             response = await asyncio.to_thread(model.generate_content, prompt)
             return response.text
@@ -419,7 +420,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
             import openai
             client = openai.AsyncOpenAI(api_key=self.openai_key)
             # Use configured model or fallback
-            actual_model = model_name or self.openai_model or 'gpt-4-turbo'
+            actual_model: str = model_name or self.openai_model or 'gpt-4-turbo'
             response = await client.chat.completions.create(
                 model=actual_model,
                 messages=[{"role": "user", "content": prompt}],
@@ -435,7 +436,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
             import anthropic
             client = anthropic.AsyncAnthropic(api_key=self.anthropic_key)
             # Use configured model or fallback
-            actual_model = model_name or self.anthropic_model or 'claude-sonnet-4-20250514'
+            actual_model: str = model_name or self.anthropic_model or 'claude-sonnet-4-20250514'
             response = await client.messages.create(
                 model=actual_model,
                 max_tokens=1200,

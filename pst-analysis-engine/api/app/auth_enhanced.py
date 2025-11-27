@@ -1,10 +1,10 @@
+# pyright: reportCallInDefaultInitializer=false, reportUnknownMemberType=false, reportMissingTypeStubs=false
 """
 Enhanced authentication endpoints with security features
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Body, Path
-from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 from typing import Optional, Dict
 import uuid
 import logging
@@ -91,7 +91,7 @@ async def login_secure(
     db: Session = Depends(get_db)
 ):
     """Enhanced login with rate limiting and account lockout"""
-    client_ip = request.client.host
+    client_ip = request.client.host if request.client else "unknown"
     user_agent = request.headers.get("user-agent", "")
     
     user = db.query(User).filter(User.email == data.email.lower()).first()
@@ -101,7 +101,8 @@ async def login_secure(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     
     if is_account_locked(user):
-        remaining_minutes = int((user.locked_until - datetime.now(timezone.utc)).total_seconds() / 60)
+        locked_until = user.locked_until or datetime.now(timezone.utc)
+        remaining_minutes = int((locked_until - datetime.now(timezone.utc)).total_seconds() / 60)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Account is locked. Try again in {remaining_minutes} minutes.")
     
     if not verify_password(data.password, user.password_hash):
@@ -396,9 +397,9 @@ async def list_sessions(
                 "id": str(session.id),
                 "ip_address": session.ip_address,
                 "user_agent": session.user_agent,
-                "created_at": session.created_at.isoformat(),
-                "last_activity": session.last_activity.isoformat(),
-                "expires_at": session.expires_at.isoformat()
+                "created_at": session.created_at.isoformat() if session.created_at else None,
+                "last_activity": session.last_activity.isoformat() if session.last_activity else None,
+                "expires_at": session.expires_at.isoformat() if session.expires_at else None
             }
             for session in sessions
         ]

@@ -5,7 +5,7 @@ Handles upload and parsing of Asta Powerproject and PDF schedules
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from typing import List, Optional
+from typing import Any
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 import json
@@ -19,7 +19,7 @@ router = APIRouter()
 
 # cSpell:ignore asta
 
-def _extract_project_dates(project_elem) -> tuple[Optional[str], Optional[str]]:
+def _extract_project_dates(project_elem: Any) -> tuple[str | None, str | None]:
     """Extract project start and finish dates from PROJECT element"""
     if project_elem is None:
         return None, None
@@ -32,7 +32,7 @@ def _extract_project_dates(project_elem) -> tuple[Optional[str], Optional[str]]:
     
     return project_start, project_finish
 
-def _parse_task_element(task) -> dict:
+def _parse_task_element(task: Any) -> dict[str, Any]:
     """Parse a single TASK element into activity dict"""
     return {
         'id': task.get('ID') or task.get('id'),
@@ -45,7 +45,7 @@ def _parse_task_element(task) -> dict:
         'is_milestone': task.get('MILESTONE') == 'true' or task.get('milestone') == 'true',
     }
 
-def _calculate_project_dates(activities: List[dict]) -> tuple[Optional[str], Optional[str]]:
+def _calculate_project_dates(activities: list[dict[str, Any]]) -> tuple[str | None, str | None]:
     """Calculate project start/finish from activities if not provided"""
     if not activities:
         return None, None
@@ -58,7 +58,7 @@ def _calculate_project_dates(activities: List[dict]) -> tuple[Optional[str], Opt
     
     return project_start, project_finish
 
-def parse_asta_xml(xml_content: bytes) -> dict:
+def parse_asta_xml(xml_content: bytes) -> dict[str, Any]:
     """
     Parse Asta Powerproject XML export to extract activities, dates, and critical path
     
@@ -112,7 +112,7 @@ def parse_asta_xml(xml_content: bytes) -> dict:
         raise ValueError(f"Invalid XML format: {str(e)}")
 
 
-def parse_asta_date(date_str: Optional[str]) -> Optional[str]:
+def parse_asta_date(date_str: str | None) -> str | None:
     """
     Parse Asta date string to ISO format
     Asta typically uses: YYYY-MM-DD or DD/MM/YYYY
@@ -145,7 +145,7 @@ def parse_asta_date(date_str: Optional[str]) -> Optional[str]:
     return date_str  # Return as-is if can't parse
 
 
-def parse_pdf_schedule(pdf_content: bytes) -> dict:
+def parse_pdf_schedule(pdf_content: bytes) -> dict[str, Any]:
     """
     Extract schedule data from PDF
     Uses Apache Tika for text extraction
@@ -169,7 +169,7 @@ async def upload_programme(
     case_id: int = Form(...),
     programme_type: str = Form(...),  # as_planned, as_built, interim
     programme_date: str = Form(...),
-    version_number: Optional[str] = Form(None),
+    version_number: str | None = Form(None),
     db: Session = Depends(get_db),
     user: "User" = Depends(current_user)
 ):
@@ -453,7 +453,7 @@ async def list_delays(
 @router.patch("/api/delays/{delay_id}/link-correspondence")
 async def link_correspondence_to_delay(
     delay_id: int,
-    evidence_ids: List[int],
+    evidence_ids: list[int],
     db: Session = Depends(get_db),
     user: "User" = Depends(current_user)
 ):

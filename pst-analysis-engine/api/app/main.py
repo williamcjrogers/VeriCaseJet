@@ -4,7 +4,6 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import RLock
-from typing import Optional, List, Dict
 from uuid import uuid4
 from fastapi import FastAPI, Depends, HTTPException, Query, Body, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -53,6 +52,7 @@ from .models import (
     Company,
     UserCompany,
     UserRole,
+    AppSetting,
 )
 from .storage import ensure_bucket, presign_put, presign_get, multipart_start, presign_part, multipart_complete, s3, get_object, put_object, delete_object
 from .search import ensure_index, search as os_search, delete_document as os_delete
@@ -88,11 +88,12 @@ from .auth_enhanced import router as auth_enhanced_router  # Enhanced authentica
 from .evidence_repository import router as evidence_router  # Evidence repository
 from .deep_research import router as deep_research_router  # Deep Research Agent
 from .claims_module import router as claims_router  # Contentious Matters and Heads of Claim
+from .dashboard_api import router as dashboard_router  # Master Dashboard API
 
 logger = logging.getLogger(__name__)
 bearer = HTTPBearer(auto_error=False)
 
-CSRF_TOKEN_STORE: Dict[str, str] = {}
+CSRF_TOKEN_STORE: dict[str, str] = {}
 CSRF_LOCK = RLock()
 CSRF_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 
@@ -137,22 +138,22 @@ def verify_csrf_token(
 class DocumentSummary(BaseModel):
     id: str
     filename: str
-    path: Optional[str] = None
+    path: str | None = None
     status: str
     size: int
-    content_type: Optional[str] = None
-    title: Optional[str] = None
+    content_type: str | None = None
+    title: str | None = None
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
 
 class DocumentListResponse(BaseModel):
     total: int
-    items: List[DocumentSummary]
+    items: list[DocumentSummary]
 
 
 class PathListResponse(BaseModel):
-    paths: List[str]
+    paths: list[str]
 app = FastAPI(title="VeriCase Docs API", version="0.3.9")  # Updated 2025-11-12 added AWS Secrets Manager for AI keys
 
 # Mount UI BEFORE routers (order matters in FastAPI!)
@@ -209,6 +210,7 @@ app.include_router(auth_enhanced_router)  # Enhanced authentication endpoints
 app.include_router(evidence_router)  # Evidence repository
 app.include_router(deep_research_router)  # Deep Research Agent
 app.include_router(claims_router)  # Contentious Matters and Heads of Claim
+app.include_router(dashboard_router)  # Master Dashboard API
 
 # Import and include unified router
 from .correspondence import unified_router
@@ -258,6 +260,12 @@ def redirect_to_wizard():
 @app.get("/dashboard", include_in_schema=False)
 def redirect_to_dashboard():
     return RedirectResponse(url="/ui/dashboard.html")
+
+@app.get("/master-dashboard.html", include_in_schema=False)
+@app.get("/master-dashboard", include_in_schema=False)
+@app.get("/home", include_in_schema=False)
+def redirect_to_master_dashboard():
+    return RedirectResponse(url="/ui/master-dashboard.html")
 
 @app.get("/health")
 async def health_check():
@@ -328,6 +336,137 @@ async def debug_auth(db: Session = Depends(get_db)):
             "tables_exist": False
         }
 
+def _populate_ai_settings_from_env(force_update: bool = False):
+    """
+    Populate AI settings in database from environment variables.
+    This ensures Admin Settings UI shows the configured API keys.
+    
+    Args:
+        force_update: If True, update existing settings even if they have values.
+                     Used after loading from AWS Secrets Manager.
+    """
+    db = SessionLocal()
+    try:
+        # Map of database setting keys to environment variable names and descriptions
+        ai_settings_map = {
+            'openai_api_key': {
+                'env_var': 'OPENAI_API_KEY',
+                'config_attr': 'OPENAI_API_KEY',
+                'description': 'OpenAI API key for GPT models',
+                'is_api_key': True
+            },
+            'anthropic_api_key': {
+                'env_var': 'CLAUDE_API_KEY',
+                'config_attr': 'CLAUDE_API_KEY', 
+                'description': 'Anthropic API key for Claude models',
+                'is_api_key': True
+            },
+            'gemini_api_key': {
+                'env_var': 'GEMINI_API_KEY',
+                'config_attr': 'GEMINI_API_KEY',
+                'description': 'Google API key for Gemini models',
+                'is_api_key': True
+            },
+            'grok_api_key': {
+                'env_var': 'GROK_API_KEY',
+                'config_attr': 'GROK_API_KEY',
+                'description': 'xAI API key for Grok models',
+                'is_api_key': True
+            },
+            'perplexity_api_key': {
+                'env_var': 'PERPLEXITY_API_KEY',
+                'config_attr': 'PERPLEXITY_API_KEY',
+                'description': 'Perplexity API key for Sonar models',
+                'is_api_key': True
+            },
+            # Default models
+            'openai_model': {
+                'default': 'gpt-4o',
+                'description': 'Default OpenAI model'
+            },
+            'anthropic_model': {
+                'default': 'claude-sonnet-4-20250514',
+                'description': 'Default Anthropic model'
+            },
+            'gemini_model': {
+                'default': 'gemini-2.0-flash',
+                'description': 'Default Gemini model'
+            },
+            'grok_model': {
+                'default': 'grok-2-1212',
+                'description': 'Default Grok model'
+            },
+            'perplexity_model': {
+                'default': 'sonar-pro',
+                'description': 'Default Perplexity model'
+            },
+            # Default provider
+            'ai_default_provider': {
+                'default': 'anthropic',
+                'description': 'Default AI provider to use'
+            },
+        }
+        
+        populated_count = 0
+        
+        for key, config in ai_settings_map.items():
+            # Check if setting already exists
+            existing = db.query(AppSetting).filter(AppSetting.key == key).first()
+            
+            # Skip if setting exists and has value (unless force_update for API keys)
+            if existing and existing.value:
+                if not force_update:
+                    continue
+                # Only force update API keys, not model defaults
+                if not config.get('is_api_key'):
+                    continue
+            
+            # Get value from environment or config
+            value = None
+            
+            if 'env_var' in config:
+                # Try environment variable first
+                value = os.getenv(config['env_var'])
+                
+                # Fall back to config settings
+                if not value and 'config_attr' in config:
+                    value = getattr(settings, config['config_attr'], None)
+            elif 'default' in config:
+                # Use default value for model settings
+                value = config['default']
+            
+            if value:
+                if existing:
+                    # Update existing setting
+                    if existing.value != value:
+                        existing.value = value
+                        logger.info(f"Updated AI setting: {key}")
+                        populated_count += 1
+                else:
+                    # Create new setting
+                    new_setting = AppSetting(
+                        key=key,
+                        value=value,
+                        description=config.get('description', '')
+                    )
+                    db.add(new_setting)
+                    logger.info(f"Created AI setting: {key}")
+                    populated_count += 1
+        
+        if populated_count > 0:
+            db.commit()
+            logger.info(f"Populated {populated_count} AI settings from environment")
+        else:
+            logger.debug("AI settings already configured, no changes needed")
+            
+    except Exception as e:
+        logger.error(f"Error populating AI settings: {e}")
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 @app.on_event("startup")
 def startup():
     if UI_DIR:
@@ -386,6 +525,12 @@ def startup():
     except Exception as e:
         logger.warning(f"OpenSearch initialization skipped: {e}")
     
+    # Populate AI settings from environment variables
+    try:
+        _populate_ai_settings_from_env()
+    except Exception as e:
+        logger.warning(f"AI settings population skipped: {e}")
+    
     # Load AI API keys from AWS Secrets Manager if configured
     try:
         secret_name = os.getenv('AWS_SECRETS_MANAGER_AI_KEYS')
@@ -401,12 +546,19 @@ def startup():
                 secret_data = json.loads(response['SecretString'])
                 
                 # Update environment variables with the loaded keys
-                for key_name in ['OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'GROK_API_KEY', 'PERPLEXITY_API_KEY']:
+                for key_name in ['OPENAI_API_KEY', 'CLAUDE_API_KEY', 'GEMINI_API_KEY', 'GROK_API_KEY', 'PERPLEXITY_API_KEY']:
                     if key_name in secret_data and secret_data[key_name]:
                         os.environ[key_name] = secret_data[key_name]
                         logger.info(f"[OK] Loaded {key_name} from Secrets Manager")
                     else:
                         logger.warning(f"⚠ {key_name} not found in Secrets Manager")
+                
+                # Re-populate AI settings to sync Secrets Manager values to database
+                try:
+                    _populate_ai_settings_from_env(force_update=True)
+                    logger.info("AI settings synced from Secrets Manager to database")
+                except Exception as sync_err:
+                    logger.warning(f"Failed to sync AI settings to database: {sync_err}")
                         
             except Exception as e:
                 logger.error(f"Failed to retrieve AI API keys from Secrets Manager: {e}")
@@ -804,9 +956,9 @@ def multipart_complete_ep(
 
 @app.get("/documents", response_model=DocumentListResponse)
 def list_documents(
-    path_prefix: Optional[str] = Query(default=None),
+    path_prefix: str | None = Query(default=None),
     exact_folder: bool = Query(default=False),
-    status: Optional[str] = Query(default=None),
+    status: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -1030,7 +1182,7 @@ def delete_document_endpoint(
     return Response(status_code=204)
 # Search
 @app.get("/search")
-def search(q: str = Query(..., min_length=1, max_length=500), path_prefix: Optional[str] = None, user: User = Depends(current_user)):
+def search(q: str = Query(..., min_length=1, max_length=500), path_prefix: str | None = None, user: User = Depends(current_user)):
     try:
         res=os_search(q, size=25, path_prefix=path_prefix); hits=[]
         for h in res.get("hits",{}).get("hits",[]):
@@ -1066,7 +1218,7 @@ def create_share(body: dict = Body(...), db: Session = Depends(get_db), user: Us
     share=ShareLink(token=token, document_id=doc.id, created_by=user.id, expires_at=expires, password_hash=password_hash); db.add(share); db.commit()
     return {"token": token, "expires_at": expires, "requires_password": bool(password_hash)}
 @app.get("/shares/{token}")
-def resolve_share(token: str, password: Optional[str] = Query(default=None), watermark: Optional[str] = Query(default=None), db: Session = Depends(get_db)):
+def resolve_share(token: str, password: str | None = Query(default=None), watermark: str | None = Query(default=None), db: Session = Depends(get_db)):
     now=datetime.now(timezone.utc)
     share=db.query(ShareLink).options(joinedload(ShareLink.document)).filter(ShareLink.token==token, ShareLink.expires_at>now).first()
     if not share: raise HTTPException(404,"invalid or expired")
@@ -1105,13 +1257,13 @@ from .folders import validate_folder_path, get_parent_path, get_folder_name, cre
 class FolderInfo(BaseModel):
     path: str
     name: str
-    parent_path: Optional[str] = None
+    parent_path: str | None = None
     is_empty: bool
     document_count: int
-    created_at: Optional[datetime] = None
+    created_at: datetime | None = None
 
 class FolderListResponse(BaseModel):
-    folders: List[FolderInfo]
+    folders: list[FolderInfo]
 
 @app.post("/folders")
 def create_folder(

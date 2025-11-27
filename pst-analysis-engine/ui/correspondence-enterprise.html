@@ -15,6 +15,12 @@
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <!-- VeriCase Design System -->
+    <link rel="stylesheet" href="brand-styles.css">
+    <link rel="stylesheet" href="design-system.css">
+    <script src="vericase-ui.js"></script>
+    <script src="nav-shell.js"></script>
+    
     <!-- DOMPurify for HTML sanitization -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     
@@ -1061,12 +1067,12 @@
                         <i class="fas fa-chevron-down"></i>
                     </div>
                     <div class="context-section-body" id="quickLinkBody">
-                        <select class="quick-link-dropdown" id="linkTypeSelect" onchange="onLinkTypeChange()">
+                        <label for="linkTypeSelect"></label><select class="quick-link-dropdown" id="linkTypeSelect" onchange="onLinkTypeChange()">
                             <option value="">Select link type...</option>
                             <option value="matter">Link to Contentious Matter</option>
                             <option value="claim">Link to Head of Claim</option>
                         </select>
-                        <select class="quick-link-dropdown" id="linkTargetSelect" style="display: none;">
+                        <label for="linkTargetSelect"></label><select class="quick-link-dropdown" id="linkTargetSelect" style="display: none;">
                             <option value="">Select target...</option>
                         </select>
                         <button class="link-btn" id="linkSelectedBtn" onclick="linkSelectedEmails()" disabled>
@@ -1091,7 +1097,7 @@
                             <!-- Keywords will be loaded here -->
                         </div>
                         <div class="add-keyword-input">
-                            <input type="text" id="newKeywordInput" placeholder="Add keyword..." onkeypress="if(event.key==='Enter')addKeywordFromContext()">
+                            <label for="newKeywordInput"></label><input type="text" id="newKeywordInput" placeholder="Add keyword..." onkeypress="if(event.key==='Enter')addKeywordFromContext()">
                             <button onclick="addKeywordFromContext()"><i class="fas fa-plus"></i></button>
                         </div>
                         <div style="margin-top: 0.75rem;">

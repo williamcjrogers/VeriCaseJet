@@ -7,7 +7,6 @@ from sqlalchemy import desc
 from .security import get_db, current_user
 from .models import User, Document, DocumentVersion
 from .storage import presign_get
-from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime, timezone
 import uuid
@@ -27,7 +26,7 @@ class VersionResponse(BaseModel):
 class VersionListResponse(BaseModel):
     total: int
     current_version: int
-    versions: List[VersionResponse]
+    versions: list[VersionResponse]
 
 @router.get("/documents/{document_id}", response_model=VersionListResponse)
 def list_document_versions(

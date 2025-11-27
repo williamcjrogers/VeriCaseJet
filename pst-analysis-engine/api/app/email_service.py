@@ -1,17 +1,18 @@
 """
 Email service for authentication and notifications
 """
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from typing import Optional, List
-import logging
-from pathlib import Path
-import jinja2
-from datetime import datetime, timezone
-import os
+from __future__ import annotations
 
-from .config import settings
+import logging
+import os
+import smtplib
+from collections.abc import Mapping
+from datetime import datetime, timezone
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from pathlib import Path
+
+import jinja2
 
 logger = logging.getLogger(__name__)
 
@@ -47,15 +48,15 @@ class EmailService:
         """Get SMTP connection"""
         try:
             server = smtplib.SMTP(self.smtp_host, self.smtp_port)
-            server.starttls()
+            _ = server.starttls()
             if self.smtp_user and self.smtp_pass:
-                server.login(self.smtp_user, self.smtp_pass)
+                _ = server.login(self.smtp_user, self.smtp_pass)
             return server
         except Exception as e:
             logger.error(f"Failed to connect to SMTP server: {e}")
             raise
     
-    def _send_email(self, to_email: str, subject: str, html_content: str, text_content: Optional[str] = None):
+    def _send_email(self, to_email: str, subject: str, html_content: str, text_content: str | None = None):
         """Send email using SMTP"""
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
@@ -75,8 +76,8 @@ class EmailService:
         try:
             if self.smtp_user and self.smtp_pass:
                 server = self._get_smtp_connection()
-                server.send_message(msg)
-                server.quit()
+                _ = server.send_message(msg)
+                _ = server.quit()
                 logger.info(f"Email sent successfully to {to_email}")
             else:
                 # In development, just log the email
@@ -194,7 +195,63 @@ If you didn't request this, please ignore this email. Your password won't be cha
         
         self._send_email(to_email, "Reset your VeriCase password", html_content, text_content)
     
-    def send_security_alert(self, to_email: str, user_name: str, alert_type: str, details: dict):
+    def send_approval_email(
+        self,
+        to_email: str,
+        user_name: str,
+        approved: bool,
+        reason: str | None = None
+    ) -> None:
+        """Notify a user about approval or rejection results."""
+        status_text = "approved" if approved else "rejected"
+        subject = f"Your VeriCase account was {status_text}"
+        if approved:
+            body_text = (
+                f"Hi {user_name},\n\n"
+                "Great news! Your VeriCase account has been approved. "
+                "You can now sign in and start working with your cases.\n\n"
+                "— VeriCase Team"
+            )
+            html_body = f"""
+            <html>
+                <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #38a169;">Account Approved</h2>
+                    <p>Hi {user_name},</p>
+                    <p>Your VeriCase account has been approved. You can sign in immediately.</p>
+                    <p style="margin-top: 24px;">Welcome aboard!</p>
+                </body>
+            </html>
+            """
+        else:
+            reason_text = reason or "We were unable to verify your details at this time."
+            body_text = (
+                f"Hi {user_name},\n\n"
+                "We reviewed your VeriCase account request but couldn't approve it.\n"
+                f"Reason: {reason_text}\n\n"
+                "If you believe this is an error, please contact support.\n\n"
+                "— VeriCase Team"
+            )
+            html_body = f"""
+            <html>
+                <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #e53e3e;">Account Not Approved</h2>
+                    <p>Hi {user_name},</p>
+                    <p>We reviewed your VeriCase account request but couldn't approve it.</p>
+                    <p><strong>Reason:</strong> {reason_text}</p>
+                    <p>If you feel this was a mistake, please reach out to support.</p>
+                </body>
+            </html>
+            """
+
+        self._send_email(to_email, subject, html_body, body_text)
+
+    def send_security_alert(
+        self,
+        to_email: str,
+        user_name: str,
+        alert_type: str,
+        details: Mapping[str, str | None]
+    ):
         """Send security alert email"""
         alert_messages = {
             'new_login': 'New Login Detected',

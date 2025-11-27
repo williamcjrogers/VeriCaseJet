@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 VeriCase Deep Research Agent
 ============================
@@ -18,7 +20,7 @@ import logging
 import uuid
 import json
 from datetime import datetime, timezone
-from typing import Annotated, Any, Callable, NotRequired, TypedDict, cast
+from typing import Annotated, Any, Callable, NotRequired, TypedDict, cast, TYPE_CHECKING
 from enum import Enum
 from dataclasses import dataclass
 
@@ -26,10 +28,21 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .models import User, EmailMessage, Project, Document
+from .models import User, EmailMessage, Project, EvidenceItem
 from .db import get_db
 from .security import current_user
 from .ai_settings import get_ai_api_key, get_ai_model
+
+if TYPE_CHECKING:
+    from openai.types.chat import (
+        ChatCompletionMessageParam,
+        ChatCompletionSystemMessageParam,
+        ChatCompletionUserMessageParam,
+    )
+else:  # pragma: no cover - fallback types when OpenAI package isn't available at runtime
+    ChatCompletionMessageParam = Any  # type: ignore[assignment]
+    ChatCompletionSystemMessageParam = dict[str, Any]  # type: ignore[assignment]
+    ChatCompletionUserMessageParam = dict[str, Any]  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +50,11 @@ router = APIRouter(prefix="/api/deep-research", tags=["deep-research"])
 
 # Latest model defaults used when no explicit model is configured in Admin Settings
 LATEST_MODEL_DEFAULTS = {
-    "openai": "gpt-5.1",
-    "anthropic": "claude-4.5-opus",
-    "gemini": "gemini-3.0-pro",
+    "openai": "gpt-4o",
+    "anthropic": "claude-sonnet-4-20250514",
+    "gemini": "gemini-2.0-flash",
+    "grok": "grok-2-1212",
+    "perplexity": "sonar-pro",
 }
 
 
@@ -167,11 +182,15 @@ class BaseAgent:
         self.openai_key = get_ai_api_key('openai', db)
         self.anthropic_key = get_ai_api_key('anthropic', db)
         self.gemini_key = get_ai_api_key('gemini', db)
+        self.grok_key = get_ai_api_key('grok', db)
+        self.perplexity_key = get_ai_api_key('perplexity', db)
         
         # Model selections
         self.openai_model = get_ai_model('openai', db)
         self.anthropic_model = get_ai_model('anthropic', db)
         self.gemini_model = get_ai_model('gemini', db)
+        self.grok_model = get_ai_model('grok', db)
+        self.perplexity_model = get_ai_model('perplexity', db)
     
     async def _call_llm(self, prompt: str, system_prompt: str = "", use_powerful: bool = False) -> str:
         """Call the appropriate LLM based on configuration"""
@@ -187,6 +206,14 @@ class BaseAgent:
         if self.gemini_key:
             return await self._call_gemini(prompt, system_prompt)
         
+        # Try Grok
+        if self.grok_key:
+            return await self._call_grok(prompt, system_prompt)
+        
+        # Try Perplexity
+        if self.perplexity_key:
+            return await self._call_perplexity(prompt, system_prompt)
+        
         # Fallback to Anthropic
         if self.anthropic_key:
             return await self._call_anthropic(prompt, system_prompt)
@@ -196,10 +223,18 @@ class BaseAgent:
     async def _call_openai(self, prompt: str, system_prompt: str = "") -> str:
         import openai
         client = openai.AsyncOpenAI(api_key=self.openai_key)
-        messages: list[dict[str, str]] = []
+        messages: list[ChatCompletionMessageParam] = []
         if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+            system_message: ChatCompletionSystemMessageParam = {
+                "role": "system",
+                "content": system_prompt
+            }
+            messages.append(system_message)
+        user_message: ChatCompletionUserMessageParam = {
+            "role": "user",
+            "content": prompt
+        }
+        messages.append(user_message)
         
         response = await client.chat.completions.create(
             model=self.openai_model or LATEST_MODEL_DEFAULTS["openai"],
@@ -229,14 +264,76 @@ class BaseAgent:
         return text
     
     async def _call_gemini(self, prompt: str, system_prompt: str = "") -> str:
-        import google.generativeai as genai  # type: ignore[reportMissingTypeStubs]
-        genai.configure(api_key=self.gemini_key)  # type: ignore[attr-defined]
+        import google.generativeai as genai  # pyright: ignore[reportMissingTypeStubs]
+        genai.configure(api_key=self.gemini_key)  # pyright: ignore[reportUnknownMemberType]
         
         model = genai.GenerativeModel(self.gemini_model or LATEST_MODEL_DEFAULTS["gemini"])
         full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-        generate_fn = cast(Callable[[str], Any], model.generate_content)  # type: ignore[attr-defined]
-        response = await asyncio.to_thread(generate_fn, full_prompt)
-        return str(getattr(response, "text", ""))
+        generate_fn = cast(Callable[[str], Any], model.generate_content)
+        response = await asyncio.to_thread(generate_fn, full_prompt)  # pyright: ignore[reportAny]
+        return str(getattr(response, "text", ""))  # pyright: ignore[reportAny]
+    
+    async def _call_grok(self, prompt: str, system_prompt: str = "") -> str:
+        """Call xAI Grok API (OpenAI-compatible endpoint)"""
+        import openai
+        
+        client = openai.AsyncOpenAI(
+            api_key=self.grok_key,
+            base_url="https://api.x.ai/v1"
+        )
+        
+        messages: list[ChatCompletionMessageParam] = []
+        if system_prompt:
+            system_message: ChatCompletionSystemMessageParam = {
+                "role": "system",
+                "content": system_prompt
+            }
+            messages.append(system_message)
+        user_message: ChatCompletionUserMessageParam = {
+            "role": "user",
+            "content": prompt
+        }
+        messages.append(user_message)
+        
+        response = await client.chat.completions.create(
+            model=self.grok_model or LATEST_MODEL_DEFAULTS["grok"],
+            messages=messages,
+            max_tokens=4000,
+            temperature=0.3
+        )
+        content = response.choices[0].message.content
+        return content or ""
+    
+    async def _call_perplexity(self, prompt: str, system_prompt: str = "") -> str:
+        """Call Perplexity API (OpenAI-compatible endpoint)"""
+        import openai
+        
+        client = openai.AsyncOpenAI(
+            api_key=self.perplexity_key,
+            base_url="https://api.perplexity.ai"
+        )
+        
+        messages: list[ChatCompletionMessageParam] = []
+        if system_prompt:
+            system_message: ChatCompletionSystemMessageParam = {
+                "role": "system",
+                "content": system_prompt
+            }
+            messages.append(system_message)
+        user_message: ChatCompletionUserMessageParam = {
+            "role": "user",
+            "content": prompt
+        }
+        messages.append(user_message)
+        
+        response = await client.chat.completions.create(
+            model=self.perplexity_model or LATEST_MODEL_DEFAULTS["perplexity"],
+            messages=messages,
+            max_tokens=4000,
+            temperature=0.3
+        )
+        content = response.choices[0].message.content
+        return content or ""
 
 
 class PlannerAgent(BaseAgent):
@@ -434,7 +531,7 @@ class SearcherAgent(BaseAgent):
             pairs = [(query, doc.get('content', doc.get('text', str(doc)))) for doc in documents]
             
             # Score all pairs
-            scores: list[float] = cast(list[float], cross_encoder.predict(pairs))
+            scores: list[float] = cast(list[float], cross_encoder.predict(pairs))  # pyright: ignore[reportAny]
             
             # Sort by score descending
             scored_docs: list[tuple[dict[str, Any], float]] = list(zip(documents, scores))
@@ -487,9 +584,9 @@ class SearcherAgent(BaseAgent):
             doc_texts: list[str] = [doc.get('content', doc.get('text', str(doc))) for doc in documents]
             
             # Encode query and documents
-            query_embedding = cast(np.ndarray, embedding_model.encode([query]))[0]
-            doc_embeddings = cast(np.ndarray, embedding_model.encode(doc_texts))
-            
+            query_embedding: np.ndarray = cast(np.ndarray, embedding_model.encode([query]))[0]  # pyright: ignore[reportAny]
+            doc_embeddings: np.ndarray = cast(np.ndarray, embedding_model.encode(doc_texts))  # pyright: ignore[reportAny]
+
             # Calculate query-document similarities
             query_sims: np.ndarray = np.dot(doc_embeddings, query_embedding) / (
                 np.linalg.norm(doc_embeddings, axis=1) * np.linalg.norm(query_embedding)
@@ -506,15 +603,16 @@ class SearcherAgent(BaseAgent):
                 mmr_scores: list[tuple[int, float]] = []
                 for idx in remaining_indices:
                     # Relevance to query
-                    relevance = float(query_sims[idx])
-                    
+                    relevance = float(query_sims[idx])  # pyright: ignore[reportAny]
+
                     # Maximum similarity to already selected documents
                     if selected_indices:
-                        selected_embeddings = doc_embeddings[selected_indices]
-                        similarities = cast(np.ndarray, np.dot(selected_embeddings, doc_embeddings[idx]) / (
-                            np.linalg.norm(selected_embeddings, axis=1) * np.linalg.norm(doc_embeddings[idx])
+                        selected_embeddings: np.ndarray = doc_embeddings[selected_indices]
+                        doc_vec: np.ndarray = doc_embeddings[idx]
+                        similarities: np.ndarray = cast(np.ndarray, np.dot(selected_embeddings, doc_vec) / (
+                            np.linalg.norm(selected_embeddings, axis=1) * np.linalg.norm(doc_vec)
                         ))
-                        max_sim = float(np.max(similarities)) if similarities.size else 0.0
+                        max_sim = float(np.max(similarities)) if similarities.size else 0.0  # pyright: ignore[reportAny]
                     else:
                         max_sim = 0.0
                     
@@ -531,7 +629,7 @@ class SearcherAgent(BaseAgent):
             result: list[dict[str, Any]] = []
             for idx in selected_indices:
                 doc_copy = dict(documents[idx])
-                doc_copy['mmr_score'] = float(query_sims[idx])
+                doc_copy['mmr_score'] = float(query_sims[idx])  # pyright: ignore[reportAny]
                 result.append(doc_copy)
             
             return result
@@ -670,8 +768,8 @@ Always provide citations in the format: [Source: email/document ID, date, sender
                         "\n".join(
                             [
                                 f"[{e.get('type', 'EVIDENCE')} {e.get('id', 'unknown')}]",
-                                f"Relevance Score: {float(e.get('relevance_score', 0.0)):.2f}",
-                                f"Content: {str(e.get('content', e.get('text', str(e))))[:800]}",
+                                f"Relevance Score: {float(e.get('relevance_score', 0.0)):.2f}",  # pyright: ignore[reportAny]
+                                f"Content: {str(e.get('content', e.get('text', str(e))))[:800]}",  # pyright: ignore[reportAny]
                             ]
                         )
                         for e in relevant_evidence
@@ -819,7 +917,7 @@ Output as JSON:
             
             data = cast(dict[str, Any], json.loads(json_str.strip()))
             themes_data = cast(list[dict[str, Any]], data.get("themes", []))
-            return [str(t.get("title", "")) for t in themes_data]
+            return [str(t.get("title", "")) for t in themes_data]  # pyright: ignore[reportAny]
         except Exception:
             return plan.key_angles  # Fallback to original angles
     
@@ -992,13 +1090,13 @@ class MasterAgent:
                 )
                 return q.id, result
             
-            tasks = [investigate_question(q) for q in ready]  # pyright: ignore[reportUnknownVariableType]
-            results = await asyncio.gather(*tasks, return_exceptions=True)  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
+            tasks = [investigate_question(q) for q in ready]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            for result in results:  # pyright: ignore[reportUnknownVariableType]
+            for result in results:
                 if isinstance(result, tuple):
                     qid: str = result[0]
-                    analysis: dict[str, Any] = result[1]  # pyright: ignore[reportUnknownVariableType]
+                    analysis: dict[str, Any] = result[1]
                     self.session.question_analyses[qid] = analysis
                     completed.add(qid)
 
@@ -1006,9 +1104,9 @@ class MasterAgent:
                     for q in plan.questions:
                         if q.id == qid:
                             q.status = "completed"
-                            q.findings = analysis.get("findings", "")  # pyright: ignore[reportUnknownMemberType]
-                            q.citations = analysis.get("citations", [])  # pyright: ignore[reportUnknownMemberType]
-                            q.gaps = analysis.get("gaps", [])  # pyright: ignore[reportUnknownMemberType]
+                            q.findings = analysis.get("findings", "")
+                            q.citations = analysis.get("citations", [])
+                            q.gaps = analysis.get("gaps", [])
                             q.completed_at = datetime.now(timezone.utc)
                 else:
                     logger.error(f"Research failed: {result}")
@@ -1101,29 +1199,32 @@ async def build_evidence_context(
             'text': f"Email from {email.sender_name or email.sender_email} on {date_str}: {email.subject}. {content}"
         })
     
-    # Get documents
-    doc_query = db.query(Document)
+    # Get evidence items (documents/attachments linked to project)
+    evidence_query = db.query(EvidenceItem)
     if project_id:
-        doc_query = doc_query.filter(Document.project_id == project_id)  # pyright: ignore[reportAny]
+        evidence_query = evidence_query.filter(EvidenceItem.project_id == project_id)
     
-    documents = doc_query.limit(50).all()
+    evidence_docs = evidence_query.limit(50).all()
     
-    for doc in documents:
-        if doc.text_excerpt:
+    for evidence in evidence_docs:
+        # Build text content from available fields
+        content = evidence.extracted_text or evidence.description or ''
+        if content:
             text_part = (
-                f"[DOCUMENT {doc.id}]\n"
-                f"Filename: {doc.filename or 'Unknown'}\n"
-                f"Content: {doc.text_excerpt[:500]}\n"
+                f"[EVIDENCE {evidence.id}]\n"
+                f"Filename: {evidence.filename or 'Unknown'}\n"
+                f"Type: {evidence.evidence_type or 'Unknown'}\n"
+                f"Content: {content[:500]}\n"
                 f"---"
             )
             context_parts.append(text_part)
             
             evidence_items.append({
-                'id': str(doc.id),
-                'type': 'DOCUMENT',
-                'filename': doc.filename or 'Unknown',
-                'content': doc.text_excerpt[:1500],
-                'text': f"Document {doc.filename}: {doc.text_excerpt[:1500]}"
+                'id': str(evidence.id),
+                'type': 'EVIDENCE',
+                'filename': evidence.filename or 'Unknown',
+                'content': content[:1500],
+                'text': f"Evidence {evidence.filename}: {content[:1500]}"
             })
     
     return EvidenceContext(
@@ -1177,7 +1278,17 @@ async def start_research(
             session.status = ResearchStatus.FAILED
             session.error_message = str(e)
     
-    background_tasks.add_task(asyncio.create_task, run_planning())
+    # Schedule background task properly - wrap async function for BackgroundTasks
+    def sync_run_planning():
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(run_planning())
+        finally:
+            loop.close()
+    
+    background_tasks.add_task(sync_run_planning)
     
     return StartResearchResponse(
         session_id=session_id,
@@ -1261,7 +1372,16 @@ async def approve_research_plan(
                 session.status = ResearchStatus.FAILED
                 session.error_message = str(e)
         
-        background_tasks.add_task(asyncio.create_task, regenerate_plan())
+        def sync_regenerate_plan():
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(regenerate_plan())
+            finally:
+                loop.close()
+        
+        background_tasks.add_task(sync_regenerate_plan)
         
         return {"status": "regenerating", "message": "Plan is being regenerated with your feedback"}
     
@@ -1287,7 +1407,16 @@ async def approve_research_plan(
             session.status = ResearchStatus.FAILED
             session.error_message = str(e)
     
-    background_tasks.add_task(asyncio.create_task, run_research())
+    def sync_run_research():
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(run_research())
+        finally:
+            loop.close()
+    
+    background_tasks.add_task(sync_run_research)
     
     return {"status": "researching", "message": "Research phase started"}
 

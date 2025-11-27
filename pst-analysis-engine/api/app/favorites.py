@@ -2,18 +2,22 @@
 Favorites API endpoints for starring/bookmarking documents
 """
 # cspell:ignore joinedload favorited unfavorited
-from fastapi import APIRouter, Depends, HTTPException, Body
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select
 from .db import get_db
 from .security import current_user
 from .models import User, Document, Favorite
-from typing import List
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 router = APIRouter(prefix="/favorites", tags=["favorites"])
+
+DbDep = Annotated[Session, Depends(get_db)]
+UserDep = Annotated[User, Depends(current_user)]
 
 class FavoriteResponse(BaseModel):
     id: str
@@ -26,13 +30,13 @@ class FavoriteResponse(BaseModel):
 
 class FavoriteListResponse(BaseModel):
     total: int
-    items: List[FavoriteResponse]
+    items: list[FavoriteResponse]
 
 @router.post("/{document_id}")
 def add_favorite(
     document_id: str,
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user)
+    db: DbDep,
+    user: UserDep,
 ):
     """Add a document to favorites"""
     try:
@@ -65,8 +69,8 @@ def add_favorite(
 @router.delete("/{document_id}")
 def remove_favorite(
     document_id: str,
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user)
+    db: DbDep,
+    user: UserDep,
 ):
     """Remove a document from favorites"""
     try:
@@ -89,8 +93,8 @@ def remove_favorite(
 
 @router.get("", response_model=FavoriteListResponse)
 def list_favorites(
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user)
+    db: DbDep,
+    user: UserDep,
 ):
     """Get all favorited documents for current user"""
     stmt = (
@@ -109,7 +113,7 @@ def list_favorites(
             path=fav.document.path,
             size=fav.document.size or 0,
             content_type=fav.document.content_type,
-            created_at=fav.created_at
+            created_at=fav.created_at or datetime.now(timezone.utc)
         )
         for fav in favorites
         if fav.document
@@ -120,8 +124,8 @@ def list_favorites(
 @router.get("/check/{document_id}")
 def check_favorite(
     document_id: str,
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user)
+    db: DbDep,
+    user: UserDep,
 ):
     """Check if a document is favorited"""
     try:

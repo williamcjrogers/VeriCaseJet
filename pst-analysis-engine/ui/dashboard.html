@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VeriCase - Dispute Intelligence Dashboard</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="brand-styles.css">
+    <link rel="stylesheet" href="design-system.css">
+    <script src="vericase-ui.js"></script>
+    <script src="nav-shell.js"></script>
     <style>
         :root {
             --vericase-teal: #17B5A3;
@@ -30,6 +34,11 @@
             -webkit-font-smoothing: antialiased;
             background-image: radial-gradient(circle, rgba(23, 181, 163, 0.05) 1px, transparent 1px);
             background-size: 30px 30px;
+        }
+        
+        /* Override for dashboard - uses its own layout */
+        .app-shell .app-main {
+            margin-left: 260px;
         }
 
         .top-bar {
@@ -537,7 +546,7 @@
                         <i class="fas fa-folder-open" style="color: var(--vericase-teal); margin-right: 0.5rem;"></i>
                         Select Project:
                     </label>
-                    <select id="projectSelector" onchange="onProjectSelected(this.value)" style="flex: 1; max-width: 400px; padding: 0.75rem 1rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; background: white; cursor: pointer; transition: border-color 0.2s;">
+                    <label for="projectSelector"></label><select id="projectSelector" onchange="onProjectSelected(this.value)" style="flex: 1; max-width: 400px; padding: 0.75rem 1rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; background: white; cursor: pointer; transition: border-color 0.2s;">
                         <option value="">Loading projects...</option>
                     </select>
                 </div>
@@ -1468,7 +1477,9 @@
                 const placeholders = {
                     openai: 'sk-...',
                     anthropic: 'sk-ant-...',
-                    google: 'AI...'
+                    gemini: 'AI...',
+                    grok: 'xai-...',
+                    perplexity: 'pplx-...'
                 };
                 input.placeholder = placeholders[provider] || 'Enter API key';
             }
@@ -1497,7 +1508,7 @@
         }
         
         function updateLocalAIStatus() {
-            const providers = ['openai', 'anthropic', 'google'];
+            const providers = ['openai', 'anthropic', 'gemini', 'grok', 'perplexity'];
             let anyConfigured = false;
             
             providers.forEach(provider => {
@@ -1645,14 +1656,54 @@
                                     <h4 style="color: var(--vericase-navy); margin: 0 0 0.25rem 0;"><i class="fas fa-lightbulb"></i> Google (Gemini)</h4>
                                     <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">For multimodal analysis and processing</p>
                                 </div>
-                                <span id="googleStatus" class="status-indicator status-inactive"></span>
+                                <span id="geminiStatus" class="status-indicator status-inactive"></span>
                             </div>
                             <div style="display: flex; gap: 0.75rem; align-items: center;">
-                                <label for="googleKeyInput"></label><input type="password" id="googleKeyInput" placeholder="AI..." style="flex: 1; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.875rem;">
-                                <button onclick="saveLocalAIKey('google')" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">
+                                <label for="geminiKeyInput"></label><input type="password" id="geminiKeyInput" placeholder="AI..." style="flex: 1; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.875rem;">
+                                <button onclick="saveLocalAIKey('gemini')" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">
                                     <i class="fas fa-save"></i> Save
                                 </button>
-                                <button onclick="clearLocalAIKey('google')" class="btn btn-secondary" style="padding: 0.75rem 1rem;">
+                                <button onclick="clearLocalAIKey('gemini')" class="btn btn-secondary" style="padding: 0.75rem 1rem;">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- xAI Grok -->
+                        <div class="ai-provider-card" style="padding: 1.5rem; border: 2px solid #e5e7eb; border-radius: 12px; background: white;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                                <div>
+                                    <h4 style="color: var(--vericase-navy); margin: 0 0 0.25rem 0;"><i class="fas fa-bolt"></i> xAI (Grok)</h4>
+                                    <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">For gap analysis and alternative perspectives</p>
+                                </div>
+                                <span id="grokStatus" class="status-indicator status-inactive"></span>
+                            </div>
+                            <div style="display: flex; gap: 0.75rem; align-items: center;">
+                                <label for="grokKeyInput"></label><input type="password" id="grokKeyInput" placeholder="xai-..." style="flex: 1; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.875rem;">
+                                <button onclick="saveLocalAIKey('grok')" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">
+                                    <i class="fas fa-save"></i> Save
+                                </button>
+                                <button onclick="clearLocalAIKey('grok')" class="btn btn-secondary" style="padding: 0.75rem 1rem;">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Perplexity -->
+                        <div class="ai-provider-card" style="padding: 1.5rem; border: 2px solid #e5e7eb; border-radius: 12px; background: white;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                                <div>
+                                    <h4 style="color: var(--vericase-navy); margin: 0 0 0.25rem 0;"><i class="fas fa-search"></i> Perplexity</h4>
+                                    <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">For evidence-focused queries with citations</p>
+                                </div>
+                                <span id="perplexityStatus" class="status-indicator status-inactive"></span>
+                            </div>
+                            <div style="display: flex; gap: 0.75rem; align-items: center;">
+                                <label for="perplexityKeyInput"></label><input type="password" id="perplexityKeyInput" placeholder="pplx-..." style="flex: 1; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.875rem;">
+                                <button onclick="saveLocalAIKey('perplexity')" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">
+                                    <i class="fas fa-save"></i> Save
+                                </button>
+                                <button onclick="clearLocalAIKey('perplexity')" class="btn btn-secondary" style="padding: 0.75rem 1rem;">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>

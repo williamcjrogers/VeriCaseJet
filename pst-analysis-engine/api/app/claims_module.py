@@ -1,3 +1,4 @@
+# pyright: reportDeprecatedType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportUnknownParameterType=false
 """
 Contentious Matters and Heads of Claim Module
 

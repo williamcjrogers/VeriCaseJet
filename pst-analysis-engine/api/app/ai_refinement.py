@@ -24,11 +24,10 @@ from enum import Enum
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_, and_
 
 from .db import get_db
 from .security import current_user
-from .models import EmailMessage, Project, Stakeholder, Keyword, User
+from .models import EmailMessage, Project, Stakeholder, Keyword, User, RefinementSessionDB
 from .ai_settings import get_ai_api_key, get_ai_model
 
 logger = logging.getLogger(__name__)
@@ -43,6 +42,8 @@ LATEST_MODEL_DEFAULTS = {
     "openai": "gpt-4o",
     "anthropic": "claude-sonnet-4-20250514",
     "gemini": "gemini-2.0-flash",
+    "grok": "grok-2-1212",
+    "perplexity": "sonar-pro",
 }
 
 # Spam/Newsletter detection patterns
@@ -54,7 +55,7 @@ SPAM_INDICATORS = {
         "do not reply", "no-reply", "noreply", "auto-generated"
     ],
     "spam_domains": [
-        "mailchimp", "sendgrid", "constantcontact", "hubspot", "marketo",
+        "", "sendgrid", "constantcontact", "hubspot", "marketo",
         "salesforce", "pardot", "mailgun", "linkedin.com", "facebook.com",
         "twitter.com", "indeed.com", "glassdoor", "eventbrite", "surveymonkey"
     ],
@@ -65,7 +66,7 @@ SPAM_INDICATORS = {
     ]
 }
 
-# Construction project patterns
+# Construction project patterns - including UK project naming conventions
 PROJECT_CODE_PATTERNS = [
     r'\b([A-Z]{2,5}[-/]\d{2,6})\b',  # WGL-001, PRJ/12345
     r'\b(\d{4,6}[-/][A-Z]{2,4})\b',  # 12345-WGL
@@ -75,6 +76,83 @@ PROJECT_CODE_PATTERNS = [
     r'\bContract\s+(?:No\.?)?[:\s]*([A-Z0-9-/]{3,15})\b',  # Contract No: ABC/123
     r'\bSite[:\s]+([A-Za-z0-9\s-]{3,30})\b',  # Site: Main Street
 ]
+
+# UK Construction Project Names - common patterns for residential/commercial developments
+UK_PROJECT_NAME_PATTERNS = [
+    # Street/Road names with suffix
+    r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:Road|Street|Lane|Avenue|Way|Place|Drive|Close|Court|Gardens|Crescent|Square|Gate|Row|Walk|Terrace|Mews|Yard|Wharf|Estate))\b',
+    # Named developments ending in Works, House, Tower, Plaza, etc.
+    r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(?:Works|House|Tower|Plaza|Centre|Center|Park|Gardens|Estate|Quarter|Village|Regeneration|Development|Scheme|Phase))\b',
+    # Abbreviations like BFR, LSA (3+ capital letters)
+    r'\b([A-Z]{3,5})\b(?=\s+(?:project|scheme|site|development)|\s*[-–]\s*)',
+]
+
+# Known UK construction project names to look for (NOT the current project being analyzed)
+KNOWN_UK_PROJECT_NAMES = [
+    # Wates/Construction projects - used to detect OTHER project references
+    "Silbury Boulevard", "Westminster Works", "Blackfriars Road", "Outwood Wharf",
+    "Holloway Head", "Lisson Arches", "Kennaway Estate", "Camberwell Road",
+    "Dumballs Road", "Saxton Lane", "Old Farm Place", "Gilders Yard",
+    "Trent Lane", "St Peters", "St Peters Hospital", "Walstead Park", "Sydenham Road",
+    "Jervis Court", "Honeypot Lane", "Points Cross", "Hunslet Road",
+    "Wyndham Road", "Thamesview House", "Becontree Avenue", "Black Dog Way",
+    "Heathtown Regeneration", "Thurrock", "Oldbury Road", "Middlewood Plaza",
+    "Glamis Estate", "Pillgwenlly", "Romorantin", "Broxtowe",
+    "Walton on the Naze", "Patmore Estate", "William Paton Gardens",
+    "Vandome Close", "Grange Walk", "Park Place Manchester",
+    # Common abbreviations
+    "BFR", "LSA", "OFP", "MKC", "HFN",
+]
+
+# Known project codes to detect (maps code -> project name)
+KNOWN_PROJECT_CODES: dict[str, str] = {
+    "1328": "Silbury Boulevard",
+    "8001": "Westminster Works",
+    "26461": "Blackfriars Road",
+    "2208": "Blackfriars Road",
+    "8002": "Holloway Head",
+    "1222": "Lisson Arches",
+    "20197": "Kennaway Estate",
+    "20041": "Old Farm Place",
+    "02720": "St Peters Hospital",
+    "21-New-011": "Walstead Park",
+    "02346": "Sydenham Road",
+    "02775": "Becontree Avenue",
+    "1319": "Black Dog Way",
+    "18924": "Heathtown Regeneration",
+    "20065": "Points Cross",
+    "10142": "Honeypot Lane",
+}
+
+# Key stakeholders/keywords by project (for enhanced detection)
+PROJECT_STAKEHOLDERS: dict[str, list[str]] = {
+    "Silbury Boulevard": [
+        "Emtec", "Grainger", "BB7", "HLP", "EA", "Patrick Parsons", "PP", "MKBC",
+        "KONE", "Arcadis", "JTL", "Fenestre Retrofit", "Triangle", "Etex Group",
+        "SAGE", "Eden-Environ", "Avantauk"
+    ],
+    "Westminster Works": [
+        "GNA", "Patrick Parsons", "PP", "BB7", "Curtin's", "CWA", "Wilcowan",
+        "Green Piling", "NRA Roofing", "Bridges Pound", "CW Dowd", "ATAL", "HSR"
+    ],
+    "Blackfriars Road": [
+        "Artel", "Drainline", "MSM Surfacing", "PO", "Ufford St", "London Raised Floors",
+        "Daisy FM", "Jack Tucker", "Paul Moss"
+    ],
+    "Holloway Head": [
+        "HFN", "Midshires", "NT Killingley", "PGE", "Emtec", "Ilec Imec",
+        "McNally & Thompson", "PR Morson", "Regal", "Steane", "Baker Flooring",
+        "Contract Flooring", "John Abbott", "KTB", "Foundation Piling", "Green Piling",
+        "Van Elle", "J&P Carpentry", "Nationwide Interiors", "SBS Joinery", "D.E.S.",
+        "HSG", "Creagh"
+    ],
+    "Lisson Arches": ["Conway", "Aurora"],
+    "Camberwell Road": ["MSM", "SCVS"],
+    "Dumballs Road": ["Anchorworks"],
+    "Saxton Lane": ["Wren", "BNP", "F+G"],
+    "Grange Walk": ["AECOM", "SCMS"],
+    "Thamesview House": ["Thamesview"],
+}
 
 
 # =============================================================================
@@ -127,7 +205,7 @@ class RefinementQuestion(BaseModel):
 class RefinementAnswer(BaseModel):
     """User's answer to a question"""
     question_id: str
-    answer_value: Any  # depends on question_type
+    answer_value: object = None  # depends on question_type
     selected_items: list[str] = Field(default_factory=list)  # IDs of items to exclude/include
     notes: str | None = None
 
@@ -164,8 +242,85 @@ class AnalysisResponse(BaseModel):
     summary: dict[str, Any] = Field(default_factory=dict)
 
 
-# In-memory session store (production: use Redis)
+# In-memory cache for active sessions (backed by database for persistence)
 _refinement_sessions: dict[str, RefinementSession] = {}
+
+
+def _save_session_to_db(session: RefinementSession, db: Session) -> None:
+    """Save a refinement session to the database for persistence."""
+    db_session = db.query(RefinementSessionDB).filter_by(id=session.id).first()
+
+    if db_session:
+        # Update existing
+        db_session.status = session.status
+        db_session.current_stage = session.current_stage.value
+        db_session.questions_asked = [q.model_dump() for q in session.questions_asked]
+        db_session.answers_received = [a.model_dump() for a in session.answers_received]
+        db_session.analysis_results = session.analysis_results
+        db_session.exclusion_rules = session.exclusion_rules
+    else:
+        # Create new
+        db_session = RefinementSessionDB(
+            id=session.id,
+            project_id=session.project_id,
+            user_id=session.user_id,
+            status=session.status,
+            current_stage=session.current_stage.value,
+            questions_asked=[q.model_dump() for q in session.questions_asked],
+            answers_received=[a.model_dump() for a in session.answers_received],
+            analysis_results=session.analysis_results,
+            exclusion_rules=session.exclusion_rules,
+        )
+        db.add(db_session)
+
+    db.commit()
+
+
+def _load_session_from_db(session_id: str, db: Session) -> RefinementSession | None:
+    """Load a refinement session from the database."""
+    db_session = db.query(RefinementSessionDB).filter_by(id=session_id).first()
+
+    if not db_session:
+        return None
+
+    # Parse questions and answers from JSON with proper typing - use cast() for SQLAlchemy JSON fields
+    raw_questions = cast(list[dict[str, object]], db_session.questions_asked or [])
+    questions_list: list[RefinementQuestion] = [
+        RefinementQuestion.model_validate(q_data) for q_data in raw_questions
+    ]
+
+    raw_answers = cast(list[dict[str, object]], db_session.answers_received or [])
+    answers_list: list[RefinementAnswer] = [
+        RefinementAnswer.model_validate(a_data) for a_data in raw_answers
+    ]
+
+    # Convert back to Pydantic model
+    session = RefinementSession(
+        id=db_session.id,
+        project_id=db_session.project_id,
+        user_id=db_session.user_id,
+        status=db_session.status,
+        current_stage=RefinementStage(db_session.current_stage),
+        questions_asked=questions_list,
+        answers_received=answers_list,
+        analysis_results=db_session.analysis_results or {},
+        exclusion_rules=db_session.exclusion_rules or {},
+    )
+
+    # Cache it
+    _refinement_sessions[session_id] = session
+
+    return session
+
+
+def _get_session(session_id: str, db: Session) -> RefinementSession | None:
+    """Get a session from cache or database."""
+    # Check cache first
+    if session_id in _refinement_sessions:
+        return _refinement_sessions[session_id]
+
+    # Try to load from database
+    return _load_session_from_db(session_id, db)
 
 
 # =============================================================================
@@ -184,25 +339,29 @@ class AIRefinementEngine:
         self.openai_key = get_ai_api_key('openai', db)
         self.anthropic_key = get_ai_api_key('anthropic', db)
         self.gemini_key = get_ai_api_key('gemini', db)
+        self.grok_key = get_ai_api_key('grok', db)
+        self.perplexity_key = get_ai_api_key('perplexity', db)
         self.openai_model = get_ai_model('openai', db)
         self.anthropic_model = get_ai_model('anthropic', db)
+        self.grok_model = get_ai_model('grok', db)
+        self.perplexity_model = get_ai_model('perplexity', db)
         
         # Build project context from configuration
         self.project_context = self._build_project_context()
     
-    def _build_project_context(self) -> dict[str, Any]:
+    def _build_project_context(self) -> dict[str, str | list[str] | list[dict[str, str]] | None]:
         """Build comprehensive project context from configuration"""
-        context = {
+        context: dict[str, str | list[str] | list[dict[str, str]] | None] = {
             "project_name": self.project.project_name,
             "project_code": self.project.project_code,
-            "aliases": [],
+            "aliases": list[str](),
             "site_address": None,
-            "include_domains": [],
-            "exclude_people": [],
-            "project_terms": [],
-            "exclude_keywords": [],
-            "stakeholders": [],
-            "keywords": [],
+            "include_domains": list[str](),
+            "exclude_people": list[str](),
+            "project_terms": list[str](),
+            "exclude_keywords": list[str](),
+            "stakeholders": list[dict[str, str]](),
+            "keywords": list[dict[str, str]](),
         }
         
         # Parse project fields
@@ -228,19 +387,27 @@ class AIRefinementEngine:
         stakeholders = self.db.query(Stakeholder).filter(
             Stakeholder.project_id == str(self.project.id)
         ).all()
-        context["stakeholders"] = [
-            {"name": s.name, "role": s.role, "email": s.email, "organization": s.organization}
-            for s in stakeholders
-        ]
+        stakeholder_list: list[dict[str, str]] = []
+        for s in stakeholders:
+            stakeholder_list.append({
+                "name": s.name or "",
+                "role": s.role or "",
+                "email": s.email or "",
+                "organization": s.organization or ""
+            })
+        context["stakeholders"] = stakeholder_list
         
         # Get configured keywords
         keywords = self.db.query(Keyword).filter(
             Keyword.project_id == str(self.project.id)
         ).all()
-        context["keywords"] = [
-            {"keyword": k.keyword_name, "variations": k.variations}
-            for k in keywords
-        ]
+        keyword_list: list[dict[str, str]] = []
+        for k in keywords:
+            keyword_list.append({
+                "keyword": k.keyword_name or "",
+                "variations": k.variations or ""
+            })
+        context["keywords"] = keyword_list
         
         return context
     
@@ -256,6 +423,12 @@ class AIRefinementEngine:
         if self.gemini_key:
             return await self._call_gemini(prompt, system_prompt)
         
+        if self.grok_key:
+            return await self._call_grok(prompt, system_prompt)
+        
+        if self.perplexity_key:
+            return await self._call_perplexity(prompt, system_prompt)
+        
         raise HTTPException(500, "No AI providers configured. Please add API keys in Admin Settings.")
     
     async def _call_openai(self, prompt: str, system_prompt: str = "") -> str:
@@ -268,7 +441,7 @@ class AIRefinementEngine:
         
         response = await client.chat.completions.create(
             model=self.openai_model or LATEST_MODEL_DEFAULTS["openai"],
-            messages=messages,
+            messages=messages,  # pyright: ignore[reportArgumentType]
             max_tokens=4000,
             temperature=0.2
         )
@@ -276,32 +449,90 @@ class AIRefinementEngine:
     
     async def _call_anthropic(self, prompt: str, system_prompt: str = "") -> str:
         import anthropic
+        import httpx
         
         def sync_call():
-            client = anthropic.Anthropic(api_key=self.anthropic_key)
-            response = client.messages.create(
-                model=self.anthropic_model or LATEST_MODEL_DEFAULTS["anthropic"],
-                max_tokens=4000,
-                system=system_prompt or "You are an expert legal analyst specializing in construction disputes and e-discovery.",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            text = ""
-            for block in response.content:
-                text_piece = getattr(block, "text", "")
-                if text_piece:
-                    text += str(text_piece)
-            return text
+            # Create httpx client without proxies to avoid compatibility issues
+            http_client = httpx.Client(timeout=httpx.Timeout(60.0))
+            try:
+                client = anthropic.Anthropic(
+                    api_key=self.anthropic_key,
+                    http_client=http_client
+                )
+                response = client.messages.create(
+                    model=self.anthropic_model or LATEST_MODEL_DEFAULTS["anthropic"],
+                    max_tokens=4000,
+                    system=system_prompt or "You are an expert legal analyst specializing in construction disputes and e-discovery.",
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                text = ""
+                for block in response.content:
+                    text_piece = getattr(block, "text", "")
+                    if text_piece:
+                        text += str(text_piece)
+                return text
+            finally:
+                http_client.close()
         
         return await asyncio.to_thread(sync_call)
     
     async def _call_gemini(self, prompt: str, system_prompt: str = "") -> str:
-        import google.generativeai as genai
-        genai.configure(api_key=self.gemini_key)
+        import google.generativeai as genai  # pyright: ignore[reportMissingTypeStubs]
+        genai.configure(api_key=self.gemini_key)  # pyright: ignore[reportUnknownMemberType]
         
-        model = genai.GenerativeModel(LATEST_MODEL_DEFAULTS["gemini"])
+        model: object = genai.GenerativeModel(LATEST_MODEL_DEFAULTS["gemini"])
         full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-        response = await asyncio.to_thread(model.generate_content, full_prompt)
-        return str(getattr(response, "text", ""))
+        generate_fn: object = getattr(model, "generate_content", None)
+        if generate_fn is None or not callable(generate_fn):
+            return ""
+        response = await asyncio.to_thread(generate_fn, full_prompt)  # pyright: ignore[reportUnknownVariableType]
+        return str(getattr(response, "text", ""))  # pyright: ignore[reportUnknownArgumentType]
+    
+    async def _call_grok(self, prompt: str, system_prompt: str = "") -> str:
+        """Call xAI Grok API (OpenAI-compatible endpoint)"""
+        import openai
+        
+        # Grok uses OpenAI-compatible API
+        client = openai.AsyncOpenAI(
+            api_key=self.grok_key,
+            base_url="https://api.x.ai/v1"
+        )
+        
+        messages: list[dict[str, str]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        
+        response = await client.chat.completions.create(
+            model=self.grok_model or LATEST_MODEL_DEFAULTS["grok"],
+            messages=messages,  # pyright: ignore[reportArgumentType]
+            max_tokens=4000,
+            temperature=0.2
+        )
+        return response.choices[0].message.content or ""
+    
+    async def _call_perplexity(self, prompt: str, system_prompt: str = "") -> str:
+        """Call Perplexity API (OpenAI-compatible endpoint)"""
+        import openai
+        
+        # Perplexity uses OpenAI-compatible API
+        client = openai.AsyncOpenAI(
+            api_key=self.perplexity_key,
+            base_url="https://api.perplexity.ai"
+        )
+        
+        messages: list[dict[str, str]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        
+        response = await client.chat.completions.create(
+            model=self.perplexity_model or LATEST_MODEL_DEFAULTS["perplexity"],
+            messages=messages,  # pyright: ignore[reportArgumentType]
+            max_tokens=4000,
+            temperature=0.2
+        )
+        return response.choices[0].message.content or ""
     
     async def analyze_for_other_projects(
         self, 
@@ -317,26 +548,111 @@ class AIRefinementEngine:
         })
         
         # Build list of known project identifiers to ignore
-        known_identifiers = {self.project.project_name.lower(), self.project.project_code.lower()}
-        for alias in self.project_context["aliases"]:
-            known_identifiers.add(alias.lower())
+        known_identifiers: set[str] = {self.project.project_name.lower(), self.project.project_code.lower()}
+        aliases_raw = self.project_context.get("aliases") or []
+        for alias in aliases_raw:
+            if isinstance(alias, str):
+                known_identifiers.add(alias.lower())
         
         # Extract references from emails
         for email in emails:
             text = f"{email.subject or ''} {email.body_text or ''}"
             
+            # Standard project code patterns
             for pattern in PROJECT_CODE_PATTERNS:
-                matches = re.findall(pattern, text, re.IGNORECASE)
-                for match in matches:
-                    ref = match.strip()
+                pattern_matches: list[str] = re.findall(pattern, text, re.IGNORECASE)
+                for match_str in pattern_matches:
+                    ref = match_str.strip()
                     if len(ref) >= 3 and ref.lower() not in known_identifiers:
-                        project_refs[ref]["count"] += 1
-                        if len(project_refs[ref]["samples"]) < 3:
-                            project_refs[ref]["samples"].append({
+                        ref_data = project_refs[ref]
+                        current_count: int = int(ref_data.get("count") or 0)
+                        ref_data["count"] = current_count + 1
+                        samples_list: list[dict[str, Any]] = ref_data.get("samples") or []
+                        ref_data["samples"] = samples_list
+                        if len(samples_list) < 3:
+                            samples_list.append({
                                 "subject": email.subject,
                                 "date": email.date_sent.isoformat() if email.date_sent else None,
                                 "sender": email.sender_email
                             })
+            
+            # UK construction project name patterns
+            for pattern in UK_PROJECT_NAME_PATTERNS:
+                uk_pattern_matches: list[str] = re.findall(pattern, text)
+                for uk_match_str in uk_pattern_matches:
+                    ref = uk_match_str.strip()
+                    # Filter out common false positives
+                    if (len(ref) >= 5 and 
+                        ref.lower() not in known_identifiers and
+                        ref.lower() not in {"the road", "main street", "high street", "the works"}):
+                        ref_data2 = project_refs[ref]
+                        current_count2: int = int(ref_data2.get("count") or 0)
+                        ref_data2["count"] = current_count2 + 1
+                        samples_list2: list[dict[str, Any]] = ref_data2.get("samples") or []
+                        ref_data2["samples"] = samples_list2
+                        if len(samples_list2) < 3:
+                            samples_list2.append({
+                                "subject": email.subject,
+                                "date": email.date_sent.isoformat() if email.date_sent else None,
+                                "sender": email.sender_email
+                            })
+            
+            # Check for known UK project names
+            text_lower = text.lower()
+            for known_name in KNOWN_UK_PROJECT_NAMES:
+                if known_name.lower() in text_lower and known_name.lower() not in known_identifiers:
+                    ref_data3 = project_refs[known_name]
+                    current_count3: int = int(ref_data3.get("count") or 0)
+                    ref_data3["count"] = current_count3 + 1
+                    samples_list3: list[dict[str, Any]] = ref_data3.get("samples") or []
+                    ref_data3["samples"] = samples_list3
+                    if len(samples_list3) < 3:
+                        samples_list3.append({
+                            "subject": email.subject,
+                            "date": email.date_sent.isoformat() if email.date_sent else None,
+                            "sender": email.sender_email
+                        })
+
+            # Check for known project codes (e.g., "1328", "8001")
+            for code, proj_name in KNOWN_PROJECT_CODES.items():
+                if code in text and proj_name.lower() not in known_identifiers:
+                    ref_data4 = project_refs[proj_name]
+                    current_count4: int = int(ref_data4.get("count") or 0)
+                    ref_data4["count"] = current_count4 + 1
+                    ref_data4["detected_code"] = code
+                    samples_list4: list[dict[str, Any]] = ref_data4.get("samples") or []
+                    ref_data4["samples"] = samples_list4
+                    if len(samples_list4) < 3:
+                        samples_list4.append({
+                            "subject": email.subject,
+                            "date": email.date_sent.isoformat() if email.date_sent else None,
+                            "sender": email.sender_email,
+                            "matched_code": code
+                        })
+
+            # Check for project stakeholder keywords
+            for proj_name, stakeholders in PROJECT_STAKEHOLDERS.items():
+                if proj_name.lower() in known_identifiers:
+                    continue
+                for stakeholder in stakeholders:
+                    if stakeholder.lower() in text_lower:
+                        ref_data5 = project_refs[proj_name]
+                        current_count5: int = int(ref_data5.get("count") or 0)
+                        ref_data5["count"] = current_count5 + 1
+                        matched_stakeholders: list[str] = ref_data5.get("matched_stakeholders") or []
+                        ref_data5["matched_stakeholders"] = matched_stakeholders
+                        if stakeholder not in matched_stakeholders:
+                            matched_stakeholders.append(stakeholder)
+                        samples_list5: list[dict[str, Any]] = ref_data5.get("samples") or []
+                        ref_data5["samples"] = samples_list5
+                        if len(samples_list5) < 3:
+                            samples_list5.append({
+                                "subject": email.subject,
+                                "date": email.date_sent.isoformat() if email.date_sent else None,
+                                "sender": email.sender_email,
+                                "matched_stakeholder": stakeholder
+                            })
+                        break  # Only count once per email per project
         
         # Filter to significant references
         significant_refs = {
@@ -366,9 +682,9 @@ You must distinguish between:
 MAIN PROJECT CONTEXT:
 - Project Name: {self.project.project_name}
 - Project Code: {self.project.project_code}
-- Aliases: {', '.join(self.project_context['aliases']) or 'None'}
-- Site Address: {self.project_context['site_address'] or 'Not specified'}
-- Key Terms: {', '.join(self.project_context['project_terms']) or 'None'}
+- Aliases: {', '.join(str(a) for a in (self.project_context.get('aliases') or [])) or 'None'}
+- Site Address: {self.project_context.get('site_address') or 'Not specified'}
+- Key Terms: {', '.join(str(t) for t in (self.project_context.get('project_terms') or [])) or 'None'}
 
 DETECTED REFERENCES:
 {refs_summary}
@@ -377,6 +693,7 @@ For each reference, determine:
 1. Is this a DIFFERENT project (not a sub-project or phase of {self.project.project_name})?
 2. How confident are you? (high/medium/low)
 3. Why do you think this?
+4. What action do you recommend?
 
 Output JSON array:
 [
@@ -395,7 +712,7 @@ Only include references that appear to be OTHER projects (is_other_project: true
         response = await self._call_llm(prompt, system_prompt)
         
         # Parse AI response
-        detected_items = []
+        detected_items: list[DetectedItem] = []
         try:
             json_str = response
             if "```json" in response:
@@ -403,29 +720,124 @@ Only include references that appear to be OTHER projects (is_other_project: true
             elif "```" in response:
                 json_str = response.split("```")[1].split("```")[0]
             
-            ai_results = json.loads(json_str.strip())
+            ai_results_raw: object = json.loads(json_str.strip())
+            ai_results: list[dict[str, object]] = []
+            if isinstance(ai_results_raw, list):
+                raw_list = cast(list[object], ai_results_raw)
+                for raw_item in raw_list:
+                    if isinstance(raw_item, dict):
+                        ai_results.append(cast(dict[str, object], raw_item))
             
             for result in ai_results:
                 if result.get("is_other_project"):
-                    ref = result["reference"]
-                    ref_data = significant_refs.get(ref, {"count": 0, "samples": []})
+                    ref_name: str = str(result.get("reference") or "")
+                    ref_data_result = significant_refs.get(ref_name, {"count": 0, "samples": []})
+                    ref_count_obj: object = ref_data_result.get("count")
+                    ref_count: int = int(ref_count_obj) if isinstance(ref_count_obj, (int, float)) else 0
+                    ref_samples_obj: object = ref_data_result.get("samples")
+                    ref_samples: list[dict[str, Any]] = cast(list[dict[str, Any]], ref_samples_obj) if isinstance(ref_samples_obj, list) else []
+                    
+                    confidence_val: str = str(result.get("confidence") or "medium")
+                    reasoning_val: str = str(result.get("reasoning") or "")
+                    action_val: str = str(result.get("recommended_action") or "review")
                     
                     detected_items.append(DetectedItem(
                         id=f"proj_{uuid.uuid4().hex[:8]}",
                         item_type="other_project",
-                        name=ref,
-                        description=f"Project reference '{ref}' found {ref_data['count']} times",
-                        sample_emails=ref_data["samples"],
-                        email_count=ref_data["count"],
-                        confidence=ConfidenceLevel(result.get("confidence", "medium")),
-                        ai_reasoning=result.get("reasoning", ""),
-                        recommended_action=result.get("recommended_action", "review"),
-                        metadata={"pattern_matches": ref_data}
+                        name=ref_name,
+                        description=f"Project reference '{ref_name}' found {ref_count} times",
+                        sample_emails=ref_samples,
+                        email_count=ref_count,
+                        confidence=ConfidenceLevel(confidence_val),
+                        ai_reasoning=reasoning_val,
+                        recommended_action=action_val,
+                        metadata={"pattern_matches": ref_data_result}
                     ))
         except (json.JSONDecodeError, KeyError) as e:
             logger.warning(f"Failed to parse AI response for project detection: {e}")
         
         return detected_items
+    
+    async def analyze_for_duplicates(
+        self, 
+        emails: list[EmailMessage]
+    ) -> list[DetectedItem]:
+        """
+        Detect duplicate emails based on subject, body content, and timestamps.
+        Groups duplicates and identifies which to keep.
+        """
+        import hashlib
+        
+        # Build content signatures for each email
+        email_signatures: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        
+        for email in emails:
+            # Create content signature from subject + body
+            content = f"{(email.subject or '').strip().lower()}"
+            body_text = (email.body_text or "").strip()
+            if body_text:
+                # Normalize body - remove whitespace variations
+                normalized_body = ' '.join(body_text.split()[:100])  # First 100 words
+                content += f":{normalized_body}"
+            
+            # Create hash signature
+            signature = hashlib.md5(content.encode()).hexdigest()[:16]
+            
+            email_signatures[signature].append({
+                "id": str(email.id),
+                "subject": email.subject,
+                "sender": email.sender_email,
+                "date": email.date_sent,
+                "date_str": email.date_sent.isoformat() if email.date_sent else None
+            })
+        
+        # Find duplicates (more than 1 email with same signature)
+        detected_items: list[DetectedItem] = []
+        
+        for signature, email_list in email_signatures.items():
+            if len(email_list) >= 2:
+                # Sort by date to find the original
+                sorted_emails = sorted(
+                    email_list, 
+                    key=lambda x: x["date"] or datetime.min
+                )
+                
+                original = sorted_emails[0]
+                duplicates = sorted_emails[1:]
+                
+                # Calculate timespan
+                original_date: datetime | None = original.get("date")
+                last_date: datetime | None = sorted_emails[-1].get("date")
+                timespan: int = 0
+                if original_date and last_date:
+                    timespan = (last_date - original_date).days
+                
+                detected_items.append(DetectedItem(
+                    id=f"dup_{signature}",
+                    item_type="duplicate_email",
+                    name=original["subject"] or "No Subject",
+                    description=f"Found {len(duplicates)} duplicate(s) of email from {original['sender']}",
+                    sample_emails=[{
+                        "subject": e["subject"],
+                        "sender": e["sender"],
+                        "date": e["date_str"]
+                    } for e in sorted_emails[:4]],
+                    email_count=len(email_list),
+                    confidence=ConfidenceLevel.HIGH if len(email_list) >= 3 else ConfidenceLevel.MEDIUM,
+                    ai_reasoning=f"Identical content found {len(email_list)} times. Original from {original['date_str']}. Span: {timespan} days.",
+                    recommended_action="remove_duplicates",
+                    metadata={
+                        "signature": signature,
+                        "original_id": original["id"],
+                        "duplicate_ids": [e["id"] for e in duplicates],
+                        "all_ids": [e["id"] for e in email_list],
+                        "timespan_days": timespan
+                    }
+                ))
+        
+        # Sort by count descending
+        detected_items.sort(key=lambda x: x.email_count, reverse=True)
+        return detected_items[:30]  # Top 30 duplicate groups
     
     async def analyze_for_spam(
         self, 
@@ -444,12 +856,12 @@ Only include references that appear to be OTHER projects (is_other_project: true
         
         for email in emails:
             spam_score = 0
-            reasons = set()
+            reasons: set[str] = set()
             
             subject_lower = (email.subject or "").lower()
             body_lower = (email.body_text or "").lower()
-            sender_email = (email.sender_email or "").lower()
-            sender_domain = sender_email.split('@')[-1] if '@' in sender_email else ""
+            sender_email_addr = (email.sender_email or "").lower()
+            sender_domain = sender_email_addr.split('@')[-1] if '@' in sender_email_addr else ""
             
             # Check newsletter/unsubscribe indicators
             for word in SPAM_INDICATORS["newsletter_words"]:
@@ -459,7 +871,7 @@ Only include references that appear to be OTHER projects (is_other_project: true
             
             # Check spam domains
             for domain in SPAM_INDICATORS["spam_domains"]:
-                if domain in sender_domain or domain in sender_email:
+                if domain in sender_domain or domain in sender_email_addr:
                     spam_score += 3
                     reasons.add(f"From marketing/social domain: {domain}")
             
@@ -478,41 +890,66 @@ Only include references that appear to be OTHER projects (is_other_project: true
             
             # Group by sender domain for bulk detection
             if spam_score >= 2:
-                key = sender_domain or sender_email
-                spam_candidates[key]["count"] += 1
-                spam_candidates[key]["reasons"].update(reasons)
-                spam_candidates[key]["domain"] = sender_domain
-                spam_candidates[key]["sender"] = email.sender_name or sender_email
-                if len(spam_candidates[key]["samples"]) < 3:
-                    spam_candidates[key]["samples"].append({
+                key = sender_domain or sender_email_addr
+                candidate = spam_candidates[key]
+                cand_count_obj: object = candidate.get("count")
+                cand_count: int = int(cand_count_obj) if isinstance(cand_count_obj, (int, float)) else 0
+                candidate["count"] = cand_count + 1
+                cand_reasons_obj: object = candidate.get("reasons")
+                existing_reasons: set[str] = cand_reasons_obj if isinstance(cand_reasons_obj, set) else set()
+                existing_reasons.update(reasons)
+                candidate["reasons"] = existing_reasons
+                candidate["domain"] = sender_domain
+                candidate["sender"] = email.sender_name or sender_email_addr
+                cand_samples_obj: object = candidate.get("samples")
+                spam_samples: list[dict[str, Any]] = cast(list[dict[str, Any]], cand_samples_obj) if isinstance(cand_samples_obj, list) else []
+                candidate["samples"] = spam_samples
+                if len(spam_samples) < 3:
+                    spam_samples.append({
                         "subject": email.subject,
                         "date": email.date_sent.isoformat() if email.date_sent else None,
-                        "sender": sender_email
+                        "sender": sender_email_addr
                     })
         
         # Convert to detected items
-        detected_items = []
-        for key, data in sorted(spam_candidates.items(), key=lambda x: x[1]["count"], reverse=True):
-            if data["count"] >= 2:  # At least 2 emails to consider bulk
-                confidence = ConfidenceLevel.HIGH if data["count"] >= 5 else ConfidenceLevel.MEDIUM
+        spam_detected_items: list[DetectedItem] = []
+        
+        def get_spam_count(item: tuple[str, dict[str, Any]]) -> int:
+            count_obj: object = item[1].get("count")
+            return int(count_obj) if isinstance(count_obj, (int, float)) else 0
+        
+        sorted_spam = sorted(spam_candidates.items(), key=get_spam_count, reverse=True)
+        for key, data in sorted_spam:
+            data_count_obj: object = data.get("count")
+            data_count: int = int(data_count_obj) if isinstance(data_count_obj, (int, float)) else 0
+            if data_count >= 2:  # At least 2 emails to consider bulk
+                confidence = ConfidenceLevel.HIGH if data_count >= 5 else ConfidenceLevel.MEDIUM
+                data_reasons_obj: object = data.get("reasons")
+                data_reasons: set[str] = data_reasons_obj if isinstance(data_reasons_obj, set) else set()
+                data_samples_obj: object = data.get("samples")
+                data_samples: list[dict[str, Any]] = cast(list[dict[str, Any]], data_samples_obj) if isinstance(data_samples_obj, list) else []
+                data_domain_obj: object = data.get("domain")
+                data_domain: str | None = data_domain_obj if isinstance(data_domain_obj, str) else None
+                data_sender_obj: object = data.get("sender")
+                data_sender: str | None = data_sender_obj if isinstance(data_sender_obj, str) else None
                 
-                detected_items.append(DetectedItem(
+                spam_detected_items.append(DetectedItem(
                     id=f"spam_{uuid.uuid4().hex[:8]}",
                     item_type="spam_newsletter",
-                    name=data["sender"] or key,
-                    description=f"Potential spam/newsletter from {key} ({data['count']} emails)",
-                    sample_emails=data["samples"],
-                    email_count=data["count"],
+                    name=data_sender or key,
+                    description=f"Potential spam/newsletter from {key} ({data_count} emails)",
+                    sample_emails=data_samples,
+                    email_count=data_count,
                     confidence=confidence,
-                    ai_reasoning=f"Detected indicators: {', '.join(list(data['reasons'])[:3])}",
-                    recommended_action="exclude" if data["count"] >= 5 else "review",
+                    ai_reasoning=f"Detected indicators: {', '.join(list(data_reasons)[:3])}",
+                    recommended_action="exclude" if data_count >= 5 else "review",
                     metadata={
-                        "domain": data["domain"],
-                        "reasons": list(data["reasons"])
+                        "domain": data_domain,
+                        "reasons": list(data_reasons)
                     }
                 ))
         
-        return detected_items[:20]  # Top 20 spam candidates
+        return spam_detected_items[:20]  # Top 20 spam candidates
     
     async def analyze_domains_and_people(
         self, 
@@ -525,87 +962,138 @@ Only include references that appear to be OTHER projects (is_other_project: true
             "count": 0, "people": set(), "first_seen": None, "last_seen": None
         })
         
-        known_domains = set(d.lower() for d in self.project_context["include_domains"])
-        excluded_people = set(p.lower() for p in self.project_context["exclude_people"])
-        known_stakeholder_emails = set(
-            s["email"].lower() for s in self.project_context["stakeholders"] 
-            if s.get("email")
-        )
+        include_domains_raw = self.project_context.get("include_domains") or []
+        known_domains: set[str] = set()
+        for d in include_domains_raw:
+            if isinstance(d, str):
+                known_domains.add(d.lower())
+        
+        exclude_people_raw = self.project_context.get("exclude_people") or []
+        excluded_people: set[str] = set()
+        for p in exclude_people_raw:
+            if isinstance(p, str):
+                excluded_people.add(p.lower())
+        
+        stakeholders_raw = self.project_context.get("stakeholders") or []
+        known_stakeholder_emails: set[str] = set()
+        for s in stakeholders_raw:
+            if isinstance(s, dict):
+                s_email = s.get("email")
+                if isinstance(s_email, str) and s_email:
+                    known_stakeholder_emails.add(s_email.lower())
         
         for email in emails:
-            sender_email = (email.sender_email or "").lower()
-            if '@' not in sender_email:
+            email_sender = (email.sender_email or "").lower()
+            if '@' not in email_sender:
                 continue
             
-            domain = sender_email.split('@')[-1]
-            sender_name = email.sender_name or sender_email.split('@')[0]
+            domain = email_sender.split('@')[-1]
+            sender_name = email.sender_name or email_sender.split('@')[0]
             
-            domain_stats[domain]["count"] += 1
-            domain_stats[domain]["people"].add(sender_name)
+            dom_stat = domain_stats[domain]
+            dom_count_obj: object = dom_stat.get("count")
+            dom_count: int = int(dom_count_obj) if isinstance(dom_count_obj, (int, float)) else 0
+            dom_stat["count"] = dom_count + 1
+            dom_people_obj: object = dom_stat.get("people")
+            people_set: set[str] = dom_people_obj if isinstance(dom_people_obj, set) else set()
+            people_set.add(sender_name)
+            dom_stat["people"] = people_set
             
             if email.date_sent:
-                if not domain_stats[domain]["first_seen"] or email.date_sent < domain_stats[domain]["first_seen"]:
-                    domain_stats[domain]["first_seen"] = email.date_sent
-                if not domain_stats[domain]["last_seen"] or email.date_sent > domain_stats[domain]["last_seen"]:
-                    domain_stats[domain]["last_seen"] = email.date_sent
+                first_seen = dom_stat.get("first_seen")
+                last_seen = dom_stat.get("last_seen")
+                if not first_seen or email.date_sent < first_seen:
+                    dom_stat["first_seen"] = email.date_sent
+                if not last_seen or email.date_sent > last_seen:
+                    dom_stat["last_seen"] = email.date_sent
         
         # Identify unknown domains (not in project config)
-        unknown_domains = []
-        for domain, stats in sorted(domain_stats.items(), key=lambda x: x[1]["count"], reverse=True):
-            if domain not in known_domains and stats["count"] >= 3:
+        unknown_domains: list[DetectedItem] = []
+        
+        def get_dom_count(item: tuple[str, dict[str, Any]]) -> int:
+            c: object = item[1].get("count")
+            return int(c) if isinstance(c, (int, float)) else 0
+        
+        sorted_domains = sorted(domain_stats.items(), key=get_dom_count, reverse=True)
+        for domain, stats in sorted_domains:
+            stats_count_obj: object = stats.get("count")
+            stats_count: int = int(stats_count_obj) if isinstance(stats_count_obj, (int, float)) else 0
+            if domain not in known_domains and stats_count >= 3:
                 # Check if any stakeholders are from this domain
-                is_stakeholder_domain = any(
-                    domain in s.get("email", "").lower() 
-                    for s in self.project_context["stakeholders"]
-                )
+                is_stakeholder_domain = False
+                for s in stakeholders_raw:
+                    if isinstance(s, dict):
+                        s_email_check = s.get("email")
+                        if isinstance(s_email_check, str) and domain in s_email_check.lower():
+                            is_stakeholder_domain = True
+                            break
                 
                 if not is_stakeholder_domain:
+                    stats_people_raw = stats.get("people")
+                    stats_people: set[str] = stats_people_raw if isinstance(stats_people_raw, set) else set()
+                    stats_first_raw = stats.get("first_seen")
+                    stats_first: datetime | None = stats_first_raw if isinstance(stats_first_raw, datetime) else None
+                    stats_last_raw = stats.get("last_seen")
+                    stats_last: datetime | None = stats_last_raw if isinstance(stats_last_raw, datetime) else None
                     unknown_domains.append(DetectedItem(
                         id=f"domain_{uuid.uuid4().hex[:8]}",
                         item_type="unknown_domain",
                         name=domain,
-                        description=f"Unknown domain with {stats['count']} emails from {len(stats['people'])} people",
+                        description=f"Unknown domain with {stats_count} emails from {len(stats_people)} people",
                         sample_emails=[],
-                        email_count=stats["count"],
+                        email_count=stats_count,
                         confidence=ConfidenceLevel.MEDIUM,
-                        ai_reasoning=f"Domain not in project configuration. People: {', '.join(list(stats['people'])[:5])}",
+                        ai_reasoning=f"Domain not in project configuration. People: {', '.join(list(stats_people)[:5])}",
                         recommended_action="review",
                         metadata={
-                            "people": list(stats["people"]),
-                            "first_seen": stats["first_seen"].isoformat() if stats["first_seen"] else None,
-                            "last_seen": stats["last_seen"].isoformat() if stats["last_seen"] else None
+                            "people": list(stats_people),
+                            "first_seen": stats_first.isoformat() if stats_first else None,
+                            "last_seen": stats_last.isoformat() if stats_last else None
                         }
                     ))
         
         # Identify high-volume senders not in stakeholders
         people_stats: dict[str, dict[str, Any]] = defaultdict(lambda: {
-            "count": 0, "domain": None
+            "count": 0, "domain": None, "name": None
         })
         
         for email in emails:
-            sender_email = (email.sender_email or "").lower()
-            if sender_email and sender_email not in known_stakeholder_emails:
-                people_stats[sender_email]["count"] += 1
-                people_stats[sender_email]["name"] = email.sender_name
-                if '@' in sender_email:
-                    people_stats[sender_email]["domain"] = sender_email.split('@')[-1]
+            email_sender_addr = (email.sender_email or "").lower()
+            if email_sender_addr and email_sender_addr not in known_stakeholder_emails:
+                pstat = people_stats[email_sender_addr]
+                pstat_count_obj: object = pstat.get("count")
+                pstat_count_val: int = int(pstat_count_obj) if isinstance(pstat_count_obj, (int, float)) else 0
+                pstat["count"] = pstat_count_val + 1
+                pstat["name"] = email.sender_name
+                if '@' in email_sender_addr:
+                    pstat["domain"] = email_sender_addr.split('@')[-1]
         
-        unknown_people = []
-        for email_addr, stats in sorted(people_stats.items(), key=lambda x: x[1]["count"], reverse=True)[:30]:
-            if stats["count"] >= 5:
+        unknown_people: list[DetectedItem] = []
+        
+        def get_people_count(item: tuple[str, dict[str, Any]]) -> int:
+            c: object = item[1].get("count")
+            return int(c) if isinstance(c, (int, float)) else 0
+        
+        sorted_people = sorted(people_stats.items(), key=get_people_count, reverse=True)[:30]
+        for email_addr, stats in sorted_people:
+            pstat_count_obj2: object = stats.get("count")
+            pstat_count: int = int(pstat_count_obj2) if isinstance(pstat_count_obj2, (int, float)) else 0
+            if pstat_count >= 5:
                 # Check if this person should be excluded
-                is_excluded = any(
-                    excl.lower() in email_addr or excl.lower() in (stats.get("name", "").lower())
-                    for excl in excluded_people
-                )
+                pstat_name: str = str(stats.get("name") or "")
+                is_excluded = False
+                for excl in excluded_people:
+                    if excl in email_addr or excl in pstat_name.lower():
+                        is_excluded = True
+                        break
                 
                 unknown_people.append(DetectedItem(
                     id=f"person_{uuid.uuid4().hex[:8]}",
                     item_type="unknown_person",
-                    name=stats.get("name") or email_addr,
-                    description=f"Sender with {stats['count']} emails, not in stakeholder list",
+                    name=pstat_name or email_addr,
+                    description=f"Sender with {pstat_count} emails, not in stakeholder list",
                     sample_emails=[],
-                    email_count=stats["count"],
+                    email_count=pstat_count,
                     confidence=ConfidenceLevel.MEDIUM,
                     ai_reasoning=f"Email: {email_addr}, Domain: {stats.get('domain')}",
                     recommended_action="exclude" if is_excluded else "review",
@@ -625,14 +1113,33 @@ Only include references that appear to be OTHER projects (is_other_project: true
         detected_spam: list[DetectedItem],
         detected_domains: list[DetectedItem],
         detected_people: list[DetectedItem],
+        detected_duplicates: list[DetectedItem],
         total_emails: int
     ) -> list[RefinementQuestion]:
         """
         Generate a set of intelligent questions based on the analysis.
         """
-        questions = []
+        questions: list[RefinementQuestion] = []
         
-        # Question 1: Project cross-references
+        # Question 1: Duplicate emails (highest priority - affects counts)
+        if detected_duplicates:
+            total_dup_count = sum(item.email_count - 1 for item in detected_duplicates)  # Count duplicates, not originals
+            questions.append(RefinementQuestion(
+                id=f"q_{uuid.uuid4().hex[:8]}",
+                question_text=f"I found {total_dup_count} duplicate emails across {len(detected_duplicates)} groups. Should I remove these duplicates?",
+                question_type="multi_select",
+                context="Duplicate emails have identical content but may have been sent multiple times or forwarded. Removing duplicates helps focus your analysis on unique correspondence.",
+                options=[
+                    {"value": "remove_all", "label": f"Remove all {total_dup_count} duplicate emails (keep originals)"},
+                    {"value": "select_individual", "label": "Let me review and select which duplicates to remove"},
+                    {"value": "keep_all", "label": "Keep all emails including duplicates"}
+                ],
+                detected_items=detected_duplicates,
+                priority=1,
+                stage=RefinementStage.INITIAL_ANALYSIS
+            ))
+        
+        # Question 2: Project cross-references
         if detected_projects:
             questions.append(RefinementQuestion(
                 id=f"q_{uuid.uuid4().hex[:8]}",
@@ -705,7 +1212,70 @@ Only include references that appear to be OTHER projects (is_other_project: true
                 stage=RefinementStage.PEOPLE_VALIDATION
             ))
         
-        # Question 5: Date range validation
+        # Question 5: Council/Local Authority identification
+        council_candidates = [p for p in detected_people if any(
+            term in (p.metadata.get("domain", "") or "").lower() 
+            for term in ["council", "gov.uk", "local", "borough", "city", "county", "district"]
+        )]
+        if not council_candidates:
+            # Also check domains for council patterns
+            council_domain_candidates = [d for d in detected_domains if any(
+                term in d.name.lower() 
+                for term in ["council", "gov.uk", "local", "borough", "city", "county", "district"]
+            )]
+            if council_domain_candidates:
+                questions.append(RefinementQuestion(
+                    id=f"q_{uuid.uuid4().hex[:8]}",
+                    question_text="Who is the council or local authority for this project?",
+                    question_type="multi_select",
+                    context="Identifying the local authority helps categorize planning-related correspondence, building control communications, and statutory requirements.",
+                    options=[
+                        {"value": "select_council", "label": "Select from detected authorities below"},
+                        {"value": "not_applicable", "label": "No council involvement in this project"},
+                        {"value": "enter_manually", "label": "Enter council name manually"}
+                    ],
+                    detected_items=council_domain_candidates,
+                    priority=5,
+                    stage=RefinementStage.PEOPLE_VALIDATION
+                ))
+        
+        # Question 6: Client/Employer identification
+        questions.append(RefinementQuestion(
+            id=f"q_{uuid.uuid4().hex[:8]}",
+            question_text="Who is your client or employer for this project?",
+            question_type="categorize",
+            context="Identifying the client/employer helps distinguish between internal communications and external correspondence, and properly categorize instructions and variations.",
+            options=[
+                {"value": "select_from_list", "label": "Select from high-volume senders below"},
+                {"value": "enter_details", "label": "Enter client details manually"}
+            ],
+            detected_items=[p for p in detected_people[:10]],  # Top 10 senders as candidates
+            priority=5,
+            stage=RefinementStage.PEOPLE_VALIDATION
+        ))
+        
+        # Question 7: Contractor identification
+        contractor_candidates = [p for p in detected_people if any(
+            term in (p.name or "").lower() or term in (p.metadata.get("domain", "") or "").lower()
+            for term in ["construction", "build", "civil", "contract", "engineering", "ltd", "plc", "limited"]
+        )]
+        if contractor_candidates or len(detected_people) > 5:
+            questions.append(RefinementQuestion(
+                id=f"q_{uuid.uuid4().hex[:8]}",
+                question_text="Which of these contractors, subcontractors, or suppliers are relevant to this job?",
+                question_type="multi_select",
+                context="Identifying relevant contractors helps filter out unrelated correspondence and properly categorize supply chain communications.",
+                options=[
+                    {"value": "include_selected", "label": "Include only selected contractors"},
+                    {"value": "include_all", "label": "Include all contractors shown"},
+                    {"value": "exclude_none_relevant", "label": "None of these are relevant to this project"}
+                ],
+                detected_items=contractor_candidates if contractor_candidates else detected_people[:15],
+                priority=6,
+                stage=RefinementStage.PEOPLE_VALIDATION
+            ))
+        
+        # Question 8: Date range validation
         questions.append(RefinementQuestion(
             id=f"q_{uuid.uuid4().hex[:8]}",
             question_text="What date range should I focus on for this analysis?",
@@ -718,7 +1288,7 @@ Only include references that appear to be OTHER projects (is_other_project: true
                 {"value": "last_2_years", "label": "Last 2 years"}
             ],
             detected_items=[],
-            priority=5,
+            priority=7,
             stage=RefinementStage.DOMAIN_QUESTIONS
         ))
         
@@ -781,6 +1351,9 @@ async def start_ai_analysis(
         
         detected_domains, detected_people = await engine.analyze_domains_and_people(emails)
         
+        # Detect duplicate emails
+        detected_duplicates = await engine.analyze_for_duplicates(emails)
+        
         # Generate questions
         questions = await engine.generate_intelligent_questions(
             session,
@@ -788,6 +1361,7 @@ async def start_ai_analysis(
             detected_spam,
             detected_domains,
             detected_people,
+            detected_duplicates,
             len(emails)
         )
         
@@ -798,11 +1372,15 @@ async def start_ai_analysis(
             "detected_spam": [s.model_dump() for s in detected_spam],
             "detected_domains": [d.model_dump() for d in detected_domains],
             "detected_people": [p.model_dump() for p in detected_people],
+            "detected_duplicates": [d.model_dump() for d in detected_duplicates],
         }
         session.questions_asked = questions
         session.status = "awaiting_answers"
         session.current_stage = RefinementStage.PROJECT_CROSS_REF if detected_projects else RefinementStage.SPAM_DETECTION
-        
+
+        # Save session to database for persistence
+        _save_session_to_db(session, db)
+
         return AnalysisResponse(
             session_id=session_id,
             status="ready",
@@ -810,6 +1388,7 @@ async def start_ai_analysis(
             next_questions=questions,
             summary={
                 "total_emails": len(emails),
+                "duplicates_found": len(detected_duplicates),
                 "other_projects_found": len(detected_projects),
                 "spam_sources_found": len(detected_spam),
                 "unknown_domains": len(detected_domains),
@@ -826,18 +1405,18 @@ async def start_ai_analysis(
 @router.post("/answer")
 async def submit_answer(
     answer: RefinementAnswer,
-    session_id: str = Query(..., description="Session ID"),
-    user: Annotated[User, Depends(current_user)] = None,
-    db: Annotated[Session, Depends(get_db)] = None
-):
+    session_id: Annotated[str, Query(description="Session ID")],
+    user: Annotated[User, Depends(current_user)],
+    db: Annotated[Session, Depends(get_db)]
+) -> dict[str, Any]:
     """
     Submit an answer to a refinement question.
     Returns the next question or final summary.
     """
-    session = _refinement_sessions.get(session_id)
+    session = _get_session(session_id, db)
     if not session:
         raise HTTPException(404, "Session not found")
-    
+
     if session.user_id != str(user.id):
         raise HTTPException(403, "Not authorized")
     
@@ -847,28 +1426,48 @@ async def submit_answer(
     
     # Process answer and build exclusion rules
     question = next((q for q in session.questions_asked if q.id == answer.question_id), None)
+    raw_answer: object = answer.answer_value
+    answer_val = str(raw_answer) if raw_answer is not None else ""
+    
     if question:
-        if question.stage == RefinementStage.PROJECT_CROSS_REF:
-            if answer.answer_value == "exclude_all":
+        # Handle deduplication answers
+        if question.stage == RefinementStage.INITIAL_ANALYSIS and "duplicate" in question.question_text.lower():
+            if answer_val == "remove_all":
+                # Collect all duplicate IDs (not originals)
+                duplicate_ids: list[str] = []
+                for item in question.detected_items:
+                    dup_ids_raw: object = item.metadata.get("duplicate_ids", [])
+                    if isinstance(dup_ids_raw, list):
+                        dup_list = cast(list[object], dup_ids_raw)
+                        duplicate_ids.extend([str(d_item) for d_item in dup_list])
+                session.exclusion_rules["remove_duplicate_ids"] = duplicate_ids
+            elif answer_val == "select_individual":
+                session.exclusion_rules["remove_duplicate_ids"] = answer.selected_items
+        
+        elif question.stage == RefinementStage.PROJECT_CROSS_REF:
+            if answer_val == "exclude_all":
                 session.exclusion_rules["exclude_project_refs"] = [
                     item.name for item in question.detected_items
                 ]
-            elif answer.answer_value == "select_individual":
+            elif answer_val == "select_individual":
                 session.exclusion_rules["exclude_project_refs"] = answer.selected_items
         
         elif question.stage == RefinementStage.SPAM_DETECTION:
-            if answer.answer_value == "exclude_all":
+            if answer_val == "exclude_all":
                 session.exclusion_rules["exclude_spam_domains"] = [
                     item.metadata.get("domain") for item in question.detected_items
                     if item.metadata.get("domain")
                 ]
-            elif answer.answer_value == "select_individual":
+            elif answer_val == "select_individual":
                 session.exclusion_rules["exclude_spam_domains"] = answer.selected_items
     
     # Find next unanswered question
     answered_ids = {a.question_id for a in session.answers_received}
     remaining = [q for q in session.questions_asked if q.id not in answered_ids]
-    
+
+    # Save session to database
+    _save_session_to_db(session, db)
+
     if remaining:
         return {
             "status": "more_questions",
@@ -878,6 +1477,7 @@ async def submit_answer(
         }
     else:
         session.status = "ready_to_apply"
+        _save_session_to_db(session, db)
         return {
             "status": "complete",
             "message": "All questions answered. Ready to apply refinement.",
@@ -895,10 +1495,10 @@ async def apply_refinement(
     """
     Apply the refinement rules to exclude emails.
     """
-    session = _refinement_sessions.get(session_id)
+    session = _get_session(session_id, db)
     if not session:
         raise HTTPException(404, "Session not found")
-    
+
     if session.user_id != str(user.id):
         raise HTTPException(403, "Not authorized")
     
@@ -909,36 +1509,70 @@ async def apply_refinement(
     
     # Apply exclusion rules
     excluded_count = 0
+    duplicate_removed_count = 0
     rules = session.exclusion_rules
     
     emails = db.query(EmailMessage).filter(
         EmailMessage.project_id == session.project_id
     ).all()
     
+    # Build sets for faster lookup with proper typing
+    exclude_project_refs: list[str] = []
+    exclude_spam_domains: list[str] = []
+    exclude_people: list[str] = []
+    remove_duplicate_ids: set[str] = set()
+    
+    raw_project_refs: object = rules.get("exclude_project_refs")
+    if isinstance(raw_project_refs, list):
+        refs_list = cast(list[object], raw_project_refs)
+        exclude_project_refs = [str(r_item) for r_item in refs_list]
+    
+    raw_spam_domains: object = rules.get("exclude_spam_domains")
+    if isinstance(raw_spam_domains, list):
+        domains_list = cast(list[object], raw_spam_domains)
+        exclude_spam_domains = [str(d_item) for d_item in domains_list]
+    
+    raw_exclude_people: object = rules.get("exclude_people")
+    if isinstance(raw_exclude_people, list):
+        people_list = cast(list[object], raw_exclude_people)
+        exclude_people = [str(p_item) for p_item in people_list]
+    
+    raw_duplicate_ids: object = rules.get("remove_duplicate_ids")
+    if isinstance(raw_duplicate_ids, list):
+        dup_list = cast(list[object], raw_duplicate_ids)
+        remove_duplicate_ids = {str(dup_item) for dup_item in dup_list}
+    
     for email in emails:
         should_exclude = False
-        exclude_reason = None
+        exclude_reason: str | None = None
+        email_id_str = str(email.id)
+        
+        # Check if email is a duplicate to remove
+        if email_id_str in remove_duplicate_ids:
+            should_exclude = True
+            exclude_reason = "duplicate"
+            duplicate_removed_count += 1
         
         # Check project references
-        if rules.get("exclude_project_refs"):
+        if not should_exclude and exclude_project_refs:
             text = f"{email.subject or ''} {email.body_text or ''}".lower()
-            for ref in rules["exclude_project_refs"]:
+            for ref in exclude_project_refs:
                 if ref.lower() in text:
                     should_exclude = True
                     exclude_reason = f"other_project:{ref}"
                     break
         
         # Check spam domains
-        if not should_exclude and rules.get("exclude_spam_domains"):
+        if not should_exclude and exclude_spam_domains:
             sender_domain = (email.sender_email or "").split('@')[-1].lower()
-            if sender_domain in [d.lower() for d in rules["exclude_spam_domains"]]:
+            if sender_domain in [d.lower() for d in exclude_spam_domains]:
                 should_exclude = True
                 exclude_reason = f"spam:{sender_domain}"
         
         # Check excluded people
-        if not should_exclude and rules.get("exclude_people"):
+        if not should_exclude and exclude_people:
             sender = (email.sender_email or "").lower()
-            if sender in [p.lower() for p in rules["exclude_people"]]:
+            if sender in [p.lower() for p in exclude_people]:
                 should_exclude = True
                 exclude_reason = f"excluded_person:{sender}"
         
@@ -961,9 +1595,10 @@ async def apply_refinement(
     project.meta = project_meta
     
     db.commit()
-    
+
     session.status = "applied"
-    
+    _save_session_to_db(session, db)
+
     return {
         "success": True,
         "session_id": session_id,
@@ -976,16 +1611,17 @@ async def apply_refinement(
 @router.get("/session/{session_id}")
 async def get_session_status(
     session_id: str,
-    user: Annotated[User, Depends(current_user)]
+    user: Annotated[User, Depends(current_user)],
+    db: Annotated[Session, Depends(get_db)]
 ):
     """Get the current status of a refinement session"""
-    session = _refinement_sessions.get(session_id)
+    session = _get_session(session_id, db)
     if not session:
         raise HTTPException(404, "Session not found")
-    
+
     if session.user_id != str(user.id):
         raise HTTPException(403, "Not authorized")
-    
+
     return {
         "session_id": session.id,
         "status": session.status,
@@ -1000,18 +1636,22 @@ async def get_session_status(
 @router.delete("/session/{session_id}")
 async def cancel_session(
     session_id: str,
-    user: Annotated[User, Depends(current_user)]
+    user: Annotated[User, Depends(current_user)],
+    db: Annotated[Session, Depends(get_db)]
 ):
     """Cancel a refinement session"""
-    session = _refinement_sessions.get(session_id)
+    session = _get_session(session_id, db)
     if not session:
         raise HTTPException(404, "Session not found")
-    
+
     if session.user_id != str(user.id):
         raise HTTPException(403, "Not authorized")
-    
-    session.status = "cancelled"
-    del _refinement_sessions[session_id]
-    
-    return {"success": True, "message": "Session cancelled"}
 
+    session.status = "cancelled"
+    _save_session_to_db(session, db)
+
+    # Remove from cache
+    if session_id in _refinement_sessions:
+        del _refinement_sessions[session_id]
+
+    return {"success": True, "message": "Session cancelled"}

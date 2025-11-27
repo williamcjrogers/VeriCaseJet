@@ -8,6 +8,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- VeriCase Design System -->
+    <link rel="stylesheet" href="brand-styles.css">
+    <link rel="stylesheet" href="design-system.css">
+    <script src="vericase-ui.js"></script>
+    <script src="nav-shell.js"></script>
     <style>
         :root {
             /* VeriCase Brand Colors */
@@ -1023,8 +1029,8 @@
                 <!-- Research Form -->
                 <section id="researchForm" class="research-form">
                     <div class="form-group">
-                        <label class="form-label">Research Topic</label>
-                        <textarea 
+                        <label class="form-label" for="topicInput">Research Topic</label>
+                        <textarea
                             id="topicInput" 
                             class="form-input form-textarea" 
                             placeholder="Describe what you want to investigate. Be specific about the scope, time period, and key questions you need answered.
@@ -1086,7 +1092,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
                         </p>
                         <div class="progress-container">
                             <div class="progress-bar">
-                                <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+                                <div id="progressFill" class="progress-fill" style="width: 0"></div>
                             </div>
                             <div class="progress-text">
                                 <span id="progressText">0 / 0 questions</span>
@@ -1178,10 +1184,10 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
     <div id="modifyModal" class="modal-overlay">
         <div class="modal">
             <h3 class="modal-title">Request Plan Changes</h3>
-            <p style="font-size: 0.9375rem; color: var(--text-secondary); margin-bottom: 1rem;">
+            <label for="modifyInput" style="font-size: 0.9375rem; color: var(--text-secondary); margin-bottom: 1rem; display: block;">
                 Describe what changes you'd like to the research plan. The AI will regenerate the plan based on your feedback.
-            </p>
-            <textarea 
+            </label>
+            <textarea
                 id="modifyInput" 
                 class="form-input form-textarea" 
                 placeholder="E.g., Focus more on the contractual obligations. Include more questions about the delay notification process."
@@ -1204,6 +1210,11 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
         let selectedFocusAreas = [];
         let pollInterval = null;
         let startTime = null;
+        let currentProjectId = null;
+        
+        // Get project ID from URL params
+        const urlParams = new URLSearchParams(window.location.search);
+        currentProjectId = urlParams.get('projectId') || urlParams.get('project_id');
 
         // DOM Elements
         const topicInput = document.getElementById('topicInput');
@@ -1219,10 +1230,64 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
         const reportContainer = document.getElementById('reportContainer');
 
         // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             loadHistory();
             setupFocusTags();
+            await loadProjectSelector();
+            
+            // If project ID in URL, pre-select it
+            if (currentProjectId) {
+                const projectSelect = document.getElementById('projectSelect');
+                if (projectSelect) {
+                    projectSelect.value = currentProjectId;
+                }
+            }
         });
+        
+        // Load projects for selector
+        async function loadProjectSelector() {
+            try {
+                const response = await secureApiFetch('/api/projects');
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                const projects = data.projects || data || [];
+                
+                // Create project selector if it doesn't exist
+                let projectSelect = document.getElementById('projectSelect');
+                if (!projectSelect) {
+                    // Insert project selector before the topic input
+                    const formGroup = document.createElement('div');
+                    formGroup.className = 'form-group';
+                    formGroup.style.marginBottom = '1.5rem';
+                    formGroup.innerHTML = `
+                        <label class="form-label">Select Project</label>
+                        <select id="projectSelect" class="form-input" style="cursor: pointer;">
+                            <option value="">-- Select a project --</option>
+                            ${projects.map(p => `<option value="${p.id}">${p.project_name || p.name || 'Unnamed Project'}</option>`).join('')}
+                        </select>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">
+                            Deep research will analyze emails and documents from this project.
+                        </p>
+                    `;
+                    
+                    const topicGroup = topicInput.closest('.form-group');
+                    if (topicGroup) {
+                        topicGroup.parentNode.insertBefore(formGroup, topicGroup);
+                    }
+                    
+                    projectSelect = document.getElementById('projectSelect');
+                }
+                
+                // Update on change
+                projectSelect.addEventListener('change', (e) => {
+                    currentProjectId = e.target.value || null;
+                });
+                
+            } catch (error) {
+                console.error('Error loading projects:', error);
+            }
+        }
 
         // Focus tag selection
         function setupFocusTags() {
@@ -1250,12 +1315,21 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
             btnStartResearch.disabled = true;
             btnStartResearch.innerHTML = '<span class="spinner"></span> Starting...';
 
+            // Validate project selection
+            if (!currentProjectId) {
+                alert('Please select a project first');
+                btnStartResearch.disabled = false;
+                btnStartResearch.innerHTML = '<i class="fas fa-rocket"></i> Start Deep Research';
+                return;
+            }
+
             try {
                 const response = await secureApiFetch(`/api/deep-research/start`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         topic: topic,
+                        project_id: currentProjectId,
                         focus_areas: selectedFocusAreas
                     })
                 });

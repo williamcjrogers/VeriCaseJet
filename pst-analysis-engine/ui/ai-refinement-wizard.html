@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VeriCase - AI Refinement Wizard</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="brand-styles.css">
+    <link rel="stylesheet" href="design-system.css">
+    <script src="vericase-ui.js"></script>
+    <script src="nav-shell.js"></script>
     <style>
         :root {
             --vericase-teal: #17B5A3;
@@ -348,6 +352,17 @@
             justify-content: center;
             flex-shrink: 0;
             transition: all 0.2s;
+            position: relative;
+        }
+
+        .item-checkbox input[type="checkbox"] {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+            z-index: 10;
+            margin: 0;
         }
 
         .item-card.selected .item-checkbox {
@@ -360,6 +375,7 @@
             font-size: 12px;
             opacity: 0;
             transition: opacity 0.2s;
+            pointer-events: none;
         }
 
         .item-card.selected .item-checkbox i {
@@ -1037,6 +1053,7 @@
                 'other_project': 'project',
                 'spam_newsletter': 'spam',
                 'unknown_domain': 'domain',
+                'duplicate_email': 'spam',
                 'unknown_person': ''
             }[item.item_type] || '';
 
@@ -1044,6 +1061,7 @@
                 'other_project': 'Other Project',
                 'spam_newsletter': 'Spam/Newsletter',
                 'unknown_domain': 'Unknown Domain',
+                'duplicate_email': 'Duplicate',
                 'unknown_person': 'Unknown Person'
             }[item.item_type] || item.item_type;
 
@@ -1059,12 +1077,18 @@
                 </div>
             ` : '';
 
+            const isSelected = selectedItems.has(item.id);
+
             return `
-                <div class="item-card ${selectedItems.has(item.id) ? 'selected' : ''}" 
-                     onclick="toggleItem('${item.id}')">
+                <div class="item-card ${isSelected ? 'selected' : ''}" 
+                     data-item-id="${item.id}"
+                     onclick="toggleItem(event, '${item.id}')">
                     <div class="item-header">
                         <div class="item-main">
                             <div class="item-checkbox">
+                                <input type="checkbox" ${isSelected ? 'checked' : ''} 
+                                       onclick="toggleItem(event, '${item.id}')"
+                                       id="check-${item.id}">
                                 <i class="fas fa-check"></i>
                             </div>
                             <span class="item-name">${item.name}</span>
@@ -1086,26 +1110,52 @@
             `;
         }
 
-        function toggleItem(itemId) {
+        function toggleItem(event, itemId) {
+            // Prevent double-firing when clicking the checkbox
+            if (event) {
+                event.stopPropagation();
+            }
+            
+            // Toggle the selection
             if (selectedItems.has(itemId)) {
                 selectedItems.delete(itemId);
             } else {
                 selectedItems.add(itemId);
             }
-            // Re-render to update selection state
-            showQuestion(answeredQuestions.length);
+            
+            // Update the visual state without re-rendering everything
+            const card = document.querySelector(`[data-item-id="${itemId}"]`);
+            const checkbox = document.getElementById(`check-${itemId}`);
+            
+            if (card) {
+                if (selectedItems.has(itemId)) {
+                    card.classList.add('selected');
+                    if (checkbox) checkbox.checked = true;
+                } else {
+                    card.classList.remove('selected');
+                    if (checkbox) checkbox.checked = false;
+                }
+            }
         }
 
         function selectAll() {
             currentQuestion.detected_items.forEach(item => {
                 selectedItems.add(item.id);
+                const card = document.querySelector(`[data-item-id="${item.id}"]`);
+                const checkbox = document.getElementById(`check-${item.id}`);
+                if (card) card.classList.add('selected');
+                if (checkbox) checkbox.checked = true;
             });
-            showQuestion(answeredQuestions.length);
         }
 
         function selectNone() {
-            selectedItems.clear();
-            showQuestion(answeredQuestions.length);
+            currentQuestion.detected_items.forEach(item => {
+                selectedItems.delete(item.id);
+                const card = document.querySelector(`[data-item-id="${item.id}"]`);
+                const checkbox = document.getElementById(`check-${item.id}`);
+                if (card) card.classList.remove('selected');
+                if (checkbox) checkbox.checked = false;
+            });
         }
 
         function selectOption(value) {
@@ -1167,6 +1217,23 @@
 
             } catch (error) {
                 console.error('Submit failed:', error);
+
+                // Check if session was lost (server restart, etc.)
+                if (error.message && error.message.includes('Session not found')) {
+                    if (confirm('Your session has expired (the server may have restarted). Would you like to restart the analysis?')) {
+                        sessionId = null;
+                        questions = [];
+                        answeredQuestions = [];
+                        analysisResults = null;
+                        selectedItems.clear();
+                        selectedOption = null;
+                        const projectId = new URLSearchParams(window.location.search).get('projectId') ||
+                                        localStorage.getItem('currentProjectId');
+                        await startAnalysis(projectId);
+                    }
+                    return;
+                }
+
                 alert('Failed to submit answer. Please try again.');
             }
         }
@@ -1387,4 +1454,3 @@
     </script>
 </body>
 </html>
-

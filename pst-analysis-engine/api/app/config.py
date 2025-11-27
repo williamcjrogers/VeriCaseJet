@@ -1,3 +1,4 @@
+# pyright: reportCallIssue=false, reportConstantRedefinition=false, reportGeneralTypeIssues=false, reportUnnecessaryIsInstance=false
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator, model_validator, ValidationInfo
 import os
@@ -206,7 +207,7 @@ class Settings(BaseSettings):
     AI_MODEL_PREFERENCES: dict[str, str] = Field(default_factory=dict)
 
 try:
-    settings = Settings()  # type: ignore[call-arg]
+    settings = Settings()  # pyright: ignore[reportCallIssue]
 except Exception as exc:
     logging.critical("Failed to load settings: %s", exc)
     raise
