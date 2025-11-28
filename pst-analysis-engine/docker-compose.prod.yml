@@ -153,7 +153,6 @@ services:
         condition: service_healthy
     ports: ["5555:5555"]
     command: ["celery", "-A", "app.celery_app", "flower", "--port=5555"]
-    command: ["celery", "-A", "worker_app.worker", "flower", "--port=5555"]
 
 # Named volumes for data persistence
 volumes:
