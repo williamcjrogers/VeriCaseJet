@@ -17,17 +17,26 @@ import html
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TypedDict
 import tempfile
 import os
 import logging
-from io import BytesIO
 import re
 
 from sqlalchemy.orm import Session
 from .models import Document, EmailMessage, EmailAttachment, DocStatus, PSTFile, EvidenceItem
-from .storage import s3
 from .config import settings
+
+
+class ThreadInfo(TypedDict, total=False):
+    """Type definition for thread tracking info."""
+    email_message: EmailMessage
+    in_reply_to: str | None
+    references: str | None
+    date: datetime | None
+    subject: str
+    content: str
+    email_data: dict[str, Any]
 
 # Semantic processing for deep research acceleration
 _semantic_available = False
@@ -58,7 +67,7 @@ class UltimatePSTProcessor:
         self.db = db
         self.s3 = s3_client
         self.opensearch = opensearch_client
-        self.threads_map: dict[str, Any] = {}
+        self.threads_map: dict[str, ThreadInfo] = {}
         self.processed_count = 0
         self.total_count = 0
         self.attachment_hashes: dict[str, Any] = {}  # For deduplication
@@ -165,7 +174,7 @@ class UltimatePSTProcessor:
         # Download PST from S3 to temp file
         with tempfile.NamedTemporaryFile(suffix='.pst', delete=False) as tmp:
             try:
-                logger.info("Downloading PST from s3://{settings.S3_BUCKET}/{pst_s3_key}")
+                logger.info(f"Downloading PST from s3://{settings.S3_BUCKET}/{pst_s3_key}")
                 self.s3.download_fileobj(
                     Bucket=settings.S3_BUCKET,
                     Key=pst_s3_key,
@@ -194,7 +203,7 @@ class UltimatePSTProcessor:
             # Get root folder and count total messages first
             root = pst_file.get_root_folder()
             self.total_count = self._count_messages(root)
-            logger.info("Found {self.total_count} total messages to process")
+            logger.info(f"Found {self.total_count} total messages to process")
             
             # Process all folders recursively
             self._process_folder(root, pst_file_record, document, case_id, project_id, company_id, stats)
@@ -228,7 +237,7 @@ class UltimatePSTProcessor:
             
             pst_file.close()
             
-            logger.info("PST processing completed: {stats}")
+            logger.info(f"PST processing completed: {stats}")
             
         except Exception as e:
             logger.error(f"PST processing failed: {e}", exc_info=True)
@@ -664,15 +673,16 @@ class UltimatePSTProcessor:
 
         # Track for threading (use temporary ID)
         if message_id:
-            self.threads_map[message_id] = {
+            thread_info: ThreadInfo = {
                 'email_message': email_message,
                 'in_reply_to': in_reply_to,
                 'references': references,
                 'date': email_date,
-                'subject': subject,
+                'subject': subject or '',
                 'content': body_html_content or body_text or '',
                 'email_data': email_data
             }
+            self.threads_map[message_id] = thread_info
         
         return email_message
     
@@ -871,8 +881,9 @@ class UltimatePSTProcessor:
                 # 1. It has a content_id AND
                 # 2. It's an image type AND
                 # 3. It's small (< 500KB - large images are likely intentional attachments)
-                is_image = content_type and content_type.startswith('image/')
-                is_small = size and size < 500000  # 500KB threshold
+                is_image = bool(content_type and content_type.startswith('image/'))
+                size_int = int(size) if size else 0
+                is_small = size_int > 0 and size_int < 500000  # 500KB threshold
                 is_inline = bool(content_id) and is_image and is_small
                 
                 # Read attachment data - pypff uses read_buffer method
@@ -1101,7 +1112,7 @@ class UltimatePSTProcessor:
         
         attachments_val = email_data.get('attachments', [])
         doc = {
-            'id': "email_{email_message.id}",
+            'id': f"email_{email_message.id}",
             'type': 'email',
             'case_id': str(email_message.case_id) if email_message.case_id else None,
             'project_id': str(email_message.project_id) if email_message.project_id else None,
@@ -1123,9 +1134,9 @@ class UltimatePSTProcessor:
         
         index_name = 'correspondence'
         try:
-            if not self.opensearch.indices.exists(index_name):  # type: ignore
+            if not self.opensearch.indices.exists(index=index_name):  # type: ignore
                 self.opensearch.indices.create(  # type: ignore
-                    index_name,
+                    index=index_name,
                     body={
                         'settings': {'number_of_shards': 1, 'number_of_replicas': 0},
                         'mappings': {
@@ -1143,11 +1154,11 @@ class UltimatePSTProcessor:
             self.opensearch.index(  # type: ignore
                 index=index_name,
                 body=doc,
-                id="email_{email_message.id}",
+                id=f"email_{email_message.id}",
                 refresh=False
             )
         except (ConnectionError, TimeoutError, ValueError) as e:
-            logger.error("Error indexing email to OpenSearch: {e}")
+            logger.error(f"Error indexing email to OpenSearch: {e}")
     
     def _build_thread_relationships(self, case_id, project_id):
         """
@@ -1158,14 +1169,14 @@ class UltimatePSTProcessor:
         2. Conversation-Index (Outlook proprietary)
         3. Subject-based grouping (FALLBACK)
         """
-        logger.info("Building thread relationships for case_id={case_id}, project_id={project_id}")
+        logger.info(f"Building thread relationships for case_id={case_id}, project_id={project_id}")
 
         if not self.threads_map:
             logger.info("No emails to thread")
             return
 
         # Step 1: Build thread groups using message IDs
-        thread_groups = {}  # thread_id -> list of email_messages
+        thread_groups: dict[str, list[EmailMessage]] = {}  # thread_id -> list of email_messages
         message_id_to_email = {}  # message_id -> email_message
 
         # First pass: index all emails by message_id
@@ -1178,7 +1189,7 @@ class UltimatePSTProcessor:
 
         # Second pass: assign thread IDs using fallback logic
         for message_id, thread_info in self.threads_map.items():
-            email_message = thread_info.get('email_message')
+            email_message: EmailMessage | None = thread_info.get('email_message')
             if not email_message:
                 continue
 
@@ -1245,7 +1256,7 @@ class UltimatePSTProcessor:
             
             # Create new thread if none found
             if not thread_id:
-                thread_id = "thread_{len(thread_groups) + 1}_{uuid.uuid4().hex[:8]}"
+                thread_id = f"thread_{len(thread_groups) + 1}_{uuid.uuid4().hex[:8]}"
             
             # Assign thread_id to email
             email_message.thread_id = thread_id
@@ -1258,19 +1269,19 @@ class UltimatePSTProcessor:
         # Update thread metadata in database (batch update)
         try:
             self.db.flush()
-            logger.info("Created {len(thread_groups)} unique threads")
+            logger.info(f"Created {len(thread_groups)} unique threads")
 
             # Log thread statistics
             thread_sizes = [len(emails) for emails in thread_groups.values()]
             if thread_sizes:
                 avg_size = sum(thread_sizes) / len(thread_sizes)
                 max_size = max(thread_sizes)
-                logger.info("Thread stats: avg={avg_size:.1f} emails/thread, max={max_size} emails/thread")
+                logger.info(f"Thread stats: avg={avg_size:.1f} emails/thread, max={max_size} emails/thread")
         except Exception as e:
-            logger.error("Error updating thread relationships: {e}")
+            logger.error(f"Error updating thread relationships: {e}")
             self.db.rollback()
     
-    def _extract_email_from_headers(self, message):
+    def _extract_email_from_headers(self, message: Any) -> str | None:  # pyright: ignore[reportAny]
         """
         Extract email address from RFC 2822 transport headers
         pypff doesn't expose direct .sender_email_address - parse from headers
@@ -1278,12 +1289,22 @@ class UltimatePSTProcessor:
         try:
             if not message:
                 return None
-            headers = getattr(message, 'transport_headers', None)
-            if not headers:
+            headers_raw = getattr(message, 'transport_headers', None)  # pyright: ignore[reportAny]
+            if not headers_raw:
                 return None
             
+            # Ensure headers is a string for regex search
+            headers_str: str
+            if isinstance(headers_raw, bytes):
+                headers_str = headers_raw.decode('utf-8', errors='replace')
+            elif isinstance(headers_raw, str):
+                headers_str = headers_raw
+            else:
+                # Convert to string - for pypff objects that may return other types
+                headers_str = str(headers_raw)  # pyright: ignore[reportAny]
+            
             # Parse From: header - format is "Name <email@domain.com>" or just "email@domain.com"
-            from_match = re.search(r'From:\s*(?:.*?<)?([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)', headers, re.IGNORECASE)
+            from_match = re.search(r'From:\s*(?:.*?<)?([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)', headers_str, re.IGNORECASE)
             if from_match:
                 return from_match.group(1)
             
