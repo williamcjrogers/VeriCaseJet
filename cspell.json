@@ -89,7 +89,8 @@
     "previewable",
     "asbuilt",
     "autosizing",
-    "ufeff"
+    "ufeff",
+    "MAPI"
   ],
   "ignorePaths": [
     "node_modules",

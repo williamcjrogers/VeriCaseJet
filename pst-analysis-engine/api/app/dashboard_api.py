@@ -6,11 +6,10 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Annotated, Any
 from uuid import UUID
-from threading import Lock
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
-from sqlalchemy import desc, func, or_, and_
+from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import Session
 
 from .db import get_db
@@ -25,6 +24,7 @@ from .models import (
     EvidenceItem,
 )
 from .security import current_user
+from .cache import get_cached, set_cached
 
 logger = logging.getLogger(__name__)
 
@@ -32,37 +32,22 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 DbDep = Annotated[Session, Depends(get_db)]
 
 # ============================================================================
-# In-Memory Cache (no Redis required)
+# Redis Cache Configuration (shared across workers)
 # ============================================================================
-_dashboard_cache: dict[str, tuple[datetime, Any]] = {}
-_cache_lock = Lock()
 CACHE_TTL_SECONDS = 30  # Cache dashboard data for 30 seconds
 
 
 def _get_cached(key: str) -> dict[str, Any] | None:
-    """Get value from in-memory cache if not expired"""
-    with _cache_lock:
-        if key in _dashboard_cache:
-            cached_time, value = _dashboard_cache[key]
-            if datetime.now(timezone.utc) - cached_time < timedelta(seconds=CACHE_TTL_SECONDS):
-                logger.debug(f"Dashboard cache HIT: {key}")
-                return value  # pyright: ignore[reportAny]
-            # Expired - remove it
-            del _dashboard_cache[key]
-    return None
+    """Get value from Redis cache"""
+    result = get_cached(f"dashboard:{key}")
+    if result:
+        logger.debug(f"Dashboard cache HIT: {key}")
+    return result  # pyright: ignore[reportReturnType]
 
 
 def _set_cached(key: str, value: dict[str, Any]) -> None:
-    """Store value in in-memory cache"""
-    with _cache_lock:
-        _dashboard_cache[key] = (datetime.now(timezone.utc), value)
-        # Cleanup old entries if cache gets too large
-        if len(_dashboard_cache) > 100:
-            now = datetime.now(timezone.utc)
-            expired = [k for k, (t, _) in _dashboard_cache.items()  # pyright: ignore[reportAny]
-                      if now - t > timedelta(seconds=CACHE_TTL_SECONDS)]
-            for k in expired:
-                del _dashboard_cache[k]
+    """Store value in Redis cache"""
+    set_cached(f"dashboard:{key}", value, ttl_seconds=CACHE_TTL_SECONDS)
 
 
 # ============================================================================
@@ -504,16 +489,26 @@ async def get_quick_stats(db: DbDep) -> dict[str, int]:
     """
     Get quick statistics for header display.
     Lightweight endpoint for frequent polling.
+    Cached for 30 seconds in Redis for multi-worker sharing.
     """
+    # Check cache first
+    cached = _get_cached("quick_stats")
+    if cached is not None:
+        return cached  # pyright: ignore[reportReturnType]
+
     project_count = db.query(func.count(Project.id)).scalar() or 0
     case_count = db.query(func.count(Case.id)).scalar() or 0
     email_count = db.query(func.count(EmailMessage.id)).scalar() or 0
     evidence_count = db.query(func.count(EvidenceItem.id)).scalar() or 0
-    
-    return {
+
+    result = {
         "projects": project_count,
         "cases": case_count,
         "emails": email_count,
         "evidence": evidence_count
     }
+
+    # Cache the result
+    _set_cached("quick_stats", result)
+    return result
 
