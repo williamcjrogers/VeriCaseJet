@@ -497,6 +497,9 @@
             <span id="profileName">Dashboard</span>
         </h1>
         <div class="top-bar-actions">
+            <button class="btn btn-secondary" onclick="window.location.href='master-dashboard.html'" title="Back to Command Center">
+                <i class="fas fa-th-large"></i> Command Center
+            </button>
             <button class="btn btn-primary" id="uploadBtn" onclick="openPstUpload()">
                 <i class="fas fa-cloud-upload-alt"></i> Upload Evidence
             </button>
@@ -897,14 +900,29 @@
             alert('Timeline view coming soon!');
         }
 
+        // Lazy-loaded settings modal (deferred DOM creation for faster initial page load)
+        let settingsModalLoaded = false;
+
         function showSettings(tab = 'general') {
+            // Lazy load the settings modal on first open
+            if (!settingsModalLoaded) {
+                loadSettingsModal();
+                settingsModalLoaded = true;
+            }
             document.getElementById('settingsModal').style.display = 'flex';
             showSettingsTab(tab);
             loadAIStatus();
         }
-        
+
         function closeSettings() {
             document.getElementById('settingsModal').style.display = 'none';
+        }
+
+        function loadSettingsModal() {
+            // Create settings modal HTML dynamically on first use
+            const modalContainer = document.getElementById('settingsModalContainer');
+            if (!modalContainer) return;
+            modalContainer.innerHTML = window.SETTINGS_MODAL_HTML || '';
         }
         
         function showSettingsTab(tab) {
@@ -1130,28 +1148,30 @@
             loadProfileData();
         }
         
-        // Load project statistics
+        // Load project statistics (parallel API calls for speed)
         async function loadProjectStats(projectId) {
             try {
-                // Get email count
-                const emailResponse = await fetch(`${apiUrl}/api/correspondence/emails?project_id=${projectId}&page_size=1`);
+                // Fetch email count (using lightweight count endpoint) and project details in parallel
+                const [emailResponse, projectResponse] = await Promise.all([
+                    fetch(`${apiUrl}/api/correspondence/emails/count?project_id=${projectId}`),
+                    fetch(`${apiUrl}/api/projects/${projectId}`)
+                ]);
+
                 if (emailResponse.ok) {
                     const emailData = await emailResponse.json();
-                    document.getElementById('emailCount').textContent = emailData.total || 0;
+                    document.getElementById('emailCount').textContent = emailData.count || 0;
                 }
-                
-                // Get project details
-                const projectResponse = await fetch(`${apiUrl}/api/projects/${projectId}`);
+
                 if (projectResponse.ok) {
                     const project = await projectResponse.json();
-                    document.getElementById('projectCreated').textContent = project.created_at 
-                        ? new Date(project.created_at).toLocaleDateString() 
+                    document.getElementById('projectCreated').textContent = project.created_at
+                        ? new Date(project.created_at).toLocaleDateString()
                         : '-';
                 }
-                
+
                 // Show stats panel
                 document.getElementById('projectStats').style.display = 'block';
-                
+
             } catch (error) {
                 console.error('Error loading project stats:', error);
             }
@@ -1560,7 +1580,12 @@
 
     </script>
     
-    <!-- Settings Modal -->
+    <!-- Settings Modal Container (lazy loaded for faster initial page load) -->
+    <div id="settingsModalContainer"></div>
+
+    <!-- Settings Modal Template (stored as string, not parsed until needed) -->
+    <script>
+    window.SETTINGS_MODAL_HTML = `
     <div id="settingsModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
         <div style="background: white; border-radius: 12px; width: 90%; max-width: 800px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
             <!-- Header -->
@@ -1734,30 +1759,32 @@
             </div>
         </div>
     </div>
-    
+    `;
+    </script>
+
     <style>
         .settings-tab-btn.active {
             color: var(--vericase-teal);
             border-bottom-color: var(--vericase-teal) !important;
         }
-        
+
         .settings-tab-btn:hover {
             color: var(--vericase-teal);
             background: rgba(23, 181, 163, 0.05);
         }
-        
+
         .status-indicator {
             width: 12px;
             height: 12px;
             border-radius: 50%;
             display: inline-block;
         }
-        
+
         .status-active {
             background: #10b981;
             box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
         }
-        
+
         .status-inactive {
             background: #ef4444;
             box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);

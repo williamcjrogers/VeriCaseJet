@@ -552,6 +552,7 @@ class EmailMessage(Base):
     pst_file: Mapped[PSTFile] = relationship("PSTFile")
     case: Mapped[Case | None] = relationship("Case")
     project: Mapped[Project | None] = relationship("Project")
+    attachments: Mapped[list["EmailAttachment"]] = relationship("EmailAttachment", back_populates="email_message", lazy="selectin")
     created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Add indexes for performance
@@ -590,7 +591,7 @@ class EmailAttachment(Base):
     has_been_ocred: Mapped[bool] = mapped_column(Boolean, default=False)
     extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    email_message: Mapped[EmailMessage | None] = relationship("EmailMessage")
+    email_message: Mapped[EmailMessage | None] = relationship("EmailMessage", back_populates="attachments")
     created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (

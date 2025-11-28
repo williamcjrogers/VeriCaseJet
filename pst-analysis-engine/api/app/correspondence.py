@@ -30,45 +30,49 @@ from .tasks import celery_app
 
 logger = logging.getLogger(__name__)
 
-# Helper function to check if an attachment is an embedded image (should be excluded)
+# Pre-compiled regex patterns for inline image detection (compiled once at module load)
+_IMAGE_NUMBER_PATTERN = _re_module.compile(r'^image\d{3}\.(png|jpg|jpeg|gif|bmp)$')  # image001.png
+_IMG_NUMBER_PATTERN = _re_module.compile(r'^img_?\d+\.(png|jpg|jpeg|gif|bmp)$')  # img_001.png
+
+# Pre-compiled set for O(1) lookup instead of list iteration
+_TRACKING_FILES = frozenset(['blank.gif', 'spacer.gif', 'pixel.gif', '1x1.gif', 'oledata.mso'])
+_EXCLUDED_KEYWORDS = frozenset(['signature', 'logo', 'banner', 'header', 'footer', 'badge', 'icon'])
+
+
 def _is_embedded_image(att_data: dict[str, Any]) -> bool:
     """Check if attachment is an embedded/inline image that should be excluded from attachment lists
-    
-    The PST processor now correctly sets is_inline only for small images with content_id.
-    We trust that flag and do minimal additional filtering here.
+
+    Uses pre-compiled patterns and sets for optimal performance.
     """
     # Trust the is_inline flag set by the PST processor
-    # It's only True for small images (< 500KB) with content_id
     if att_data.get('is_inline') is True:
         return True
-    
+
     filename = (att_data.get('filename') or att_data.get('name') or '').lower()
     content_type = (att_data.get('content_type') or '').lower()
     file_size = att_data.get('file_size') or att_data.get('size') or 0
-    
-    # Exclude common embedded image patterns (only when we have a proper image extension)
-    if _re_module.match(r'^image\d{3}\.(png|jpg|jpeg|gif|bmp)$', filename):  # image001.png
+
+    # O(1) lookup for tracking files
+    if filename in _TRACKING_FILES:
         return True
-    if _re_module.match(r'^img_?\d+\.(png|jpg|jpeg|gif|bmp)$', filename):  # img_001.png
+
+    # Quick prefix checks before regex
+    if filename.startswith(('cid:', 'cid_')):
         return True
-    if filename.startswith('cid:') or filename.startswith('cid_'):
+
+    # Pre-compiled regex matching
+    if _IMAGE_NUMBER_PATTERN.match(filename) or _IMG_NUMBER_PATTERN.match(filename):
         return True
-    
-    # Exclude signature/logo images
-    excluded_keywords = ['signature', 'logo', 'banner', 'header', 'footer', 'badge', 'icon']
-    for keyword in excluded_keywords:
-        if keyword in filename and 'image' in content_type:
+
+    # Only check keywords if content type is image (avoid unnecessary work)
+    if 'image' in content_type:
+        # Very small images are likely embedded icons/logos
+        if file_size and file_size < 20000:
             return True
-    
-    # Exclude tracking pixels and spacers
-    tracking_files = ['blank.gif', 'spacer.gif', 'pixel.gif', '1x1.gif', 'oledata.mso']
-    if filename in tracking_files:
-        return True
-    
-    # Very small images (< 20KB) with image content type are likely embedded icons/logos
-    if 'image' in content_type and file_size and file_size < 20000:
-        return True
-    
+        # Check for signature/logo keywords using set intersection
+        if any(kw in filename for kw in _EXCLUDED_KEYWORDS):
+            return True
+
     return False
 
 # Main router for correspondence features
@@ -655,6 +659,28 @@ async def list_pst_files(
 # EMAIL CORRESPONDENCE ENDPOINTS
 # ========================================
 
+@router.get("/emails/count")
+async def get_email_count(
+    case_id: Annotated[str | None, Query(description="Case ID")] = None,
+    project_id: Annotated[str | None, Query(description="Project ID")] = None,
+    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
+):
+    """
+    Get email count for a case or project - lightweight endpoint for dashboards.
+    Much faster than the full emails endpoint when only count is needed.
+    """
+    from sqlalchemy import func
+
+    if case_id:
+        count = db.query(func.count(EmailMessage.id)).filter(EmailMessage.case_id == case_id).scalar() or 0
+    elif project_id:
+        count = db.query(func.count(EmailMessage.id)).filter(EmailMessage.project_id == project_id).scalar() or 0
+    else:
+        count = db.query(func.count(EmailMessage.id)).scalar() or 0
+
+    return {"count": count}
+
+
 @router.get("/emails", response_model=EmailListResponse)
 async def list_emails(
     case_id: Annotated[str | None, Query(description="Case ID")] = None,
@@ -730,10 +756,11 @@ async def list_emails(
     
     # Convert to summaries with attachment info
     email_summaries: list[EmailMessageSummary] = []
+
     for e in emails:
-        # Get attachments - check both email_attachments table AND metadata field
-        attachments = db.query(EmailAttachment).filter_by(email_message_id=e.id).all()
-        
+        # Get attachments from eager-loaded relationship (no N+1 queries)
+        attachments = e.attachments if hasattr(e, 'attachments') and e.attachments else []
+
         # Build attachment list from email_attachments table, excluding embedded images
         attachment_list = []
         for att in attachments:
@@ -754,10 +781,10 @@ async def list_emails(
             # Only include non-embedded attachments
             if not _is_embedded_image(att_data):
                 attachment_list.append(att_data)
-        
+
         # Check metadata field for attachments (primary source for PST-processed emails)
         email_meta: dict[str, Any] = dict(e.meta) if e.meta is not None and isinstance(e.meta, dict) else {}
-        
+
         if not attachment_list:
             # Try to get attachments from metadata, filtering out embedded images
             metadata_attachments = email_meta.get('attachments', [])
@@ -1108,8 +1135,8 @@ async def get_emails_server_side(
     
     # Apply pagination
     emails = query.offset(start_row).limit(page_size).all()
-    
-    # Convert to lightweight dicts (no expensive attachment lookups)
+
+    # Convert to dicts with attachment info for grid display
     rows = []
     for e in emails:
         # Combine recipients from to/cc/bcc fields
@@ -1118,7 +1145,36 @@ async def get_emails_server_side(
             recipients_list.extend(e.recipients_to)
         if e.recipients_cc:
             recipients_list.extend(e.recipients_cc)
-        
+
+        # Load attachments from relationship (uses selectin loading - efficient)
+        attachment_list = []
+        db_attachments = e.attachments if hasattr(e, 'attachments') and e.attachments else []
+        for att in db_attachments:
+            att_data = {
+                'id': str(att.id),
+                'filename': att.filename,
+                'name': att.filename,
+                'content_type': att.content_type,
+                'file_size': att.file_size_bytes,
+                'size': att.file_size_bytes,
+                's3_key': att.s3_key,
+                's3_bucket': att.s3_bucket,
+                'is_inline': getattr(att, "is_inline", False),
+                'content_id': getattr(att, "content_id", None),
+                'attachment_hash': getattr(att, "attachment_hash", None),
+                'is_duplicate': getattr(att, "is_duplicate", False),
+            }
+            # Only include non-embedded attachments
+            if not _is_embedded_image(att_data):
+                attachment_list.append(att_data)
+
+        # Fallback: Check meta field for attachments if none found in relationship
+        if not attachment_list:
+            email_meta = dict(e.meta) if e.meta and isinstance(e.meta, dict) else {}
+            meta_attachments = email_meta.get('attachments', [])
+            if meta_attachments and isinstance(meta_attachments, list):
+                attachment_list = [att for att in meta_attachments if not _is_embedded_image(att)]
+
         rows.append({
             'id': str(e.id),
             # Map to expected frontend field names
@@ -1134,8 +1190,10 @@ async def get_emails_server_side(
             'recipients': recipients_list,
             'recipients_to': e.recipients_to or [],
             'recipients_cc': e.recipients_cc or [],
-            'has_attachments': e.has_attachments or False,
-            'attachment_count': getattr(e, 'attachment_count', 0) or 0,
+            'has_attachments': len(attachment_list) > 0 or (e.has_attachments or False),
+            'attachment_count': len(attachment_list) or getattr(e, 'attachment_count', 0) or 0,
+            'attachments': attachment_list,  # Include attachment details for grid cell renderer
+            'meta': {'attachments': attachment_list} if attachment_list else None,  # Also in meta for compatibility
             'is_flagged': getattr(e, 'is_flagged', False),
             'importance': getattr(e, 'importance', 'normal'),
             'read_status': getattr(e, 'read_status', 'unread'),
