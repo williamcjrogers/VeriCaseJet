@@ -9,7 +9,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: williamcjrogers/vericase-api
+  IMAGE_NAME: wcjrogers/vericase-api
 
 jobs:
   build-and-push:
