@@ -75,37 +75,64 @@ fi
 cd pst-analysis-engine
 
 echo ""
-echo -e "${GREEN}Step 5: Creating environment file...${NC}"
-cat > .env << EOF
-# Database Configuration
-DB_USER=vericase
-DB_PASSWORD=$DB_PASSWORD
-DB_NAME=vericase
+echo -e "${GREEN}Step 5: Setting up environment file...${NC}"
 
-# MinIO/S3 Storage
-MINIO_ACCESS_KEY=$MINIO_ACCESS_KEY
-MINIO_SECRET_KEY=$MINIO_SECRET_KEY
-S3_ENDPOINT=http://localhost:9000
-S3_BUCKET=vericase-files
+# Check if .env.production exists, use it
+if [ -f ".env.production" ]; then
+    echo -e "${GREEN}Found .env.production - using existing config${NC}"
+    cp .env.production .env
+    echo -e "${YELLOW}IMPORTANT: Verify all values in .env are correct for your AWS setup${NC}"
+else
+    echo -e "${YELLOW}No .env.production found - creating template${NC}"
+    cat > .env << EOF
+# AWS mode flag
+USE_AWS_SERVICES=true
 
-# Security
-SECRET_KEY=$SECRET_KEY
-JWT_SECRET=$SECRET_KEY
+# AWS S3 settings
+AWS_STORAGE_BUCKET_NAME=vericase-data
+S3_BUCKET_NAME=vericase-data
+AWS_S3_REGION_NAME=eu-west-2
+AWS_REGION=eu-west-2
 
-# AI API Keys (ADD YOUR KEYS HERE)
-ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-your-anthropic-key-here}
-OPENAI_API_KEY=${OPENAI_API_KEY:-}
+# Database - UPDATE WITH YOUR RDS ENDPOINT
+DATABASE_URL=postgresql://user:password@your-rds-endpoint:5432/vericase
 
-# Email (optional)
-SMTP_HOST=${SMTP_HOST:-}
-SMTP_PORT=${SMTP_PORT:-587}
-SMTP_USER=${SMTP_USER:-}
-SMTP_PASSWORD=${SMTP_PASSWORD:-}
+# OpenSearch - UPDATE WITH YOUR OPENSEARCH ENDPOINT
+OPENSEARCH_HOST=https://your-opensearch-endpoint
+OPENSEARCH_PORT=443
+OPENSEARCH_USE_SSL=true
+OPENSEARCH_VERIFY_CERTS=true
+OPENSEARCH_INDEX=emails
 
-# Application
-APP_ENV=production
-LOG_LEVEL=INFO
+# Redis - UPDATE WITH YOUR ELASTICACHE ENDPOINT
+REDIS_URL=redis://your-elasticache-endpoint:6379/0
+CELERY_QUEUE=pst-processing
+
+# Tika - UPDATE IF DEPLOYING TIKA
+TIKA_URL=http://your-tika-url:9998
+
+# API settings
+API_HOST=0.0.0.0
+API_PORT=8000
+CORS_ORIGINS=https://your-domain.com
+JWT_SECRET=$(openssl rand -base64 48)
+JWT_ISSUER=vericase-pst-analysis
+JWT_EXPIRE_MIN=7200
+
+# Admin
+ADMIN_EMAIL=admin@vericase.com
+ADMIN_PASSWORD=CHANGE_THIS_PASSWORD
+
+# AI API Keys - ADD YOUR KEYS
+CLAUDE_API_KEY=
+OPENAI_API_KEY=
+GEMINI_API_KEY=
+
+# Python
+PYTHONUNBUFFERED=1
+DEV_NO_AUTH=false
 EOF
+fi
 
 echo ""
 echo -e "${GREEN}Step 6: Starting services with Docker Compose...${NC}"
