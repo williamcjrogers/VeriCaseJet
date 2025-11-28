@@ -69,10 +69,11 @@ services:
     restart: always
     ports: ["9998:9998"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9998/tika"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9998/tika || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 60s
 
   api:
     image: wcjrogers/vericase-api:latest
@@ -126,7 +127,7 @@ services:
         condition: service_healthy
     deploy:
       replicas: 2
-    command: ["celery", "-A", "app.celery_app", "worker", "--loglevel=INFO", "--concurrency=4", "-Q", "vericase,pst_processing"]
+    command: ["celery", "-A", "app.tasks", "worker", "--loglevel=INFO", "--concurrency=4", "-Q", "vericase,pst_processing"]
 
   # Celery Beat for scheduled tasks (if needed)
   beat:
@@ -139,7 +140,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    command: ["celery", "-A", "app.celery_app", "beat", "--loglevel=INFO"]
+    command: ["celery", "-A", "app.tasks", "beat", "--loglevel=INFO"]
 
   # Flower for monitoring Celery tasks
   flower:
@@ -152,7 +153,7 @@ services:
       redis:
         condition: service_healthy
     ports: ["5555:5555"]
-    command: ["celery", "-A", "app.celery_app", "flower", "--port=5555"]
+    command: ["celery", "-A", "app.tasks", "flower", "--port=5555"]
 
 # Named volumes for data persistence
 volumes:
