@@ -29,6 +29,16 @@ from .models import Document, EmailMessage, EmailAttachment, DocStatus, PSTFile,
 from .storage import s3
 from .config import settings
 
+# Semantic processing for deep research acceleration
+_semantic_available = False
+_SemanticIngestionService: type | None = None
+try:
+    from .semantic_engine import SemanticIngestionService as _SIS
+    _SemanticIngestionService = _SIS
+    _semantic_available = True
+except ImportError:
+    pass
+
 logger = logging.getLogger(__name__)
 
 
@@ -52,6 +62,15 @@ class UltimatePSTProcessor:
         self.processed_count = 0
         self.total_count = 0
         self.attachment_hashes: dict[str, Any] = {}  # For deduplication
+
+        # Initialize semantic processing for deep research acceleration
+        self.semantic_service: Any = None
+        if _semantic_available and _SemanticIngestionService is not None:
+            try:
+                self.semantic_service = _SemanticIngestionService(opensearch_client)
+                logger.info("Semantic ingestion service initialized for deep research")
+            except Exception as e:
+                logger.warning(f"Semantic service initialization failed (non-fatal): {e}")
         
     def process_pst(self, pst_s3_key: str, document_id: int, case_id: int | None = None, company_id: int | None = None, project_id: int | None = None) -> dict[str, Any]:
         """
@@ -626,7 +645,23 @@ class UltimatePSTProcessor:
             except (AttributeError, RuntimeError, OSError) as e:
                 logger.warning(f"Could not read attachments for message in {folder_path}: {e}")
                 stats['errors'].append(f"Attachment error in {folder_path}: {str(e)[:100]}")
-        
+
+        # Semantic indexing for deep research acceleration
+        if self.semantic_service is not None:
+            try:
+                self.semantic_service.process_email(
+                    email_id=str(email_message.id),
+                    subject=subject,
+                    body_text=body_text_clean or body_text,
+                    sender=from_email,
+                    recipients=to_recipients,
+                    case_id=str(case_id) if case_id else None,
+                    project_id=str(project_id) if project_id else None
+                )
+            except Exception as sem_err:
+                # Non-fatal - semantic indexing failure shouldn't stop ingestion
+                logger.debug(f"Semantic indexing failed for email: {sem_err}")
+
         # Track for threading (use temporary ID)
         if message_id:
             self.threads_map[message_id] = {
@@ -957,7 +992,7 @@ class UltimatePSTProcessor:
                         
                         evidence_item = EvidenceItem(
                             filename=safe_filename,
-                            original_path=f"PST:{pst_file_record.original_filename if pst_file_record else 'unknown'}/{safe_filename}",
+                            original_path=f"PST:{pst_file_record.filename if pst_file_record else 'unknown'}/{safe_filename}",
                             file_type=file_ext or None,
                             mime_type=content_type,
                             file_size=size,

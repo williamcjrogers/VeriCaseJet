@@ -1532,40 +1532,38 @@
         }
 
         // === PREFETCH EVIDENCE DATA FOR FASTER TAB SWITCHING ===
+        // Only prefetch summary stats, not all items (was causing major slowdown)
         async function prefetchEvidenceData() {
             try {
-                // Wait a moment for main dashboard to render, then prefetch
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                console.log('[Prefetch] Starting evidence data prefetch...');
+                // Wait for main dashboard to render first
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                console.log('[Prefetch] Starting evidence stats prefetch...');
                 const startTime = performance.now();
-                
-                // Prefetch ALL evidence items, collections, and stats in parallel
-                const [itemsRes, collectionsRes, statsRes] = await Promise.all([
-                    fetch('/api/evidence/items?page=1&page_size=10000&include_email_info=true'),  // Load ALL items
+
+                // Only prefetch stats and collections (lightweight) - NOT all items
+                const [collectionsRes, statsRes] = await Promise.all([
                     fetch('/api/evidence/collections?include_system=true'),
                     fetch('/api/evidence/stats')
                 ]);
-                
-                if (itemsRes.ok && collectionsRes.ok && statsRes.ok) {
-                    const [items, collections, stats] = await Promise.all([
-                        itemsRes.json(),
+
+                if (collectionsRes.ok && statsRes.ok) {
+                    const [collections, stats] = await Promise.all([
                         collectionsRes.json(),
                         statsRes.json()
                     ]);
-                    
-                    // Store in sessionStorage for evidence page to use
+
+                    // Store lightweight data for evidence page
                     const prefetchData = {
-                        items: items.items || [],
                         collections: collections.collections || collections || [],
                         stats: stats,
                         timestamp: Date.now()
                     };
-                    
+
                     sessionStorage.setItem('vericase_evidence_prefetch', JSON.stringify(prefetchData));
-                    
+
                     const duration = (performance.now() - startTime).toFixed(0);
-                    console.log(`[Prefetch] Evidence data cached (${prefetchData.items.length} items) in ${duration}ms`);
+                    console.log(`[Prefetch] Evidence stats cached in ${duration}ms`);
                 }
             } catch (err) {
                 console.warn('[Prefetch] Evidence prefetch failed (non-critical):', err.message);

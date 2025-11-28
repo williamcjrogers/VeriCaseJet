@@ -743,9 +743,10 @@ Only include references that appear to be OTHER projects (is_other_project: true
                     
                     # Convert any sets to lists for JSON serialization
                     serializable_ref_data: dict[str, Any] = {}
-                    for k, v in ref_data_result.items():
+                    ref_data_items: list[tuple[str, object]] = list(ref_data_result.items())
+                    for k, v in ref_data_items:
                         if isinstance(v, set):
-                            serializable_ref_data[k] = list(v)
+                            serializable_ref_data[k] = list(cast(set[object], v))
                         else:
                             serializable_ref_data[k] = v
 

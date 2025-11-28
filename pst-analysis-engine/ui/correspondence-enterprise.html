@@ -1178,7 +1178,12 @@
         let caseId = null;
         let projectId = null;
         const isAdmin = true; // Open access mode
-        
+
+        // Promise-based grid ready mechanism (no polling)
+        let gridApi;
+        let resolveGridReady;
+        const gridReadyPromise = new Promise(resolve => { resolveGridReady = resolve; });
+
         // Initialize state immediately
         (async function initState() {
             await VeriCaseApp.init();
@@ -1186,24 +1191,15 @@
             projectId = VeriCaseApp.projectId;
             window.caseId = caseId; // Make it globally available for other functions
             console.log('VeriCaseApp initialized - projectId:', projectId, 'caseId:', caseId);
-            
+
             // Update URL if needed (so bookmarks work)
             VeriCaseApp.updateUrl();
-            
-            // Wait for grid to be ready, then refresh to load data with correct project/case ID
-            const waitForGrid = setInterval(() => {
-                if (gridApi) {
-                    clearInterval(waitForGrid);
-                    console.log('[Correspondence] Grid ready, refreshing with project:', projectId);
-                    gridApi.refreshServerSide({ purge: true });
-                }
-            }, 100);
-            
-            // Timeout after 10 seconds
-            setTimeout(() => clearInterval(waitForGrid), 10000);
+
+            // Wait for grid to be ready using promise (no polling)
+            await gridReadyPromise;
+            console.log('[Correspondence] Grid ready, refreshing with project:', projectId);
+            gridApi.refreshServerSide({ purge: true });
         })();
-        
-        let gridApi;
         let columnApi;
         let allEmails = [];
         let currentViewMode = 'all';
@@ -2606,6 +2602,8 @@
         function onGridReady(params) {
             gridApi = params.api;
             columnApi = params.columnApi;
+            // Signal that grid is ready (resolves the gridReadyPromise)
+            if (resolveGridReady) resolveGridReady();
         }
 
         function onFirstDataRendered(params) {

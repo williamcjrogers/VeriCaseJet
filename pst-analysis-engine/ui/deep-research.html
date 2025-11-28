@@ -1359,22 +1359,35 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
             }
         });
 
-        // Poll for status
+        // Poll for status with exponential backoff
+        let pollDelay = 2000;  // Start at 2 seconds
+        const MAX_POLL_DELAY = 10000;  // Max 10 seconds between polls
+
         function startPolling() {
-            pollInterval = setInterval(async () => {
-                await updateStatus();
-            }, 2000);
+            pollDelay = 2000;  // Reset delay on new poll session
+            scheduleNextPoll();
+        }
+
+        function scheduleNextPoll() {
+            pollInterval = setTimeout(async () => {
+                const wasActive = await updateStatus();
+                // If still actively processing, increase delay with exponential backoff
+                if (wasActive) {
+                    pollDelay = Math.min(pollDelay * 1.5, MAX_POLL_DELAY);
+                    scheduleNextPoll();
+                }
+            }, pollDelay);
         }
 
         function stopPolling() {
             if (pollInterval) {
-                clearInterval(pollInterval);
+                clearTimeout(pollInterval);
                 pollInterval = null;
             }
         }
 
         async function updateStatus() {
-            if (!currentSessionId) return;
+            if (!currentSessionId) return false;
 
             try {
                 const response = await secureApiFetch(`/api/deep-research/status/${currentSessionId}`);
@@ -1383,13 +1396,16 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
                 const data = await response.json();
                 updateUI(data);
 
-                // Stop polling if completed or failed
+                // Return false (stop polling) if completed, failed, or cancelled
                 if (['completed', 'failed', 'cancelled'].includes(data.status)) {
                     stopPolling();
+                    return false;
                 }
+                return true;  // Still active, continue polling
 
             } catch (error) {
                 console.error('Error polling status:', error);
+                return true;  // Keep trying on error
             }
         }
 

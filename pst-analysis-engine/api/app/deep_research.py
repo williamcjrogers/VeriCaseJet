@@ -469,18 +469,20 @@ Ensure questions form a valid DAG (no circular dependencies)."""
 class SearcherAgent(BaseAgent):
     """
     Information Gatherer Agent - handles search, reranking, and diversification.
-    
+
     Workflow (based on Egnyte architecture):
-    1. Formulate search queries
-    2. Execute queries against evidence sources
-    3. Cross-encoder reranking for relevance
-    4. Semantic chunking of documents
-    5. MMR (Maximal Marginal Relevance) for diverse results
-    6. Evaluate and loop if more information needed
+    1. Fast k-NN retrieval from vector index (milliseconds, ~100 candidates)
+    2. Cross-encoder reranking for relevance (top-N from candidates)
+    3. MMR (Maximal Marginal Relevance) for diverse results
+    4. Return high-quality, diverse results
+
+    The k-NN step is critical for scale - cross-encoder is O(n) so we can't
+    run it on millions of documents. k-NN narrows to relevant candidates first.
     """
-    
+
     _cross_encoder: Any | None = None
     _embedding_model: Any | None = None
+    _vector_service: Any | None = None
     
     @classmethod
     def get_cross_encoder(cls):
@@ -505,7 +507,67 @@ class SearcherAgent(BaseAgent):
             except Exception as e:
                 logger.warning(f"Could not load embedding model: {e}")
         return cls._embedding_model
-    
+
+    @classmethod
+    def get_vector_service(cls):
+        """Lazy load vector index service for fast k-NN retrieval"""
+        if cls._vector_service is None:
+            try:
+                from .semantic_engine import VectorIndexService
+                cls._vector_service = VectorIndexService()
+                logger.info("Vector index service loaded successfully")
+            except ImportError:
+                logger.warning("semantic_engine not available - k-NN disabled")
+            except Exception as e:
+                logger.warning(f"Could not load vector service: {e}")
+        return cls._vector_service
+
+    async def fast_knn_retrieve(
+        self,
+        query: str,
+        k: int = 100,
+        case_id: str | None = None,
+        project_id: str | None = None,
+        source_types: list[str] | None = None
+    ) -> list[dict[str, Any]]:
+        """
+        Fast k-NN retrieval from vector index.
+
+        This is the first stage of the retrieval pipeline - gets top-k candidates
+        in milliseconds using approximate nearest neighbor search.
+        """
+        vector_service = self.get_vector_service()
+        if vector_service is None:
+            return []
+
+        embedding_model = self.get_embedding_model()
+        if embedding_model is None:
+            return []
+
+        try:
+            # Generate query embedding
+            raw_embedding = embedding_model.encode(query, convert_to_numpy=True)  # pyright: ignore[reportAny]
+            query_embedding: list[float] = cast(list[float], raw_embedding.tolist())  # pyright: ignore[reportAny]
+
+            # Fast k-NN search
+            results: list[dict[str, Any]] = cast(
+                list[dict[str, Any]],
+                vector_service.search_similar(  # pyright: ignore[reportAny]
+                    query_embedding=query_embedding,
+                    k=k,
+                    case_id=case_id,
+                    project_id=project_id,
+                    source_types=source_types
+                )
+            )
+
+            logger.info(f"k-NN retrieved {len(results)} candidates in fast search")
+            return results
+
+        except Exception as e:
+            logger.warning(f"k-NN retrieval failed: {e}")
+            return []
+
     def rerank_results(
         self,
         query: str,
@@ -689,23 +751,49 @@ class SearcherAgent(BaseAgent):
         query: str,
         evidence_items: list[dict[str, Any]],
         top_k: int = 10,
-        apply_diversity: bool = True
+        apply_diversity: bool = True,
+        case_id: str | None = None,
+        project_id: str | None = None
     ) -> list[dict[str, Any]]:
         """
-        Full search pipeline: rerank -> chunk -> MMR diversify
+        Full search pipeline with fast k-NN retrieval:
+
+        1. k-NN: Fast ANN search (~100 candidates in ~10ms)
+        2. Cross-encoder: Rerank candidates for precision
+        3. MMR: Diversify final results
+
+        Falls back to direct cross-encoder on evidence_items if k-NN unavailable.
         """
-        if not evidence_items:
+        candidates: list[dict[str, Any]] = []
+
+        # Step 1: Try fast k-NN retrieval from vector index
+        knn_results = await self.fast_knn_retrieve(
+            query=query,
+            k=100,  # Get top 100 candidates for reranking
+            case_id=case_id,
+            project_id=project_id
+        )
+
+        if knn_results:
+            # Use k-NN results as candidates
+            candidates = knn_results
+            logger.info(f"Using {len(candidates)} k-NN candidates for reranking")
+        elif evidence_items:
+            # Fallback: use provided evidence items directly
+            candidates = evidence_items
+            logger.info(f"k-NN unavailable, using {len(candidates)} direct evidence items")
+        else:
             return []
-        
-        # Step 1: Cross-encoder reranking
-        reranked = self.rerank_results(query, evidence_items, top_k=top_k * 2)
-        
-        # Step 2: Apply MMR for diversity (if enabled)
+
+        # Step 2: Cross-encoder reranking on candidates
+        reranked = self.rerank_results(query, candidates, top_k=top_k * 2)
+
+        # Step 3: Apply MMR for diversity (if enabled)
         if apply_diversity and len(reranked) > top_k:
             final_results = self.apply_mmr(query, reranked, top_k=top_k)
         else:
             final_results = reranked[:top_k]
-        
+
         return final_results
 
 
