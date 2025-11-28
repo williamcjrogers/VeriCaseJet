@@ -75,10 +75,7 @@ services:
       retries: 3
 
   api:
-    build: 
-      context: .
-      dockerfile: api/Dockerfile
-    image: vericase/api:latest
+    image: wcjrogers/vericase-api:latest
     restart: always
     env_file: .env
     environment:
@@ -107,10 +104,7 @@ services:
       retries: 3
 
   worker:
-    build:
-      context: .
-      dockerfile: worker/Dockerfile
-    image: vericase/worker:latest
+    image: wcjrogers/vericase-api:latest
     restart: always
     env_file: .env
     environment:
@@ -132,14 +126,11 @@ services:
         condition: service_healthy
     deploy:
       replicas: 2
-    command: ["celery", "-A", "worker_app.worker", "worker", "--loglevel=INFO", "--concurrency=4", "-Q", "vericase,pst_processing"]
+    command: ["celery", "-A", "app.celery_app", "worker", "--loglevel=INFO", "--concurrency=4", "-Q", "vericase,pst_processing"]
 
   # Celery Beat for scheduled tasks (if needed)
   beat:
-    build:
-      context: .
-      dockerfile: worker/Dockerfile
-    image: vericase/worker:latest
+    image: wcjrogers/vericase-api:latest
     restart: always
     env_file: .env
     environment:
@@ -148,14 +139,11 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    command: ["celery", "-A", "worker_app.worker", "beat", "--loglevel=INFO"]
+    command: ["celery", "-A", "app.celery_app", "beat", "--loglevel=INFO"]
 
   # Flower for monitoring Celery tasks
   flower:
-    build:
-      context: .
-      dockerfile: worker/Dockerfile
-    image: vericase/worker:latest
+    image: wcjrogers/vericase-api:latest
     restart: always
     env_file: .env
     environment:
@@ -164,6 +152,7 @@ services:
       redis:
         condition: service_healthy
     ports: ["5555:5555"]
+    command: ["celery", "-A", "app.celery_app", "flower", "--port=5555"]
     command: ["celery", "-A", "worker_app.worker", "flower", "--port=5555"]
 
 # Named volumes for data persistence
