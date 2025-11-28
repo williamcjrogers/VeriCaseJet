@@ -11,17 +11,23 @@ Features:
 - Progress tracking and error recovery
 """
 
-import pypff  # type: ignore  # pypff is installed in Docker container
+# pyright: reportMissingImports=false, reportUnknownMemberType=false, reportUnknownParameterType=false, reportUnknownVariableType=false, reportAny=false
+
+from __future__ import annotations
+
 import hashlib
 import html
 import json
-import uuid
-from datetime import datetime, timezone
-from typing import Any, TypedDict
-import tempfile
 import os
 import logging
 import re
+import tempfile
+import uuid
+from datetime import datetime, timezone
+from typing import Any, TypedDict
+from uuid import UUID
+
+import pypff  # type: ignore  # pypff is installed in Docker container
 
 from sqlalchemy.orm import Session
 from .models import Document, EmailMessage, EmailAttachment, DocStatus, PSTFile, EvidenceItem
@@ -37,6 +43,16 @@ class ThreadInfo(TypedDict, total=False):
     subject: str
     content: str
     email_data: dict[str, Any]
+
+
+class ProcessingStats(TypedDict):
+    total_emails: int
+    total_attachments: int
+    unique_attachments: int
+    threads_identified: int
+    size_saved: int
+    processing_time: float
+    errors: list[str]
 
 # Semantic processing for deep research acceleration
 _semantic_available = False
@@ -81,7 +97,14 @@ class UltimatePSTProcessor:
             except Exception as e:
                 logger.warning(f"Semantic service initialization failed (non-fatal): {e}")
         
-    def process_pst(self, pst_s3_key: str, document_id: int, case_id: int | None = None, company_id: int | None = None, project_id: int | None = None) -> dict[str, Any]:
+    def process_pst(
+        self,
+        pst_s3_key: str,
+        document_id: UUID | str,
+        case_id: UUID | str | None = None,
+        company_id: UUID | str | None = None,
+        project_id: UUID | str | None = None,
+    ) -> ProcessingStats:
         """
         Main entry point - process PST from S3
         
@@ -89,17 +112,18 @@ class UltimatePSTProcessor:
         """
         logger.info(f"Starting PST processing for document_id={document_id}, case_id={case_id}, project_id={project_id}")
         
-        stats = {
+        stats: ProcessingStats = {
             'total_emails': 0,
             'total_attachments': 0,
             'unique_attachments': 0,  # After deduplication
             'threads_identified': 0,
             'size_saved': 0,  # Bytes saved by not storing email files
-            'processing_time': 0,
-            'errors': []
+            'processing_time': 0.0,
+            'errors': [],
         }
         
         start_time = datetime.now(timezone.utc)
+        document: Document | None = None
 
         # Try to find PST file record first (new upload flow creates this directly)
         pst_file_record = self.db.query(PSTFile).filter_by(id=document_id).first()
@@ -108,10 +132,11 @@ class UltimatePSTProcessor:
             # PST file record exists (new upload flow)
             logger.info(f"Found existing PSTFile record: {pst_file_record.id}")
             # Use case_id/project_id from the record if not provided
+            # Note: pst_file_record IDs are UUIDs, cast to str for compatibility
             if not case_id and pst_file_record.case_id:
-                case_id = pst_file_record.case_id
+                case_id = str(pst_file_record.case_id)
             if not project_id and pst_file_record.project_id:
-                project_id = pst_file_record.project_id
+                project_id = str(pst_file_record.project_id)
         else:
             # Try legacy flow - look for Document record
             document = self.db.query(Document).filter_by(id=document_id).first()
@@ -127,12 +152,13 @@ class UltimatePSTProcessor:
             
             if not pst_file_record:
                 # Resolve uploader from document metadata or owner
-                meta_dict = {}
+                meta_dict: dict[str, Any] = {}
                 try:
-                    meta_dict = document.meta if isinstance(document.meta, dict) else {}
+                    if isinstance(document.meta, dict):
+                        meta_dict = document.meta.copy()
                 except Exception:
                     meta_dict = {}
-                uploader = meta_dict.get("uploaded_by") if isinstance(meta_dict, dict) else None
+                uploader = meta_dict.get("uploaded_by")
                 if not uploader:
                     uploader = str(document.owner_user_id) if getattr(document, "owner_user_id", None) else "00000000-0000-0000-0000-000000000000"
                 pst_file_record = PSTFile(
@@ -148,14 +174,11 @@ class UltimatePSTProcessor:
                 self.db.commit()
                 self.db.refresh(pst_file_record)
 
-        # Initialize document as None if we're using the new flow (PSTFile only)
-        document = None
-        
-        def set_processing_meta(status: str, **extra):
+        def set_processing_meta(status: str, **extra: Any) -> None:
             if document is not None:
-                meta: dict = document.meta if isinstance(document.meta, dict) else {}  # type: ignore
+                meta: dict[str, Any] = document.meta if isinstance(document.meta, dict) else {}
                 pst_meta_value = meta.get('pst_processing')
-                pst_meta: dict = pst_meta_value if isinstance(pst_meta_value, dict) else {}
+                pst_meta: dict[str, Any] = pst_meta_value if isinstance(pst_meta_value, dict) else {}
                 pst_meta.update(extra)
                 pst_meta['status'] = status
                 meta['pst_processing'] = pst_meta
@@ -201,7 +224,7 @@ class UltimatePSTProcessor:
             logger.info("PST opened successfully, processing folders...")
             
             # Get root folder and count total messages first
-            root = pst_file.get_root_folder()
+            root: Any = pst_file.get_root_folder()
             self.total_count = self._count_messages(root)
             logger.info(f"Found {self.total_count} total messages to process")
             
@@ -213,11 +236,11 @@ class UltimatePSTProcessor:
             self._build_thread_relationships(case_id, project_id)
             
             # Count unique threads from the built thread_groups
-            unique_threads = set()
+            unique_threads: set[str] = set()
             for thread_info in self.threads_map.values():
                 email_msg = thread_info.get('email_message')
                 if email_msg and hasattr(email_msg, 'thread_id') and email_msg.thread_id:
-                    unique_threads.add(email_msg.thread_id)
+                    unique_threads.add(str(email_msg.thread_id))
             stats['threads_identified'] = len(unique_threads)
             
             # Calculate stats
@@ -259,14 +282,14 @@ class UltimatePSTProcessor:
         
         return stats
     
-    def _count_messages(self, folder) -> int:
+    def _count_messages(self, folder: Any) -> int:
         """Recursively count total messages for progress tracking"""
         try:
             count = int(self._safe_get_attr(folder, 'number_of_sub_messages', 0) or 0)
             num_subfolders = int(self._safe_get_attr(folder, 'number_of_sub_folders', 0) or 0)
             for i in range(num_subfolders):
                 try:
-                    subfolder = folder.get_sub_folder(i)
+                    subfolder: Any = folder.get_sub_folder(i)
                     count += self._count_messages(subfolder)
                 except (AttributeError, RuntimeError, OSError) as e:
                     logger.debug("Could not count messages in subfolder %d: %s", i, str(e)[:50])
@@ -275,7 +298,17 @@ class UltimatePSTProcessor:
             logger.warning("Error counting messages: %s", str(e))
             return 0
     
-    def _process_folder(self, folder, pst_file_record, document, case_id, project_id, company_id, stats, folder_path=''):
+    def _process_folder(
+        self,
+        folder: Any,
+        pst_file_record: PSTFile,
+        document: Document | None,
+        case_id: UUID | str | None,
+        project_id: UUID | str | None,
+        company_id: UUID | str | None,
+        stats: ProcessingStats,
+        folder_path: str = '',
+    ) -> None:
         """
         Recursively process PST folders
         
@@ -294,7 +327,7 @@ class UltimatePSTProcessor:
         for i in range(num_messages):
             try:
                 message = folder.get_sub_message(i)
-                email_message = self._process_message(
+                _ = self._process_message(
                     message,
                     pst_file_record,
                     document,
@@ -341,7 +374,7 @@ class UltimatePSTProcessor:
         num_subfolders = int(self._safe_get_attr(folder, 'number_of_sub_folders', 0) or 0)
         for i in range(num_subfolders):
             try:
-                subfolder = folder.get_sub_folder(i)
+                subfolder: Any = folder.get_sub_folder(i)
                 self._process_folder(subfolder, pst_file_record, document, case_id, project_id, company_id, stats, current_path)
             except (AttributeError, RuntimeError, OSError, SystemError, MemoryError) as e:
                 logger.warning(f"Skipping subfolder {i} in {current_path}: {str(e)[:100]}")
@@ -386,7 +419,7 @@ class UltimatePSTProcessor:
         
         return text.strip()
     
-    def _safe_get_attr(self, obj, attr_name, default=None):
+    def _safe_get_attr(self, obj: Any, attr_name: str, default: Any | None = None) -> Any:
         """Safely get attribute from pypff object
         
         Handles pypff errors that occur when accessing corrupted PST data.
@@ -426,7 +459,17 @@ class UltimatePSTProcessor:
     
 
     
-    def _process_message(self, message, pst_file_record, document, case_id, project_id, company_id, stats, folder_path):
+    def _process_message(
+        self,
+        message: Any,
+        pst_file_record: PSTFile,
+        document: Document | None,
+        case_id: UUID | str | None,
+        project_id: UUID | str | None,
+        company_id: UUID | str | None,
+        stats: ProcessingStats,
+        folder_path: str,
+    ) -> EmailMessage:
         """
         Process individual email message
         
@@ -836,7 +879,17 @@ class UltimatePSTProcessor:
         
         return False
     
-    def _process_attachments(self, message: Any, email_message: EmailMessage, pst_file_record: Any, parent_document: Any, case_id: Any, project_id: Any, company_id: Any, stats: dict[str, Any]) -> list[dict[str, Any]]:
+    def _process_attachments(
+        self,
+        message: Any,
+        email_message: EmailMessage,
+        pst_file_record: PSTFile,
+        parent_document: Document | None,
+        case_id: UUID | str | None,
+        project_id: UUID | str | None,
+        company_id: UUID | str | None,
+        stats: ProcessingStats,
+    ) -> list[dict[str, Any]]:
         """
         Extract and save ONLY real attachments (FILTERS OUT signature logos and disclaimers)
         
@@ -851,7 +904,7 @@ class UltimatePSTProcessor:
         
         Returns list of attachment metadata dicts
         """
-        attachments_info = []
+        attachments_info: list[dict[str, Any]] = []
         filtered_signatures = 0
         
         for i in range(message.number_of_attachments):
@@ -968,7 +1021,7 @@ class UltimatePSTProcessor:
                     # ASYNC OCR: Queue OCR task immediately (non-blocking)
                     try:
                         from .tasks import celery_app
-                        celery_app.send_task(
+                        _ = celery_app.send_task(
                             'worker_app.worker.ocr_and_index',
                             args=[str(att_doc.id)],
                             queue=getattr(settings, 'CELERY_QUEUE', 'vericase')
@@ -1160,7 +1213,7 @@ class UltimatePSTProcessor:
         except (ConnectionError, TimeoutError, ValueError) as e:
             logger.error(f"Error indexing email to OpenSearch: {e}")
     
-    def _build_thread_relationships(self, case_id, project_id):
+    def _build_thread_relationships(self, case_id: UUID | str | None, project_id: UUID | str | None) -> None:
         """
         Build email thread relationships using fallback algorithms
 
@@ -1177,7 +1230,7 @@ class UltimatePSTProcessor:
 
         # Step 1: Build thread groups using message IDs
         thread_groups: dict[str, list[EmailMessage]] = {}  # thread_id -> list of email_messages
-        message_id_to_email = {}  # message_id -> email_message
+        message_id_to_email: dict[str, EmailMessage] = {}  # message_id -> email_message
 
         # First pass: index all emails by message_id
         for message_id, thread_info in self.threads_map.items():
@@ -1224,7 +1277,7 @@ class UltimatePSTProcessor:
             # Try conversation index (Outlook threading)
             if not thread_id and conversation_index:
                 # Look for other emails with same conversation index
-                for other_msg_id, other_info in self.threads_map.items():
+                for _, other_info in self.threads_map.items():
                     other_email = other_info.get('email_message')
                     if (other_email and 
                         other_email != email_message and
@@ -1241,7 +1294,7 @@ class UltimatePSTProcessor:
                     # Normalize subject (remove Re:, Fwd:, etc.)
                     normalized_subject = re.sub(r'^(re|fw|fwd):\s*', '', subject.lower().strip())
                     # Look for other emails with same normalized subject
-                    for other_msg_id, other_info in self.threads_map.items():
+                    for _, other_info in self.threads_map.items():
                         other_email = other_info.get('email_message')
                         other_subject = other_info.get('subject', '')
                         if (other_email and 
@@ -1281,7 +1334,7 @@ class UltimatePSTProcessor:
             logger.error(f"Error updating thread relationships: {e}")
             self.db.rollback()
     
-    def _extract_email_from_headers(self, message: Any) -> str | None:  # pyright: ignore[reportAny]
+    def _extract_email_from_headers(self, message: Any) -> str | None:
         """
         Extract email address from RFC 2822 transport headers
         pypff doesn't expose direct .sender_email_address - parse from headers
@@ -1289,7 +1342,7 @@ class UltimatePSTProcessor:
         try:
             if not message:
                 return None
-            headers_raw = getattr(message, 'transport_headers', None)  # pyright: ignore[reportAny]
+            headers_raw = getattr(message, 'transport_headers', None)
             if not headers_raw:
                 return None
             
@@ -1301,7 +1354,7 @@ class UltimatePSTProcessor:
                 headers_str = headers_raw
             else:
                 # Convert to string - for pypff objects that may return other types
-                headers_str = str(headers_raw)  # pyright: ignore[reportAny]
+                headers_str = str(headers_raw)
             
             # Parse From: header - format is "Name <email@domain.com>" or just "email@domain.com"
             from_match = re.search(r'From:\s*(?:.*?<)?([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)', headers_str, re.IGNORECASE)
