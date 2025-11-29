@@ -31,7 +31,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Clone and configure libpff
 RUN git clone https://github.com/libyal/libpff.git /tmp/libpff && \
     cd /tmp/libpff && \
-    git checkout 7c2e2e2b6e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e && \
     ./synclibs.sh && \
     ./autogen.sh
 
@@ -52,4 +51,4 @@ RUN pip install --no-cache-dir -r /code/requirements.txt
 # Copy application code
 COPY . /code
 
-CMD ["celery","-A","worker_app.worker","worker","--loglevel=INFO","--concurrency=2"]
+CMD ["uvicorn", "api.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
