@@ -39,6 +39,9 @@ RUN pip install --no-cache-dir -r /code/requirements.txt
 # Copy application code
 COPY api/app /code/app
 
+# Copy worker code (enables this image to run as a Celery worker too)
+COPY worker_app /code/worker_app
+
 # Copy UI files
 COPY ui /code/ui
 
