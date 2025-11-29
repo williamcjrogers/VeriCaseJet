@@ -39,6 +39,9 @@ RUN pip install --no-cache-dir -r /code/requirements.txt
 # Copy application code
 COPY api/app /code/app
 
+# Copy UI files
+COPY ui /code/ui
+
 # Copy migration scripts
 COPY api/migrations /code/migrations
 COPY api/apply_migrations.py /code/apply_migrations.py
