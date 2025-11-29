@@ -118,12 +118,12 @@ def s3(public: bool = False) -> S3ClientProtocol:
             session.client("s3", config=Config(signature_version="s3v4")),
         )
 
-    # Use IRSA for credentials (no explicit keys)
+    # Use IRSA for credentials (no explicit keys) with Transfer Acceleration
     return cast(
         S3ClientProtocol,
         boto3.client(
             "s3",
-            config=Config(signature_version="s3v4"),
+            config=Config(signature_version="s3v4", s3={"use_accelerate_endpoint": True}),
             region_name=settings.AWS_REGION,
         ),
     )
