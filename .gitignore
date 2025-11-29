@@ -7,6 +7,11 @@ apprunner.local.yaml
 .env.local
 .env.production
 
+# SSH Keys and certificates
+*.pem
+*.key
+*.cert
+
 # Python
 __pycache__/
 *.py[cod]

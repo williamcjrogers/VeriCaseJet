@@ -469,16 +469,7 @@ def _populate_ai_settings_from_env(force_update: bool = False):
 
 @app.on_event("startup")
 def startup():
-    if UI_DIR:
-        logger.info(f"UI MOUNTED at /ui from: {UI_DIR}")
-        try:
-            import os
-            files = os.listdir(UI_DIR)[:10]
-            logger.info(f"UI files: {', '.join(files)}")
-        except Exception as e:
-            logger.error(f"Error listing UI files: {e}")
-    else:
-        logger.error(f"UI NOT MOUNTED - candidates: {_ui_candidates}")
+    logger.info("Starting VeriCase API...")
     
     try:
         Base.metadata.create_all(bind=engine)
@@ -486,85 +477,7 @@ def startup():
     except Exception as e:
         logger.warning(f"Database initialization skipped: {e}")
     
-    # Create admin user if it doesn't exist
-    try:
-        db = SessionLocal()
-        try:
-            admin_email = os.getenv('ADMIN_EMAIL', 'admin@veri-case.com')
-            admin_password = os.getenv('ADMIN_PASSWORD', 'Sunnyday8?!')
-            
-            existing_admin = db.query(User).filter(User.email == admin_email).first()
-            if not existing_admin:
-                admin_user = User(
-                    email=admin_email,
-                    password_hash=hash_password(admin_password),
-                    role=UserRole.ADMIN,
-                    is_active=True,
-                    email_verified=True,
-                    display_name='Administrator'
-                )
-                db.add(admin_user)
-                db.commit()
-                logger.info(f"Created admin user: {admin_email}")
-            else:
-                logger.info(f"Admin user already exists: {admin_email}")
-        finally:
-            db.close()
-    except Exception as e:
-        logger.error(f"Failed to create admin user: {e}")
-    
-    try:
-        ensure_bucket()
-        logger.info("S3 bucket verified")
-    except Exception as e:
-        logger.warning(f"S3 initialization skipped: {e}")
-    
-    try:
-        ensure_index()
-        logger.info("OpenSearch index verified")
-    except Exception as e:
-        logger.warning(f"OpenSearch initialization skipped: {e}")
-    
-    # Populate AI settings from environment variables
-    try:
-        _populate_ai_settings_from_env()
-    except Exception as e:
-        logger.warning(f"AI settings population skipped: {e}")
-    
-    # Load AI API keys from AWS Secrets Manager if configured
-    try:
-        secret_name = os.getenv('AWS_SECRETS_MANAGER_AI_KEYS')
-        if secret_name:
-            import json
-            import boto3
-            
-            logger.info(f"Loading AI API keys from AWS Secrets Manager: {secret_name}")
-            client = boto3.client('secretsmanager', region_name=os.getenv('AWS_REGION', 'eu-west-2'))
-            
-            try:
-                response = client.get_secret_value(SecretId=secret_name)
-                secret_data = json.loads(response['SecretString'])
-                
-                # Update environment variables with the loaded keys
-                for key_name in ['OPENAI_API_KEY', 'CLAUDE_API_KEY', 'GEMINI_API_KEY', 'GROK_API_KEY', 'PERPLEXITY_API_KEY']:
-                    if key_name in secret_data and secret_data[key_name]:
-                        os.environ[key_name] = secret_data[key_name]
-                        logger.info(f"[OK] Loaded {key_name} from Secrets Manager")
-                    else:
-                        logger.warning(f"⚠ {key_name} not found in Secrets Manager")
-                
-                # Re-populate AI settings to sync Secrets Manager values to database
-                try:
-                    _populate_ai_settings_from_env(force_update=True)
-                    logger.info("AI settings synced from Secrets Manager to database")
-                except Exception as sync_err:
-                    logger.warning(f"Failed to sync AI settings to database: {sync_err}")
-                        
-            except Exception as e:
-                logger.error(f"Failed to retrieve AI API keys from Secrets Manager: {e}")
-                logger.info("AI features will be limited without API keys")
-    except Exception as e:
-        logger.warning(f"AWS Secrets Manager integration skipped: {e}")
+    logger.info("Startup complete")
 
 # AI Status endpoint
 @app.get("/api/ai/status")
