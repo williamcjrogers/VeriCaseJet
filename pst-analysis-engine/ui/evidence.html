@@ -1161,6 +1161,52 @@
                         }
                     },
                     {
+                        field: 'evidence_type',
+                        headerName: 'AI Classification',
+                        width: 140,
+                        cellRenderer: params => {
+                            const type = params.value;
+                            if (!type || type === 'other') return '<span style="color: var(--text-muted);">—</span>';
+                            const config = typeConfig[type] || { label: type, color: '#64748b' };
+                            return `<span style="color: ${config.color}; font-weight: 500;"><i class="fas ${config.icon || 'fa-file'}"></i> ${config.label}</span>`;
+                        }
+                    },
+                    {
+                        field: 'classification_confidence',
+                        headerName: 'AI Confidence',
+                        width: 120,
+                        cellRenderer: params => {
+                            const confidence = params.value;
+                            if (!confidence) return '<span style="color: var(--text-muted);">—</span>';
+                            const color = confidence >= 80 ? '#16a34a' : confidence >= 60 ? '#d97706' : '#dc2626';
+                            return `<span style="color: ${color}; font-weight: 500;">${confidence}%</span>`;
+                        }
+                    },
+                    {
+                        field: 'extracted_parties',
+                        headerName: 'Extracted Parties',
+                        width: 160,
+                        cellRenderer: params => {
+                            const parties = params.value;
+                            if (!parties || parties.length === 0) return '<span style="color: var(--text-muted);">—</span>';
+                            const display = parties.slice(0, 2).join(', ');
+                            const extra = parties.length > 2 ? ` +${parties.length - 2}` : '';
+                            return `<span style="color: var(--vericase-teal); font-size: 0.75rem;">${display}${extra}</span>`;
+                        }
+                    },
+                    {
+                        field: 'extracted_amounts',
+                        headerName: 'Key Amounts',
+                        width: 120,
+                        cellRenderer: params => {
+                            const amounts = params.value;
+                            if (!amounts || amounts.length === 0) return '<span style="color: var(--text-muted);">—</span>';
+                            const display = amounts[0];
+                            const extra = amounts.length > 1 ? ` +${amounts.length - 1}` : '';
+                            return `<span style="color: #16a34a; font-weight: 500; font-size: 0.75rem;">${display}${extra}</span>`;
+                        }
+                    },
+                    {
                         field: 'correspondence_count',
                         headerName: 'Links',
                         width: 80,
