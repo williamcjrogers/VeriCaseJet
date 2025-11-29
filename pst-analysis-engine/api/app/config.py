@@ -148,6 +148,40 @@ class Settings(BaseSettings):
     TEXTRACT_MAX_PAGES: int = 500  # Textract limit: 500 pages
     TEXTRACT_PAGE_THRESHOLD: int = 100  # Use Tika for PDFs over this many pages (cost/speed optimization)
     AWS_REGION_FOR_TEXTRACT: str = "eu-west-2"  # Default region for Textract
+    
+    # AWS Bedrock Knowledge Base settings
+    BEDROCK_KB_ID: str = ""  # Bedrock Knowledge Base ID (e.g., "VERICASE-KB-001")
+    BEDROCK_DS_ID: str = ""  # Bedrock Data Source ID (e.g., "VERICASE-DS-001")
+    BEDROCK_EMBEDDING_MODEL: str = "amazon.titan-embed-text-v1"  # Embedding model for KB
+    
+    # AWS Step Functions settings
+    STEP_FUNCTION_ARN: str = ""  # ARN of the evidence processing state machine
+    
+    # AWS EventBridge settings
+    EVENT_BUS_NAME: str = "vericase-events"  # Custom event bus name
+    
+    # AWS OpenSearch Serverless settings
+    OPENSEARCH_COLLECTION_ARN: str = ""  # OpenSearch Serverless collection ARN
+    OPENSEARCH_COLLECTION_ENDPOINT: str = ""  # OpenSearch Serverless endpoint
+    OPENSEARCH_VECTOR_INDEX: str = "vericase-evidence-index"  # Vector index name
+    
+    # AWS QuickSight settings
+    QUICKSIGHT_DASHBOARD_ID: str = ""  # QuickSight dashboard ID
+    QUICKSIGHT_DATASET_ID: str = ""  # QuickSight dataset ID
+    
+    # AWS Macie settings
+    MACIE_ENABLED: bool = False  # Enable Macie sensitive data scanning
+    
+    # AWS Lambda function names (for Step Functions)
+    LAMBDA_TEXTRACT_PROCESSOR: str = "vericase-textract-processor"
+    LAMBDA_COMPREHEND_ANALYZER: str = "vericase-comprehend-analyzer"
+    LAMBDA_DOCUMENT_CLASSIFIER: str = "vericase-document-classifier"
+    LAMBDA_DATABASE_UPDATER: str = "vericase-database-updater"
+    LAMBDA_KB_INGESTER: str = "vericase-kb-ingester"
+    
+    # S3 Buckets for AWS services
+    S3_KNOWLEDGE_BASE_BUCKET: str = ""  # S3 bucket for Bedrock KB documents
+    S3_TRANSCRIBE_OUTPUT_BUCKET: str = ""  # S3 bucket for Transcribe output
 
     # Backwards-compatible alias for older code/docs that used `settings.use_textract`
     @property

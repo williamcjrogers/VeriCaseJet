@@ -1,0 +1,304 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "TextractAccess",
+      "Effect": "Allow",
+      "Action": [
+        "textract:StartDocumentAnalysis",
+        "textract:StartDocumentTextDetection",
+        "textract:GetDocumentAnalysis",
+        "textract:GetDocumentTextDetection",
+        "textract:AnalyzeDocument",
+        "textract:DetectDocumentText",
+        "textract:StartExpenseAnalysis",
+        "textract:GetExpenseAnalysis"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ComprehendAccess",
+      "Effect": "Allow",
+      "Action": [
+        "comprehend:DetectEntities",
+        "comprehend:DetectKeyPhrases",
+        "comprehend:DetectSentiment",
+        "comprehend:DetectPiiEntities",
+        "comprehend:DetectDominantLanguage",
+        "comprehend:ClassifyDocument",
+        "comprehend:ContainsPiiEntities",
+        "comprehend:BatchDetectEntities",
+        "comprehend:BatchDetectKeyPhrases",
+        "comprehend:BatchDetectSentiment",
+        "comprehend:StartEntitiesDetectionJob",
+        "comprehend:StartKeyPhrasesDetectionJob",
+        "comprehend:StartSentimentDetectionJob",
+        "comprehend:StartPiiEntitiesDetectionJob",
+        "comprehend:DescribeEntitiesDetectionJob",
+        "comprehend:DescribeKeyPhrasesDetectionJob",
+        "comprehend:DescribeSentimentDetectionJob",
+        "comprehend:DescribePiiEntitiesDetectionJob",
+        "comprehend:ListEntityRecognizers",
+        "comprehend:DescribeEntityRecognizer"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ComprehendMedicalAccess",
+      "Effect": "Allow",
+      "Action": [
+        "comprehendmedical:DetectEntitiesV2",
+        "comprehendmedical:DetectPHI",
+        "comprehendmedical:InferICD10CM",
+        "comprehendmedical:InferRxNorm",
+        "comprehendmedical:InferSNOMEDCT"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "BedrockAccess",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream",
+        "bedrock:GetFoundationModel",
+        "bedrock:ListFoundationModels",
+        "bedrock:GetModelInvocationLoggingConfiguration"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "BedrockAgentAccess",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:Retrieve",
+        "bedrock:RetrieveAndGenerate",
+        "bedrock:InvokeAgent",
+        "bedrock:GetAgent",
+        "bedrock:ListAgents",
+        "bedrock:GetAgentAlias",
+        "bedrock:ListAgentAliases"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "BedrockKnowledgeBaseAccess",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:GetKnowledgeBase",
+        "bedrock:ListKnowledgeBases",
+        "bedrock:GetDataSource",
+        "bedrock:ListDataSources",
+        "bedrock:StartIngestionJob",
+        "bedrock:GetIngestionJob",
+        "bedrock:ListIngestionJobs",
+        "bedrock:Retrieve"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:*:*:knowledge-base/*",
+        "arn:aws:bedrock:*:*:data-source/*"
+      ]
+    },
+    {
+      "Sid": "RekognitionAccess",
+      "Effect": "Allow",
+      "Action": [
+        "rekognition:DetectLabels",
+        "rekognition:DetectText",
+        "rekognition:DetectFaces",
+        "rekognition:DetectModerationLabels",
+        "rekognition:RecognizeCelebrities",
+        "rekognition:CompareFaces",
+        "rekognition:DetectProtectiveEquipment",
+        "rekognition:StartLabelDetection",
+        "rekognition:GetLabelDetection",
+        "rekognition:StartTextDetection",
+        "rekognition:GetTextDetection",
+        "rekognition:DetectCustomLabels",
+        "rekognition:StartProjectVersion",
+        "rekognition:StopProjectVersion",
+        "rekognition:DescribeProjectVersions"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "TranscribeAccess",
+      "Effect": "Allow",
+      "Action": [
+        "transcribe:StartTranscriptionJob",
+        "transcribe:GetTranscriptionJob",
+        "transcribe:ListTranscriptionJobs",
+        "transcribe:DeleteTranscriptionJob",
+        "transcribe:StartMedicalTranscriptionJob",
+        "transcribe:GetMedicalTranscriptionJob",
+        "transcribe:CreateVocabulary",
+        "transcribe:GetVocabulary",
+        "transcribe:UpdateVocabulary",
+        "transcribe:DeleteVocabulary",
+        "transcribe:ListVocabularies"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EventBridgeAccess",
+      "Effect": "Allow",
+      "Action": [
+        "events:PutEvents",
+        "events:PutRule",
+        "events:PutTargets",
+        "events:DescribeRule",
+        "events:ListRules",
+        "events:ListTargetsByRule",
+        "events:DeleteRule",
+        "events:RemoveTargets",
+        "events:EnableRule",
+        "events:DisableRule",
+        "events:CreateEventBus",
+        "events:DescribeEventBus",
+        "events:ListEventBuses"
+      ],
+      "Resource": [
+        "arn:aws:events:*:*:rule/vericase-*",
+        "arn:aws:events:*:*:event-bus/vericase-*",
+        "arn:aws:events:*:*:event-bus/default"
+      ]
+    },
+    {
+      "Sid": "StepFunctionsAccess",
+      "Effect": "Allow",
+      "Action": [
+        "states:StartExecution",
+        "states:StopExecution",
+        "states:DescribeExecution",
+        "states:ListExecutions",
+        "states:GetExecutionHistory",
+        "states:DescribeStateMachine",
+        "states:ListStateMachines",
+        "states:SendTaskSuccess",
+        "states:SendTaskFailure",
+        "states:SendTaskHeartbeat"
+      ],
+      "Resource": [
+        "arn:aws:states:*:*:stateMachine:vericase-*",
+        "arn:aws:states:*:*:execution:vericase-*:*"
+      ]
+    },
+    {
+      "Sid": "QuickSightAccess",
+      "Effect": "Allow",
+      "Action": [
+        "quicksight:CreateDashboard",
+        "quicksight:UpdateDashboard",
+        "quicksight:DeleteDashboard",
+        "quicksight:DescribeDashboard",
+        "quicksight:ListDashboards",
+        "quicksight:CreateDataSet",
+        "quicksight:UpdateDataSet",
+        "quicksight:DescribeDataSet",
+        "quicksight:ListDataSets",
+        "quicksight:CreateAnalysis",
+        "quicksight:DescribeAnalysis",
+        "quicksight:ListAnalyses",
+        "quicksight:GetDashboardEmbedUrl",
+        "quicksight:GenerateEmbedUrlForRegisteredUser"
+      ],
+      "Resource": [
+        "arn:aws:quicksight:*:*:dashboard/vericase-*",
+        "arn:aws:quicksight:*:*:dataset/vericase-*",
+        "arn:aws:quicksight:*:*:analysis/vericase-*"
+      ]
+    },
+    {
+      "Sid": "MacieAccess",
+      "Effect": "Allow",
+      "Action": [
+        "macie2:CreateClassificationJob",
+        "macie2:GetClassificationExportConfiguration",
+        "macie2:GetFindingsPublicationConfiguration",
+        "macie2:GetMacieSession",
+        "macie2:ListClassificationJobs",
+        "macie2:ListFindings",
+        "macie2:GetFindings",
+        "macie2:GetFindingStatistics",
+        "macie2:CreateCustomDataIdentifier",
+        "macie2:ListCustomDataIdentifiers",
+        "macie2:GetCustomDataIdentifier"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "LambdaInvokeAccess",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:InvokeFunction",
+        "lambda:InvokeAsync"
+      ],
+      "Resource": "arn:aws:lambda:*:*:function:vericase-*"
+    },
+    {
+      "Sid": "SQSAccess",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:SendMessage",
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueUrl",
+        "sqs:GetQueueAttributes"
+      ],
+      "Resource": "arn:aws:sqs:*:*:vericase-*"
+    },
+    {
+      "Sid": "SNSAccess",
+      "Effect": "Allow",
+      "Action": [
+        "sns:Publish",
+        "sns:Subscribe",
+        "sns:Unsubscribe"
+      ],
+      "Resource": "arn:aws:sns:*:*:vericase-*"
+    },
+    {
+      "Sid": "CloudWatchLogsAccess",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams"
+      ],
+      "Resource": "arn:aws:logs:*:*:log-group:/aws/vericase/*"
+    },
+    {
+      "Sid": "CloudWatchMetricsAccess",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:PutMetricData",
+        "cloudwatch:GetMetricData",
+        "cloudwatch:GetMetricStatistics",
+        "cloudwatch:ListMetrics"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "cloudwatch:namespace": "VeriCase"
+        }
+      }
+    },
+    {
+      "Sid": "S3AccessForAIServices",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:ListBucket",
+        "s3:GetObjectVersion"
+      ],
+      "Resource": [
+        "arn:aws:s3:::vericase-*",
+        "arn:aws:s3:::vericase-*/*"
+      ]
+    }
+  ]
+}
+
