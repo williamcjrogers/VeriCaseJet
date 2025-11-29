@@ -37,6 +37,7 @@ services:
       - db
       - redis
     environment:
+      - DEV_NO_AUTH=true
       - DATABASE_URL=postgresql+psycopg2://vericase:vericase123@db:5432/vericase
       - REDIS_URL=redis://redis:6379/0
       - USE_AWS_SERVICES=true
