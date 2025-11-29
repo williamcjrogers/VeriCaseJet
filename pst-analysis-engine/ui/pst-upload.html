@@ -799,6 +799,29 @@
         const apiUrl = window.VeriCaseConfig ? window.VeriCaseConfig.apiUrl : window.location.origin;
         console.log('Upload using API URL:', apiUrl);
         
+        // Retry helper for network issues
+        async function fetchWithRetry(url, options, retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), 300000); // 5 min timeout
+                    
+                    const response = await fetch(url, { ...options, signal: controller.signal });
+                    clearTimeout(timeout);
+                    
+                    if (response.ok) return response;
+                    if (response.status >= 500 && i < retries - 1) {
+                        await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+                        continue;
+                    }
+                    return response;
+                } catch (error) {
+                    if (i === retries - 1) throw error;
+                    await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+                }
+            }
+        }
+        
         // State
         let fileQueue = [];
         let isUploading = false;
@@ -1197,11 +1220,11 @@
                 
                 const { url } = await partUrlResp.json();
                 
-                const uploadResp = await fetch(url, {
+                const uploadResp = await fetchWithRetry(url, {
                     method: 'PUT',
                     body: chunk,
                     headers: { 'Content-Type': 'application/octet-stream' }
-                });
+                }, 3);
                 
                 if (!uploadResp.ok) throw new Error(`Failed to upload part ${partNumber}`);
                 
