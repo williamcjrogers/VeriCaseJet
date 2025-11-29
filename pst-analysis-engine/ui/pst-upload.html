@@ -1120,13 +1120,8 @@
             updateFileItem(item.id, { status: 'uploading', progress: 0 });
             
             try {
-                const isLarge = item.size >= 100 * 1024 * 1024;  // 100MB threshold
-                
-                if (isLarge) {
-                    await uploadPSTMultipart(item);
-                } else {
-                    await uploadPSTDirect(item);
-                }
+                // Use server-side upload for all PST files (more reliable than direct S3)
+                await uploadPSTViaServer(item);
                 
                 updateFileItem(item.id, { status: 'complete', progress: 100 });
                 totalBytesUploaded += item.size;
@@ -1135,6 +1130,46 @@
                 console.error(`PST upload error for ${item.name}:`, error);
                 updateFileItem(item.id, { status: 'error', error: error.message });
             }
+        }
+        
+        async function uploadPSTViaServer(item) {
+            const formData = new FormData();
+            formData.append('file', item.file);
+            
+            if (VeriCaseApp.projectId) {
+                formData.append('profileId', VeriCaseApp.projectId);
+                formData.append('profileType', 'project');
+            } else if (VeriCaseApp.caseId) {
+                formData.append('profileId', VeriCaseApp.caseId);
+                formData.append('profileType', 'case');
+            } else {
+                formData.append('profileType', 'project');
+            }
+            
+            // Use XMLHttpRequest for progress tracking
+            await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `${apiUrl}/api/evidence/upload`, true);
+                
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        const pct = Math.round((e.loaded / e.total) * 95);
+                        updateFileItem(item.id, { progress: pct });
+                    }
+                };
+                
+                xhr.onload = () => {
+                    if (xhr.status < 400) {
+                        updateFileItem(item.id, { status: 'processing', progress: 98 });
+                        resolve();
+                    } else {
+                        reject(new Error(`Upload failed: ${xhr.status}`));
+                    }
+                };
+                
+                xhr.onerror = () => reject(new Error('Network error'));
+                xhr.send(formData);
+            });
         }
         
         async function uploadPSTDirect(item) {
