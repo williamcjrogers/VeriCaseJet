@@ -12,6 +12,11 @@ apprunner.local.yaml
 *.key
 *.cert
 
+# Temporary setup files
+trust.json
+s3-policy.json
+setup_s3_permissions.ps1
+
 # Python
 __pycache__/
 *.py[cod]
