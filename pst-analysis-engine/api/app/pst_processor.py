@@ -86,7 +86,8 @@ class UltimatePSTProcessor:
         self.threads_map: dict[str, ThreadInfo] = {}
         self.processed_count = 0
         self.total_count = 0
-        self.attachment_hashes: dict[str, Any] = {}  # For deduplication
+        self.attachment_hashes: dict[str, Any] = {}  # For Document deduplication
+        self.evidence_item_hashes: dict[str, Any] = {}  # For EvidenceItem deduplication
 
         # Initialize semantic processing for deep research acceleration
         self.semantic_service: Any = None
@@ -1069,13 +1070,16 @@ class UltimatePSTProcessor:
                             case_id=case_id,
                             project_id=project_id,
                             is_duplicate=is_duplicate,
-                            duplicate_of_id=self.attachment_hashes.get(file_hash) if is_duplicate else None,
+                            duplicate_of_id=self.evidence_item_hashes.get(file_hash) if is_duplicate else None,
                             processing_status='pending',
                             auto_tags=['email-attachment', f'from-pst'],
                         )
                         self.db.add(evidence_item)
                         self.db.flush()
                         evidence_item_id = evidence_item.id
+                        # Store for EvidenceItem deduplication (only if not a duplicate)
+                        if not is_duplicate:
+                            self.evidence_item_hashes[file_hash] = evidence_item_id
                         logger.debug(f"Created EvidenceItem {evidence_item_id} for attachment: {safe_filename}")
                     except Exception as ev_err:
                         logger.warning(f"Failed to create EvidenceItem for {safe_filename}: {ev_err}")
