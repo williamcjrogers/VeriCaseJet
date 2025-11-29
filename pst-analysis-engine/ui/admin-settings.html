@@ -312,11 +312,11 @@
                     <div style="display: flex; gap: 1rem; align-items: center;">
                         <label style="color: var(--text-secondary); min-width: 80px;">Model:</label>
                         <select id="openai-model" class="setting-input" style="max-width: 300px;">
-                            <option value="gpt-4-turbo">GPT-4 Turbo (Recommended)</option>
-                            <option value="gpt-4o">GPT-4o</option>
-                            <option value="gpt-4o-mini">GPT-4o Mini (Faster/Cheaper)</option>
-                            <option value="o1-preview">o1-preview (Deep Reasoning)</option>
-                            <option value="o1-mini">o1-mini</option>
+                            <option value="gpt-5.1">GPT-5.1 (Flagship)</option>
+                            <option value="gpt-5.1-codex-max">GPT-5.1 Codex Max (Coding)</option>
+                            <option value="o3">o3 (Reasoning)</option>
+                            <option value="o3-mini">o3-mini (Fast Reasoning)</option>
+                            <option value="gpt-4o">GPT-4o (Legacy)</option>
                         </select>
                         <button class="btn-save" onclick="saveSetting('openai_model', 'openai-model')">
                             Save
@@ -359,10 +359,10 @@
                     <div style="display: flex; gap: 1rem; align-items: center;">
                         <label style="color: var(--text-secondary); min-width: 80px;">Model:</label>
                         <select id="anthropic-model" class="setting-input" style="max-width: 300px;">
-                            <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (Recommended)</option>
-                            <option value="claude-opus-4-20250514">Claude Opus 4 (Most Capable)</option>
-                            <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
-                            <option value="claude-3-haiku-20240307">Claude 3 Haiku (Faster)</option>
+                            <option value="claude-opus-4.5">Claude Opus 4.5 (Highest-end)</option>
+                            <option value="claude-sonnet-4.5">Claude Sonnet 4.5 (Workhorse)</option>
+                            <option value="claude-haiku-4.5">Claude Haiku 4.5 (Fast)</option>
+                            <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Legacy)</option>
                         </select>
                         <button class="btn-save" onclick="saveSetting('anthropic_model', 'anthropic-model')">
                             Save
@@ -405,10 +405,10 @@
                     <div style="display: flex; gap: 1rem; align-items: center;">
                         <label style="color: var(--text-secondary); min-width: 80px;">Model:</label>
                         <select id="gemini-model" class="setting-input" style="max-width: 300px;">
-                            <option value="gemini-2.0-flash">Gemini 2.0 Flash (Recommended)</option>
-                            <option value="gemini-2.0-flash-thinking-exp-01-21">Gemini 2.0 Flash Thinking</option>
-                            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                            <option value="gemini-3.0-pro">Gemini 3.0 Pro (Flagship)</option>
+                            <option value="gemini-3.0-flash">Gemini 3.0 Flash (Fast)</option>
+                            <option value="gemini-3.0-deep-think">Gemini 3.0 Deep Think (Reasoning)</option>
+                            <option value="gemini-2.0-flash">Gemini 2.0 Flash (Legacy)</option>
                         </select>
                         <button class="btn-save" onclick="saveSetting('gemini_model', 'gemini-model')">
                             Save
@@ -451,8 +451,9 @@
                     <div style="display: flex; gap: 1rem; align-items: center;">
                         <label style="color: var(--text-secondary); min-width: 80px;">Model:</label>
                         <select id="grok-model" class="setting-input" style="max-width: 300px;">
-                            <option value="grok-2-1212">Grok 2 (Recommended)</option>
-                            <option value="grok-beta">Grok Beta</option>
+                            <option value="grok-4.1-thinking">Grok 4.1 (Thinking)</option>
+                            <option value="grok-4.1">Grok 4.1 (Non-Thinking)</option>
+                            <option value="grok-2-1212">Grok 2 (Legacy)</option>
                         </select>
                         <button class="btn-save" onclick="saveSetting('grok_model', 'grok-model')">
                             Save
@@ -492,8 +493,63 @@
                             <i class="fas fa-vial"></i> Test
                         </button>
                     </div>
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <label style="color: var(--text-secondary); min-width: 80px;">Model:</label>
+                        <select id="perplexity-model" class="setting-input" style="max-width: 300px;">
+                            <option value="sonar-pro">Sonar Pro (Advanced)</option>
+                            <option value="sonar">Sonar (Default)</option>
+                            <option value="sonar-reasoning-pro">Sonar Reasoning Pro (Deep Research)</option>
+                        </select>
+                        <button class="btn-save" onclick="saveSetting('perplexity_model', 'perplexity-model')">
+                            Save
+                        </button>
+                    </div>
                 </div>
                 <div class="success-message" id="success-perplexity-api-key">Setting saved!</div>
+                <div class="success-message" id="success-perplexity-model">Model saved!</div>
+            </div>
+
+            <!-- Phi-4 (Self-Hosted) Configuration -->
+            <div class="setting-item">
+                <div class="setting-header">
+                    <div>
+                        <div class="setting-label">
+                            <i class="fas fa-server" style="color: #0078d4;"></i> Microsoft Phi-4 (Self-Hosted)
+                        </div>
+                        <div class="setting-description">
+                            Self-hosted Phi-4 model running on EC2. No API key required - uses direct connection.
+                        </div>
+                    </div>
+                </div>
+                <div class="setting-control" style="flex-direction: column; align-items: stretch; gap: 0.75rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <input 
+                            type="text" 
+                            id="phi-endpoint" 
+                            class="setting-input" 
+                            style="max-width: 400px; flex: 1;"
+                            placeholder="http://your-ec2-ip:11434"
+                        >
+                        <button class="btn-save" onclick="saveSetting('phi_endpoint', 'phi-endpoint')">
+                            Save Endpoint
+                        </button>
+                        <button class="btn-test" onclick="testAIProvider('phi')" style="background: var(--gray-200); color: var(--text-primary); border: none; padding: 0.75rem 1rem; border-radius: var(--radius-md); cursor: pointer;">
+                            <i class="fas fa-vial"></i> Test
+                        </button>
+                    </div>
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <label style="color: var(--text-secondary); min-width: 80px;">Model:</label>
+                        <select id="phi-model" class="setting-input" style="max-width: 300px;">
+                            <option value="phi4">Phi-4 (14B)</option>
+                            <option value="phi4:latest">Phi-4 Latest</option>
+                        </select>
+                        <button class="btn-save" onclick="saveSetting('phi_model', 'phi-model')">
+                            Save
+                        </button>
+                    </div>
+                </div>
+                <div class="success-message" id="success-phi-endpoint">Setting saved!</div>
+                <div class="success-message" id="success-phi-model">Model saved!</div>
             </div>
 
             <!-- AI Feature Toggles -->
@@ -516,6 +572,7 @@
                             <option value="anthropic">Anthropic (Claude)</option>
                             <option value="gemini">Google (Gemini)</option>
                             <option value="grok">xAI (Grok)</option>
+                            <option value="phi">Microsoft Phi-4</option>
                         </select>
                         <button class="btn-save" onclick="saveSetting('ai_default_provider', 'ai-default-provider')">
                             Save
@@ -579,6 +636,11 @@
                         <span>Perplexity</span>
                         <span class="status-text">Not configured</span>
                     </div>
+                    <div class="status-card" id="status-phi">
+                        <i class="fas fa-circle" style="color: var(--gray-300);"></i>
+                        <span>Phi-4</span>
+                        <span class="status-text">Not configured</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -605,6 +667,9 @@
             'grok_api_key': 'xAI API key for Grok models',
             'grok_model': 'Grok model to use for gap analysis',
             'perplexity_api_key': 'Perplexity API key for local queries',
+            'perplexity_model': 'Perplexity model to use for search queries',
+            'phi_endpoint': 'Phi-4 endpoint URL for self-hosted model',
+            'phi_model': 'Phi-4 model variant to use',
             'ai_default_provider': 'Default AI provider for quick searches',
             'ai_web_search_enabled': 'Enable web search in AI queries'
         };
@@ -649,6 +714,9 @@
                         'grok_api_key': 'grok-api-key',
                         'grok_model': 'grok-model',
                         'perplexity_api_key': 'perplexity-api-key',
+                        'perplexity_model': 'perplexity-model',
+                        'phi_endpoint': 'phi-endpoint',
+                        'phi_model': 'phi-model',
                         'ai_default_provider': 'ai-default-provider',
                         'ai_web_search_enabled': 'ai-web-search'
                     };
@@ -790,6 +858,8 @@
                         status.models.gemini_2_5?.available ? 'Configured' : 'Not configured');
                     updateProviderStatus('grok', status.models.grok_4?.available,
                         status.models.grok_4?.available ? 'Configured' : 'Not configured');
+                    updateProviderStatus('phi', status.models.phi4?.available,
+                        status.models.phi4?.available ? 'Configured' : 'Not configured');
                 }
             } catch (error) {
                 console.error('Error checking provider status:', error);
