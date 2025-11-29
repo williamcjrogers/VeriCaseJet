@@ -1,0 +1,331 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: VeriCase Bedrock Knowledge Base Infrastructure for Semantic Evidence Search
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - development
+      - staging
+      - production
+    Description: Environment name
+
+  S3BucketName:
+    Type: String
+    Default: vericase-knowledge-base
+    Description: S3 bucket for knowledge base documents
+
+  EmbeddingModelId:
+    Type: String
+    Default: amazon.titan-embed-text-v2:0
+    Description: Bedrock embedding model ID
+
+  OpenSearchCollectionName:
+    Type: String
+    Default: vericase-kb-collection
+    Description: OpenSearch Serverless collection name
+
+Resources:
+  # S3 Bucket for Knowledge Base Documents
+  KnowledgeBaseBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${S3BucketName}-${Environment}-${AWS::AccountId}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 90
+      Tags:
+        - Key: Application
+          Value: VeriCase
+        - Key: Environment
+          Value: !Ref Environment
+
+  # S3 Bucket Policy for Bedrock Access
+  KnowledgeBaseBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref KnowledgeBaseBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowBedrockAccess
+            Effect: Allow
+            Principal:
+              Service: bedrock.amazonaws.com
+            Action:
+              - s3:GetObject
+              - s3:ListBucket
+            Resource:
+              - !GetAtt KnowledgeBaseBucket.Arn
+              - !Sub '${KnowledgeBaseBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+
+  # OpenSearch Serverless Collection for Vector Storage
+  OpenSearchCollection:
+    Type: AWS::OpenSearchServerless::Collection
+    DependsOn:
+      - OpenSearchSecurityPolicy
+      - OpenSearchNetworkPolicy
+      - OpenSearchDataAccessPolicy
+    Properties:
+      Name: !Ref OpenSearchCollectionName
+      Type: VECTORSEARCH
+      Description: VeriCase Knowledge Base vector store
+      Tags:
+        - Key: Application
+          Value: VeriCase
+        - Key: Environment
+          Value: !Ref Environment
+
+  # OpenSearch Security Policy (Encryption)
+  OpenSearchSecurityPolicy:
+    Type: AWS::OpenSearchServerless::SecurityPolicy
+    Properties:
+      Name: !Sub 'vericase-kb-encryption-${Environment}'
+      Type: encryption
+      Policy: !Sub |
+        {
+          "Rules": [
+            {
+              "ResourceType": "collection",
+              "Resource": ["collection/${OpenSearchCollectionName}"]
+            }
+          ],
+          "AWSOwnedKey": true
+        }
+
+  # OpenSearch Network Policy
+  OpenSearchNetworkPolicy:
+    Type: AWS::OpenSearchServerless::SecurityPolicy
+    Properties:
+      Name: !Sub 'vericase-kb-network-${Environment}'
+      Type: network
+      Policy: !Sub |
+        [
+          {
+            "Rules": [
+              {
+                "ResourceType": "collection",
+                "Resource": ["collection/${OpenSearchCollectionName}"]
+              },
+              {
+                "ResourceType": "dashboard",
+                "Resource": ["collection/${OpenSearchCollectionName}"]
+              }
+            ],
+            "AllowFromPublic": true
+          }
+        ]
+
+  # OpenSearch Data Access Policy
+  OpenSearchDataAccessPolicy:
+    Type: AWS::OpenSearchServerless::AccessPolicy
+    Properties:
+      Name: !Sub 'vericase-kb-data-access-${Environment}'
+      Type: data
+      Policy: !Sub |
+        [
+          {
+            "Rules": [
+              {
+                "ResourceType": "collection",
+                "Resource": ["collection/${OpenSearchCollectionName}"],
+                "Permission": [
+                  "aoss:CreateCollectionItems",
+                  "aoss:UpdateCollectionItems",
+                  "aoss:DescribeCollectionItems"
+                ]
+              },
+              {
+                "ResourceType": "index",
+                "Resource": ["index/${OpenSearchCollectionName}/*"],
+                "Permission": [
+                  "aoss:CreateIndex",
+                  "aoss:UpdateIndex",
+                  "aoss:DescribeIndex",
+                  "aoss:ReadDocument",
+                  "aoss:WriteDocument"
+                ]
+              }
+            ],
+            "Principal": [
+              "arn:aws:iam::${AWS::AccountId}:root",
+              "${BedrockKnowledgeBaseRole.Arn}"
+            ]
+          }
+        ]
+
+  # IAM Role for Bedrock Knowledge Base
+  BedrockKnowledgeBaseRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'vericase-bedrock-kb-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/*'
+      Policies:
+        - PolicyName: BedrockKnowledgeBasePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt KnowledgeBaseBucket.Arn
+                  - !Sub '${KnowledgeBaseBucket.Arn}/*'
+              - Effect: Allow
+                Action:
+                  - aoss:APIAccessAll
+                Resource: !Sub 'arn:aws:aoss:${AWS::Region}:${AWS::AccountId}:collection/*'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource: !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${EmbeddingModelId}'
+
+  # Bedrock Knowledge Base
+  VeriCaseKnowledgeBase:
+    Type: AWS::Bedrock::KnowledgeBase
+    DependsOn: OpenSearchCollection
+    Properties:
+      Name: !Sub 'vericase-evidence-kb-${Environment}'
+      Description: VeriCase construction dispute evidence knowledge base for semantic search
+      RoleArn: !GetAtt BedrockKnowledgeBaseRole.Arn
+      KnowledgeBaseConfiguration:
+        Type: VECTOR
+        VectorKnowledgeBaseConfiguration:
+          EmbeddingModelArn: !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${EmbeddingModelId}'
+      StorageConfiguration:
+        Type: OPENSEARCH_SERVERLESS
+        OpensearchServerlessConfiguration:
+          CollectionArn: !GetAtt OpenSearchCollection.Arn
+          VectorIndexName: vericase-evidence-index
+          FieldMapping:
+            MetadataField: metadata
+            TextField: content
+            VectorField: embedding
+      Tags:
+        Application: VeriCase
+        Environment: !Ref Environment
+
+  # Bedrock Data Source - S3
+  VeriCaseDataSource:
+    Type: AWS::Bedrock::DataSource
+    Properties:
+      Name: !Sub 'vericase-evidence-source-${Environment}'
+      Description: S3 data source for VeriCase evidence documents
+      KnowledgeBaseId: !Ref VeriCaseKnowledgeBase
+      DataSourceConfiguration:
+        Type: S3
+        S3Configuration:
+          BucketArn: !GetAtt KnowledgeBaseBucket.Arn
+          InclusionPrefixes:
+            - evidence/
+            - contracts/
+            - correspondence/
+            - reports/
+      VectorIngestionConfiguration:
+        ChunkingConfiguration:
+          ChunkingStrategy: FIXED_SIZE
+          FixedSizeChunkingConfiguration:
+            MaxTokens: 512
+            OverlapPercentage: 20
+
+  # SQS Queue for Ingestion Events
+  IngestionQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'vericase-kb-ingestion-${Environment}'
+      VisibilityTimeoutSeconds: 300
+      MessageRetentionPeriod: 1209600  # 14 days
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt IngestionDLQ.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Application
+          Value: VeriCase
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Dead Letter Queue for Failed Ingestions
+  IngestionDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'vericase-kb-ingestion-dlq-${Environment}'
+      MessageRetentionPeriod: 1209600
+      Tags:
+        - Key: Application
+          Value: VeriCase
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  KnowledgeBaseId:
+    Description: Bedrock Knowledge Base ID
+    Value: !Ref VeriCaseKnowledgeBase
+    Export:
+      Name: !Sub '${AWS::StackName}-KnowledgeBaseId'
+
+  KnowledgeBaseArn:
+    Description: Bedrock Knowledge Base ARN
+    Value: !GetAtt VeriCaseKnowledgeBase.KnowledgeBaseArn
+    Export:
+      Name: !Sub '${AWS::StackName}-KnowledgeBaseArn'
+
+  DataSourceId:
+    Description: Bedrock Data Source ID
+    Value: !Ref VeriCaseDataSource
+    Export:
+      Name: !Sub '${AWS::StackName}-DataSourceId'
+
+  KnowledgeBaseBucketName:
+    Description: S3 bucket for knowledge base documents
+    Value: !Ref KnowledgeBaseBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-BucketName'
+
+  OpenSearchCollectionEndpoint:
+    Description: OpenSearch Serverless collection endpoint
+    Value: !GetAtt OpenSearchCollection.CollectionEndpoint
+    Export:
+      Name: !Sub '${AWS::StackName}-OpenSearchEndpoint'
+
+  IngestionQueueUrl:
+    Description: SQS queue URL for ingestion events
+    Value: !Ref IngestionQueue
+    Export:
+      Name: !Sub '${AWS::StackName}-IngestionQueueUrl'
+
+  BedrockRoleArn:
+    Description: IAM Role ARN for Bedrock Knowledge Base
+    Value: !GetAtt BedrockKnowledgeBaseRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-BedrockRoleArn'
+

@@ -89,6 +89,9 @@ from .evidence_repository import router as evidence_router  # Evidence repositor
 from .deep_research import router as deep_research_router  # Deep Research Agent
 from .claims_module import router as claims_router  # Contentious Matters and Heads of Claim
 from .dashboard_api import router as dashboard_router  # Master Dashboard API
+from .enhanced_api_routes import aws_router  # AWS AI Services (Bedrock, Textract, Comprehend, etc.)
+from .phi_routes import router as phi_router  # Phi-4 AI model
+from .ai_models_api import router as ai_models_router  # 2025 AI Models API
 
 logger = logging.getLogger(__name__)
 bearer = HTTPBearer(auto_error=False)
@@ -211,6 +214,9 @@ app.include_router(evidence_router)  # Evidence repository
 app.include_router(deep_research_router)  # Deep Research Agent
 app.include_router(claims_router)  # Contentious Matters and Heads of Claim
 app.include_router(dashboard_router)  # Master Dashboard API
+app.include_router(aws_router)  # AWS AI Services (Bedrock, Textract, Comprehend, etc.)
+app.include_router(phi_router)  # Phi-4 AI model
+app.include_router(ai_models_router)  # 2025 AI Models API
 
 # Import and include unified router
 from .correspondence import unified_router
@@ -379,21 +385,21 @@ def _populate_ai_settings_from_env(force_update: bool = False):
                 'description': 'Perplexity API key for Sonar models',
                 'is_api_key': True
             },
-            # Default models
+            # Default models - Updated 2025
             'openai_model': {
-                'default': 'gpt-4o',
+                'default': 'gpt-5.1',
                 'description': 'Default OpenAI model'
             },
             'anthropic_model': {
-                'default': 'claude-sonnet-4-20250514',
+                'default': 'claude-sonnet-4.5',
                 'description': 'Default Anthropic model'
             },
             'gemini_model': {
-                'default': 'gemini-2.0-flash',
+                'default': 'gemini-3.0-pro',
                 'description': 'Default Gemini model'
             },
             'grok_model': {
-                'default': 'grok-2-1212',
+                'default': 'grok-4.1',
                 'description': 'Default Grok model'
             },
             'perplexity_model': {

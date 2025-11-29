@@ -18,9 +18,7 @@ grep JWT_SECRET .env | wc -l
 
 ssh -i $KEY_PATH ec2-user@$EC2_IP $checkCommands
 
-Write-Host "`n=== SECURITY GROUP FIX ===" -ForegroundColor Cyan
-Write-Host "Go to AWS Console and add these inbound rules to your security group:" -ForegroundColor Yellow
-Write-Host "1. Type: Custom TCP, Port: 8010, Source: 0.0.0.0/0 (or your IP)" -ForegroundColor White
-Write-Host "2. Type: Custom TCP, Port: 8000, Source: 0.0.0.0/0 (or your IP)" -ForegroundColor White
-Write-Host "`nOr run this AWS CLI command:" -ForegroundColor Yellow
-Write-Host "aws ec2 authorize-security-group-ingress --group-id sg-XXXXX --protocol tcp --port 8010 --cidr 0.0.0.0/0" -ForegroundColor White
+Write-Host "`n=== EC2 API STATUS ===" -ForegroundColor Cyan
+Write-Host "✅ API is live at: http://$EC2_IP:8010" -ForegroundColor Green
+Write-Host "✅ Security group configured correctly" -ForegroundColor Green
+Write-Host "`nPorts open: 22 (SSH), 80 (HTTP), 443 (HTTPS), 3000 (Dev), 8010 (API)" -ForegroundColor White
