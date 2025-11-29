@@ -90,6 +90,10 @@ from .deep_research import router as deep_research_router  # Deep Research Agent
 from .claims_module import router as claims_router  # Contentious Matters and Heads of Claim
 from .dashboard_api import router as dashboard_router  # Master Dashboard API
 from .enhanced_api_routes import aws_router  # AWS AI Services (Bedrock, Textract, Comprehend, etc.)
+try:
+    from .aws_services import get_aws_services  # AWS Services Manager
+except ImportError:
+    get_aws_services = None
 from .phi_routes import router as phi_router  # Phi-4 AI model
 from .ai_models_api import router as ai_models_router  # 2025 AI Models API
 
