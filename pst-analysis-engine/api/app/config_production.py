@@ -48,6 +48,7 @@ def load_ai_keys_from_secrets_manager():
             if value and value.strip():
                 os.environ[env_key] = value.strip()
                 loaded_count += 1
+                print(f"[config_production] ✓ Loaded {env_key} from Secrets Manager")
                 logger.info(f"✓ Loaded {env_key} from Secrets Manager")
         
         if loaded_count > 0:
@@ -58,10 +59,12 @@ def load_ai_keys_from_secrets_manager():
             return False
             
     except ImportError:
+        print("[config_production] ERROR: boto3 not available")
         logger.warning("boto3 not available - cannot load from Secrets Manager")
         return False
     except ClientError as e:
         error_code = e.response.get('Error', {}).get('Code', '')
+        print(f"[config_production] ERROR: ClientError {error_code}: {e}")
         if error_code == 'ResourceNotFoundException':
             logger.warning(f"Secret {secret_name} not found in Secrets Manager")
         elif error_code == 'AccessDeniedException':
@@ -70,9 +73,11 @@ def load_ai_keys_from_secrets_manager():
             logger.error(f"Failed to load AI keys from Secrets Manager: {e}")
         return False
     except json.JSONDecodeError as e:
+        print(f"[config_production] ERROR: Invalid JSON: {e}")
         logger.error(f"Invalid JSON in secret {secret_name}: {e}")
         return False
     except Exception as e:
+        print(f"[config_production] ERROR: Unexpected: {e}")
         logger.error(f"Unexpected error loading AI keys: {e}")
         return False
 
