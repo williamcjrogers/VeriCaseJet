@@ -124,8 +124,12 @@ update_production_config()
 # 2. USE_AWS_SERVICES is true
 # 3. AWS_SECRETS_MANAGER_AI_KEYS is explicitly configured
 # 4. AWS_REGION is set (indicates AWS deployment)
-if (os.getenv('AWS_EXECUTION_ENV') or 
+_should_load = (os.getenv('AWS_EXECUTION_ENV') or 
     os.getenv('USE_AWS_SERVICES') == 'true' or
     os.getenv('AWS_SECRETS_MANAGER_AI_KEYS') or
-    os.getenv('AWS_REGION')):
+    os.getenv('AWS_REGION'))
+print(f"[config_production] Should load AI keys from Secrets Manager: {_should_load}")
+print(f"[config_production] AWS_REGION={os.getenv('AWS_REGION')}, USE_AWS_SERVICES={os.getenv('USE_AWS_SERVICES')}")
+if _should_load:
+    print("[config_production] Loading AI keys from Secrets Manager...")
     load_ai_keys_from_secrets_manager()
