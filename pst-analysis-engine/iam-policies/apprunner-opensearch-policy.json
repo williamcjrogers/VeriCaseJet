@@ -1,0 +1,19 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "OpenSearchAccess",
+            "Effect": "Allow",
+            "Action": [
+                "es:ESHttpGet",
+                "es:ESHttpPost",
+                "es:ESHttpPut",
+                "es:ESHttpDelete",
+                "es:ESHttpHead"
+            ],
+            "Resource": [
+                "arn:aws:es:eu-west-2:526015377510:domain/vericase-opensearch/*"
+            ]
+        }
+    ]
+}

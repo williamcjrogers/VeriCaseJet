@@ -1,0 +1,32 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::526015377510:role/VeriCaseAppRunnerInstanceRole"
+            },
+            "Action": [
+                "es:ESHttpGet",
+                "es:ESHttpPost",
+                "es:ESHttpPut",
+                "es:ESHttpDelete",
+                "es:ESHttpHead"
+            ],
+            "Resource": "arn:aws:es:eu-west-2:526015377510:domain/vericase-opensearch/*"
+        },
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "*"
+            },
+            "Action": "es:*",
+            "Resource": "arn:aws:es:eu-west-2:526015377510:domain/vericase-opensearch/*",
+            "Condition": {
+                "IpAddress": {
+                    "aws:SourceIp": []
+                }
+            }
+        }
+    ]
+}
