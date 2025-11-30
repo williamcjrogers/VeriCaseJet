@@ -21,7 +21,7 @@ jobs:
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
             --document-name "AWS-RunShellScript" \
-            --parameters 'commands=["cd /opt/vericase","git pull","cd pst-analysis-engine","docker-compose pull","docker-compose up -d --force-recreate"]' \
+            --parameters 'commands=["cd /opt/vericase","git pull","cd pst-analysis-engine","docker-compose -f docker-compose-s3.yml pull","docker-compose -f docker-compose-s3.yml up -d --force-recreate"]' \
             --query "Command.CommandId" \
             --output text)
           
