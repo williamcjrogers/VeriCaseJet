@@ -37,17 +37,12 @@ spec:
           value: "D9BX79MBSG"
         - name: CORS_ORIGINS
           value: "*"
-        # Secrets from GitHub Secrets via Kubernetes Secret
+        - name: AWS_SECRET_NAME
+          value: "vericase/production"
         - name: DATABASE_URL
-          valueFrom:
-            secretKeyRef:
-              name: vericase-secrets
-              key: database-url
+          value: "postgresql://vericase:vericase@localhost:5432/vericase"
         - name: JWT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: vericase-secrets
-              key: jwt-secret
+          value: "dev-secret-change-in-production"
 ---
 apiVersion: v1
 kind: Service
