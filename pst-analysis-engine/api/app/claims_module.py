@@ -1,4 +1,4 @@
-# pyright: reportDeprecatedType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportUnknownParameterType=false
+# pyright: reportAny=false
 """
 Contentious Matters and Heads of Claim Module
 
@@ -9,21 +9,32 @@ API endpoints for managing:
 - Comments (audit trail with comment history)
 """
 
-import uuid
+from __future__ import annotations
+
 import logging
 from datetime import datetime
-from typing import Optional, List
+from typing import Annotated
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
-from sqlalchemy import func, or_, and_
 
 from .db import get_db
 from .security import current_user
 from .models import (
-    User, ContentiousMatter, HeadOfClaim, ItemClaimLink, ItemComment,
-    EmailMessage, EvidenceItem
+    User,
+    ContentiousMatter,
+    HeadOfClaim,
+    ItemClaimLink,
+    ItemComment,
+    EmailMessage,
+    EvidenceItem,
 )
+
+DbSession = Annotated[Session, Depends(get_db)]
+CurrentUser = Annotated[User, Depends(current_user)]
 
 logger = logging.getLogger(__name__)
 
