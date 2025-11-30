@@ -1343,20 +1343,15 @@
         async function loadAllData() {
             const prefetched = getPrefetchedData();
 
+            // Show loading skeleton while we fetch evidence items
+            VericaseUI.Loading.showSkeleton('.grid-wrapper');
+
+            // Use prefetched collections/stats if available (for faster sidebar render)
+            // Note: Dashboard only prefetches collections and stats, NOT items
             if (prefetched) {
-                // Use prefetched data - instant render!
-                console.log('[Evidence] Rendering from prefetched cache...');
-                const startTime = performance.now();
-
-                allEvidenceItems = prefetched.items || [];
-
-                // Render grid immediately
-                document.querySelector('.grid-wrapper').innerHTML = '<div id="evidenceGrid" class="ag-theme-alpine ag-theme-vericase" style="height: 100%;"></div>';
-                initGrid();
-                updateCategoryCounts();
-                applyFilters();
-
-                // Render collections and stats
+                console.log('[Evidence] Using prefetched collections/stats from dashboard');
+                
+                // Render collections and stats immediately from cache
                 if (prefetched.collections) {
                     renderCollections(prefetched.collections);
                 }
@@ -1364,54 +1359,18 @@
                     renderStats(prefetched.stats);
                 }
 
-                const duration = (performance.now() - startTime).toFixed(0);
-                VericaseUI.Toast.success(`Loaded ${allEvidenceItems.length} items instantly (cached) in ${duration}ms`);
-
                 // Clear used cache
                 sessionStorage.removeItem('vericase_evidence_prefetch');
 
-                // Background refresh to get fresh data
-                setTimeout(() => refreshDataInBackground(), 1000);
+                // Still need to load evidence items (not prefetched)
+                await loadEvidence();
             } else {
-                // Normal loading with skeletons
-                VericaseUI.Loading.showSkeleton('.grid-wrapper');
-
+                // Normal loading - fetch everything
                 await Promise.all([
                     loadEvidence(),
                     loadCollections(),
                     loadStats()
                 ]);
-            }
-        }
-
-        // Silent background refresh
-        async function refreshDataInBackground() {
-            try {
-                console.log('[Evidence] Background refresh starting...');
-                const params = new URLSearchParams();
-                params.append('page', '1');
-                params.append('page_size', '10000');
-                params.append('include_email_info', 'true');
-                if (projectId) params.append('project_id', projectId);
-
-                const response = await fetch(`${apiUrl}/api/evidence/items?${params.toString()}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    const newItems = data.items || [];
-
-                    // Only update if there's a difference
-                    const currentLength = allEvidenceItems ? allEvidenceItems.length : 0;
-                    if (newItems.length !== currentLength) {
-                        allEvidenceItems = newItems;
-                        updateCategoryCounts();
-                        applyFilters();
-                        console.log('[Evidence] Background refresh complete - data updated');
-                    } else {
-                        console.log('[Evidence] Background refresh complete - no changes');
-                    }
-                }
-            } catch (e) {
-                console.warn('[Evidence] Background refresh failed:', e);
             }
         }
 
@@ -1478,6 +1437,11 @@
 
         function applyFilters() {
             if (!gridApi) return;
+
+            // Defensive check - ensure allEvidenceItems is an array
+            if (!allEvidenceItems || !Array.isArray(allEvidenceItems)) {
+                allEvidenceItems = [];
+            }
 
             let filtered = [...allEvidenceItems];
 
