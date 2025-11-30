@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,8 +8,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+
     <!-- VeriCase Design System -->
     <link rel="stylesheet" href="brand-styles.css">
     <link rel="stylesheet" href="design-system.css">
@@ -16,38 +19,40 @@
     <script src="nav-shell.js"></script>
     <style>
         :root {
-            /* VeriCase Brand Colors */
-            --vc-teal: #0F9D9A;
-            --vc-teal-dark: #0A7B79;
-            --vc-teal-light: #14B8B4;
-            --vc-navy: #1A2B3C;
-            --vc-navy-dark: #0F1A24;
-            --vc-cream: #FAF9F6;
-            --vc-cream-dark: #F0EDE8;
+            /* VeriCase Brand Colors - Mapped to brand-styles.css */
+            --vc-teal: var(--vericase-teal);
+            --vc-teal-dark: var(--vericase-teal-dark);
+            --vc-teal-light: var(--vericase-teal-light);
+            --vc-navy: var(--vericase-navy);
+            --vc-navy-dark: var(--vericase-navy-light);
+            /* Using light navy as dark variant or define new if needed */
+            --vc-cream: var(--bg-primary);
+            --vc-cream-dark: var(--bg-secondary);
             --vc-gold: #8B7355;
+            /* Keep gold as accent */
             --vc-gold-light: #A68B5B;
-            
+
             /* Semantic Colors */
             --bg-primary: var(--vc-cream);
             --bg-secondary: #FFFFFF;
             --bg-tertiary: var(--vc-cream-dark);
             --bg-card: #FFFFFF;
             --bg-header: var(--vc-navy);
-            
+
             --text-primary: var(--vc-navy);
             --text-secondary: #4A5568;
             --text-muted: #718096;
             --text-inverse: #FFFFFF;
-            
+
             --accent-primary: var(--vc-teal);
             --accent-secondary: var(--vc-gold);
             --accent-success: #059669;
             --accent-warning: #D97706;
             --accent-danger: #DC2626;
-            
+
             --border-color: #E2E8F0;
             --border-subtle: rgba(26, 43, 60, 0.08);
-            
+
             --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
             --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
             --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
@@ -76,7 +81,7 @@
             width: 100%;
             height: 100%;
             z-index: -1;
-            background: 
+            background:
                 linear-gradient(135deg, rgba(15, 157, 154, 0.03) 0%, transparent 50%),
                 linear-gradient(225deg, rgba(139, 115, 85, 0.03) 0%, transparent 50%);
             pointer-events: none;
@@ -390,13 +395,40 @@
             letter-spacing: 0.05em;
         }
 
-        .status-badge.pending { background: rgba(107, 114, 128, 0.1); color: var(--text-muted); }
-        .status-badge.planning { background: rgba(15, 157, 154, 0.1); color: var(--vc-teal); }
-        .status-badge.awaiting_approval { background: rgba(217, 119, 6, 0.1); color: var(--accent-warning); }
-        .status-badge.researching { background: rgba(139, 115, 85, 0.1); color: var(--vc-gold); }
-        .status-badge.synthesizing { background: rgba(5, 150, 105, 0.1); color: var(--accent-success); }
-        .status-badge.completed { background: rgba(5, 150, 105, 0.1); color: var(--accent-success); }
-        .status-badge.failed { background: rgba(220, 38, 38, 0.1); color: var(--accent-danger); }
+        .status-badge.pending {
+            background: rgba(107, 114, 128, 0.1);
+            color: var(--text-muted);
+        }
+
+        .status-badge.planning {
+            background: rgba(15, 157, 154, 0.1);
+            color: var(--vc-teal);
+        }
+
+        .status-badge.awaiting_approval {
+            background: rgba(217, 119, 6, 0.1);
+            color: var(--accent-warning);
+        }
+
+        .status-badge.researching {
+            background: rgba(139, 115, 85, 0.1);
+            color: var(--vc-gold);
+        }
+
+        .status-badge.synthesizing {
+            background: rgba(5, 150, 105, 0.1);
+            color: var(--accent-success);
+        }
+
+        .status-badge.completed {
+            background: rgba(5, 150, 105, 0.1);
+            color: var(--accent-success);
+        }
+
+        .status-badge.failed {
+            background: rgba(220, 38, 38, 0.1);
+            color: var(--accent-danger);
+        }
 
         /* Progress bar */
         .progress-container {
@@ -551,8 +583,15 @@
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
         }
 
         .question-content {
@@ -792,7 +831,8 @@
             margin-bottom: 1rem;
         }
 
-        .report-content ul, .report-content ol {
+        .report-content ul,
+        .report-content ol {
             margin: 1rem 0;
             padding-left: 1.5rem;
         }
@@ -892,7 +932,9 @@
         }
 
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         /* Layout grid */
@@ -909,7 +951,7 @@
             align-items: center;
         }
 
-        .main-content > * {
+        .main-content>* {
             width: 100%;
         }
 
@@ -925,33 +967,52 @@
             line-height: 1.8;
         }
 
-        .markdown-body h1 { 
-            font-size: 1.75rem; 
-            margin: 2rem 0 1rem; 
-            color: var(--text-primary); 
+        .markdown-body h1 {
+            font-size: 1.75rem;
+            margin: 2rem 0 1rem;
+            color: var(--text-primary);
             font-weight: 600;
         }
-        .markdown-body h2 { 
-            font-size: 1.375rem; 
-            margin: 1.5rem 0 0.75rem; 
-            color: var(--text-primary); 
+
+        .markdown-body h2 {
+            font-size: 1.375rem;
+            margin: 1.5rem 0 0.75rem;
+            color: var(--text-primary);
             font-weight: 600;
         }
-        .markdown-body h3 { 
-            font-size: 1.125rem; 
-            margin: 1rem 0 0.5rem; 
-            color: var(--text-primary); 
+
+        .markdown-body h3 {
+            font-size: 1.125rem;
+            margin: 1rem 0 0.5rem;
+            color: var(--text-primary);
             font-weight: 600;
         }
-        .markdown-body p { margin-bottom: 1rem; }
-        .markdown-body ul, .markdown-body ol { margin: 1rem 0; padding-left: 1.5rem; }
-        .markdown-body li { margin-bottom: 0.5rem; }
-        .markdown-body strong { color: var(--text-primary); font-weight: 600; }
-        .markdown-body em { 
+
+        .markdown-body p {
+            margin-bottom: 1rem;
+        }
+
+        .markdown-body ul,
+        .markdown-body ol {
+            margin: 1rem 0;
+            padding-left: 1.5rem;
+        }
+
+        .markdown-body li {
+            margin-bottom: 0.5rem;
+        }
+
+        .markdown-body strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .markdown-body em {
             font-family: 'Cormorant Garamond', Georgia, serif;
-            font-style: italic; 
+            font-style: italic;
             color: var(--vc-gold);
         }
+
         .markdown-body code {
             background: var(--bg-tertiary);
             padding: 0.125rem 0.5rem;
@@ -960,6 +1021,7 @@
             font-size: 0.8125rem;
             color: var(--vc-teal-dark);
         }
+
         .markdown-body blockquote {
             border-left: 3px solid var(--vc-teal);
             padding-left: 1rem;
@@ -967,6 +1029,7 @@
             color: var(--text-secondary);
             font-style: italic;
         }
+
         .markdown-body hr {
             border: none;
             border-top: 1px solid var(--border-color);
@@ -992,6 +1055,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="bg-pattern"></div>
 
@@ -1022,7 +1086,7 @@
                         Deep Research <span class="hero-title-accent">Agent</span>
                     </h1>
                     <p class="hero-subtitle">
-                        Go beyond simple Q&A. Our multi-agent system creates strategic research plans, 
+                        Go beyond simple Q&A. Our multi-agent system creates strategic research plans,
                         investigates in parallel, and synthesizes comprehensive reports from your evidence.
                     </p>
                 </section>
@@ -1030,13 +1094,10 @@
                 <section id="researchForm" class="research-form">
                     <div class="form-group">
                         <label class="form-label" for="topicInput">Research Topic</label>
-                        <textarea
-                            id="topicInput" 
-                            class="form-input form-textarea" 
+                        <textarea id="topicInput" class="form-input form-textarea"
                             placeholder="Describe what you want to investigate. Be specific about the scope, time period, and key questions you need answered.
 
-Example: Investigate the delay claims on the Northern Rail Extension project between March 2022 and September 2023. Focus on contractor communications, variation orders, and programme impacts."
-                        ></textarea>
+Example: Investigate the delay claims on the Northern Rail Extension project between March 2022 and September 2023. Focus on contractor communications, variation orders, and programme impacts."></textarea>
                         <p class="form-hint">The more context you provide, the better the research plan will be.</p>
                     </div>
 
@@ -1184,14 +1245,13 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
     <div id="modifyModal" class="modal-overlay">
         <div class="modal">
             <h3 class="modal-title">Request Plan Changes</h3>
-            <label for="modifyInput" style="font-size: 0.9375rem; color: var(--text-secondary); margin-bottom: 1rem; display: block;">
-                Describe what changes you'd like to the research plan. The AI will regenerate the plan based on your feedback.
+            <label for="modifyInput"
+                style="font-size: 0.9375rem; color: var(--text-secondary); margin-bottom: 1rem; display: block;">
+                Describe what changes you'd like to the research plan. The AI will regenerate the plan based on your
+                feedback.
             </label>
-            <textarea
-                id="modifyInput" 
-                class="form-input form-textarea" 
-                placeholder="E.g., Focus more on the contractual obligations. Include more questions about the delay notification process."
-            ></textarea>
+            <textarea id="modifyInput" class="form-input form-textarea"
+                placeholder="E.g., Focus more on the contractual obligations. Include more questions about the delay notification process."></textarea>
             <div class="modal-actions">
                 <button class="btn-modify" onclick="closeModifyModal()">Cancel</button>
                 <button class="btn-approve" onclick="submitModification()">
@@ -1211,7 +1271,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
         let pollInterval = null;
         let startTime = null;
         let currentProjectId = null;
-        
+
         // Get project ID from URL params
         const urlParams = new URLSearchParams(window.location.search);
         currentProjectId = urlParams.get('projectId') || urlParams.get('project_id');
@@ -1234,7 +1294,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
             loadHistory();
             setupFocusTags();
             await loadProjectSelector();
-            
+
             // If project ID in URL, pre-select it
             if (currentProjectId) {
                 const projectSelect = document.getElementById('projectSelect');
@@ -1243,16 +1303,16 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
                 }
             }
         });
-        
+
         // Load projects for selector
         async function loadProjectSelector() {
             try {
                 const response = await secureApiFetch('/api/projects');
                 if (!response.ok) return;
-                
+
                 const data = await response.json();
                 const projects = data.projects || data || [];
-                
+
                 // Create project selector if it doesn't exist
                 let projectSelect = document.getElementById('projectSelect');
                 if (!projectSelect) {
@@ -1270,20 +1330,20 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
                             Deep research will analyze emails and documents from this project.
                         </p>
                     `;
-                    
+
                     const topicGroup = topicInput.closest('.form-group');
                     if (topicGroup) {
                         topicGroup.parentNode.insertBefore(formGroup, topicGroup);
                     }
-                    
+
                     projectSelect = document.getElementById('projectSelect');
                 }
-                
+
                 // Update on change
                 projectSelect.addEventListener('change', (e) => {
                     currentProjectId = e.target.value || null;
                 });
-                
+
             } catch (error) {
                 console.error('Error loading projects:', error);
             }
@@ -1476,7 +1536,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
 
             // Show angles
             const anglesContainer = document.getElementById('planAngles');
-            anglesContainer.innerHTML = plan.key_angles.map(angle => 
+            anglesContainer.innerHTML = plan.key_angles.map(angle =>
                 `<span class="angle-tag">${angle}</span>`
             ).join('');
 
@@ -1485,9 +1545,9 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
             questionsContainer.innerHTML = plan.questions.map(q => `
                 <div class="question-node">
                     <div class="question-status ${q.status}">
-                        ${q.status === 'completed' ? '<i class="fas fa-check"></i>' : 
-                          q.status === 'in-progress' ? '<i class="fas fa-spinner fa-spin"></i>' : 
-                          '<span style="font-size: 0.75rem;">${q.id}</span>'}
+                        ${q.status === 'completed' ? '<i class="fas fa-check"></i>' :
+                    q.status === 'in-progress' ? '<i class="fas fa-spinner fa-spin"></i>' :
+                        '<span style="font-size: 0.75rem;">${q.id}</span>'}
                     </div>
                     <div class="question-content">
                         <div class="question-text">${q.question}</div>
@@ -1520,12 +1580,12 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
             reportContainer.style.display = 'block';
 
             // Meta
-            document.getElementById('reportMeta').textContent = 
+            document.getElementById('reportMeta').textContent =
                 `Generated in ${data.processing_time_seconds.toFixed(1)}s`;
 
             // Themes
             const themesContainer = document.getElementById('reportThemes');
-            themesContainer.innerHTML = data.key_themes.map(theme => 
+            themesContainer.innerHTML = data.key_themes.map(theme =>
                 `<span class="theme-tag">${theme}</span>`
             ).join('');
 
@@ -1546,7 +1606,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
                 .replace(/\*(.*)\*/gim, '<em>$1</em>')
                 .replace(/\n---\n/g, '<hr>')
                 .replace(/\n\n/g, '</p><p>')
-                .replace(/^(.*)$/gim, function(match) {
+                .replace(/^(.*)$/gim, function (match) {
                     if (match.startsWith('<')) return match;
                     return match;
                 });
@@ -1697,4 +1757,5 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
         }
     </script>
 </body>
+
 </html>
