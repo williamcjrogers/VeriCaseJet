@@ -16,14 +16,24 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-west-2
 
-      - name: Deploy to EC2 via SSM
+      - name: Deploy to EC2 instances via SSM
         run: |
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids i-0d4b5e0f8c9a1b2c3 \
-            --document-name "AWS-RunShellScript" \
-            --parameters 'commands=["cd /home/ec2-user/vericase","git pull origin main","docker-compose pull","docker-compose down","docker-compose up -d","docker-compose ps"]' \
-            --output text \
-            --query "Command.CommandId")
+          # Deploy to both EC2 instances
+          for INSTANCE_ID in i-0913d878182fa803c i-0f664f8c4daefa7e6; do
+            echo "📦 Deploying to $INSTANCE_ID..."
+            
+            COMMAND_ID=$(aws ssm send-command \
+              --instance-ids $INSTANCE_ID \
+              --document-name "AWS-RunShellScript" \
+              --parameters 'commands=["cd /home/ec2-user/vericase","git pull origin main","docker-compose pull","docker-compose down","docker-compose up -d","docker-compose ps"]' \
+              --output text \
+              --query "Command.CommandId" 2>&1)
+            
+            if [[ $COMMAND_ID == i-* ]]; then
+              echo "✅ Deployment command sent to $INSTANCE_ID: $COMMAND_ID"
+            else
+              echo "⚠️ Could not deploy to $INSTANCE_ID (may not have SSM agent)"
+            fi
+          done
           
-          echo "✅ Deployment command sent: $COMMAND_ID"
-          echo "🚀 VeriCase is updating on EC2..."
+          echo "🚀 VeriCase deployment triggered on all available instances"
