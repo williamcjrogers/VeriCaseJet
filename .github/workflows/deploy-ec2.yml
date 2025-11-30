@@ -1,0 +1,89 @@
+name: Deploy to EC2
+
+on:
+  workflow_run:
+    workflows: ["Build and Push Docker Image"]
+    types:
+      - completed
+    branches: [main]
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  EC2_HOST: 18.130.216.34
+  EC2_USER: ec2-user
+  DEPLOY_PATH: ~/vericase
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/vericase.pem
+          chmod 600 ~/.ssh/vericase.pem
+          ssh-keyscan -H ${{ env.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Copy docker-compose file to EC2
+        run: |
+          scp -i ~/.ssh/vericase.pem \
+            pst-analysis-engine/docker-compose-s3.yml \
+            ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:${{ env.DEPLOY_PATH }}/docker-compose.yml
+
+      - name: Copy migration files to EC2
+        run: |
+          scp -i ~/.ssh/vericase.pem -r \
+            pst-analysis-engine/api/migrations \
+            ${{ env.EC2_USER }}@${{ env.EC2_HOST }}:${{ env.DEPLOY_PATH }}/
+
+      - name: Deploy to EC2
+        run: |
+          ssh -i ~/.ssh/vericase.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'ENDSSH'
+            cd ${{ env.DEPLOY_PATH }}
+            
+            echo "=== Pulling latest images ==="
+            sudo docker-compose pull
+            
+            echo "=== Stopping containers ==="
+            sudo docker-compose down
+            
+            echo "=== Starting containers ==="
+            sudo docker-compose up -d
+            
+            echo "=== Waiting for database to be ready ==="
+            sleep 10
+            
+            echo "=== Running database migrations ==="
+            for migration in migrations/*.sql; do
+              if [ -f "$migration" ]; then
+                echo "Running migration: $migration"
+                sudo docker exec vericase-db-1 psql -U vericase -d vericase -f /dev/stdin < "$migration" || true
+              fi
+            done
+            
+            echo "=== Checking container status ==="
+            sudo docker-compose ps
+            
+            echo "=== Deployment complete ==="
+          ENDSSH
+
+      - name: Verify deployment
+        run: |
+          ssh -i ~/.ssh/vericase.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'ENDSSH'
+            echo "=== API Health Check ==="
+            curl -s http://localhost:8010/health || echo "Health endpoint not available"
+            
+            echo ""
+            echo "=== Worker Status ==="
+            sudo docker logs vericase-worker-1 --tail 10 2>&1 | grep -E "(ready|Connected|ERROR)" || true
+          ENDSSH
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/vericase.pem
+
