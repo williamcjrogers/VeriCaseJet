@@ -33,6 +33,7 @@ jobs:
       - name: Deploy to EKS
         run: |
           aws eks update-kubeconfig --name vericase-cluster --region eu-west-2
+          kubectl apply -f pst-analysis-engine/k8s-deployment.yaml
           kubectl set image deployment/vericase-api vericase-api=wcjrogers/vericase-api:latest
-          kubectl rollout restart deployment/vericase-api
+          kubectl rollout status deployment/vericase-api
           echo "✅ Deployment complete!"

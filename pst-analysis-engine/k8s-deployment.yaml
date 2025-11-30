@@ -1,13 +1,7 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: vericase
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: vericase-api
-  namespace: vericase
 spec:
   replicas: 2
   selector:
@@ -19,96 +13,32 @@ spec:
         app: vericase-api
     spec:
       containers:
-      - name: api
+      - name: vericase-api
         image: wcjrogers/vericase-api:latest
         ports:
-        - containerPort: 8010
+        - containerPort: 8000
         env:
-        - name: DATABASE_URL
-          value: "postgresql://vericase:vericase@postgres:5432/vericase"
-        - name: REDIS_URL
-          value: "redis://redis:6379"
+        - name: USE_AWS_SERVICES
+          value: "true"
+        - name: AWS_REGION
+          value: "us-east-1"
+        - name: S3_BUCKET
+          value: "vericase-docs-526015377510"
+        - name: BEDROCK_KB_ID
+          value: "ACKHIYIHPK"
+        - name: BEDROCK_DS_ID
+          value: "D9BX79MBSG"
+        - name: CORS_ORIGINS
+          value: "*"
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: vericase-api
-  namespace: vericase
 spec:
   type: LoadBalancer
   ports:
-  - port: 8010
-    targetPort: 8010
+  - port: 80
+    targetPort: 8000
   selector:
     app: vericase-api
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: postgres
-  namespace: vericase
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: postgres
-  template:
-    metadata:
-      labels:
-        app: postgres
-    spec:
-      containers:
-      - name: postgres
-        image: postgres:15
-        ports:
-        - containerPort: 5432
-        env:
-        - name: POSTGRES_DB
-          value: vericase
-        - name: POSTGRES_USER
-          value: vericase
-        - name: POSTGRES_PASSWORD
-          value: vericase
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: postgres
-  namespace: vericase
-spec:
-  ports:
-  - port: 5432
-  selector:
-    app: postgres
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: redis
-  namespace: vericase
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: redis
-  template:
-    metadata:
-      labels:
-        app: redis
-    spec:
-      containers:
-      - name: redis
-        image: redis:7-alpine
-        ports:
-        - containerPort: 6379
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: redis
-  namespace: vericase
-spec:
-  ports:
-  - port: 6379
-  selector:
-    app: redis
