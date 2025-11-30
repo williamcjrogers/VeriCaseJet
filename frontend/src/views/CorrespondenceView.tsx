@@ -73,7 +73,8 @@ export const CorrespondenceView: React.FC = () => {
         
         // Apply view mode filter
         if (viewMode === 'attachments') {
-            result = result.filter(e => (e.attachments?.length || 0) > 0 || (e.meta?.attachments?.length || 0) > 0);
+            // Use hasRealAttachments to exclude embedded images
+            result = result.filter(e => hasRealAttachments(e));
         } else if (viewMode === 'threads') {
             // Placeholder for thread logic
         }
@@ -93,7 +94,8 @@ export const CorrespondenceView: React.FC = () => {
 
     const stats = useMemo(() => {
         const uniqueThreads = new Set(filteredEmails.map(e => e.email_subject.replace(/^(re:|fwd:)\s*/i, '').trim())).size;
-        const withAttachments = filteredEmails.filter(e => (e.attachments?.length || 0) > 0 || (e.meta?.attachments?.length || 0) > 0).length;
+        // Use hasRealAttachments to count only emails with real (non-embedded) attachments
+        const withAttachments = filteredEmails.filter(e => hasRealAttachments(e)).length;
         
         return {
             total: filteredEmails.length,
