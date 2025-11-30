@@ -319,7 +319,7 @@ if (-not $functionExists) {
     Write-Host "  ℹ Lambda function already exists" -ForegroundColor Yellow
 }
 
-$LAMBDA_ARN = "arn:aws:lambda:$REGION:${ACCOUNT_ID}:function:$LAMBDA_NAME"
+$LAMBDA_ARN = "arn:aws:lambda:${REGION}:${ACCOUNT_ID}:function:${LAMBDA_NAME}"
 
 # Step 6: Update .env file
 Write-Host ""

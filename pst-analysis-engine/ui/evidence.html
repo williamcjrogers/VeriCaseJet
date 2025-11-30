@@ -1253,7 +1253,19 @@
                 defaultColDef: {
                     sortable: true,
                     filter: true,
-                    resizable: true
+                    resizable: true,
+                    // Flexible cell rendering - handle any data type gracefully
+                    valueFormatter: params => {
+                        if (params.value === null || params.value === undefined) return '-';
+                        if (Array.isArray(params.value)) return params.value.join(', ') || '-';
+                        if (typeof params.value === 'object') {
+                            try { return JSON.stringify(params.value); } catch { return String(params.value); }
+                        }
+                        return String(params.value);
+                    },
+                    // Handle long text gracefully
+                    wrapText: false,
+                    cellStyle: { 'overflow': 'hidden', 'text-overflow': 'ellipsis' }
                 },
                 rowSelection: 'single',
                 animateRows: true,

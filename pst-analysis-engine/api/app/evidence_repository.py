@@ -245,11 +245,18 @@ class AssignRequest(BaseModel):
 # HELPER FUNCTIONS
 # ============================================================================
 
-def get_file_type(filename: str) -> str:
-    """Extract file extension as type"""
+def get_file_type(filename: str) -> str | None:
+    """Extract file extension as type.
+    
+    Returns the file extension, truncated to 255 chars max for database compatibility.
+    Returns None only if no extension found.
+    """
     if '.' in filename:
-        return filename.rsplit('.', 1)[1].lower()
-    return 'unknown'
+        ext = filename.rsplit('.', 1)[1].lower().strip()
+        if ext:
+            # Truncate to database column max (255) - be flexible, don't reject
+            return ext[:255]
+    return None
 
 
 def compute_file_hash(file_content: bytes) -> str:
@@ -2089,17 +2096,16 @@ async def sync_email_attachments_to_evidence(
                 error_count += 1
                 continue
             
-            # Determine file type from extension (truncate to 50 chars max for DB column)
-            file_ext = os.path.splitext(att.filename or '')[1].lower().lstrip('.') if att.filename else ''
-            # Only use extension if it looks like a real extension (short, no spaces)
-            if len(file_ext) > 20 or ' ' in file_ext:
-                file_ext = ''  # Not a real extension, likely a malformed filename
+            # Determine file type from extension
+            # Only use short, valid extensions (max 10 chars like .xlsx, .docx)
+            raw_ext = os.path.splitext(att.filename or '')[1].lower().lstrip('.') if att.filename else ''
+            file_ext = raw_ext if raw_ext and len(raw_ext) <= 10 and raw_ext.isalnum() else None
             
             # Create EvidenceItem
             evidence_item = EvidenceItem(
                 filename=att.filename or 'unnamed_attachment',
                 original_path=f"EmailAttachment:{att.id}",
-                file_type=file_ext or None,
+                file_type=file_ext,
                 mime_type=att.content_type,
                 file_size=att.file_size_bytes,
                 file_hash=att.attachment_hash,
