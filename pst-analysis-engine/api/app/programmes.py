@@ -10,6 +10,9 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 import json
 import io
+import uuid
+import openpyxl
+from dateutil import parser as date_parser
 
 from .db import get_db
 from .models import Programme, DelayEvent, Case, Document, Evidence, User
@@ -163,6 +166,106 @@ def parse_pdf_schedule(pdf_content: bytes) -> dict[str, Any]:
     }
 
 
+
+def parse_excel_programme(file_content: bytes) -> dict[str, Any]:
+    """
+    Parse Excel schedule.
+    Expected columns: Activity ID, Activity Name, Start Date, Finish Date
+    """
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(file_content), data_only=True)
+        ws = wb.active
+        
+        activities = []
+        milestones = []
+        
+        # Identify headers
+        headers = {}
+        header_row = 1
+        for row in ws.iter_rows(min_row=1, max_row=5, values_only=True):
+            for idx, cell in enumerate(row):
+                if isinstance(cell, str):
+                    lower_cell = cell.lower()
+                    if 'id' in lower_cell and 'activity' in lower_cell:
+                        headers['id'] = idx
+                    elif 'name' in lower_cell or 'task' in lower_cell or 'activity' in lower_cell:
+                        headers['name'] = idx
+                    elif 'start' in lower_cell:
+                        headers['start'] = idx
+                    elif 'finish' in lower_cell or 'end' in lower_cell:
+                        headers['finish'] = idx
+            if len(headers) >= 3: # Found enough headers
+                break
+            header_row += 1
+            
+        if not headers:
+             # Fallback to standard columns A, B, C, D
+             headers = {'id': 0, 'name': 1, 'start': 2, 'finish': 3}
+
+        for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
+            if not row[headers.get('name', 1)]: # Skip empty rows
+                continue
+                
+            start_val = row[headers.get('start', 2)]
+            finish_val = row[headers.get('finish', 3)]
+            
+            start_date = None
+            finish_date = None
+            
+            if isinstance(start_val, datetime):
+                start_date = start_val.isoformat()
+            elif start_val:
+                try:
+                    start_date = date_parser.parse(str(start_val)).isoformat()
+                except: pass
+                
+            if isinstance(finish_val, datetime):
+                finish_date = finish_val.isoformat()
+            elif finish_val:
+                try:
+                    finish_date = date_parser.parse(str(finish_val)).isoformat()
+                except: pass
+
+            activity = {
+                'id': str(row[headers.get('id', 0)]) if row[headers.get('id', 0)] else str(uuid.uuid4())[:8],
+                'name': str(row[headers.get('name', 1)]),
+                'start_date': start_date,
+                'finish_date': finish_date,
+                'duration': '0', # Calculate if needed
+                'percent_complete': '0',
+                'is_critical': False,
+                'is_milestone': False
+            }
+            
+            if start_date and finish_date and start_date == finish_date:
+                activity['is_milestone'] = True
+                milestones.append({
+                    'id': activity['id'],
+                    'name': activity['name'],
+                    'date': start_date
+                })
+                
+            activities.append(activity)
+
+        # Calculate project dates
+        start_dates = [a['start_date'] for a in activities if a['start_date']]
+        finish_dates = [a['finish_date'] for a in activities if a['finish_date']]
+        
+        project_start = min(start_dates) if start_dates else None
+        project_finish = max(finish_dates) if finish_dates else None
+
+        return {
+            'activities': activities,
+            'critical_path': [],
+            'milestones': milestones,
+            'project_start': project_start,
+            'project_finish': project_finish,
+            'total_activities': len(activities)
+        }
+    except Exception as e:
+        raise ValueError(f"Invalid Excel format: {str(e)}")
+
+
 @router.post("/api/programmes/upload")
 async def upload_programme(
     file: UploadFile = File(...),
@@ -204,12 +307,14 @@ async def upload_programme(
             status_code=400,
             detail="Asta .pp files must be exported to XML format first. In Asta Powerproject: File > Export > XML"
         )
+    elif filename_lower.endswith('.xlsx') or filename_lower.endswith('.xls'):
+        parsed_data = parse_excel_programme(content)
     elif filename_lower.endswith('.pdf'):
         parsed_data = parse_pdf_schedule(content)
     else:
         raise HTTPException(
             status_code=400,
-            detail="Unsupported file format. Please upload .xml (Asta XML) or .pdf"
+            detail="Unsupported file format. Please upload .xml (Asta), .xlsx (Excel), or .pdf"
         )
     
     try:
@@ -474,3 +579,46 @@ async def link_correspondence_to_delay(
         "linked_correspondence": new_links,
         "total_linked": len(new_links)
     }
+
+
+@router.get("/api/programmes/{programme_id}/active-activities")
+async def get_active_activities(
+    programme_id: int,
+    date: str,
+    db: Session = Depends(get_db),
+    user: "User" = Depends(current_user)
+):
+    """
+    Get activities that were active on a specific date.
+    Useful for auto-linking correspondence to activities.
+    """
+    programme = db.query(Programme).filter(Programme.id == programme_id).first()
+    if not programme:
+        raise HTTPException(status_code=404, detail="Programme not found")
+        
+    try:
+        target_date = datetime.fromisoformat(date).replace(tzinfo=None)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format")
+        
+    active_activities = []
+    
+    if not programme.activities:
+        return []
+        
+    for activity in programme.activities:
+        start_str = activity.get('start_date')
+        finish_str = activity.get('finish_date')
+        
+        if start_str and finish_str:
+            try:
+                start = datetime.fromisoformat(start_str).replace(tzinfo=None)
+                finish = datetime.fromisoformat(finish_str).replace(tzinfo=None)
+                
+                # Check if target date is within range (inclusive)
+                if start <= target_date <= finish:
+                    active_activities.append(activity)
+            except (ValueError, TypeError):
+                continue
+                
+    return active_activities
