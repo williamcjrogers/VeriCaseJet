@@ -1,14 +1,15 @@
 # VeriCase Deployment Status
 
-## ✅ Production Instance
+## ✅ Production EKS Cluster
 
-**URL:** http://18.130.216.34:8010
+**URL:** http://af2f6cb519c4f4d4d94e1633e3c91f1c-509256539.eu-west-2.elb.amazonaws.com
 
-**Instance ID:** i-0ade6dff1811bdbcb  
-**IP Address:** 18.130.216.34  
-**Security Group:** sg-07499f7ed552da94d  
-**Port 8010:** ✅ Open
-**Auto-Deploy:** ✅ Enabled (GitHub Actions via SSH)
+**Cluster:** vericase-cluster  
+**Region:** eu-west-2  
+**Nodes:** 2x m6i.xlarge (vericase-ng node group)  
+**API Pods:** 3 replicas (high availability)  
+**Worker Pods:** 2 replicas  
+**Auto-Deploy:** ✅ Enabled (GitHub Actions → ECR)
 
 ### Login Credentials
 - **Email:** admin@vericase.com
@@ -32,28 +33,40 @@
 - **Nodes:** 9 (3 shards, Multi-AZ)
 - **Encryption:** Enabled
 
-## Other EC2 Instances
+## EKS Worker Nodes
 
-### Instance 1 (Old)
+### Node 1
 - **Instance ID:** i-0913d878182fa803c
-- **IP:** 35.179.167.235
-- **Status:** Running (backup)
-- **SSM Agent:** ✅ Installed
+- **IP:** 35.179.167.235 (internal: 192.168.62.148)
+- **Type:** m6i.xlarge
+- **Status:** Ready
 
-### Instance 2 (Old)
+### Node 2
 - **Instance ID:** i-0f664f8c4daefa7e6
-- **IP:** 13.40.213.46
-- **Status:** Running (backup)
+- **IP:** 13.40.213.46 (internal: 192.168.92.103)
+- **Type:** m6i.xlarge
+- **Status:** Ready
+
+## Old EC2 Instance (Deprecated)
+- **Instance ID:** i-0ade6dff1811bdbcb
+- **Status:** Unstable (multiple restarts)
+- **Note:** Replaced by EKS deployment
 
 ## Monthly Costs
+- **EKS Cluster:** ~£300/month (2x m6i.xlarge nodes)
 - **AWS Services:** ~£20/month (S3, Lambda, Textract, Comprehend)
 - **Redis:** ~£150/month
-- **EC2:** Variable based on instance type
+- **LoadBalancer:** ~£20/month
 
 ## Deployment Scripts
 - **Restart Services:** `ops/restart-ec2-services.ps1`
 - **AWS Deployment:** `deploy-aws-ai-services.ps1`
 - **Bedrock Setup:** `setup-bedrock-simple.ps1`
 
+## Container Registry
+- **ECR Repository:** 526015377510.dkr.ecr.eu-west-2.amazonaws.com/vericase-api
+- **Image Tag:** latest
+- **Auto-Build:** GitHub Actions on push to main
+
 ---
-**Last Updated:** November 30, 2025
+**Last Updated:** December 1, 2025
