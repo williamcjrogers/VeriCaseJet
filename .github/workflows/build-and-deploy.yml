@@ -1,9 +1,10 @@
-name: Build and Deploy to EC2
+name: Build and Deploy to EC2 (DISABLED - use deploy-ec2.yml instead)
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  # DISABLED: This workflow duplicates deploy-ec2.yml
+  # push:
+  #   branches: [main]
+  workflow_dispatch:  # Can still be triggered manually
 
 jobs:
   build-and-deploy:
