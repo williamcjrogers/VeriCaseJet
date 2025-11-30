@@ -23,38 +23,11 @@ jobs:
           docker build -t wcjrogers/vericase-api:latest -f Dockerfile .
           docker push wcjrogers/vericase-api:latest
       
-      - name: Deploy to Production EC2
+      - name: Deployment Info
         run: |
-          echo "${{ secrets.EC2_SSH_KEY }}" > key.pem
-          chmod 600 key.pem
-          
-          ssh -i key.pem -o StrictHostKeyChecking=no ec2-user@3.8.162.169 << 'EOF'
-            cd /opt/vericase
-            
-            # Force sync with repository to discard any local changes preventing pull
-            git fetch --all
-            git reset --hard origin/main
-            
-            cd pst-analysis-engine
-            
-            # Pull latest images
-            docker-compose -f docker-compose-s3.yml pull
-            
-            # Force recreate containers to ensure volume mounts are applied
-            docker-compose -f docker-compose-s3.yml up -d --force-recreate --remove-orphans
-            
-            echo ""
-            echo "Checking if fix is present on server disk:"
-            grep "allEvidenceItems is invalid" ui/evidence.html && echo "✅ Fix confirmed on disk" || echo "❌ Fix NOT found on disk"
-            
-            echo ""
-            echo "Containers running:"
-            docker ps --format "table {{.Names}}\t{{.Status}}"
-          EOF
-          
-          rm -f key.pem
-          
+          echo "✅ Docker image pushed to wcjrogers/vericase-api:latest"
           echo ""
-          echo "✅ Deployment complete!"
-          echo "🌐 VeriCase: http://3.8.162.169:8010"
-          echo "📧 Login: admin@vericase.com / ChangeMe123"
+          echo "SSH to EC2 and run:"
+          echo "  cd /opt/vericase/pst-analysis-engine"
+          echo "  docker-compose -f docker-compose-s3.yml pull"
+          echo "  docker-compose -f docker-compose-s3.yml up -d --force-recreate"
