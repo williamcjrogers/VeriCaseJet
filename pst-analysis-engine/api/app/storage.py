@@ -118,12 +118,17 @@ def s3(public: bool = False) -> S3ClientProtocol:
             session.client("s3", config=Config(signature_version="s3v4")),
         )
 
-    # Use IRSA for credentials (no explicit keys) with Transfer Acceleration
+    # Use IRSA for credentials (no explicit keys)
+    LOGGER.info(
+        "[S3 DEBUG] Creating AWS S3 client with IRSA, region=%s, bucket=%s",
+        settings.AWS_REGION,
+        settings.MINIO_BUCKET,
+    )
     return cast(
         S3ClientProtocol,
         boto3.client(
             "s3",
-            config=Config(signature_version="s3v4", s3={"use_accelerate_endpoint": True}),
+            config=Config(signature_version="s3v4"),
             region_name=settings.AWS_REGION,
         ),
     )
@@ -149,13 +154,14 @@ def ensure_bucket() -> None:
             # Bucket exists and we have access
             return
         except ClientError as e:
-            error_code = e.response.get('Error', {}).get('Code', '')
-            if error_code == '404':
-                raise S3BucketError(f"S3 bucket '{settings.MINIO_BUCKET}' does not exist. Please create it in AWS first.")
-            elif error_code == '403':
-                raise S3AccessError(f"Access denied to S3 bucket '{settings.MINIO_BUCKET}'. Check IRSA permissions.")
-            else:
-                raise
+            error_code = e.response.get("Error", {}).get("Code", "")
+            if error_code == "404":
+                msg = f"S3 bucket '{settings.MINIO_BUCKET}' does not exist."
+                raise S3BucketError(msg) from e
+            if error_code == "403":
+                msg = f"Access denied to S3 bucket '{settings.MINIO_BUCKET}'."
+                raise S3AccessError(msg) from e
+            raise
     else:
         # MinIO mode: Wait for MinIO to be reachable and ensure bucket/versioning/CORS
         deadline = time.time() + 60
@@ -163,10 +169,15 @@ def ensure_bucket() -> None:
         while time.time() < deadline:
             try:
                 client = s3()
-                names=[b["Name"] for b in client.list_buckets().get("Buckets",[])]
+                buckets = client.list_buckets().get("Buckets", [])
+                names = [b["Name"] for b in buckets]
                 if settings.MINIO_BUCKET not in names:
                     client.create_bucket(Bucket=settings.MINIO_BUCKET)
-                client.put_bucket_versioning(Bucket=settings.MINIO_BUCKET, VersioningConfiguration={"Status":"Enabled"})
+                versioning_config = {"Status": "Enabled"}
+                client.put_bucket_versioning(
+                    Bucket=settings.MINIO_BUCKET,
+                    VersioningConfiguration=versioning_config
+                )
                 ensure_cors()
                 return
             except Exception as e:  # pragma: no cover - transient connectivity
@@ -177,12 +188,11 @@ def ensure_bucket() -> None:
 
 
 class S3BucketError(Exception):
-    """S3 bucket does not exist"""
-    pass
+    """S3 bucket does not exist."""
+
 
 class S3AccessError(Exception):
-    """S3 access denied"""
-    pass
+    """S3 access denied."""
 
 def ensure_cors() -> None:
     """Configure CORS for S3 bucket."""
@@ -318,6 +328,8 @@ def multipart_complete(
         UploadId=upload_id,
         MultipartUpload={"Parts": parts},
     )
+
+
 def delete_object(key: str) -> None:
     """Delete object from S3 bucket."""
     client = s3()
