@@ -23,11 +23,14 @@ jobs:
           docker build -t wcjrogers/vericase-api:latest -f Dockerfile .
           docker push wcjrogers/vericase-api:latest
       
-      - name: Deployment Info
-        run: |
-          echo "✅ Docker image pushed to wcjrogers/vericase-api:latest"
-          echo ""
-          echo "SSH to EC2 and run:"
-          echo "  cd /opt/vericase/pst-analysis-engine"
-          echo "  docker-compose -f docker-compose-s3.yml pull"
-          echo "  docker-compose -f docker-compose-s3.yml up -d --force-recreate"
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: 13.40.135.216
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /opt/vericase/pst-analysis-engine
+            docker-compose -f docker-compose-s3.yml pull
+            docker-compose -f docker-compose-s3.yml up -d --force-recreate
+            echo "✅ Deployment complete!"
