@@ -110,6 +110,15 @@ except Exception as e:
 
 # Start the application with fallback
 print("\n=== Starting Application ===")
+
+# Add current directory to path for app imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+project_root = os.path.dirname(current_dir)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 try:
     # Try to import FastAPI from vendor
     from fastapi import FastAPI
@@ -117,7 +126,7 @@ try:
     
     # Start with a basic app if main app fails
     try:
-        from app.main import app
+        from app.main import app  # type: ignore[reportImplicitRelativeImport]  # noqa: F401  # Script runs directly, not as module
         print("✓ Main application imported")
     except Exception as e:
         print(f"✗ Main application import failed: {e}")

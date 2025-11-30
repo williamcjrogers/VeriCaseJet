@@ -96,44 +96,31 @@ async def analyze_document(
         comprehend_analysis = await aws.analyze_document_entities(text)
         
         return {
-            "textract": textract_data,
-            "comprehend": comprehend_analysis,
-            "processed_at": "2024-01-01T00:00:00Z"
+            "message": "Audio transcription started",
+            "evidence_id": evidence_id,
+            "estimated_time": "5-15 minutes",
         }
     except Exception as e:
-        logger.error(f"Document analysis failed: {e}")
-        raise HTTPException(500, f"Analysis failed: {str(e)}")
+        logger.error(f"Audio transcription failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@aws_router.post("/analyze-image")
-async def analyze_image(
-    payload: Dict[str, Any],
-    user: User = Depends(current_user)
-):
-    """Analyze construction image with Rekognition"""
-    if not AWS_AVAILABLE:
-        raise HTTPException(503, "AWS services not available")
-    
-    s3_bucket = payload.get("s3_bucket")
-    s3_key = payload.get("s3_key")
-    
-    if not s3_bucket or not s3_key:
-        raise HTTPException(400, "s3_bucket and s3_key required")
-    
-    try:
-        aws = get_aws_services()
-        analysis = await aws.analyze_construction_image(s3_bucket, s3_key)
-        return analysis
-    except Exception as e:
-        logger.error(f"Image analysis failed: {e}")
-        raise HTTPException(500, f"Analysis failed: {str(e)}")
 
 @aws_router.get("/services/status")
-async def get_services_status():
-    """Get status of all AWS services"""
-    if not AWS_AVAILABLE:
-        return {
-            "aws_available": False,
-            "message": "AWS SDK not installed or configured"
+async def get_aws_services_status() -> dict[str, str | dict[str, dict[str, bool | str]]]:
+    """Get status of all AWS services integration"""
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        status: dict[str, dict[str, bool | str]] = {
+            "textract": {"available": True, "last_check": now},
+            "comprehend": {"available": True, "last_check": now},
+            "bedrock": {"available": True, "last_check": now},
+            "rekognition": {"available": True, "last_check": now},
+            "transcribe": {"available": True, "last_check": now},
+            "opensearch": {"available": True, "last_check": now},
+            "eventbridge": {"available": True, "last_check": now},
+            "stepfunctions": {"available": True, "last_check": now},
+            "quicksight": {"available": True, "last_check": now},
+            "macie": {"available": True, "last_check": now},
         }
     
     try:

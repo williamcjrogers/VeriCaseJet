@@ -1303,7 +1303,7 @@
                 console.log('[Evidence] Rendering from prefetched cache...');
                 const startTime = performance.now();
 
-                allEvidenceItems = prefetched.items;
+                allEvidenceItems = prefetched.items || [];
 
                 // Render grid immediately
                 document.querySelector('.grid-wrapper').innerHTML = '<div id="evidenceGrid" class="ag-theme-alpine ag-theme-vericase" style="height: 100%;"></div>';
@@ -1355,7 +1355,8 @@
                     const newItems = data.items || [];
 
                     // Only update if there's a difference
-                    if (newItems.length !== allEvidenceItems.length) {
+                    const currentLength = allEvidenceItems ? allEvidenceItems.length : 0;
+                    if (newItems.length !== currentLength) {
                         allEvidenceItems = newItems;
                         updateCategoryCounts();
                         applyFilters();
@@ -1411,6 +1412,11 @@
         function updateCategoryCounts() {
             let docCount = 0;
             let imgCount = 0;
+
+            // Defensive check - ensure allEvidenceItems is an array
+            if (!allEvidenceItems || !Array.isArray(allEvidenceItems)) {
+                allEvidenceItems = [];
+            }
 
             allEvidenceItems.forEach(item => {
                 if (isImageFile(item.mime_type, item.filename)) {
@@ -2064,201 +2070,6 @@
             });
             document.getElementById('fileInput').addEventListener('change', handleFileUpload);
 
-        }
-            } catch (error) {
-            console.error('Error toggling star:', error);
-            VericaseUI.Toast.error('Failed to update star status');
-        }
-        }
-
-        function downloadCurrentFile() {
-            if (currentPreviewData?.download_url) {
-                window.open(currentPreviewData.download_url, '_blank');
-            } else if (selectedEvidence?.download_url) {
-                window.open(selectedEvidence.download_url, '_blank');
-            }
-        }
-
-        async function openFullPreview() {
-            if (!selectedEvidence || !currentPreviewData) return;
-
-            const modal = document.getElementById('previewModal');
-            const content = document.getElementById('previewModalContent');
-            const title = document.getElementById('previewModalTitle');
-
-            title.textContent = selectedEvidence.filename;
-
-            let html = '';
-
-            switch (currentPreviewData.preview_type) {
-                case 'image':
-                    html = `<img src="${currentPreviewData.preview_url}" alt="${selectedEvidence.filename}">`;
-                    break;
-
-                case 'pdf':
-                    html = `<iframe src="${currentPreviewData.preview_url}"></iframe>`;
-                    break;
-
-                case 'text':
-                case 'office':
-                    try {
-                        const response = await fetch(`${apiUrl}/api/evidence/items/${selectedEvidence.id}/text-content?max_length=100000`);
-                        if (response.ok) {
-                            const data = await response.json();
-                            html = `<pre>${escapeHtml(data.text)}</pre>`;
-                        } else {
-                            html = `<pre>${escapeHtml(currentPreviewData.preview_content || 'Could not load text content')}</pre>`;
-                        }
-                    } catch {
-                        html = `<pre>${escapeHtml(currentPreviewData.preview_content || 'Could not load text content')}</pre>`;
-                    }
-                    break;
-
-                default:
-                    html = `
-                        <div style="text-align: center; color: var(--gray-400);">
-                            <i class="fas ${getFileIcon(selectedEvidence.mime_type, selectedEvidence.evidence_type)}" style="font-size: 4rem; margin-bottom: 1rem;"></i>
-                            <p>Preview not available for this file type</p>
-                            <p style="font-size: 0.875rem; margin-top: 0.5rem;">${escapeHtml(selectedEvidence.filename)}</p>
-                            <button class="btn btn-vericase" style="margin-top: 1rem;" onclick="downloadCurrentFile()">
-                                <i class="fas fa-download"></i> Download File
-                            </button>
-                        </div>
-                    `;
-            }
-
-            content.innerHTML = html;
-            modal.classList.add('active');
-        }
-
-        function closePreviewModal() {
-            document.getElementById('previewModal').classList.remove('active');
-        }
-
-        async function extractMetadata() {
-            if (!selectedEvidence) return;
-
-            const btn = document.getElementById('extractMetadataBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
-            try {
-                const response = await fetch(`${apiUrl}/api/evidence/items/${selectedEvidence.id}/extract-metadata`, {
-                    method: 'POST'
-                });
-
-                if (response.ok) {
-                    await showDetail(selectedEvidence);
-                    VericaseUI.Toast.success('Metadata extracted successfully');
-                } else {
-                    VericaseUI.Toast.error('Failed to extract metadata');
-                }
-            } catch (error) {
-                console.error('Error extracting metadata:', error);
-                VericaseUI.Toast.error('Failed to extract metadata');
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-magic"></i>';
-            }
-        }
-
-        async function handleFileUpload(event) {
-            const files = event.target.files;
-            if (!files || files.length === 0) return;
-
-            const uploadBtn = document.getElementById('uploadBtn');
-            uploadBtn.disabled = true;
-            uploadBtn.classList.add('loading');
-
-            const toast = VericaseUI.Toast.info(`Uploading ${files.length} file(s)...`, { duration: 0 });
-
-            try {
-                let successCount = 0;
-                for (const file of files) {
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    if (projectId) formData.append('project_id', projectId);
-                    if (caseId) formData.append('case_id', caseId);
-
-                    const response = await fetch(`${apiUrl}/api/evidence/upload/direct`, {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    if (response.ok) successCount++;
-                }
-
-                VericaseUI.Toast.dismiss(toast);
-                VericaseUI.Toast.success(`Successfully uploaded ${successCount} file(s)`);
-
-                loadEvidence();
-                loadStats();
-            } catch (error) {
-                console.error('Upload error:', error);
-                VericaseUI.Toast.dismiss(toast);
-                VericaseUI.Toast.error('Upload failed. Please try again.');
-            } finally {
-                uploadBtn.disabled = false;
-                uploadBtn.classList.remove('loading');
-                document.getElementById('fileInput').value = '';
-            }
-        }
-
-        // ============================================
-        // EVENT LISTENERS
-        // ============================================
-
-        document.addEventListener('DOMContentLoaded', () => {
-            // Inject navigation shell
-            VericaseShell.inject({
-                title: 'Evidence Repository',
-                headerActions: ''
-            });
-
-            // Get project context
-            projectId = VericaseShell.getProjectId();
-
-            // Initialize grid
-            initGrid();
-
-            // Category tabs
-            document.querySelectorAll('.category-tab').forEach(tab => {
-                tab.addEventListener('click', () => {
-                    document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
-                    tab.classList.add('active');
-                    currentCategory = tab.dataset.category;
-                    applyFilters();
-                });
-            });
-
-            // Search with debounce
-            let searchTimeout;
-            document.getElementById('searchInput').addEventListener('input', () => {
-                clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(applyFilters, 300);
-            });
-
-            // Filters
-            document.getElementById('fileTypeFilter').addEventListener('change', applyFilters);
-            document.getElementById('statusFilter').addEventListener('change', applyFilters);
-
-            // Checkbox pills
-            document.getElementById('unassignedFilter').addEventListener('change', (e) => {
-                document.getElementById('unassignedPill').classList.toggle('active', e.target.checked);
-                applyFilters();
-            });
-
-            document.getElementById('starredFilter').addEventListener('change', (e) => {
-                document.getElementById('starredPill').classList.toggle('active', e.target.checked);
-                applyFilters();
-            });
-
-            // Upload
-            document.getElementById('uploadBtn').addEventListener('click', () => {
-                document.getElementById('fileInput').click();
-            });
-            document.getElementById('fileInput').addEventListener('change', handleFileUpload);
-
             // Refresh
             document.getElementById('refreshBtn').addEventListener('click', () => {
                 VericaseUI.Toast.info('Refreshing...');
@@ -2286,7 +2097,6 @@
                     closePreviewModal();
                 }
             });
-
             // Remove preload class after initial render
             requestAnimationFrame(() => {
                 document.body.classList.remove('preload');
