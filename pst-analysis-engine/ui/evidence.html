@@ -2,20 +2,6 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VeriCase - Evidence Repository</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.3/styles/ag-grid.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.3/styles/ag-theme-alpine.css">
-    <link rel="stylesheet" href="ag-theme-vericase.css">
-    <link rel="stylesheet" href="brand-styles.css">
-    <link rel="stylesheet" href="design-system.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script src="config.js"></script>
-    <script src="app-state.js"></script>
-    <script src="vericase-ui.js"></script>
-    <script src="nav-shell.js"></script>
     <style>
         /* ============================================
            PAGE-SPECIFIC STYLES
@@ -1320,7 +1306,7 @@
                 allEvidenceItems = prefetched.items;
 
                 // Render grid immediately
-                document.querySelector('.grid-wrapper').innerHTML = '<div id="evidenceGrid" class="ag-theme-alpine" style="height: 100%;"></div>';
+                document.querySelector('.grid-wrapper').innerHTML = '<div id="evidenceGrid" class="ag-theme-alpine ag-theme-vericase" style="height: 100%;"></div>';
                 initGrid();
                 updateCategoryCounts();
                 applyFilters();
@@ -1404,7 +1390,7 @@
                     allEvidenceItems = data.items || [];
 
                     // Restore grid
-                    document.querySelector('.grid-wrapper').innerHTML = '<div id="evidenceGrid" class="ag-theme-alpine" style="height: 100%;"></div>';
+                    document.querySelector('.grid-wrapper').innerHTML = '<div id="evidenceGrid" class="ag-theme-alpine ag-theme-vericase" style="height: 100%;"></div>';
                     initGrid();
 
                     updateCategoryCounts();
