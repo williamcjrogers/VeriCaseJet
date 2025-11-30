@@ -97,8 +97,7 @@ font-size: 0.8125rem;
 background: white;
 cursor: pointer;
 appearance: none;
-background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0
-12 12'%3E%3Cpath fill='%236B7280' d='M3 4.5L6 7.5L9 4.5'/%3E%3C/svg%3E");
+background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236B7280' d='M3 4.5L6 7.5L9 4.5'/%3E%3C/svg%3E");
 background-repeat: no-repeat;
 background-position: right 12px center;
 transition: all var(--duration-fast);
@@ -145,26 +144,27 @@ display: none;
 flex: 1;
 }
 
-/* Stats Bar */
+/* Stats Bar - VeriCase Branding */
 .stats-bar {
-padding: 10px 24px;
-background: var(--gray-50);
-border-bottom: 1px solid var(--gray-200);
+padding: 12px 24px;
+background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-navy) 100%);
+color: white;
 display: flex;
 gap: 32px;
 font-size: 0.8125rem;
-color: var(--text-secondary);
+box-shadow: 0 4px 12px rgba(23, 181, 163, 0.2);
 }
 
 .stat-item {
 display: flex;
 align-items: center;
 gap: 8px;
+color: rgba(255, 255, 255, 0.85);
 }
 
 .stat-value {
 font-weight: 700;
-color: var(--text-primary);
+color: white;
 font-size: 0.9375rem;
 }
 

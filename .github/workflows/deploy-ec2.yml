@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > key.pem
           chmod 600 key.pem
           
-          ssh -i key.pem -o StrictHostKeyChecking=no ec2-user@18.130.216.34 << 'EOF'
+          ssh -i key.pem -o StrictHostKeyChecking=no ec2-user@3.8.162.169 << 'EOF'
             cd /opt/vericase
             
             # Force sync with repository to discard any local changes preventing pull
@@ -42,5 +42,5 @@ jobs:
           
           echo ""
           echo "✅ Deployment complete!"
-          echo "🌐 VeriCase: http://18.130.216.34:8010"
+          echo "🌐 VeriCase: http://3.8.162.169:8010"
           echo "📧 Login: admin@vericase.com / ChangeMe123"
