@@ -1411,6 +1411,7 @@ width: 100%;
 
             // Defensive check - ensure allEvidenceItems is an array
             if (!allEvidenceItems || !Array.isArray(allEvidenceItems)) {
+                console.warn('[Evidence] allEvidenceItems is invalid, resetting to empty array');
                 allEvidenceItems = [];
             }
 
