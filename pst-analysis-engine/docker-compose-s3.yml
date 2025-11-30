@@ -20,6 +20,8 @@ services:
     depends_on:
       - db
       - redis
+    volumes:
+      - ./ui:/code/ui
     environment:
       - JWT_SECRET=c3bef73578895c08045f8848192958b2dbfaf55a57f97509553c3d5324a7d2b1
       - DEV_NO_AUTH=true
