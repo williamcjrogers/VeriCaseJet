@@ -30,7 +30,7 @@
         /* ============================================
            Correspondence Enterprise - Deep Research Aesthetic
            ============================================ */
-        
+
         :root {
             /* Map local variables to brand styles */
             --primary: var(--vericase-teal);
@@ -89,15 +89,15 @@
             font-weight: 700;
             text-decoration: none;
         }
-        
+
         .logo .logo-veri {
             color: var(--vericase-teal);
         }
-        
+
         .logo .logo-case {
             color: var(--vericase-navy);
         }
-        
+
         .logo i {
             color: var(--vericase-teal);
         }
@@ -982,6 +982,9 @@
             <button class="btn" id="toggleViewBtn" onclick="toggleAllEmails()">
                 <i class="fas fa-compress"></i> Preview Mode
             </button>
+            <button class="btn" onclick="openProgrammeModal()">
+                <i class="fas fa-project-diagram"></i> Programmes
+            </button>
         </div>
         <div class="toolbar-right">
             <div class="btn-group">
@@ -1059,6 +1062,41 @@
                         ⬇ Download
                     </button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Programme Upload Modal -->
+        <div id="programmeModal" class="modal"
+            style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+            <div
+                style="background: white; width: 500px; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <h2 style="margin-bottom: 1.5rem;">Manage Programmes</h2>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Upload Programme (Asta XML
+                        or Excel)</label>
+                    <input type="file" id="programmeFileInput" accept=".xml,.xlsx,.xls"
+                        style="width: 100%; padding: 0.5rem; border: 1px solid #e5e7eb; border-radius: 4px;">
+                    <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #6b7280;">
+                        Supported formats: Asta Powerproject (.xml), Excel (.xlsx, .xls)
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Programme Type</label>
+                    <select id="programmeTypeInput"
+                        style="width: 100%; padding: 0.5rem; border: 1px solid #e5e7eb; border-radius: 4px;">
+                        <option value="baseline">Baseline / As-Planned</option>
+                        <option value="as_built">As-Built / Actual</option>
+                    </select>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+                    <button class="btn" onclick="closeProgrammeModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="uploadProgramme()">Upload</button>
+                </div>
+
+                <div id="programmeUploadStatus" style="margin-top: 1rem; font-size: 0.875rem;"></div>
             </div>
         </div>
 
@@ -1418,6 +1456,43 @@
                     return `<div style="display: flex; flex-wrap: wrap; align-items: center;">${attachmentLinks}</div>`;
                 },
                 filter: 'agTextColumnFilter'
+            },
+            {
+                headerName: 'Baseline Activity',
+                field: 'baseline_activity',
+                width: 200,
+                filter: 'agTextColumnFilter',
+                editable: true,
+                cellEditor: 'agLargeTextCellEditor',
+                cellRenderer: params => {
+                    if (!params.value) return '<span style="color: #9ca3af; font-style: italic;">Click to assign</span>';
+                    return params.value;
+                }
+            },
+            {
+                headerName: 'As-Built Activity',
+                field: 'as_built_activity',
+                width: 200,
+                filter: 'agTextColumnFilter',
+                editable: true,
+                cellEditor: 'agLargeTextCellEditor',
+                cellRenderer: params => {
+                    if (!params.value) return '<span style="color: #9ca3af; font-style: italic;">Click to assign</span>';
+                    return params.value;
+                }
+            },
+            {
+                headerName: 'Slippage',
+                field: 'delay_days',
+                width: 120,
+                filter: 'agNumberColumnFilter',
+                cellRenderer: params => {
+                    if (params.value === null || params.value === undefined) return '-';
+                    const days = parseInt(params.value);
+                    if (days > 0) return `<span style="color: #ef4444; font-weight: 600;">+${days} days</span>`;
+                    if (days < 0) return `<span style="color: #10b981; font-weight: 600;">${days} days</span>`;
+                    return `<span style="color: #6b7280;">On Time</span>`;
+                }
             },
             {
                 headerName: 'Subject',
@@ -2601,12 +2676,12 @@
                 autoHeight: false,
                 cellStyle: { 'overflow': 'hidden', 'text-overflow': 'ellipsis' }
             },
-            
+
             // Auto-generate columns for any unknown fields in the data
             autoGroupColumnDef: {
                 minWidth: 200,
             },
-            
+
             // Suppress errors for missing fields - be flexible
             suppressFieldDotNotation: false,
 
@@ -2680,7 +2755,8 @@
             onSelectionChanged: onSelectionChanged,
             onRowClicked: onRowClicked,
             onGridReady: onGridReady,
-            onFirstDataRendered: onFirstDataRendered
+            onFirstDataRendered: onFirstDataRendered,
+            onCellValueChanged: onCellValueChanged
         };
 
         // Initialize Grid
@@ -2713,6 +2789,47 @@
         // ===========================
         // Global Configuration
         // ===========================
+
+        async function onCellValueChanged(params) {
+            const colId = params.column.getColId();
+            const newValue = params.newValue;
+            const emailId = params.data.id;
+
+            // Map column IDs to API fields
+            const fieldMap = {
+                'baseline_activity': 'baseline_activity',
+                'as_built_activity': 'as_built_activity',
+                'delay_days': 'delay_days',
+                'is_critical_path': 'is_critical_path',
+                'category': 'category',
+                'priority': 'priority',
+                'status': 'status',
+                'notes': 'notes',
+                'claim_notes': 'notes'
+            };
+
+            const apiField = fieldMap[colId];
+            if (!apiField) return;
+
+            try {
+                const payload = {};
+                payload[apiField] = newValue;
+
+                const response = await fetch(`${API_BASE}/api/correspondence/emails/${emailId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error('Update failed');
+
+                if (window.VericaseUI) VericaseUI.Toast.success('Updated successfully');
+
+            } catch (error) {
+                console.error('Update error:', error);
+                if (window.VericaseUI) VericaseUI.Toast.error('Failed to update');
+            }
+        }
 
         function onGridReady(params) {
             gridApi = params.api;
@@ -3586,7 +3703,7 @@
             if (att.is_inline === true) return true;
 
             // Has content_id - it's inline
-            
+
 
             const filename = (att.filename || att.name || '').toLowerCase();
             const contentType = (att.content_type || '').toLowerCase();
@@ -3625,17 +3742,17 @@
         function isImageAttachment(att) {
             // If it's embedded, it's not a "real" image attachment the user cares about
             if (isEmbeddedImage(att)) return false;
-            
+
             const filename = (att.filename || att.name || '').toLowerCase();
             const contentType = (att.content_type || '').toLowerCase();
-            
+
             // Check for image extensions
             const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.tiff', '.tif', '.svg'];
             const hasImageExt = imageExtensions.some(ext => filename.endsWith(ext));
-            
+
             // Check content type
             const isImageType = contentType.startsWith('image/');
-            
+
             return hasImageExt || isImageType;
         }
 
@@ -6222,7 +6339,7 @@
             try {
                 // Show loading
                 let modal = document.getElementById('previewModal');
-                
+
                 if (!modal) {
                     createPreviewModal();
                     modal = document.getElementById('previewModal');
@@ -6243,7 +6360,7 @@
                 // Fetch signed URL
                 const response = await fetch(`${apiUrl}/api/evidence/items/${evidenceId}/attachments/${attachmentId}/url`);
                 if (!response.ok) throw new Error('Failed to get preview URL');
-                
+
                 const data = await response.json();
                 const url = data.url;
                 const type = data.content_type || '';
@@ -6258,20 +6375,20 @@
                 } else if (type === 'application/pdf' || ext === 'pdf') {
                     html = `<iframe src="${url}#toolbar=0" style="width:100%; height:100%; border:none;"></iframe>`;
                 } else if (type.startsWith('text/') || ['txt', 'log', 'csv', 'json', 'xml', 'md', 'py', 'js', 'html', 'css'].includes(ext)) {
-                     // For text, fetch content
-                     try {
-                         const textResp = await fetch(url);
-                         const text = await textResp.text();
-                         html = `<pre style="background:#1e293b; color:#f8fafc; padding:1.5rem; overflow:auto; height:100%; margin:0; font-family:'Consolas', monospace; font-size:0.9rem; white-space:pre-wrap;">${escapeHtml(text)}</pre>`;
-                     } catch (e) {
-                         html = `<div style="text-align:center; padding:3rem;">
+                    // For text, fetch content
+                    try {
+                        const textResp = await fetch(url);
+                        const text = await textResp.text();
+                        html = `<pre style="background:#1e293b; color:#f8fafc; padding:1.5rem; overflow:auto; height:100%; margin:0; font-family:'Consolas', monospace; font-size:0.9rem; white-space:pre-wrap;">${escapeHtml(text)}</pre>`;
+                    } catch (e) {
+                        html = `<div style="text-align:center; padding:3rem;">
                                     <i class="fas fa-exclamation-triangle" style="font-size:3rem; color:#f59e0b; margin-bottom:1rem;"></i>
                                     <p style="font-size:1.1rem; margin-bottom:1.5rem;">Could not load text content directly.</p>
                                     <a href="${url}" class="btn btn-primary" target="_blank" style="display:inline-flex; align-items:center; gap:0.5rem; padding:0.75rem 1.5rem;">
                                         <i class="fas fa-external-link-alt"></i> Open in New Tab
                                     </a>
                                  </div>`;
-                     }
+                    }
                 } else {
                     // Fallback
                     let icon = 'fa-file';
@@ -6291,7 +6408,7 @@
                                 </a>
                             </div>`;
                 }
-                
+
                 content.innerHTML = html;
 
             } catch (e) {
@@ -6312,7 +6429,7 @@
             try {
                 const response = await fetch(`${apiUrl}/api/evidence/items/${evidenceId}/attachments/${attachmentId}/url`);
                 if (!response.ok) throw new Error('Failed to get download URL');
-                
+
                 const data = await response.json();
                 const link = document.createElement('a');
                 link.href = data.url;
@@ -6328,7 +6445,7 @@
 
         function createPreviewModal() {
             if (document.getElementById('previewModal')) return;
-            
+
             const div = document.createElement('div');
             div.id = 'previewModal';
             div.className = 'preview-modal';
@@ -6346,7 +6463,7 @@
                 </div>
             `;
             document.body.appendChild(div);
-            
+
             // Add close handler
             div.querySelector('.preview-modal-close').addEventListener('click', () => {
                 div.classList.remove('active');
@@ -6359,6 +6476,66 @@
         // Set AG-Grid Enterprise license key (Trial - Valid until 30 November 2025)
         // Set AG-Grid Enterprise license key (Trial - Valid until 21 December 2025)
         agGrid.LicenseManager.setLicenseKey("[TRIAL]_this_{AG_Charts_and_AG_Grid}_Enterprise_key_{AG-112559}_is_granted_for_evaluation_only___Use_in_production_is_not_permitted___Please_report_misuse_to_legal@ag-grid.com___For_help_with_purchasing_a_production_key_please_contact_info@ag-grid.com___You_are_granted_a_{Single_Application}_Developer_License_for_one_application_only___All_Front-End_JavaScript_developers_working_on_the_application_would_need_to_be_licensed___This_key_will_deactivate_on_{21 December 2025}____[v3]_[0102]_MTc2NjI5MTIwMDAwMA==40a10ccdcfb041b5c67c2e13a5c95ed5");
+
+        // Programme Management
+        function openProgrammeModal() {
+            const modal = document.getElementById('programmeModal');
+            if (modal) {
+                modal.style.display = 'flex';
+                // Reset status
+                const status = document.getElementById('programmeUploadStatus');
+                if (status) status.innerHTML = '';
+            }
+        }
+
+        function closeProgrammeModal() {
+            const modal = document.getElementById('programmeModal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        async function uploadProgramme() {
+            const fileInput = document.getElementById('programmeFileInput');
+            const typeInput = document.getElementById('programmeTypeInput');
+            const statusDiv = document.getElementById('programmeUploadStatus');
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                statusDiv.innerHTML = '<span style="color: red;">Please select a file.</span>';
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const type = typeInput.value;
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('programme_type', type);
+            // Assuming we have caseId or projectId from global state
+            if (window.caseId) formData.append('case_id', window.caseId);
+            if (window.projectId) formData.append('project_id', window.projectId);
+
+            statusDiv.innerHTML = '<span style="color: blue;">Uploading...</span>';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/programmes/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error('Upload failed');
+
+                const result = await response.json();
+                statusDiv.innerHTML = `<span style="color: green;">Success! Programme uploaded. ID: ${result.id}</span>`;
+
+                // Refresh grid to show new data if any linking happened
+                setTimeout(() => {
+                    closeProgrammeModal();
+                    if (gridApi) gridApi.refreshServerSide({ purge: true });
+                }, 1500);
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                statusDiv.innerHTML = `<span style="color: red;">Error: ${error.message}</span>`;
+            }
+        }
     </script>
 </body>
 

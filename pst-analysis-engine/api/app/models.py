@@ -533,6 +533,12 @@ class EmailMessage(Base):
     body_text_clean: Mapped[str | None] = mapped_column(Text, nullable=True)  # Top-message canonical text (quotes stripped, normalised)
     content_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)  # Hash of canonical body + key metadata
 
+    # Programme linking
+    as_planned_activity: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    as_built_activity: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    delay_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    is_critical_path: Mapped[bool | None] = mapped_column(Boolean, default=False)
+
     # Flags
     has_attachments: Mapped[bool] = mapped_column(Boolean, default=False)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)

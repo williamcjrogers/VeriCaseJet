@@ -198,6 +198,9 @@ class EmailMessageSummary(BaseModel):
     
     # Additional AG Grid fields (editable/custom fields)
     programme_activity: str | None = None
+    baseline_activity: str | None = None
+    as_built_activity: str | None = None
+    delay_days: int | None = None
     programme_variance: str | None = None
     is_critical_path: bool | None = None
     programme_status: str | None = None
@@ -242,6 +245,18 @@ class EmailListResponse(BaseModel):
     emails: list[EmailMessageSummary]
     page: int
     page_size: int
+
+
+class EmailUpdate(BaseModel):
+    """Schema for updating email fields"""
+    baseline_activity: str | None = None
+    as_built_activity: str | None = None
+    delay_days: int | None = None
+    is_critical_path: bool | None = None
+    category: str | None = None
+    priority: str | None = None
+    status: str | None = None
+    notes: str | None = None
 
 
 # ========================================
@@ -994,7 +1009,10 @@ async def list_emails(
             email_body=clean_body_text(e.body_text_clean, e.body_html, e.body_text),
             attachments=attachment_list,
             # Additional AG Grid fields (with defaults)
-            programme_activity=None,
+            programme_activity=getattr(e, 'as_planned_activity', None), # Default to as-planned
+            baseline_activity=getattr(e, 'as_planned_activity', None),
+            as_built_activity=getattr(e, 'as_built_activity', None),
+            delay_days=getattr(e, 'delay_days', None),
             programme_variance=None,
             is_critical_path=None,
             programme_status=None,
@@ -1076,6 +1094,9 @@ async def get_emails_server_side(
             'date_sent': EmailMessage.date_sent,
             'has_attachments': EmailMessage.has_attachments,
             'body_text': EmailMessage.body_text,
+            'baseline_activity': EmailMessage.as_planned_activity,
+            'as_built_activity': EmailMessage.as_built_activity,
+            'delay_days': EmailMessage.delay_days,
         }
         
         col = column_map.get(col_id)
@@ -1122,6 +1143,9 @@ async def get_emails_server_side(
                 'sender_email': EmailMessage.sender_email,
                 'date_sent': EmailMessage.date_sent,
                 'has_attachments': EmailMessage.has_attachments,
+                'baseline_activity': EmailMessage.as_planned_activity,
+                'as_built_activity': EmailMessage.as_built_activity,
+                'delay_days': EmailMessage.delay_days,
             }
             
             col = column_map.get(col_id, EmailMessage.date_sent)
@@ -1198,6 +1222,9 @@ async def get_emails_server_side(
             # Map to expected frontend field names
             'email_subject': e.subject or '(No Subject)',
             'subject': e.subject or '(No Subject)',
+            'baseline_activity': getattr(e, 'as_planned_activity', None),
+            'as_built_activity': getattr(e, 'as_built_activity', None),
+            'delay_days': getattr(e, 'delay_days', None),
             'email_from': e.sender_email or '',
             'sender_name': e.sender_name or '',
             'sender_email': e.sender_email or '',
@@ -1348,6 +1375,54 @@ async def get_email_detail(
         importance=email.importance,
         pst_message_path=email.pst_message_path,
     )
+
+
+@router.patch("/emails/{email_id}")
+async def update_email(
+    email_id: str,
+    update_data: EmailUpdate,
+    db: Annotated[Session, Depends(get_db)],
+):
+    """Update email metadata (e.g. programme linking)"""
+    try:
+        email_uuid = uuid.UUID(email_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid email ID")
+
+    email = db.query(EmailMessage).filter_by(id=email_uuid).first()
+    if not email:
+        raise HTTPException(404, "Email not found")
+    
+    # Update programme linking fields
+    if update_data.baseline_activity is not None:
+        email.as_planned_activity = update_data.baseline_activity
+    if update_data.as_built_activity is not None:
+        email.as_built_activity = update_data.as_built_activity
+    if update_data.delay_days is not None:
+        email.delay_days = update_data.delay_days
+    if update_data.is_critical_path is not None:
+        email.is_critical_path = update_data.is_critical_path
+        
+    # Update other metadata in meta field
+    if email.meta is None:
+        email.meta = {}
+    
+    # Reassign to ensure change detection
+    meta_update = dict(email.meta)
+    
+    if update_data.category is not None:
+        meta_update['category'] = update_data.category
+    if update_data.priority is not None:
+        meta_update['priority'] = update_data.priority
+    if update_data.status is not None:
+        meta_update['status'] = update_data.status
+    if update_data.notes is not None:
+        meta_update['notes'] = update_data.notes
+        
+    email.meta = meta_update
+    
+    db.commit()
+    return {"status": "success", "id": str(email.id)}
 
 
 @router.get("/attachments/{attachment_id}/signed-url")
