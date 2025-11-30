@@ -31,8 +31,18 @@ jobs:
           aws-region: eu-west-2
       
       - name: Deploy to EKS
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           aws eks update-kubeconfig --name vericase-cluster --region eu-west-2
+          
+          # Create or update Kubernetes secret from GitHub secrets
+          kubectl create secret generic vericase-secrets \
+            --from-literal=database-url="${DATABASE_URL}" \
+            --from-literal=jwt-secret="${JWT_SECRET}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          
           kubectl apply -f pst-analysis-engine/k8s-deployment.yaml
           kubectl set image deployment/vericase-api vericase-api=wcjrogers/vericase-api:latest
           kubectl rollout status deployment/vericase-api

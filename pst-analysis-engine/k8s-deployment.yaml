@@ -37,23 +37,17 @@ spec:
           value: "D9BX79MBSG"
         - name: CORS_ORIGINS
           value: "*"
-        # OPTION 1: Use Secret (create vericase-secrets first!)
-        # - name: DATABASE_URL
-        #   valueFrom:
-        #     secretKeyRef:
-        #       name: vericase-secrets
-        #       key: database-url
-        # - name: JWT_SECRET
-        #   valueFrom:
-        #     secretKeyRef:
-        #       name: vericase-secrets
-        #       key: jwt-secret
-        
-        # OPTION 2: Direct values (current - for quick testing)
+        # Secrets from GitHub Secrets via Kubernetes Secret
         - name: DATABASE_URL
-          value: "postgresql+psycopg2://vericase:vericase@postgres:5432/vericase"
+          valueFrom:
+            secretKeyRef:
+              name: vericase-secrets
+              key: database-url
         - name: JWT_SECRET
-          value: "vericase-jwt-secret-key-change-in-production-min-32-chars"
+          valueFrom:
+            secretKeyRef:
+              name: vericase-secrets
+              key: jwt-secret
 ---
 apiVersion: v1
 kind: Service
