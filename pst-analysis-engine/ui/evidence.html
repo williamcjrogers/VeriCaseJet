@@ -1133,6 +1133,14 @@
         // ============================================
 
         function initGrid() {
+            // Safe data accessor - prevents errors when data is missing
+            const safeGet = (data, key, fallback = '') => {
+                if (!data) return fallback;
+                const val = data[key];
+                if (val === null || val === undefined) return fallback;
+                return val;
+            };
+
             const gridOptions = {
                 columnDefs: [
                     {
@@ -1142,10 +1150,14 @@
                         sortable: false,
                         filter: false,
                         cellRenderer: params => {
-                            const icon = getFileIcon(params.data.mime_type, params.data.evidence_type);
-                            const iconClass = getFileIconClass(params.data.mime_type);
-                            if (params.data.mime_type?.startsWith('image/') && params.data.download_url) {
-                                return `<img src="${params.data.download_url}" class="grid-thumbnail" alt="" loading="lazy">`;
+                            if (!params.data) return '<div class="grid-file-icon"><i class="fas fa-file"></i></div>';
+                            const mimeType = safeGet(params.data, 'mime_type', '');
+                            const evidenceType = safeGet(params.data, 'evidence_type', '');
+                            const downloadUrl = safeGet(params.data, 'download_url', '');
+                            const icon = getFileIcon(mimeType, evidenceType);
+                            const iconClass = getFileIconClass(mimeType);
+                            if (mimeType.startsWith('image/') && downloadUrl) {
+                                return `<img src="${downloadUrl}" class="grid-thumbnail" alt="" loading="lazy">`;
                             }
                             return `<div class="grid-file-icon ${iconClass}"><i class="fas ${icon}"></i></div>`;
                         }
@@ -1156,11 +1168,16 @@
                         flex: 2,
                         minWidth: 200,
                         cellRenderer: params => {
-                            const typeInfo = getFileTypeInfo(params.data.mime_type, params.data.filename);
+                            if (!params.data) return '-';
+                            const mimeType = safeGet(params.data, 'mime_type', '');
+                            const filename = safeGet(params.data, 'filename', 'Unknown');
+                            const title = safeGet(params.data, 'title', '');
+                            const fileSize = safeGet(params.data, 'file_size', 0);
+                            const typeInfo = getFileTypeInfo(mimeType, filename);
                             return `
                                 <div class="file-info">
-                                    <span class="file-name">${escapeHtml(params.data.title || params.data.filename)}</span>
-                                    <span class="file-meta">${typeInfo.label} • ${formatFileSize(params.data.file_size)}</span>
+                                    <span class="file-name">${escapeHtml(title || filename)}</span>
+                                    <span class="file-meta">${typeInfo.label} • ${formatFileSize(fileSize)}</span>
                                 </div>
                             `;
                         }
@@ -1182,7 +1199,7 @@
                     },
                     {
                         field: 'evidence_type',
-                        headerName: 'AI Classification',
+                        headerName: 'Type',
                         width: 140,
                         cellRenderer: params => {
                             const type = params.value;
@@ -1192,23 +1209,22 @@
                         }
                     },
                     {
-                        field: 'classification_confidence',
-                        headerName: 'AI Confidence',
-                        width: 120,
+                        field: 'file_type',
+                        headerName: 'Format',
+                        width: 100,
                         cellRenderer: params => {
-                            const confidence = params.value;
-                            if (!confidence) return '<span style="color: var(--text-muted);">—</span>';
-                            const color = confidence >= 80 ? '#16a34a' : confidence >= 60 ? '#d97706' : '#dc2626';
-                            return `<span style="color: ${color}; font-weight: 500;">${confidence}%</span>`;
+                            const ext = params.value;
+                            if (!ext) return '<span style="color: var(--text-muted);">—</span>';
+                            return `<span style="text-transform: uppercase; font-weight: 500; font-size: 0.75rem;">${ext}</span>`;
                         }
                     },
                     {
                         field: 'extracted_parties',
-                        headerName: 'Extracted Parties',
+                        headerName: 'Parties',
                         width: 160,
                         cellRenderer: params => {
                             const parties = params.value;
-                            if (!parties || parties.length === 0) return '<span style="color: var(--text-muted);">—</span>';
+                            if (!parties || !Array.isArray(parties) || parties.length === 0) return '<span style="color: var(--text-muted);">—</span>';
                             const display = parties.slice(0, 2).join(', ');
                             const extra = parties.length > 2 ? ` +${parties.length - 2}` : '';
                             return `<span style="color: var(--vericase-teal); font-size: 0.75rem;">${display}${extra}</span>`;
@@ -1216,11 +1232,11 @@
                     },
                     {
                         field: 'extracted_amounts',
-                        headerName: 'Key Amounts',
+                        headerName: 'Amounts',
                         width: 120,
                         cellRenderer: params => {
                             const amounts = params.value;
-                            if (!amounts || amounts.length === 0) return '<span style="color: var(--text-muted);">—</span>';
+                            if (!amounts || !Array.isArray(amounts) || amounts.length === 0) return '<span style="color: var(--text-muted);">—</span>';
                             const display = amounts[0];
                             const extra = amounts.length > 1 ? ` +${amounts.length - 1}` : '';
                             return `<span style="color: #16a34a; font-weight: 500; font-size: 0.75rem;">${display}${extra}</span>`;
@@ -1245,8 +1261,10 @@
                         sortable: false,
                         filter: false,
                         cellRenderer: params => {
+                            if (!params.data) return '';
                             const starred = params.value;
-                            return `<button class="star-btn ${starred ? 'starred' : ''}" onclick="event.stopPropagation(); toggleStar('${params.data.id}')">
+                            const id = safeGet(params.data, 'id', '');
+                            return `<button class="star-btn ${starred ? 'starred' : ''}" onclick="event.stopPropagation(); toggleStar('${id}')">
                                 <i class="fas fa-star"></i>
                             </button>`;
                         }
@@ -1269,13 +1287,26 @@
                     wrapText: false,
                     cellStyle: { 'overflow': 'hidden', 'text-overflow': 'ellipsis' }
                 },
+                // Suppress errors for missing row data
+                suppressRowClickSelection: false,
                 rowSelection: 'single',
                 animateRows: true,
                 rowHeight: 56,
                 headerHeight: 44,
-                onRowClicked: params => showDetail(params.data),
+                // Safe row click handler
+                onRowClicked: params => {
+                    if (params.data) showDetail(params.data);
+                },
                 onGridReady: params => {
                     loadAllData();
+                },
+                // Handle grid errors gracefully
+                onGridSizeChanged: params => {
+                    try {
+                        params.api.sizeColumnsToFit();
+                    } catch (e) {
+                        console.warn('Grid size adjustment failed:', e);
+                    }
                 }
             };
 
