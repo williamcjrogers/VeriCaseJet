@@ -2623,6 +2623,8 @@
             }
 
             try {
+                // Ensure theme classes are present
+                gridDiv.className = 'ag-theme-quartz ag-theme-vericase';
                 gridApi = agGrid.createGrid(gridDiv, gridOptions);
                 console.log('[Grid] AG Grid initialized with server-side row model');
                 // Note: Server-side datasource automatically loads data on grid ready
