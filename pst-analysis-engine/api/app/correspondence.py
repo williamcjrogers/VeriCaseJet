@@ -1148,7 +1148,14 @@ async def get_emails_server_side(
 
         # Load attachments from relationship (uses selectin loading - efficient)
         attachment_list = []
-        db_attachments = e.attachments if hasattr(e, 'attachments') and e.attachments else []
+        
+        # Ensure we are loading attachments - try relationships first
+        try:
+            db_attachments = e.attachments if hasattr(e, 'attachments') else []
+        except Exception:
+            # Fallback if lazy loading fails
+            db_attachments = []
+            
         for att in db_attachments:
             att_data = {
                 'id': str(att.id),
@@ -1164,16 +1171,27 @@ async def get_emails_server_side(
                 'attachment_hash': getattr(att, "attachment_hash", None),
                 'is_duplicate': getattr(att, "is_duplicate", False),
             }
-            # Only include non-embedded attachments
-            if not _is_embedded_image(att_data):
-                attachment_list.append(att_data)
+            # Include ALL attachments here - filtering happens on frontend or via flag
+            # But we mark embedded ones clearly so frontend can filter if needed
+            att_data['is_embedded'] = _is_embedded_image(att_data)
+            attachment_list.append(att_data)
 
         # Fallback: Check meta field for attachments if none found in relationship
         if not attachment_list:
             email_meta = dict(e.meta) if e.meta and isinstance(e.meta, dict) else {}
             meta_attachments = email_meta.get('attachments', [])
             if meta_attachments and isinstance(meta_attachments, list):
-                attachment_list = [att for att in meta_attachments if not _is_embedded_image(att)]
+                attachment_list = []
+                for att in meta_attachments:
+                    # Normalize meta attachment structure
+                    att_data = dict(att)
+                    if 'is_embedded' not in att_data:
+                        att_data['is_embedded'] = _is_embedded_image(att_data)
+                    attachment_list.append(att_data)
+        
+        # Explicitly log if we found attachments but they were filtered out
+        # if e.has_attachments and not attachment_list:
+        #    logger.debug(f"Email {e.id} has_attachments=True but attachment_list is empty")
 
         rows.append({
             'id': str(e.id),
@@ -1192,7 +1210,7 @@ async def get_emails_server_side(
             'recipients_cc': e.recipients_cc or [],
             'has_attachments': len(attachment_list) > 0 or (e.has_attachments or False),
             'attachment_count': len(attachment_list) or getattr(e, 'attachment_count', 0) or 0,
-            'attachments': attachment_list,  # Include attachment details for grid cell renderer
+            'attachments': attachment_list,  # Include ALL attachments details for grid cell renderer
             'meta': {'attachments': attachment_list} if attachment_list else None,  # Also in meta for compatibility
             'is_flagged': getattr(e, 'is_flagged', False),
             'importance': getattr(e, 'importance', 'normal'),
