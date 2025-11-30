@@ -1,846 +1,428 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VeriCase - Configuration Wizard</title>
+    <title>VeriCase - Project Wizard</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="brand-styles.css">
     <link rel="stylesheet" href="design-system.css">
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
+    <script src="wizard-logic.js"></script>
+    
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        /* Variables inherited from brand-styles.css */
-
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'SF Pro Display', 'Roboto', sans-serif;
             background: var(--bg-primary);
-            background-image: radial-gradient(circle, rgba(15, 157, 154, 0.03) 1px, transparent 1px);
-            background-size: 30px 30px;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
-            -webkit-font-smoothing: antialiased;
-        }
-
-        .wizard-container {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            max-width: 900px;
-            width: 100%;
-            overflow: hidden;
-        }
-
-        .wizard-header {
-            background: linear-gradient(135deg, var(--vericase-navy) 0%, var(--vericase-navy) 100%);
-            color: white;
-            padding: 2.5rem;
-            text-align: center;
-            position: relative;
-            box-shadow: 0 4px 20px rgba(31, 41, 55, 0.2);
-        }
-
-        .wizard-header-nav {
-            position: absolute;
-            top: 15px;
-            right: 20px;
-            display: flex;
-            gap: 10px;
-        }
-
-        .wizard-header-nav button {
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-
-        .wizard-header-nav button:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-
-        .wizard-header h1 {
-            font-size: 32px;
-            margin-bottom: 10px;
-        }
-
-        .wizard-header p {
-            font-size: 16px;
-            opacity: 0.9;
-        }
-
-        .wizard-content {
             padding: 40px;
         }
 
-        .draft-banner {
-            display: none;
-            background: #fef3c7;
-            border: 1px solid #fcd34d;
-            color: #92400e;
-            padding: 16px 20px;
-            border-radius: 12px;
-            margin-bottom: 24px;
+        .wizard-card {
+            background: white;
+            width: 100%;
+            max-width: 900px;
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-2xl);
+            overflow: hidden;
             display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            flex-wrap: wrap;
+            flex-direction: column;
+            min-height: 600px;
         }
 
-        .draft-banner i {
-            margin-right: 8px;
-        }
-
-        .draft-banner-actions {
-            display: flex;
-            gap: 10px;
-            flex-shrink: 0;
-        }
-
-        .draft-banner .btn-secondary {
-            background: #fff7ed;
-            border: 1px solid #f59e0b;
-            color: #92400e;
-        }
-
-        .draft-banner .btn-secondary:hover {
-            background: #fde68a;
-            border-color: #d97706;
-            color: #7c2d12;
-        }
-
-        .draft-banner .btn-primary {
-            background: #f97316;
-            border: 1px solid #ea580c;
+        .wizard-header {
+            background: var(--vericase-navy);
+            padding: 32px;
             color: white;
-        }
-
-        .draft-banner .btn-primary:hover {
-            background: #ea580c;
-            border-color: #c2410c;
-        }
-
-        .step-indicator {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 40px;
-            position: relative;
-        }
-
-        .step-indicator::before {
-            content: '';
-            position: absolute;
-            top: 20px;
-            left: 0;
-            right: 0;
-            height: 2px;
-            background: #e0e0e0;
-            z-index: 0;
-        }
-
-        .step {
-            flex: 1;
             text-align: center;
             position: relative;
-            z-index: 1;
         }
 
-        .step-circle {
-            width: 40px;
-            height: 40px;
+        .wizard-title {
+            font-family: var(--font-serif);
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+
+        .wizard-subtitle {
+            opacity: 0.8;
+            font-size: 1rem;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
-            background: #e0e0e0;
-            color: #999;
+            cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 10px;
-            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .close-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        /* Progress Steps */
+        .steps-container {
+            background: var(--bg-secondary);
+            padding: 16px 32px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+        }
+
+        .step-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            opacity: 0.5;
             transition: all 0.3s;
         }
 
-        .step.active .step-circle {
-            background: #667eea;
-            color: white;
-        }
-
-        .step.completed .step-circle {
-            background: #4caf50;
-            color: white;
-        }
-
-        .step-label {
-            font-size: 12px;
-            color: #666;
-        }
-
-        .step.active .step-label {
-            color: #667eea;
+        .step-item.active {
+            opacity: 1;
+            color: var(--vericase-teal-dark);
             font-weight: 600;
+        }
+
+        .step-item.completed {
+            opacity: 1;
+            color: var(--success);
+        }
+
+        .step-circle {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--gray-300);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .step-item.active .step-circle {
+            background: var(--vericase-teal);
+            box-shadow: 0 0 0 4px rgba(15, 157, 154, 0.1);
+        }
+
+        .step-item.completed .step-circle {
+            background: var(--success);
+        }
+
+        /* Main Content */
+        .wizard-body {
+            padding: 40px;
+            flex: 1;
+            overflow-y: auto;
         }
 
         .wizard-step {
             display: none;
+            animation: fadeIn 0.4s ease-out;
         }
 
         .wizard-step.active {
             display: block;
-            animation: fadeIn 0.3s;
         }
 
         @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
-        .form-group {
-            margin-bottom: 25px;
+        /* Form Styling */
+        .input-group {
+            margin-bottom: 24px;
         }
 
-        label {
+        .input-label {
             display: block;
-            margin-bottom: 8px;
             font-weight: 600;
-            color: #333;
-        }
-
-        label .required {
-            color: #e74c3c;
-        }
-
-        label .tooltip {
-            margin-left: 5px;
-            color: #667eea;
-            cursor: help;
-        }
-
-        input[type="text"],
-        input[type="date"],
-        select,
-        textarea {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 14px;
-            transition: border-color 0.3s;
-        }
-
-        input:focus,
-        select:focus,
-        textarea:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .radio-group {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .radio-option {
-            display: flex;
-            align-items: flex-start;
-            padding: 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .radio-option:hover {
-            border-color: #667eea;
-            background: #f8f9ff;
-        }
-
-        .radio-option input[type="radio"] {
-            margin-right: 12px;
-            margin-top: 2px;
-        }
-
-        .radio-option-content h3 {
-            font-size: 16px;
-            margin-bottom: 5px;
-            color: #333;
-        }
-
-        .radio-option-content p {
-            font-size: 13px;
-            color: #666;
-            line-height: 1.5;
+            margin-bottom: 8px;
+            color: var(--vericase-navy);
+            font-size: 0.9375rem;
         }
 
         .helper-text {
-            font-size: 13px;
-            color: #666;
-            margin-top: 5px;
-            font-style: italic;
+            font-size: 0.8125rem;
+            color: var(--text-muted);
+            margin-top: 6px;
         }
 
-        .guidance-note {
-            background: #f0f7ff;
-            border-left: 4px solid #667eea;
-            padding: 12px;
-            margin-bottom: 20px;
-            border-radius: 4px;
-            font-size: 13px;
-            color: #555;
+        /* AI Paste Area */
+        .ai-paste-area {
+            background: linear-gradient(180deg, rgba(250, 249, 246, 1) 0%, rgba(255, 255, 255, 1) 100%);
+            border: 1px dashed var(--vericase-gold);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+            text-align: center;
+            transition: all 0.2s;
         }
 
-        .table-container {
-            overflow-x: auto;
-            margin-bottom: 20px;
+        .ai-paste-area:focus-within {
+            border-color: var(--vericase-teal);
+            border-style: solid;
+            box-shadow: 0 0 0 4px rgba(15, 157, 154, 0.1);
         }
 
-        table {
+        .ai-textarea {
             width: 100%;
-            border-collapse: collapse;
-        }
-
-        table th {
-            background: #f5f5f5;
-            padding: 12px;
-            text-align: left;
-            font-weight: 600;
-            color: #333;
-            border-bottom: 2px solid #e0e0e0;
-        }
-
-        table td {
-            padding: 12px;
-            border-bottom: 1px solid #e0e0e0;
-        }
-
-        table td input,
-        table td select {
-            width: 100%;
-        }
-
-        .btn-add-row {
-            background: #4caf50;
-            color: white;
             border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 13px;
+            background: transparent;
+            resize: none;
+            font-family: var(--font-sans);
+            font-size: 1rem;
+            min-height: 120px;
+            outline: none;
+        }
+
+        .ai-badge {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            transition: background 0.3s;
+            gap: 6px;
+            background: rgba(139, 115, 85, 0.1);
+            color: var(--vericase-gold);
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-bottom: 16px;
         }
 
-        .btn-add-row:hover {
-            background: #45a049;
-        }
-
-        .btn-delete-row {
-            background: #e74c3c;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-
-        .btn-delete-row:hover {
-            background: #c0392b;
-        }
-
-        .wizard-actions {
+        /* Footer */
+        .wizard-footer {
+            padding: 24px 40px;
+            border-top: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #e0e0e0;
+            background: var(--bg-primary);
         }
 
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .btn-secondary {
-            background: #e0e0e0;
-            color: #333;
-        }
-
-        .btn-secondary:hover {
-            background: #d0d0d0;
-        }
-
-        .btn-primary {
-            background: #667eea;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #5568d3;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .summary-section {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-
-        .summary-section h3 {
-            color: #667eea;
-            margin-bottom: 15px;
-        }
-
-        .summary-item {
-            display: flex;
-            padding: 8px 0;
-            border-bottom: 1px solid #e0e0e0;
-        }
-
-        .summary-item:last-child {
-            border-bottom: none;
-        }
-
-        .summary-label {
-            font-weight: 600;
-            color: #555;
-            width: 200px;
-        }
-
-        .summary-value {
-            color: #333;
-            flex: 1;
-        }
-
-        .custom-input {
-            margin-top: 10px;
-            display: none;
-        }
-
-        .custom-input.visible {
-            display: block;
-        }
-
-        /* Intelligent Chat Interface Styles */
-        .chat-container {
-            display: none;
-            flex: 1;
-            flex-direction: column;
-            overflow: hidden;
-            height: calc(80vh - 120px);
-        }
-
-        .chat-container.active {
-            display: flex;
-        }
-
-        .chat-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 2rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .message {
-            display: flex;
-            gap: 12px;
-            animation: fadeIn 0.3s ease-in;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .message.bot {
-            align-self: flex-start;
-        }
-
-        .message.user {
-            align-self: flex-end;
-            flex-direction: row-reverse;
-        }
-
-        .message-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            flex-shrink: 0;
-        }
-
-        .message.bot .message-avatar {
-            background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%);
-            color: white;
-        }
-
-        .message.user .message-avatar {
-            background: var(--vericase-navy);
-            color: white;
-        }
-
-        .message-content {
-            max-width: 70%;
-            padding: 12px 16px;
-            border-radius: 18px;
-            line-height: 1.5;
-        }
-
-        .message.bot .message-content {
-            background: #f3f4f6;
-            color: var(--vericase-navy);
-            border-bottom-left-radius: 4px;
-        }
-
-        .message.user .message-content {
-            background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%);
-            color: white;
-            border-bottom-right-radius: 4px;
-        }
-
-        .quick-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 8px;
-        }
-
-        .quick-action-btn {
-            background: white;
-            border: 2px solid var(--vericase-teal);
-            color: var(--vericase-teal);
-            padding: 8px 16px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-
-        .quick-action-btn:hover {
-            background: var(--vericase-teal);
-            color: white;
-        }
-
-        .ai-key-form {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-top: 12px;
-        }
-
-        .ai-key-form label {
-            font-weight: 600;
-            color: var(--vericase-navy);
-        }
-
-        .ai-key-form select,
-        .ai-key-form input {
-            width: 100%;
-            padding: 10px 12px;
-            border-radius: 12px;
-            border: 1px solid #d1d5db;
-            font-size: 14px;
-        }
-
-        .ai-key-actions {
-            display: flex;
-            gap: 12px;
-            margin-top: 10px;
-        }
-
-        .ai-key-disclaimer {
-            display: block;
-            margin-top: 12px;
-            font-size: 12px;
-            color: #6b7280;
-        }
-
-        .input-error {
-            border-color: #ef4444 !important;
-            box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
-        }
-
-        .typing-indicator {
-            display: flex;
-            gap: 4px;
-            padding: 12px 16px;
-        }
-
-        .typing-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--vericase-teal);
-            animation: typing 1.4s infinite;
-        }
-
-        .typing-dot:nth-child(2) {
-            animation-delay: 0.2s;
-        }
-
-        .typing-dot:nth-child(3) {
-            animation-delay: 0.4s;
-        }
-
-        @keyframes typing {
-
-            0%,
-            60%,
-            100% {
-                transform: translateY(0);
-                opacity: 0.7;
-            }
-
-            30% {
-                transform: translateY(-10px);
-                opacity: 1;
-            }
-        }
-
-        .chat-input-container {
-            border-top: 2px solid #e5e7eb;
-            padding: 1.5rem;
-            background: white;
-        }
-
-        .chat-input-wrapper {
-            display: flex;
-            gap: 12px;
-            align-items: flex-end;
-        }
-
-        .chat-input {
-            flex: 1;
-            border: 2px solid #e5e7eb;
-            border-radius: 24px;
-            padding: 12px 20px;
-            font-size: 15px;
-            resize: none;
-            max-height: 120px;
-            font-family: inherit;
-            transition: border-color 0.2s;
-        }
-
-        .chat-input:focus {
-            outline: none;
-            border-color: var(--vericase-teal);
-        }
-
-        .send-btn {
-            background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%);
-            color: white;
-            border: none;
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 18px;
-            transition: all 0.2s;
-            flex-shrink: 0;
-        }
-
-        .send-btn:hover {
-            transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(23, 181, 163, 0.4);
-        }
-
-        .send-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .progress-bar {
-            height: 4px;
-            background: #e5e7eb;
-            position: relative;
-            overflow: hidden;
-            margin-top: 1rem;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%);
-            transition: width 0.3s ease;
-            width: 0;
-        }
     </style>
 </head>
-
 <body>
-    <div class="wizard-container">
+
+    <div class="wizard-card">
         <div class="wizard-header">
-            <div class="wizard-header-nav">
-                <img src="assets/LOGOTOBEUSED.png" alt="VeriCase" style="height: 32px; margin-right: auto;">
-                <button class="btn-secondary" id="btnSaveDraft">
-                    <i class="fas fa-save"></i> Save Draft
-                </button>
-                <button class="btn-secondary" id="btnCancel">
-                    <i class="fas fa-times"></i> Cancel
-                </button>
+            <button class="close-btn" onclick="window.location.href='master-dashboard.html'"><i class="fas fa-times"></i></button>
+            <h1 class="wizard-title">Configure Workspace</h1>
+            <div class="wizard-subtitle">Set up your project with intelligent defaults</div>
+        </div>
+
+        <div class="steps-container">
+            <div class="step-item active" id="indicator-1">
+                <div class="step-circle">1</div>
+                <span>Identify</span>
             </div>
-            <h1 id="wizardHeaderTitle"><i class="fas fa-cog"></i> Create Profile</h1>
-            <p id="wizardHeaderSubtitle">Set up your project or case for evidence analysis</p>
-            <div class="progress-bar" id="progressBar" style="display: none;">
-                <div class="progress-fill" id="progressFill"></div>
+            <div class="step-item" id="indicator-2">
+                <div class="step-circle">2</div>
+                <span>Details</span>
+            </div>
+            <div class="step-item" id="indicator-3">
+                <div class="step-circle">3</div>
+                <span>Stakeholders</span>
+            </div>
+            <div class="step-item" id="indicator-4">
+                <div class="step-circle">4</div>
+                <span>Review</span>
             </div>
         </div>
 
-        <div class="wizard-content">
-            <div id="draftBanner" class="draft-banner">
-                <div class="draft-banner-text" style="display:flex; align-items:center; gap:8px;">
-                    <i class="fas fa-save"></i>
-                    <span><strong>Saved draft found.</strong> You can restore your last session or start fresh.</span>
+        <div class="wizard-body">
+            
+            <!-- STEP 1: AI Entry -->
+            <div id="step-1" class="wizard-step active">
+                <div class="text-center" style="margin-bottom: 32px;">
+                    <h2 style="font-size: 1.5rem; color: var(--vericase-navy); margin-bottom: 12px;">Let's get started</h2>
+                    <p style="color: var(--text-secondary);">You can manually enter details or paste a contract header to auto-fill.</p>
                 </div>
-                <div class="draft-banner-actions">
-                    <button type="button" class="btn btn-secondary" onclick="clearWizardDraft()">
-                        <i class="fas fa-times"></i> Dismiss
+
+                <div class="ai-paste-area">
+                    <div class="ai-badge"><i class="fas fa-magic"></i> AI Assist</div>
+                    <textarea id="aiPasteInput" class="ai-textarea" placeholder="Paste text here to auto-configure...
+e.g. 
+'Project: Northern Line Extension
+Contract: NEC4 Option A
+Client: Transport for London
+Contractor: Ferrovial Laing O'Rourke'"></textarea>
+                </div>
+
+                <div style="text-align: center;">
+                    <button class="btn btn-vericase" id="btnAutoFill" onclick="runAutoFill()">
+                        <i class="fas fa-bolt"></i> Auto-Extract Details
                     </button>
-                    <button type="button" class="btn btn-primary" onclick="restoreWizardDraft()">
-                        <i class="fas fa-sync"></i> Restore Draft
-                    </button>
+                    <div style="margin-top: 16px;">
+                        <button class="btn btn-ghost" onclick="nextStep()">Skip to Manual Entry</button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Step Indicator -->
-            <div class="step-indicator" id="stepIndicator">
-                <!-- Steps will be dynamically populated based on profile type -->
-            </div>
-
-            <!-- Entry Screen - Choose Type -->
-            <div class="wizard-step active" id="step-entry">
-                <h2 style="margin-bottom: 20px;">Choose what you want to do:</h2>
-
-                <div class="radio-group">
-                    <label class="radio-option"
-                        style="border: 2px solid var(--vericase-teal); background: linear-gradient(135deg, rgba(23, 181, 163, 0.05) 0%, rgba(23, 181, 163, 0.1) 100%);">
-                        <input type="radio" name="profileType" value="intelligent" />
-                        <div class="radio-option-content">
-                            <h3><i class="fas fa-robot" style="color: var(--vericase-teal); margin-right: 8px;"></i>
-                                Intelligent Configuration</h3>
-                            <p>Let AI guide you through setup. Just build your team and AI will configure everything
-                                correctly, avoiding errors.</p>
-                            <span
-                                style="display: inline-block; margin-top: 8px; padding: 4px 12px; background: var(--vericase-teal); color: white; border-radius: 12px; font-size: 12px; font-weight: 600;">RECOMMENDED</span>
-                        </div>
-                    </label>
-
-                    <label class="radio-option">
-                        <input type="radio" name="profileType" value="users" />
-                        <div class="radio-option-content">
-                            <h3>Add Users / Team</h3>
-                            <p>Set up team members and their roles manually</p>
-                        </div>
-                    </label>
-
-                    <label class="radio-option">
-                        <input type="radio" name="profileType" value="project" />
-                        <div class="radio-option-content">
-                            <h3>Set up a Project</h3>
-                            <p>Best for discovery or live projects where we're gathering material to see if a case
-                                exists.</p>
-                        </div>
-                    </label>
-
-                    <label class="radio-option">
-                        <input type="radio" name="profileType" value="case" />
-                        <div class="radio-option-content">
-                            <h3>Set up a Case</h3>
-                            <p>Use when a dispute is formalising (adjudication, litigation, arbitration, etc.).</p>
-                        </div>
-                    </label>
+            <!-- STEP 2: Project Details -->
+            <div id="step-2" class="wizard-step">
+                <h2 style="margin-bottom: 24px;">Project Details</h2>
+                <div class="input-group">
+                    <label class="input-label">Project Name</label>
+                    <input type="text" id="inputProjectName" class="input" placeholder="e.g. Riverside Development">
                 </div>
-
-                <p class="helper-text" style="margin-top: 20px;">
-                    <i class="fas fa-info-circle"></i> Project is for discovery/live project work; Case is for a
-                    formalised dispute. You can convert a Project into a Case later.
-                </p>
-            </div>
-
-            <!-- Dynamic Steps Container -->
-            <div id="dynamicSteps"></div>
-
-            <!-- Wizard Actions -->
-            <div class="wizard-actions">
-                <div>
-                    <button class="btn btn-secondary" id="btnBack" style="display: none;">
-                        <i class="fas fa-arrow-left"></i> Back
-                    </button>
+                <div class="input-group">
+                    <label class="input-label">Project Code</label>
+                    <input type="text" id="inputProjectCode" class="input" placeholder="e.g. PROJ-001">
                 </div>
-                <div style="display: flex; gap: 10px;">
-                    <button class="btn btn-primary" id="btnContinue">
-                        Continue <i class="fas fa-arrow-right"></i>
-                    </button>
+                <div class="input-group">
+                    <label class="input-label">Contract Type</label>
+                    <select id="inputContract" class="input">
+                        <option value="">Select...</option>
+                        <option value="NEC4">NEC4</option>
+                        <option value="JCT">JCT Design & Build</option>
+                        <option value="FIDIC">FIDIC Yellow Book</option>
+                    </select>
                 </div>
             </div>
+
+            <!-- STEP 3: Stakeholders -->
+            <div id="step-3" class="wizard-step">
+                <h2 style="margin-bottom: 24px;">Key Stakeholders</h2>
+                <p class="helper-text" style="margin-bottom: 24px;">We identified these parties. Confirm or edit them.</p>
+                
+                <div id="stakeholderList">
+                    <!-- Dynamic content -->
+                    <div class="input-group">
+                        <label class="input-label">Employer / Client</label>
+                        <input type="text" id="inputClient" class="input">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">Main Contractor</label>
+                        <input type="text" id="inputContractor" class="input">
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 4: Review -->
+            <div id="step-4" class="wizard-step">
+                <div class="text-center" style="padding: 40px 0;">
+                    <div style="width: 80px; height: 80px; background: rgba(5, 150, 105, 0.1); color: var(--success); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; margin: 0 auto 24px;">
+                        <i class="fas fa-check"></i>
+                    </div>
+                    <h2>Ready to Create</h2>
+                    <p style="color: var(--text-secondary); max-width: 400px; margin: 0 auto;">
+                        We have configured the project workspace. You can now upload evidence and start analysis.
+                    </p>
+                </div>
+            </div>
+
         </div>
 
-        <!-- Intelligent Chat Interface (hidden by default) -->
-        <div class="chat-container" id="chatContainer">
-            <div class="chat-messages" id="chatMessages">
-                <!-- Messages will be added here dynamically -->
-            </div>
-
-            <div class="chat-input-container">
-                <div class="chat-input-wrapper">
-                    <label for="chatInput"></label><textarea id="chatInput" class="chat-input"
-                        placeholder="Type your message..." rows="1"></textarea>
-                    <button class="send-btn" id="sendBtn">
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
-                </div>
-            </div>
+        <div class="wizard-footer">
+            <button class="btn btn-outline" id="btnBack" onclick="prevStep()" style="display: none;">Back</button>
+            <div style="flex: 1;"></div>
+            <button class="btn btn-vericase" id="btnNext" onclick="nextStep()" style="display: none;">Next Step</button>
+            <button class="btn btn-primary" id="btnFinish" onclick="finishWizard()" style="display: none;">Create Project</button>
         </div>
     </div>
 
-    <script src="wizard-logic.js"></script>
-</body>
+    <script>
+        let currentStep = 1;
+        const totalSteps = 4;
 
+        function updateUI() {
+            // Steps visibility
+            document.querySelectorAll('.wizard-step').forEach(el => el.classList.remove('active'));
+            document.getElementById(`step-${currentStep}`).classList.add('active');
+
+            // Indicators
+            for (let i = 1; i <= totalSteps; i++) {
+                const el = document.getElementById(`indicator-${i}`);
+                if (i < currentStep) el.className = 'step-item completed';
+                else if (i === currentStep) el.className = 'step-item active';
+                else el.className = 'step-item';
+            }
+
+            // Buttons
+            const btnBack = document.getElementById('btnBack');
+            const btnNext = document.getElementById('btnNext');
+            const btnFinish = document.getElementById('btnFinish');
+
+            btnBack.style.display = currentStep > 1 ? 'block' : 'none';
+            
+            if (currentStep === 1) {
+                btnNext.style.display = 'none'; // Handle via custom buttons in step 1
+                btnFinish.style.display = 'none';
+            } else if (currentStep === totalSteps) {
+                btnNext.style.display = 'none';
+                btnFinish.style.display = 'block';
+            } else {
+                btnNext.style.display = 'block';
+                btnFinish.style.display = 'none';
+            }
+        }
+
+        function nextStep() {
+            if (currentStep < totalSteps) {
+                currentStep++;
+                updateUI();
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                updateUI();
+            }
+        }
+
+        async function runAutoFill() {
+            const text = document.getElementById('aiPasteInput').value;
+            if (!text.trim()) {
+                VericaseUI.Toast.error("Please paste some text first.");
+                return;
+            }
+
+            const btn = document.getElementById('btnAutoFill');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
+
+            // Simulate AI Processing
+            await new Promise(r => setTimeout(r, 1500));
+
+            // Mock Extraction Logic
+            document.getElementById('inputProjectName').value = "Northern Line Extension";
+            document.getElementById('inputProjectCode').value = "NLE-2024-Q3";
+            document.getElementById('inputContract').value = "NEC4";
+            document.getElementById('inputClient').value = "Transport for London";
+            document.getElementById('inputContractor').value = "Ferrovial Laing O'Rourke";
+
+            VericaseUI.Toast.success("Details extracted!");
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-bolt"></i> Auto-Extract Details';
+            
+            nextStep(); // Move to review
+        }
+
+        function finishWizard() {
+            VericaseUI.Toast.success("Project created successfully!");
+            setTimeout(() => {
+                window.location.href = 'master-dashboard.html';
+            }, 1000);
+        }
+
+        // Init
+        updateUI();
+    </script>
+</body>
 </html>
