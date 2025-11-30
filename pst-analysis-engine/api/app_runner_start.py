@@ -126,7 +126,7 @@ try:
     
     # Start with a basic app if main app fails
     try:
-        from app.main import app  # type: ignore[reportImplicitRelativeImport]  # noqa: F401  # Script runs directly, not as module
+        from app.main import app  # noqa: F401  # pyright: ignore[reportImplicitRelativeImport]  # Script runs directly, not as module
         print("✓ Main application imported")
     except Exception as e:
         print(f"✗ Main application import failed: {e}")
