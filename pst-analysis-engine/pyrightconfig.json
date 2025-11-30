@@ -47,6 +47,6 @@
   "reportUnnecessaryCast": "none",
   "reportUnnecessaryIsInstance": "none",
   "reportUnusedCallResult": "none",
-  "reportConstantRedefinition": "none"
+  "reportConstantRedefinition": "none",
+  "reportDeprecated": "none"
 }
-

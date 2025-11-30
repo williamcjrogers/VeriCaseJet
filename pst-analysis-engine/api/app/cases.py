@@ -50,6 +50,22 @@ class CaseUpdate(BaseModel):
     contract_type: str | None = None
     dispute_type: str | None = None
     status: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class CaseOut(BaseModel):
+    id: str
+    case_number: str
+    name: str
+    description: str | None
+    project_name: str | None
+    contract_type: str | None
+    dispute_type: str | None
+    status: str
+    owner_id: str
+    company_id: str | None
     created_at: datetime | None
     updated_at: datetime | None
     evidence_count: int = 0

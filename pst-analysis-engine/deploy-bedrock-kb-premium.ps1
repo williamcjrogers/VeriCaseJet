@@ -34,12 +34,12 @@ $encryptionPolicy = @"
   }],
   "AWSOwnedKey": true
 }
-"@ | ConvertTo-Json -Compress
+"@
 
 aws opensearchserverless create-security-policy `
     --name "${COLLECTION_NAME}-encryption" `
     --type encryption `
-    --policy $encryptionPolicy `
+    --policy "$encryptionPolicy" `
     --region $REGION 2>$null
 
 Write-Host "  ✓ Created encryption policy" -ForegroundColor Green

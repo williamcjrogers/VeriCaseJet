@@ -80,7 +80,8 @@ def load_ai_keys_from_secrets_manager() -> bool:
                 f"Secret {secret_name} not found in Secrets Manager")
         elif error_code == 'AccessDeniedException':
             logger.warning(
-                f"Access denied to secret {secret_name} - check IAM permissions")
+                f"Access denied to secret {secret_name} - check IAM permissions"
+            )
         else:
             logger.error(f"Failed to load AI keys from Secrets Manager: {e}")
         return False
@@ -97,7 +98,8 @@ def load_ai_keys_from_secrets_manager() -> bool:
 def update_production_config() -> None:
     """Update configuration for AWS production deployment"""
 
-    # If running in actual AWS environment (not just having AWS_REGION set), enable AWS mode
+    # If running in actual AWS environment (not just having AWS_REGION set),
+    # enable AWS mode
     # AWS_EXECUTION_ENV is set by AWS Lambda/ECS/etc.
     # Only enable AWS mode if explicitly in AWS execution environment
     if os.getenv('AWS_EXECUTION_ENV'):
@@ -147,7 +149,8 @@ _should_load = (os.getenv('AWS_EXECUTION_ENV') or
                 os.getenv('AWS_SECRETS_MANAGER_AI_KEYS') or
                 os.getenv('AWS_REGION'))
 print(
-    f"[config_production] Should load AI keys from Secrets Manager: {_should_load}")
+    f"[config_production] Should load AI keys from Secrets Manager: "
+    f"{_should_load}")
 print(
     f"[config_production] AWS_REGION={os.getenv('AWS_REGION')}, "
     f"USE_AWS_SERVICES={os.getenv('USE_AWS_SERVICES')}")

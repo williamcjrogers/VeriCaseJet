@@ -16,6 +16,58 @@ const extractField = (content: string, field: string): string => {
     return match ? decodeHtml((match[1] || match[2]).trim()) : '-';
 };
 
+// Helper function to check if an attachment is an embedded/inline image (should be excluded from list)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const isEmbeddedImage = (att: any): boolean => {
+    // Trust is_inline or is_embedded flag from backend
+    if (att.is_inline === true || att.is_embedded === true) return true;
+    
+    const filename = (att.filename || att.name || '').toLowerCase();
+    const contentType = (att.content_type || att.contentType || '').toLowerCase();
+    const fileSize = att.file_size || att.size || 0;
+    
+    // Common tracking/spacer images
+    const trackingFiles = ['blank.gif', 'spacer.gif', 'pixel.gif', '1x1.gif', 'oledata.mso'];
+    if (trackingFiles.includes(filename)) return true;
+    
+    // CID prefixed files (content-id inline images)
+    if (filename.startsWith('cid:') || filename.startsWith('cid_')) return true;
+    
+    // Pattern: image001.png, image002.jpg, etc (Outlook inline)
+    if (/^image\d{3}\.(png|jpg|jpeg|gif|bmp)$/.test(filename)) return true;
+    
+    // Pattern: img_001.png, img001.jpg, etc
+    if (/^img_?\d+\.(png|jpg|jpeg|gif|bmp)$/.test(filename)) return true;
+    
+    // Small embedded images (signatures, logos, icons)
+    if (contentType.includes('image')) {
+        // Very small images are likely embedded icons/logos
+        if (fileSize && fileSize < 20000) return true;
+        
+        // Check for signature/logo keywords
+        const excludedKeywords = ['signature', 'logo', 'banner', 'header', 'footer', 'badge', 'icon'];
+        if (excludedKeywords.some(kw => filename.includes(kw))) return true;
+    }
+    
+    return false;
+};
+
+// Helper to filter out embedded images from attachment list
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const getRealAttachments = (attachments: any[]): any[] => {
+    if (!attachments || !Array.isArray(attachments)) return [];
+    return attachments.filter(att => !isEmbeddedImage(att));
+};
+
+// Helper to format file size in human-readable format
+const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
 const sideBarConfig = {
     toolPanels: [
         { id: 'columns', labelDefault: 'Columns', labelKey: 'columns', iconKey: 'columns', toolPanel: 'agColumnsToolPanel' },
@@ -116,17 +168,70 @@ export const EmailGrid: React.FC<EmailGridProps> = ({ rowData, onRowClicked }) =
         {
             headerName: 'Attachments',
             field: 'attachments',
-            width: 120,
+            width: 250,
+            wrapText: true,
+            autoHeight: true,
             sortable: false,
+            filter: 'agTextColumnFilter',
+            valueGetter: (params: ValueGetterParams<Email>) => {
+                // Get attachments from various possible sources
+                const rawAttachments = params.data?.attachments || params.data?.meta?.attachments || [];
+                const realAttachments = getRealAttachments(rawAttachments);
+                
+                // Return filenames as comma-separated string for filtering
+                if (realAttachments.length === 0) return '';
+                return realAttachments.map((att: { filename?: string; name?: string }) => att.filename || att.name || 'Attachment').join(', ');
+            },
             cellRenderer: (params: ICellRendererParams<Email>) => {
-                const attachments = params.value || params.data?.meta?.attachments || [];
-                if (!attachments || attachments.length === 0) return '-';
+                // Get attachments from various possible sources
+                const rawAttachments = params.data?.attachments || params.data?.meta?.attachments || [];
+                const realAttachments = getRealAttachments(rawAttachments);
+                
+                if (realAttachments.length === 0) return <span style={{ color: '#94a3b8' }}>—</span>;
+                
+                // Display each attachment filename
                 return (
-                    <span className="badge badge-blue" style={{ 
-                        background:'#e0f2fe', color:'#0369a1', padding:'2px 8px', borderRadius:'12px', fontSize:'12px' 
+                    <div style={{ 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '2px',
+                        padding: '4px 0'
                     }}>
-                        {attachments.length} files
-                    </span>
+                        {realAttachments.map((att: { filename?: string; name?: string; id?: string; file_size?: number; size?: number }, index: number) => {
+                            const filename = att.filename || att.name || 'Attachment';
+                            const fileSize = att.file_size || att.size;
+                            const sizeStr = fileSize ? ` (${formatFileSize(fileSize)})` : '';
+                            
+                            return (
+                                <div 
+                                    key={att.id || index}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        fontSize: '0.8rem',
+                                        color: '#0369a1',
+                                        padding: '2px 6px',
+                                        background: '#e0f2fe',
+                                        borderRadius: '4px',
+                                        maxWidth: '100%',
+                                        overflow: 'hidden'
+                                    }}
+                                    title={filename + sizeStr}
+                                >
+                                    <span style={{ fontSize: '0.7rem' }}>📎</span>
+                                    <span style={{ 
+                                        overflow: 'hidden', 
+                                        textOverflow: 'ellipsis', 
+                                        whiteSpace: 'nowrap',
+                                        flex: 1
+                                    }}>
+                                        {filename}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
                 );
             }
         }
