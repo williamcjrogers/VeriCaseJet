@@ -14,7 +14,7 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > key.pem
           chmod 600 key.pem
           
-          ssh -i key.pem -o StrictHostKeyChecking=no ubuntu@18.130.216.34 << 'EOF'
+          ssh -i key.pem -o StrictHostKeyChecking=no ec2-user@18.130.216.34 << 'EOF'
             cd /opt/vericase
             git pull
              cd pst-analysis-engine
