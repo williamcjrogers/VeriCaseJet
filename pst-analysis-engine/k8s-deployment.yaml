@@ -31,15 +31,9 @@ spec:
         - name: CORS_ORIGINS
           value: "*"
         - name: DATABASE_URL
-          valueFrom:
-            secretKeyRef:
-              name: vericase-secrets
-              key: database-url
+          value: "postgresql+psycopg2://vericase:vericase@postgres:5432/vericase"
         - name: JWT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: vericase-secrets
-              key: jwt-secret
+          value: "vericase-jwt-secret-key-change-in-production-min-32-chars"
 ---
 apiVersion: v1
 kind: Service
