@@ -2,11 +2,9 @@
 Enhanced API routes with AWS services integration
 """
 from fastapi import APIRouter, HTTPException, Depends, Query
-from sqlalchemy.orm import Session
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any
 import logging
 
-from .db import get_db
 from .security import current_user
 from .models import User
 
