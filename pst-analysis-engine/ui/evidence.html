@@ -1289,9 +1289,6 @@ width: 100%;
                 onRowClicked: params => {
                     if (params.data) showDetail(params.data);
                 },
-                onGridReady: params => {
-                    loadAllData();
-                },
                 // Handle grid errors gracefully
                 onGridSizeChanged: params => {
                     try {
@@ -2033,6 +2030,9 @@ width: 100%;
 
             // Initialize grid
             initGrid();
+            
+            // Load data after grid is ready
+            loadAllData();
 
             // Category tabs
             document.querySelectorAll('.category-tab').forEach(tab => {
