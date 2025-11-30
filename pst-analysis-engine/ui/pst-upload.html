@@ -18,20 +18,21 @@
 
         body {
             font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0f0f23 100%);
+            background: var(--bg-primary);
             min-height: 100vh;
-            color: #e0e0e0;
+            color: var(--text-primary);
         }
 
         .top-bar {
-            background: rgba(15, 15, 35, 0.95);
+            background: white;
             backdrop-filter: blur(20px);
-            color: white;
+            color: var(--vericase-navy);
             padding: 12px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid rgba(102, 126, 234, 0.3);
+            border-bottom: 1px solid var(--gray-200);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
             position: sticky;
             top: 0;
             z-index: 100;
@@ -69,9 +70,9 @@
         }
 
         .btn-ghost:hover {
-            background: rgba(102, 126, 234, 0.1);
-            color: #fff;
-            border-color: rgba(102, 126, 234, 0.5);
+            background: rgba(15, 157, 154, 0.1);
+            color: var(--vericase-navy);
+            border-color: rgba(15, 157, 154, 0.5);
         }
 
         .container {
@@ -89,13 +90,14 @@
         }
 
         .stat-card {
-            background: rgba(30, 30, 60, 0.6);
-            border: 1px solid rgba(102, 126, 234, 0.2);
+            background: white;
+            border: 1px solid var(--gray-200);
             border-radius: 12px;
             padding: 20px;
             display: flex;
             align-items: center;
             gap: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
         }
 
         .stat-icon {
@@ -106,9 +108,10 @@
             align-items: center;
             justify-content: center;
             font-size: 20px;
+            color: white;
         }
 
-        .stat-icon.blue { background: linear-gradient(135deg, #667eea, #764ba2); }
+        .stat-icon.blue { background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-navy)); }
         .stat-icon.green { background: linear-gradient(135deg, #10b981, #059669); }
         .stat-icon.orange { background: linear-gradient(135deg, #f59e0b, #d97706); }
         .stat-icon.red { background: linear-gradient(135deg, #ef4444, #dc2626); }
@@ -116,12 +119,12 @@
         .stat-info h3 {
             font-size: 24px;
             font-weight: 700;
-            color: #fff;
+            color: var(--vericase-navy);
         }
 
         .stat-info p {
             font-size: 12px;
-            color: #a0a0c0;
+            color: var(--text-muted);
             margin-top: 2px;
         }
 
@@ -140,39 +143,40 @@
         }
 
         .upload-card {
-            background: rgba(30, 30, 60, 0.6);
-            border: 1px solid rgba(102, 126, 234, 0.2);
+            background: white;
+            border: 1px solid var(--gray-200);
             border-radius: 16px;
             padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
         }
 
         .upload-card h2 {
             font-size: 18px;
             margin-bottom: 16px;
-            color: #fff;
+            color: var(--vericase-navy);
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
         .upload-zone {
-            border: 2px dashed rgba(102, 126, 234, 0.5);
+            border: 2px dashed rgba(15, 157, 154, 0.5);
             border-radius: 12px;
             padding: 48px 24px;
             text-align: center;
-            background: rgba(102, 126, 234, 0.05);
+            background: rgba(15, 157, 154, 0.05);
             transition: all 0.3s;
             cursor: pointer;
         }
 
         .upload-zone:hover {
-            background: rgba(102, 126, 234, 0.1);
-            border-color: rgba(102, 126, 234, 0.8);
+            background: rgba(15, 157, 154, 0.1);
+            border-color: rgba(15, 157, 154, 0.8);
         }
 
         .upload-zone.dragover {
-            background: rgba(102, 126, 234, 0.15);
-            border-color: #667eea;
+            background: rgba(15, 157, 154, 0.15);
+            border-color: var(--vericase-teal);
             transform: scale(1.01);
         }
 
@@ -183,31 +187,31 @@
 
         .upload-zone i {
             font-size: 48px;
-            color: #667eea;
+            color: var(--vericase-teal);
             margin-bottom: 16px;
         }
 
         .upload-zone h3 {
             font-size: 18px;
-            color: #fff;
+            color: var(--vericase-navy);
             margin-bottom: 8px;
         }
 
         .upload-zone p {
-            color: #a0a0c0;
+            color: var(--text-muted);
             font-size: 14px;
             margin-bottom: 16px;
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-navy) 100%);
             color: white;
             border: none;
         }
 
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 8px 20px rgba(15, 157, 154, 0.4);
         }
 
         .file-types {
@@ -219,28 +223,29 @@
         }
 
         .file-type-badge {
-            background: rgba(102, 126, 234, 0.2);
+            background: rgba(15, 157, 154, 0.2);
             padding: 6px 14px;
             border-radius: 16px;
             font-size: 12px;
             font-weight: 600;
-            color: #667eea;
-            border: 1px solid rgba(102, 126, 234, 0.3);
+            color: var(--vericase-teal);
+            border: 1px solid rgba(15, 157, 154, 0.3);
         }
 
         /* File Queue */
         .queue-card {
-            background: rgba(30, 30, 60, 0.6);
-            border: 1px solid rgba(102, 126, 234, 0.2);
+            background: white;
+            border: 1px solid var(--gray-200);
             border-radius: 16px;
             max-height: 500px;
             display: flex;
             flex-direction: column;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
         }
 
         .queue-header {
             padding: 16px 20px;
-            border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+            border-bottom: 1px solid var(--gray-200);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -248,7 +253,7 @@
 
         .queue-header h2 {
             font-size: 16px;
-            color: #fff;
+            color: var(--vericase-navy);
             display: flex;
             align-items: center;
             gap: 8px;
@@ -300,8 +305,8 @@
         }
 
         .file-item {
-            background: rgba(40, 40, 80, 0.5);
-            border: 1px solid rgba(102, 126, 234, 0.15);
+            background: white;
+            border: 1px solid var(--gray-200);
             border-radius: 10px;
             padding: 12px 16px;
             margin-bottom: 8px;
@@ -312,12 +317,12 @@
         }
 
         .file-item:hover {
-            border-color: rgba(102, 126, 234, 0.3);
+            border-color: rgba(15, 157, 154, 0.3);
         }
 
         .file-item.uploading {
-            border-color: rgba(102, 126, 234, 0.5);
-            background: rgba(102, 126, 234, 0.1);
+            border-color: rgba(15, 157, 154, 0.5);
+            background: rgba(15, 157, 154, 0.05);
         }
 
         .file-item.complete {
@@ -341,7 +346,7 @@
             flex-shrink: 0;
         }
 
-        .file-icon.pst { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+        .file-icon.pst { background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-navy)); color: white; }
         .file-icon.eml { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; }
         .file-icon.msg { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; }
         .file-icon.pdf { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; }
@@ -356,7 +361,7 @@
 
         .file-details h4 {
             font-size: 13px;
-            color: #fff;
+            color: var(--vericase-navy);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -367,7 +372,7 @@
             display: flex;
             gap: 12px;
             font-size: 11px;
-            color: #808090;
+            color: var(--text-muted);
         }
 
         .file-progress {
@@ -377,7 +382,7 @@
 
         .progress-bar {
             height: 6px;
-            background: rgba(100, 100, 140, 0.3);
+            background: var(--gray-200);
             border-radius: 3px;
             overflow: hidden;
             margin-bottom: 4px;
@@ -385,7 +390,7 @@
 
         .progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            background: linear-gradient(90deg, var(--vericase-teal), var(--vericase-navy));
             transition: width 0.2s;
             border-radius: 3px;
         }
@@ -412,8 +417,8 @@
             white-space: nowrap;
         }
 
-        .status-queued { background: rgba(100, 100, 140, 0.3); color: #a0a0c0; }
-        .status-uploading { background: rgba(102, 126, 234, 0.3); color: #667eea; }
+        .status-queued { background: var(--gray-200); color: var(--text-muted); }
+        .status-uploading { background: rgba(15, 157, 154, 0.2); color: var(--vericase-teal); }
         .status-processing { background: rgba(245, 158, 11, 0.3); color: #f59e0b; }
         .status-complete { background: rgba(16, 185, 129, 0.3); color: #10b981; }
         .status-error { background: rgba(239, 68, 68, 0.3); color: #ef4444; }
@@ -439,15 +444,16 @@
 
         /* History Section */
         .history-card {
-            background: rgba(30, 30, 60, 0.6);
-            border: 1px solid rgba(102, 126, 234, 0.2);
+            background: white;
+            border: 1px solid var(--gray-200);
             border-radius: 16px;
             overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
         }
 
         .history-header {
             padding: 16px 20px;
-            border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+            border-bottom: 1px solid var(--gray-200);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -455,7 +461,7 @@
 
         .history-header h2 {
             font-size: 16px;
-            color: #fff;
+            color: var(--vericase-navy);
             display: flex;
             align-items: center;
             gap: 8px;
@@ -470,20 +476,20 @@
         .history-table td {
             padding: 14px 16px;
             text-align: left;
-            border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+            border-bottom: 1px solid var(--gray-200);
         }
 
         .history-table th {
-            background: rgba(40, 40, 80, 0.5);
+            background: var(--gray-100);
             font-weight: 600;
-            color: #a0a0c0;
+            color: var(--text-muted);
             font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
 
         .history-table tr:hover {
-            background: rgba(102, 126, 234, 0.05);
+            background: rgba(15, 157, 154, 0.05);
         }
 
         .history-filename {
@@ -491,11 +497,11 @@
             align-items: center;
             gap: 10px;
             font-weight: 500;
-            color: #fff;
+            color: var(--vericase-navy);
         }
 
         .history-filename i {
-            color: #667eea;
+            color: var(--vericase-teal);
         }
 
         .email-count {
@@ -537,9 +543,9 @@
             width: 32px;
             height: 32px;
             border-radius: 6px;
-            border: 1px solid rgba(102, 126, 234, 0.3);
+            border: 1px solid rgba(15, 157, 154, 0.3);
             background: transparent;
-            color: #a0a0c0;
+            color: var(--text-muted);
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -548,9 +554,9 @@
         }
 
         .btn-icon:hover {
-            background: rgba(102, 126, 234, 0.2);
-            color: #667eea;
-            border-color: rgba(102, 126, 234, 0.5);
+            background: rgba(15, 157, 154, 0.2);
+            color: var(--vericase-teal);
+            border-color: rgba(15, 157, 154, 0.5);
         }
 
         .no-history {
@@ -570,13 +576,13 @@
             position: fixed;
             bottom: 24px;
             right: 24px;
-            background: rgba(30, 30, 60, 0.95);
+            background: white;
             backdrop-filter: blur(20px);
-            border: 1px solid rgba(102, 126, 234, 0.3);
+            border: 1px solid var(--gray-200);
             border-radius: 16px;
             padding: 20px 24px;
             min-width: 320px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
             display: none;
             z-index: 1000;
         }
@@ -599,7 +605,7 @@
 
         .global-progress h3 {
             font-size: 14px;
-            color: #fff;
+            color: var(--vericase-navy);
             margin-bottom: 12px;
             display: flex;
             align-items: center;
@@ -607,7 +613,7 @@
         }
 
         .global-progress h3 i {
-            color: #667eea;
+            color: var(--vericase-teal);
         }
 
         .global-stats {
@@ -623,25 +629,25 @@
         .global-stat .number {
             font-size: 20px;
             font-weight: 700;
-            color: #fff;
+            color: var(--vericase-navy);
         }
 
         .global-stat .label {
             font-size: 10px;
-            color: #808090;
+            color: var(--text-muted);
             text-transform: uppercase;
         }
 
         .global-bar {
             height: 8px;
-            background: rgba(100, 100, 140, 0.3);
+            background: var(--gray-200);
             border-radius: 4px;
             overflow: hidden;
         }
 
         .global-fill {
             height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            background: linear-gradient(90deg, var(--vericase-teal), var(--vericase-navy));
             transition: width 0.3s;
         }
 
@@ -651,16 +657,16 @@
         }
 
         ::-webkit-scrollbar-track {
-            background: rgba(40, 40, 80, 0.3);
+            background: var(--gray-100);
         }
 
         ::-webkit-scrollbar-thumb {
-            background: rgba(102, 126, 234, 0.3);
+            background: rgba(15, 157, 154, 0.3);
             border-radius: 4px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(102, 126, 234, 0.5);
+            background: rgba(15, 157, 154, 0.5);
         }
     </style>
     <script src="config.js"></script>
@@ -669,11 +675,11 @@
 <body>
     <div class="top-bar">
         <h1>
-            <img src="assets/LOGOTOBEUSED.png" alt="VeriCase">
-            <i class="fas fa-cloud-upload-alt"></i>
+            <img src="../assets/Asset 1.png" alt="VeriCase">
+            <i class="fas fa-cloud-upload-alt" style="color: var(--vericase-teal);"></i>
             Evidence Upload
         </h1>
-        <button class="btn btn-ghost" onclick="goToDashboard()">
+        <button class="btn btn-ghost" onclick="goToDashboard()" style="background: white; color: var(--vericase-navy); border: 2px solid var(--gray-200);">
             <i class="fas fa-arrow-left"></i> Back to Dashboard
         </button>
     </div>

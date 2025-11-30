@@ -4,27 +4,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Profile - VeriCase</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        :root {
+            --vericase-teal: #0F9D9A;
+            --vericase-teal-dark: #0A7D7A;
+            --vericase-navy: #0F172A;
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --text-primary: #0F172A;
+            --text-secondary: #64748b;
+            --gray-100: #f1f5f9;
+            --gray-200: #e2e8f0;
+        }
+        
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: #f7fafc;
+            background: var(--bg-primary);
             min-height: 100vh;
+            color: var(--text-primary);
         }
         
         /* Header */
         .header {
             background: white;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid var(--gray-200);
             padding: 16px 24px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
         .header h1 {
             font-size: 24px;
-            color: #2d3748;
+            color: var(--text-primary);
             display: flex;
             align-items: center;
             gap: 10px;
@@ -34,13 +48,14 @@
             gap: 16px;
         }
         .header-actions a {
-            color: #667eea;
+            color: var(--vericase-teal);
             text-decoration: none;
             font-size: 14px;
             font-weight: 500;
         }
         .header-actions a:hover {
             text-decoration: underline;
+            color: var(--vericase-teal-dark);
         }
         
         /* Main Content */
@@ -60,15 +75,16 @@
         /* Profile Sidebar */
         .profile-sidebar {
             background: white;
-            border-radius: 8px;
+            border-radius: 12px;
             padding: 24px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 12px rgba(23, 181, 163, 0.1);
+            border: 1px solid var(--gray-200);
             height: fit-content;
         }
         .profile-avatar {
             width: 120px;
             height: 120px;
-            background: #667eea;
+            background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-navy));
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -77,6 +93,7 @@
             color: white;
             margin: 0 auto 20px;
             font-weight: 600;
+            box-shadow: 0 8px 24px rgba(15, 157, 154, 0.3);
         }
         .profile-info {
             text-align: center;
@@ -84,18 +101,18 @@
         }
         .profile-info h2 {
             font-size: 20px;
-            color: #2d3748;
+            color: var(--text-primary);
             margin-bottom: 4px;
         }
         .profile-info .email {
-            color: #718096;
+            color: var(--text-secondary);
             font-size: 14px;
         }
         .profile-stats {
             display: flex;
             justify-content: space-around;
             padding: 16px 0;
-            border-top: 1px solid #e2e8f0;
+            border-top: 1px solid var(--gray-200);
         }
         .stat {
             text-align: center;
@@ -103,11 +120,11 @@
         .stat-value {
             font-size: 24px;
             font-weight: 600;
-            color: #2d3748;
+            color: var(--vericase-teal);
         }
         .stat-label {
             font-size: 12px;
-            color: #718096;
+            color: var(--text-secondary);
             text-transform: uppercase;
         }
         
@@ -121,16 +138,17 @@
         /* Section Card */
         .section-card {
             background: white;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(23, 181, 163, 0.1);
+            border: 1px solid var(--gray-200);
         }
         .section-header {
             padding: 20px 24px;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid var(--gray-200);
         }
         .section-header h3 {
             font-size: 18px;
-            color: #2d3748;
+            color: var(--text-primary);
         }
         .section-content {
             padding: 24px;
@@ -143,24 +161,25 @@
         .form-group label {
             display: block;
             margin-bottom: 8px;
-            color: #4a5568;
+            color: var(--text-primary);
             font-weight: 500;
             font-size: 14px;
         }
         .form-group input {
             width: 100%;
             padding: 10px 12px;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
             font-size: 14px;
-            transition: border-color 0.3s;
+            transition: border-color 0.3s, box-shadow 0.3s;
         }
         .form-group input:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: var(--vericase-teal);
+            box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.15);
         }
         .form-group input:disabled {
-            background: #f7fafc;
+            background: var(--gray-100);
             cursor: not-allowed;
         }
         
@@ -168,25 +187,30 @@
         .btn {
             padding: 10px 20px;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             font-size: 14px;
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
         }
         .btn-primary {
-            background: #667eea;
+            background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-teal-dark));
             color: white;
+            box-shadow: 0 4px 12px rgba(15, 157, 154, 0.3);
         }
         .btn-primary:hover {
-            background: #5a67d8;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(15, 157, 154, 0.4);
         }
         .btn-secondary {
-            background: #e2e8f0;
-            color: #4a5568;
+            background: white;
+            color: var(--text-secondary);
+            border: 1px solid var(--gray-200);
         }
         .btn-secondary:hover {
-            background: #cbd5e0;
+            background: var(--gray-100);
+            border-color: var(--vericase-teal);
+            color: var(--vericase-teal);
         }
         .btn-danger {
             background: #ef4444;
@@ -208,28 +232,28 @@
         .sessions-table th {
             text-align: left;
             padding: 12px;
-            background: #f7fafc;
+            background: var(--gray-100);
             font-weight: 500;
             font-size: 12px;
             text-transform: uppercase;
-            color: #718096;
-            border-bottom: 1px solid #e2e8f0;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--gray-200);
         }
         .sessions-table td {
             padding: 16px 12px;
-            border-bottom: 1px solid #f7fafc;
+            border-bottom: 1px solid var(--gray-100);
             font-size: 14px;
         }
         .sessions-table tr:hover {
-            background: #f7fafc;
+            background: var(--gray-100);
         }
         .session-current {
-            color: #059669;
+            color: var(--vericase-teal);
             font-weight: 500;
         }
         .session-device {
             font-size: 12px;
-            color: #718096;
+            color: var(--text-secondary);
             margin-top: 4px;
         }
         
@@ -279,8 +303,8 @@
         
         /* Loading Spinner */
         .spinner {
-            border: 2px solid #f3f4f6;
-            border-top: 2px solid #667eea;
+            border: 2px solid var(--gray-200);
+            border-top: 2px solid var(--vericase-teal);
             border-radius: 50%;
             width: 20px;
             height: 20px;
@@ -309,7 +333,7 @@
 <body>
     <!-- Header -->
     <header class="header">
-        <h1><img src="assets/LOGOTOBEUSED.png" alt="VeriCase" style="height: 28px; margin-right: 12px; vertical-align: middle;"> User Profile</h1>
+        <h1><img src="../assets/Asset 1.png" alt="VeriCase" style="height: 28px; margin-right: 12px; vertical-align: middle;"> User Profile</h1>
         <div class="header-actions">
             <a href="dashboard.html">← Back to Dashboard</a>
             <a href="#" id="logoutLink">Logout</a>

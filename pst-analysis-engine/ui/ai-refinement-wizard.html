@@ -11,15 +11,17 @@
     <script src="nav-shell.js"></script>
     <style>
         :root {
-            --vericase-teal: #17B5A3;
-            --vericase-teal-dark: #129B8B;
+            --vericase-teal: #0F9D9A;
+            --vericase-teal-dark: #0A7D7A;
             --vericase-blue: #2B7FBF;
-            --vericase-navy: #1F2937;
-            --bg-primary: #0f172a;
-            --bg-secondary: #1e293b;
-            --bg-card: #334155;
-            --text-primary: #f1f5f9;
-            --text-secondary: #94a3b8;
+            --vericase-navy: #0F172A;
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --bg-card: #ffffff;
+            --text-primary: #0F172A;
+            --text-secondary: #64748b;
+            --gray-100: #f1f5f9;
+            --gray-200: #e2e8f0;
             --accent-green: #10b981;
             --accent-amber: #f59e0b;
             --accent-red: #ef4444;
@@ -33,11 +35,8 @@
         }
 
         body {
-            font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
             background: var(--bg-primary);
-            background-image: 
-                radial-gradient(ellipse at 20% 30%, rgba(23, 181, 163, 0.08) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 70%, rgba(139, 92, 246, 0.06) 0%, transparent 50%);
             color: var(--text-primary);
             min-height: 100vh;
             line-height: 1.6;
@@ -45,13 +44,13 @@
         }
 
         .header {
-            background: linear-gradient(to bottom, var(--bg-secondary), transparent);
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            background: white;
+            border-bottom: 1px solid var(--gray-200);
             padding: 1rem 2rem;
             position: sticky;
             top: 0;
             z-index: 100;
-            backdrop-filter: blur(12px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         }
 
         .header-content {
@@ -107,10 +106,11 @@
             background: var(--bg-secondary);
             border-radius: 16px;
             padding: 1.5rem;
-            border: 1px solid rgba(255,255,255,0.05);
+            border: 1px solid var(--gray-200);
             height: fit-content;
             position: sticky;
             top: 100px;
+            box-shadow: 0 4px 12px rgba(23, 181, 163, 0.1);
         }
 
         .sidebar-header {
@@ -137,7 +137,7 @@
             justify-content: space-between;
             padding: 0.5rem 0;
             font-size: 0.875rem;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            border-bottom: 1px solid var(--gray-200);
         }
 
         .stat-row:last-child {
@@ -216,8 +216,9 @@
         .main-content {
             background: var(--bg-secondary);
             border-radius: 16px;
-            border: 1px solid rgba(255,255,255,0.05);
+            border: 1px solid var(--gray-200);
             overflow: hidden;
+            box-shadow: 0 4px 12px rgba(23, 181, 163, 0.1);
         }
 
         .question-container {
@@ -296,8 +297,8 @@
         .select-btn {
             padding: 0.375rem 0.75rem;
             font-size: 0.75rem;
-            border: 1px solid rgba(255,255,255,0.1);
-            background: transparent;
+            border: 1px solid var(--gray-200);
+            background: white;
             color: var(--text-secondary);
             border-radius: 6px;
             cursor: pointer;
@@ -305,13 +306,14 @@
         }
 
         .select-btn:hover {
-            background: rgba(255,255,255,0.05);
-            color: var(--text-primary);
+            background: var(--gray-100);
+            border-color: var(--vericase-teal);
+            color: var(--vericase-teal);
         }
 
         .item-card {
             background: var(--bg-card);
-            border: 1px solid rgba(255,255,255,0.05);
+            border: 1px solid var(--gray-200);
             border-radius: 12px;
             padding: 1rem 1.25rem;
             margin-bottom: 0.75rem;
@@ -320,8 +322,9 @@
         }
 
         .item-card:hover {
-            border-color: rgba(255,255,255,0.1);
+            border-color: rgba(15, 157, 154, 0.3);
             transform: translateX(4px);
+            box-shadow: 0 2px 8px rgba(23, 181, 163, 0.1);
         }
 
         .item-card.selected {
@@ -345,7 +348,7 @@
         .item-checkbox {
             width: 20px;
             height: 20px;
-            border: 2px solid rgba(255,255,255,0.2);
+            border: 2px solid var(--gray-200);
             border-radius: 4px;
             display: flex;
             align-items: center;
@@ -353,6 +356,7 @@
             flex-shrink: 0;
             transition: all 0.2s;
             position: relative;
+            background: white;
         }
 
         .item-checkbox input[type="checkbox"] {
@@ -425,7 +429,7 @@
         }
 
         .badge.count {
-            background: rgba(255,255,255,0.05);
+            background: var(--gray-100);
             color: var(--text-secondary);
         }
 
@@ -456,7 +460,7 @@
             color: var(--text-secondary);
             font-style: italic;
             padding-left: 2rem;
-            border-left: 2px solid rgba(255,255,255,0.1);
+            border-left: 2px solid var(--gray-200);
             margin-left: 2rem;
         }
 
@@ -472,11 +476,12 @@
         }
 
         .sample-item {
-            background: rgba(0,0,0,0.2);
+            background: var(--gray-100);
             border-radius: 6px;
             padding: 0.5rem 0.75rem;
             margin-bottom: 0.5rem;
             font-size: 0.8125rem;
+            border: 1px solid var(--gray-200);
         }
 
         .sample-subject {
@@ -501,15 +506,16 @@
             align-items: flex-start;
             gap: 1rem;
             padding: 1rem 1.25rem;
-            border: 2px solid rgba(255,255,255,0.05);
+            border: 2px solid var(--gray-200);
             border-radius: 12px;
             cursor: pointer;
             transition: all 0.2s;
+            background: white;
         }
 
         .option-card:hover {
-            border-color: rgba(255,255,255,0.15);
-            background: rgba(255,255,255,0.02);
+            border-color: rgba(15, 157, 154, 0.3);
+            background: var(--gray-100);
         }
 
         .option-card.selected {
@@ -520,13 +526,14 @@
         .option-radio {
             width: 20px;
             height: 20px;
-            border: 2px solid rgba(255,255,255,0.2);
+            border: 2px solid var(--gray-200);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
             margin-top: 2px;
+            background: white;
         }
 
         .option-card.selected .option-radio {
@@ -566,8 +573,8 @@
             display: flex;
             justify-content: space-between;
             padding: 1.5rem 2rem;
-            background: rgba(0,0,0,0.2);
-            border-top: 1px solid rgba(255,255,255,0.05);
+            background: var(--gray-100);
+            border-top: 1px solid var(--gray-200);
         }
 
         .btn {
@@ -585,14 +592,15 @@
         }
 
         .btn-secondary {
-            background: rgba(255,255,255,0.05);
+            background: white;
             color: var(--text-secondary);
-            border: 1px solid rgba(255,255,255,0.1);
+            border: 1px solid var(--gray-200);
         }
 
         .btn-secondary:hover {
-            background: rgba(255,255,255,0.1);
+            background: var(--gray-100);
             color: var(--text-primary);
+            border-color: var(--vericase-teal);
         }
 
         .btn-primary {
@@ -624,7 +632,7 @@
         .loading-spinner {
             width: 64px;
             height: 64px;
-            border: 3px solid rgba(255,255,255,0.1);
+            border: 3px solid var(--gray-200);
             border-top-color: var(--vericase-teal);
             border-radius: 50%;
             animation: spin 1s linear infinite;
@@ -689,9 +697,10 @@
 
         .summary-card {
             background: var(--bg-card);
-            border: 1px solid rgba(255,255,255,0.05);
+            border: 1px solid var(--gray-200);
             border-radius: 12px;
             padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(23, 181, 163, 0.08);
         }
 
         .summary-card-title {
@@ -715,7 +724,7 @@
             display: flex;
             justify-content: space-between;
             padding: 0.5rem 0;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            border-bottom: 1px solid var(--gray-200);
             font-size: 0.875rem;
         }
 
@@ -739,7 +748,7 @@
 
         .progress-bar {
             height: 6px;
-            background: rgba(255,255,255,0.1);
+            background: var(--gray-200);
             border-radius: 3px;
             overflow: hidden;
         }
@@ -763,8 +772,9 @@
     <div class="header">
         <div class="header-content">
             <div class="logo">
+                <img src="../assets/Asset 1.png" alt="VeriCase" style="height: 28px;">
                 <i class="fas fa-wand-magic-sparkles"></i>
-                VeriCase AI Refinement
+                AI Refinement
             </div>
             <div class="project-info">
                 <span><i class="fas fa-project-diagram"></i> <span id="projectName">Loading...</span></span>

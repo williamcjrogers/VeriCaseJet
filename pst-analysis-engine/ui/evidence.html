@@ -1409,7 +1409,10 @@ width: 100%;
                 const collectionId = activeCollection?.dataset.id;
                 if (collectionId) params.append('collection_id', collectionId);
 
+                console.log('[Evidence] Fetching from:', `${apiUrl}/api/evidence/items?${params.toString()}`);
                 const response = await fetch(`${apiUrl}/api/evidence/items?${params.toString()}`);
+
+                console.log('[Evidence] Response status:', response.status, response.statusText);
 
                 if (response.ok) {
                     const data = await response.json();
@@ -1424,7 +1427,9 @@ width: 100%;
 
                     VericaseUI.Toast.success(`Loaded ${allEvidenceItems.length} evidence items`);
                 } else {
-                    throw new Error('Failed to load evidence');
+                    const errorText = await response.text();
+                    console.error('[Evidence] API Error:', response.status, errorText);
+                    throw new Error(`Failed to load evidence: ${response.status} - ${errorText}`);
                 }
             } catch (error) {
                 console.error('Error loading evidence:', error);
