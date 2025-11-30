@@ -1,611 +1,298 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    }
-
-    /* Header */
-    .header {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 1rem 1.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    }
-
-    .header-left {
-    display: flex;
-    align-items: center;
-    gap: 2rem;
-    }
-
-    .logo {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--primary);
-    cursor: pointer;
-    }
-
-    .page-title {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding-left: 2rem;
-    border-left: 1px solid var(--border);
-    }
-
-    .page-title h1 {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--vericase-navy);
-    }
-
-    .header-right {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    }
-
-    .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
-    font-weight: 500;
-    font-size: 0.875rem;
-    cursor: pointer;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text);
-    transition: all 0.2s;
-    }
-
-    .btn:hover {
-    background: #f8fafc;
-    border-color: #cbd5e1;
-    }
-
-    .btn-primary {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-    }
-
-    .btn-primary:hover {
-    background: var(--primary-dark);
-    border-color: var(--primary-dark);
-    }
-
-    /* Main Layout */
-    .main-content {
-    flex: 1;
-    display: flex;
-    overflow: hidden;
-    }
-
-    /* Two Panel Layout */
-    .panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background: var(--surface);
-    margin: 1rem;
-    border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-
-    .panel-header {
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    }
-
-    .panel-title {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    }
-
-    .panel-title h2 {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--vericase-navy);
-    }
-
-    .panel-title .badge {
-    background: var(--primary);
-    color: white;
-    padding: 0.125rem 0.5rem;
-    border-radius: 10px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    }
-
-    .panel-content {
-    flex: 1;
-    overflow: auto;
-    padding: 1rem;
-    }
-
-    /* Cards */
-    .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 1rem;
-    margin-bottom: 0.75rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    }
-
-    .card:hover {
-    border-color: var(--primary);
-    box-shadow: 0 2px 8px rgba(23, 181, 163, 0.15);
-    }
-
-    .card.selected {
-    border-color: var(--primary);
-    background: rgba(23, 181, 163, 0.05);
-    }
-
-    .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 0.5rem;
-    }
-
-    .card-title {
-    font-weight: 600;
-    color: var(--vericase-navy);
-    font-size: 0.9375rem;
-    }
-
-    .card-status {
-    padding: 0.125rem 0.5rem;
-    border-radius: 10px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    }
-
-    .status-active {
-    background: #d1fae5;
-    color: #065f46;
-    }
-
-    .status-pending {
-    background: #fef3c7;
-    color: #92400e;
-    }
-
-    .status-resolved {
-    background: #dbeafe;
-    color: #1e40af;
-    }
-
-    .status-closed {
-    background: #e5e7eb;
-    color: #374151;
-    }
-
-    .status-draft {
-    background: #f3f4f6;
-    color: #6b7280;
-    }
-
-    .status-submitted {
-    background: #dbeafe;
-    color: #1e40af;
-    }
-
-    .status-under_review {
-    background: #fef3c7;
-    color: #92400e;
-    }
-
-    .status-accepted {
-    background: #d1fae5;
-    color: #065f46;
-    }
-
-    .status-rejected {
-    background: #fee2e2;
-    color: #991b1b;
-    }
-
-    .card-meta {
-    font-size: 0.8125rem;
-    color: var(--text-muted);
-    margin-bottom: 0.5rem;
-    }
-
-    .card-stats {
-    display: flex;
-    gap: 1rem;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    }
-
-    .card-stat {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    }
-
-    .card-amount {
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--primary);
-    }
-
-    /* Detail Panel */
-    .detail-panel {
-    width: 400px;
-    background: var(--surface);
-    border-left: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    }
-
-    .detail-panel.hidden {
-    display: none;
-    }
-
-    .detail-header {
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    }
-
-    .detail-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 1.5rem;
-    }
-
-    .detail-section {
-    margin-bottom: 1.5rem;
-    }
-
-    .detail-section-title {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 0.75rem;
-    }
-
-    .detail-field {
-    margin-bottom: 0.75rem;
-    }
-
-    .detail-label {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    margin-bottom: 0.25rem;
-    }
-
-    .detail-value {
-    font-size: 0.875rem;
-    color: var(--text);
-    }
-
-    /* Linked Items Grid */
-    .linked-items {
-    margin-top: 1rem;
-    }
-
-    .linked-item {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem;
-    background: #f8fafc;
-    border-radius: 6px;
-    margin-bottom: 0.5rem;
-    font-size: 0.8125rem;
-    }
-
-    .linked-item-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.875rem;
-    }
-
-    .linked-item-icon.correspondence {
-    background: #dbeafe;
-    color: #1e40af;
-    }
-
-    .linked-item-icon.evidence {
-    background: #d1fae5;
-    color: #065f46;
-    }
-
-    .linked-item-content {
-    flex: 1;
-    overflow: hidden;
-    }
-
-    .linked-item-title {
-    font-weight: 500;
-    color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    }
-
-    .linked-item-meta {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    }
-
-    /* Comments */
-    .comments-section {
-    margin-top: 1rem;
-    }
-
-    .comment {
-    padding: 0.75rem;
-    background: #f8fafc;
-    border-radius: 6px;
-    margin-bottom: 0.5rem;
-    }
-
-    .comment-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 0.25rem;
-    }
-
-    .comment-author {
-    font-weight: 500;
-    font-size: 0.8125rem;
-    color: var(--text);
-    }
-
-    .comment-date {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    }
-
-    .comment-content {
-    font-size: 0.8125rem;
-    color: var(--text);
-    line-height: 1.5;
-    }
-
-    .comment-input {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 0.75rem;
-    }
-
-    .comment-input input {
-    flex: 1;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    font-size: 0.8125rem;
-    }
-
-    /* Modal */
-    .modal-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    }
-
-    .modal {
-    background: white;
-    border-radius: 12px;
-    width: 500px;
-    max-height: 80vh;
-    overflow-y: auto;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-    }
-
-    .modal-header {
-    padding: 1.25rem 1.5rem;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    }
-
-    .modal-header h3 {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--vericase-navy);
-    }
-
-    .modal-body {
-    padding: 1.5rem;
-    }
-
-    .modal-footer {
-    padding: 1rem 1.5rem;
-    border-top: 1px solid var(--border);
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.75rem;
-    }
-
-    .form-group {
-    margin-bottom: 1rem;
-    }
-
-    .form-label {
-    display: block;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--text);
-    margin-bottom: 0.375rem;
-    }
-
-    .form-input,
-    .form-select,
-    .form-textarea {
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    font-size: 0.875rem;
-    color: var(--text);
-    }
-
-    .form-input:focus,
-    .form-select:focus,
-    .form-textarea:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(23, 181, 163, 0.1);
-    }
-
-    .form-textarea {
-    min-height: 80px;
-    resize: vertical;
-    }
-
-    /* Toast notification */
-    .toast {
-    position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    padding: 1rem 1.5rem;
-    background: var(--vericase-navy);
-    color: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 2000;
-    animation: slideIn 0.3s ease-out;
-    }
-
-    .toast.success {
-    background: var(--success);
-    }
-
-    .toast.error {
-    background: var(--danger);
-    }
-
-    @keyframes slideIn {
-    from {
-    transform: translateY(20px);
-    opacity: 0;
-    }
-
-    to {
-    transform: translateY(0);
-    opacity: 1;
-    }
-    }
-
-    /* Empty state */
-    .empty-state {
-    text-align: center;
-    padding: 3rem;
-    color: var(--text-muted);
-    }
-
-    .empty-state i {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-    opacity: 0.5;
-    }
-
-    .empty-state h3 {
-    font-size: 1rem;
-    margin-bottom: 0.5rem;
-    color: var(--text);
-    }
-
-    .empty-state p {
-    font-size: 0.875rem;
-    }
-
-    /* Loading */
-    .loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 3rem;
-    }
-
-    .spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid var(--border);
-    border-top-color: var(--primary);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-    <header class="header">
-        <div class="header-left">
-            <div class="logo" onclick="goToDashboard()">
-                <i class="fas fa-shield-alt"></i>
-                <span>VeriCase</span>
-            </div>
-            <div class="page-title">
-                <i class="fas fa-balance-scale" style="color: var(--primary);"></i>
-                <h1>Contentious Matters & Heads of Claim</h1>
-            </div>
-        </div>
-        <div class="header-right">
-            <button class="btn" onclick="goToDashboard()">
-                <i class="fas fa-home"></i> Dashboard
-            </button>
-            <button class="btn" onclick="goToCorrespondence()">
-                <i class="fas fa-envelope"></i> Correspondence
-            </button>
-            <button class="btn" onclick="goToEvidence()">
-                <i class="fas fa-folder"></i> Evidence
-            </button>
-        </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="main-content">
-        <!-- Contentious Matters Panel -->
-        <div class="panel">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VeriCase - Claims & Matters</title>
+    
+    <!-- AG-Grid Enterprise CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-grid.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-theme-quartz.css">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- VeriCase Design System -->
+    <link rel="stylesheet" href="brand-styles.css">
+    <link rel="stylesheet" href="design-system.css">
+    <script src="vericase-ui.js"></script>
+    <script src="nav-shell.js"></script>
+    
+    <style>
+        body {
+            background: var(--bg-primary);
+            overflow: hidden;
+        }
+
+        .main-content {
+            display: flex;
+            height: calc(100vh - 64px);
+            padding: 24px;
+            gap: 24px;
+            overflow: hidden;
+        }
+
+        /* Two Panel Layout */
+        .panel-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            border-radius: 12px;
+            border: 1px solid var(--gray-200);
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: white;
+        }
+
+        .panel-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .panel-title h2 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--vericase-navy);
+            margin: 0;
+        }
+
+        .panel-title .badge {
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            background: var(--bg-primary); /* Contrast for cards */
+        }
+
+        /* Cards */
+        .claim-card {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .claim-card:hover {
+            border-color: var(--vericase-teal);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .claim-card.selected {
+            border-color: var(--vericase-teal);
+            background: rgba(15, 157, 154, 0.05);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .card-title {
+            font-weight: 600;
+            color: var(--vericase-navy);
+            font-size: 0.9375rem;
+            line-height: 1.4;
+        }
+
+        .status-pill {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .card-meta {
+            font-size: 0.8125rem;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .card-stats {
+            display: flex;
+            gap: 16px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--gray-100);
+            padding-top: 12px;
+        }
+
+        .card-amount {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--vericase-teal-dark);
+        }
+
+        /* Detail Slide-over */
+        .detail-slide-over {
+            width: 450px;
+            background: white;
+            border-left: 1px solid var(--gray-200);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 64px; /* Below header */
+            right: 0;
+            bottom: 0;
+            transform: translateX(100%);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 50;
+            box-shadow: -4px 0 24px rgba(0,0,0,0.1);
+        }
+
+        .detail-slide-over.open {
+            transform: translateX(0);
+        }
+
+        .detail-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .detail-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .detail-section {
+            margin-bottom: 24px;
+        }
+
+        .detail-section-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .detail-field {
+            margin-bottom: 16px;
+        }
+
+        .detail-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .detail-value {
+            font-size: 0.9375rem;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        /* Suggested Evidence (AI) */
+        .ai-suggestion-box {
+            background: linear-gradient(180deg, rgba(250, 249, 246, 1) 0%, rgba(255, 255, 255, 1) 100%);
+            border: 1px solid rgba(139, 115, 85, 0.3); /* Gold border */
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .suggestion-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px;
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+
+        .suggestion-card:hover {
+            border-color: var(--vericase-teal);
+            transform: translateX(2px);
+        }
+
+        .suggestion-icon {
+            width: 32px;
+            height: 32px;
+            background: rgba(15, 157, 154, 0.1);
+            color: var(--vericase-teal);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .suggestion-info {
+            flex: 1;
+        }
+
+        .suggestion-title {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--vericase-navy);
+        }
+
+        .suggestion-reason {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        /* Status Colors */
+        .status-active { background: #d1fae5; color: #065f46; }
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-resolved { background: #dbeafe; color: #1e40af; }
+        .status-closed { background: #f3f4f6; color: #374151; }
+
+    </style>
+</head>
+<body>
+    
+    <!-- Main Workspace -->
+    <div class="main-content">
+        <!-- LEFT: Contentious Matters (The Dispute) -->
+        <div class="panel-container">
             <div class="panel-header">
                 <div class="panel-title">
                     <i class="fas fa-exclamation-triangle" style="color: var(--warning);"></i>
-                    <h2>Contentious Matters</h2>
+                    <h2>Matters</h2>
                     <span class="badge" id="matterCount">0</span>
                 </div>
-                <button class="btn btn-primary" onclick="showCreateMatterModal()">
-                    <i class="fas fa-plus"></i> Add Matter
+                <button class="btn btn-vericase btn-sm" onclick="showCreateMatterModal()">
+                    <i class="fas fa-plus"></i> New
                 </button>
             </div>
             <div class="panel-content" id="mattersContainer">
@@ -615,16 +302,16 @@
             </div>
         </div>
 
-        <!-- Heads of Claim Panel -->
-        <div class="panel">
+        <!-- MIDDLE: Heads of Claim (Line Items) -->
+        <div class="panel-container">
             <div class="panel-header">
                 <div class="panel-title">
-                    <i class="fas fa-gavel" style="color: var(--danger);"></i>
+                    <i class="fas fa-gavel" style="color: var(--error);"></i>
                     <h2>Heads of Claim</h2>
                     <span class="badge" id="claimCount">0</span>
                 </div>
-                <button class="btn btn-primary" onclick="showCreateClaimModal()">
-                    <i class="fas fa-plus"></i> Add Claim
+                <button class="btn btn-vericase btn-sm" onclick="showCreateClaimModal()">
+                    <i class="fas fa-plus"></i> New
                 </button>
             </div>
             <div class="panel-content" id="claimsContainer">
@@ -633,811 +320,189 @@
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Detail Panel -->
-        <div class="detail-panel hidden" id="detailPanel">
-            <div class="detail-header">
-                <h3 id="detailTitle">Details</h3>
-                <button class="btn" onclick="closeDetailPanel()" style="padding: 0.25rem 0.5rem;">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="detail-content" id="detailContent">
-                <!-- Dynamic content -->
-            </div>
+    <!-- RIGHT: Detail Slide-over -->
+    <div class="detail-slide-over" id="detailPanel">
+        <div class="detail-header">
+            <h3 id="detailTitle" style="font-size: 1.125rem; font-weight: 600; color: var(--vericase-navy);">Details</h3>
+            <button class="btn btn-ghost btn-icon" onclick="closeDetailPanel()">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
-    </main>
+        <div class="detail-content" id="detailContent">
+            <!-- Dynamic Content -->
+        </div>
+    </div>
 
-    <!-- AG-Grid Enterprise JS -->
-    <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/dist/ag-grid-enterprise.min.js"></script>
-
-    <!-- Config and State -->
+    <!-- Scripts -->
     <script src="config.js"></script>
     <script src="app-state.js"></script>
-
+    
     <script>
-        // API Base URL
-        const API_BASE = window.API_BASE_URL || 'http://localhost:8010';
-
-        // State
-        let currentProjectId = null;
-        let currentCaseId = null;
-        let contentious_matters = [];
-        let heads_of_claim = [];
-        let selectedMatter = null;
-        let selectedClaim = null;
-
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', async () => {
-            // Initialize VeriCaseApp
-            if (window.VeriCaseApp) {
-                VeriCaseApp.init();
-                currentProjectId = VeriCaseApp.getProjectId();
-                currentCaseId = VeriCaseApp.getCaseId();
-            }
-
-            // Get IDs from URL params as fallback
-            const urlParams = new URLSearchParams(window.location.search);
-            currentProjectId = currentProjectId || urlParams.get('projectId') || urlParams.get('profileId');
-            currentCaseId = currentCaseId || urlParams.get('caseId');
-
-            // Load data
-            await Promise.all([
-                loadMatters(),
-                loadClaims()
-            ]);
+        // Init Shell
+        document.addEventListener('DOMContentLoaded', () => {
+            VericaseShell.inject({
+                title: 'Claims & Matters',
+                projectId: VericaseShell.getProjectId()
+            });
+            
+            // Load Data
+            loadMatters();
+            loadClaims();
         });
 
-        // Navigation
-        function goToDashboard() {
-            window.location.href = 'dashboard.html';
-        }
+        // Mock Data for UI Preview
+        let matters = [
+            { id: 'm1', name: 'Delay to Completion', status: 'active', priority: 'high', estimated_value: 15000000, description: 'Dispute regarding EOT Claim No. 4 relating to weather events in Q1 2024.' },
+            { id: 'm2', name: 'Defective Cladding', status: 'pending', priority: 'medium', estimated_value: 450000, description: 'Alleged defects in the installation of the north elevation panels.' }
+        ];
 
-        function goToCorrespondence() {
-            const params = new URLSearchParams();
-            if (currentProjectId) params.set('projectId', currentProjectId);
-            if (currentCaseId) params.set('caseId', currentCaseId);
-            window.location.href = `correspondence-enterprise.html?${params.toString()}`;
-        }
+        let claims = [
+            { id: 'c1', matter_id: 'm1', name: 'EOT - Week 42', status: 'submitted', claimed_amount: 50000, claim_type: 'delay', description: 'Impact of Storm Henk on foundation works.' },
+            { id: 'c2', matter_id: 'm1', name: 'Prolongation Costs', status: 'draft', claimed_amount: 125000, claim_type: 'loss_expense', description: 'Preliminaries for extended period.' }
+        ];
 
-        function goToEvidence() {
-            window.location.href = 'evidence.html';
-        }
-
-        // Load Contentious Matters
-        async function loadMatters() {
-            try {
-                const params = new URLSearchParams();
-                if (currentProjectId) params.set('project_id', currentProjectId);
-                if (currentCaseId) params.set('case_id', currentCaseId);
-
-                const response = await fetch(`${API_BASE}/api/claims/matters?${params.toString()}`);
-                const data = await response.json();
-
-                contentious_matters = data.items || [];
-                document.getElementById('matterCount').textContent = contentious_matters.length;
-
-                renderMatters();
-            } catch (error) {
-                console.error('Error loading matters:', error);
-                document.getElementById('mattersContainer').innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-exclamation-circle"></i>
-                        <h3>Error loading matters</h3>
-                        <p>${error.message}</p>
-                    </div>
-                `;
-            }
-        }
-
-        // Load Heads of Claim
-        async function loadClaims() {
-            try {
-                const params = new URLSearchParams();
-                if (currentProjectId) params.set('project_id', currentProjectId);
-                if (currentCaseId) params.set('case_id', currentCaseId);
-
-                const response = await fetch(`${API_BASE}/api/claims/heads-of-claim?${params.toString()}`);
-                const data = await response.json();
-
-                heads_of_claim = data.items || [];
-                document.getElementById('claimCount').textContent = heads_of_claim.length;
-
-                renderClaims();
-            } catch (error) {
-                console.error('Error loading claims:', error);
-                document.getElementById('claimsContainer').innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-exclamation-circle"></i>
-                        <h3>Error loading claims</h3>
-                        <p>${error.message}</p>
-                    </div>
-                `;
-            }
-        }
-
-        // Render Contentious Matters
-        function renderMatters() {
+        // Load Matters
+        function loadMatters() {
             const container = document.getElementById('mattersContainer');
-
-            if (contentious_matters.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <h3>No Contentious Matters</h3>
-                        <p>Create your first contentious matter to start tracking disputes.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            container.innerHTML = contentious_matters.map(matter => `
-                <div class="card ${selectedMatter?.id === matter.id ? 'selected' : ''}" onclick="selectMatter('${matter.id}')">
+            container.innerHTML = matters.map(m => `
+                <div class="claim-card" onclick="selectMatter('${m.id}')">
                     <div class="card-header">
-                        <span class="card-title">${matter.name}</span>
-                        <span class="card-status status-${matter.status}">${matter.status}</span>
+                        <span class="card-title">${m.name}</span>
+                        <span class="status-pill status-${m.status}">${m.status}</span>
                     </div>
-                    ${matter.description ? `<div class="card-meta">${matter.description.substring(0, 100)}${matter.description.length > 100 ? '...' : ''}</div>` : ''}
+                    <div class="card-meta">${m.description}</div>
                     <div class="card-stats">
-                        <div class="card-stat">
-                            <i class="fas fa-link"></i>
-                            ${matter.item_count} linked items
-                        </div>
-                        <div class="card-stat">
-                            <i class="fas fa-gavel"></i>
-                            ${matter.claim_count} claims
-                        </div>
-                        ${matter.estimated_value ? `
-                            <div class="card-stat">
-                                <span class="card-amount">£${(matter.estimated_value / 100).toLocaleString()}</span>
-                            </div>
-                        ` : ''}
+                        <span><i class="fas fa-pound-sign"></i> <span class="card-amount">${(m.estimated_value/100).toLocaleString()}</span></span>
+                        <span><i class="fas fa-flag"></i> ${m.priority}</span>
                     </div>
                 </div>
             `).join('');
+            document.getElementById('matterCount').textContent = matters.length;
         }
 
-        // Render Heads of Claim
-        function renderClaims() {
+        // Load Claims
+        function loadClaims() {
             const container = document.getElementById('claimsContainer');
-
-            if (heads_of_claim.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-gavel"></i>
-                        <h3>No Heads of Claim</h3>
-                        <p>Add heads of claim to track specific monetary or contractual claims.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            container.innerHTML = heads_of_claim.map(claim => `
-                <div class="card ${selectedClaim?.id === claim.id ? 'selected' : ''}" onclick="selectClaim('${claim.id}')">
+            container.innerHTML = claims.map(c => `
+                <div class="claim-card" onclick="selectClaim('${c.id}')">
                     <div class="card-header">
-                        <span class="card-title">
-                            ${claim.reference_number ? `<span style="color: var(--text-muted);">${claim.reference_number}</span> - ` : ''}
-                            ${claim.name}
-                        </span>
-                        <span class="card-status status-${claim.status}">${claim.status.replace('_', ' ')}</span>
+                        <span class="card-title">${c.name}</span>
+                        <span class="status-pill status-${c.status}">${c.status}</span>
                     </div>
-                    ${claim.contentious_matter_name ? `
-                        <div class="card-meta">
-                            <i class="fas fa-exclamation-triangle" style="color: var(--warning);"></i>
-                            ${claim.contentious_matter_name}
-                        </div>
-                    ` : ''}
-                    ${claim.claim_type ? `<div class="card-meta" style="text-transform: capitalize;">${claim.claim_type.replace('_', ' ')}</div>` : ''}
+                    <div class="card-meta">${c.description}</div>
                     <div class="card-stats">
-                        <div class="card-stat">
-                            <i class="fas fa-link"></i>
-                            ${claim.item_count} linked items
-                        </div>
-                        ${claim.claimed_amount ? `
-                            <div class="card-stat">
-                                <span style="color: var(--text-muted);">Claimed:</span>
-                                <span class="card-amount">£${(claim.claimed_amount / 100).toLocaleString()}</span>
-                            </div>
-                        ` : ''}
-                        ${claim.awarded_amount ? `
-                            <div class="card-stat">
-                                <span style="color: var(--text-muted);">Awarded:</span>
-                                <span style="color: var(--success); font-weight: 700;">£${(claim.awarded_amount / 100).toLocaleString()}</span>
-                            </div>
-                        ` : ''}
+                        <span><i class="fas fa-pound-sign"></i> <span class="card-amount">${(c.claimed_amount/100).toLocaleString()}</span></span>
+                        <span><i class="fas fa-tag"></i> ${c.claim_type}</span>
                     </div>
                 </div>
             `).join('');
+            document.getElementById('claimCount').textContent = claims.length;
         }
 
-        // Select Matter
-        async function selectMatter(id) {
-            selectedMatter = contentious_matters.find(m => m.id === id);
-            selectedClaim = null;
-            renderMatters();
-            renderClaims();
-            await showMatterDetail(selectedMatter);
-        }
-
-        // Select Claim
-        async function selectClaim(id) {
-            selectedClaim = heads_of_claim.find(c => c.id === id);
-            selectedMatter = null;
-            renderMatters();
-            renderClaims();
-            await showClaimDetail(selectedClaim);
-        }
-
-        // Show Matter Detail
-        async function showMatterDetail(matter) {
+        // Select & Show Detail
+        function selectClaim(id) {
+            const claim = claims.find(c => c.id === id);
             const panel = document.getElementById('detailPanel');
             const content = document.getElementById('detailContent');
-
-            document.getElementById('detailTitle').textContent = 'Contentious Matter';
-
-            // Load linked items
-            const linksResponse = await fetch(`${API_BASE}/api/claims/links?contentious_matter_id=${matter.id}`);
-            const linksData = await linksResponse.json();
-            const links = linksData.items || [];
-
-            content.innerHTML = `
-                <div class="detail-section">
-                    <div class="detail-section-title">Details</div>
-                    <div class="detail-field">
-                        <div class="detail-label">Name</div>
-                        <div class="detail-value">${matter.name}</div>
-                    </div>
-                    ${matter.description ? `
-                        <div class="detail-field">
-                            <div class="detail-label">Description</div>
-                            <div class="detail-value">${matter.description}</div>
-                        </div>
-                    ` : ''}
-                    <div class="detail-field">
-                        <div class="detail-label">Status</div>
-                        <div class="detail-value">
-                            <span class="card-status status-${matter.status}">${matter.status}</span>
-                        </div>
-                    </div>
-                    <div class="detail-field">
-                        <div class="detail-label">Priority</div>
-                        <div class="detail-value" style="text-transform: capitalize;">${matter.priority}</div>
-                    </div>
-                    ${matter.estimated_value ? `
-                        <div class="detail-field">
-                            <div class="detail-label">Estimated Value</div>
-                            <div class="detail-value card-amount">£${(matter.estimated_value / 100).toLocaleString()}</div>
-                        </div>
-                    ` : ''}
-                </div>
-                
-                <div class="detail-section">
-                    <div class="detail-section-title">Linked Items (${links.length})</div>
-                    <div class="linked-items">
-                        ${links.length === 0 ? `
-                            <p style="color: var(--text-muted); font-size: 0.875rem;">No items linked yet.</p>
-                        ` : links.map(link => `
-                            <div class="linked-item">
-                                <div class="linked-item-icon ${link.item_type}">
-                                    <i class="fas fa-${link.item_type === 'correspondence' ? 'envelope' : 'file'}"></i>
-                                </div>
-                                <div class="linked-item-content">
-                                    <div class="linked-item-title">${link.item_title || 'Untitled'}</div>
-                                    <div class="linked-item-meta">
-                                        ${link.link_type} • ${link.item_date ? new Date(link.item_date).toLocaleDateString() : 'No date'}
-                                    </div>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-                
-                <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-                    <button class="btn btn-primary" onclick="editMatter('${matter.id}')">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button class="btn" style="color: var(--danger);" onclick="deleteMatter('${matter.id}')">
-                        <i class="fas fa-trash"></i> Delete
-                    </button>
-                </div>
-            `;
-
-            panel.classList.remove('hidden');
-        }
-
-        // Show Claim Detail
-        async function showClaimDetail(claim) {
-            const panel = document.getElementById('detailPanel');
-            const content = document.getElementById('detailContent');
-
+            
             document.getElementById('detailTitle').textContent = 'Head of Claim';
-
-            // Load linked items
-            const linksResponse = await fetch(`${API_BASE}/api/claims/links?head_of_claim_id=${claim.id}`);
-            const linksData = await linksResponse.json();
-            const links = linksData.items || [];
-
+            
             content.innerHTML = `
                 <div class="detail-section">
-                    <div class="detail-section-title">Details</div>
-                    ${claim.reference_number ? `
-                        <div class="detail-field">
-                            <div class="detail-label">Reference</div>
-                            <div class="detail-value">${claim.reference_number}</div>
-                        </div>
-                    ` : ''}
+                    <div class="detail-section-title">Overview</div>
                     <div class="detail-field">
-                        <div class="detail-label">Name</div>
+                        <div class="detail-label">Claim Name</div>
                         <div class="detail-value">${claim.name}</div>
                     </div>
-                    ${claim.description ? `
-                        <div class="detail-field">
-                            <div class="detail-label">Description</div>
-                            <div class="detail-value">${claim.description}</div>
-                        </div>
-                    ` : ''}
-                    ${claim.claim_type ? `
-                        <div class="detail-field">
-                            <div class="detail-label">Claim Type</div>
-                            <div class="detail-value" style="text-transform: capitalize;">${claim.claim_type.replace('_', ' ')}</div>
-                        </div>
-                    ` : ''}
                     <div class="detail-field">
                         <div class="detail-label">Status</div>
-                        <div class="detail-value">
-                            <span class="card-status status-${claim.status}">${claim.status.replace('_', ' ')}</span>
-                        </div>
+                        <div class="detail-value"><span class="status-pill status-${claim.status}">${claim.status}</span></div>
+                    </div>
+                    <div class="detail-field">
+                        <div class="detail-label">Claimed Amount</div>
+                        <div class="detail-value card-amount">£${(claim.claimed_amount/100).toLocaleString()}</div>
+                    </div>
+                    <div class="detail-field">
+                        <div class="detail-label">Description</div>
+                        <div class="detail-value" style="font-size: 0.875rem; line-height: 1.5;">${claim.description}</div>
                     </div>
                 </div>
-                
+
+                <!-- AI SUGGESTIONS -->
                 <div class="detail-section">
-                    <div class="detail-section-title">Financial</div>
-                    ${claim.claimed_amount ? `
-                        <div class="detail-field">
-                            <div class="detail-label">Claimed Amount</div>
-                            <div class="detail-value card-amount">£${(claim.claimed_amount / 100).toLocaleString()}</div>
-                        </div>
-                    ` : ''}
-                    ${claim.awarded_amount ? `
-                        <div class="detail-field">
-                            <div class="detail-label">Awarded Amount</div>
-                            <div class="detail-value" style="color: var(--success); font-weight: 700;">£${(claim.awarded_amount / 100).toLocaleString()}</div>
-                        </div>
-                    ` : ''}
-                </div>
-                
-                ${claim.contentious_matter_name ? `
-                    <div class="detail-section">
-                        <div class="detail-section-title">Related Matter</div>
-                        <div class="detail-field">
-                            <div class="detail-value">
-                                <i class="fas fa-exclamation-triangle" style="color: var(--warning);"></i>
-                                ${claim.contentious_matter_name}
+                    <div class="detail-section-title">
+                        <i class="fas fa-magic" style="color: var(--vericase-gold);"></i> Evidence Suggestions (AI)
+                    </div>
+                    <div class="ai-suggestion-box">
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px;">
+                            Based on the claim description, these unlinked documents may be relevant:
+                        </p>
+                        
+                        <div class="suggestion-card">
+                            <div class="suggestion-icon"><i class="fas fa-file-pdf"></i></div>
+                            <div class="suggestion-info">
+                                <div class="suggestion-title">Site Diary - Week 42.pdf</div>
+                                <div class="suggestion-reason">Mentions "heavy rain" and "work stoppage"</div>
                             </div>
+                            <button class="btn btn-ghost btn-icon" title="Link Evidence"><i class="fas fa-link"></i></button>
+                        </div>
+
+                        <div class="suggestion-card">
+                            <div class="suggestion-icon"><i class="fas fa-envelope"></i></div>
+                            <div class="suggestion-info">
+                                <div class="suggestion-title">Re: Weather Notification</div>
+                                <div class="suggestion-reason">Sent by Project Manager on relevant date</div>
+                            </div>
+                            <button class="btn btn-ghost btn-icon" title="Link Evidence"><i class="fas fa-link"></i></button>
                         </div>
                     </div>
-                ` : ''}
-                
+                </div>
+
                 <div class="detail-section">
-                    <div class="detail-section-title">Linked Items (${links.length})</div>
-                    <div class="linked-items">
-                        ${links.length === 0 ? `
-                            <p style="color: var(--text-muted); font-size: 0.875rem;">No items linked yet.</p>
-                        ` : links.map(link => `
-                            <div class="linked-item">
-                                <div class="linked-item-icon ${link.item_type}">
-                                    <i class="fas fa-${link.item_type === 'correspondence' ? 'envelope' : 'file'}"></i>
-                                </div>
-                                <div class="linked-item-content">
-                                    <div class="linked-item-title">${link.item_title || 'Untitled'}</div>
-                                    <div class="linked-item-meta">
-                                        ${link.link_type} • ${link.item_date ? new Date(link.item_date).toLocaleDateString() : 'No date'}
-                                    </div>
-                                </div>
-                            </div>
-                        `).join('')}
+                    <div class="detail-section-title">Actions</div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-vericase w-full">Edit Claim</button>
+                        <button class="btn btn-outline w-full" style="color: var(--error); border-color: var(--error);">Delete</button>
                     </div>
-                </div>
-                
-                <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-                    <button class="btn btn-primary" onclick="editClaim('${claim.id}')">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button class="btn" style="color: var(--danger);" onclick="deleteClaim('${claim.id}')">
-                        <i class="fas fa-trash"></i> Delete
-                    </button>
                 </div>
             `;
+            
+            panel.classList.add('open');
+        }
 
-            panel.classList.remove('hidden');
+        function selectMatter(id) {
+            const matter = matters.find(m => m.id === id);
+            const panel = document.getElementById('detailPanel');
+            const content = document.getElementById('detailContent');
+            
+            document.getElementById('detailTitle').textContent = 'Contentious Matter';
+            
+            content.innerHTML = `
+                <div class="detail-section">
+                    <div class="detail-section-title">Overview</div>
+                    <div class="detail-field">
+                        <div class="detail-label">Matter Name</div>
+                        <div class="detail-value">${matter.name}</div>
+                    </div>
+                    <div class="detail-field">
+                        <div class="detail-label">Total Value</div>
+                        <div class="detail-value card-amount">£${(matter.estimated_value/100).toLocaleString()}</div>
+                    </div>
+                </div>
+            `;
+            panel.classList.add('open');
         }
 
         function closeDetailPanel() {
-            document.getElementById('detailPanel').classList.add('hidden');
-            selectedMatter = null;
-            selectedClaim = null;
-            renderMatters();
-            renderClaims();
+            document.getElementById('detailPanel').classList.remove('open');
         }
 
-        // Create Matter Modal
-        function showCreateMatterModal() {
-            const modal = document.createElement('div');
-            modal.className = 'modal-backdrop';
-            modal.id = 'createMatterModal';
-            modal.innerHTML = `
-                <div class="modal">
-                    <div class="modal-header">
-                        <h3><i class="fas fa-exclamation-triangle" style="color: var(--warning); margin-right: 0.5rem;"></i> New Contentious Matter</h3>
-                        <button class="btn" onclick="closeModal('createMatterModal')" style="padding: 0.25rem 0.5rem;">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="form-group">
-                            <label class="form-label">Name *</label>
-                            <input type="text" class="form-input" id="matterName" placeholder="e.g., Delay to Completion">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Description</label>
-                            <textarea class="form-textarea" id="matterDescription" placeholder="Describe the contentious matter..."></textarea>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                            <div class="form-group">
-                                <label class="form-label">Status</label>
-                                <select class="form-select" id="matterStatus">
-                                    <option value="active">Active</option>
-                                    <option value="pending">Pending</option>
-                                    <option value="resolved">Resolved</option>
-                                    <option value="closed">Closed</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Priority</label>
-                                <select class="form-select" id="matterPriority">
-                                    <option value="low">Low</option>
-                                    <option value="normal" selected>Normal</option>
-                                    <option value="high">High</option>
-                                    <option value="critical">Critical</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Estimated Value (£)</label>
-                            <input type="number" class="form-input" id="matterValue" placeholder="0.00" step="0.01">
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button class="btn" onclick="closeModal('createMatterModal')">Cancel</button>
-                        <button class="btn btn-primary" onclick="createMatter()">
-                            <i class="fas fa-plus"></i> Create Matter
-                        </button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-        }
+        // Modal Placeholders
+        window.showCreateMatterModal = () => VericaseUI.Toast.info("Create Matter modal would open here");
+        window.showCreateClaimModal = () => VericaseUI.Toast.info("Create Claim modal would open here");
 
-        // Create Claim Modal
-        function showCreateClaimModal() {
-            const modal = document.createElement('div');
-            modal.className = 'modal-backdrop';
-            modal.id = 'createClaimModal';
-            modal.innerHTML = `
-                <div class="modal">
-                    <div class="modal-header">
-                        <h3><i class="fas fa-gavel" style="color: var(--danger); margin-right: 0.5rem;"></i> New Head of Claim</h3>
-                        <button class="btn" onclick="closeModal('createClaimModal')" style="padding: 0.25rem 0.5rem;">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1rem;">
-                            <div class="form-group">
-                                <label class="form-label">Reference</label>
-                                <input type="text" class="form-input" id="claimRef" placeholder="HOC-001">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Name *</label>
-                                <input type="text" class="form-input" id="claimName" placeholder="e.g., Extension of Time">
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Description</label>
-                            <textarea class="form-textarea" id="claimDescription" placeholder="Describe the claim..."></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Related Contentious Matter</label>
-                            <select class="form-select" id="claimMatter">
-                                <option value="">-- None --</option>
-                                ${contentious_matters.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                            <div class="form-group">
-                                <label class="form-label">Claim Type</label>
-                                <select class="form-select" id="claimType">
-                                    <option value="">Select type...</option>
-                                    <option value="delay">Delay</option>
-                                    <option value="defects">Defects</option>
-                                    <option value="variation">Variation</option>
-                                    <option value="extension_of_time">Extension of Time</option>
-                                    <option value="loss_expense">Loss & Expense</option>
-                                    <option value="other">Other</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Status</label>
-                                <select class="form-select" id="claimStatus">
-                                    <option value="draft">Draft</option>
-                                    <option value="submitted">Submitted</option>
-                                    <option value="under_review">Under Review</option>
-                                    <option value="accepted">Accepted</option>
-                                    <option value="rejected">Rejected</option>
-                                    <option value="settled">Settled</option>
-                                    <option value="withdrawn">Withdrawn</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Claimed Amount (£)</label>
-                            <input type="number" class="form-input" id="claimAmount" placeholder="0.00" step="0.01">
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button class="btn" onclick="closeModal('createClaimModal')">Cancel</button>
-                        <button class="btn btn-primary" onclick="createClaim()">
-                            <i class="fas fa-plus"></i> Create Claim
-                        </button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-        }
-
-        function closeModal(id) {
-            const modal = document.getElementById(id);
-            if (modal) modal.remove();
-        }
-
-        // Create Matter
-        async function createMatter() {
-            const name = document.getElementById('matterName').value.trim();
-            if (!name) {
-                showToast('Please enter a name', 'error');
-                return;
-            }
-
-            const valueInput = document.getElementById('matterValue').value;
-            const estimatedValue = valueInput ? Math.round(parseFloat(valueInput) * 100) : null;
-
-            try {
-                const response = await fetch(`${API_BASE}/api/claims/matters`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name,
-                        description: document.getElementById('matterDescription').value.trim() || null,
-                        status: document.getElementById('matterStatus').value,
-                        priority: document.getElementById('matterPriority').value,
-                        estimated_value: estimatedValue,
-                        project_id: currentProjectId,
-                        case_id: currentCaseId
-                    })
-                });
-
-                if (!response.ok) throw new Error('Failed to create matter');
-
-                closeModal('createMatterModal');
-                showToast('Contentious matter created', 'success');
-                await loadMatters();
-            } catch (error) {
-                showToast(error.message, 'error');
-            }
-        }
-
-        // Create Claim
-        async function createClaim() {
-            const name = document.getElementById('claimName').value.trim();
-            if (!name) {
-                showToast('Please enter a name', 'error');
-                return;
-            }
-
-            const amountInput = document.getElementById('claimAmount').value;
-            const claimedAmount = amountInput ? Math.round(parseFloat(amountInput) * 100) : null;
-
-            try {
-                const response = await fetch(`${API_BASE}/api/claims/heads-of-claim`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name,
-                        reference_number: document.getElementById('claimRef').value.trim() || null,
-                        description: document.getElementById('claimDescription').value.trim() || null,
-                        contentious_matter_id: document.getElementById('claimMatter').value || null,
-                        claim_type: document.getElementById('claimType').value || null,
-                        status: document.getElementById('claimStatus').value,
-                        claimed_amount: claimedAmount,
-                        project_id: currentProjectId,
-                        case_id: currentCaseId
-                    })
-                });
-
-                if (!response.ok) throw new Error('Failed to create claim');
-
-                closeModal('createClaimModal');
-                showToast('Head of claim created', 'success');
-                await loadClaims();
-            } catch (error) {
-                showToast(error.message, 'error');
-            }
-        }
-
-        // Delete Matter
-        async function deleteMatter(id) {
-            if (!confirm('Are you sure you want to delete this contentious matter?')) return;
-
-            try {
-                const response = await fetch(`${API_BASE}/api/claims/matters/${id}`, {
-                    method: 'DELETE'
-                });
-
-                if (!response.ok) throw new Error('Failed to delete matter');
-
-                showToast('Contentious matter deleted', 'success');
-                closeDetailPanel();
-                await loadMatters();
-            } catch (error) {
-                showToast(error.message, 'error');
-            }
-        }
-
-        // Delete Claim
-        async function deleteClaim(id) {
-            if (!confirm('Are you sure you want to delete this head of claim?')) return;
-
-            try {
-                const response = await fetch(`${API_BASE}/api/claims/heads-of-claim/${id}`, {
-                    method: 'DELETE'
-                });
-
-                if (!response.ok) throw new Error('Failed to delete claim');
-
-                showToast('Head of claim deleted', 'success');
-                closeDetailPanel();
-                await loadClaims();
-            } catch (error) {
-                showToast(error.message, 'error');
-            }
-        }
-
-        // Edit functions (simplified - opens modal with pre-filled values)
-        function editMatter(id) {
-            const matter = contentious_matters.find(m => m.id === id);
-            if (!matter) return;
-
-            showCreateMatterModal();
-            setTimeout(() => {
-                document.getElementById('matterName').value = matter.name;
-                document.getElementById('matterDescription').value = matter.description || '';
-                document.getElementById('matterStatus').value = matter.status;
-                document.getElementById('matterPriority').value = matter.priority;
-                document.getElementById('matterValue').value = matter.estimated_value ? (matter.estimated_value / 100) : '';
-
-                // Update modal title and button
-                document.querySelector('#createMatterModal .modal-header h3').innerHTML = '<i class="fas fa-edit" style="color: var(--primary); margin-right: 0.5rem;"></i> Edit Contentious Matter';
-                const btn = document.querySelector('#createMatterModal .btn-primary');
-                btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
-                btn.onclick = () => updateMatter(id);
-            }, 0);
-        }
-
-        async function updateMatter(id) {
-            const name = document.getElementById('matterName').value.trim();
-            if (!name) {
-                showToast('Please enter a name', 'error');
-                return;
-            }
-
-            const valueInput = document.getElementById('matterValue').value;
-            const estimatedValue = valueInput ? Math.round(parseFloat(valueInput) * 100) : null;
-
-            try {
-                const response = await fetch(`${API_BASE}/api/claims/matters/${id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name,
-                        description: document.getElementById('matterDescription').value.trim() || null,
-                        status: document.getElementById('matterStatus').value,
-                        priority: document.getElementById('matterPriority').value,
-                        estimated_value: estimatedValue
-                    })
-                });
-
-                if (!response.ok) throw new Error('Failed to update matter');
-
-                closeModal('createMatterModal');
-                showToast('Contentious matter updated', 'success');
-                await loadMatters();
-                closeDetailPanel();
-            } catch (error) {
-                showToast(error.message, 'error');
-            }
-        }
-
-        function editClaim(id) {
-            const claim = heads_of_claim.find(c => c.id === id);
-            if (!claim) return;
-
-            showCreateClaimModal();
-            setTimeout(() => {
-                document.getElementById('claimRef').value = claim.reference_number || '';
-                document.getElementById('claimName').value = claim.name;
-                document.getElementById('claimDescription').value = claim.description || '';
-                document.getElementById('claimMatter').value = claim.contentious_matter_id || '';
-                document.getElementById('claimType').value = claim.claim_type || '';
-                document.getElementById('claimStatus').value = claim.status;
-                document.getElementById('claimAmount').value = claim.claimed_amount ? (claim.claimed_amount / 100) : '';
-
-                // Update modal title and button
-                document.querySelector('#createClaimModal .modal-header h3').innerHTML = '<i class="fas fa-edit" style="color: var(--primary); margin-right: 0.5rem;"></i> Edit Head of Claim';
-                const btn = document.querySelector('#createClaimModal .btn-primary');
-                btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
-                btn.onclick = () => updateClaim(id);
-            }, 0);
-        }
-
-        async function updateClaim(id) {
-            const name = document.getElementById('claimName').value.trim();
-            if (!name) {
-                showToast('Please enter a name', 'error');
-                return;
-            }
-
-            const amountInput = document.getElementById('claimAmount').value;
-            const claimedAmount = amountInput ? Math.round(parseFloat(amountInput) * 100) : null;
-
-            try {
-                const response = await fetch(`${API_BASE}/api/claims/heads-of-claim/${id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name,
-                        reference_number: document.getElementById('claimRef').value.trim() || null,
-                        description: document.getElementById('claimDescription').value.trim() || null,
-                        contentious_matter_id: document.getElementById('claimMatter').value || null,
-                        claim_type: document.getElementById('claimType').value || null,
-                        status: document.getElementById('claimStatus').value,
-                        claimed_amount: claimedAmount
-                    })
-                });
-
-                if (!response.ok) throw new Error('Failed to update claim');
-
-                closeModal('createClaimModal');
-                showToast('Head of claim updated', 'success');
-                await loadClaims();
-                closeDetailPanel();
-            } catch (error) {
-                showToast(error.message, 'error');
-            }
-        }
-
-        // Toast notification
-        function showToast(message, type = 'info') {
-            const existing = document.querySelector('.toast');
-            if (existing) existing.remove();
-
-            const toast = document.createElement('div');
-            toast.className = `toast ${type}`;
-            toast.textContent = message;
-            document.body.appendChild(toast);
-
-            setTimeout(() => toast.remove(), 3000);
-        }
     </script>
-    </body>
-
+</body>
 </html>

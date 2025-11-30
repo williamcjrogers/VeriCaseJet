@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 
-from .auth import get_current_user
-from .models import User, AppSetting
+from .auth import get_current_user_email
+from .models import AppSetting
 from .db import get_db
 from .ai_models_2025 import (
     AI_MODELS_2025, 
@@ -47,7 +47,7 @@ class ModelSelectionRequest(BaseModel):
 
 @router.get("/providers")
 async def list_providers(
-    current_user: User = Depends(get_current_user),
+    current_user_email: str = Depends(get_current_user_email),
     db: Session = Depends(get_db)
 ):
     """List all AI providers with their models and configuration status"""
@@ -107,7 +107,7 @@ async def list_all_models(
     capability: Optional[str] = None,
     cost_tier: Optional[str] = None,
     provider: Optional[str] = None,
-    current_user: User = Depends(get_current_user)
+    current_user_email: str = Depends(get_current_user_email)
 ):
     """List all available models with optional filtering"""
     models = get_all_models()
@@ -151,7 +151,7 @@ async def list_all_models(
     }
 
 @router.get("/reasoning")
-async def get_reasoning_models_endpoint(current_user: User = Depends(get_current_user)):
+async def get_reasoning_models_endpoint(current_user_email: str = Depends(get_current_user_email)):
     """Get all models optimized for reasoning tasks"""
     models = get_reasoning_models()
     return {
@@ -161,7 +161,7 @@ async def get_reasoning_models_endpoint(current_user: User = Depends(get_current
     }
 
 @router.get("/coding")
-async def get_coding_models_endpoint(current_user: User = Depends(get_current_user)):
+async def get_coding_models_endpoint(current_user_email: str = Depends(get_current_user_email)):
     """Get all models optimized for coding tasks"""
     models = get_coding_models()
     return {
@@ -171,7 +171,7 @@ async def get_coding_models_endpoint(current_user: User = Depends(get_current_us
     }
 
 @router.get("/search")
-async def get_search_models_endpoint(current_user: User = Depends(get_current_user)):
+async def get_search_models_endpoint(current_user_email: str = Depends(get_current_user_email)):
     """Get all models with web search capabilities"""
     models = get_search_models()
     return {
@@ -183,7 +183,7 @@ async def get_search_models_endpoint(current_user: User = Depends(get_current_us
 @router.post("/select")
 async def select_model(
     request: ModelSelectionRequest,
-    current_user: User = Depends(get_current_user),
+    current_user_email: str = Depends(get_current_user_email),
     db: Session = Depends(get_db)
 ):
     """Select a model as default for a provider"""
@@ -220,7 +220,7 @@ async def select_model(
 @router.get("/recommendations")
 async def get_model_recommendations(
     use_case: str,
-    current_user: User = Depends(get_current_user)
+    current_user_email: str = Depends(get_current_user_email)
 ):
     """Get model recommendations for specific use cases"""
     recommendations = {
@@ -268,7 +268,7 @@ async def get_model_recommendations(
 
 @router.get("/status")
 async def get_models_status(
-    current_user: User = Depends(get_current_user),
+    current_user_email: str = Depends(get_current_user_email),
     db: Session = Depends(get_db)
 ):
     """Get overall status of AI model configuration"""
