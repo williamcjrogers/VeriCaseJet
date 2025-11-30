@@ -3,29 +3,96 @@
  * Injects consistent navigation into all pages
  */
 
-(function() {
+(function () {
     'use strict';
 
+    // ==========================================
+    // Error Tracking & Telemetry
+    // ==========================================
+    (function initErrorTracking() {
+        // Buffer for logs
+        window.__vericase_logs = window.__vericase_logs || [];
+        window.__jetski_console_buffer = window.__vericase_logs; // Alias for compatibility
+        const MAX_LOGS = 1000;
+
+        function addLog(type, args, stack) {
+            try {
+                const entry = {
+                    timestamp: new Date().toISOString(),
+                    type: type,
+                    message: args.map(a => {
+                        try {
+                            if (a instanceof Error) return a.toString();
+                            return typeof a === 'object' ? JSON.stringify(a) : String(a);
+                        } catch (e) {
+                            return '[Circular/Unserializable]';
+                        }
+                    }).join(' '),
+                    stack: stack || new Error().stack,
+                    url: window.location.href
+                };
+
+                window.__vericase_logs.push(entry);
+                if (window.__vericase_logs.length > MAX_LOGS) {
+                    window.__vericase_logs.shift();
+                }
+            } catch (e) {
+                // Failsafe to prevent logging from crashing the app
+            }
+        }
+
+        // Capture Console Methods
+        const methods = ['log', 'warn', 'error', 'info', 'debug'];
+        methods.forEach(method => {
+            const original = console[method];
+            console[method] = function (...args) {
+                // Call original first to ensure devtools behavior is preserved
+                if (original) original.apply(console, args);
+                addLog(method, args);
+            };
+        });
+
+        // Capture Global Errors
+        window.addEventListener('error', function (event) {
+            addLog('uncaught_error', [event.message], event.error ? event.error.stack : null);
+        });
+
+        // Capture Unhandled Rejections
+        window.addEventListener('unhandledrejection', function (event) {
+            addLog('unhandled_rejection', [event.reason]);
+        });
+
+        console.info('VeriCase Error Tracking Initialized');
+    })();
+
     const NAV_ITEMS = [
-        { section: 'HOME', items: [
-            { id: 'home', label: 'Command Center', icon: 'fa-home', url: 'master-dashboard.html' },
-        ]},
-        { section: 'PROJECT', items: [
-            { id: 'dashboard', label: 'Project Dashboard', icon: 'fa-th-large', url: 'dashboard.html' },
-            { id: 'evidence', label: 'Evidence Repository', icon: 'fa-folder-open', url: 'evidence.html' },
-            { id: 'correspondence', label: 'Correspondence', icon: 'fa-envelope-open-text', url: 'correspondence-enterprise.html' },
-            { id: 'claims', label: 'Claims & Matters', icon: 'fa-balance-scale', url: 'contentious-matters.html' },
-        ]},
-        { section: 'TOOLS', items: [
-            { id: 'upload', label: 'Upload PST', icon: 'fa-upload', url: 'pst-upload.html' },
-            { id: 'wizard', label: 'Project Setup', icon: 'fa-magic', url: 'wizard.html' },
-            { id: 'refinement', label: 'AI Refinement', icon: 'fa-robot', url: 'ai-refinement-wizard.html' },
-            { id: 'research', label: 'Deep Research', icon: 'fa-microscope', url: 'deep-research.html', badge: 'NEW' },
-        ]},
-        { section: 'ADMIN', adminOnly: true, items: [
-            { id: 'settings', label: 'Settings', icon: 'fa-cog', url: 'admin-settings.html' },
-            { id: 'users', label: 'Users', icon: 'fa-users', url: 'admin-users.html' },
-        ]}
+        {
+            section: 'HOME', items: [
+                { id: 'home', label: 'Command Center', icon: 'fa-home', url: 'master-dashboard.html' },
+            ]
+        },
+        {
+            section: 'PROJECT', items: [
+                { id: 'dashboard', label: 'Project Dashboard', icon: 'fa-th-large', url: 'dashboard.html' },
+                { id: 'evidence', label: 'Evidence Repository', icon: 'fa-folder-open', url: 'evidence.html' },
+                { id: 'correspondence', label: 'Correspondence', icon: 'fa-envelope-open-text', url: 'correspondence-enterprise.html' },
+                { id: 'claims', label: 'Claims & Matters', icon: 'fa-balance-scale', url: 'contentious-matters.html' },
+            ]
+        },
+        {
+            section: 'TOOLS', items: [
+                { id: 'upload', label: 'Upload PST', icon: 'fa-upload', url: 'pst-upload.html' },
+                { id: 'wizard', label: 'Project Setup', icon: 'fa-magic', url: 'wizard.html' },
+                { id: 'refinement', label: 'AI Refinement', icon: 'fa-robot', url: 'ai-refinement-wizard.html' },
+                { id: 'research', label: 'Deep Research', icon: 'fa-microscope', url: 'deep-research.html', badge: 'NEW' },
+            ]
+        },
+        {
+            section: 'ADMIN', adminOnly: true, items: [
+                { id: 'settings', label: 'Settings', icon: 'fa-cog', url: 'admin-settings.html' },
+                { id: 'users', label: 'Users', icon: 'fa-users', url: 'admin-users.html' },
+            ]
+        }
     ];
 
     function getCurrentPage() {
@@ -68,21 +135,21 @@
         const currentPage = getCurrentPage();
         const userIsAdmin = isAdmin();
         const hasProject = !!getProjectId();
-        
+
         let navHtml = '';
         NAV_ITEMS.forEach(section => {
             // Skip admin section for non-admins
             if (section.adminOnly && !userIsAdmin) {
                 return;
             }
-            
+
             // Add visual indicator if project section but no project selected
             const needsProject = section.section === 'PROJECT';
             const sectionClass = needsProject && !hasProject ? 'nav-section needs-project' : 'nav-section';
-            
+
             navHtml += `<div class="${sectionClass}">`;
             navHtml += `<div class="nav-section-title">${section.section}</div>`;
-            
+
             section.items.forEach(item => {
                 const isActive = currentPage.includes(item.url.replace('.html', ''));
                 const itemDisabled = needsProject && !hasProject ? 'disabled' : '';
@@ -94,7 +161,7 @@
                     </a>
                 `;
             });
-            
+
             navHtml += `</div>`;
         });
 
@@ -144,7 +211,7 @@
     }
 
     function injectShell(options = {}) {
-        const { 
+        const {
             title = document.title.replace('VeriCase - ', ''),
             headerActions = '',
             showProgress = false,
@@ -156,7 +223,7 @@
 
         // Wrap existing body content
         const existingContent = document.body.innerHTML;
-        
+
         document.body.innerHTML = `
             <div class="app-shell">
                 ${renderSidebar()}
@@ -180,16 +247,16 @@
         const mediaQuery = window.matchMedia('(max-width: 1024px)');
         const sidebar = document.getElementById('appSidebar');
         const toggle = document.getElementById('sidebarToggle');
-        
+
         function handleMediaChange(e) {
             if (toggle) {
                 toggle.style.display = e.matches ? 'flex' : 'none';
             }
         }
-        
+
         mediaQuery.addListener(handleMediaChange);
         handleMediaChange(mediaQuery);
-        
+
         if (toggle && sidebar) {
             toggle.addEventListener('click', () => {
                 sidebar.classList.toggle('mobile-open');

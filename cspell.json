@@ -90,7 +90,16 @@
     "asbuilt",
     "autosizing",
     "ufeff",
-    "MAPI"
+    "MAPI",
+    "eventbridge",
+    "stepfunctions",
+    "quicksight",
+    "macie",
+    "textract",
+    "rekognition",
+    "transcribe",
+    "bedrock",
+    "comprehend"
   ],
   "ignorePaths": [
     "node_modules",
