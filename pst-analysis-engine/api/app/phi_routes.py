@@ -7,8 +7,7 @@ import json
 import logging
 
 from .phi_client import phi_client
-from .auth import get_current_user
-from .models import User
+from .auth import get_current_user_email
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ async def phi_status():
 @router.post("/chat", response_model=ChatResponse)
 async def chat_with_phi(
     request: ChatRequest,
-    current_user: User = Depends(get_current_user)
+    current_user_email: str = Depends(get_current_user_email)
 ):
     """Chat with Phi-4 model"""
     try:
@@ -78,7 +77,7 @@ async def chat_with_phi(
 @router.post("/analyze")
 async def analyze_document(
     request: DocumentAnalysisRequest,
-    current_user: User = Depends(get_current_user)
+    current_user_email: str = Depends(get_current_user_email)
 ):
     """Analyze document with Phi-4"""
     try:
@@ -95,7 +94,7 @@ async def analyze_document(
 @router.post("/legal-insight")
 async def legal_insight(
     request: ChatRequest,
-    current_user: User = Depends(get_current_user)
+    current_user_email: str = Depends(get_current_user_email)
 ):
     """Get legal insights using Phi-4"""
     legal_prompt = f"""As a legal AI assistant, analyze this query and provide insights:
