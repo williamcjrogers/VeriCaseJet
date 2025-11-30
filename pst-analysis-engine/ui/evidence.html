@@ -1009,6 +1009,8 @@ width: 100%;
     </div>
 
     <script>
+        console.log("Evidence UI Version: 2.0.2 - FORCE RELOAD");
+        
         // ============================================
         // CONFIGURATION v1.0.1 - Cache bust
         // ============================================
@@ -1302,6 +1304,10 @@ width: 100%;
             const gridDiv = document.getElementById('evidenceGrid');
             // Use createGrid API (v31+) instead of deprecated new Grid()
             gridApi = agGrid.createGrid(gridDiv, gridOptions);
+            
+            // Load data after grid is initialized
+            console.log('[Evidence] Grid initialized, starting data load...');
+            loadAllData();
         }
 
         // ============================================
