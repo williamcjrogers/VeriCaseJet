@@ -2262,21 +2262,49 @@
                 autoHeight: false,
                 valueGetter: params => {
                     const attachments = params.data.attachments || params.data.meta?.attachments || [];
-                    // Filter out embedded images (logos, signatures, tracking pixels)
-                    const filtered = attachments.filter(att => !isEmbeddedImage(att));
+                    // Filter to only show documents (not images, not embedded)
+                    const filtered = attachments.filter(att => isDocumentAttachment(att));
                     if (!filtered.length) return '-';
-                    return `${filtered.length} file(s)`;
+                    return `${filtered.length} doc(s)`;
                 },
                 cellRenderer: params => {
                     const attachments = params.data.attachments || params.data.meta?.attachments || [];
-                    // Filter out embedded images (logos, signatures, tracking pixels)
-                    const filtered = attachments.filter(att => !isEmbeddedImage(att));
-                    if (!filtered.length) return '<span style="color: var(--text-muted);">None</span>';
-                    // Show count with paperclip icon and first few names
+                    // Filter to only show documents (not images, not embedded)
+                    const filtered = attachments.filter(att => isDocumentAttachment(att));
+                    if (!filtered.length) return '<span style="color: var(--text-muted);">—</span>';
+                    // Show count with file icon and first few names
                     const fileNames = filtered.slice(0, 2).map(att => att.filename || att.name || 'File');
                     const suffix = filtered.length > 2 ? ` (+${filtered.length - 2})` : '';
                     return `<span style="display:flex;gap:4px;align-items:center;overflow:hidden;white-space:nowrap;">
-                        <i class="fas fa-paperclip" style="color:var(--vericase-teal);"></i>
+                        <i class="fas fa-file-alt" style="color:var(--vericase-teal);"></i>
+                        ${fileNames.join(', ')}${suffix}
+                    </span>`;
+                },
+                cellStyle: { overflow: 'hidden', 'white-space': 'nowrap', 'text-overflow': 'ellipsis' }
+            },
+            {
+                headerName: 'Images',
+                field: 'attachments',
+                width: 180,
+                wrapText: false,
+                autoHeight: false,
+                valueGetter: params => {
+                    const attachments = params.data.attachments || params.data.meta?.attachments || [];
+                    // Filter to only show image attachments (not embedded)
+                    const filtered = attachments.filter(att => isImageAttachment(att));
+                    if (!filtered.length) return '-';
+                    return `${filtered.length} image(s)`;
+                },
+                cellRenderer: params => {
+                    const attachments = params.data.attachments || params.data.meta?.attachments || [];
+                    // Filter to only show image attachments (not embedded)
+                    const filtered = attachments.filter(att => isImageAttachment(att));
+                    if (!filtered.length) return '<span style="color: var(--text-muted);">—</span>';
+                    // Show count with image icon and first few names
+                    const fileNames = filtered.slice(0, 2).map(att => att.filename || att.name || 'Image');
+                    const suffix = filtered.length > 2 ? ` (+${filtered.length - 2})` : '';
+                    return `<span style="display:flex;gap:4px;align-items:center;overflow:hidden;white-space:nowrap;">
+                        <i class="fas fa-image" style="color:#10b981;"></i>
                         ${fileNames.join(', ')}${suffix}
                     </span>`;
                 },
@@ -3574,6 +3602,41 @@
             }
 
             return false;
+        }
+
+        /**
+         * Check if attachment is an IMAGE file (not embedded)
+         * @param {Object} att - Attachment object
+         * @returns {boolean} - True if this is a visible image attachment
+         */
+        function isImageAttachment(att) {
+            // If it's embedded, it's not a "real" image attachment the user cares about
+            if (isEmbeddedImage(att)) return false;
+            
+            const filename = (att.filename || att.name || '').toLowerCase();
+            const contentType = (att.content_type || '').toLowerCase();
+            
+            // Check for image extensions
+            const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.tiff', '.tif', '.svg'];
+            const hasImageExt = imageExtensions.some(ext => filename.endsWith(ext));
+            
+            // Check content type
+            const isImageType = contentType.startsWith('image/');
+            
+            return hasImageExt || isImageType;
+        }
+
+        /**
+         * Check if attachment is a DOCUMENT (not an image, not embedded)
+         * @param {Object} att - Attachment object
+         * @returns {boolean} - True if this is a document attachment
+         */
+        function isDocumentAttachment(att) {
+            // If it's embedded, skip it
+            if (isEmbeddedImage(att)) return false;
+            // If it's an image, it goes in the Images column
+            if (isImageAttachment(att)) return false;
+            return true;
         }
 
         /**
