@@ -2051,10 +2051,15 @@
                 wrapText: false,
                 autoHeight: false,
                 cellStyle: { 'overflow': 'hidden', 'text-overflow': 'ellipsis', 'white-space': 'nowrap' },
-                valueGetter: params => params.data.email_to || '-',
+                valueGetter: params => {
+                    if (!params.data) return '-';
+                    const val = params.data.email_to;
+                    if (Array.isArray(val)) return val.join(', ') || '-';
+                    return val || '-';
+                },
                 cellRenderer: params => {
                     if (!params.value || params.value === '-') return '-';
-                    return `<span style="font-weight: 500;">${params.value}</span>`;
+                    return `<span style="font-weight: 500;">${String(params.value)}</span>`;
                 },
                 filter: 'agSetColumnFilter'
             },
@@ -2066,10 +2071,15 @@
                 wrapText: false,
                 autoHeight: false,
                 cellStyle: { 'overflow': 'hidden', 'text-overflow': 'ellipsis', 'white-space': 'nowrap' },
-                valueGetter: params => params.data.email_cc || '-',
+                valueGetter: params => {
+                    if (!params.data) return '-';
+                    const val = params.data.email_cc;
+                    if (Array.isArray(val)) return val.join(', ') || '-';
+                    return val || '-';
+                },
                 cellRenderer: params => {
                     if (!params.value || params.value === '-') return '-';
-                    return `<span style="font-weight: 500;">${params.value}</span>`;
+                    return `<span style="font-weight: 500;">${String(params.value)}</span>`;
                 },
                 filter: 'agSetColumnFilter'
             },
@@ -2078,9 +2088,11 @@
                 field: 'email_subject',
                 flex: 1,
                 minWidth: 220,
-                cellRenderer: params => params.value
-                    ? `<div style="display:flex;flex-direction:column;gap:4px;"><span style="font-weight:700;color:var(--vericase-navy);">${params.value}</span><span style="font-size:0.8rem;color:var(--text-muted);">Thread: ${params.data?.thread_id || 'N/A'}</span></div>`
-                    : '-',
+                cellRenderer: params => {
+                    if (!params.value) return '-';
+                    const threadId = params.data?.thread_id || 'N/A';
+                    return `<div style="display:flex;flex-direction:column;gap:4px;"><span style="font-weight:700;color:var(--vericase-navy);">${String(params.value)}</span><span style="font-size:0.8rem;color:var(--text-muted);">Thread: ${threadId}</span></div>`;
+                },
                 filter: 'agTextColumnFilter'
             },
             {
@@ -2531,8 +2543,31 @@
                 filter: true,
                 resizable: true,
                 floatingFilter: true,
-                menuTabs: ['filterMenuTab', 'generalMenuTab', 'columnsMenuTab']
+                menuTabs: ['filterMenuTab', 'generalMenuTab', 'columnsMenuTab'],
+                // Flexible cell rendering - handle any data type gracefully
+                valueFormatter: params => {
+                    if (params.value === null || params.value === undefined) return '-';
+                    if (typeof params.value === 'object') {
+                        try { return JSON.stringify(params.value); } catch { return String(params.value); }
+                    }
+                    return String(params.value);
+                },
+                // Auto-size to content
+                flex: 1,
+                minWidth: 100,
+                // Handle long text gracefully
+                wrapText: false,
+                autoHeight: false,
+                cellStyle: { 'overflow': 'hidden', 'text-overflow': 'ellipsis' }
             },
+            
+            // Auto-generate columns for any unknown fields in the data
+            autoGroupColumnDef: {
+                minWidth: 200,
+            },
+            
+            // Suppress errors for missing fields - be flexible
+            suppressFieldDotNotation: false,
 
             // === SERVER-SIDE ROW MODEL (handles 100k+ rows) ===
             rowModelType: 'serverSide',

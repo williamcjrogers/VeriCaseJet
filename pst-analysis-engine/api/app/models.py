@@ -883,8 +883,8 @@ class EvidenceItem(Base):
     # Core file metadata
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     original_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    file_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    mime_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    file_type: Mapped[str | None] = mapped_column(String(255), nullable=True)  # Increased from 50 for flexibility
+    mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)  # Increased for edge cases
     file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
     file_hash: Mapped[str] = mapped_column(String(128), nullable=False)  # SHA-256
 

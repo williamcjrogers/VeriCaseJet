@@ -1053,12 +1053,14 @@ class UltimatePSTProcessor:
                 if not is_inline:
                     try:
                         # Determine file type from extension
-                        file_ext = os.path.splitext(safe_filename)[1].lower().lstrip('.') if safe_filename else ''
+                        # Truncate to 255 chars max for database compatibility
+                        raw_ext = os.path.splitext(safe_filename)[1].lower().lstrip('.') if safe_filename else ''
+                        file_ext = raw_ext[:255] if raw_ext else None
                         
                         evidence_item = EvidenceItem(
                             filename=safe_filename,
                             original_path=f"PST:{pst_file_record.filename if pst_file_record else 'unknown'}/{safe_filename}",
-                            file_type=file_ext or None,
+                            file_type=file_ext,
                             mime_type=content_type,
                             file_size=size,
                             file_hash=file_hash,
