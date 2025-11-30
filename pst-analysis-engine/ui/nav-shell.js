@@ -178,8 +178,7 @@
             <aside class="app-sidebar" id="appSidebar">
                 <div class="sidebar-header">
                     <a href="master-dashboard.html" class="sidebar-logo">
-                        <i class="fas fa-shield-alt"></i>
-                        <span>VeriCase</span>
+                        <span class="logo-veri">Veri</span><span class="logo-case">Case</span>
                     </a>
                 </div>
                 ${projectContext}
@@ -273,4 +272,3 @@
     };
 
 })();
-
