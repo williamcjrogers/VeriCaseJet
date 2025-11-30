@@ -1,587 +1,597 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VeriCase - Contentious Matters & Heads of Claim</title>
-    
+
     <!-- AG-Grid Enterprise CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-grid.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-theme-quartz.css">
-    
-    <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <style>
-        :root {
-            --vericase-teal: #17B5A3;
-            --vericase-teal-dark: #129B8B;
-            --vericase-blue: #2B7FBF;
-            --vericase-navy: #1F2937;
-            --bg-primary: #E8EEF2;
-            --primary: #17B5A3;
-            --primary-dark: #129B8B;
-            --secondary: #64748b;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-            --surface: #ffffff;
-            --background: #E8EEF2;
-            --text: #1F2937;
-            --text-muted: #64748b;
-            --border: #e2e8f0;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: var(--background);
-            color: var(--text);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* Header */
-        .header {
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            padding: 1rem 1.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-        }
-
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 2rem;
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: var(--primary);
-            cursor: pointer;
-        }
-
-        .page-title {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding-left: 2rem;
-            border-left: 1px solid var(--border);
-        }
-
-        .page-title h1 {
-            font-size: 1.125rem;
-            font-weight: 600;
-            color: var(--vericase-navy);
-        }
-
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            border-radius: 0.5rem;
-            font-weight: 500;
-            font-size: 0.875rem;
-            cursor: pointer;
-            border: 1px solid var(--border);
-            background: var(--surface);
-            color: var(--text);
-            transition: all 0.2s;
-        }
-
-        .btn:hover {
-            background: #f8fafc;
-            border-color: #cbd5e1;
-        }
-
-        .btn-primary {
-            background: var(--primary);
-            color: white;
-            border-color: var(--primary);
-        }
-
-        .btn-primary:hover {
-            background: var(--primary-dark);
-            border-color: var(--primary-dark);
-        }
-
-        /* Main Layout */
-        .main-content {
-            flex: 1;
-            display: flex;
-            overflow: hidden;
-        }
-
-        /* Two Panel Layout */
-        .panel {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            background: var(--surface);
-            margin: 1rem;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .panel-header {
-            padding: 1rem 1.5rem;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .panel-title {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .panel-title h2 {
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--vericase-navy);
-        }
-
-        .panel-title .badge {
-            background: var(--primary);
-            color: white;
-            padding: 0.125rem 0.5rem;
-            border-radius: 10px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-
-        .panel-content {
-            flex: 1;
-            overflow: auto;
-            padding: 1rem;
-        }
-
-        /* Cards */
-        .card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 0.75rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .card:hover {
-            border-color: var(--primary);
-            box-shadow: 0 2px 8px rgba(23, 181, 163, 0.15);
-        }
-
-        .card.selected {
-            border-color: var(--primary);
-            background: rgba(23, 181, 163, 0.05);
-        }
-
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 0.5rem;
-        }
-
-        .card-title {
-            font-weight: 600;
-            color: var(--vericase-navy);
-            font-size: 0.9375rem;
-        }
-
-        .card-status {
-            padding: 0.125rem 0.5rem;
-            border-radius: 10px;
-            font-size: 0.7rem;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .status-active { background: #d1fae5; color: #065f46; }
-        .status-pending { background: #fef3c7; color: #92400e; }
-        .status-resolved { background: #dbeafe; color: #1e40af; }
-        .status-closed { background: #e5e7eb; color: #374151; }
-        .status-draft { background: #f3f4f6; color: #6b7280; }
-        .status-submitted { background: #dbeafe; color: #1e40af; }
-        .status-under_review { background: #fef3c7; color: #92400e; }
-        .status-accepted { background: #d1fae5; color: #065f46; }
-        .status-rejected { background: #fee2e2; color: #991b1b; }
-
-        .card-meta {
-            font-size: 0.8125rem;
-            color: var(--text-muted);
-            margin-bottom: 0.5rem;
-        }
-
-        .card-stats {
-            display: flex;
-            gap: 1rem;
-            font-size: 0.75rem;
-            color: var(--text-muted);
-        }
-
-        .card-stat {
-            display: flex;
-            align-items: center;
-            gap: 0.25rem;
-        }
-
-        .card-amount {
-            font-size: 1rem;
-            font-weight: 700;
-            color: var(--primary);
-        }
-
-        /* Detail Panel */
-        .detail-panel {
-            width: 400px;
-            background: var(--surface);
-            border-left: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .detail-panel.hidden {
-            display: none;
-        }
-
-        .detail-header {
-            padding: 1rem 1.5rem;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .detail-content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 1.5rem;
-        }
-
-        .detail-section {
-            margin-bottom: 1.5rem;
-        }
-
-        .detail-section-title {
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 0.75rem;
-        }
-
-        .detail-field {
-            margin-bottom: 0.75rem;
-        }
-
-        .detail-label {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-bottom: 0.25rem;
-        }
-
-        .detail-value {
-            font-size: 0.875rem;
-            color: var(--text);
-        }
-
-        /* Linked Items Grid */
-        .linked-items {
-            margin-top: 1rem;
-        }
-
-        .linked-item {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.75rem;
-            background: #f8fafc;
-            border-radius: 6px;
-            margin-bottom: 0.5rem;
-            font-size: 0.8125rem;
-        }
-
-        .linked-item-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.875rem;
-        }
-
-        .linked-item-icon.correspondence {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .linked-item-icon.evidence {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .linked-item-content {
-            flex: 1;
-            overflow: hidden;
-        }
-
-        .linked-item-title {
-            font-weight: 500;
-            color: var(--text);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .linked-item-meta {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-        }
-
-        /* Comments */
-        .comments-section {
-            margin-top: 1rem;
-        }
-
-        .comment {
-            padding: 0.75rem;
-            background: #f8fafc;
-            border-radius: 6px;
-            margin-bottom: 0.5rem;
-        }
-
-        .comment-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 0.25rem;
-        }
-
-        .comment-author {
-            font-weight: 500;
-            font-size: 0.8125rem;
-            color: var(--text);
-        }
-
-        .comment-date {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-        }
-
-        .comment-content {
-            font-size: 0.8125rem;
-            color: var(--text);
-            line-height: 1.5;
-        }
-
-        .comment-input {
-            display: flex;
-            gap: 0.5rem;
-            margin-top: 0.75rem;
-        }
-
-        .comment-input input {
-            flex: 1;
-            padding: 0.5rem 0.75rem;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            font-size: 0.8125rem;
-        }
-
-        /* Modal */
-        .modal-backdrop {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal {
-            background: white;
-            border-radius: 12px;
-            width: 500px;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-        }
-
-        .modal-header {
-            padding: 1.25rem 1.5rem;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .modal-header h3 {
-            font-size: 1.125rem;
-            font-weight: 600;
-            color: var(--vericase-navy);
-        }
-
-        .modal-body {
-            padding: 1.5rem;
-        }
-
-        .modal-footer {
-            padding: 1rem 1.5rem;
-            border-top: 1px solid var(--border);
-            display: flex;
-            justify-content: flex-end;
-            gap: 0.75rem;
-        }
-
-        .form-group {
-            margin-bottom: 1rem;
-        }
-
-        .form-label {
-            display: block;
-            font-size: 0.8125rem;
-            font-weight: 500;
-            color: var(--text);
-            margin-bottom: 0.375rem;
-        }
-
-        .form-input, .form-select, .form-textarea {
-            width: 100%;
-            padding: 0.5rem 0.75rem;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            font-size: 0.875rem;
-            color: var(--text);
-        }
-
-        .form-input:focus, .form-select:focus, .form-textarea:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(23, 181, 163, 0.1);
-        }
-
-        .form-textarea {
-            min-height: 80px;
-            resize: vertical;
-        }
-
-        /* Toast notification */
-        .toast {
-            position: fixed;
-            bottom: 2rem;
-            right: 2rem;
-            padding: 1rem 1.5rem;
-            background: var(--vericase-navy);
-            color: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            z-index: 2000;
-            animation: slideIn 0.3s ease-out;
-        }
-
-        .toast.success {
-            background: var(--success);
-        }
-
-        .toast.error {
-            background: var(--danger);
-        }
-
-        @keyframes slideIn {
-            from {
-                transform: translateY(20px);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-
-        /* Empty state */
-        .empty-state {
-            text-align: center;
-            padding: 3rem;
-            color: var(--text-muted);
-        }
-
-        .empty-state i {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            opacity: 0.5;
-        }
-
-        .empty-state h3 {
-            font-size: 1rem;
-            margin-bottom: 0.5rem;
-            color: var(--text);
-        }
-
-        .empty-state p {
-            font-size: 0.875rem;
-        }
-
-        /* Loading */
-        .loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 3rem;
-        }
-
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid var(--border);
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* AG Grid custom styles */
-        .ag-theme-quartz {
-            --ag-header-background-color: var(--background);
-            --ag-header-foreground-color: var(--text);
-            --ag-borders: solid 1px var(--border);
-            --ag-row-hover-color: #f9fafb;
-            --ag-selected-row-background-color: rgba(23, 181, 163, 0.08);
-        }
+    box-sizing: border-box;
+    }
+
+    body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: var(--background);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    }
+
+    /* Header */
+    .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .header-left {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    }
+
+    .logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--primary);
+    cursor: pointer;
+    }
+
+    .page-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-left: 2rem;
+    border-left: 1px solid var(--border);
+    }
+
+    .page-title h1 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--vericase-navy);
+    }
+
+    .header-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    }
+
+    .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    font-size: 0.875rem;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    transition: all 0.2s;
+    }
+
+    .btn:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    }
+
+    .btn-primary {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    }
+
+    .btn-primary:hover {
+    background: var(--primary-dark);
+    border-color: var(--primary-dark);
+    }
+
+    /* Main Layout */
+    .main-content {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    }
+
+    /* Two Panel Layout */
+    .panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--surface);
+    margin: 1rem;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .panel-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    }
+
+    .panel-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    }
+
+    .panel-title h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--vericase-navy);
+    }
+
+    .panel-title .badge {
+    background: var(--primary);
+    color: white;
+    padding: 0.125rem 0.5rem;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    }
+
+    .panel-content {
+    flex: 1;
+    overflow: auto;
+    padding: 1rem;
+    }
+
+    /* Cards */
+    .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    }
+
+    .card:hover {
+    border-color: var(--primary);
+    box-shadow: 0 2px 8px rgba(23, 181, 163, 0.15);
+    }
+
+    .card.selected {
+    border-color: var(--primary);
+    background: rgba(23, 181, 163, 0.05);
+    }
+
+    .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+    }
+
+    .card-title {
+    font-weight: 600;
+    color: var(--vericase-navy);
+    font-size: 0.9375rem;
+    }
+
+    .card-status {
+    padding: 0.125rem 0.5rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    }
+
+    .status-active {
+    background: #d1fae5;
+    color: #065f46;
+    }
+
+    .status-pending {
+    background: #fef3c7;
+    color: #92400e;
+    }
+
+    .status-resolved {
+    background: #dbeafe;
+    color: #1e40af;
+    }
+
+    .status-closed {
+    background: #e5e7eb;
+    color: #374151;
+    }
+
+    .status-draft {
+    background: #f3f4f6;
+    color: #6b7280;
+    }
+
+    .status-submitted {
+    background: #dbeafe;
+    color: #1e40af;
+    }
+
+    .status-under_review {
+    background: #fef3c7;
+    color: #92400e;
+    }
+
+    .status-accepted {
+    background: #d1fae5;
+    color: #065f46;
+    }
+
+    .status-rejected {
+    background: #fee2e2;
+    color: #991b1b;
+    }
+
+    .card-meta {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+    }
+
+    .card-stats {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    }
+
+    .card-stat {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    }
+
+    .card-amount {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--primary);
+    }
+
+    /* Detail Panel */
+    .detail-panel {
+    width: 400px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    }
+
+    .detail-panel.hidden {
+    display: none;
+    }
+
+    .detail-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    }
+
+    .detail-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.5rem;
+    }
+
+    .detail-section {
+    margin-bottom: 1.5rem;
+    }
+
+    .detail-section-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.75rem;
+    }
+
+    .detail-field {
+    margin-bottom: 0.75rem;
+    }
+
+    .detail-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+    }
+
+    .detail-value {
+    font-size: 0.875rem;
+    color: var(--text);
+    }
+
+    /* Linked Items Grid */
+    .linked-items {
+    margin-top: 1rem;
+    }
+
+    .linked-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: #f8fafc;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    font-size: 0.8125rem;
+    }
+
+    .linked-item-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    }
+
+    .linked-item-icon.correspondence {
+    background: #dbeafe;
+    color: #1e40af;
+    }
+
+    .linked-item-icon.evidence {
+    background: #d1fae5;
+    color: #065f46;
+    }
+
+    .linked-item-content {
+    flex: 1;
+    overflow: hidden;
+    }
+
+    .linked-item-title {
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    }
+
+    .linked-item-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    }
+
+    /* Comments */
+    .comments-section {
+    margin-top: 1rem;
+    }
+
+    .comment {
+    padding: 0.75rem;
+    background: #f8fafc;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    }
+
+    .comment-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+    }
+
+    .comment-author {
+    font-weight: 500;
+    font-size: 0.8125rem;
+    color: var(--text);
+    }
+
+    .comment-date {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    }
+
+    .comment-content {
+    font-size: 0.8125rem;
+    color: var(--text);
+    line-height: 1.5;
+    }
+
+    .comment-input {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    }
+
+    .comment-input input {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.8125rem;
+    }
+
+    /* Modal */
+    .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    }
+
+    .modal {
+    background: white;
+    border-radius: 12px;
+    width: 500px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    }
+
+    .modal-header h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--vericase-navy);
+    }
+
+    .modal-body {
+    padding: 1.5rem;
+    }
+
+    .modal-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    }
+
+    .form-group {
+    margin-bottom: 1rem;
+    }
+
+    .form-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 0.375rem;
+    }
+
+    .form-input,
+    .form-select,
+    .form-textarea {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.875rem;
+    color: var(--text);
+    }
+
+    .form-input:focus,
+    .form-select:focus,
+    .form-textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(23, 181, 163, 0.1);
+    }
+
+    .form-textarea {
+    min-height: 80px;
+    resize: vertical;
+    }
+
+    /* Toast notification */
+    .toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    padding: 1rem 1.5rem;
+    background: var(--vericase-navy);
+    color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 2000;
+    animation: slideIn 0.3s ease-out;
+    }
+
+    .toast.success {
+    background: var(--success);
+    }
+
+    .toast.error {
+    background: var(--danger);
+    }
+
+    @keyframes slideIn {
+    from {
+    transform: translateY(20px);
+    opacity: 0;
+    }
+
+    to {
+    transform: translateY(0);
+    opacity: 1;
+    }
+    }
+
+    /* Empty state */
+    .empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-muted);
+    }
+
+    .empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+    }
+
+    .empty-state h3 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+    color: var(--text);
+    }
+
+    .empty-state p {
+    font-size: 0.875rem;
+    }
+
+    /* Loading */
+    .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    }
+
+    .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+    to {
+    transform: rotate(360deg);
+    }
+    }
+
+    /* Custom AG-Grid Styles - Moved to ag-theme-vericase.css */
     </style>
 </head>
+
 <body>
     <!-- Header -->
     <header class="header">
@@ -664,15 +674,15 @@
 
     <!-- AG-Grid Enterprise JS -->
     <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/dist/ag-grid-enterprise.min.js"></script>
-    
+
     <!-- Config and State -->
     <script src="config.js"></script>
     <script src="app-state.js"></script>
-    
+
     <script>
         // API Base URL
         const API_BASE = window.API_BASE_URL || 'http://localhost:8010';
-        
+
         // State
         let currentProjectId = null;
         let currentCaseId = null;
@@ -689,12 +699,12 @@
                 currentProjectId = VeriCaseApp.getProjectId();
                 currentCaseId = VeriCaseApp.getCaseId();
             }
-            
+
             // Get IDs from URL params as fallback
             const urlParams = new URLSearchParams(window.location.search);
             currentProjectId = currentProjectId || urlParams.get('projectId') || urlParams.get('profileId');
             currentCaseId = currentCaseId || urlParams.get('caseId');
-            
+
             // Load data
             await Promise.all([
                 loadMatters(),
@@ -724,13 +734,13 @@
                 const params = new URLSearchParams();
                 if (currentProjectId) params.set('project_id', currentProjectId);
                 if (currentCaseId) params.set('case_id', currentCaseId);
-                
+
                 const response = await fetch(`${API_BASE}/api/claims/matters?${params.toString()}`);
                 const data = await response.json();
-                
+
                 contentious_matters = data.items || [];
                 document.getElementById('matterCount').textContent = contentious_matters.length;
-                
+
                 renderMatters();
             } catch (error) {
                 console.error('Error loading matters:', error);
@@ -750,13 +760,13 @@
                 const params = new URLSearchParams();
                 if (currentProjectId) params.set('project_id', currentProjectId);
                 if (currentCaseId) params.set('case_id', currentCaseId);
-                
+
                 const response = await fetch(`${API_BASE}/api/claims/heads-of-claim?${params.toString()}`);
                 const data = await response.json();
-                
+
                 heads_of_claim = data.items || [];
                 document.getElementById('claimCount').textContent = heads_of_claim.length;
-                
+
                 renderClaims();
             } catch (error) {
                 console.error('Error loading claims:', error);
@@ -773,7 +783,7 @@
         // Render Contentious Matters
         function renderMatters() {
             const container = document.getElementById('mattersContainer');
-            
+
             if (contentious_matters.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
@@ -784,7 +794,7 @@
                 `;
                 return;
             }
-            
+
             container.innerHTML = contentious_matters.map(matter => `
                 <div class="card ${selectedMatter?.id === matter.id ? 'selected' : ''}" onclick="selectMatter('${matter.id}')">
                     <div class="card-header">
@@ -814,7 +824,7 @@
         // Render Heads of Claim
         function renderClaims() {
             const container = document.getElementById('claimsContainer');
-            
+
             if (heads_of_claim.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
@@ -825,7 +835,7 @@
                 `;
                 return;
             }
-            
+
             container.innerHTML = heads_of_claim.map(claim => `
                 <div class="card ${selectedClaim?.id === claim.id ? 'selected' : ''}" onclick="selectClaim('${claim.id}')">
                     <div class="card-header">
@@ -886,14 +896,14 @@
         async function showMatterDetail(matter) {
             const panel = document.getElementById('detailPanel');
             const content = document.getElementById('detailContent');
-            
+
             document.getElementById('detailTitle').textContent = 'Contentious Matter';
-            
+
             // Load linked items
             const linksResponse = await fetch(`${API_BASE}/api/claims/links?contentious_matter_id=${matter.id}`);
             const linksData = await linksResponse.json();
             const links = linksData.items || [];
-            
+
             content.innerHTML = `
                 <div class="detail-section">
                     <div class="detail-section-title">Details</div>
@@ -955,7 +965,7 @@
                     </button>
                 </div>
             `;
-            
+
             panel.classList.remove('hidden');
         }
 
@@ -963,14 +973,14 @@
         async function showClaimDetail(claim) {
             const panel = document.getElementById('detailPanel');
             const content = document.getElementById('detailContent');
-            
+
             document.getElementById('detailTitle').textContent = 'Head of Claim';
-            
+
             // Load linked items
             const linksResponse = await fetch(`${API_BASE}/api/claims/links?head_of_claim_id=${claim.id}`);
             const linksData = await linksResponse.json();
             const links = linksData.items || [];
-            
+
             content.innerHTML = `
                 <div class="detail-section">
                     <div class="detail-section-title">Details</div>
@@ -1062,7 +1072,7 @@
                     </button>
                 </div>
             `;
-            
+
             panel.classList.remove('hidden');
         }
 
@@ -1221,10 +1231,10 @@
                 showToast('Please enter a name', 'error');
                 return;
             }
-            
+
             const valueInput = document.getElementById('matterValue').value;
             const estimatedValue = valueInput ? Math.round(parseFloat(valueInput) * 100) : null;
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/claims/matters`, {
                     method: 'POST',
@@ -1239,9 +1249,9 @@
                         case_id: currentCaseId
                     })
                 });
-                
+
                 if (!response.ok) throw new Error('Failed to create matter');
-                
+
                 closeModal('createMatterModal');
                 showToast('Contentious matter created', 'success');
                 await loadMatters();
@@ -1257,10 +1267,10 @@
                 showToast('Please enter a name', 'error');
                 return;
             }
-            
+
             const amountInput = document.getElementById('claimAmount').value;
             const claimedAmount = amountInput ? Math.round(parseFloat(amountInput) * 100) : null;
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/claims/heads-of-claim`, {
                     method: 'POST',
@@ -1277,9 +1287,9 @@
                         case_id: currentCaseId
                     })
                 });
-                
+
                 if (!response.ok) throw new Error('Failed to create claim');
-                
+
                 closeModal('createClaimModal');
                 showToast('Head of claim created', 'success');
                 await loadClaims();
@@ -1291,14 +1301,14 @@
         // Delete Matter
         async function deleteMatter(id) {
             if (!confirm('Are you sure you want to delete this contentious matter?')) return;
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/claims/matters/${id}`, {
                     method: 'DELETE'
                 });
-                
+
                 if (!response.ok) throw new Error('Failed to delete matter');
-                
+
                 showToast('Contentious matter deleted', 'success');
                 closeDetailPanel();
                 await loadMatters();
@@ -1310,14 +1320,14 @@
         // Delete Claim
         async function deleteClaim(id) {
             if (!confirm('Are you sure you want to delete this head of claim?')) return;
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/claims/heads-of-claim/${id}`, {
                     method: 'DELETE'
                 });
-                
+
                 if (!response.ok) throw new Error('Failed to delete claim');
-                
+
                 showToast('Head of claim deleted', 'success');
                 closeDetailPanel();
                 await loadClaims();
@@ -1330,7 +1340,7 @@
         function editMatter(id) {
             const matter = contentious_matters.find(m => m.id === id);
             if (!matter) return;
-            
+
             showCreateMatterModal();
             setTimeout(() => {
                 document.getElementById('matterName').value = matter.name;
@@ -1338,7 +1348,7 @@
                 document.getElementById('matterStatus').value = matter.status;
                 document.getElementById('matterPriority').value = matter.priority;
                 document.getElementById('matterValue').value = matter.estimated_value ? (matter.estimated_value / 100) : '';
-                
+
                 // Update modal title and button
                 document.querySelector('#createMatterModal .modal-header h3').innerHTML = '<i class="fas fa-edit" style="color: var(--primary); margin-right: 0.5rem;"></i> Edit Contentious Matter';
                 const btn = document.querySelector('#createMatterModal .btn-primary');
@@ -1353,10 +1363,10 @@
                 showToast('Please enter a name', 'error');
                 return;
             }
-            
+
             const valueInput = document.getElementById('matterValue').value;
             const estimatedValue = valueInput ? Math.round(parseFloat(valueInput) * 100) : null;
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/claims/matters/${id}`, {
                     method: 'PUT',
@@ -1369,9 +1379,9 @@
                         estimated_value: estimatedValue
                     })
                 });
-                
+
                 if (!response.ok) throw new Error('Failed to update matter');
-                
+
                 closeModal('createMatterModal');
                 showToast('Contentious matter updated', 'success');
                 await loadMatters();
@@ -1384,7 +1394,7 @@
         function editClaim(id) {
             const claim = heads_of_claim.find(c => c.id === id);
             if (!claim) return;
-            
+
             showCreateClaimModal();
             setTimeout(() => {
                 document.getElementById('claimRef').value = claim.reference_number || '';
@@ -1394,7 +1404,7 @@
                 document.getElementById('claimType').value = claim.claim_type || '';
                 document.getElementById('claimStatus').value = claim.status;
                 document.getElementById('claimAmount').value = claim.claimed_amount ? (claim.claimed_amount / 100) : '';
-                
+
                 // Update modal title and button
                 document.querySelector('#createClaimModal .modal-header h3').innerHTML = '<i class="fas fa-edit" style="color: var(--primary); margin-right: 0.5rem;"></i> Edit Head of Claim';
                 const btn = document.querySelector('#createClaimModal .btn-primary');
@@ -1409,10 +1419,10 @@
                 showToast('Please enter a name', 'error');
                 return;
             }
-            
+
             const amountInput = document.getElementById('claimAmount').value;
             const claimedAmount = amountInput ? Math.round(parseFloat(amountInput) * 100) : null;
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/claims/heads-of-claim/${id}`, {
                     method: 'PUT',
@@ -1427,9 +1437,9 @@
                         claimed_amount: claimedAmount
                     })
                 });
-                
+
                 if (!response.ok) throw new Error('Failed to update claim');
-                
+
                 closeModal('createClaimModal');
                 showToast('Head of claim updated', 'success');
                 await loadClaims();
@@ -1443,15 +1453,15 @@
         function showToast(message, type = 'info') {
             const existing = document.querySelector('.toast');
             if (existing) existing.remove();
-            
+
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
             toast.textContent = message;
             document.body.appendChild(toast);
-            
+
             setTimeout(() => toast.remove(), 3000);
         }
     </script>
 </body>
-</html>
 
+</html>

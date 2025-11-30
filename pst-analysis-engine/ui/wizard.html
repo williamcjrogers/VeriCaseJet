@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,18 +17,12 @@
             box-sizing: border-box;
         }
 
-        :root {
-            --vericase-teal: #17B5A3;
-            --vericase-teal-dark: #129B8B;
-            --vericase-blue: #2B7FBF;
-            --vericase-navy: #1F2937;
-            --bg-primary: #E8EEF2;
-        }
+        /* Variables inherited from brand-styles.css */
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'SF Pro Display', 'Roboto', sans-serif;
             background: var(--bg-primary);
-            background-image: radial-gradient(circle, rgba(23, 181, 163, 0.08) 1px, transparent 1px);
+            background-image: radial-gradient(circle, rgba(15, 157, 154, 0.03) 1px, transparent 1px);
             background-size: 30px 30px;
             min-height: 100vh;
             display: flex;
@@ -54,7 +49,7 @@
             position: relative;
             box-shadow: 0 4px 20px rgba(31, 41, 55, 0.2);
         }
-        
+
         .wizard-header-nav {
             position: absolute;
             top: 15px;
@@ -62,7 +57,7 @@
             display: flex;
             gap: 10px;
         }
-        
+
         .wizard-header-nav button {
             background: rgba(255, 255, 255, 0.2);
             color: white;
@@ -73,7 +68,7 @@
             font-size: 14px;
             transition: all 0.2s;
         }
-        
+
         .wizard-header-nav button:hover {
             background: rgba(255, 255, 255, 0.3);
         }
@@ -209,8 +204,15 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .form-group {
@@ -487,6 +489,7 @@
                 opacity: 0;
                 transform: translateY(10px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -627,10 +630,14 @@
         }
 
         @keyframes typing {
-            0%, 60%, 100% {
+
+            0%,
+            60%,
+            100% {
                 transform: translateY(0);
                 opacity: 0.7;
             }
+
             30% {
                 transform: translateY(-10px);
                 opacity: 1;
@@ -706,6 +713,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="wizard-container">
         <div class="wizard-header">
@@ -749,14 +757,18 @@
             <!-- Entry Screen - Choose Type -->
             <div class="wizard-step active" id="step-entry">
                 <h2 style="margin-bottom: 20px;">Choose what you want to do:</h2>
-                
+
                 <div class="radio-group">
-                    <label class="radio-option" style="border: 2px solid var(--vericase-teal); background: linear-gradient(135deg, rgba(23, 181, 163, 0.05) 0%, rgba(23, 181, 163, 0.1) 100%);">
+                    <label class="radio-option"
+                        style="border: 2px solid var(--vericase-teal); background: linear-gradient(135deg, rgba(23, 181, 163, 0.05) 0%, rgba(23, 181, 163, 0.1) 100%);">
                         <input type="radio" name="profileType" value="intelligent" />
                         <div class="radio-option-content">
-                            <h3><i class="fas fa-robot" style="color: var(--vericase-teal); margin-right: 8px;"></i> Intelligent Configuration</h3>
-                            <p>Let AI guide you through setup. Just build your team and AI will configure everything correctly, avoiding errors.</p>
-                            <span style="display: inline-block; margin-top: 8px; padding: 4px 12px; background: var(--vericase-teal); color: white; border-radius: 12px; font-size: 12px; font-weight: 600;">RECOMMENDED</span>
+                            <h3><i class="fas fa-robot" style="color: var(--vericase-teal); margin-right: 8px;"></i>
+                                Intelligent Configuration</h3>
+                            <p>Let AI guide you through setup. Just build your team and AI will configure everything
+                                correctly, avoiding errors.</p>
+                            <span
+                                style="display: inline-block; margin-top: 8px; padding: 4px 12px; background: var(--vericase-teal); color: white; border-radius: 12px; font-size: 12px; font-weight: 600;">RECOMMENDED</span>
                         </div>
                     </label>
 
@@ -772,7 +784,8 @@
                         <input type="radio" name="profileType" value="project" />
                         <div class="radio-option-content">
                             <h3>Set up a Project</h3>
-                            <p>Best for discovery or live projects where we're gathering material to see if a case exists.</p>
+                            <p>Best for discovery or live projects where we're gathering material to see if a case
+                                exists.</p>
                         </div>
                     </label>
 
@@ -786,7 +799,8 @@
                 </div>
 
                 <p class="helper-text" style="margin-top: 20px;">
-                    <i class="fas fa-info-circle"></i> Project is for discovery/live project work; Case is for a formalised dispute. You can convert a Project into a Case later.
+                    <i class="fas fa-info-circle"></i> Project is for discovery/live project work; Case is for a
+                    formalised dispute. You can convert a Project into a Case later.
                 </p>
             </div>
 
@@ -816,12 +830,8 @@
 
             <div class="chat-input-container">
                 <div class="chat-input-wrapper">
-                    <label for="chatInput"></label><textarea
-                        id="chatInput" 
-                        class="chat-input" 
-                        placeholder="Type your message..."
-                        rows="1"
-                    ></textarea>
+                    <label for="chatInput"></label><textarea id="chatInput" class="chat-input"
+                        placeholder="Type your message..." rows="1"></textarea>
                     <button class="send-btn" id="sendBtn">
                         <i class="fas fa-paper-plane"></i>
                     </button>
@@ -832,4 +842,5 @@
 
     <script src="wizard-logic.js"></script>
 </body>
+
 </html>

@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.3/styles/ag-grid.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.0.3/styles/ag-theme-alpine.css">
+    <link rel="stylesheet" href="../../ag-theme-vericase.css">
     <link rel="stylesheet" href="brand-styles.css">
     <link rel="stylesheet" href="design-system.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -315,26 +316,6 @@
         }
         
         #evidenceGrid {
-            height: 100%;
-            border-radius: var(--radius-lg);
-            overflow: hidden;
-        }
-        
-        /* AG-Grid Premium Styling */
-        .ag-theme-alpine {
-            --ag-background-color: white;
-            --ag-header-background-color: var(--gray-50);
-            --ag-odd-row-background-color: white;
-            --ag-row-hover-color: rgba(23, 181, 163, 0.05);
-            --ag-selected-row-background-color: rgba(23, 181, 163, 0.1);
-            --ag-font-family: var(--font-sans);
-            --ag-font-size: 13px;
-            --ag-row-border-color: var(--gray-100);
-            --ag-header-foreground-color: var(--text-secondary);
-            --ag-border-color: var(--gray-200);
-            --ag-cell-horizontal-padding: 16px;
-        }
-        
         .ag-theme-alpine .ag-root-wrapper {
             border: 1px solid var(--gray-200);
             border-radius: var(--radius-lg);
@@ -937,7 +918,7 @@
         <!-- Grid Container -->
         <div class="grid-container">
             <div class="grid-wrapper">
-                <div id="evidenceGrid" class="ag-theme-alpine"></div>
+                <div id="evidenceGrid" class="ag-theme-alpine ag-theme-vericase"></div>
             </div>
             
             <!-- Detail Panel -->

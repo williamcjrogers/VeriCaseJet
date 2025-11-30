@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,16 +11,7 @@
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
     <style>
-        :root {
-            --vericase-teal: #17B5A3;
-            --vericase-teal-dark: #129B8B;
-            --vericase-blue: #2B7FBF;
-            --vericase-navy: #1F2937;
-            --bg-primary: #E8EEF2;
-            --brand-primary: #17B5A3;
-            --brand-primary-dark: #129B8B;
-            --brand-secondary: #2B7FBF;
-        }
+        /* Variables inherited from brand-styles.css */
 
         * {
             margin: 0;
@@ -32,10 +24,10 @@
             background: var(--bg-primary);
             color: var(--vericase-navy);
             -webkit-font-smoothing: antialiased;
-            background-image: radial-gradient(circle, rgba(23, 181, 163, 0.05) 1px, transparent 1px);
+            background-image: radial-gradient(circle, rgba(15, 157, 154, 0.03) 1px, transparent 1px);
             background-size: 30px 30px;
         }
-        
+
         /* Override for dashboard - uses its own layout */
         .app-shell .app-main {
             margin-left: 260px;
@@ -51,7 +43,7 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
             border-bottom: 1px solid var(--gray-200);
         }
-        
+
         .top-bar .logo-img {
             height: 32px;
             width: auto;
@@ -132,7 +124,7 @@
             position: relative;
             overflow: hidden;
         }
-        
+
         .welcome-banner::before {
             content: '';
             position: absolute;
@@ -232,7 +224,7 @@
             border: 1px solid #F3F4F6;
             transition: all 200ms;
         }
-        
+
         .widget:hover {
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
@@ -435,23 +427,24 @@
             .widgets-grid {
                 grid-template-columns: 1fr;
             }
-            
+
             .quick-actions {
                 grid-template-columns: 1fr;
             }
         }
+
         /* Modal Styles */
         .modal {
             display: none;
         }
-        
+
         .modal-content {
             background: white;
             border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             animation: modalFadeIn 0.3s ease-out;
         }
-        
+
         .modal-header {
             display: flex;
             justify-content: space-between;
@@ -459,28 +452,29 @@
             padding: 1.5rem 2rem;
             border-bottom: 1px solid #e5e7eb;
         }
-        
+
         .modal-header h2 {
             margin: 0;
             color: #1a202c;
         }
-        
+
         .close {
             font-size: 24px;
             cursor: pointer;
             color: #6b7280;
             transition: color 0.2s;
         }
-        
+
         .close:hover {
             color: #1a202c;
         }
-        
+
         @keyframes modalFadeIn {
             from {
                 opacity: 0;
                 transform: translateY(-20px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -490,6 +484,7 @@
     <script src="config.js"></script>
     <script src="app-state.js"></script>
 </head>
+
 <body>
     <div class="top-bar">
         <h1>
@@ -497,7 +492,8 @@
             <span id="profileName">Dashboard</span>
         </h1>
         <div class="top-bar-actions">
-            <button class="btn btn-secondary" onclick="window.location.href='master-dashboard.html'" title="Back to Command Center">
+            <button class="btn btn-secondary" onclick="window.location.href='master-dashboard.html'"
+                title="Back to Command Center">
                 <i class="fas fa-th-large"></i> Command Center
             </button>
             <button class="btn btn-primary" id="uploadBtn" onclick="openPstUpload()">
@@ -506,19 +502,23 @@
             <button class="btn btn-secondary" onclick="window.location.href='wizard.html'">
                 <i class="fas fa-plus"></i> New Profile
             </button>
-            <button class="btn" onclick="window.location.href='wizard.html'" style="background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%); color: white; border: none;">
+            <button class="btn" onclick="window.location.href='wizard.html'"
+                style="background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%); color: white; border: none;">
                 <i class="fas fa-robot"></i> Intelligent Setup
             </button>
-            <button class="btn" onclick="window.location.href='deep-research.html'" style="background: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%); color: white; border: none;">
+            <button class="btn" onclick="window.location.href='deep-research.html'"
+                style="background: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%); color: white; border: none;">
                 <i class="fas fa-atom"></i> Deep Research
             </button>
             <button class="btn btn-secondary" onclick="showSettings()">
                 <i class="fas fa-cog"></i> Settings
             </button>
-            <button class="btn btn-secondary" id="adminApprovalBtn" onclick="window.location.href='admin-approvals.html'" style="display: none;">
+            <button class="btn btn-secondary" id="adminApprovalBtn"
+                onclick="window.location.href='admin-approvals.html'" style="display: none;">
                 <i class="fas fa-user-check"></i> <span id="pendingBadge"></span> Approvals
             </button>
-            <button class="btn btn-secondary" id="adminSettingsBtn" onclick="window.location.href='admin-settings.html'" style="display: none;">
+            <button class="btn btn-secondary" id="adminSettingsBtn" onclick="window.location.href='admin-settings.html'"
+                style="display: none;">
                 <i class="fas fa-sliders-h"></i> Admin Settings
             </button>
         </div>
@@ -528,7 +528,8 @@
         <!-- Welcome Banner -->
         <div class="welcome-banner" id="welcomeBanner">
             <h2 id="welcomeTitle">Welcome to Your Dispute Intelligence Platform</h2>
-            <p id="welcomeMessage">VeriCase transforms fragmented evidence into dispute-winning insights. Start by uploading your evidence or exploring the features below.</p>
+            <p id="welcomeMessage">VeriCase transforms fragmented evidence into dispute-winning insights. Start by
+                uploading your evidence or exploring the features below.</p>
             <div class="meta">
                 <div class="meta-item">
                     <i class="fas fa-calendar"></i>
@@ -542,22 +543,28 @@
         </div>
 
         <!-- Project Selector -->
-        <div class="project-selector-panel" id="projectSelectorPanel" style="background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+        <div class="project-selector-panel" id="projectSelectorPanel"
+            style="background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <div
+                style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
                 <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
                     <label style="font-weight: 600; color: var(--vericase-navy); white-space: nowrap;">
                         <i class="fas fa-folder-open" style="color: var(--vericase-teal); margin-right: 0.5rem;"></i>
                         Select Project:
                     </label>
-                    <label for="projectSelector"></label><select id="projectSelector" onchange="onProjectSelected(this.value)" style="flex: 1; max-width: 400px; padding: 0.75rem 1rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; background: white; cursor: pointer; transition: border-color 0.2s;">
+                    <label for="projectSelector"></label><select id="projectSelector"
+                        onchange="onProjectSelected(this.value)"
+                        style="flex: 1; max-width: 400px; padding: 0.75rem 1rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; background: white; cursor: pointer; transition: border-color 0.2s;">
                         <option value="">Loading projects...</option>
                     </select>
                 </div>
                 <div style="display: flex; gap: 0.75rem;">
-                    <button class="btn btn-primary" onclick="viewCorrespondence()" id="viewCorrespondenceBtn" style="padding: 0.6rem 1rem;">
+                    <button class="btn btn-primary" onclick="viewCorrespondence()" id="viewCorrespondenceBtn"
+                        style="padding: 0.6rem 1rem;">
                         <i class="fas fa-envelope"></i> View Emails
                     </button>
-                    <button class="btn btn-secondary" onclick="openPstUpload()" id="uploadFromSelectorBtn" style="padding: 0.6rem 1rem;">
+                    <button class="btn btn-secondary" onclick="openPstUpload()" id="uploadFromSelectorBtn"
+                        style="padding: 0.6rem 1rem;">
                         <i class="fas fa-upload"></i> Upload PST
                     </button>
                 </div>
@@ -614,8 +621,10 @@
                 <p>Visualize project chronology and key events</p>
             </div>
 
-            <div class="action-card" onclick="openAIRefinement()" style="background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%); color: white; border-color: transparent;">
-                <div class="icon" style="background: rgba(255, 255, 255, 0.2); box-shadow: 0 4px 14px 0 rgba(255, 255, 255, 0.3);">
+            <div class="action-card" onclick="openAIRefinement()"
+                style="background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%); color: white; border-color: transparent;">
+                <div class="icon"
+                    style="background: rgba(255, 255, 255, 0.2); box-shadow: 0 4px 14px 0 rgba(255, 255, 255, 0.3);">
                     <i class="fas fa-wand-magic-sparkles"></i>
                 </div>
                 <h3 style="color: white;">AI Refinement</h3>
@@ -745,20 +754,20 @@
         VeriCaseApp.init().then(() => {
             console.log('Dashboard: VeriCaseApp initialized - projectId:', VeriCaseApp.projectId);
         });
-        
+
         // Define navigation functions first (before DOMContentLoaded)
         async function openPstUpload() {
             // Use VeriCaseApp - it always has a valid project (creates default if needed)
             VeriCaseApp.gotoUpload();
         }
-        
+
         function showQuickProfileDialog() {
             const modal = document.createElement('div');
             modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;';
-            
+
             const content = document.createElement('div');
             content.style.cssText = 'background: white; border-radius: 16px; padding: 2.5rem; max-width: 550px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);';
-            
+
             content.innerHTML = `
                 <h3 style="color: var(--vericase-navy); margin: 0 0 0.75rem 0; font-size: 1.5rem;">
                     <i class="fas fa-rocket" style="color: var(--vericase-teal);"></i> Quick Start
@@ -796,21 +805,21 @@
                     </button>
                 </div>
             `;
-            
+
             modal.id = 'quickProfileModal';
             modal.appendChild(content);
             document.body.appendChild(modal);
-            
+
             // Close on background click
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) modal.remove();
             });
         }
-        
+
         async function createQuickProfile() {
             const modal = document.getElementById('quickProfileModal');
             const content = modal.querySelector('div > div');
-            
+
             // Show loading state
             content.innerHTML = `
                 <div style="text-align: center; padding: 2rem;">
@@ -819,14 +828,14 @@
                     <p style="color: var(--text-secondary); margin: 0;">This will only take a moment</p>
                 </div>
             `;
-            
+
             try {
                 const timestamp = Date.now();
                 // Set date range from 2010 to current date
                 const startDate = '2010-01-01';
                 const today = new Date();
                 const completionDate = today.toISOString().split('T')[0]; // YYYY-MM-DD format
-                
+
                 const projectData = {
                     project_name: `Quick Start Project`,
                     project_code: `QUICK-${timestamp}`,
@@ -836,7 +845,7 @@
                     stakeholders: [],
                     keywords: []
                 };
-                
+
                 const response = await fetch(`${apiUrl}/api/projects`, {
                     method: 'POST',
                     headers: {
@@ -844,17 +853,17 @@
                     },
                     body: JSON.stringify(projectData)
                 });
-                
+
                 if (!response.ok) {
                     throw new Error('Failed to create profile');
                 }
-                
+
                 const result = await response.json();
-                
+
                 // Update VeriCaseApp state
                 VeriCaseApp.projectId = result.id;
                 VeriCaseApp.projectName = result.project_name;
-                
+
                 // Show success and redirect
                 content.innerHTML = `
                     <div style="text-align: center; padding: 2rem;">
@@ -863,12 +872,12 @@
                         <p style="color: var(--text-secondary); margin: 0;">Redirecting to upload...</p>
                     </div>
                 `;
-                
+
                 setTimeout(() => {
                     modal.remove();
                     VeriCaseApp.gotoUpload();
                 }, 800);
-                
+
             } catch (error) {
                 console.error('Error creating quick profile:', error);
                 content.innerHTML = `
@@ -887,7 +896,7 @@
         function viewCorrespondence() {
             VeriCaseApp.gotoCorrespondence();
         }
-        
+
         function viewEvidenceRepository() {
             VeriCaseApp.gotoEvidence();
         }
@@ -924,21 +933,21 @@
             if (!modalContainer) return;
             modalContainer.innerHTML = window.SETTINGS_MODAL_HTML || '';
         }
-        
+
         function showSettingsTab(tab) {
             // Hide all tabs
             document.querySelectorAll('.settings-tab-content').forEach(t => t.style.display = 'none');
             document.querySelectorAll('.settings-tab-btn').forEach(b => b.classList.remove('active'));
-            
+
             // Show selected tab
             document.getElementById(`${tab}Tab`).style.display = 'block';
             document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
         }
-        
+
         async function loadAIStatus() {
             try {
                 const response = await fetch(`${apiUrl}/api/ai/status`);
-                
+
                 if (response.ok) {
                     const status = await response.json();
                     updateAIStatusDisplay(status);
@@ -947,7 +956,7 @@
                 console.error('Error loading AI status:', error);
             }
         }
-        
+
         function updateAIStatusDisplay(status) {
             const providers = ['openai', 'anthropic', 'gemini', 'grok', 'perplexity'];
             providers.forEach(provider => {
@@ -957,7 +966,7 @@
                     indicator.title = status[provider] ? 'Configured' : 'Not configured';
                 }
             });
-            
+
             const overallStatus = document.getElementById('aiOverallStatus');
             if (overallStatus) {
                 if (status.any_available) {
@@ -971,7 +980,7 @@
         async function openAIRefinement() {
             const profileId = localStorage.getItem('currentProjectId') || localStorage.getItem('currentCaseId');
             const profileType = localStorage.getItem('profileType') || 'project';
-            
+
             if (!profileId) {
                 showContextualError(
                     'No Profile Selected',
@@ -984,11 +993,11 @@
                 );
                 return;
             }
-            
+
             // Check if AI is configured
             try {
                 const response = await fetch(`${apiUrl}/api/ai/status`);
-                
+
                 if (response.ok) {
                     const status = await response.json();
                     if (!status.any_available) {
@@ -1006,17 +1015,17 @@
             } catch (error) {
                 console.error('Error checking AI status:', error);
             }
-            
+
             window.location.href = `ai-refinement-wizard.html?projectId=${profileId}`;
         }
-        
+
         function showContextualError(title, message, actions) {
             const modal = document.createElement('div');
             modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;';
-            
+
             const content = document.createElement('div');
             content.style.cssText = 'background: white; border-radius: 12px; padding: 2rem; max-width: 500px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);';
-            
+
             content.innerHTML = `
                 <h3 style="color: var(--vericase-navy); margin: 0 0 1rem 0; font-size: 1.25rem;">
                     <i class="fas fa-exclamation-circle" style="color: var(--warning);"></i> ${title}
@@ -1034,11 +1043,11 @@
                     `).join('')}
                 </div>
             `;
-            
+
             modal.id = 'contextualErrorModal';
             modal.appendChild(content);
             document.body.appendChild(modal);
-            
+
             // Attach action handlers
             actions.forEach((action, idx) => {
                 if (action.action) {
@@ -1051,7 +1060,7 @@
                     }
                 }
             });
-            
+
             // Close on background click
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) modal.remove();
@@ -1070,14 +1079,14 @@
                 : (localStorage.getItem('currentCaseId') || localStorage.getItem('caseId'));
             if (storedId) profileId = storedId;
         }
-        
+
         // Load token
         const token = urlParams.get('token') || localStorage.getItem('token') || localStorage.getItem('jwt');
-        
+
         // Use centralized configuration
         const apiUrl = window.VeriCaseConfig ? window.VeriCaseConfig.apiUrl : window.location.origin;
         console.log('Dashboard using API URL:', apiUrl);
-        
+
         // Upload button is always enabled - quick profile creation handles missing profileId
 
         // Load all projects for the selector
@@ -1085,15 +1094,15 @@
             try {
                 const response = await fetch(`${apiUrl}/api/projects`);
                 if (!response.ok) throw new Error('Failed to load projects');
-                
+
                 const projects = await response.json();
                 const selector = document.getElementById('projectSelector');
-                
+
                 if (!projects || projects.length === 0) {
                     selector.innerHTML = '<option value="">No projects found - Create one first</option>';
                     return;
                 }
-                
+
                 // Build options
                 let options = '<option value="">-- Select a Project --</option>';
                 projects.forEach(p => {
@@ -1102,7 +1111,7 @@
                     options += `<option value="${p.id}" ${selected}>${name}</option>`;
                 });
                 selector.innerHTML = options;
-                
+
                 // If no project is selected but we have projects, auto-select the first one
                 if (!profileId && projects.length > 0) {
                     const firstProject = projects[0];
@@ -1115,39 +1124,39 @@
                     // Load stats for current project
                     loadProjectStats(profileId);
                 }
-                
+
             } catch (error) {
                 console.error('Error loading projects:', error);
                 document.getElementById('projectSelector').innerHTML = '<option value="">Error loading projects</option>';
             }
         }
-        
+
         // Handle project selection
         async function onProjectSelected(projectId) {
             if (!projectId) {
                 document.getElementById('projectStats').style.display = 'none';
                 return;
             }
-            
+
             // Update localStorage and global variable
             profileId = projectId;
             localStorage.setItem('currentProjectId', projectId);
             localStorage.setItem('profileType', 'project');
-            
+
             // Update profile name in header
             const selector = document.getElementById('projectSelector');
             const selectedOption = selector.options[selector.selectedIndex];
             if (selectedOption) {
                 document.getElementById('profileName').textContent = selectedOption.text;
             }
-            
+
             // Load project stats
             loadProjectStats(projectId);
-            
+
             // Load profile data for the widgets
             loadProfileData();
         }
-        
+
         // Load project statistics (parallel API calls for speed)
         async function loadProjectStats(projectId) {
             try {
@@ -1181,7 +1190,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             // Always load projects list first
             loadProjects();
-            
+
             // Don't force redirect - let users land on dashboard first
             if (profileId) {
                 loadProfileData();
@@ -1197,7 +1206,7 @@
                 // Still load evidence widget to show the repository link
                 loadEvidenceWidget();
             }
-            
+
             // Check if user is admin and show approval button
             checkAdminStatus();
         });
@@ -1215,10 +1224,10 @@
                 }
 
                 const response = await fetch(statsUrl);
-                
+
                 if (response.ok) {
                     const stats = await response.json();
-                    
+
                     if (stats.total === 0) {
                         container.innerHTML = `
                             <div class="empty-state" style="padding: 1.5rem;">
@@ -1235,7 +1244,7 @@
                         const topTypes = Object.entries(typeStats)
                             .sort((a, b) => b[1] - a[1])
                             .slice(0, 4);
-                        
+
                         container.innerHTML = `
                             <div style="padding: 0.5rem 0;">
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
@@ -1301,17 +1310,17 @@
                 `;
             }
         }
-        
+
         async function checkAdminStatus() {
             try {
                 const user = JSON.parse(localStorage.getItem('user') || '{}');
                 if (user.role === 'ADMIN') {
                     document.getElementById('adminApprovalBtn').style.display = 'inline-flex';
                     document.getElementById('adminSettingsBtn').style.display = 'inline-flex';
-                    
+
                     // Check for pending users
                     const response = await fetch(`${apiUrl}/api/admin/users/pending`);
-                    
+
                     if (response.ok) {
                         const pending = await response.json();
                         if (pending.length > 0) {
@@ -1358,14 +1367,14 @@
             const profileName = data.projectName || data.caseName || 'Untitled';
             document.getElementById('profileName').textContent = profileName;
             document.getElementById('welcomeTitle').textContent = `Welcome to ${profileName}`;
-            
+
             // Update type badge
             document.getElementById('profileType').textContent = profileType.charAt(0).toUpperCase() + profileType.slice(1);
 
             // Populate stakeholders
             const stakeholders = data['project-stakeholders']?.stakeholders || data['case-legal-team']?.legalTeam || [];
             const stakeholdersContainer = document.getElementById('stakeholdersContent');
-            
+
             if (stakeholders.length > 0) {
                 stakeholdersContainer.innerHTML = stakeholders.map(s => `
                     <div class="list-item">
@@ -1385,7 +1394,7 @@
             if (profileType === 'case' && data['case-heads-keywords']?.headsOfClaim) {
                 const heads = data['case-heads-keywords'].headsOfClaim;
                 const headsContainer = document.getElementById('headsContent');
-                
+
                 if (heads.length > 0) {
                     headsContainer.innerHTML = heads.map(h => `
                         <div class="list-item">
@@ -1411,7 +1420,7 @@
             if (profileType === 'case' && data['case-deadlines']?.deadlines) {
                 const deadlines = data['case-deadlines'].deadlines;
                 const alertsContainer = document.getElementById('alertsContainer');
-                
+
                 if (deadlines.length > 0) {
                     const upcomingDeadlines = deadlines.slice(0, 3);
                     const deadlineHTML = upcomingDeadlines.map(d => `
@@ -1429,10 +1438,10 @@
         }
 
         function showFirstTimeOnboarding() {
-            const welcomeMsg = profileType === 'project' 
+            const welcomeMsg = profileType === 'project'
                 ? 'Your project has been created! Start by uploading evidence to reconstruct the project timeline.'
                 : 'Your case has been set up! Upload evidence sources to begin building your dispute strategy.';
-            
+
             document.getElementById('welcomeMessage').textContent = welcomeMsg;
         }
 
@@ -1441,54 +1450,54 @@
         if (openSettingsParam) {
             setTimeout(() => showSettings(openSettingsParam), 500);
         }
-        
+
         // AI Key Management Functions
         function saveLocalAIKey(provider) {
             const inputId = `${provider}KeyInput`;
             const input = document.getElementById(inputId);
             const key = input.value.trim();
-            
+
             if (!key) {
                 showKeyMessage(provider, 'Please enter an API key', 'error');
                 input.style.borderColor = '#ef4444';
                 setTimeout(() => input.style.borderColor = '#e5e7eb', 1500);
                 return;
             }
-            
+
             // Save to localStorage
             localStorage.setItem(`ai_key_${provider}`, key);
-            
+
             // Update status indicator
             const statusEl = document.getElementById(`${provider}Status`);
             if (statusEl) {
                 statusEl.className = 'status-indicator status-active';
                 statusEl.title = 'Configured (local)';
             }
-            
+
             // Clear input (for security)
             input.value = '';
             input.placeholder = '•••••••••• (saved)';
-            
+
             showKeyMessage(provider, 'API key saved successfully!', 'success');
-            
+
             // Update overall status
             updateLocalAIStatus();
         }
-        
+
         function clearLocalAIKey(provider) {
             if (!confirm(`Remove ${provider.toUpperCase()} API key from local storage?`)) {
                 return;
             }
-            
+
             localStorage.removeItem(`ai_key_${provider}`);
-            
+
             // Update status indicator
             const statusEl = document.getElementById(`${provider}Status`);
             if (statusEl) {
                 statusEl.className = 'status-indicator status-inactive';
                 statusEl.title = 'Not configured';
             }
-            
+
             // Reset input placeholder
             const inputId = `${provider}KeyInput`;
             const input = document.getElementById(inputId);
@@ -1503,13 +1512,13 @@
                 };
                 input.placeholder = placeholders[provider] || 'Enter API key';
             }
-            
+
             showKeyMessage(provider, 'API key removed', 'info');
-            
+
             // Update overall status
             updateLocalAIStatus();
         }
-        
+
         function showKeyMessage(provider, message, type) {
             const banner = document.getElementById('wizardBanner') || createBanner();
             banner.textContent = `${provider.toUpperCase()}: ${message}`;
@@ -1518,7 +1527,7 @@
             banner.style.display = 'block';
             setTimeout(() => banner.style.display = 'none', 3000);
         }
-        
+
         function createBanner() {
             const el = document.createElement('div');
             el.id = 'wizardBanner';
@@ -1526,15 +1535,15 @@
             document.body.appendChild(el);
             return el;
         }
-        
+
         function updateLocalAIStatus() {
             const providers = ['openai', 'anthropic', 'gemini', 'grok', 'perplexity'];
             let anyConfigured = false;
-            
+
             providers.forEach(provider => {
                 const key = localStorage.getItem(`ai_key_${provider}`);
                 const statusEl = document.getElementById(`${provider}Status`);
-                
+
                 if (statusEl) {
                     if (key && key.trim().length > 0) {
                         statusEl.className = 'status-indicator status-active';
@@ -1545,7 +1554,7 @@
                         statusEl.title = 'Not configured';
                     }
                 }
-                
+
                 // Load existing keys into inputs (masked)
                 const inputId = `${provider}KeyInput`;
                 const input = document.getElementById(inputId);
@@ -1553,7 +1562,7 @@
                     input.placeholder = '•••••••••• (saved)';
                 }
             });
-            
+
             // Update overall status
             const overallStatus = document.getElementById('aiOverallStatus');
             if (overallStatus) {
@@ -1568,10 +1577,10 @@
                 }
             }
         }
-        
+
         // Load local AI status on settings open
         const originalShowSettings = showSettings;
-        showSettings = function(tab = 'general') {
+        showSettings = function (tab = 'general') {
             originalShowSettings(tab);
             if (tab === 'ai') {
                 setTimeout(() => updateLocalAIStatus(), 100);
@@ -1579,13 +1588,13 @@
         };
 
     </script>
-    
+
     <!-- Settings Modal Container (lazy loaded for faster initial page load) -->
     <div id="settingsModalContainer"></div>
 
     <!-- Settings Modal Template (stored as string, not parsed until needed) -->
     <script>
-    window.SETTINGS_MODAL_HTML = `
+        window.SETTINGS_MODAL_HTML = `
     <div id="settingsModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
         <div style="background: white; border-radius: 12px; width: 90%; max-width: 800px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
             <!-- Header -->
@@ -1791,4 +1800,5 @@
         }
     </style>
 </body>
+
 </html>

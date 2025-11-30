@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,41 +8,45 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>VeriCase - Email Correspondence Manager (Enterprise)</title>
-    
+
     <!-- AG-Grid Enterprise CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-grid.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-theme-quartz.css">
-    
+    <link rel="stylesheet" href="../../ag-theme-vericase.css">
+
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <!-- VeriCase Design System -->
     <link rel="stylesheet" href="brand-styles.css">
     <link rel="stylesheet" href="design-system.css">
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
-    
+
     <!-- DOMPurify for HTML sanitization -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
-    
+
     <style>
         :root {
-            --vericase-teal: #17B5A3;
-            --vericase-teal-dark: #129B8B;
-            --vericase-blue: #2B7FBF;
-            --vericase-navy: #1F2937;
-            --bg-primary: #E8EEF2;
-            --primary: #17B5A3;
-            --primary-dark: #129B8B;
-            --secondary: #64748b;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-            --surface: #ffffff;
-            --background: #E8EEF2;
-            --text: #1F2937;
-            --text-muted: #64748b;
-            --border: #e2e8f0;
+            /* Map local variables to brand styles */
+            --primary: var(--vericase-teal);
+            --primary-dark: var(--vericase-teal-dark);
+            --secondary: var(--text-secondary);
+            --success: var(--success);
+            --warning: var(--warning);
+            --danger: var(--error);
+            --surface: var(--bg-white);
+            --background: var(--bg-primary);
+            --text: var(--text-primary);
+            --text-muted: var(--text-muted);
+            --border: var(--gray-200);
+
+            /* Legacy mappings if needed */
+            --vericase-teal: var(--vericase-teal);
+            --vericase-teal-dark: var(--vericase-teal-dark);
+            --vericase-blue: var(--vericase-blue);
+            --vericase-navy: var(--vericase-navy);
+            --bg-primary: var(--bg-primary);
         }
 
         * {
@@ -67,7 +72,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
 
         .header-left {
@@ -406,18 +411,12 @@
         }
 
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
-        /* Custom AG-Grid Styles */
-        .ag-theme-quartz {
-            --ag-header-background-color: var(--background);
-            --ag-header-foreground-color: var(--text);
-            --ag-borders: solid 1px var(--border);
-            --ag-row-hover-color: #f9fafb;
-            --ag-selected-row-background-color: rgba(37, 99, 235, 0.08);
-            --ag-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
+        /* Custom AG-Grid Styles - Moved to ag-theme-vericase.css */
 
         .ag-cell {
             display: flex;
@@ -429,39 +428,48 @@
         .ag-row {
             border-bottom: 1px solid #f3f4f6;
         }
-        
+
         /* HTML email content styling in grid */
         .email-html-content {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
+
         .email-html-content p {
             margin: 0 0 0.5em 0;
         }
+
         .email-html-content br {
             line-height: 1.2;
         }
-        .email-html-content ul, .email-html-content ol {
+
+        .email-html-content ul,
+        .email-html-content ol {
             margin: 0.5em 0;
             padding-left: 1.5em;
         }
+
         .email-html-content table {
             border-collapse: collapse;
             font-size: 0.8rem;
         }
-        .email-html-content td, .email-html-content th {
+
+        .email-html-content td,
+        .email-html-content th {
             padding: 2px 4px;
             border: 1px solid #e5e7eb;
         }
+
         .email-html-content a {
             color: var(--vericase-teal);
             text-decoration: none;
         }
+
         .email-html-content a:hover {
             text-decoration: underline;
         }
 
         .ag-row:hover {
-            background: linear-gradient(to right, #fafafa, #f9fafb) !important;
+            background: var(--ag-row-hover-color) !important;
         }
 
         .email-thread-indicator {
@@ -541,7 +549,7 @@
         }
 
         .context-toggle-btn {
-            background: rgba(255,255,255,0.2);
+            background: rgba(255, 255, 255, 0.2);
             border: none;
             color: white;
             width: 32px;
@@ -555,7 +563,7 @@
         }
 
         .context-toggle-btn:hover {
-            background: rgba(255,255,255,0.3);
+            background: rgba(255, 255, 255, 0.3);
         }
 
         .context-panel-content {
@@ -827,12 +835,14 @@
     <script src="config.js"></script>
     <script src="app-state.js"></script>
 </head>
+
 <body>
     <!-- Header -->
     <div class="header">
         <div class="header-left">
             <div class="logo">
-                <img src="assets/LOGOTOBEUSED.png" alt="VeriCase" style="height: 32px; margin-right: 12px; vertical-align: middle;">
+                <img src="assets/LOGOTOBEUSED.png" alt="VeriCase"
+                    style="height: 32px; margin-right: 12px; vertical-align: middle;">
                 <i class="fas fa-envelope-open-text"></i>
                 <span>VeriCase Correspondence</span>
             </div>
@@ -845,7 +855,8 @@
             <button class="btn" onclick="goToDashboard()">
                 <i class="fas fa-home"></i> Dashboard
             </button>
-            <button class="btn" onclick="window.location.href='deep-research.html'" style="background: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%); color: white; border: none;">
+            <button class="btn" onclick="window.location.href='deep-research.html'"
+                style="background: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%); color: white; border: none;">
                 <i class="fas fa-atom"></i> Deep Research
             </button>
             <button class="btn" onclick="exportToExcel()">
@@ -861,69 +872,87 @@
     </div>
 
     <!-- AI Chat Interface -->
-    <div id="aiChatContainer" style="background: white; border-bottom: 2px solid var(--vericase-teal); box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 1.5rem 2rem; display: none;">
+    <div id="aiChatContainer"
+        style="background: white; border-bottom: 2px solid var(--vericase-teal); box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 1.5rem 2rem; display: none;">
         <div style="max-width: 1400px; margin: 0 auto;">
             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-teal-dark)); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(23, 181, 163, 0.39);">
+                <div
+                    style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-teal-dark)); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(23, 181, 163, 0.39);">
                     <i class="fas fa-brain" style="color: white; font-size: 24px;"></i>
                 </div>
                 <div style="flex: 1;">
-                    <h3 style="color: var(--vericase-navy); font-size: 1.25rem; margin-bottom: 0.25rem;">AI Research Assistant</h3>
-                    <p style="color: var(--text-muted); font-size: 0.875rem;">Ask questions about your evidence. Choose Quick Search or Deep Research mode.</p>
+                    <h3 style="color: var(--vericase-navy); font-size: 1.25rem; margin-bottom: 0.25rem;">AI Research
+                        Assistant</h3>
+                    <p style="color: var(--text-muted); font-size: 0.875rem;">Ask questions about your evidence. Choose
+                        Quick Search or Deep Research mode.</p>
                 </div>
-                <button onclick="toggleAIChat()" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem; padding: 0.5rem;">
+                <button onclick="toggleAIChat()"
+                    style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem; padding: 0.5rem;">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            
+
             <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
                 <div style="flex: 1; position: relative;">
-                    <label for="aiQuery"></label><textarea id="aiQuery" placeholder="Ask a question about your evidence... e.g., 'What are the key delay events?' or 'Summarize the dispute timeline'"
-                                                           style="width: 100%; min-height: 80px; padding: 1rem; border: 2px solid #E5E7EB; border-radius: 12px; font-size: 0.9375rem; font-family: inherit; resize: vertical;"
-                                                           onkeydown="if(event.key==='Enter' && event.ctrlKey) aiQuickSearch()"></textarea>
-                    <div style="position: absolute; bottom: 0.75rem; right: 0.75rem; font-size: 0.75rem; color: var(--text-muted);">
+                    <label for="aiQuery"></label><textarea id="aiQuery"
+                        placeholder="Ask a question about your evidence... e.g., 'What are the key delay events?' or 'Summarize the dispute timeline'"
+                        style="width: 100%; min-height: 80px; padding: 1rem; border: 2px solid #E5E7EB; border-radius: 12px; font-size: 0.9375rem; font-family: inherit; resize: vertical;"
+                        onkeydown="if(event.key==='Enter' && event.ctrlKey) aiQuickSearch()"></textarea>
+                    <div
+                        style="position: absolute; bottom: 0.75rem; right: 0.75rem; font-size: 0.75rem; color: var(--text-muted);">
                         Ctrl+Enter for Quick Search
                     </div>
                 </div>
             </div>
-            
+
             <div style="display: flex; gap: 1rem; align-items: center;">
-                <button id="quickSearchBtn" onclick="aiQuickSearch()" class="btn" style="background: var(--vericase-teal); color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 14px rgba(23, 181, 163, 0.39);">
+                <button id="quickSearchBtn" onclick="aiQuickSearch()" class="btn"
+                    style="background: var(--vericase-teal); color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 14px rgba(23, 181, 163, 0.39);">
                     <i class="fas fa-bolt"></i> Quick Search (3s)
                 </button>
-                <button id="deepResearchBtn" onclick="aiDeepResearch()" class="btn" style="background: var(--vericase-navy); color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                <button id="deepResearchBtn" onclick="aiDeepResearch()" class="btn"
+                    style="background: var(--vericase-navy); color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
                     <i class="fas fa-microscope"></i> Deep Research (60s)
                 </button>
                 <div id="aiModelsStatus" style="margin-left: auto; font-size: 0.75rem; color: var(--text-muted);"></div>
             </div>
-            
+
             <!-- Research Progress -->
-            <div id="researchProgress" style="display: none; margin-top: 1.5rem; padding: 1.5rem; background: #F9FAFB; border-radius: 12px; border: 1px solid #E5E7EB;">
+            <div id="researchProgress"
+                style="display: none; margin-top: 1.5rem; padding: 1.5rem; background: #F9FAFB; border-radius: 12px; border: 1px solid #E5E7EB;">
                 <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
                     <div class="loading-spinner"></div>
                     <div>
-                        <div style="font-weight: 600; color: var(--vericase-navy); margin-bottom: 0.25rem;" id="progressTitle">Analyzing...</div>
-                        <div style="font-size: 0.875rem; color: var(--text-muted);" id="progressStatus">Preparing research plan...</div>
+                        <div style="font-weight: 600; color: var(--vericase-navy); margin-bottom: 0.25rem;"
+                            id="progressTitle">Analyzing...</div>
+                        <div style="font-size: 0.875rem; color: var(--text-muted);" id="progressStatus">Preparing
+                            research plan...</div>
                     </div>
                 </div>
-                <div id="researchPlan" style="display: none; margin-top: 1rem; padding: 1rem; background: white; border-radius: 8px; border-left: 4px solid var(--vericase-teal);"></div>
+                <div id="researchPlan"
+                    style="display: none; margin-top: 1rem; padding: 1rem; background: white; border-radius: 8px; border-left: 4px solid var(--vericase-teal);">
+                </div>
                 <div id="modelProgress" style="display: none; margin-top: 1rem;"></div>
             </div>
-            
+
             <!-- AI Response -->
-            <div id="aiResponse" style="display: none; margin-top: 1.5rem; padding: 1.5rem; background: white; border-radius: 12px; border: 2px solid var(--vericase-teal); box-shadow: 0 4px 12px rgba(0,0,0,0.08);"></div>
+            <div id="aiResponse"
+                style="display: none; margin-top: 1.5rem; padding: 1.5rem; background: white; border-radius: 12px; border: 2px solid var(--vericase-teal); box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+            </div>
         </div>
     </div>
 
     <!-- Toolbar -->
     <div class="toolbar">
         <div class="toolbar-left">
-            <button class="btn btn-primary" onclick="toggleAIChat()" style="background: var(--vericase-teal); border: none;">
+            <button class="btn btn-primary" onclick="toggleAIChat()"
+                style="background: var(--vericase-teal); border: none;">
                 <i class="fas fa-brain"></i> AI Assistant
             </button>
             <div class="search-box">
                 <i class="fas fa-search"></i>
-                <label for="quickFilter"></label><input type="text" id="quickFilter" placeholder="Quick search emails..." onkeyup="onQuickFilterChanged()">
+                <label for="quickFilter"></label><input type="text" id="quickFilter"
+                    placeholder="Quick search emails..." onkeyup="onQuickFilterChanged()">
             </div>
             <button class="btn" onclick="toggleAdvancedFilter()">
                 <i class="fas fa-filter"></i> Advanced Filter
@@ -987,7 +1016,7 @@
     <div class="main-content">
         <!-- AG-Grid Container -->
         <div class="grid-container">
-            <div id="emailGrid" class="ag-theme-quartz"></div>
+            <div id="emailGrid" class="ag-theme-quartz ag-theme-vericase"></div>
             <div class="loading-overlay" id="loadingOverlay">
                 <div class="spinner"></div>
             </div>
@@ -999,10 +1028,10 @@
                                                 justify-content: center; align-items: center;">
             <div style="background: white; width: 90%; height: 90%; max-width: 1200px; border-radius: 10px;
                         box-shadow: 0 20px 50px rgba(0,0,0,0.3); display: flex; flex-direction: column;">
-                <div style="padding: 15px 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
+                <div
+                    style="padding: 15px 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
                     <h3 id="previewTitle" style="margin: 0; color: #1f2937; font-size: 1.1rem;">Attachment Preview</h3>
-                    <button onclick="closeAttachmentPreview()" 
-                            style="background: #ef4444; color: white; border: none; padding: 8px 16px;
+                    <button onclick="closeAttachmentPreview()" style="background: #ef4444; color: white; border: none; padding: 8px 16px;
                                    border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 500;">
                         ✕ Close
                     </button>
@@ -1010,9 +1039,9 @@
                 <div id="previewContent" style="flex: 1; overflow: auto; padding: 20px; position: relative;">
                     <!-- Preview content will be loaded here -->
                 </div>
-                <div style="padding: 10px 20px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 10px;">
-                    <button id="downloadBtn" onclick="downloadCurrentAttachment()" 
-                            style="background: #3b82f6; color: white; border: none; padding: 8px 20px;
+                <div
+                    style="padding: 10px 20px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 10px;">
+                    <button id="downloadBtn" onclick="downloadCurrentAttachment()" style="background: #3b82f6; color: white; border: none; padding: 8px 20px;
                                    border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 500;">
                         ⬇ Download
                     </button>
@@ -1047,7 +1076,8 @@
                 <!-- Selection Info -->
                 <div class="context-section" id="selectionSection">
                     <div class="context-section-header" onclick="toggleContextSection('selection')">
-                        <span><i class="fas fa-check-square"></i> Selected Emails <span class="selected-count-badge" id="contextSelectedCount">0</span></span>
+                        <span><i class="fas fa-check-square"></i> Selected Emails <span class="selected-count-badge"
+                                id="contextSelectedCount">0</span></span>
                         <i class="fas fa-chevron-down"></i>
                     </div>
                     <div class="context-section-body" id="selectionBody">
@@ -1067,19 +1097,22 @@
                         <i class="fas fa-chevron-down"></i>
                     </div>
                     <div class="context-section-body" id="quickLinkBody">
-                        <label for="linkTypeSelect"></label><select class="quick-link-dropdown" id="linkTypeSelect" onchange="onLinkTypeChange()">
+                        <label for="linkTypeSelect"></label><select class="quick-link-dropdown" id="linkTypeSelect"
+                            onchange="onLinkTypeChange()">
                             <option value="">Select link type...</option>
                             <option value="matter">Link to Contentious Matter</option>
                             <option value="claim">Link to Head of Claim</option>
                         </select>
-                        <label for="linkTargetSelect"></label><select class="quick-link-dropdown" id="linkTargetSelect" style="display: none;">
+                        <label for="linkTargetSelect"></label><select class="quick-link-dropdown" id="linkTargetSelect"
+                            style="display: none;">
                             <option value="">Select target...</option>
                         </select>
                         <button class="link-btn" id="linkSelectedBtn" onclick="linkSelectedEmails()" disabled>
                             <i class="fas fa-link"></i> Link Selected Emails
                         </button>
                         <div style="margin-top: 0.75rem; text-align: center;">
-                            <button class="btn" style="font-size: 0.75rem; padding: 0.375rem 0.75rem;" onclick="openCreateMatterModal()">
+                            <button class="btn" style="font-size: 0.75rem; padding: 0.375rem 0.75rem;"
+                                onclick="openCreateMatterModal()">
                                 <i class="fas fa-plus"></i> Create New Matter
                             </button>
                         </div>
@@ -1097,11 +1130,14 @@
                             <!-- Keywords will be loaded here -->
                         </div>
                         <div class="add-keyword-input">
-                            <label for="newKeywordInput"></label><input type="text" id="newKeywordInput" placeholder="Add keyword..." onkeypress="if(event.key==='Enter')addKeywordFromContext()">
+                            <label for="newKeywordInput"></label><input type="text" id="newKeywordInput"
+                                placeholder="Add keyword..."
+                                onkeypress="if(event.key==='Enter')addKeywordFromContext()">
                             <button onclick="addKeywordFromContext()"><i class="fas fa-plus"></i></button>
                         </div>
                         <div style="margin-top: 0.75rem;">
-                            <button class="btn" style="width: 100%; font-size: 0.75rem;" onclick="suggestKeywordsFromSelection()">
+                            <button class="btn" style="width: 100%; font-size: 0.75rem;"
+                                onclick="suggestKeywordsFromSelection()">
                                 <i class="fas fa-wand-magic-sparkles"></i> Suggest from Selection
                             </button>
                         </div>
@@ -1119,7 +1155,8 @@
                             <!-- Stakeholders will be loaded here -->
                         </div>
                         <div style="margin-top: 0.75rem;">
-                            <button class="btn" style="width: 100%; font-size: 0.75rem;" onclick="openRefinementWizard()">
+                            <button class="btn" style="width: 100%; font-size: 0.75rem;"
+                                onclick="openRefinementWizard()">
                                 <i class="fas fa-cog"></i> Manage Stakeholders
                             </button>
                         </div>
@@ -1173,7 +1210,7 @@
         // Use centralized configuration
         const API_BASE = window.VeriCaseConfig ? window.VeriCaseConfig.apiUrl : window.location.origin;
         console.log('Correspondence using API URL:', API_BASE);
-        
+
         // Initialize VeriCaseApp - it will handle URL params and default project
         let caseId = null;
         let projectId = null;
@@ -1329,22 +1366,22 @@
                     const attachments = params.data.attachments || params.data.meta?.attachments || [];
                     // Filter out embedded images (logos, signatures, tracking pixels)
                     const realAttachments = attachments.filter(att => !isEmbeddedImage(att));
-                    
+
                     if (realAttachments.length === 0) return '<span style="color:#9ca3af;">None</span>';
-                    
+
                     const rowId = params.node.id;
                     const evidenceId = params.data.id;
-                    
+
                     // Create clickable attachment links
                     const attachmentLinks = realAttachments.map((att, index) => {
                         const fileName = att.filename || att.name || 'Unnamed';
                         const fileExt = fileName.split('.').pop().toLowerCase();
                         const attachmentId = att.id || index;
-                        
+
                         // Determine if file can be previewed
                         const previewableTypes = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'txt', 'csv', 'doc', 'docx', 'xls', 'xlsx'];
                         const canPreview = previewableTypes.includes(fileExt);
-                        
+
                         // Choose icon based on file type
                         let icon = '📎'; // Default paperclip
                         if (['pdf'].includes(fileExt)) icon = '📄';
@@ -1352,7 +1389,7 @@
                         else if (['doc', 'docx'].includes(fileExt)) icon = '📝';
                         else if (['xls', 'xlsx', 'csv'].includes(fileExt)) icon = '📊';
                         else if (['txt'].includes(fileExt)) icon = '📃';
-                        
+
                         return `
                             <div style="display: inline-flex; align-items: center; gap: 4px; margin: 2px 4px 2px 0;">
                                 <span style="font-size: 0.9em;">${icon}</span>
@@ -1364,7 +1401,7 @@
                             </div>
                         `;
                     }).join('');
-                    
+
                     return `<div style="display: flex; flex-wrap: wrap; align-items: center;">${attachmentLinks}</div>`;
                 },
                 filter: 'agTextColumnFilter'
@@ -1375,9 +1412,9 @@
                 flex: 1,
                 minWidth: 300,
                 cellRenderer: (params) => {
-                    const thread = params.data.thread_id ? 
+                    const thread = params.data.thread_id ?
                         `<span class="email-thread-indicator"><i class="fas fa-reply"></i> Thread</span>` : '';
-                    
+
                     return `
                         <div style="display: flex; align-items: center; gap: 0.5rem;">
                             <span style="flex: 1;">${params.value || '(No Subject)'}</span>
@@ -1409,14 +1446,14 @@
                     const emailData = params.value || { html: null, text: '' };
                     const htmlContent = emailData.html;
                     const textContent = emailData.text;
-                    
+
                     // Clean and prepare content for display
                     const prepareForDisplay = (html, text) => {
                         // If we have HTML content, sanitize and use it
                         if (html && typeof DOMPurify !== 'undefined') {
                             // Remove EXTERNAL EMAIL warnings first (before sanitizing)
                             let cleanedHtml = html;
-                            
+
                             // Remove EXTERNAL EMAIL warning tables/divs
                             cleanedHtml = cleanedHtml.replace(/<table[^>]*>[\s\S]*?EXTERNAL[\s\S]*?EMAIL[\s\S]*?<\/table>/gi, '');
                             cleanedHtml = cleanedHtml.replace(/<div[^>]*(?:background|border|style)[^>]*>[\s\S]*?EXTERNAL[\s\S]*?EMAIL[\s\S]*?<\/div>/gi, '');
@@ -1426,7 +1463,7 @@
                             cleanedHtml = cleanedHtml.replace(/Don't click links or open attachments unless the content is expected and known to be safe\.?/gi, '');
                             cleanedHtml = cleanedHtml.replace(/EXTERNAL EMAIL:?[^<]*/gi, '');
                             cleanedHtml = cleanedHtml.replace(/Aconex Email Notification[^<]*/gi, '');
-                            
+
                             // Remove common signature delimiters and everything after
                             const signaturePatterns = [
                                 /<div[^>]*class="[^"]*signature[^"]*"[^>]*>[\s\S]*$/i,
@@ -1439,15 +1476,15 @@
                                 /<div[^>]*>Sent from my iPhone[\s\S]*$/i,
                                 /<div[^>]*>Get Outlook for[\s\S]*$/i
                             ];
-                            
+
                             for (const pattern of signaturePatterns) {
                                 cleanedHtml = cleanedHtml.replace(pattern, '');
                             }
-                            
+
                             // Remove empty elements
                             cleanedHtml = cleanedHtml.replace(/<(p|div|span)[^>]*>\s*(&nbsp;|\s)*<\/\1>/gi, '');
                             cleanedHtml = cleanedHtml.replace(/^(\s*<br\s*\/?>\s*)+/gi, '');
-                            
+
                             // Sanitize the HTML
                             const sanitized = DOMPurify.sanitize(cleanedHtml, {
                                 ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 'span', 'div', 'ul', 'ol', 'li', 'a', 'table', 'tr', 'td', 'th', 'tbody', 'thead'],
@@ -1455,22 +1492,22 @@
                                 FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'img'],
                                 FORBID_ATTR: ['onclick', 'onerror', 'onload']
                             });
-                            
+
                             return { isHtml: true, content: sanitized.trim() };
                         }
-                        
+
                         // Fall back to text content
                         if (!text) return { isHtml: false, content: 'No content available' };
-                        
+
                         let cleaned = text;
                         cleaned = cleaned.replace(/<[^>]*>/g, ' ');
-                        
+
                         // Remove EXTERNAL EMAIL warnings from text
                         cleaned = cleaned.replace(/EXTERNAL EMAIL:?\s*Don't click links or open attachments[^.]*\./gi, '');
                         cleaned = cleaned.replace(/Don't click links or open attachments unless the content is expected and known to be safe\.?/gi, '');
                         cleaned = cleaned.replace(/EXTERNAL EMAIL:?[^.]*\./gi, '');
                         cleaned = cleaned.replace(/Aconex Email Notification\s*/gi, '');
-                        
+
                         // Remove signature markers
                         const textSignatureMarkers = [
                             /\n--\s*\n[\s\S]*/,
@@ -1478,20 +1515,20 @@
                             /\nKind regards,?\s*\n[\s\S]*/i,
                             /\nBest regards,?\s*\n[\s\S]*/i
                         ];
-                        
+
                         for (const marker of textSignatureMarkers) {
                             cleaned = cleaned.replace(marker, '');
                         }
-                        
+
                         cleaned = cleaned.replace(/\s+/g, ' ').trim();
                         cleaned = cleaned.replace(/&nbsp;/g, ' ');
                         cleaned = cleaned.replace(/\[cid:[^\]]+\]/g, '');
-                        
+
                         return { isHtml: false, content: cleaned };
                     };
-                    
+
                     const { isHtml, content } = prepareForDisplay(htmlContent, textContent);
-                    
+
                     if (isHtml) {
                         // Render sanitized HTML content
                         return `
@@ -1503,10 +1540,10 @@
                     } else {
                         // Show more text content (up to 800 chars) with scroll
                         const maxLength = 800;
-                        const displayText = content.length > maxLength 
-                            ? content.substring(0, maxLength) + '...' 
+                        const displayText = content.length > maxLength
+                            ? content.substring(0, maxLength) + '...'
                             : content;
-                        
+
                         return `
                             <div style="padding: 8px; font-size: 0.85rem; line-height: 1.5; color: #374151; 
                                         max-height: 130px; overflow-y: auto; white-space: pre-wrap;">
@@ -1531,7 +1568,7 @@
                                     + Link to programme activity
                                 </div>`;
                     }
-                    
+
                     return `<div style="display: flex; align-items: center; gap: 8px; cursor: pointer;"
                                  onclick="viewProgrammeAnalysis('${params.data.id}', '${activity}')">
                         <span style="background: #dbeafe; color: #1e40af; padding: 4px 8px; 
@@ -1556,37 +1593,37 @@
                     // This will be calculated from uploaded Asta programmes
                     const emailDate = params.data.email_date ? new Date(params.data.email_date) : null;
                     const activity = params.data.programme_activity || params.data.linked_activity;
-                    
+
                     if (!emailDate || !activity) {
                         return '<span style="color: #9ca3af;">-</span>';
                     }
-                    
+
                     // Get programme data from API (to be implemented)
                     const baselineData = params.data.baseline_programme;
                     const asBuiltData = params.data.asbuilt_programme;
-                    
+
                     if (!baselineData || !asBuiltData) {
                         return `<div style="color: #9ca3af; font-size: 0.875rem;">
                             <i class="fas fa-upload"></i> Upload programmes
                         </div>`;
                     }
-                    
+
                     // Calculate variance (positive = ahead, negative = behind)
                     const variance = asBuiltData.days_variance || 0;
                     const isDelayed = variance < 0;
                     const isAhead = variance > 0;
-                    
+
                     if (variance === 0) {
                         return `<div style="display: flex; align-items: center; gap: 6px; color: #059669;">
                             <i class="fas fa-check-circle"></i>
                             <span style="font-weight: 500;">On Track</span>
                         </div>`;
                     }
-                    
+
                     const color = isDelayed ? '#dc2626' : '#059669';
                     const icon = isDelayed ? 'fa-exclamation-triangle' : 'fa-arrow-up';
                     const absVariance = Math.abs(variance);
-                    
+
                     return `<div style="display: flex; align-items: center; gap: 6px; color: ${color};">
                         <i class="fas ${icon}"></i>
                         <span style="font-weight: 600;">${isDelayed ? '-' : '+'}${absVariance} days</span>
@@ -1606,7 +1643,7 @@
                 cellRenderer: params => {
                     const isCritical = params.value || params.data.on_critical_path;
                     if (!isCritical) return '-';
-                    
+
                     return `<div style="display: flex; align-items: center; justify-content: center; gap: 6px; 
                                  background: #fee2e2; color: #991b1b; padding: 4px 12px; 
                                  border-radius: 12px; font-weight: 600; font-size: 0.875rem;">
@@ -1628,12 +1665,12 @@
                 cellRenderer: params => {
                     const emailDate = params.data.email_date ? new Date(params.data.email_date) : null;
                     const activity = params.data.programme_activity || params.data.linked_activity;
-                    
+
                     if (!emailDate || !activity) return '-';
-                    
+
                     // Get activity status at email date from Asta data
                     const status = params.data.activity_status_at_date || 'Unknown';
-                    
+
                     const statusConfig = {
                         'Not Started': { icon: '⏸️', bg: '#f3f4f6', text: '#374151' },
                         'In Progress': { icon: '🔄', bg: '#dbeafe', text: '#1e40af' },
@@ -1641,9 +1678,9 @@
                         'Delayed': { icon: '⚠️', bg: '#fee2e2', text: '#991b1b' },
                         'Unknown': { icon: '❓', bg: '#f3f4f6', text: '#6b7280' }
                     };
-                    
+
                     const config = statusConfig[status] || statusConfig['Unknown'];
-                    
+
                     return `<div style="display: inline-flex; align-items: center; gap: 6px; 
                                  background: ${config.bg}; color: ${config.text}; 
                                  padding: 4px 12px; border-radius: 12px; font-weight: 500; font-size: 0.875rem;">
@@ -1665,10 +1702,10 @@
                 cellRenderer: params => {
                     const progress = params.value || params.data.baseline_progress_at_date;
                     if (progress === undefined || progress === null) return '-';
-                    
+
                     const progressNum = Math.round(progress);
                     const color = progressNum >= 75 ? '#059669' : progressNum >= 50 ? '#f59e0b' : '#dc2626';
-                    
+
                     return `<div style="display: flex; align-items: center; gap: 8px;">
                         <div style="flex: 1; background: #e5e7eb; border-radius: 8px; height: 20px; overflow: hidden;">
                             <div style="width: ${progressNum}%; height: 100%; background: ${color}; 
@@ -1689,10 +1726,10 @@
                 cellRenderer: params => {
                     const progress = params.value || params.data.asbuilt_progress_at_date;
                     if (progress === undefined || progress === null) return '-';
-                    
+
                     const progressNum = Math.round(progress);
                     const color = progressNum >= 75 ? '#059669' : progressNum >= 50 ? '#f59e0b' : '#dc2626';
-                    
+
                     return `<div style="display: flex; align-items: center; gap: 8px;">
                         <div style="flex: 1; background: #e5e7eb; border-radius: 8px; height: 20px; overflow: hidden;">
                             <div style="width: ${progressNum}%; height: 100%; background: ${color}; 
@@ -1746,11 +1783,11 @@
                         'Quality Issue': '🔍',
                         'General': '📧'
                     };
-                    
+
                     const category = params.value;
                     const suggestedCategory = params.data.suggested_category;
                     const rowId = params.data.id;
-                    
+
                     // If category is set, show it
                     if (category) {
                         return `<div style="display: flex; align-items: center; gap: 6px;">
@@ -1758,7 +1795,7 @@
                             <span>${category}</span>
                         </div>`;
                     }
-                    
+
                     // If no category but there's a suggestion, show suggestion with accept button
                     if (suggestedCategory) {
                         return `<div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
@@ -1777,7 +1814,7 @@
                             </button>
                         </div>`;
                     }
-                    
+
                     // No category and no suggestion
                     return '<span style="color: var(--text-muted);">—</span>';
                 },
@@ -1804,7 +1841,7 @@
                     if (!params.value) return '-';
                     const keywords = params.value.split(',').map(k => k.trim()).filter(k => k);
                     if (keywords.length === 0) return '-';
-                    
+
                     return `<div style="display: flex; flex-wrap: wrap; gap: 4px;">
                         ${keywords.map(keyword => `
                             <span style="background: #dbeafe; color: #1e40af; padding: 2px 8px; 
@@ -1820,11 +1857,11 @@
                     if (Array.isArray(matchedKeywords) && matchedKeywords.length > 0) {
                         return matchedKeywords.join(', ');
                     }
-                    
+
                     // Fallback to existing keywords field
                     const existingKeywords = params.data.keywords || '';
                     if (existingKeywords) return existingKeywords;
-                    
+
                     return '';
                 },
                 filter: 'agTextColumnFilter'
@@ -1855,11 +1892,11 @@
                     if (Array.isArray(matchedStakeholders) && matchedStakeholders.length > 0) {
                         return matchedStakeholders.join(', ');
                     }
-                    
+
                     // Fallback to existing stakeholder field
                     const existingStakeholder = params.data.stakeholder || '';
                     if (existingStakeholder) return existingStakeholder;
-                    
+
                     return '';
                 },
                 filter: 'agSetColumnFilter',
@@ -2067,22 +2104,22 @@
                     const rowId = params.node.id;
                     const quotedRowId = `'${rowId}'`;
                     const isExpanded = params.data.expanded === true;
-                    
+
                     // Clean text for preview - remove signatures, external email warnings
                     const getCleanPreview = (text) => {
                         if (!text) return 'No readable content';
-                        
+
                         // AGGRESSIVE VML GARBAGE DETECTION - check raw text first
                         // Catches patterns like: v," [BehaviourName]... AND {behavior:url(#default#VML);}
                         if (/Behaviour|dataPull|leftPull|VMLI|v,\s*"|behavior:url|#default#VML|v\\;|o\\;|w\\;|\.shape\s*\{/i.test(text)) {
                             return 'No readable content';
                         }
-                        
+
                         let cleaned = text;
-                        
+
                         // Remove HTML/XML tags first
                         cleaned = cleaned.replace(/<[^>]*>/g, ' ');
-                        
+
                         // Remove EXTERNAL EMAIL warnings - be specific, not greedy
                         cleaned = cleaned.replace(/EXTERNAL EMAIL:?\s*&nbsp;?\s*Don't click links or open attachments[^.]*\.\s*/gi, '');
                         cleaned = cleaned.replace(/Don't click links or open attachments unless the content is expected and known to be safe\.?\s*/gi, '');
@@ -2090,25 +2127,25 @@
                         cleaned = cleaned.replace(/This message originated from outside[^.]*\.\s*/gi, '');
                         cleaned = cleaned.replace(/CAUTION:?\s*This email originated[^.]*\.\s*/gi, '');
                         cleaned = cleaned.replace(/\[EXTERNAL\]:?\s*/gi, '');
-                        
+
                         // Remove HTML entities
                         cleaned = cleaned.replace(/&nbsp;/g, ' ');
                         cleaned = cleaned.replace(/&[a-z]+;/gi, ' ');
-                        
+
                         // Remove cid references
                         cleaned = cleaned.replace(/\[cid:[^\]]+\]/g, '');
-                        
+
                         // Clean up whitespace
                         cleaned = cleaned.replace(/[\r\n]+/g, ' ');
                         cleaned = cleaned.replace(/\s+/g, ' ').trim();
-                        
+
                         // If empty after cleaning, show placeholder
                         if (!cleaned || cleaned.length < 3) {
                             return 'No content';
                         }
                         return cleaned;
                     };
-                    
+
                     // Clean HTML for full view - remove dangerous content and external email warnings
                     const cleanHtmlForFullView = (html) => {
                         if (!html) return null;
@@ -2116,48 +2153,48 @@
                         // Remove dangerous content
                         cleaned = cleaned.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
                         cleaned = cleaned.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-                        
+
                         // Remove EXTERNAL EMAIL warning text patterns
                         cleaned = cleaned.replace(/EXTERNAL EMAIL:?\s*&nbsp;?\s*Don't click links or open attachments[^<]*/gi, '');
                         cleaned = cleaned.replace(/Don't click links or open attachments unless the content is expected and known to be safe\.?/gi, '');
                         cleaned = cleaned.replace(/Aconex Email Notification[^<]*/gi, '');
                         cleaned = cleaned.replace(/This message originated from outside[^<]*/gi, '');
-                        
+
                         // Remove reply headers
                         cleaned = cleaned.replace(/-----\s*Original Message\s*-----[\s\S]*/i, '');
-                        
+
                         // Remove Office/Outlook formatting artifacts
                         cleaned = cleaned.replace(/<o:p>&nbsp;<\/o:p>/gi, '');
                         cleaned = cleaned.replace(/<o:p><\/o:p>/gi, '');
                         cleaned = cleaned.replace(/<o:[^>]*>[\s\S]*?<\/o:[^>]*>/gi, '');
-                        
+
                         // Remove empty paragraphs and excessive whitespace at start
                         cleaned = cleaned.replace(/^(\s*<(p|div|br)[^>]*>\s*(&nbsp;)?\s*<\/(p|div)>\s*)+/gi, '');
                         cleaned = cleaned.replace(/^(\s*<br\s*\/?>\s*)+/gi, '');
-                        
+
                         // Remove empty tables that might remain after warning removal
                         cleaned = cleaned.replace(/<table[^>]*>\s*(<tbody[^>]*>\s*)?(<tr[^>]*>\s*(<td[^>]*>\s*(&nbsp;)?\s*<\/td>\s*)*<\/tr>\s*)*(<\/tbody>\s*)?<\/table>/gi, '');
-                        
+
                         // Remove empty divs/paragraphs anywhere
                         cleaned = cleaned.replace(/<(p|div|span)[^>]*>\s*(&nbsp;|\s)*<\/\1>/gi, '');
-                        
+
                         // Remove multiple consecutive <br> tags (more than 2)
                         cleaned = cleaned.replace(/(<br\s*\/?>\s*){3,}/gi, '<br><br>');
-                        
+
                         // Fix images
                         cleaned = cleaned.replace(/<img([^>]*)>/gi, '<img$1 style="max-width: 100%; height: auto;">');
-                        
+
                         // Final cleanup - trim leading/trailing whitespace and empty elements
                         cleaned = cleaned.replace(/^\s+/, '').replace(/\s+$/, '');
                         return cleaned;
                     };
-                    
+
                     if (!isExpanded) {
                         // PREVIEW MODE - clean text, no signatures
                         const cleanPreview = getCleanPreview(textContent);
                         const preview = cleanPreview.substring(0, 200);
                         const hasMore = cleanPreview.length > 200 || htmlContent;
-                        
+
                         return `
                             <div style="padding: 8px;">
                                 <div style="color: #374151; font-size: 0.85rem; line-height: 1.5;">
@@ -2184,7 +2221,7 @@
                         } else {
                             displayContent = '<span style="color: #9ca3af; font-style: italic;">No message content available</span>';
                         }
-                        
+
                         return `
                             <div style="padding: 12px;">
                                 <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; 
@@ -2242,7 +2279,7 @@
                     const matched = params.data.matched_keywords || [];
                     const keywordsField = params.data.keywords || '';
                     const metaKeywords = params.data.meta?.keywords || [];
-                    
+
                     // Combine all sources, remove duplicates
                     const allKeywords = [
                         ...(Array.isArray(matched) ? matched : []),
@@ -2326,7 +2363,7 @@
                 cellRenderer: params => {
                     const emailId = params.data.id;
                     const linkedValue = params.value;
-                    
+
                     if (!linkedValue) {
                         // No link - show "Link" button
                         return `<div style="display: flex; align-items: center; gap: 6px;">
@@ -2338,13 +2375,13 @@
                             </button>
                         </div>`;
                     }
-                    
+
                     // Has link - show link with view/unlink options
                     const isMatter = params.data.linked_matter_name;
                     const icon = isMatter ? 'fa-exclamation-triangle' : 'fa-gavel';
                     const iconColor = isMatter ? '#f59e0b' : '#ef4444';
                     const bgColor = isMatter ? '#fef3c7' : '#fee2e2';
-                    
+
                     return `<div style="display: flex; align-items: center; gap: 4px;">
                         <span style="display: inline-flex; align-items: center; gap: 4px;
                                     padding: 3px 8px; background: ${bgColor}; border-radius: 6px;
@@ -2426,17 +2463,17 @@
                 getRows: async (params) => {
                     console.log('[Grid] Server-side request:', params.request.startRow, '-', params.request.endRow);
                     showLoading(true);
-                    
+
                     try {
                         const token = localStorage.getItem('token') || localStorage.getItem('jwt') || '';
                         let apiUrl = `${API_BASE}/api/correspondence/emails/server-side`;
-                        
+
                         // Add project/case filter
                         const queryParams = new URLSearchParams();
                         if (projectId) queryParams.append('project_id', projectId);
                         if (caseId) queryParams.append('case_id', caseId);
                         if (queryParams.toString()) apiUrl += '?' + queryParams.toString();
-                        
+
                         const response = await fetch(apiUrl, {
                             method: 'POST',
                             headers: {
@@ -2452,14 +2489,14 @@
                                 rowGroupCols: params.request.rowGroupCols || []
                             })
                         });
-                        
+
                         if (!response.ok) {
                             throw new Error(`Server error: ${response.status}`);
                         }
-                        
+
                         const data = await response.json();
                         console.log('[Grid] Loaded', data.rows.length, 'rows, lastRow:', data.lastRow, 'stats:', data.stats);
-                        
+
                         // Update statistics on first load
                         if (params.request.startRow === 0 && data.stats) {
                             console.log('[Grid] Updating stats:', data.stats);
@@ -2468,12 +2505,12 @@
                             document.getElementById('withAttachments').textContent = (data.stats.withAttachments || 0).toLocaleString();
                             document.getElementById('dateRange').textContent = data.stats.dateRange || '-';
                         }
-                        
+
                         params.success({
                             rowData: data.rows,
                             rowCount: data.lastRow
                         });
-                        
+
                     } catch (error) {
                         console.error('[Grid] Server-side error:', error);
                         params.fail();
@@ -2496,16 +2533,16 @@
                 floatingFilter: true,
                 menuTabs: ['filterMenuTab', 'generalMenuTab', 'columnsMenuTab']
             },
-            
+
             // === SERVER-SIDE ROW MODEL (handles 100k+ rows) ===
             rowModelType: 'serverSide',
             serverSideDatasource: createServerSideDatasource(),
-            
+
             // Server-side configuration
             cacheBlockSize: 100,           // Load 100 rows at a time
             maxBlocksInCache: 20,          // Keep 20 blocks (2000 rows) in memory
             blockLoadDebounceMillis: 100,  // Debounce rapid scroll
-            
+
             // Enterprise features
             sideBar: {
                 toolPanels: [
@@ -2535,7 +2572,7 @@
                 ],
                 defaultToolPanel: ''
             },
-            
+
             // Status bar - using only server-side compatible components
             statusBar: {
                 statusPanels: [
@@ -2543,26 +2580,26 @@
                     { statusPanel: 'agAggregationComponent', align: 'right' }
                 ]
             },
-            
+
             // Row ID is required for server-side row model selection
             getRowId: (params) => params.data?.id || params.data?.correspondence_id,
-            
+
             // Row selection
             rowSelection: 'multiple',
             rowMultiSelectWithClick: true,
-            
+
             // Pagination (works with server-side)
             pagination: true,
             paginationPageSize: 100,
             paginationPageSizeSelector: [50, 100, 200, 500],
-            
+
             // Row grouping - note: groupDefaultExpanded not supported with server-side row model
             groupDisplayType: 'multipleColumns',
-            
+
             // Performance
             animateRows: false,  // Disable for smoother server-side scrolling
             rowBuffer: 20,       // Buffer for smooth scroll
-            
+
             // Events
             onSelectionChanged: onSelectionChanged,
             onRowClicked: onRowClicked,
@@ -2571,7 +2608,7 @@
         };
 
         // Initialize Grid
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             // Check if ag-Grid is loaded
             if (typeof agGrid === 'undefined') {
                 console.error('ag-Grid library failed to load');
@@ -2611,7 +2648,7 @@
                 // Auto-size all columns based on content
                 const allColumnIds = params.api.getColumns().map(col => col.getColId());
                 params.api.autoSizeColumns(allColumnIds, false);
-                
+
                 // After autosizing, ensure columns fill the viewport if there's extra space
                 const gridEl = document.getElementById('correspondenceGrid');
                 if (gridEl) {
@@ -2620,16 +2657,16 @@
                     params.api.getColumns().forEach(col => {
                         totalColumnWidth += col.getActualWidth();
                     });
-                    
+
                     // If columns don't fill the grid, stretch them proportionally
                     if (totalColumnWidth < gridWidth - 50) {
-            params.api.sizeColumnsToFit();
+                        params.api.sizeColumnsToFit();
                     }
                 }
             } catch (e) {
                 console.warn('Auto-size columns error:', e);
             }
-            
+
             // Fetch stats directly for server-side mode
             fetchAndUpdateStats();
         }
@@ -2667,12 +2704,12 @@
                 columns: ['email_body'],
                 force: true
             });
-            
+
             // Update button text
             const btn = document.getElementById('toggleViewBtn');
             if (btn) {
-                btn.innerHTML = showFullContent ? 
-                    '<i class="fas fa-compress"></i> Preview Mode' : 
+                btn.innerHTML = showFullContent ?
+                    '<i class="fas fa-compress"></i> Preview Mode' :
                     '<i class="fas fa-expand"></i> Full Content';
             }
         }
@@ -2713,49 +2750,49 @@
 
         function updateStatistics() {
             if (!gridApi) return;
-            
+
             const totalEmails = allEmails.length;
             const uniqueThreads = new Set(allEmails.map(e => e.thread_id).filter(Boolean)).size;
             const withAttachments = allEmails.filter(e => e.meta?.attachments?.length > 0).length;
-            
+
             // Calculate date range
             const dates = allEmails
                 .map(e => e.email_date)
                 .filter(Boolean)
                 .map(d => new Date(d));
-            
+
             let dateRange = '-';
             if (dates.length > 0) {
                 const minDate = new Date(Math.min(...dates));
                 const maxDate = new Date(Math.max(...dates));
                 dateRange = `${minDate.toLocaleDateString()} - ${maxDate.toLocaleDateString()}`;
             }
-            
+
             document.getElementById('totalEmails').textContent = totalEmails.toLocaleString();
             document.getElementById('uniqueThreads').textContent = uniqueThreads.toLocaleString();
             document.getElementById('withAttachments').textContent = withAttachments.toLocaleString();
             document.getElementById('dateRange').textContent = dateRange;
         }
-        
+
         // Fetch stats directly from server (for server-side row model)
         async function fetchAndUpdateStats() {
             try {
                 const urlParams = new URLSearchParams(window.location.search);
                 const pid = projectId || urlParams.get('project_id');
                 const cid = caseId || urlParams.get('case_id');
-                
+
                 let url = `${API_BASE}/api/correspondence/emails/server-side`;
                 const params = new URLSearchParams();
                 if (pid) params.append('project_id', pid);
                 if (cid) params.append('case_id', cid);
                 if (params.toString()) url += '?' + params.toString();
-                
+
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ startRow: 0, endRow: 1, sortModel: [], filterModel: {} })
                 });
-                
+
                 if (response.ok) {
                     const data = await response.json();
                     if (data.stats) {
@@ -2774,7 +2811,7 @@
         function onSelectionChanged() {
             const selectedRows = gridApi.getSelectedRows();
             document.getElementById('selectedCount').textContent = selectedRows.length.toLocaleString();
-            
+
             // Update context panel
             if (typeof updateContextPanelSelection === 'function') {
                 updateContextPanelSelection();
@@ -2787,7 +2824,7 @@
 
         async function showEmailDetails(emailRow) {
             const detailContent = document.getElementById('detailContent');
-            
+
             // Show loading state
             detailContent.innerHTML = `
                 <div style="display: flex; align-items: center; justify-content: center; height: 200px; color: #64748b;">
@@ -2795,13 +2832,13 @@
                     <span>Loading email details...</span>
                 </div>
             `;
-            
+
             // Show detail panel if hidden
             const panel = document.getElementById('detailPanel');
             if (panel.classList.contains('hidden')) {
                 toggleDetailPanel();
             }
-            
+
             // Fetch full email details including attachments
             let email = emailRow;
             if (emailRow.id && !emailRow.attachments) {
@@ -2818,20 +2855,20 @@
                     console.warn('[Email] Error fetching full details:', err);
                 }
             }
-            
+
             // Debug: Log email data to check attachments
             console.log('showEmailDetails called with email:', email.id, email.subject || email.email_subject);
             console.log('  - email.attachments:', email.attachments);
             console.log('  - email.meta?.attachments:', email.meta?.attachments);
             console.log('  - email.has_attachments:', email.has_attachments);
-            
+
             // Use body_text_clean first (properly cleaned by backend), then fallback
             let content = email.body_text_clean || email.body_text || email.meta?.content || email.content || '';
             let htmlContent = email.body_html || null;
-            
+
             // Prioritize direct attachments field over meta.attachments
             const attachments = email.attachments || email.meta?.attachments || [];
-            
+
             // Resolve CID URLs in HTML content to actual signed URLs
             if (htmlContent && attachments.length > 0) {
                 try {
@@ -2840,14 +2877,14 @@
                     console.warn('[CID] Error resolving CID URLs:', err);
                 }
             }
-            
+
             // Clean up escaped characters if still present
             if (typeof content === 'string' && content) {
                 // Remove Python bytes prefix if present
                 if (content.startsWith("b'") || content.startsWith('b"')) {
                     content = content.slice(2, -1);
                 }
-                
+
                 // Clean up escape sequences
                 content = content
                     .replace(/\\r\\n/g, '\n')
@@ -2857,27 +2894,27 @@
                     .replace(/\\"/g, '"')
                     .replace(/\\\\/g, '\\')
                     .replace(/\\x([0-9a-fA-F]{2})/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
-                
+
                 // Remove zero-width characters
                 content = content.replace(/[\u200b\u200c\u200d\ufeff\u00ad]/g, '');
-                
+
                 // Decode HTML entities
                 const textarea = document.createElement('textarea');
                 textarea.innerHTML = content;
                 content = textarea.value;
             }
-            
+
             if (!content && !htmlContent) {
                 content = 'No content available';
             }
-            
+
             // Handle both full detail response (subject, sender_email) and row data (email_subject, email_from)
             const emailSubject = email.subject || email.email_subject || '(No Subject)';
             const emailFrom = email.sender_email || email.email_from || '-';
             const emailTo = email.recipients_to || email.email_to || '-';
             const emailCc = email.recipients_cc || email.email_cc || email.meta?.cc;
             const emailDate = email.date_sent || email.email_date;
-            
+
             detailContent.innerHTML = `
                 <div class="email-header">
                     <h2 class="email-subject">${emailSubject}</h2>
@@ -2904,43 +2941,43 @@
                 
                 <div class="email-body">
                     ${(() => {
-                        // Check if we have HTML content
-                        const hasHtmlContent = htmlContent && (
-                            htmlContent.includes('<html') || 
-                            htmlContent.includes('<body') ||
-                            htmlContent.includes('<div') ||
-                            htmlContent.includes('<p>')
-                        );
-                        
-                        if (hasHtmlContent) {
-                            // For HTML emails, render in iframe with sanitized content
-                            const safeHtml = htmlContent
-                                .replace(/"/g, '&quot;')
-                                .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')  // Remove scripts
-                                .replace(/on\w+\s*=/gi, 'data-disabled-');  // Disable event handlers
-                            return `<iframe srcdoc="${safeHtml}" 
+                    // Check if we have HTML content
+                    const hasHtmlContent = htmlContent && (
+                        htmlContent.includes('<html') ||
+                        htmlContent.includes('<body') ||
+                        htmlContent.includes('<div') ||
+                        htmlContent.includes('<p>')
+                    );
+
+                    if (hasHtmlContent) {
+                        // For HTML emails, render in iframe with sanitized content
+                        const safeHtml = htmlContent
+                            .replace(/"/g, '&quot;')
+                            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')  // Remove scripts
+                            .replace(/on\w+\s*=/gi, 'data-disabled-');  // Disable event handlers
+                        return `<iframe srcdoc="${safeHtml}" 
                                     style="width: 100%; min-height: 400px; height: auto; border: 1px solid #e5e7eb; 
                                            background: white; border-radius: 0.5rem;"
                                     sandbox="allow-same-origin"
                                     onload="this.style.height = this.contentWindow.document.body.scrollHeight + 'px'"></iframe>`;
-                        } else {
-                            // For plain text emails - properly formatted
-                            const escapedContent = (content || 'No content available')
-                                .replace(/&/g, '&amp;')
-                                .replace(/</g, '&lt;')
-                                .replace(/>/g, '&gt;');
-                            return `<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+                    } else {
+                        // For plain text emails - properly formatted
+                        const escapedContent = (content || 'No content available')
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;');
+                        return `<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
                                     margin: 0; line-height: 1.6; background: #f8fafc; padding: 1.5rem; border-radius: 0.5rem;
                                     color: #1e293b; font-size: 0.95rem;">${escapedContent}</div>`;
-                        }
-                    })()}
+                    }
+                })()}
                 </div>
                 
                 ${(() => {
                     // Filter out embedded images using the same logic as backend
                     const realAttachments = attachments.filter(att => !isEmbeddedImage(att));
                     if (realAttachments.length === 0) return '';
-                    
+
                     return `
                 <div class="email-attachments">
                     <div class="attachments-header" style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb;">
@@ -2959,15 +2996,15 @@
                     
                     <div class="attachment-list">
                         ${realAttachments.map(att => {
-                            const filename = att.filename || att.name || 'Attachment';
-                            const size = att.size || att.file_size || 0;
-                            const contentType = att.content_type || 'application/octet-stream';
-                            const docId = att.document_id || att.attachment_id || att.id;
-                            const icon = getFileIcon(contentType, filename);
-                            const ext = filename.split('.').pop()?.toLowerCase() || '';
-                            const isPreviewable = ['jpg','jpeg','png','gif','webp','bmp','pdf','txt','html','htm','xml','json','csv'].includes(ext) || 
-                                                  contentType.startsWith('image/') || contentType === 'application/pdf' || contentType.startsWith('text/');
-                            return `
+                        const filename = att.filename || att.name || 'Attachment';
+                        const size = att.size || att.file_size || 0;
+                        const contentType = att.content_type || 'application/octet-stream';
+                        const docId = att.document_id || att.attachment_id || att.id;
+                        const icon = getFileIcon(contentType, filename);
+                        const ext = filename.split('.').pop()?.toLowerCase() || '';
+                        const isPreviewable = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'pdf', 'txt', 'html', 'htm', 'xml', 'json', 'csv'].includes(ext) ||
+                            contentType.startsWith('image/') || contentType === 'application/pdf' || contentType.startsWith('text/');
+                        return `
                             <div class="attachment-item" style="display: flex; align-items: center; gap: 12px; padding: 10px; 
                                         background: #f8fafc; border-radius: 6px; margin-bottom: 8px; border: 1px solid #e2e8f0;">
                                 <div class="attachment-icon" style="font-size: 1.5rem; color: #64748b;">
@@ -2991,7 +3028,7 @@
                                     </button>
                             </div>
                             </div>`;
-                        }).join('')}
+                    }).join('')}
                     </div>
                 </div>`;
                 })()}
@@ -3006,7 +3043,7 @@
         function toggleAdvancedFilter() {
             const sideBar = gridApi.getSideBar();
             const filtersToolPanel = sideBar ? !sideBar : true;
-            
+
             gridApi.setSideBarVisible(filtersToolPanel);
             if (filtersToolPanel) {
                 gridApi.openToolPanel('filters');
@@ -3022,11 +3059,11 @@
                 }
                 const response = await fetch(`${API_BASE}/api/unified/${entityId}/stakeholders`);
                 const stakeholders = await response.json();
-                
+
                 // Get current filter
                 const stakeholderColumn = gridApi.getColumnDef('stakeholder');
                 const currentFilter = gridApi.getFilterInstance('stakeholder');
-                
+
                 // Create filter modal
                 const modal = document.createElement('div');
                 modal.style.cssText = `
@@ -3035,7 +3072,7 @@
                     box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1000;
                     min-width: 300px; max-width: 400px;
                 `;
-                
+
                 modal.innerHTML = `
                     <h3 style="margin-bottom: 16px;">Filter by Stakeholder</h3>
                     <div style="max-height: 300px; overflow-y: auto; margin-bottom: 16px;">
@@ -3052,19 +3089,19 @@
                         <button onclick="closeFilterModal()" style="flex: 1; padding: 8px 16px; background: #e5e7eb; color: #374151; border: none; border-radius: 6px; cursor: pointer;">Cancel</button>
                     </div>
                 `;
-                
+
                 // Add backdrop
                 const backdrop = document.createElement('div');
                 backdrop.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999;';
                 backdrop.onclick = () => closeFilterModal();
-                
+
                 document.body.appendChild(backdrop);
                 document.body.appendChild(modal);
-                
+
                 // Store modal references globally
                 window.stakeholderModal = modal;
                 window.stakeholderBackdrop = backdrop;
-                
+
             } catch (error) {
                 console.error('Error loading stakeholders:', error);
                 showNotification('Failed to load stakeholders', 'error');
@@ -3074,7 +3111,7 @@
         async function showKeywordFilter() {
             try {
                 let keywords = [];
-                
+
                 // Try to fetch keywords from API
                 const entityId = resolveEntityId();
                 if (entityId && entityId !== 'null') {
@@ -3087,7 +3124,7 @@
                         console.warn('Failed to fetch keywords from API:', apiErr);
                     }
                 }
-                
+
                 // Also collect keywords from current grid data
                 const gridKeywords = new Set();
                 gridApi.forEachNode(node => {
@@ -3096,7 +3133,7 @@
                         matched.forEach(k => gridKeywords.add(k));
                     }
                 });
-                
+
                 // Merge API keywords with grid keywords
                 const allKeywords = [...keywords];
                 gridKeywords.forEach(gk => {
@@ -3104,7 +3141,7 @@
                         allKeywords.push({ name: gk, variations: '' });
                     }
                 });
-                
+
                 // Add fallback keywords if none found
                 if (allKeywords.length === 0) {
                     allKeywords.push(
@@ -3118,7 +3155,7 @@
                         { name: 'Variation', variations: 'VO, variation order' }
                     );
                 }
-                
+
                 // Create filter modal
                 const modal = document.createElement('div');
                 modal.style.cssText = `
@@ -3127,7 +3164,7 @@
                     box-shadow: 0 10px 40px rgba(0,0,0,0.2); z-index: 1000;
                     min-width: 350px; max-width: 450px;
                 `;
-                
+
                 modal.innerHTML = `
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                         <h3 style="margin: 0; color: var(--vericase-navy);">
@@ -3162,25 +3199,25 @@
                         </button>
                     </div>
                 `;
-                
+
                 // Add backdrop
                 const backdrop = document.createElement('div');
                 backdrop.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999;';
                 backdrop.onclick = () => closeFilterModal();
-                
+
                 document.body.appendChild(backdrop);
                 document.body.appendChild(modal);
-                
+
                 // Store modal references globally
                 window.keywordModal = modal;
                 window.keywordBackdrop = backdrop;
-                
+
             } catch (error) {
                 console.error('Error loading keywords:', error);
                 showNotification('Failed to load keywords: ' + error.message, 'error');
             }
         }
-        
+
         function filterKeywordList(searchTerm) {
             const items = document.querySelectorAll('.keyword-item');
             const term = searchTerm.toLowerCase();
@@ -3193,7 +3230,7 @@
         function applyStakeholderFilter() {
             const modal = window.stakeholderModal;
             const checked = Array.from(modal.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-            
+
             if (checked.length > 0) {
                 // Apply filter to stakeholder column
                 const filterInstance = gridApi.getFilterInstance('stakeholder');
@@ -3203,32 +3240,32 @@
                 });
                 gridApi.onFilterChanged();
             }
-            
+
             closeFilterModal();
             showNotification(`Filtering by ${checked.length} stakeholder(s)`, 'success');
         }
 
         // Store active keyword filters globally
         window.activeKeywordFilters = [];
-        
+
         function applyKeywordFilter() {
             const modal = window.keywordModal;
             const checked = Array.from(modal.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-            
+
             // Store the selected keywords for external filter
             window.activeKeywordFilters = checked;
-            
+
             if (checked.length > 0) {
                 // Use external filter for more flexible matching
                 gridApi.setGridOption('isExternalFilterPresent', () => window.activeKeywordFilters.length > 0);
                 gridApi.setGridOption('doesExternalFilterPass', (node) => {
                     if (window.activeKeywordFilters.length === 0) return true;
-                    
+
                     const matchedKeywords = node.data.matched_keywords || [];
                     const keywordsStr = node.data.keywords || '';
                     const bodyText = (node.data.body_text || '').toLowerCase();
                     const subject = (node.data.subject || node.data.email_subject || '').toLowerCase();
-                    
+
                     // Check if any selected keyword matches
                     return window.activeKeywordFilters.some(keyword => {
                         const kw = keyword.toLowerCase();
@@ -3249,7 +3286,7 @@
                 });
                 gridApi.onFilterChanged();
             }
-            
+
             closeFilterModal();
             showNotification(`Filtering by ${checked.length} keyword(s): ${checked.join(', ')}`, 'success');
         }
@@ -3267,7 +3304,7 @@
             window.activeKeywordFilters = [];
             gridApi.setGridOption('isExternalFilterPresent', () => false);
             gridApi.onFilterChanged();
-            
+
             // Also clear the AG-Grid column filter if it exists
             try {
                 const filterInstance = gridApi.getFilterInstance('keywords');
@@ -3277,7 +3314,7 @@
             } catch (e) {
                 // Ignore if filter doesn't exist
             }
-            
+
             closeFilterModal();
             showNotification('Keyword filter cleared', 'info');
         }
@@ -3303,15 +3340,15 @@
 
         function setViewMode(mode) {
             currentViewMode = mode;
-            
+
             // Update button states
             document.querySelectorAll('.btn-group .btn').forEach(btn => {
                 btn.classList.remove('active');
             });
             event.target.classList.add('active');
-            
+
             // Apply filters based on mode
-            switch(mode) {
+            switch (mode) {
                 case 'all':
                     gridApi.setFilterModel(null);
                     break;
@@ -3338,7 +3375,7 @@
             // Get current project/case ID from URL params
             const urlParams = new URLSearchParams(window.location.search);
             const projectId = urlParams.get('profileId') || urlParams.get('projectId');
-            
+
             // Open the new AI-powered refinement wizard
             const wizardUrl = `ai-refinement-wizard.html?projectId=${projectId}`;
             window.location.href = wizardUrl;  // Navigate to the wizard
@@ -3361,7 +3398,7 @@
         function printEmails() {
             const selectedRows = gridApi.getSelectedRows();
             const emailsToPrint = selectedRows.length > 0 ? selectedRows : allEmails;
-            
+
             const printWindow = window.open('', '_blank');
             printWindow.document.write(`
                 <html>
@@ -3431,7 +3468,7 @@
         function getFileIcon(contentType, filename) {
             const ext = (filename || '').split('.').pop()?.toLowerCase() || '';
             const type = (contentType || '').toLowerCase();
-            
+
             if (type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext)) {
                 return '<i class="fas fa-file-image" style="color: #10b981;"></i>';
             }
@@ -3469,19 +3506,19 @@
         function isEmbeddedImage(att) {
             // Trust the is_inline flag set by the PST processor
             if (att.is_inline === true) return true;
-            
+
             // Has content_id - it's inline
             if (att.content_id) return true;
-            
+
             const filename = (att.filename || att.name || '').toLowerCase();
             const contentType = (att.content_type || '').toLowerCase();
             const fileSize = att.file_size || att.size || 0;
-            
+
             // Exclude common embedded image patterns
             if (/^image\d{3}\.(png|jpg|jpeg|gif|bmp)$/.test(filename)) return true;  // image001.png
             if (/^img_?\d+\.(png|jpg|jpeg|gif|bmp)$/.test(filename)) return true;    // img_001.png
             if (filename.startsWith('cid:') || filename.startsWith('cid_')) return true;
-            
+
             // Exclude signature/logo images
             const excludedKeywords = ['signature', 'logo', 'banner', 'header', 'footer', 'badge', 'icon'];
             for (const keyword of excludedKeywords) {
@@ -3489,16 +3526,16 @@
                     return true;
                 }
             }
-            
+
             // Exclude tracking pixels and spacers
             const trackingFiles = ['blank.gif', 'spacer.gif', 'pixel.gif', '1x1.gif', 'oledata.mso'];
             if (trackingFiles.includes(filename)) return true;
-            
+
             // Very small images (< 20KB) with image content type are likely embedded icons/logos
             if (contentType.includes('image') && fileSize > 0 && fileSize < 20000) {
                 return true;
             }
-            
+
             return false;
         }
 
@@ -3515,23 +3552,23 @@
             if (!htmlContent || !attachments || attachments.length === 0) {
                 return htmlContent;
             }
-            
+
             // Find all CID references in the HTML
             // Format: cid:filename@contentid or just cid:contentid
             const cidPattern = /cid:([^"'\s>]+)/gi;
             const cidMatches = [...htmlContent.matchAll(cidPattern)];
-            
+
             if (cidMatches.length === 0) {
                 return htmlContent;
             }
-            
+
             console.log('[CID] Found', cidMatches.length, 'CID references to resolve');
-            
+
             // Build a map of content_id to attachment
             // Also map by filename since some CID refs use filename
             const cidMap = new Map();
             const inlineAttachments = attachments.filter(att => att.is_inline || att.content_id);
-            
+
             for (const att of inlineAttachments) {
                 const attId = att.document_id || att.attachment_id || att.id;
                 if (att.content_id) {
@@ -3547,18 +3584,18 @@
                     cidMap.set(att.filename.toLowerCase(), { att, attId });
                 }
             }
-            
+
             // Fetch signed URLs for matched CIDs
             const urlCache = new Map();
             let resolvedHtml = htmlContent;
-            
+
             for (const match of cidMatches) {
                 const fullCid = match[1]; // The captured CID reference
                 const normalizedCid = fullCid.toLowerCase();
-                
+
                 // Try to find matching attachment
                 let mappedAtt = cidMap.get(normalizedCid);
-                
+
                 // If not found, try matching just the filename part (before @)
                 if (!mappedAtt) {
                     const filenamePart = fullCid.split('@')[0];
@@ -3566,7 +3603,7 @@
                         mappedAtt = cidMap.get(filenamePart.toLowerCase());
                     }
                 }
-                
+
                 // Try partial match on filename
                 if (!mappedAtt) {
                     for (const [key, value] of cidMap.entries()) {
@@ -3576,10 +3613,10 @@
                         }
                     }
                 }
-                
+
                 if (mappedAtt) {
                     const { attId } = mappedAtt;
-                    
+
                     // Check cache first
                     if (!urlCache.has(attId)) {
                         try {
@@ -3596,7 +3633,7 @@
                             urlCache.set(attId, null);
                         }
                     }
-                    
+
                     const signedUrl = urlCache.get(attId);
                     if (signedUrl) {
                         // Replace the CID reference with the actual URL
@@ -3608,7 +3645,7 @@
                     console.log('[CID] No matching attachment found for:', fullCid);
                 }
             }
-            
+
             return resolvedHtml;
         }
 
@@ -3617,28 +3654,28 @@
             const previewArea = document.getElementById('inlinePreviewArea');
             const previewTitle = document.getElementById('inlinePreviewTitle');
             const previewContent = document.getElementById('inlinePreviewContent');
-            
+
             if (!previewArea || !previewContent) {
                 console.error('Inline preview elements not found');
                 // Fall back to modal preview
                 await previewAttachment(null, docId, filename);
                 return;
             }
-            
+
             previewArea.style.display = 'block';
             previewTitle.textContent = filename;
             previewContent.innerHTML = '<div style="text-align: center; padding: 40px;"><div class="spinner"></div><p style="margin-top: 16px; color: #64748b;">Loading preview...</p></div>';
-            
+
             try {
                 const fileData = await getSignedUrlForDocument(docId);
                 const { url, content_type } = fileData;
                 const ext = (filename || '').split('.').pop()?.toLowerCase() || '';
                 const type = (content_type || contentType || '').toLowerCase();
-                
-                const isImage = type.startsWith('image/') || ['jpg','jpeg','png','gif','webp','bmp','svg'].includes(ext);
+
+                const isImage = type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext);
                 const isPdf = type === 'application/pdf' || ext === 'pdf';
-                const isText = type.startsWith('text/') || ['txt','html','htm','xml','json','csv','log','md'].includes(ext);
-                
+                const isText = type.startsWith('text/') || ['txt', 'html', 'htm', 'xml', 'json', 'csv', 'log', 'md'].includes(ext);
+
                 if (isImage) {
                     previewContent.innerHTML = `
                         <div style="display: flex; align-items: center; justify-content: center; padding: 20px; background: #f8fafc;">
@@ -3711,7 +3748,7 @@
                     </div>`;
             }
         }
-        
+
         function closeInlinePreview() {
             const previewArea = document.getElementById('inlinePreviewArea');
             if (previewArea) {
@@ -3722,13 +3759,13 @@
         async function previewOrDownloadAttachment(docId, filename, contentType) {
             const ext = (filename || '').split('.').pop()?.toLowerCase() || '';
             const type = (contentType || '').toLowerCase();
-            
+
             // Previewable types
-            const previewable = 
-                type.startsWith('image/') || 
+            const previewable =
+                type.startsWith('image/') ||
                 type === 'application/pdf' ||
                 ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'pdf'].includes(ext);
-            
+
             if (previewable) {
                 await previewAttachment(null, docId, filename);
             } else {
@@ -3746,7 +3783,7 @@
             if (resp.ok) {
                 return resp.json(); // { url, filename, content_type }
             }
-            
+
             // Fall back to documents endpoint (for uploaded documents)
             resp = await fetch(`${API_BASE}/documents/${documentId}/signed_url`);
             if (!resp.ok) throw new Error('Failed to get signed URL');
@@ -3757,13 +3794,13 @@
         }
 
         // Function to copy OCR text to clipboard
-        window.copyOCRText = async function() {
+        window.copyOCRText = async function () {
             const ocrTextElement = document.getElementById('ocrTextContent');
             if (!ocrTextElement) return;
-            
+
             // Get text without HTML tags
             const text = ocrTextElement.innerText || ocrTextElement.textContent;
-            
+
             try {
                 await navigator.clipboard.writeText(text);
                 // Show success feedback
@@ -3782,40 +3819,40 @@
         };
 
         // Function to preview attachment (accepts legacy args but uses document signed URL)
-        window.previewAttachment = async function(evidenceId, attachmentId, fileName) {
+        window.previewAttachment = async function (evidenceId, attachmentId, fileName) {
             const modal = document.getElementById('attachmentPreviewModal');
             const previewContent = document.getElementById('previewContent');
             const previewTitle = document.getElementById('previewTitle');
-            
+
             // Derive a documentId from legacy args (most data passes document_id as attachmentId)
             const documentId = looksLikeUuid(attachmentId) ? attachmentId : evidenceId;
 
             // Store current info
             currentAttachment = { evidenceId: documentId, attachmentId: documentId, fileName };
-            
+
             // Show modal
             modal.style.display = 'flex';
             previewTitle.textContent = `Preview: ${fileName}`;
             previewContent.innerHTML = '<div style="text-align: center; padding: 50px;"><div class="spinner"></div><p style="margin-top: 20px; color: #6b7280;">Loading preview and OCR text...</p></div>';
-            
+
             try {
                 // Load both the file URL and OCR text in parallel
                 const [fileData, ocrData] = await Promise.all([
                     getSignedUrlForDocument(documentId),
                     fetch(`${API_BASE}/api/correspondence/attachments/${documentId}/ocr-text`).then(r => r.ok ? r.json() : null).catch(() => null)
                 ]);
-                
+
                 const { url, content_type } = fileData;
                 const lowerName = (fileName || '').toLowerCase();
                 const isImage = /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/.test(lowerName) || (content_type || '').startsWith('image/');
                 const isPdf = /\.pdf$/.test(lowerName) || content_type === 'application/pdf';
-                
+
                 // Build preview HTML with OCR panel
                 let previewHTML = '<div style="display: flex; height: 100%; gap: 20px;">';
-                
+
                 // Left panel: Document preview (2/3 width)
                 previewHTML += '<div style="flex: 2; display: flex; flex-direction: column; min-width: 0;">';
-                
+
                 if (isImage) {
                     previewHTML += `
                         <div style="flex: 1; display: flex; align-items: center; justify-content: center; background: #f3f4f6; border-radius: 8px; overflow: hidden;">
@@ -3845,15 +3882,15 @@
                             </button>
                         </div>`;
                 }
-                
+
                 previewHTML += '</div>';
-                
+
                 // Right panel: OCR Text (1/3 width, if available)
                 if (ocrData && (ocrData.extracted_text || ocrData.ocr_status === 'processing')) {
                     previewHTML += '<div style="flex: 1; display: flex; flex-direction: column; border-left: 2px solid #e5e7eb; padding-left: 20px; min-width: 0;">';
                     previewHTML += '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 10px;">';
                     previewHTML += '<h4 style="margin: 0; color: #1f2937; font-size: 0.95rem; flex: 1;"><i class="fas fa-scroll" style="color: #17B5A3;"></i> OCR Extracted Text</h4>';
-                    
+
                     if (ocrData.extracted_text) {
                         previewHTML += `
                             <button onclick="copyOCRText()" title="Copy text to clipboard"
@@ -3863,7 +3900,7 @@
                             </button>`;
                     }
                     previewHTML += '</div>';
-                    
+
                     if (ocrData.ocr_status === 'processing') {
                         previewHTML += `
                             <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fef3c7; border-radius: 8px; padding: 20px;">
@@ -3874,7 +3911,7 @@
                     } else if (ocrData.extracted_text) {
                         // Highlight keywords in OCR text
                         let highlightedText = ocrData.extracted_text;
-                        
+
                         // Get keywords from current case/project (if available)
                         try {
                             const entityId = resolveEntityId();
@@ -3890,7 +3927,7 @@
                                             // Escape special regex characters
                                             const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                                             const regex = new RegExp(`(\\b${escapedKeyword}\\b)`, 'gi');
-                                            highlightedText = highlightedText.replace(regex, 
+                                            highlightedText = highlightedText.replace(regex,
                                                 '<mark style="background: #fef08a; padding: 2px 4px; border-radius: 2px; font-weight: 600;">$1</mark>'
                                             );
                                         }
@@ -3900,7 +3937,7 @@
                         } catch (e) {
                             console.warn('Could not load keywords for highlighting:', e);
                         }
-                        
+
                         // Escape HTML but preserve our <mark> tags
                         const textToDisplay = highlightedText
                             .replace(/<mark/g, '__MARK_OPEN__')
@@ -3910,7 +3947,7 @@
                             .replace(/>/g, '&gt;')
                             .replace(/__MARK_OPEN__/g, '<mark')
                             .replace(/__MARK_CLOSE__/g, '</mark>');
-                        
+
                         previewHTML += `
                             <div id="ocrTextContent" style="flex: 1; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; overflow-y: auto; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 0.875rem; line-height: 1.7; color: #374151; white-space: pre-wrap; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
                                 ${textToDisplay}
@@ -3922,13 +3959,13 @@
                                 </div>
                             </div>`;
                     }
-                    
+
                     previewHTML += '</div>';
                 }
-                
+
                 previewHTML += '</div>';
                 previewContent.innerHTML = previewHTML;
-                
+
             } catch (error) {
                 console.error('Error loading preview:', error);
                 previewContent.innerHTML = `
@@ -3947,14 +3984,14 @@
         };
 
         // Function to close attachment preview
-        window.closeAttachmentPreview = function() {
+        window.closeAttachmentPreview = function () {
             const modal = document.getElementById('attachmentPreviewModal');
             modal.style.display = 'none';
             currentAttachment = null;
         };
 
         // Function to download attachment using a signed URL
-        window.downloadAttachment = async function(evidenceId, attachmentId, fileName) {
+        window.downloadAttachment = async function (evidenceId, attachmentId, fileName) {
             const documentId = looksLikeUuid(attachmentId) ? attachmentId : evidenceId;
             try {
                 const { url } = await getSignedUrlForDocument(documentId);
@@ -3972,14 +4009,14 @@
         };
 
         // Function to download current attachment from preview
-        window.downloadCurrentAttachment = function() {
+        window.downloadCurrentAttachment = function () {
             if (currentAttachment) {
                 downloadAttachment(currentAttachment.evidenceId, currentAttachment.attachmentId, currentAttachment.fileName);
             }
         };
 
         // Close modal on Escape key
-        document.addEventListener('keydown', function(e) {
+        document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {
                 closeAttachmentPreview();
             }
@@ -3996,17 +4033,17 @@
          * Link an email to a programme activity
          * Opens a modal to select from uploaded Asta programme activities
          */
-        window.linkActivityToEmail = async function(emailId) {
+        window.linkActivityToEmail = async function (emailId) {
             try {
                 // Fetch available programme activities from uploaded Asta programme files
                 const response = await fetch(`${API_BASE}/api/cases/${caseId}/programme/activities`);
-                
+
                 if (!response.ok) {
                     throw new Error('Failed to load programme activities');
                 }
-                
+
                 const activities = await response.json();
-                
+
                 // Create modal with activity selector
                 const modal = document.createElement('div');
                 modal.style.cssText = `
@@ -4014,7 +4051,7 @@
                     background: rgba(0,0,0,0.7); display: flex; align-items: center;
                     justify-content: center; z-index: 10000;
                 `;
-                
+
                 modal.innerHTML = `
                     <div style="background: white; border-radius: 12px; padding: 30px; 
                               max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
@@ -4071,9 +4108,9 @@
                         </div>
                     </div>
                 `;
-                
+
                 document.body.appendChild(modal);
-                
+
             } catch (error) {
                 console.error('Error loading activities:', error);
                 alert('Failed to load programme activities. Make sure you have uploaded a baseline programme.');
@@ -4083,14 +4120,14 @@
         /**
          * Filter activities list based on search input
          */
-        window.filterActivitiesList = function(searchTerm) {
+        window.filterActivitiesList = function (searchTerm) {
             const items = document.querySelectorAll('.activity-item');
             const lowerSearch = searchTerm.toLowerCase();
-            
+
             items.forEach(item => {
                 const name = item.dataset.activityName.toLowerCase();
                 const id = item.dataset.activityId.toLowerCase();
-                
+
                 if (name.includes(lowerSearch) || id.includes(lowerSearch)) {
                     item.style.display = 'block';
                 } else {
@@ -4102,7 +4139,7 @@
         /**
          * Select an activity and link it to the email
          */
-        window.selectActivity = async function(emailId, activityId, activityName) {
+        window.selectActivity = async function (emailId, activityId, activityName) {
             try {
                 // Save the link in the database
                 await fetch(`${API_BASE}/api/cases/${caseId}/evidence/${emailId}/link-activity`, {
@@ -4116,16 +4153,16 @@
                         activity_name: activityName
                     })
                 });
-                
+
                 // Close modal
                 document.querySelector('div[style*="position: fixed"]').remove();
-                
+
                 // Refresh the grid to show the linked activity
                 refreshData();
-                
+
                 // Show success message
                 showNotification(`Email linked to activity: ${activityName}`, 'success');
-                
+
             } catch (error) {
                 console.error('Error linking activity:', error);
                 alert('Failed to link activity to email');
@@ -4136,10 +4173,10 @@
          * View detailed programme analysis for an email
          * Shows baseline vs actual progress at the email's date
          */
-        window.viewProgrammeAnalysis = async function(emailId, activityId) {
+        window.viewProgrammeAnalysis = async function (emailId, activityId) {
             try {
                 showLoading(true, 'Loading programme analysis...');
-                
+
                 // Fetch programme analysis data
                 const response = await fetch(
                     `${API_BASE}/api/cases/${caseId}/evidence/${emailId}/programme-analysis?activity=${activityId}`,
@@ -4149,13 +4186,13 @@
                         }
                     }
                 );
-                
+
                 if (!response.ok) {
                     throw new Error('Failed to load programme analysis');
                 }
-                
+
                 const analysis = await response.json();
-                
+
                 // Create modal with detailed programme analysis
                 const modal = document.createElement('div');
                 modal.style.cssText = `
@@ -4163,11 +4200,11 @@
                     background: rgba(0,0,0,0.8); display: flex; align-items: center;
                     justify-content: center; z-index: 10000; overflow-y: auto; padding: 20px;
                 `;
-                
+
                 const emailDate = new Date(analysis.email_date);
                 const variance = analysis.variance_days || 0;
                 const isDelayed = variance < 0;
-                
+
                 modal.innerHTML = `
                     <div style="background: white; border-radius: 16px; padding: 40px; 
                               max-width: 1000px; width: 100%; max-height: 90vh; overflow-y: auto;">
@@ -4323,9 +4360,9 @@
                         </div>
                     </div>
                 `;
-                
+
                 document.body.appendChild(modal);
-                
+
             } catch (error) {
                 console.error('Error loading programme analysis:', error);
                 alert('Failed to load programme analysis. Make sure you have uploaded both baseline and as-built programmes.');
@@ -4337,10 +4374,10 @@
         /**
          * Export programme analysis as PDF report
          */
-        window.exportProgrammeAnalysis = async function(emailId, activityId) {
+        window.exportProgrammeAnalysis = async function (emailId, activityId) {
             try {
                 showLoading(true, 'Generating report...');
-                
+
                 const response = await fetch(
                     `${API_BASE}/api/cases/${caseId}/evidence/${emailId}/programme-report?activity=${activityId}&format=pdf`,
                     {
@@ -4349,11 +4386,11 @@
                         }
                     }
                 );
-                
+
                 if (!response.ok) {
                     throw new Error('Failed to generate report');
                 }
-                
+
                 // Download the PDF
                 const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
@@ -4364,9 +4401,9 @@
                 a.click();
                 document.body.removeChild(a);
                 window.URL.revokeObjectURL(url);
-                
+
                 showNotification('Report downloaded successfully', 'success');
-                
+
             } catch (error) {
                 console.error('Error exporting report:', error);
                 alert('Failed to export report');
@@ -4406,15 +4443,15 @@
                 const entityId = resolveEntityId();
                 const params = new URLSearchParams();
                 if (entityId) params.set('project_id', entityId);
-                
+
                 const [mattersRes, claimsRes] = await Promise.all([
                     fetch(`${API_BASE}/api/claims/matters?${params.toString()}`),
                     fetch(`${API_BASE}/api/claims/heads-of-claim?${params.toString()}`)
                 ]);
-                
+
                 const matters = (await mattersRes.json()).items || [];
                 const claims = (await claimsRes.json()).items || [];
-                
+
                 const modal = document.createElement('div');
                 modal.id = 'linkClaimModal';
                 modal.style.cssText = `
@@ -4422,7 +4459,7 @@
                     background: rgba(0,0,0,0.5); z-index: 10000;
                     display: flex; align-items: center; justify-content: center;
                 `;
-                
+
                 modal.innerHTML = `
                     <div style="background: white; border-radius: 12px; width: 500px; max-height: 80vh; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.2);">
                         <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
@@ -4449,7 +4486,7 @@
                                 </label>
                                 <div style="max-height: 150px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.5rem;">
                                     ${matters.length === 0 ? '<p style="color: #6b7280; font-size: 0.875rem;">No matters available</p>' :
-                                      matters.map(m => `
+                        matters.map(m => `
                                         <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; cursor: pointer; border-radius: 4px;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">
                                             <input type="radio" name="linkTarget" value="matter:${m.id}">
                                             <span>${m.name}</span>
@@ -4464,7 +4501,7 @@
                                 </label>
                                 <div style="max-height: 150px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.5rem;">
                                     ${claims.length === 0 ? '<p style="color: #6b7280; font-size: 0.875rem;">No claims available</p>' :
-                                      claims.map(c => `
+                        claims.map(c => `
                                         <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; cursor: pointer; border-radius: 4px;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">
                                             <input type="radio" name="linkTarget" value="claim:${c.id}">
                                             <span>${c.reference_number ? c.reference_number + ' - ' : ''}${c.name}</span>
@@ -4486,9 +4523,9 @@
                         </div>
                     </div>
                 `;
-                
+
                 document.body.appendChild(modal);
-                
+
             } catch (error) {
                 console.error('Error loading matters/claims:', error);
                 showNotification('Failed to load matters and claims', 'error');
@@ -4504,11 +4541,11 @@
                 showNotification('Please select a matter or claim', 'error');
                 return;
             }
-            
+
             const [type, targetId] = selected.value.split(':');
             const linkType = document.getElementById('linkType').value;
             const notes = document.getElementById('linkNotes').value.trim();
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/claims/links`, {
                     method: 'POST',
@@ -4522,18 +4559,18 @@
                         notes: notes || null
                     })
                 });
-                
+
                 if (!response.ok) {
                     const err = await response.json();
                     throw new Error(err.detail || 'Failed to create link');
                 }
-                
+
                 document.getElementById('linkClaimModal').remove();
                 showNotification('Email linked successfully', 'success');
-                
+
                 // Refresh grid to show updated links
                 refreshData();
-                
+
             } catch (error) {
                 console.error('Error creating link:', error);
                 showNotification(error.message, 'error');
@@ -4551,7 +4588,7 @@
                 info: { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af' }
             };
             const color = colors[type] || colors.info;
-            
+
             notification.style.cssText = `
                 position: fixed; top: 20px; right: 20px; z-index: 10001;
                 background: ${color.bg}; border-left: 4px solid ${color.border};
@@ -4560,9 +4597,9 @@
                 animation: slideIn 0.3s ease-out;
             `;
             notification.textContent = message;
-            
+
             document.body.appendChild(notification);
-            
+
             setTimeout(() => {
                 notification.style.animation = 'slideOut 0.3s ease-in';
                 setTimeout(() => notification.remove(), 300);
@@ -4572,13 +4609,13 @@
         // ==================== END PROGRAMME ANALYSIS FUNCTIONS ====================
 
         // ==================== AI CHAT FUNCTIONS ====================
-        
+
         // Note: projectId and caseId are already declared at the top of the script
 
         /**
          * Toggle AI Chat Interface
          */
-        window.toggleAIChat = function() {
+        window.toggleAIChat = function () {
             const container = document.getElementById('aiChatContainer');
             if (container.style.display === 'none') {
                 container.style.display = 'block';
@@ -4598,14 +4635,14 @@
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
-                
+
                 if (response.ok) {
                     const data = await response.json();
                     const statusDiv = document.getElementById('aiModelsStatus');
-                    
+
                     const available = Object.values(data.models).filter(m => m.available).length;
                     const total = Object.keys(data.models).length;
-                    
+
                     statusDiv.innerHTML = `<i class="fas fa-circle" style="color: ${available > 0 ? '#10B981' : '#EF4444'};"></i> ${available}/${total} AI models ready`;
                 }
             } catch (error) {
@@ -4616,27 +4653,27 @@
         /**
          * Quick AI Search (3-5 seconds)
          */
-        window.aiQuickSearch = async function() {
+        window.aiQuickSearch = async function () {
             const query = document.getElementById('aiQuery').value.trim();
             if (!query) {
                 showNotification('Please enter a question', 'error');
                 return;
             }
-            
+
             const quickBtn = document.getElementById('quickSearchBtn');
             const deepBtn = document.getElementById('deepResearchBtn');
             const progressDiv = document.getElementById('researchProgress');
             const responseDiv = document.getElementById('aiResponse');
-            
+
             // Ensure we have a project ID
             const effectiveProjectId = projectId || resolveEntityId();
             if (!effectiveProjectId) {
                 showNotification('No project selected. Please select a project first.', 'error');
                 return;
             }
-            
+
             console.log('[AI] Quick search for project:', effectiveProjectId);
-            
+
             // Show progress
             quickBtn.disabled = true;
             deepBtn.disabled = true;
@@ -4645,10 +4682,10 @@
             responseDiv.style.display = 'none';
             document.getElementById('progressTitle').textContent = 'Quick Search...';
             document.getElementById('progressStatus').textContent = 'Analyzing evidence with AI...';
-            
+
             try {
                 console.log('[AI] Sending request to:', `${API_BASE}/api/ai-chat/query`);
-                
+
                 const response = await fetch(`${API_BASE}/api/ai-chat/query`, {
                     method: 'POST',
                     headers: {
@@ -4663,9 +4700,9 @@
                         case_id: caseId || null
                     })
                 });
-                
+
                 console.log('[AI] Response status:', response.status);
-                
+
                 if (!response.ok) {
                     const errorText = await response.text();
                     let errorMsg = 'Search failed';
@@ -4677,14 +4714,14 @@
                     }
                     throw new Error(errorMsg);
                 }
-                
+
                 const data = await response.json();
                 console.log('[AI] Response data:', data);
                 displayAIResponse(data);
-                
+
             } catch (error) {
                 console.error('[AI] Quick search error:', error);
-                
+
                 // Show error in the response area
                 responseDiv.style.display = 'block';
                 responseDiv.innerHTML = `
@@ -4714,29 +4751,29 @@
         /**
          * Deep AI Research (30-60 seconds)
          */
-        window.aiDeepResearch = async function() {
+        window.aiDeepResearch = async function () {
             const query = document.getElementById('aiQuery').value.trim();
             if (!query) {
                 showNotification('Please enter a question', 'error');
                 return;
             }
-            
+
             const quickBtn = document.getElementById('quickSearchBtn');
             const deepBtn = document.getElementById('deepResearchBtn');
             const progressDiv = document.getElementById('researchProgress');
             const responseDiv = document.getElementById('aiResponse');
             const planDiv = document.getElementById('researchPlan');
             const modelProgressDiv = document.getElementById('modelProgress');
-            
+
             // Ensure we have a project ID
             const effectiveProjectId = projectId || resolveEntityId();
             if (!effectiveProjectId) {
                 showNotification('No project selected. Please select a project first.', 'error');
                 return;
             }
-            
+
             console.log('[AI] Deep research for project:', effectiveProjectId);
-            
+
             // Show progress
             quickBtn.disabled = true;
             deepBtn.disabled = true;
@@ -4747,10 +4784,10 @@
             document.getElementById('progressStatus').textContent = 'Creating research plan with multiple AI models...';
             planDiv.style.display = 'none';
             modelProgressDiv.style.display = 'none';
-            
+
             try {
                 console.log('[AI] Sending deep research request');
-                
+
                 const response = await fetch(`${API_BASE}/api/ai-chat/query`, {
                     method: 'POST',
                     headers: {
@@ -4765,9 +4802,9 @@
                         case_id: caseId || null
                     })
                 });
-                
+
                 console.log('[AI] Deep research response status:', response.status);
-                
+
                 if (!response.ok) {
                     const errorText = await response.text();
                     let errorMsg = 'Research failed';
@@ -4779,10 +4816,10 @@
                     }
                     throw new Error(errorMsg);
                 }
-                
+
                 const data = await response.json();
                 console.log('[AI] Deep research data:', data);
-                
+
                 // Show plan
                 if (data.plan) {
                     planDiv.style.display = 'block';
@@ -4795,7 +4832,7 @@
                         </div>
                     `;
                 }
-                
+
                 // Show model progress
                 document.getElementById('progressStatus').textContent = 'Analyzing with multiple AI models...';
                 modelProgressDiv.style.display = 'block';
@@ -4813,13 +4850,13 @@
                         `).join('')}
                     </div>
                 `;
-                
+
                 // Display response
                 displayAIResponse(data);
-                
+
             } catch (error) {
                 console.error('[AI] Deep research error:', error);
-                
+
                 // Show error in the response area
                 responseDiv.style.display = 'block';
                 responseDiv.innerHTML = `
@@ -4853,7 +4890,7 @@
         function displayAIResponse(data) {
             const responseDiv = document.getElementById('aiResponse');
             responseDiv.style.display = 'block';
-            
+
             let html = `
                 <div style="margin-bottom: 1.5rem;">
                     <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
@@ -4873,7 +4910,7 @@
                     </div>
                 </div>
             `;
-            
+
             // Add key findings
             if (data.key_findings && data.key_findings.length > 0) {
                 html += `
@@ -4887,7 +4924,7 @@
                     </div>
                 `;
             }
-            
+
             // Add sources
             if (data.sources && data.sources.length > 0) {
                 html += `
@@ -4908,7 +4945,7 @@
                     </div>
                 `;
             }
-            
+
             responseDiv.innerHTML = html;
             responseDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
@@ -4918,7 +4955,7 @@
          */
         function formatMarkdown(text) {
             if (!text) return '';
-            
+
             // Convert markdown to HTML
             return text
                 .replace(/### (.*?)$/gm, '<h4 style="font-size: 1.125rem; font-weight: 700; color: var(--vericase-navy); margin: 1.5rem 0 0.75rem 0;">$1</h4>')
@@ -4953,7 +4990,7 @@
             const panel = document.getElementById('contextPanel');
             const icon = document.getElementById('contextToggleIcon');
             contextPanelCollapsed = !contextPanelCollapsed;
-            
+
             if (contextPanelCollapsed) {
                 panel.classList.add('collapsed');
                 icon.classList.remove('fa-chevron-right');
@@ -4971,7 +5008,7 @@
         function toggleContextSection(sectionId) {
             const header = document.querySelector(`#${sectionId}Section .context-section-header`);
             const body = document.getElementById(`${sectionId}Body`);
-            
+
             if (body.classList.contains('collapsed')) {
                 body.classList.remove('collapsed');
                 header.classList.remove('collapsed');
@@ -4987,13 +5024,13 @@
         function updateContextPanelSelection() {
             const selectedRows = gridApi.getSelectedRows();
             const count = selectedRows.length;
-            
+
             // Update count badge
             document.getElementById('contextSelectedCount').textContent = count;
-            
+
             // Update selected emails preview
             const previewDiv = document.getElementById('selectedEmailsPreview');
-            
+
             if (count === 0) {
                 previewDiv.innerHTML = `
                     <div class="context-empty-state">
@@ -5026,12 +5063,12 @@
                     </div>
                 `;
             }
-            
+
             // Update link button state
             const linkBtn = document.getElementById('linkSelectedBtn');
             const targetSelect = document.getElementById('linkTargetSelect');
             linkBtn.disabled = count === 0 || !targetSelect.value;
-            
+
             // Update AI suggestions if emails selected
             if (count > 0) {
                 updateAISuggestions(selectedRows);
@@ -5053,10 +5090,10 @@
                 .filter(e => e.date_sent)
                 .map(e => new Date(e.date_sent))
                 .sort((a, b) => a - b);
-            
+
             if (dates.length === 0) return 'Unknown';
             if (dates.length === 1) return dates[0].toLocaleDateString();
-            
+
             return `${dates[0].toLocaleDateString()} - ${dates[dates.length - 1].toLocaleDateString()}`;
         }
 
@@ -5067,17 +5104,17 @@
             try {
                 const params = new URLSearchParams();
                 if (projectId) params.set('project_id', projectId);
-                
+
                 const [mattersRes, claimsRes] = await Promise.all([
                     fetch(`${API_BASE}/api/claims/matters?${params.toString()}`),
                     fetch(`${API_BASE}/api/claims/heads-of-claim?${params.toString()}`)
                 ]);
-                
+
                 if (mattersRes.ok) {
                     const data = await mattersRes.json();
                     cachedMatters = data.items || [];
                 }
-                
+
                 if (claimsRes.ok) {
                     const data = await claimsRes.json();
                     cachedClaims = data.items || [];
@@ -5094,15 +5131,15 @@
             const typeSelect = document.getElementById('linkTypeSelect');
             const targetSelect = document.getElementById('linkTargetSelect');
             const type = typeSelect.value;
-            
+
             if (!type) {
                 targetSelect.style.display = 'none';
                 return;
             }
-            
+
             targetSelect.style.display = 'block';
             targetSelect.innerHTML = '<option value="">Select target...</option>';
-            
+
             const items = type === 'matter' ? cachedMatters : cachedClaims;
             items.forEach(item => {
                 const option = document.createElement('option');
@@ -5110,10 +5147,10 @@
                 option.textContent = item.name;
                 targetSelect.appendChild(option);
             });
-            
+
             // Update link button state
             document.getElementById('linkSelectedBtn').disabled = true;
-            
+
             // Add change listener for target select
             targetSelect.onchange = () => {
                 const selectedRows = gridApi.getSelectedRows();
@@ -5130,24 +5167,24 @@
                 showNotification('Please select emails to link', 'error');
                 return;
             }
-            
+
             const typeSelect = document.getElementById('linkTypeSelect');
             const targetSelect = document.getElementById('linkTargetSelect');
             const type = typeSelect.value;
             const targetId = targetSelect.value;
-            
+
             if (!type || !targetId) {
                 showNotification('Please select a matter or claim', 'error');
                 return;
             }
-            
+
             const linkBtn = document.getElementById('linkSelectedBtn');
             linkBtn.disabled = true;
             linkBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Linking...';
-            
+
             try {
                 // Create links for all selected emails
-                const promises = selectedRows.map(email => 
+                const promises = selectedRows.map(email =>
                     fetch(`${API_BASE}/api/claims/links`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -5160,17 +5197,17 @@
                         })
                     })
                 );
-                
+
                 await Promise.all(promises);
                 showNotification(`Linked ${selectedRows.length} email(s) successfully`, 'success');
-                
+
                 // Reset dropdowns
                 typeSelect.value = '';
                 targetSelect.style.display = 'none';
-                
+
                 // Refresh grid
                 refreshData();
-                
+
             } catch (error) {
                 console.error('Error linking emails:', error);
                 showNotification('Failed to link some emails', 'error');
@@ -5191,7 +5228,7 @@
                 background: rgba(0,0,0,0.5); z-index: 10000;
                 display: flex; align-items: center; justify-content: center;
             `;
-            
+
             modal.innerHTML = `
                 <div style="background: white; border-radius: 12px; width: 450px; box-shadow: 0 20px 40px rgba(0,0,0,0.2);">
                     <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
@@ -5227,7 +5264,7 @@
                     </div>
                 </div>
             `;
-            
+
             document.body.appendChild(modal);
         }
 
@@ -5238,12 +5275,12 @@
             const name = document.getElementById('newMatterName').value.trim();
             const description = document.getElementById('newMatterDesc').value.trim();
             const priority = document.getElementById('newMatterPriority').value;
-            
+
             if (!name) {
                 showNotification('Please enter a matter name', 'error');
                 return;
             }
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/claims/matters`, {
                     method: 'POST',
@@ -5255,29 +5292,29 @@
                         project_id: projectId
                     })
                 });
-                
+
                 if (!response.ok) {
                     const err = await response.json();
                     throw new Error(err.detail || 'Failed to create matter');
                 }
-                
+
                 const newMatter = await response.json();
-                
+
                 // Add to cached matters
                 cachedMatters.push(newMatter);
-                
+
                 // Close modal
                 document.getElementById('createMatterModal').remove();
-                
+
                 // Refresh dropdown if matter type is selected
                 const typeSelect = document.getElementById('linkTypeSelect');
                 if (typeSelect.value === 'matter') {
                     onLinkTypeChange();
                     document.getElementById('linkTargetSelect').value = newMatter.id;
                 }
-                
+
                 showNotification('Matter created successfully', 'success');
-                
+
             } catch (error) {
                 console.error('Error creating matter:', error);
                 showNotification(error.message, 'error');
@@ -5304,12 +5341,12 @@
          */
         function renderKeywordList() {
             const container = document.getElementById('contextKeywordList');
-            
+
             if (cachedKeywords.length === 0) {
                 container.innerHTML = '<span style="color: var(--text-muted); font-size: 0.875rem;">No keywords defined</span>';
                 return;
             }
-            
+
             container.innerHTML = cachedKeywords.map(kw => `
                 <span class="keyword-tag">
                     ${kw.keyword || kw.name || kw}
@@ -5324,9 +5361,9 @@
         async function addKeywordFromContext() {
             const input = document.getElementById('newKeywordInput');
             const keyword = input.value.trim();
-            
+
             if (!keyword) return;
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/correspondence/keywords`, {
                     method: 'POST',
@@ -5336,14 +5373,14 @@
                         project_id: projectId
                     })
                 });
-                
+
                 if (response.ok) {
                     const newKeyword = await response.json();
                     cachedKeywords.push(newKeyword);
                     renderKeywordList();
                     input.value = '';
                     showNotification('Keyword added', 'success');
-                    
+
                     // Trigger re-matching in background
                     triggerKeywordRematch();
                 }
@@ -5361,7 +5398,7 @@
                 const response = await fetch(`${API_BASE}/api/correspondence/keywords/${keywordId}`, {
                     method: 'DELETE'
                 });
-                
+
                 if (response.ok) {
                     cachedKeywords = cachedKeywords.filter(k => (k.id || k) !== keywordId);
                     renderKeywordList();
@@ -5396,12 +5433,12 @@
                 showNotification('Please select emails first', 'error');
                 return;
             }
-            
+
             // Extract common words from subjects and bodies
-            const text = selectedRows.map(e => 
+            const text = selectedRows.map(e =>
                 `${e.subject || ''} ${e.body_text_clean || e.body_text || ''}`
             ).join(' ').toLowerCase();
-            
+
             // Simple keyword extraction (could be enhanced with NLP)
             const words = text.split(/\W+/).filter(w => w.length > 4);
             const wordCounts = {};
@@ -5410,18 +5447,18 @@
                     wordCounts[w] = (wordCounts[w] || 0) + 1;
                 }
             });
-            
+
             // Get top suggestions
             const suggestions = Object.entries(wordCounts)
                 .sort((a, b) => b[1] - a[1])
                 .slice(0, 5)
                 .map(([word]) => word);
-            
+
             if (suggestions.length === 0) {
                 showNotification('No keyword suggestions found', 'info');
                 return;
             }
-            
+
             // Show suggestions modal
             const modal = document.createElement('div');
             modal.id = 'keywordSuggestionsModal';
@@ -5430,7 +5467,7 @@
                 background: rgba(0,0,0,0.5); z-index: 10000;
                 display: flex; align-items: center; justify-content: center;
             `;
-            
+
             modal.innerHTML = `
                 <div style="background: white; border-radius: 12px; width: 400px; box-shadow: 0 20px 40px rgba(0,0,0,0.2);">
                     <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #e5e7eb;">
@@ -5460,7 +5497,7 @@
                     </div>
                 </div>
             `;
-            
+
             document.body.appendChild(modal);
         }
 
@@ -5471,9 +5508,9 @@
             const modal = document.getElementById('keywordSuggestionsModal');
             const checkboxes = modal.querySelectorAll('input[type="checkbox"]:checked');
             const keywords = Array.from(checkboxes).map(cb => cb.value);
-            
+
             modal.remove();
-            
+
             for (const keyword of keywords) {
                 try {
                     const response = await fetch(`${API_BASE}/api/correspondence/keywords`, {
@@ -5484,7 +5521,7 @@
                             project_id: projectId
                         })
                     });
-                    
+
                     if (response.ok) {
                         const newKeyword = await response.json();
                         cachedKeywords.push(newKeyword);
@@ -5493,7 +5530,7 @@
                     console.error('Error adding keyword:', keyword, error);
                 }
             }
-            
+
             renderKeywordList();
             showNotification(`Added ${keywords.length} keyword(s)`, 'success');
             triggerKeywordRematch();
@@ -5519,12 +5556,12 @@
          */
         function renderStakeholderList() {
             const container = document.getElementById('contextStakeholderList');
-            
+
             if (cachedStakeholders.length === 0) {
                 container.innerHTML = '<span style="color: var(--text-muted); font-size: 0.875rem;">No stakeholders defined</span>';
                 return;
             }
-            
+
             container.innerHTML = cachedStakeholders.slice(0, 8).map(s => `
                 <span class="stakeholder-tag" title="${s.email || ''}">
                     <i class="fas fa-user"></i> ${s.name}
@@ -5537,7 +5574,7 @@
          */
         function updateAISuggestions(selectedRows) {
             const container = document.getElementById('aiSuggestionsList');
-            
+
             if (selectedRows.length === 0) {
                 container.innerHTML = `
                     <div class="context-empty-state">
@@ -5547,15 +5584,15 @@
                 `;
                 return;
             }
-            
+
             // Analyze selected emails for category suggestion
             const suggestedCategory = suggestCategoryForEmails(selectedRows);
-            
+
             // Find potential claim matches
             const potentialMatches = findPotentialClaimMatches(selectedRows);
-            
+
             let html = '';
-            
+
             if (suggestedCategory) {
                 html += `
                     <div class="suggestion-card">
@@ -5574,7 +5611,7 @@
                     </div>
                 `;
             }
-            
+
             if (potentialMatches.length > 0) {
                 html += `
                     <div class="suggestion-card" style="border-left-color: #f59e0b;">
@@ -5595,7 +5632,7 @@
                     </div>
                 `;
             }
-            
+
             if (!html) {
                 html = `
                     <div class="context-empty-state">
@@ -5604,7 +5641,7 @@
                     </div>
                 `;
             }
-            
+
             container.innerHTML = html;
         }
 
@@ -5612,10 +5649,10 @@
          * Suggest category based on email content
          */
         function suggestCategoryForEmails(emails) {
-            const text = emails.map(e => 
+            const text = emails.map(e =>
                 `${e.subject || ''} ${e.body_text_clean || e.body_text || ''}`
             ).join(' ').toLowerCase();
-            
+
             const categoryPatterns = {
                 'Variation': ['variation', 'vo ', 'change order', 'additional work', 'omission'],
                 'Delay Notice': ['delay', 'extension', 'eot', 'time extension', 'programme delay', 'delayed'],
@@ -5629,10 +5666,10 @@
                 'Quality Issue': ['quality', 'defect', 'snag', 'ncr', 'non-conformance'],
                 'Safety/H&S': ['safety', 'health', 'accident', 'incident', 'hazard', 'ppe']
             };
-            
+
             let bestMatch = null;
             let bestScore = 0;
-            
+
             for (const [category, keywords] of Object.entries(categoryPatterns)) {
                 const score = keywords.filter(kw => text.includes(kw)).length;
                 if (score > bestScore) {
@@ -5640,7 +5677,7 @@
                     bestMatch = category;
                 }
             }
-            
+
             return bestScore > 0 ? bestMatch : null;
         }
 
@@ -5649,19 +5686,19 @@
          */
         function findPotentialClaimMatches(emails) {
             if (cachedMatters.length === 0) return [];
-            
-            const text = emails.map(e => 
+
+            const text = emails.map(e =>
                 `${e.subject || ''} ${e.body_text_clean || e.body_text || ''}`
             ).join(' ').toLowerCase();
-            
+
             return cachedMatters.map(matter => {
                 const matterWords = matter.name.toLowerCase().split(/\W+/).filter(w => w.length > 3);
                 const matchCount = matterWords.filter(w => text.includes(w)).length;
                 const score = Math.round((matchCount / Math.max(matterWords.length, 1)) * 100);
                 return { ...matter, score };
             })
-            .filter(m => m.score > 20)
-            .sort((a, b) => b.score - a.score);
+                .filter(m => m.score > 20)
+                .sort((a, b) => b.score - a.score);
         }
 
         /**
@@ -5679,7 +5716,7 @@
         /**
          * Accept AI category suggestion for a single email
          */
-        window.acceptCategorySuggestion = function(emailId, category) {
+        window.acceptCategorySuggestion = function (emailId, category) {
             // Find the row by ID
             let rowNode = null;
             gridApi.forEachNode(node => {
@@ -5687,7 +5724,7 @@
                     rowNode = node;
                 }
             });
-            
+
             if (rowNode) {
                 rowNode.data.category = category;
                 gridApi.refreshCells({ rowNodes: [rowNode], force: true });
@@ -5709,16 +5746,16 @@
         /**
          * Open quick link dropdown for a single email
          */
-        window.openQuickLinkDropdown = async function(emailId, event) {
+        window.openQuickLinkDropdown = async function (emailId, event) {
             // Remove any existing dropdown
             const existing = document.getElementById('quickLinkDropdownMenu');
             if (existing) existing.remove();
-            
+
             // Load matters and claims if not cached
             if (cachedMatters.length === 0 && cachedClaims.length === 0) {
                 await loadMattersAndClaims();
             }
-            
+
             // Create dropdown menu
             const dropdown = document.createElement('div');
             dropdown.id = 'quickLinkDropdownMenu';
@@ -5732,18 +5769,18 @@
                 max-height: 400px;
                 overflow-y: auto;
             `;
-            
+
             // Position near click
             const rect = event.target.getBoundingClientRect();
             dropdown.style.left = `${rect.left}px`;
             dropdown.style.top = `${rect.bottom + 5}px`;
-            
+
             let html = `
                 <div style="padding: 0.75rem 1rem; border-bottom: 1px solid #e5e7eb; font-weight: 600; color: var(--vericase-navy);">
                     <i class="fas fa-link" style="color: var(--vericase-teal);"></i> Link to Matter/Claim
                 </div>
             `;
-            
+
             if (cachedMatters.length > 0) {
                 html += `
                     <div style="padding: 0.5rem 1rem; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">
@@ -5761,7 +5798,7 @@
                     `;
                 });
             }
-            
+
             if (cachedClaims.length > 0) {
                 html += `
                     <div style="padding: 0.5rem 1rem; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase; border-top: 1px solid #e5e7eb; margin-top: 0.25rem;">
@@ -5779,7 +5816,7 @@
                     `;
                 });
             }
-            
+
             if (cachedMatters.length === 0 && cachedClaims.length === 0) {
                 html += `
                     <div style="padding: 1.5rem; text-align: center; color: #6b7280;">
@@ -5803,10 +5840,10 @@
                     </div>
                 `;
             }
-            
+
             dropdown.innerHTML = html;
             document.body.appendChild(dropdown);
-            
+
             // Close on outside click
             setTimeout(() => {
                 document.addEventListener('click', function closeDropdown(e) {
@@ -5821,10 +5858,10 @@
         /**
          * Quick link email to a target
          */
-        window.quickLinkToTarget = async function(emailId, type, targetId) {
+        window.quickLinkToTarget = async function (emailId, type, targetId) {
             const dropdown = document.getElementById('quickLinkDropdownMenu');
             if (dropdown) dropdown.remove();
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/claims/links`, {
                     method: 'POST',
@@ -5837,15 +5874,15 @@
                         link_type: 'supporting'
                     })
                 });
-                
+
                 if (!response.ok) {
                     const err = await response.json();
                     throw new Error(err.detail || 'Failed to create link');
                 }
-                
+
                 showNotification('Email linked successfully', 'success');
                 refreshData();
-                
+
             } catch (error) {
                 console.error('Error linking email:', error);
                 showNotification(error.message, 'error');
@@ -5855,22 +5892,22 @@
         /**
          * Unlink an email from its matter/claim
          */
-        window.unlinkEmail = async function(emailId) {
+        window.unlinkEmail = async function (emailId) {
             if (!confirm('Remove this link?')) return;
-            
+
             try {
                 // Find and delete the link
                 const response = await fetch(`${API_BASE}/api/claims/links/by-item/correspondence/${emailId}`, {
                     method: 'DELETE'
                 });
-                
+
                 if (response.ok || response.status === 404) {
                     showNotification('Link removed', 'success');
                     refreshData();
                 } else {
                     throw new Error('Failed to remove link');
                 }
-                
+
             } catch (error) {
                 console.error('Error unlinking email:', error);
                 showNotification('Failed to remove link', 'error');
@@ -5886,13 +5923,13 @@
                 showNotification('Please select emails first', 'error');
                 return;
             }
-            
+
             const categories = [
                 '', 'Site Instruction', 'Variation', 'Delay Notice', 'Compensation Event',
                 'Early Warning', 'Payment', 'Meeting Minutes', 'Technical Query',
                 'Progress Update', 'Contract Document', 'Safety/H&S', 'Quality Issue', 'General'
             ];
-            
+
             const modal = document.createElement('div');
             modal.id = 'bulkCategoryModal';
             modal.style.cssText = `
@@ -5900,7 +5937,7 @@
                 background: rgba(0,0,0,0.5); z-index: 10000;
                 display: flex; align-items: center; justify-content: center;
             `;
-            
+
             modal.innerHTML = `
                 <div style="background: white; border-radius: 12px; width: 350px; box-shadow: 0 20px 40px rgba(0,0,0,0.2);">
                     <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #e5e7eb;">
@@ -5917,7 +5954,7 @@
                     </div>
                 </div>
             `;
-            
+
             document.body.appendChild(modal);
         }
 
@@ -5927,11 +5964,11 @@
         function applyBulkCategory() {
             const category = document.getElementById('bulkCategorySelect').value;
             const selectedRows = gridApi.getSelectedRows();
-            
+
             selectedRows.forEach(row => {
                 row.category = category;
             });
-            
+
             gridApi.refreshCells({ force: true });
             document.getElementById('bulkCategoryModal').remove();
             showNotification(`Applied category to ${selectedRows.length} email(s)`, 'success');
@@ -5946,7 +5983,7 @@
                 showNotification('Please select emails first', 'error');
                 return;
             }
-            
+
             const modal = document.createElement('div');
             modal.id = 'bulkKeywordsModal';
             modal.style.cssText = `
@@ -5954,7 +5991,7 @@
                 background: rgba(0,0,0,0.5); z-index: 10000;
                 display: flex; align-items: center; justify-content: center;
             `;
-            
+
             modal.innerHTML = `
                 <div style="background: white; border-radius: 12px; width: 400px; box-shadow: 0 20px 40px rgba(0,0,0,0.2);">
                     <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #e5e7eb;">
@@ -5972,7 +6009,7 @@
                     </div>
                 </div>
             `;
-            
+
             document.body.appendChild(modal);
         }
 
@@ -5983,18 +6020,18 @@
             const input = document.getElementById('bulkKeywordsInput').value;
             const keywords = input.split(',').map(k => k.trim()).filter(k => k);
             const selectedRows = gridApi.getSelectedRows();
-            
+
             if (keywords.length === 0) {
                 showNotification('Please enter at least one keyword', 'error');
                 return;
             }
-            
+
             selectedRows.forEach(row => {
                 const existing = (row.keywords || '').split(',').map(k => k.trim()).filter(k => k);
                 const combined = [...new Set([...existing, ...keywords])];
                 row.keywords = combined.join(', ');
             });
-            
+
             gridApi.refreshCells({ force: true });
             document.getElementById('bulkKeywordsModal').remove();
             showNotification(`Added ${keywords.length} keyword(s) to ${selectedRows.length} email(s)`, 'success');
@@ -6009,7 +6046,7 @@
                 showNotification('Please select emails to export', 'error');
                 return;
             }
-            
+
             // Create CSV
             const headers = ['Date', 'From', 'To', 'Subject', 'Category', 'Keywords', 'Has Attachments'];
             const rows = selectedRows.map(e => [
@@ -6021,21 +6058,21 @@
                 e.keywords || '',
                 e.has_attachments ? 'Yes' : 'No'
             ]);
-            
+
             const csv = [
                 headers.join(','),
                 ...rows.map(r => r.map(c => `"${c}"`).join(','))
             ].join('\n');
-            
+
             // Download
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `correspondence_export_${new Date().toISOString().slice(0,10)}.csv`;
+            a.download = `correspondence_export_${new Date().toISOString().slice(0, 10)}.csv`;
             a.click();
             URL.revokeObjectURL(url);
-            
+
             showNotification(`Exported ${selectedRows.length} email(s)`, 'success');
         }
 
@@ -6068,4 +6105,5 @@
         agGrid.LicenseManager.setLicenseKey("[TRIAL]_this_{AG_Charts_and_AG_Grid}_Enterprise_key_{AG-104897}_is_granted_for_evaluation_only___Use_in_production_is_not_permitted___Please_report_misuse_to_legal@ag-grid.com___For_help_with_purchasing_a_production_key_please_contact_info@ag-grid.com___You_are_granted_a_{Single_Application}_Developer_License_for_one_application_only___All_Front-End_JavaScript_developers_working_on_the_application_would_need_to_be_licensed___This_key_will_deactivate_on_{30 November 2025}____[v3]_[0102]_MTc2NDQ2MDgwMDAwMA==a97c0b249a2f0bd2a1ed2c10804b61b5");
     </script>
 </body>
+
 </html>
