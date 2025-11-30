@@ -6,11 +6,24 @@ on:
   workflow_dispatch:
 
 jobs:
-  notify:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger EC2 deployment
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+
+      - name: Deploy to EC2 via SSM
         run: |
-          echo "✅ Code pushed to main branch"
-          echo "📦 Docker image will be built automatically"
-          echo "🚀 Pull latest image on EC2 with: docker-compose pull && docker-compose up -d"
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids i-0d4b5e0f8c9a1b2c3 \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=["cd /home/ec2-user/vericase","git pull origin main","docker-compose pull","docker-compose down","docker-compose up -d","docker-compose ps"]' \
+            --output text \
+            --query "Command.CommandId")
+          
+          echo "✅ Deployment command sent: $COMMAND_ID"
+          echo "🚀 VeriCase is updating on EC2..."
