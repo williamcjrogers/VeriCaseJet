@@ -2064,11 +2064,78 @@
             });
             document.getElementById('fileInput').addEventListener('change', handleFileUpload);
 
-            // Refresh
-            document.getElementById('refreshBtn').addEventListener('click', () => {
-                VericaseUI.Toast.info('Refreshing...');
-                loadAllData();
-            });
+        }
+            } catch (error) {
+            console.error('Error toggling star:', error);
+            VericaseUI.Toast.error('Failed to update star status');
+        }
+        }
+
+        function downloadCurrentFile() {
+            if (currentPreviewData?.download_url) {
+                window.open(currentPreviewData.download_url, '_blank');
+            } else if (selectedEvidence?.download_url) {
+                window.open(selectedEvidence.download_url, '_blank');
+            }
+        }
+
+        async function openFullPreview() {
+            if (!selectedEvidence || !currentPreviewData) return;
+
+            const modal = document.getElementById('previewModal');
+            const content = document.getElementById('previewModalContent');
+            const title = document.getElementById('previewModalTitle');
+
+            title.textContent = selectedEvidence.filename;
+
+            let html = '';
+
+            switch (currentPreviewData.preview_type) {
+                case 'image':
+                    html = `<img src="${currentPreviewData.preview_url}" alt="${selectedEvidence.filename}">`;
+                    break;
+
+                case 'pdf':
+                    html = `<iframe src="${currentPreviewData.preview_url}"></iframe>`;
+                    break;
+
+                case 'text':
+                case 'office':
+                    try {
+                        const response = await fetch(`${apiUrl}/api/evidence/items/${selectedEvidence.id}/text-content?max_length=100000`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            html = `<pre>${escapeHtml(data.text)}</pre>`;
+                        } else {
+                            html = `<pre>${escapeHtml(currentPreviewData.preview_content || 'Could not load text content')}</pre>`;
+                        }
+                    } catch {
+                        html = `<pre>${escapeHtml(currentPreviewData.preview_content || 'Could not load text content')}</pre>`;
+                    }
+                    break;
+
+                default:
+                    html = `
+                        <div style="text-align: center; color: var(--gray-400);">
+                            <i class="fas ${getFileIcon(selectedEvidence.mime_type, selectedEvidence.evidence_type)}" style="font-size: 4rem; margin-bottom: 1rem;"></i>
+                            <p>Preview not available for this file type</p>
+                            <p style="font-size: 0.875rem; margin-top: 0.5rem;">${escapeHtml(selectedEvidence.filename)}</p>
+                            <button class="btn btn-vericase" style="margin-top: 1rem;" onclick="downloadCurrentFile()">
+                                <i class="fas fa-download"></i> Download File
+                            </button>
+                        </div>
+                    `;
+            }
+
+            content.innerHTML = html;
+            modal.classList.add('active');
+        }
+
+        function closePreviewModal() {
+            document.getElementById('previewModal').classList.remove('active');
+        }
+
+        async function extractMetadata() {
             if (!selectedEvidence) return;
 
             const btn = document.getElementById('extractMetadataBtn');
@@ -2096,136 +2163,135 @@
         }
 
         async function handleFileUpload(event) {
-                const files = event.target.files;
-                if (!files || files.length === 0) return;
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
 
-                const uploadBtn = document.getElementById('uploadBtn');
-                uploadBtn.disabled = true;
-                uploadBtn.classList.add('loading');
+            const uploadBtn = document.getElementById('uploadBtn');
+            uploadBtn.disabled = true;
+            uploadBtn.classList.add('loading');
 
-                const toast = VericaseUI.Toast.info(`Uploading ${files.length} file(s)...`, { duration: 0 });
+            const toast = VericaseUI.Toast.info(`Uploading ${files.length} file(s)...`, { duration: 0 });
 
-                try {
-                    let successCount = 0;
-                    for (const file of files) {
-                        const formData = new FormData();
-                        formData.append('file', file);
-                        if (projectId) formData.append('project_id', projectId);
-                        if (caseId) formData.append('case_id', caseId);
+            try {
+                let successCount = 0;
+                for (const file of files) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    if (projectId) formData.append('project_id', projectId);
+                    if (caseId) formData.append('case_id', caseId);
 
-                        const response = await fetch(`${apiUrl}/api/evidence/upload/direct`, {
-                            method: 'POST',
-                            body: formData
-                        });
+                    const response = await fetch(`${apiUrl}/api/evidence/upload/direct`, {
+                        method: 'POST',
+                        body: formData
+                    });
 
-                        if (response.ok) successCount++;
-                    }
-
-                    VericaseUI.Toast.dismiss(toast);
-                    VericaseUI.Toast.success(`Successfully uploaded ${successCount} file(s)`);
-
-                    loadEvidence();
-                    loadStats();
-                } catch (error) {
-                    console.error('Upload error:', error);
-                    VericaseUI.Toast.dismiss(toast);
-                    VericaseUI.Toast.error('Upload failed. Please try again.');
-                } finally {
-                    uploadBtn.disabled = false;
-                    uploadBtn.classList.remove('loading');
-                    document.getElementById('fileInput').value = '';
+                    if (response.ok) successCount++;
                 }
+
+                VericaseUI.Toast.dismiss(toast);
+                VericaseUI.Toast.success(`Successfully uploaded ${successCount} file(s)`);
+
+                loadEvidence();
+                loadStats();
+            } catch (error) {
+                console.error('Upload error:', error);
+                VericaseUI.Toast.dismiss(toast);
+                VericaseUI.Toast.error('Upload failed. Please try again.');
+            } finally {
+                uploadBtn.disabled = false;
+                uploadBtn.classList.remove('loading');
+                document.getElementById('fileInput').value = '';
             }
+        }
 
         // ============================================
         // EVENT LISTENERS
         // ============================================
 
         document.addEventListener('DOMContentLoaded', () => {
-                // Inject navigation shell
-                VericaseShell.inject({
-                    title: 'Evidence Repository',
-                    headerActions: ''
-                });
+            // Inject navigation shell
+            VericaseShell.inject({
+                title: 'Evidence Repository',
+                headerActions: ''
+            });
 
-                // Get project context
-                projectId = VericaseShell.getProjectId();
+            // Get project context
+            projectId = VericaseShell.getProjectId();
 
-                // Initialize grid
-                initGrid();
+            // Initialize grid
+            initGrid();
 
-                // Category tabs
-                document.querySelectorAll('.category-tab').forEach(tab => {
-                    tab.addEventListener('click', () => {
-                        document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
-                        tab.classList.add('active');
-                        currentCategory = tab.dataset.category;
-                        applyFilters();
-                    });
-                });
-
-                // Search with debounce
-                let searchTimeout;
-                document.getElementById('searchInput').addEventListener('input', () => {
-                    clearTimeout(searchTimeout);
-                    searchTimeout = setTimeout(applyFilters, 300);
-                });
-
-                // Filters
-                document.getElementById('fileTypeFilter').addEventListener('change', applyFilters);
-                document.getElementById('statusFilter').addEventListener('change', applyFilters);
-
-                // Checkbox pills
-                document.getElementById('unassignedFilter').addEventListener('change', (e) => {
-                    document.getElementById('unassignedPill').classList.toggle('active', e.target.checked);
+            // Category tabs
+            document.querySelectorAll('.category-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    currentCategory = tab.dataset.category;
                     applyFilters();
-                });
-
-                document.getElementById('starredFilter').addEventListener('change', (e) => {
-                    document.getElementById('starredPill').classList.toggle('active', e.target.checked);
-                    applyFilters();
-                });
-
-                // Upload
-                document.getElementById('uploadBtn').addEventListener('click', () => {
-                    document.getElementById('fileInput').click();
-                });
-                document.getElementById('fileInput').addEventListener('change', handleFileUpload);
-
-                // Refresh
-                document.getElementById('refreshBtn').addEventListener('click', () => {
-                    VericaseUI.Toast.info('Refreshing...');
-                    loadAllData();
-                });
-
-                // Detail panel
-                document.getElementById('closeDetailBtn').addEventListener('click', hideDetail);
-                document.getElementById('downloadBtn').addEventListener('click', downloadCurrentFile);
-                document.getElementById('previewFullBtn').addEventListener('click', openFullPreview);
-                document.getElementById('extractMetadataBtn').addEventListener('click', extractMetadata);
-
-                // Preview modal
-                document.getElementById('closePreviewModal').addEventListener('click', closePreviewModal);
-                document.getElementById('modalDownloadBtn').addEventListener('click', downloadCurrentFile);
-                document.getElementById('previewModal').addEventListener('click', (e) => {
-                    if (e.target === document.getElementById('previewModal')) {
-                        closePreviewModal();
-                    }
-                });
-
-                // Escape key to close panels
-                document.addEventListener('keydown', (e) => {
-                    if (e.key === 'Escape') {
-                        hideDetail();
-                        closePreviewModal();
-                    }
-                });
-
-                // Remove preload class after initial render
-                requestAnimationFrame(() => {
-                    document.body.classList.remove('preload');
                 });
             });
+
+            // Search with debounce
+            let searchTimeout;
+            document.getElementById('searchInput').addEventListener('input', () => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(applyFilters, 300);
+            });
+
+            // Filters
+            document.getElementById('fileTypeFilter').addEventListener('change', applyFilters);
+            document.getElementById('statusFilter').addEventListener('change', applyFilters);
+
+            // Checkbox pills
+            document.getElementById('unassignedFilter').addEventListener('change', (e) => {
+                document.getElementById('unassignedPill').classList.toggle('active', e.target.checked);
+                applyFilters();
+            });
+
+            document.getElementById('starredFilter').addEventListener('change', (e) => {
+                document.getElementById('starredPill').classList.toggle('active', e.target.checked);
+                applyFilters();
+            });
+
+            // Upload
+            document.getElementById('uploadBtn').addEventListener('click', () => {
+                document.getElementById('fileInput').click();
+            });
+            document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+
+            // Refresh
+            document.getElementById('refreshBtn').addEventListener('click', () => {
+                VericaseUI.Toast.info('Refreshing...');
+                loadAllData();
+            });
+            // Detail panel
+            document.getElementById('closeDetailBtn').addEventListener('click', hideDetail);
+            document.getElementById('downloadBtn').addEventListener('click', downloadCurrentFile);
+            document.getElementById('previewFullBtn').addEventListener('click', openFullPreview);
+            document.getElementById('extractMetadataBtn').addEventListener('click', extractMetadata);
+
+            // Preview modal
+            document.getElementById('closePreviewModal').addEventListener('click', closePreviewModal);
+            document.getElementById('modalDownloadBtn').addEventListener('click', downloadCurrentFile);
+            document.getElementById('previewModal').addEventListener('click', (e) => {
+                if (e.target === document.getElementById('previewModal')) {
+                    closePreviewModal();
+                }
+            });
+
+            // Escape key to close panels
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    hideDetail();
+                    closePreviewModal();
+                }
+            });
+
+            // Remove preload class after initial render
+            requestAnimationFrame(() => {
+                document.body.classList.remove('preload');
+            });
+        });
     </script>
 </body>
 
