@@ -27,10 +27,14 @@ class Settings(BaseSettings):
     MINIO_PUBLIC_ENDPOINT: str = ""
     MINIO_ACCESS_KEY: str | None = Field(
         default=None,
-        description="MinIO/S3 access key - MUST be provided via environment variable")
+        description=(
+            "MinIO/S3 access key - MUST be provided via environment variable"
+        ))
     MINIO_SECRET_KEY: str | None = Field(
         default=None,
-        description="MinIO/S3 secret key - MUST be provided via environment variable")
+        description=(
+            "MinIO/S3 secret key - MUST be provided via environment variable"
+        ))
     MINIO_BUCKET: str = "vericase-docs"
     S3_BUCKET: str = "vericase-docs"  # Alias for MINIO_BUCKET
     S3_ENDPOINT: str = "http://minio:9000"  # Alias for MINIO_ENDPOINT
@@ -54,7 +58,9 @@ class Settings(BaseSettings):
     # Database - Railway provides postgresql://, we need postgresql+psycopg2://
     DATABASE_URL: str = Field(
         ...,
-        description="SQLAlchemy connection URL; must be provided via environment",
+        description=(
+            "SQLAlchemy connection URL; must be provided via environment"
+        ),
         min_length=1,
     )
 
@@ -88,12 +94,14 @@ class Settings(BaseSettings):
             if info.field_name in {"MINIO_ACCESS_KEY", "S3_ACCESS_KEY"}:
                 if v.lower() in weak_access_keys:
                     raise ValueError(
-                        f"{info.field_name} uses weak/default value in production")
+                        f"{info.field_name} uses weak/default value in production"
+                    )
 
             if info.field_name in {"MINIO_SECRET_KEY", "S3_SECRET_KEY"}:
                 if v.lower() in weak_secret_keys:
                     raise ValueError(
-                        f"{info.field_name} uses weak/default value in production")
+                        f"{info.field_name} uses weak/default value in production"
+                    )
 
             if info.field_name == "DATABASE_URL":
                 weak_db_patterns = [
@@ -104,25 +112,30 @@ class Settings(BaseSettings):
                     raise ValueError(
                         "DATABASE_URL uses default credentials in production")
         else:
+
             # Warn in non-production environments
             if info.field_name in {
                     "MINIO_ACCESS_KEY", "S3_ACCESS_KEY"} and isinstance(
                     v, str) and v.lower() in weak_access_keys:
                 logging.warning(
                     "%s uses default value - override via environment variable",
-                    info.field_name)
+                    info.field_name
+                )
             if info.field_name in {
                     "MINIO_SECRET_KEY", "S3_SECRET_KEY"} and isinstance(
                     v, str) and v.lower() in weak_secret_keys:
                 logging.warning(
                     "%s uses default value - override via environment variable",
-                    info.field_name)
+                    info.field_name
+                )
 
         return v
 
     @model_validator(mode="after")
     def ensure_required_credentials(self) -> Self:
-        """Ensure secrets are provided exclusively via environment variables."""
+        """
+        Ensure secrets are provided exclusively via environment variables.
+        """
         if not self.DATABASE_URL:
             raise ValueError(
                 "DATABASE_URL must be set via environment variables")
@@ -131,10 +144,12 @@ class Settings(BaseSettings):
         if not use_aws:
             if not self.MINIO_ACCESS_KEY:
                 raise ValueError(
-                    "MINIO_ACCESS_KEY must be set when USE_AWS_SERVICES is false")
+                    "MINIO_ACCESS_KEY must be set when USE_AWS_SERVICES is false"
+                )
             if not self.MINIO_SECRET_KEY:
                 raise ValueError(
-                    "MINIO_SECRET_KEY must be set when USE_AWS_SERVICES is false")
+                    "MINIO_SECRET_KEY must be set when USE_AWS_SERVICES is false"
+                )
         else:
             # Allow AWS IRSA without explicit keys, but normalize aliases if
             # provided

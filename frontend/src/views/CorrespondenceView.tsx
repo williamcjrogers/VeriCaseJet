@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { fetchEmails, Email } from '../api/correspondence';
+import { fetchEmails, Email, hasRealAttachments } from '../api/correspondence';
 import { EmailGrid } from '../components/EmailGrid';
 import { DetailPanel } from '../components/DetailPanel';
 import { StatsBar } from '../components/StatsBar';
