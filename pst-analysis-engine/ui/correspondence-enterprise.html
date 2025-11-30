@@ -6138,6 +6138,148 @@
 
         // ==================== END CONTEXT PANEL FUNCTIONS ====================
 
+        // ============================================
+        // ATTACHMENT PREVIEW & DOWNLOAD
+        // ============================================
+
+        async function previewAttachment(evidenceId, attachmentId, filename) {
+            try {
+                // Show loading
+                let modal = document.getElementById('previewModal');
+                
+                if (!modal) {
+                    createPreviewModal();
+                    modal = document.getElementById('previewModal');
+                }
+
+                const content = document.getElementById('previewModalContent');
+                const title = document.getElementById('previewModalTitle');
+
+                if (!modal || !content) {
+                    console.error('Preview modal elements not found');
+                    return;
+                }
+
+                modal.classList.add('active');
+                if (title) title.textContent = filename || 'Preview';
+                content.innerHTML = '<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%;"><div class="spinner"></div><p style="margin-top:1rem; color:#64748b;">Loading preview...</p></div>';
+
+                // Fetch signed URL
+                const response = await fetch(`${apiUrl}/api/evidence/items/${evidenceId}/attachments/${attachmentId}/url`);
+                if (!response.ok) throw new Error('Failed to get preview URL');
+                
+                const data = await response.json();
+                const url = data.url;
+                const type = data.content_type || '';
+                const ext = (filename || '').split('.').pop().toLowerCase();
+
+                // Determine preview type
+                let html = '';
+                if (type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) {
+                    html = `<div style="display:flex; align-items:center; justify-content:center; height:100%; background:#f1f5f9;">
+                                <img src="${url}" style="max-width:100%; max-height:100%; object-fit:contain; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
+                            </div>`;
+                } else if (type === 'application/pdf' || ext === 'pdf') {
+                    html = `<iframe src="${url}#toolbar=0" style="width:100%; height:100%; border:none;"></iframe>`;
+                } else if (type.startsWith('text/') || ['txt', 'log', 'csv', 'json', 'xml', 'md', 'py', 'js', 'html', 'css'].includes(ext)) {
+                     // For text, fetch content
+                     try {
+                         const textResp = await fetch(url);
+                         const text = await textResp.text();
+                         html = `<pre style="background:#1e293b; color:#f8fafc; padding:1.5rem; overflow:auto; height:100%; margin:0; font-family:'Consolas', monospace; font-size:0.9rem; white-space:pre-wrap;">${escapeHtml(text)}</pre>`;
+                     } catch (e) {
+                         html = `<div style="text-align:center; padding:3rem;">
+                                    <i class="fas fa-exclamation-triangle" style="font-size:3rem; color:#f59e0b; margin-bottom:1rem;"></i>
+                                    <p style="font-size:1.1rem; margin-bottom:1.5rem;">Could not load text content directly.</p>
+                                    <a href="${url}" class="btn btn-primary" target="_blank" style="display:inline-flex; align-items:center; gap:0.5rem; padding:0.75rem 1.5rem;">
+                                        <i class="fas fa-external-link-alt"></i> Open in New Tab
+                                    </a>
+                                 </div>`;
+                     }
+                } else {
+                    // Fallback
+                    let icon = 'fa-file';
+                    if (['doc', 'docx'].includes(ext)) icon = 'fa-file-word';
+                    if (['xls', 'xlsx'].includes(ext)) icon = 'fa-file-excel';
+                    if (['ppt', 'pptx'].includes(ext)) icon = 'fa-file-powerpoint';
+                    if (['zip', 'rar', '7z'].includes(ext)) icon = 'fa-file-archive';
+
+                    html = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding:2rem;">
+                                <div style="width:80px; height:80px; background:#f1f5f9; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:1.5rem;">
+                                    <i class="fas ${icon}" style="font-size:3rem; color:#64748b;"></i>
+                                </div>
+                                <h3 style="margin:0 0 0.5rem 0; color:#1e293b;">${escapeHtml(filename)}</h3>
+                                <p style="color:#64748b; margin:0 0 2rem 0;">Preview not available for this file type.</p>
+                                <a href="${url}" class="btn btn-primary" target="_blank" style="display:inline-flex; align-items:center; gap:0.5rem; padding:0.75rem 1.5rem;">
+                                    <i class="fas fa-download"></i> Download File
+                                </a>
+                            </div>`;
+                }
+                
+                content.innerHTML = html;
+
+            } catch (e) {
+                console.error('Preview failed:', e);
+                const content = document.getElementById('previewModalContent');
+                if (content) {
+                    content.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#ef4444;">
+                        <i class="fas fa-times-circle" style="font-size:3rem; margin-bottom:1rem;"></i>
+                        <p>Failed to load preview.</p>
+                        <p style="font-size:0.875rem; color:#64748b;">${e.message}</p>
+                    </div>`;
+                }
+                if (window.VericaseUI) VericaseUI.Toast.error('Error previewing attachment');
+            }
+        }
+
+        async function downloadAttachment(evidenceId, attachmentId, filename) {
+            try {
+                const response = await fetch(`${apiUrl}/api/evidence/items/${evidenceId}/attachments/${attachmentId}/url`);
+                if (!response.ok) throw new Error('Failed to get download URL');
+                
+                const data = await response.json();
+                const link = document.createElement('a');
+                link.href = data.url;
+                link.download = filename || 'download';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (e) {
+                console.error('Download failed:', e);
+                if (window.VericaseUI) VericaseUI.Toast.error('Error downloading attachment');
+            }
+        }
+
+        function createPreviewModal() {
+            if (document.getElementById('previewModal')) return;
+            
+            const div = document.createElement('div');
+            div.id = 'previewModal';
+            div.className = 'preview-modal';
+            div.innerHTML = `
+                <div class="preview-modal-header">
+                    <div class="preview-modal-title" id="previewModalTitle">File Preview</div>
+                    <div class="preview-modal-actions">
+                        <button class="btn btn-icon btn-ghost preview-modal-close">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="preview-modal-body">
+                    <div class="preview-modal-content" id="previewModalContent"></div>
+                </div>
+            `;
+            document.body.appendChild(div);
+            
+            // Add close handler
+            div.querySelector('.preview-modal-close').addEventListener('click', () => {
+                div.classList.remove('active');
+            });
+            div.addEventListener('click', (e) => {
+                if (e.target === div) div.classList.remove('active');
+            });
+        }
+
         // Set AG-Grid Enterprise license key (Trial - Valid until 30 November 2025)
         agGrid.LicenseManager.setLicenseKey("[TRIAL]_this_{AG_Charts_and_AG_Grid}_Enterprise_key_{AG-104897}_is_granted_for_evaluation_only___Use_in_production_is_not_permitted___Please_report_misuse_to_legal@ag-grid.com___For_help_with_purchasing_a_production_key_please_contact_info@ag-grid.com___You_are_granted_a_{Single_Application}_Developer_License_for_one_application_only___All_Front-End_JavaScript_developers_working_on_the_application_would_need_to_be_licensed___This_key_will_deactivate_on_{30 November 2025}____[v3]_[0102]_MTc2NDQ2MDgwMDAwMA==a97c0b249a2f0bd2a1ed2c10804b61b5");
     </script>
