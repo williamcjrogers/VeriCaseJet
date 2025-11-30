@@ -17,10 +17,10 @@ jobs:
           ssh -i key.pem -o StrictHostKeyChecking=no ubuntu@18.130.216.34 << 'EOF'
             cd /opt/vericase
             git pull
-            cd pst-analysis-engine
-            docker-compose pull
-            docker-compose up -d --force-recreate
-            echo ""
+             cd pst-analysis-engine
+             docker-compose -f docker-compose-s3.yml pull
+             docker-compose -f docker-compose-s3.yml up -d --force-recreate
+             echo ""
             echo "Containers running:"
             docker ps --format "table {{.Names}}\t{{.Status}}"
           EOF
