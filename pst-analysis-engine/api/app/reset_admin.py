@@ -14,7 +14,7 @@ def reset_admin_password():
     
     try:
         email = "admin@vericase.com"
-        new_password = "admin123"
+        new_password = "ChangeMe123"
         new_hash = hash_password(new_password)
         
         # Check if user exists

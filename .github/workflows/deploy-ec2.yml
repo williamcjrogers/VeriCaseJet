@@ -30,4 +30,4 @@ jobs:
           echo ""
           echo "✅ Deployment complete!"
           echo "🌐 VeriCase: http://18.130.216.34:8010"
-          echo "📧 Login: admin@vericase.com / admin123"
+          echo "📧 Login: admin@vericase.com / ChangeMe123"
