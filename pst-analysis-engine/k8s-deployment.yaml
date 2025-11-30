@@ -30,6 +30,16 @@ spec:
           value: "D9BX79MBSG"
         - name: CORS_ORIGINS
           value: "*"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: vericase-secrets
+              key: database-url
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: vericase-secrets
+              key: jwt-secret
 ---
 apiVersion: v1
 kind: Service
