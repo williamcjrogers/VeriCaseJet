@@ -41,7 +41,8 @@ def load_ai_keys_from_secrets_manager() -> bool:
         # Map secret keys to environment variables
         key_mapping = {
             'OPENAI_API_KEY': 'OPENAI_API_KEY',
-            'ANTHROPIC_API_KEY': 'CLAUDE_API_KEY',  # App uses CLAUDE_API_KEY internally
+            'ANTHROPIC_API_KEY': 'CLAUDE_API_KEY',  # App uses CLAUDE_API_KEY
+            # internally
             'CLAUDE_API_KEY': 'CLAUDE_API_KEY',
             'GEMINI_API_KEY': 'GEMINI_API_KEY',
             'GROK_API_KEY': 'GROK_API_KEY',
@@ -55,12 +56,14 @@ def load_ai_keys_from_secrets_manager() -> bool:
                 os.environ[env_key] = str(value).strip()
                 loaded_count += 1
                 print(
-                    f"[config_production] ✓ Loaded {env_key} from Secrets Manager")
+                    f"[config_production] ✓ Loaded {env_key} from "
+                    f"Secrets Manager")
                 logger.info(f"✓ Loaded {env_key} from Secrets Manager")
 
         if loaded_count > 0:
             logger.info(
-                f"Successfully loaded {loaded_count} AI API keys from Secrets Manager")
+                f"Successfully loaded {loaded_count} AI API keys from "
+                f"Secrets Manager")
             return True
         else:
             logger.warning("No AI API keys found in Secrets Manager secret")
@@ -80,7 +83,8 @@ def load_ai_keys_from_secrets_manager() -> bool:
                 f"Secret {secret_name} not found in Secrets Manager")
         elif error_code == 'AccessDeniedException':
             logger.warning(
-                f"Access denied to secret {secret_name} - check IAM permissions"
+                f"Access denied to secret {secret_name} - "
+                f"check IAM permissions"
             )
         else:
             logger.error(f"Failed to load AI keys from Secrets Manager: {e}")

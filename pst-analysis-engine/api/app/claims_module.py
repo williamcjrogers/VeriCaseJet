@@ -503,7 +503,8 @@ async def create_head_of_claim(
         case_id=uuid.UUID(
             request.case_id) if request.case_id else None,
         contentious_matter_id=uuid.UUID(
-            request.contentious_matter_id) if request.contentious_matter_id else None,
+            request.contentious_matter_id
+        ) if request.contentious_matter_id else None,
         reference_number=request.reference_number,
         claim_type=request.claim_type,
         claimed_amount=request.claimed_amount,
@@ -787,7 +788,8 @@ async def create_item_link(
         item_id=uuid.UUID(
             request.item_id),
         contentious_matter_id=uuid.UUID(
-            request.contentious_matter_id) if request.contentious_matter_id else None,
+            request.contentious_matter_id
+        ) if request.contentious_matter_id else None,
         head_of_claim_id=uuid.UUID(
             request.head_of_claim_id) if request.head_of_claim_id else None,
         link_type=request.link_type,
@@ -1003,7 +1005,8 @@ async def create_comment(
     """Create a direct comment on an item"""
     comment = ItemComment(
         item_claim_link_id=uuid.UUID(
-            request.item_claim_link_id) if request.item_claim_link_id else None,
+            request.item_claim_link_id
+        ) if request.item_claim_link_id else None,
         item_type=request.item_type,
         item_id=uuid.UUID(
             request.item_id) if request.item_id else None,

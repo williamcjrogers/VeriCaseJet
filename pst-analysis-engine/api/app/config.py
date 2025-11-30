@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_DEFAULT_REGION: str = "us-east-1"
+    AWS_SECRET_NAME: str = ""  # Secrets Manager secret name (optional)
 
     # Database - Railway provides postgresql://, we need postgresql+psycopg2://
     DATABASE_URL: str = Field(
@@ -94,13 +95,15 @@ class Settings(BaseSettings):
             if info.field_name in {"MINIO_ACCESS_KEY", "S3_ACCESS_KEY"}:
                 if v.lower() in weak_access_keys:
                     raise ValueError(
-                        f"{info.field_name} uses weak/default value in production"
+                        f"{info.field_name} uses weak/default value "
+                        f"in production"
                     )
 
             if info.field_name in {"MINIO_SECRET_KEY", "S3_SECRET_KEY"}:
                 if v.lower() in weak_secret_keys:
                     raise ValueError(
-                        f"{info.field_name} uses weak/default value in production"
+                        f"{info.field_name} uses weak/default value "
+                        f"in production"
                     )
 
             if info.field_name == "DATABASE_URL":
@@ -118,14 +121,16 @@ class Settings(BaseSettings):
                     "MINIO_ACCESS_KEY", "S3_ACCESS_KEY"} and isinstance(
                     v, str) and v.lower() in weak_access_keys:
                 logging.warning(
-                    "%s uses default value - override via environment variable",
+                    "%s uses default value - override via environment "
+                    "variable",
                     info.field_name
                 )
             if info.field_name in {
                     "MINIO_SECRET_KEY", "S3_SECRET_KEY"} and isinstance(
                     v, str) and v.lower() in weak_secret_keys:
                 logging.warning(
-                    "%s uses default value - override via environment variable",
+                    "%s uses default value - override via environment "
+                    "variable",
                     info.field_name
                 )
 
@@ -144,11 +149,13 @@ class Settings(BaseSettings):
         if not use_aws:
             if not self.MINIO_ACCESS_KEY:
                 raise ValueError(
-                    "MINIO_ACCESS_KEY must be set when USE_AWS_SERVICES is false"
+                    "MINIO_ACCESS_KEY must be set when USE_AWS_SERVICES "
+                    "is false"
                 )
             if not self.MINIO_SECRET_KEY:
                 raise ValueError(
-                    "MINIO_SECRET_KEY must be set when USE_AWS_SERVICES is false"
+                    "MINIO_SECRET_KEY must be set when USE_AWS_SERVICES "
+                    "is false"
                 )
         else:
             # Allow AWS IRSA without explicit keys, but normalize aliases if
@@ -193,7 +200,9 @@ class Settings(BaseSettings):
     # Bedrock Knowledge Base ID (e.g., "VERICASE-KB-001")
     BEDROCK_KB_ID: str = ""
     BEDROCK_DS_ID: str = ""  # Bedrock Data Source ID (e.g., "VERICASE-DS-001")
-    BEDROCK_EMBEDDING_MODEL: str = "amazon.titan-embed-text-v1"  # Embedding model for KB
+    BEDROCK_EMBEDDING_MODEL: str = (
+        "amazon.titan-embed-text-v1"
+    )  # Embedding model for KB
 
     # AWS Step Functions settings
     STEP_FUNCTION_ARN: str = ""  # ARN of the evidence processing state machine
@@ -204,7 +213,9 @@ class Settings(BaseSettings):
     # AWS OpenSearch Serverless settings
     OPENSEARCH_COLLECTION_ARN: str = ""  # OpenSearch Serverless collection ARN
     OPENSEARCH_COLLECTION_ENDPOINT: str = ""  # OpenSearch Serverless endpoint
-    OPENSEARCH_VECTOR_INDEX: str = "vericase-evidence-index"  # Vector index name
+    OPENSEARCH_VECTOR_INDEX: str = (
+        "vericase-evidence-index"
+    )  # Vector index name
 
     # AWS QuickSight settings
     QUICKSIGHT_DASHBOARD_ID: str = ""  # QuickSight dashboard ID
@@ -236,7 +247,8 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = ""
     JWT_SECRET: str = Field(
         ...,
-        description="JWT signing secret - MUST be provided via environment variable",
+        description="JWT signing secret - MUST be provided via "
+        "environment variable",
         min_length=32,
     )
 
@@ -262,7 +274,8 @@ class Settings(BaseSettings):
                         "JWT_SECRET uses weak/default value in production")
                 else:
                     logging.warning(
-                        "JWT_SECRET uses weak value - change via environment variable")
+                        "JWT_SECRET uses weak value - change via "
+                        "environment variable")
             except (AttributeError, TypeError):
                 pass
 
