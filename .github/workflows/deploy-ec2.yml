@@ -30,7 +30,15 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd /opt/vericase/pst-analysis-engine
-            docker-compose -f docker-compose-s3.yml pull
-            docker-compose -f docker-compose-s3.yml up -d --force-recreate
+            docker pull wcjrogers/vericase-api:latest
+            docker stop vericase-api || true
+            docker rm vericase-api || true
+            docker run -d --name vericase-api -p 8000:8000 \
+              -e USE_AWS_SERVICES=true \
+              -e AWS_REGION=us-east-1 \
+              -e S3_BUCKET=vericase-docs-526015377510 \
+              -e BEDROCK_KB_ID=ACKHIYIHPK \
+              -e BEDROCK_DS_ID=D9BX79MBSG \
+              -e CORS_ORIGINS=* \
+              wcjrogers/vericase-api:latest
             echo "✅ Deployment complete!"
