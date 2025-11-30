@@ -12,7 +12,7 @@
 
 ### Login Credentials
 - **Email:** admin@vericase.com
-- **Password:** admin123
+- **Password:** ChangeMe123
 
 ## AWS Services Deployed
 
