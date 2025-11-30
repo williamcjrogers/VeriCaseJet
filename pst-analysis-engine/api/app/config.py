@@ -58,9 +58,9 @@ class Settings(BaseSettings):
 
     # Database - Railway provides postgresql://, we need postgresql+psycopg2://
     DATABASE_URL: str = Field(
-        ...,
+        default="postgresql+psycopg2://vericase:vericase@postgres:5432/vericase",
         description=(
-            "SQLAlchemy connection URL; must be provided via environment"
+            "SQLAlchemy connection URL; defaults to local postgres for dev"
         ),
         min_length=1,
     )
@@ -246,9 +246,8 @@ class Settings(BaseSettings):
     API_PORT: int = 8000
     CORS_ORIGINS: str = ""
     JWT_SECRET: str = Field(
-        ...,
-        description="JWT signing secret - MUST be provided via "
-        "environment variable",
+        default="c3bef73578895c08045f8848192958b2dbfaf55a57f97509553c3d5324a7d2b1",
+        description="JWT signing secret - override via environment variable",
         min_length=32,
     )
 
