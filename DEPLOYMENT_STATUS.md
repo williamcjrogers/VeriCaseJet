@@ -8,6 +8,7 @@
 **IP Address:** 18.130.216.34  
 **Security Group:** sg-07499f7ed552da94d  
 **Port 8010:** ✅ Open
+**Auto-Deploy:** ✅ Enabled (GitHub Actions via SSH)
 
 ### Login Credentials
 - **Email:** admin@vericase.com
