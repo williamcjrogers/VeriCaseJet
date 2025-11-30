@@ -16,11 +16,24 @@ jobs:
           
           ssh -i key.pem -o StrictHostKeyChecking=no ec2-user@18.130.216.34 << 'EOF'
             cd /opt/vericase
-            git pull
-             cd pst-analysis-engine
-             docker-compose -f docker-compose-s3.yml pull
-             docker-compose -f docker-compose-s3.yml up -d --force-recreate
-             echo ""
+            
+            # Force sync with repository to discard any local changes preventing pull
+            git fetch --all
+            git reset --hard origin/main
+            
+            cd pst-analysis-engine
+            
+            # Pull latest images
+            docker-compose -f docker-compose-s3.yml pull
+            
+            # Force recreate containers to ensure volume mounts are applied
+            docker-compose -f docker-compose-s3.yml up -d --force-recreate --remove-orphans
+            
+            echo ""
+            echo "Checking if fix is present on server disk:"
+            grep "allEvidenceItems is invalid" ui/evidence.html && echo "✅ Fix confirmed on disk" || echo "❌ Fix NOT found on disk"
+            
+            echo ""
             echo "Containers running:"
             docker ps --format "table {{.Names}}\t{{.Status}}"
           EOF
