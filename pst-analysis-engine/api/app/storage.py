@@ -154,7 +154,9 @@ def ensure_bucket() -> None:
             # Bucket exists and we have access
             return
         except ClientError as e:
-            error_code = e.response.get("Error", {}).get("Code", "")
+            response = cast(dict[str, Any], e.response)
+            error_dict = cast(dict[str, Any], response.get("Error", {}))
+            error_code: str = error_dict.get("Code", "")
             if error_code == "404":
                 msg = f"S3 bucket '{settings.MINIO_BUCKET}' does not exist."
                 raise S3BucketError(msg) from e
@@ -169,8 +171,8 @@ def ensure_bucket() -> None:
         while time.time() < deadline:
             try:
                 client = s3()
-                buckets = client.list_buckets().get("Buckets", [])
-                names = [b["Name"] for b in buckets]
+                buckets: list[dict[str, Any]] = client.list_buckets().get("Buckets", [])
+                names = [cast(str, b["Name"]) for b in buckets]
                 if settings.MINIO_BUCKET not in names:
                     client.create_bucket(Bucket=settings.MINIO_BUCKET)
                 versioning_config = {"Status": "Enabled"}
@@ -225,13 +227,15 @@ def put_object(key: str, data: bytes, content_type: str, *, bucket: str | None =
     )
 
 
-def get_object(key: str) -> bytes:
+def get_object(key: str, *, bucket: str | None = None) -> bytes:
     """Download object from S3 bucket."""
-    obj = s3().get_object(Bucket=settings.MINIO_BUCKET, Key=key)
+    target_bucket = bucket or settings.MINIO_BUCKET
+    obj = s3().get_object(Bucket=target_bucket, Key=key)
     body = obj.get("Body")
     if body is None:
         raise S3AccessError(f"Object {key} has no body")
-    return body.read()
+    stream = cast(BinaryIO, body)
+    return stream.read()
 
 
 def download_file_streaming(bucket: str, key: str, file_obj: BinaryIO) -> None:
@@ -288,7 +292,7 @@ def multipart_start(key: str, content_type: str, bucket: str | None = None) -> s
         Key=key,
         ContentType=content_type,
     )
-    return resp["UploadId"]
+    return cast(str, resp["UploadId"])
 
 
 def presign_part(
@@ -330,13 +334,16 @@ def multipart_complete(
     )
 
 
-def delete_object(key: str) -> None:
+def delete_object(key: str, *, bucket: str | None = None) -> None:
     """Delete object from S3 bucket."""
+    target_bucket = bucket or settings.MINIO_BUCKET
     client = s3()
     try:
-        client.delete_object(Bucket=settings.MINIO_BUCKET, Key=key)
-    except ClientError as exc:
-        code = exc.response.get("Error", {}).get("Code")
+        client.delete_object(Bucket=target_bucket, Key=key)
+    except ClientError as e:
+        response = cast(dict[str, Any], e.response)
+        error_dict = cast(dict[str, Any], response.get("Error", {}))
+        code = error_dict.get("Code")
         if code not in {"NoSuchKey", "404"}:
             LOGGER.error("Failed to delete S3 object: %s", key)
             raise
