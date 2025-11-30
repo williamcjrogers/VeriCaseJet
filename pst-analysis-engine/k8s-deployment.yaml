@@ -12,6 +12,7 @@ spec:
       labels:
         app: vericase-api
     spec:
+      serviceAccountName: vericase-api-sa
       containers:
       - name: vericase-api
         image: wcjrogers/vericase-api:latest
@@ -21,15 +22,34 @@ spec:
         - name: USE_AWS_SERVICES
           value: "true"
         - name: AWS_REGION
-          value: "us-east-1"
+          value: "eu-west-2"
+        - name: AWS_DEFAULT_REGION
+          value: "eu-west-2"
         - name: S3_BUCKET
           value: "vericase-docs-526015377510"
+        - name: MINIO_BUCKET
+          value: "vericase-docs-526015377510"
+        - name: MINIO_ENDPOINT
+          value: ""
         - name: BEDROCK_KB_ID
           value: "ACKHIYIHPK"
         - name: BEDROCK_DS_ID
           value: "D9BX79MBSG"
         - name: CORS_ORIGINS
           value: "*"
+        # OPTION 1: Use Secret (create vericase-secrets first!)
+        # - name: DATABASE_URL
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: vericase-secrets
+        #       key: database-url
+        # - name: JWT_SECRET
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: vericase-secrets
+        #       key: jwt-secret
+        
+        # OPTION 2: Direct values (current - for quick testing)
         - name: DATABASE_URL
           value: "postgresql+psycopg2://vericase:vericase@postgres:5432/vericase"
         - name: JWT_SECRET
