@@ -99,7 +99,9 @@
     "rekognition",
     "transcribe",
     "bedrock",
-    "comprehend"
+    "comprehend",
+    "ingester",
+    "INGESTER"
   ],
   "ignorePaths": [
     "node_modules",
