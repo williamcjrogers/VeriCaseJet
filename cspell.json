@@ -107,5 +107,10 @@
     "build",
     ".git",
     "*.min.js"
+  ],
+  "ignoreRegExpList": [
+    "data:image/svg\\+xml[^\"']*",
+    "%3[Cc]svg[^\"']*",
+    "%3[Cc]path[^\"']*"
   ]
 }
