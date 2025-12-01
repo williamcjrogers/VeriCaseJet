@@ -27,7 +27,7 @@ spec:
         - containerPort: 8000
         env:
         - name: USE_AWS_SERVICES
-          value: "false"
+          value: "true"
         - name: AWS_REGION
           value: "eu-west-2"
         - name: AWS_DEFAULT_REGION
@@ -37,11 +37,7 @@ spec:
         - name: MINIO_BUCKET
           value: "vericase-docs-526015377510"
         - name: MINIO_ENDPOINT
-          value: "s3.amazonaws.com"
-        - name: MINIO_ACCESS_KEY
-          value: "temp"
-        - name: MINIO_SECRET_KEY
-          value: "temp"
+          value: ""
         - name: BEDROCK_KB_ID
           value: "ACKHIYIHPK"
         - name: BEDROCK_DS_ID
