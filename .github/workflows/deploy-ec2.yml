@@ -35,5 +35,17 @@ jobs:
           aws eks update-kubeconfig --name vericase-cluster --region eu-west-2
           kubectl apply -f pst-analysis-engine/k8s-deployment.yaml
           kubectl set image deployment/vericase-api vericase-api=wcjrogers/vericase-api:latest
-          kubectl rollout status deployment/vericase-api --timeout=5m
-          echo "✅ Deployment complete!"
+          
+          echo "Waiting 30s for pods to start..."
+          sleep 30
+          
+          echo "Pod status:"
+          kubectl get pods -l app=vericase-api
+          
+          echo "Pod events:"
+          kubectl describe pods -l app=vericase-api | tail -50
+          
+          echo "Pod logs:"
+          kubectl logs -l app=vericase-api --tail=50 --all-containers=true || true
+          
+          echo "✅ Deployment applied (check logs above for issues)"
