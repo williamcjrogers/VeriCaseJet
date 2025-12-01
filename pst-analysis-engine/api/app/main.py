@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 # Filter out favicon requests from access logs
 class FaviconFilter(logging.Filter):
@@ -484,6 +484,22 @@ def startup():
     try:
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created")
+        
+        # Run schema migrations for BigInt support
+        with engine.connect() as conn:
+            try:
+                logger.info("Running schema migrations for Large File support...")
+                conn.execute(text("ALTER TABLE documents ALTER COLUMN size TYPE BIGINT"))
+                conn.execute(text("ALTER TABLE pst_files ALTER COLUMN file_size_bytes TYPE BIGINT"))
+                conn.execute(text("ALTER TABLE email_attachments ALTER COLUMN file_size_bytes TYPE BIGINT"))
+                conn.execute(text("ALTER TABLE evidence_items ALTER COLUMN file_size TYPE BIGINT"))
+                conn.execute(text("ALTER TABLE evidence_sources ALTER COLUMN original_size TYPE BIGINT"))
+                conn.commit()
+                logger.info("Schema migration to BIGINT completed successfully")
+            except Exception as migration_error:
+                # Ignore errors if columns don't exist or are already migrated
+                logger.warning(f"Schema migration skipped/partial: {migration_error}")
+                
     except Exception as e:
         logger.warning(f"Database initialization skipped: {e}")
     

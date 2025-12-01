@@ -95,15 +95,13 @@ class Settings(BaseSettings):
             if info.field_name in {"MINIO_ACCESS_KEY", "S3_ACCESS_KEY"}:
                 if v.lower() in weak_access_keys:
                     raise ValueError(
-                        f"{info.field_name} uses weak/default value "
-                        f"in production"
+                        f"{info.field_name} uses weak/default value in production"
                     )
 
             if info.field_name in {"MINIO_SECRET_KEY", "S3_SECRET_KEY"}:
                 if v.lower() in weak_secret_keys:
                     raise ValueError(
-                        f"{info.field_name} uses weak/default value "
-                        f"in production"
+                        f"{info.field_name} uses weak/default value in production"
                     )
 
             if info.field_name == "DATABASE_URL":
@@ -118,19 +116,17 @@ class Settings(BaseSettings):
 
             # Warn in non-production environments
             if info.field_name in {
-                    "MINIO_ACCESS_KEY", "S3_ACCESS_KEY"
+                    "MINIO_ACCESS_KEY", "S3_ACCESS_KEY",
             } and v.lower() in weak_access_keys:
                 logging.warning(
-                    "%s uses default value - override via environment "
-                    "variable",
+                    "%s uses default value - override via environment variable",
                     info.field_name
                 )
             if info.field_name in {
-                    "MINIO_SECRET_KEY", "S3_SECRET_KEY"
+                    "MINIO_SECRET_KEY", "S3_SECRET_KEY",
             } and v.lower() in weak_secret_keys:
                 logging.warning(
-                    "%s uses default value - override via environment "
-                    "variable",
+                    "%s uses default value - override via environment variable",
                     info.field_name
                 )
 
@@ -149,13 +145,11 @@ class Settings(BaseSettings):
         if not use_aws:
             if not self.MINIO_ACCESS_KEY:
                 raise ValueError(
-                    "MINIO_ACCESS_KEY must be set when USE_AWS_SERVICES "
-                    "is false"
+                    "MINIO_ACCESS_KEY must be set when USE_AWS_SERVICES is false"
                 )
             if not self.MINIO_SECRET_KEY:
                 raise ValueError(
-                    "MINIO_SECRET_KEY must be set when USE_AWS_SERVICES "
-                    "is false"
+                    "MINIO_SECRET_KEY must be set when USE_AWS_SERVICES is false"
                 )
         else:
             # Allow AWS IRSA without explicit keys, but normalize aliases if
@@ -273,8 +267,7 @@ class Settings(BaseSettings):
                         "JWT_SECRET uses weak/default value in production")
                 else:
                     logging.warning(
-                        "JWT_SECRET uses weak value - change via "
-                        "environment variable")
+                        "JWT_SECRET uses weak value - change via environment variable")
             except (AttributeError, TypeError):
                 pass
 
