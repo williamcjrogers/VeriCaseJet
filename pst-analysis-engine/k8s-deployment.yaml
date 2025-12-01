@@ -12,7 +12,6 @@ spec:
       labels:
         app: vericase-api
     spec:
-      serviceAccountName: vericase-api-sa
       containers:
       - name: vericase-api
         image: wcjrogers/vericase-api:latest
@@ -40,7 +39,7 @@ spec:
         - name: AWS_SECRET_NAME
           value: "vericase/production"
         - name: DATABASE_URL
-          value: "postgresql://vericase:vericase@localhost:5432/vericase"
+          value: "sqlite:///./vericase.db"
         - name: JWT_SECRET
           value: "dev-secret-change-in-production"
 ---
