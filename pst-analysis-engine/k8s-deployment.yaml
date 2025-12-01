@@ -47,9 +47,9 @@ spec:
         - name: AWS_SECRET_NAME
           value: "vericase/production"
         - name: DATABASE_URL
-          value: "sqlite:///./vericase.db"
+          value: "postgresql+psycopg2://postgres:ZS6q|?Ccxr]Ba_tMYIyI(>~0b|W4@database-1.cv8uwu0uqr7f.eu-west-2.rds.amazonaws.com:5432/postgres"
         - name: JWT_SECRET
-          value: "dev-secret-change-in-production"
+          value: "4d7c0214a2a0ea74c824e33337e75857ccd2d2da9900c40f1da3229a91937b1c"
 ---
 apiVersion: v1
 kind: Service
