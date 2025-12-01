@@ -1,6 +1,6 @@
-# pyright: reportCallIssue=false, reportConstantRedefinition=false,
-# reportGeneralTypeIssues=false, reportUnnecessaryIsInstance=false,
-# reportArgumentType=false, reportUnnecessaryTypeIgnoreComment=false
+# pyright: reportCallIssue=false, reportConstantRedefinition=false
+# pyright: reportGeneralTypeIssues=false, reportUnnecessaryIsInstance=false
+# pyright: reportArgumentType=false, reportUnnecessaryTypeIgnoreComment=false
 from typing import Self
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator, model_validator, ValidationInfo
@@ -118,16 +118,16 @@ class Settings(BaseSettings):
 
             # Warn in non-production environments
             if info.field_name in {
-                    "MINIO_ACCESS_KEY", "S3_ACCESS_KEY"} and isinstance(
-                    v, str) and v.lower() in weak_access_keys:
+                    "MINIO_ACCESS_KEY", "S3_ACCESS_KEY"
+            } and v.lower() in weak_access_keys:
                 logging.warning(
                     "%s uses default value - override via environment "
                     "variable",
                     info.field_name
                 )
             if info.field_name in {
-                    "MINIO_SECRET_KEY", "S3_SECRET_KEY"} and isinstance(
-                    v, str) and v.lower() in weak_secret_keys:
+                    "MINIO_SECRET_KEY", "S3_SECRET_KEY"
+            } and v.lower() in weak_secret_keys:
                 logging.warning(
                     "%s uses default value - override via environment "
                     "variable",
