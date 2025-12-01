@@ -1,3 +1,10 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vericase-api-sa
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::526015377510:role/vericase-eks-pod-role
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -12,6 +19,7 @@ spec:
       labels:
         app: vericase-api
     spec:
+      serviceAccountName: vericase-api-sa
       containers:
       - name: vericase-api
         image: wcjrogers/vericase-api:latest
@@ -19,7 +27,7 @@ spec:
         - containerPort: 8000
         env:
         - name: USE_AWS_SERVICES
-          value: "true"
+          value: "false"
         - name: AWS_REGION
           value: "eu-west-2"
         - name: AWS_DEFAULT_REGION
@@ -29,7 +37,11 @@ spec:
         - name: MINIO_BUCKET
           value: "vericase-docs-526015377510"
         - name: MINIO_ENDPOINT
-          value: ""
+          value: "s3.amazonaws.com"
+        - name: MINIO_ACCESS_KEY
+          value: "temp"
+        - name: MINIO_SECRET_KEY
+          value: "temp"
         - name: BEDROCK_KB_ID
           value: "ACKHIYIHPK"
         - name: BEDROCK_DS_ID
