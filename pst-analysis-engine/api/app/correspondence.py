@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from pydantic.fields import Field
 import re as _re_module
 
-from .security import get_db
+from .security import get_db, current_user
 from .models import (
     Case, PSTFile, EmailMessage, EmailAttachment,
     Stakeholder, Keyword, Project, User,
@@ -2161,117 +2161,110 @@ async def upload_evidence(
     profileId: str | None = Form(None),  # type: ignore[reportCallInDefaultInitializer]
     profileType: str = Form("project"),  # type: ignore[reportCallInDefaultInitializer]
     file: UploadFile = File(...),  # type: ignore[reportCallInDefaultInitializer]
-    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
+    db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+    user: User = Depends(current_user)  # Use Admin Bypass from security.py
 ):
     """
     Simplified upload endpoint for wizard dashboard.
     Streams file directly to S3/MinIO and queues processing tasks.
     If no profileId is provided, uses/creates a default project automatically.
     """
-    # Get default admin user
-    default_user = db.query(User).filter(User.email == "admin@vericase.com").first()
-    if not default_user:
-        from .security import hash_password
-        from .models import UserRole
-        default_user = User(
-            email="admin@vericase.com",
-            password_hash=hash_password("admin123"),
-            role=UserRole.ADMIN,
-            is_active=True,
-            email_verified=True,
-            display_name="Administrator"
-        )
-        db.add(default_user)
-        db.commit()
-        db.refresh(default_user)
-    
-    # If no profileId provided, use default project
-    if not profileId or profileId == "null" or profileId == "undefined":
-        default_project = _get_or_create_default_project(db, default_user)
-        profileId = str(default_project.id)
-        profileType = "project"
-        logger.info(f"Using default project: {profileId}")
-    
-    if profileType not in {"project", "case"}:
-        profileType = "project"  # Default to project
-
     try:
-        profile_uuid = uuid.UUID(profileId)
-    except ValueError:
-        # If invalid UUID, use default project
-        default_project = _get_or_create_default_project(db, default_user)
-        profileId = str(default_project.id)
-        profile_uuid = default_project.id
-        profileType = "project"
-        logger.info(f"Invalid profileId, using default project: {profileId}")
+        # Get default admin user (from dependency)
+        default_user = user
+        
+        # If no profileId provided, use default project
+        if not profileId or profileId == "null" or profileId == "undefined":
+            default_project = _get_or_create_default_project(db, default_user)
+            profileId = str(default_project.id)
+            profileType = "project"
+            logger.info(f"Using default project: {profileId}")
+        
+        if profileType not in {"project", "case"}:
+            profileType = "project"  # Default to project
 
-    if not file or not file.filename:
-        raise HTTPException(status_code=400, detail="Missing file")
+        try:
+            profile_uuid = uuid.UUID(profileId)
+        except ValueError:
+            # If invalid UUID, use default project
+            default_project = _get_or_create_default_project(db, default_user)
+            profileId = str(default_project.id)
+            profile_uuid = default_project.id
+            profileType = "project"
+            logger.info(f"Invalid profileId, using default project: {profileId}")
 
-    # Get entity IDs
-    case_id, project_id, company_id = _get_entity_ids(profile_uuid, profileType, db)
+        if not file or not file.filename:
+            raise HTTPException(status_code=400, detail="Missing file")
 
-    # Prepare S3 key
-    safe_name = file.filename.replace(" ", "_")
-    s3_key = f"uploads/{profileType}/{profileId}/{uuid.uuid4()}_{safe_name}"
-    content_type = file.content_type or "application/octet-stream"
+        # Get entity IDs
+        case_id, project_id, company_id = _get_entity_ids(profile_uuid, profileType, db)
 
-    # Upload file
-    size = await _upload_file_to_storage(file, s3_key, content_type)
+        # Prepare S3 key
+        safe_name = file.filename.replace(" ", "_")
+        s3_key = f"uploads/{profileType}/{profileId}/{uuid.uuid4()}_{safe_name}"
+        content_type = file.content_type or "application/octet-stream"
 
-    # Record document metadata
-    # Use S3_BUCKET for AWS compatibility
-    bucket = settings.S3_BUCKET or settings.MINIO_BUCKET
-    
-    document = Document(
-        filename=file.filename,
-        path=f"{profileType}/{profileId}",
-        content_type=content_type,
-        size=size,
-        bucket=bucket,
-        s3_key=s3_key,
-        status=DocStatus.NEW,
-        owner_user_id=default_user.id,
-        meta={
-            "profile_type": profileType,
-            "profile_id": profileId,
-            "uploaded_by": str(default_user.id)
-        }
-    )
-    db.add(document)
-    db.commit()
-    db.refresh(document)
+        # Upload file
+        size = await _upload_file_to_storage(file, s3_key, content_type)
 
-    # For PST files, also create a PSTFile record (worker expects this)
-    pst_file_id = None
-    if file.filename and file.filename.lower().endswith(".pst"):
-        pst_file = PSTFile(
+        # Record document metadata
+        # Use S3_BUCKET for AWS compatibility
+        bucket = settings.S3_BUCKET or settings.MINIO_BUCKET
+        
+        document = Document(
             filename=file.filename,
-            case_id=case_id,
-            project_id=project_id,
-            s3_bucket=bucket,
+            path=f"{profileType}/{profileId}",
+            content_type=content_type,
+            size=size,
+            bucket=bucket,
             s3_key=s3_key,
-            file_size_bytes=size,
-            processing_status='pending',
-            uploaded_by=default_user.id
+            status=DocStatus.NEW,
+            owner_user_id=default_user.id,
+            meta={
+                "profile_type": profileType,
+                "profile_id": profileId,
+                "uploaded_by": str(default_user.id)
+            }
         )
-        db.add(pst_file)
+        db.add(document)
         db.commit()
-        db.refresh(pst_file)
-        pst_file_id = str(pst_file.id)
-        logger.info(f"Created PSTFile record {pst_file_id} for {file.filename}")
+        db.refresh(document)
 
-    # Queue processing - use pst_file_id for PST files, document_id for others
-    processing_id = pst_file_id if pst_file_id else str(document.id)
-    processing_state = _queue_processing_task(file.filename, processing_id, case_id, company_id)
+        # For PST files, also create a PSTFile record (worker expects this)
+        pst_file_id = None
+        if file.filename and file.filename.lower().endswith(".pst"):
+            pst_file = PSTFile(
+                filename=file.filename,
+                case_id=case_id,
+                project_id=project_id,
+                s3_bucket=bucket,
+                s3_key=s3_key,
+                file_size_bytes=size,
+                processing_status='pending',
+                uploaded_by=default_user.id
+            )
+            db.add(pst_file)
+            db.commit()
+            db.refresh(pst_file)
+            pst_file_id = str(pst_file.id)
+            logger.info(f"Created PSTFile record {pst_file_id} for {file.filename}")
 
-    return {
-        "id": str(document.id),
-        "status": processing_state,
-        "case_id": case_id,
-        "project_id": project_id,
-        "s3_key": s3_key
-    }
+        # Queue processing - use pst_file_id for PST files, document_id for others
+        processing_id = pst_file_id if pst_file_id else str(document.id)
+        processing_state = _queue_processing_task(file.filename, processing_id, case_id, company_id)
+
+        return {
+            "id": str(document.id),
+            "status": processing_state,
+            "case_id": case_id,
+            "project_id": project_id,
+            "s3_key": s3_key
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Detailed error in upload_evidence")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
 @wizard_router.post("/evidence/upload-bulk")
@@ -2279,153 +2272,146 @@ async def upload_evidence_bulk(
     profileId: str | None = Form(None),  # type: ignore[reportCallInDefaultInitializer]
     profileType: str = Form("project"),  # type: ignore[reportCallInDefaultInitializer]
     files: list[UploadFile] = File(...),  # type: ignore[reportCallInDefaultInitializer]
-    db: Session = Depends(get_db)  # type: ignore[reportCallInDefaultInitializer]
+    db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+    user: User = Depends(current_user)  # Use Admin Bypass from security.py
 ):
     """
     Bulk upload endpoint for multiple email files (.eml, .msg).
     Parses emails directly and creates EmailMessage records in bulk.
     Much more efficient than uploading one file at a time.
     """
-    # Get default admin user
-    default_user = db.query(User).filter(User.email == "admin@vericase.com").first()
-    if not default_user:
-        from .security import hash_password
-        from .models import UserRole
-        default_user = User(
-            email="admin@vericase.com",
-            password_hash=hash_password("admin123"),
-            role=UserRole.ADMIN,
-            is_active=True,
-            email_verified=True,
-            display_name="Administrator"
-        )
-        db.add(default_user)
-        db.commit()
-        db.refresh(default_user)
-    
-    # If no profileId provided, use default project
-    if not profileId or profileId == "null" or profileId == "undefined":
-        default_project = _get_or_create_default_project(db, default_user)
-        profileId = str(default_project.id)
-        profileType = "project"
-    
     try:
-        profile_uuid = uuid.UUID(profileId)
-    except ValueError:
-        default_project = _get_or_create_default_project(db, default_user)
-        profileId = str(default_project.id)
-        profile_uuid = default_project.id
-        profileType = "project"
-
-    # Get entity IDs
-    case_id, project_id, _company_id = _get_entity_ids(profile_uuid, profileType, db)
-    
-    # Create a dummy PSTFile record for bulk uploads (required for EmailMessage foreign key)
-    bucket = settings.S3_BUCKET or settings.MINIO_BUCKET
-    pst_file = PSTFile(
-        filename=f"bulk_upload_{uuid.uuid4().hex[:8]}.eml",
-        case_id=case_id,
-        project_id=project_id,
-        s3_bucket=bucket,
-        s3_key=f"bulk_uploads/{profileId}/{uuid.uuid4()}/emails",
-        file_size_bytes=0,
-        processing_status='completed',
-        uploaded_by=default_user.id,
-        total_emails=len(files),
-        processed_emails=0
-    )
-    db.add(pst_file)
-    db.commit()
-    db.refresh(pst_file)
-    
-    # Track results with explicit types
-    success_count = 0
-    failed_count = 0
-    processed_emails: list[dict[str, Any]] = []
-    error_list: list[dict[str, str]] = []
-    
-    for file in files:
+        # Get default admin user (from dependency)
+        default_user = user
+        
+        # If no profileId provided, use default project
+        if not profileId or profileId == "null" or profileId == "undefined":
+            default_project = _get_or_create_default_project(db, default_user)
+            profileId = str(default_project.id)
+            profileType = "project"
+        
         try:
-            if not file.filename:
-                failed_count += 1
-                error_list.append({"file": "unknown", "error": "No filename"})
-                continue
-            
-            filename_lower = file.filename.lower()
-            content = await file.read()
-            
-            # Parse email based on file type
-            if filename_lower.endswith('.eml'):
-                email_data = _parse_eml_file(content)
-            elif filename_lower.endswith('.msg'):
-                email_data = _parse_msg_file(content, file.filename)
-            else:
-                # Store as regular file
-                s3_key = f"uploads/{profileType}/{profileId}/{uuid.uuid4()}_{file.filename}"
-                await _upload_bytes_to_storage(content, s3_key, file.content_type or "application/octet-stream")
+            profile_uuid = uuid.UUID(profileId)
+        except ValueError:
+            default_project = _get_or_create_default_project(db, default_user)
+            profileId = str(default_project.id)
+            profile_uuid = default_project.id
+            profileType = "project"
+
+        # Get entity IDs
+        case_id, project_id, _company_id = _get_entity_ids(profile_uuid, profileType, db)
+        
+        # Create a dummy PSTFile record for bulk uploads (required for EmailMessage foreign key)
+        bucket = settings.S3_BUCKET or settings.MINIO_BUCKET
+        pst_file = PSTFile(
+            filename=f"bulk_upload_{uuid.uuid4().hex[:8]}.eml",
+            case_id=case_id,
+            project_id=project_id,
+            s3_bucket=bucket,
+            s3_key=f"bulk_uploads/{profileId}/{uuid.uuid4()}/emails",
+            file_size_bytes=0,
+            processing_status='completed',
+            uploaded_by=default_user.id,
+            total_emails=len(files),
+            processed_emails=0
+        )
+        db.add(pst_file)
+        db.commit()
+        db.refresh(pst_file)
+        
+        # Track results with explicit types
+        success_count = 0
+        failed_count = 0
+        processed_emails: list[dict[str, Any]] = []
+        error_list: list[dict[str, str]] = []
+        
+        for file in files:
+            try:
+                if not file.filename:
+                    failed_count += 1
+                    error_list.append({"file": "unknown", "error": "No filename"})
+                    continue
+                
+                filename_lower = file.filename.lower()
+                content = await file.read()
+                
+                # Parse email based on file type
+                if filename_lower.endswith('.eml'):
+                    email_data = _parse_eml_file(content)
+                elif filename_lower.endswith('.msg'):
+                    email_data = _parse_msg_file(content, file.filename)
+                else:
+                    # Store as regular file
+                    s3_key = f"uploads/{profileType}/{profileId}/{uuid.uuid4()}_{file.filename}"
+                    await _upload_bytes_to_storage(content, s3_key, file.content_type or "application/octet-stream")
+                    success_count += 1
+                    continue
+                
+                if not email_data:
+                    failed_count += 1
+                    error_list.append({"file": file.filename, "error": "Failed to parse email"})
+                    continue
+                
+                # Create EmailMessage record
+                email_msg = EmailMessage(
+                    pst_file_id=pst_file.id,
+                    case_id=case_id,
+                    project_id=project_id,
+                    message_id=email_data.get("message_id"),
+                    in_reply_to=email_data.get("in_reply_to"),
+                    subject=email_data.get("subject"),
+                    sender_email=email_data.get("sender_email"),
+                    sender_name=email_data.get("sender_name"),
+                    recipients_to=email_data.get("recipients_to", []),
+                    recipients_cc=email_data.get("recipients_cc", []),
+                    date_sent=email_data.get("date_sent"),
+                    body_text=email_data.get("body_text"),
+                    body_html=email_data.get("body_html"),
+                    body_preview=email_data.get("body_preview"),
+                    has_attachments=email_data.get("has_attachments", False),
+                    importance=email_data.get("importance"),
+                    pst_message_path=f"bulk_upload/{file.filename}",
+                    meta={
+                        "source": "bulk_upload",
+                        "original_filename": file.filename,
+                        "attachments": email_data.get("attachments", [])
+                    }
+                )
+                db.add(email_msg)
+                
                 success_count += 1
-                continue
-            
-            if not email_data:
+                date_sent = email_data.get("date_sent")
+                processed_emails.append({
+                    "filename": file.filename,
+                    "subject": email_data.get("subject"),
+                    "sender": email_data.get("sender_email"),
+                    "date": date_sent.isoformat() if date_sent else None
+                })
+                
+            except Exception as e:
+                logger.error(f"Error processing {file.filename}: {e}")
                 failed_count += 1
-                error_list.append({"file": file.filename, "error": "Failed to parse email"})
-                continue
-            
-            # Create EmailMessage record
-            email_msg = EmailMessage(
-                pst_file_id=pst_file.id,
-                case_id=case_id,
-                project_id=project_id,
-                message_id=email_data.get("message_id"),
-                in_reply_to=email_data.get("in_reply_to"),
-                subject=email_data.get("subject"),
-                sender_email=email_data.get("sender_email"),
-                sender_name=email_data.get("sender_name"),
-                recipients_to=email_data.get("recipients_to", []),
-                recipients_cc=email_data.get("recipients_cc", []),
-                date_sent=email_data.get("date_sent"),
-                body_text=email_data.get("body_text"),
-                body_html=email_data.get("body_html"),
-                body_preview=email_data.get("body_preview"),
-                has_attachments=email_data.get("has_attachments", False),
-                importance=email_data.get("importance"),
-                pst_message_path=f"bulk_upload/{file.filename}",
-                meta={
-                    "source": "bulk_upload",
-                    "original_filename": file.filename,
-                    "attachments": email_data.get("attachments", [])
-                }
-            )
-            db.add(email_msg)
-            
-            success_count += 1
-            date_sent = email_data.get("date_sent")
-            processed_emails.append({
-                "filename": file.filename,
-                "subject": email_data.get("subject"),
-                "sender": email_data.get("sender_email"),
-                "date": date_sent.isoformat() if date_sent else None
-            })
-            
-        except Exception as e:
-            logger.error(f"Error processing {file.filename}: {e}")
-            failed_count += 1
-            error_list.append({"file": file.filename or "unknown", "error": str(e)})
-    
-    # Update PST file record with final count
-    pst_file.processed_emails = success_count
-    pst_file.total_emails = success_count
-    db.commit()
-    
-    return {
-        "total": len(files),
-        "success": success_count,
-        "failed": failed_count,
-        "emails": processed_emails,
-        "errors": error_list,
-        "project_id": project_id,
-        "pst_file_id": str(pst_file.id)
-    }
+                error_list.append({"file": file.filename or "unknown", "error": str(e)})
+        
+        # Update PST file record with final count
+        pst_file.processed_emails = success_count
+        pst_file.total_emails = success_count
+        db.commit()
+        
+        return {
+            "total": len(files),
+            "success": success_count,
+            "failed": failed_count,
+            "emails": processed_emails,
+            "errors": error_list,
+            "project_id": project_id,
+            "pst_file_id": str(pst_file.id)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Detailed error in upload_evidence_bulk")
+        raise HTTPException(status_code=500, detail=f"Bulk Upload failed: {str(e)}")
 
 
 def _parse_eml_file(content: bytes) -> dict[str, Any] | None:

@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Column, String, DateTime, Text, JSON, Enum, Integer, ForeignKey, Boolean, Index, ARRAY
+from sqlalchemy import Column, String, DateTime, Text, JSON, Enum, Integer, BigInteger, ForeignKey, Boolean, Index, ARRAY
 from sqlalchemy.sql import func, expression
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, Mapped, mapped_column
@@ -91,7 +91,7 @@ class Document(Base):
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     content_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     bucket: Mapped[str] = mapped_column(String(128), nullable=False)
     s3_key: Mapped[str] = mapped_column(String(2048), nullable=False)
     status: Mapped[DocStatus] = mapped_column(Enum(DocStatus), nullable=False, default=DocStatus.NEW)
@@ -192,7 +192,7 @@ class DocumentVersion(Base):
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     s3_key: Mapped[str] = mapped_column(String(2048), nullable=False)
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
-    size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     content_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     creator: Mapped[User | None] = relationship("User")
@@ -479,7 +479,7 @@ class PSTFile(Base):
     project_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
     s3_bucket: Mapped[str | None] = mapped_column(String(128), nullable=True)  # Fixed: DB allows NULL
     s3_key: Mapped[str] = mapped_column(String(2048), nullable=False)
-    file_size_bytes: Mapped[int | None] = mapped_column("file_size_bytes", Integer, nullable=True)  # Fixed: Match DB column name
+    file_size_bytes: Mapped[int | None] = mapped_column("file_size_bytes", BigInteger, nullable=True)  # Fixed: Match DB column name
     total_emails: Mapped[int] = mapped_column(Integer, default=0)
     processed_emails: Mapped[int] = mapped_column(Integer, default=0)
     processing_status: Mapped[str] = mapped_column(String(50), default='pending')  # Fixed: Match DB default
@@ -583,7 +583,7 @@ class EmailAttachment(Base):
     email_message_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("email_messages.id"), nullable=True)
     filename: Mapped[str | None] = mapped_column(String(512), nullable=True)
     content_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    file_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    file_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     s3_bucket: Mapped[str | None] = mapped_column(String(128), nullable=True)
     s3_key: Mapped[str | None] = mapped_column(String(2048), nullable=True)
 
@@ -806,7 +806,7 @@ class EvidenceSource(Base):
     original_s3_bucket: Mapped[str | None] = mapped_column(String(128), nullable=True)
     original_s3_key: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     original_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    original_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    original_size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     # Processing statistics
     total_items: Mapped[int] = mapped_column(Integer, default=0)
@@ -891,7 +891,7 @@ class EvidenceItem(Base):
     original_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     file_type: Mapped[str | None] = mapped_column(String(255), nullable=True)  # Increased from 50 for flexibility
     mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)  # Increased for edge cases
-    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    file_size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     file_hash: Mapped[str] = mapped_column(String(128), nullable=False)  # SHA-256
 
     # Storage

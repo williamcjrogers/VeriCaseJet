@@ -691,9 +691,9 @@ def get_or_create_test_user(db: Session) -> User:
 def create_case(
     payload: dict = Body(...),
     db: Session = Depends(get_db),
-    # _: None = Depends(verify_csrf_token),  # TEMPORARY: CSRF disabled
+    user: User = Depends(current_user),
 ):
-    user = get_or_create_test_user(db)
+    # user = get_or_create_test_user(db)
     
     # Get or create company for this user
     user_company = db.query(UserCompany).filter(UserCompany.user_id == user.id, UserCompany.is_primary.is_(True)).first()
