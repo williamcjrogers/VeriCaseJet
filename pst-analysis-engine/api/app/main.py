@@ -568,36 +568,49 @@ def startup():
 
         # Run schema migrations for BigInt support
         with engine.connect() as conn:
-            try:
                 logger.info("Running schema migrations for Large File support...")
-                conn.execute(
-                    text("ALTER TABLE documents ALTER COLUMN size TYPE BIGINT")
-                )
-                conn.execute(
-                    text(
-                        "ALTER TABLE pst_files ALTER COLUMN file_size_bytes TYPE BIGINT"
-                    )
-                )
-                conn.execute(
-                    text(
-                        "ALTER TABLE email_attachments ALTER COLUMN file_size_bytes TYPE BIGINT"
-                    )
-                )
-                conn.execute(
-                    text(
-                        "ALTER TABLE evidence_items ALTER COLUMN file_size TYPE BIGINT"
-                    )
-                )
-                conn.execute(
-                    text(
-                        "ALTER TABLE evidence_sources ALTER COLUMN original_size TYPE BIGINT"
-                    )
-                )
-                conn.commit()
-                logger.info("Schema migration to BIGINT completed successfully")
-            except Exception as migration_error:
-                # Ignore errors if columns don't exist or are already migrated
-                logger.warning(f"Schema migration skipped/partial: {migration_error}")
+                
+                # 1. Documents
+                try:
+                    conn.execute(text("ALTER TABLE documents ALTER COLUMN size TYPE BIGINT"))
+                    conn.commit()
+                except Exception as e:
+                    logger.warning(f"Migration skipped for documents: {e}")
+                    conn.rollback()
+
+                # 2. PST Files
+                try:
+                    conn.execute(text("ALTER TABLE pst_files ALTER COLUMN file_size_bytes TYPE BIGINT"))
+                    conn.commit()
+                except Exception as e:
+                    logger.warning(f"Migration skipped for pst_files: {e}")
+                    conn.rollback()
+
+                # 3. Email Attachments
+                try:
+                    conn.execute(text("ALTER TABLE email_attachments ALTER COLUMN file_size_bytes TYPE BIGINT"))
+                    conn.commit()
+                except Exception as e:
+                    logger.warning(f"Migration skipped for email_attachments: {e}")
+                    conn.rollback()
+
+                # 4. Evidence Items
+                try:
+                    conn.execute(text("ALTER TABLE evidence_items ALTER COLUMN file_size TYPE BIGINT"))
+                    conn.commit()
+                except Exception as e:
+                    logger.warning(f"Migration skipped for evidence_items: {e}")
+                    conn.rollback()
+
+                # 5. Evidence Sources
+                try:
+                    conn.execute(text("ALTER TABLE evidence_sources ALTER COLUMN original_size TYPE BIGINT"))
+                    conn.commit()
+                except Exception as e:
+                    logger.warning(f"Migration skipped for evidence_sources: {e}")
+                    conn.rollback()
+                    
+                logger.info("Schema migration attempts completed")
 
     except Exception as e:
         logger.warning(f"Database initialization skipped: {e}")
