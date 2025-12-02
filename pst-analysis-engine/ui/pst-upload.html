@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VeriCase - Upload Evidence</title>
+  <title>VeriCase - Upload Evidence (v1.1)</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link rel="stylesheet" href="brand-styles.css" />
   <link rel="stylesheet" href="design-system.css" />
@@ -767,7 +767,7 @@
     <h1>
       <img src="../assets/Asset 1.png" alt="VeriCase" />
       <i class="fas fa-cloud-upload-alt" style="color: var(--vericase-teal)"></i>
-      Evidence Upload
+      Evidence Upload <span style="font-size: 12px; opacity: 0.7; margin-left: 10px;">v1.1</span>
     </h1>
     <button class="btn btn-ghost" onclick="goToDashboard()" style="
           background: white;
@@ -1303,7 +1303,9 @@
       // Use XMLHttpRequest for progress tracking
       await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open("POST", `${apiUrl}/api/correspondence/pst/upload`, true);
+        const uploadUrl = `${apiUrl}/api/correspondence/pst/upload`;
+        console.log("Uploading PST to:", uploadUrl);
+        xhr.open("POST", uploadUrl, true);
 
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
