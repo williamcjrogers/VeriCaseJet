@@ -1,0 +1,22 @@
+
+C:\Users\William\Documents\Projects\VeriCase Analysis\pst-analysis-engine\ui\config.js
+   65:26  warning  'secureApiFetch' is not defined  no-undef
+  141:57  warning  'VeriCaseConfig' is not defined  no-undef
+  143:5   warning  'VeriCaseConfig' is not defined  no-undef
+
+C:\Users\William\Documents\Projects\VeriCase Analysis\pst-analysis-engine\ui\security.js
+  138:3  warning  'module' is not defined  no-undef
+
+C:\Users\William\Documents\Projects\VeriCase Analysis\pst-analysis-engine\ui\wizard-logic.js
+    56:10  warning  'createSafeElement' is defined but never used             no-unused-vars
+   632:7   warning  'addStakeholderRow' is not defined                        no-undef
+   636:5   warning  'addStakeholderRow' is not defined                        no-undef
+   641:7   warning  'addKeywordRow' is not defined                            no-undef
+   784:7   warning  'addLegalTeamRow' is not defined                          no-undef
+   841:7   warning  'addHeadOfClaimRow' is not defined                        no-undef
+   847:7   warning  'addCaseKeywordRow' is not defined                        no-undef
+   881:7   warning  'addDeadlineRow' is not defined                           no-undef
+  2084:10  warning  'handleIntelligentQuickAction' is defined but never used  no-unused-vars
+
+Ô£û 13 problems (0 errors, 13 warnings)
+
