@@ -36,7 +36,11 @@ venv.bak/
 .mypy_cache/
 .pytest_cache/
 # IDE
-.vscode/
+# IDE
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+
 .idea/
 *.swp
 *.swo
