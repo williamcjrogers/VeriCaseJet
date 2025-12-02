@@ -1,6 +1,7 @@
 """
 Email service for authentication and notifications
 """
+
 from __future__ import annotations
 
 import logging
@@ -17,12 +18,12 @@ import jinja2
 logger = logging.getLogger(__name__)
 
 # Email configuration
-SMTP_HOST = os.getenv('SMTP_HOST', 'smtp.gmail.com')
-SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
-SMTP_USER = os.getenv('SMTP_USER', '')
-SMTP_PASS = os.getenv('SMTP_PASS', '')
-EMAIL_FROM = os.getenv('EMAIL_FROM', 'VeriCase <noreply@vericase.com>')
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:8010')
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASS = os.getenv("SMTP_PASS", "")
+EMAIL_FROM = os.getenv("EMAIL_FROM", "VeriCase <noreply@vericase.com>")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:8010")
 
 # Set up Jinja2 for email templates
 templates_path = Path(__file__).parent / "templates" / "emails"
@@ -35,7 +36,7 @@ template_env = jinja2.Environment(loader=template_loader, autoescape=True)
 
 class EmailService:
     """Email service for sending transactional emails"""
-    
+
     def __init__(self):
         self.smtp_host = SMTP_HOST
         self.smtp_port = SMTP_PORT
@@ -43,7 +44,7 @@ class EmailService:
         self.smtp_pass = SMTP_PASS
         self.from_email = EMAIL_FROM
         self.frontend_url = FRONTEND_URL
-    
+
     def _get_smtp_connection(self):
         """Get SMTP connection"""
         try:
@@ -55,23 +56,29 @@ class EmailService:
         except Exception as e:
             logger.error(f"Failed to connect to SMTP server: {e}")
             raise
-    
-    def _send_email(self, to_email: str, subject: str, html_content: str, text_content: str | None = None):
+
+    def _send_email(
+        self,
+        to_email: str,
+        subject: str,
+        html_content: str,
+        text_content: str | None = None,
+    ):
         """Send email using SMTP"""
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From'] = self.from_email
-        msg['To'] = to_email
-        
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = self.from_email
+        msg["To"] = to_email
+
         # Add text part
         if text_content:
-            text_part = MIMEText(text_content, 'plain')
+            text_part = MIMEText(text_content, "plain")
             msg.attach(text_part)
-        
+
         # Add HTML part
-        html_part = MIMEText(html_content, 'html')
+        html_part = MIMEText(html_content, "html")
         msg.attach(html_part)
-        
+
         # Send email
         try:
             if self.smtp_user and self.smtp_pass:
@@ -87,18 +94,22 @@ class EmailService:
         except Exception as e:
             logger.error(f"Failed to send email to {to_email}: {e}")
             # Don't raise exception - email failure shouldn't break the app
-    
-    def send_verification_email(self, to_email: str, user_name: str, verification_token: str):
+
+    def send_verification_email(
+        self, to_email: str, user_name: str, verification_token: str
+    ):
         """Send email verification email"""
-        verification_link = f"{self.frontend_url}/ui/verify-email.html?token={verification_token}"
-        
+        verification_link = (
+            f"{self.frontend_url}/ui/verify-email.html?token={verification_token}"
+        )
+
         # Try to load template, fall back to simple HTML
         try:
-            template = template_env.get_template('verification.html')
+            template = template_env.get_template("verification.html")
             html_content = template.render(
                 user_name=user_name,
                 verification_link=verification_link,
-                frontend_url=self.frontend_url
+                frontend_url=self.frontend_url,
             )
         except Exception as e:
             logger.warning(f"Failed to load email template: {e}")
@@ -125,7 +136,7 @@ class EmailService:
                 </body>
             </html>
             """
-        
+
         text_content = f"""
 Welcome to VeriCase!
 
@@ -138,20 +149,22 @@ This link will expire in 7 days.
 
 If you didn't create an account, please ignore this email.
 """
-        
-        self._send_email(to_email, "Verify your VeriCase account", html_content, text_content)
-    
+
+        self._send_email(
+            to_email, "Verify your VeriCase account", html_content, text_content
+        )
+
     def send_password_reset(self, to_email: str, user_name: str, reset_token: str):
         """Send password reset email"""
         reset_link = f"{self.frontend_url}/ui/password-reset.html?token={reset_token}"
-        
+
         # Try to load template, fall back to simple HTML
         try:
-            template = template_env.get_template('password-reset.html')
+            template = template_env.get_template("password-reset.html")
             html_content = template.render(
                 user_name=user_name,
                 reset_link=reset_link,
-                frontend_url=self.frontend_url
+                frontend_url=self.frontend_url,
             )
         except Exception:
             # Fallback HTML
@@ -179,7 +192,7 @@ If you didn't create an account, please ignore this email.
                 </body>
             </html>
             """
-        
+
         text_content = f"""
 Password Reset Request
 
@@ -192,15 +205,13 @@ This link will expire in 24 hours.
 
 If you didn't request this, please ignore this email. Your password won't be changed.
 """
-        
-        self._send_email(to_email, "Reset your VeriCase password", html_content, text_content)
-    
+
+        self._send_email(
+            to_email, "Reset your VeriCase password", html_content, text_content
+        )
+
     def send_approval_email(
-        self,
-        to_email: str,
-        user_name: str,
-        approved: bool,
-        reason: str | None = None
+        self, to_email: str, user_name: str, approved: bool, reason: str | None = None
     ) -> None:
         """Notify a user about approval or rejection results."""
         status_text = "approved" if approved else "rejected"
@@ -223,7 +234,9 @@ If you didn't request this, please ignore this email. Your password won't be cha
             </html>
             """
         else:
-            reason_text = reason or "We were unable to verify your details at this time."
+            reason_text = (
+                reason or "We were unable to verify your details at this time."
+            )
             body_text = (
                 f"Hi {user_name},\n\n"
                 "We reviewed your VeriCase account request but couldn't approve it.\n"
@@ -250,28 +263,28 @@ If you didn't request this, please ignore this email. Your password won't be cha
         to_email: str,
         user_name: str,
         alert_type: str,
-        details: Mapping[str, str | None]
+        details: Mapping[str, str | None],
     ):
         """Send security alert email"""
         alert_messages = {
-            'new_login': 'New Login Detected',
-            'password_changed': 'Password Changed',
-            'account_locked': 'Account Locked',
-            'suspicious_activity': 'Suspicious Activity Detected'
+            "new_login": "New Login Detected",
+            "password_changed": "Password Changed",
+            "account_locked": "Account Locked",
+            "suspicious_activity": "Suspicious Activity Detected",
         }
-        
+
         subject = f"Security Alert: {alert_messages.get(alert_type, 'Security Notice')}"
-        
+
         # Try to load template, fall back to simple HTML
         try:
-            template = template_env.get_template('security-alert.html')
+            template = template_env.get_template("security-alert.html")
             html_content = template.render(
                 user_name=user_name,
                 alert_type=alert_type,
                 alert_title=alert_messages.get(alert_type),
                 details=details,
                 frontend_url=self.frontend_url,
-                timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+                timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
             )
         except Exception:
             # Fallback HTML
@@ -297,13 +310,17 @@ If you didn't request this, please ignore this email. Your password won't be cha
                 </body>
             </html>
             """
-        
+
         self._send_email(to_email, subject, html_content)
-    
-    def send_account_locked(self, to_email: str, user_name: str, locked_until: datetime, attempts: int):
+
+    def send_account_locked(
+        self, to_email: str, user_name: str, locked_until: datetime, attempts: int
+    ):
         """Send account locked notification"""
-        minutes_locked = int((locked_until - datetime.now(timezone.utc)).total_seconds() / 60)
-        
+        minutes_locked = int(
+            (locked_until - datetime.now(timezone.utc)).total_seconds() / 60
+        )
+
         html_content = f"""
         <html>
             <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -329,8 +346,10 @@ If you didn't request this, please ignore this email. Your password won't be cha
             </body>
         </html>
         """
-        
-        self._send_email(to_email, "Account Locked - Too Many Failed Login Attempts", html_content)
+
+        self._send_email(
+            to_email, "Account Locked - Too Many Failed Login Attempts", html_content
+        )
 
 
 # Global email service instance

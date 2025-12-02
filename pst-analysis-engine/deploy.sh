@@ -111,7 +111,8 @@ fi
 
 # Start application services
 echo "🚀 Starting application services..."
-docker-compose -f docker-compose.prod.yml up -d api worker beat flower
+docker-compose -f docker-compose.prod.yml up -d api worker beat flower nginx
+
 
 # Wait for API to be healthy
 check_health "api"
@@ -121,7 +122,9 @@ echo ""
 echo "✨ Deployment complete!"
 echo ""
 echo "📍 Service URLs:"
-echo "   - API:        http://localhost:8010"
+echo "   - API (HTTPS): https://localhost"
+echo "   - API (HTTP):  http://localhost:8010"
+
 echo "   - MinIO:      http://localhost:9001 (user: ${MINIO_ACCESS_KEY})"
 echo "   - Flower:     http://localhost:5555"
 echo "   - OpenSearch: http://localhost:9200"

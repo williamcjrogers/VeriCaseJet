@@ -26,7 +26,9 @@ try:
     get_aws_services = _get_aws_services
     aws_available = True
 except ImportError:
-    logger.warning("AWS services not available - install boto3 and configure credentials")
+    logger.warning(
+        "AWS services not available - install boto3 and configure credentials"
+    )
 
 
 # Type aliases for dependency injection
@@ -122,7 +124,9 @@ async def transcribe_audio_evidence(
         if not evidence:
             raise HTTPException(status_code=404, detail="Evidence not found")
 
-        if not evidence.mime_type or not evidence.mime_type.startswith(("audio/", "video/")):
+        if not evidence.mime_type or not evidence.mime_type.startswith(
+            ("audio/", "video/")
+        ):
             raise HTTPException(status_code=400, detail="Evidence is not audio/video")
 
         background_tasks.add_task(
@@ -145,7 +149,9 @@ async def transcribe_audio_evidence(
 
 
 @aws_router.get("/services/status")
-async def get_aws_services_status() -> dict[str, str | dict[str, dict[str, bool | str]]]:
+async def get_aws_services_status() -> (
+    dict[str, str | dict[str, dict[str, bool | str]]]
+):
     """Get status of all AWS services integration"""
     try:
         now = datetime.now(timezone.utc).isoformat()

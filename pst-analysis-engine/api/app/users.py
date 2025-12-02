@@ -2,6 +2,7 @@
 User Management API Endpoints
 Handles user profile, password changes, and admin operations
 """
+
 import logging
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
@@ -92,15 +93,15 @@ def get_current_user_profile(user: User = Depends(current_user)):
         role=user.role.value,
         is_active=user.is_active,
         created_at=user.created_at,
-        last_login_at=user.last_login_at
+        last_login_at=user.last_login_at,
     )
 
 
 @router.patch("/me", response_model=UserProfile)
 def update_current_user_profile(
-        data: UpdateProfileRequest,
-        db: Session = Depends(get_db),
-        user: User = Depends(current_user)
+    data: UpdateProfileRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
 ):
     """Update current user's profile"""
     if data.display_name is not None:
@@ -116,15 +117,15 @@ def update_current_user_profile(
         role=user.role.value,
         is_active=user.is_active,
         created_at=user.created_at,
-        last_login_at=user.last_login_at
+        last_login_at=user.last_login_at,
     )
 
 
 @router.post("/me/password")
 def change_password(
-        data: ChangePasswordRequest,
-        db: Session = Depends(get_db),
-        user: User = Depends(current_user)
+    data: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
 ):
     """Change current user's password"""
     # Verify current password
@@ -148,9 +149,9 @@ def change_password(
 # Admin endpoints
 @router.post("", response_model=UserListItem)
 def create_user(
-        data: CreateUserRequest,
-        db: Session = Depends(get_db),
-        admin: User = Depends(require_admin)
+    data: CreateUserRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ):
     """Create a new user (admin only)"""
     from .models import User as UserModel
@@ -162,6 +163,7 @@ def create_user(
 
     # Generate temporary password
     from .security_enhanced import generate_token, hash_password
+
     temp_password = generate_token()[:12]  # Use first 12 chars of token
 
     # Create user
@@ -172,7 +174,7 @@ def create_user(
         role=UserRole(data.role) if data.role else UserRole.VIEWER,
         is_active=True,
         email_verified=False,
-        verification_token=generate_token()
+        verification_token=generate_token(),
     )
 
     try:
@@ -182,15 +184,16 @@ def create_user(
 
         # Send welcome email with temp password if requested
         if data.send_invite:
-            from .email_service import email_service
             # TODO: Create welcome email template with temp password
-            safe_email = user.email.replace('\n', '').replace('\r', '')
-            logger.info("Welcome email would be sent to {safe_email} with temp password")
+            safe_email = user.email.replace("\n", "").replace("\r", "")
+            logger.info(
+                f"Welcome email would be sent to {safe_email} with temp password"
+            )
 
         # Sanitize emails for logging to prevent log injection
-        safe_user_email = user.email.replace('\n', '').replace('\r', '')
-        safe_admin_email = admin.email.replace('\n', '').replace('\r', '')
-        logger.info("User {safe_user_email} created by admin {safe_admin_email}")
+        safe_user_email = user.email.replace("\n", "").replace("\r", "")
+        safe_admin_email = admin.email.replace("\n", "").replace("\r", "")
+        logger.info(f"User {safe_user_email} created by admin {safe_admin_email}")
 
         return UserListItem(
             id=str(user.id),
@@ -199,19 +202,16 @@ def create_user(
             role=user.role.value,
             is_active=user.is_active,
             created_at=user.created_at,
-            last_login_at=user.last_login_at
+            last_login_at=user.last_login_at,
         )
     except Exception as e:
         db.rollback()
-        logger.error("Failed to create user: {e}")
+        logger.error(f"Failed to create user: {e}")
         raise HTTPException(status_code=500, detail="Failed to create user")
 
 
 @router.get("", response_model=list[UserListItem])
-def list_users(
-        db: Session = Depends(get_db),
-        admin: User = Depends(require_admin)
-):
+def list_users(db: Session = Depends(get_db), admin: User = Depends(require_admin)):
     """List all users (admin only)"""
     users = db.query(User).order_by(User.created_at.desc()).all()
 
@@ -223,7 +223,7 @@ def list_users(
             role=u.role.value,
             is_active=u.is_active,
             created_at=u.created_at,
-            last_login_at=u.last_login_at
+            last_login_at=u.last_login_at,
         )
         for u in users
     ]
@@ -231,10 +231,10 @@ def list_users(
 
 @router.patch("/{user_id}", response_model=UserListItem)
 def update_user(
-        user_id: str,
-        data: UpdateUserRequest,
-        db: Session = Depends(get_db),
-        admin: User = Depends(require_admin)
+    user_id: str,
+    data: UpdateUserRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ):
     """Update user (admin only)"""
     from uuid import UUID
@@ -279,16 +279,16 @@ def update_user(
         role=user.role.value,
         is_active=user.is_active,
         created_at=user.created_at,
-        last_login_at=user.last_login_at
+        last_login_at=user.last_login_at,
     )
 
 
 # Invitation endpoints
 @router.post("/invitations", response_model=InvitationResponse)
 def create_invitation(
-        data: CreateInvitationRequest,
-        db: Session = Depends(get_db),
-        admin: User = Depends(require_admin)
+    data: CreateInvitationRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
 ):
     """Create user invitation (admin only)"""
     # Check if user already exists
@@ -299,10 +299,15 @@ def create_invitation(
 
     # Check if invitation already exists
     from datetime import timezone
-    existing_invite = db.query(UserInvitation).filter(
-        UserInvitation.email.is_(email_lower),
-        UserInvitation.expires_at > datetime.now(timezone.utc)
-    ).first()
+
+    existing_invite = (
+        db.query(UserInvitation)
+        .filter(
+            UserInvitation.email.is_(email_lower),
+            UserInvitation.expires_at > datetime.now(timezone.utc),
+        )
+        .first()
+    )
     if existing_invite:
         raise HTTPException(409, "active invitation already exists for this email")
 
@@ -310,10 +315,11 @@ def create_invitation(
     try:
         role = UserRole(data.role)
     except ValueError:
-        raise HTTPException(400, "invalid role: {data.role}")
+        raise HTTPException(400, f"invalid role: {data.role}")
 
     # Create invitation
     from datetime import timezone
+
     token = uuid4().hex
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
 
@@ -322,7 +328,7 @@ def create_invitation(
         email=email_lower,
         role=role,
         invited_by=admin.id,
-        expires_at=expires_at
+        expires_at=expires_at,
     )
 
     db.add(invitation)
@@ -331,29 +337,31 @@ def create_invitation(
 
     # TODO: Send invitation email
     # Sanitize emails for logging to prevent log injection
-    safe_email = str(data.email).replace('\n', '').replace('\r', '')
-    safe_admin_email = admin.email.replace('\n', '').replace('\r', '')
-    logger.info("Invitation created for {safe_email} by {safe_admin_email}")
+    safe_email = str(data.email).replace("\n", "").replace("\r", "")
+    safe_admin_email = admin.email.replace("\n", "").replace("\r", "")
+    logger.info(f"Invitation created for {safe_email} by {safe_admin_email}")
 
     return InvitationResponse(
         token=invitation.token,
         email=invitation.email,
         role=invitation.role.value,
         expires_at=invitation.expires_at,
-        created_at=invitation.created_at
+        created_at=invitation.created_at,
     )
 
 
 @router.get("/invitations", response_model=list[InvitationResponse])
 def list_invitations(
-        db: Session = Depends(get_db),
-        admin: User = Depends(require_admin)
+    db: Session = Depends(get_db), admin: User = Depends(require_admin)
 ):
     """List all active invitations (admin only)"""
     now = datetime.now(timezone.utc)
-    invitations = db.query(UserInvitation).filter(
-        UserInvitation.expires_at > now
-    ).order_by(UserInvitation.created_at.desc()).all()
+    invitations = (
+        db.query(UserInvitation)
+        .filter(UserInvitation.expires_at > now)
+        .order_by(UserInvitation.created_at.desc())
+        .all()
+    )
 
     return [
         InvitationResponse(
@@ -361,7 +369,7 @@ def list_invitations(
             email=inv.email,
             role=inv.role.value,
             expires_at=inv.expires_at,
-            created_at=inv.created_at
+            created_at=inv.created_at,
         )
         for inv in invitations
     ]
@@ -369,14 +377,10 @@ def list_invitations(
 
 @router.delete("/invitations/{token}")
 def revoke_invitation(
-        token: str,
-        db: Session = Depends(get_db),
-        admin: User = Depends(require_admin)
+    token: str, db: Session = Depends(get_db), admin: User = Depends(require_admin)
 ):
     """Revoke invitation (admin only)"""
-    invitation = db.query(UserInvitation).filter(
-        UserInvitation.token == token
-    ).first()
+    invitation = db.query(UserInvitation).filter(UserInvitation.token == token).first()
 
     if not invitation:
         raise HTTPException(404, "invitation not found")
@@ -391,10 +395,11 @@ def revoke_invitation(
 def validate_invitation(token: str, db: Session = Depends(get_db)):
     """Validate invitation token (public endpoint)"""
     now = datetime.now(timezone.utc)
-    invitation = db.query(UserInvitation).filter(
-        UserInvitation.token == token,
-        UserInvitation.expires_at > now
-    ).first()
+    invitation = (
+        db.query(UserInvitation)
+        .filter(UserInvitation.token == token, UserInvitation.expires_at > now)
+        .first()
+    )
 
     if not invitation:
         raise HTTPException(404, "invalid or expired invitation")
@@ -402,22 +407,21 @@ def validate_invitation(token: str, db: Session = Depends(get_db)):
     return {
         "email": invitation.email,
         "role": invitation.role.value,
-        "expires_at": invitation.expires_at
+        "expires_at": invitation.expires_at,
     }
 
 
 @router.post("/invitations/{token}/accept")
 def accept_invitation(
-        token: str,
-        password: str = Body(..., embed=True),
-        db: Session = Depends(get_db)
+    token: str, password: str = Body(..., embed=True), db: Session = Depends(get_db)
 ):
     """Accept invitation and create account (public endpoint)"""
     now = datetime.now(timezone.utc)
-    invitation = db.query(UserInvitation).filter(
-        UserInvitation.token == token,
-        UserInvitation.expires_at > now
-    ).first()
+    invitation = (
+        db.query(UserInvitation)
+        .filter(UserInvitation.token == token, UserInvitation.expires_at > now)
+        .first()
+    )
 
     if not invitation:
         raise HTTPException(404, "invalid or expired invitation")
@@ -439,7 +443,7 @@ def accept_invitation(
         email=invitation.email,
         password_hash=hash_password(password),
         role=invitation.role,
-        is_active=True
+        is_active=True,
     )
 
     db.add(user)
@@ -452,9 +456,5 @@ def accept_invitation(
 
     return {
         "token": jwt_token,
-        "user": {
-            "id": str(user.id),
-            "email": user.email,
-            "role": user.role.value
-        }
+        "user": {"id": str(user.id), "email": user.email, "role": user.role.value},
     }

@@ -1,372 +1,447 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VeriCase - Claims & Matters</title>
-    
+
     <!-- AG-Grid Enterprise CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-grid.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-theme-quartz.css">
-    
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-grid.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-theme-quartz.css"
+    />
+
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+
     <!-- VeriCase Design System -->
-    <link rel="stylesheet" href="brand-styles.css">
-    <link rel="stylesheet" href="design-system.css">
+    <link rel="stylesheet" href="brand-styles.css" />
+    <link rel="stylesheet" href="design-system.css" />
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
-    
+
     <style>
-        body {
-            background: var(--bg-primary);
-            overflow: hidden;
-        }
+      body {
+        background: var(--bg-primary);
+        overflow: hidden;
+      }
 
-        .main-content {
-            display: flex;
-            height: calc(100vh - 64px);
-            padding: 24px;
-            gap: 24px;
-            overflow: hidden;
-        }
+      .main-content {
+        display: flex;
+        height: calc(100vh - 64px);
+        padding: 24px;
+        gap: 24px;
+        overflow: hidden;
+      }
 
-        /* Two Panel Layout */
-        .panel-container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            background: white;
-            border-radius: 12px;
-            border: 1px solid var(--gray-200);
-            box-shadow: var(--shadow-sm);
-            overflow: hidden;
-        }
+      /* Two Panel Layout */
+      .panel-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: white;
+        border-radius: 12px;
+        border: 1px solid var(--gray-200);
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+      }
 
-        .panel-header {
-            padding: 16px 24px;
-            border-bottom: 1px solid var(--gray-200);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: white;
-        }
+      .panel-header {
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--gray-200);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: white;
+      }
 
-        .panel-title {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
+      .panel-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
 
-        .panel-title h2 {
-            font-size: 1.125rem;
-            font-weight: 600;
-            color: var(--vericase-navy);
-            margin: 0;
-        }
+      .panel-title h2 {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--vericase-navy);
+        margin: 0;
+      }
 
-        .panel-title .badge {
-            background: var(--bg-primary);
-            color: var(--text-secondary);
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
+      .panel-title .badge {
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
 
-        .panel-content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px;
-            background: var(--bg-primary); /* Contrast for cards */
-        }
+      .panel-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+        background: var(--bg-primary); /* Contrast for cards */
+      }
 
-        /* Cards */
-        .claim-card {
-            background: white;
-            border: 1px solid var(--gray-200);
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-            position: relative;
-        }
+      /* Cards */
+      .claim-card {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        position: relative;
+      }
 
-        .claim-card:hover {
-            border-color: var(--vericase-teal);
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
-        }
+      .claim-card:hover {
+        border-color: var(--vericase-teal);
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+      }
 
-        .claim-card.selected {
-            border-color: var(--vericase-teal);
-            background: rgba(15, 157, 154, 0.05);
-        }
+      .claim-card.selected {
+        border-color: var(--vericase-teal);
+        background: rgba(15, 157, 154, 0.05);
+      }
 
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 8px;
-        }
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 8px;
+      }
 
-        .card-title {
-            font-weight: 600;
-            color: var(--vericase-navy);
-            font-size: 0.9375rem;
-            line-height: 1.4;
-        }
+      .card-title {
+        font-weight: 600;
+        color: var(--vericase-navy);
+        font-size: 0.9375rem;
+        line-height: 1.4;
+      }
 
-        .status-pill {
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 0.7rem;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
+      .status-pill {
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
 
-        .card-meta {
-            font-size: 0.8125rem;
-            color: var(--text-muted);
-            margin-bottom: 12px;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
+      .card-meta {
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+        margin-bottom: 12px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
 
-        .card-stats {
-            display: flex;
-            gap: 16px;
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            border-top: 1px solid var(--gray-100);
-            padding-top: 12px;
-        }
+      .card-stats {
+        display: flex;
+        gap: 16px;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        border-top: 1px solid var(--gray-100);
+        padding-top: 12px;
+      }
 
-        .card-amount {
-            font-family: var(--font-mono);
-            font-weight: 600;
-            color: var(--vericase-teal-dark);
-        }
+      .card-amount {
+        font-family: var(--font-mono);
+        font-weight: 600;
+        color: var(--vericase-teal-dark);
+      }
 
-        /* Detail Slide-over */
-        .detail-slide-over {
-            width: 450px;
-            background: white;
-            border-left: 1px solid var(--gray-200);
-            display: flex;
-            flex-direction: column;
-            position: fixed;
-            top: 64px; /* Below header */
-            right: 0;
-            bottom: 0;
-            transform: translateX(100%);
-            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-            z-index: 50;
-            box-shadow: -4px 0 24px rgba(0,0,0,0.1);
-        }
+      /* Detail Slide-over */
+      .detail-slide-over {
+        width: 450px;
+        background: white;
+        border-left: 1px solid var(--gray-200);
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        top: 64px; /* Below header */
+        right: 0;
+        bottom: 0;
+        transform: translateX(100%);
+        transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        z-index: 50;
+        box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1);
+      }
 
-        .detail-slide-over.open {
-            transform: translateX(0);
-        }
+      .detail-slide-over.open {
+        transform: translateX(0);
+      }
 
-        .detail-header {
-            padding: 20px 24px;
-            border-bottom: 1px solid var(--gray-200);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
+      .detail-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--gray-200);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
 
-        .detail-content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 24px;
-        }
+      .detail-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 24px;
+      }
 
-        .detail-section {
-            margin-bottom: 24px;
-        }
+      .detail-section {
+        margin-bottom: 24px;
+      }
 
-        .detail-section-title {
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+      .detail-section-title {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
 
-        .detail-field {
-            margin-bottom: 16px;
-        }
+      .detail-field {
+        margin-bottom: 16px;
+      }
 
-        .detail-label {
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            margin-bottom: 4px;
-        }
+      .detail-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-bottom: 4px;
+      }
 
-        .detail-value {
-            font-size: 0.9375rem;
-            color: var(--text-primary);
-            font-weight: 500;
-        }
+      .detail-value {
+        font-size: 0.9375rem;
+        color: var(--text-primary);
+        font-weight: 500;
+      }
 
-        /* Suggested Evidence (AI) */
-        .ai-suggestion-box {
-            background: linear-gradient(180deg, rgba(250, 249, 246, 1) 0%, rgba(255, 255, 255, 1) 100%);
-            border: 1px solid rgba(139, 115, 85, 0.3); /* Gold border */
-            border-radius: 8px;
-            padding: 16px;
-        }
+      /* Suggested Evidence (AI) */
+      .ai-suggestion-box {
+        background: linear-gradient(
+          180deg,
+          rgba(250, 249, 246, 1) 0%,
+          rgba(255, 255, 255, 1) 100%
+        );
+        border: 1px solid rgba(139, 115, 85, 0.3); /* Gold border */
+        border-radius: 8px;
+        padding: 16px;
+      }
 
-        .suggestion-card {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 10px;
-            background: white;
-            border: 1px solid var(--gray-200);
-            border-radius: 6px;
-            margin-bottom: 8px;
-            transition: all 0.2s;
-        }
+      .suggestion-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px;
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: 6px;
+        margin-bottom: 8px;
+        transition: all 0.2s;
+      }
 
-        .suggestion-card:hover {
-            border-color: var(--vericase-teal);
-            transform: translateX(2px);
-        }
+      .suggestion-card:hover {
+        border-color: var(--vericase-teal);
+        transform: translateX(2px);
+      }
 
-        .suggestion-icon {
-            width: 32px;
-            height: 32px;
-            background: rgba(15, 157, 154, 0.1);
-            color: var(--vericase-teal);
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+      .suggestion-icon {
+        width: 32px;
+        height: 32px;
+        background: rgba(15, 157, 154, 0.1);
+        color: var(--vericase-teal);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
 
-        .suggestion-info {
-            flex: 1;
-        }
+      .suggestion-info {
+        flex: 1;
+      }
 
-        .suggestion-title {
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: var(--vericase-navy);
-        }
+      .suggestion-title {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--vericase-navy);
+      }
 
-        .suggestion-reason {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            font-style: italic;
-        }
+      .suggestion-reason {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        font-style: italic;
+      }
 
-        /* Status Colors */
-        .status-active { background: #d1fae5; color: #065f46; }
-        .status-pending { background: #fef3c7; color: #92400e; }
-        .status-resolved { background: #dbeafe; color: #1e40af; }
-        .status-closed { background: #f3f4f6; color: #374151; }
-
+      /* Status Colors */
+      .status-active {
+        background: #d1fae5;
+        color: #065f46;
+      }
+      .status-pending {
+        background: #fef3c7;
+        color: #92400e;
+      }
+      .status-resolved {
+        background: #dbeafe;
+        color: #1e40af;
+      }
+      .status-closed {
+        background: #f3f4f6;
+        color: #374151;
+      }
     </style>
-</head>
-<body>
-    
+  </head>
+  <body>
     <!-- Main Workspace -->
     <div class="main-content">
-        <!-- LEFT: Contentious Matters (The Dispute) -->
-        <div class="panel-container">
-            <div class="panel-header">
-                <div class="panel-title">
-                    <i class="fas fa-exclamation-triangle" style="color: var(--warning);"></i>
-                    <h2>Matters</h2>
-                    <span class="badge" id="matterCount">0</span>
-                </div>
-                <button class="btn btn-vericase btn-sm" onclick="showCreateMatterModal()">
-                    <i class="fas fa-plus"></i> New
-                </button>
-            </div>
-            <div class="panel-content" id="mattersContainer">
-                <div class="loading">
-                    <div class="spinner"></div>
-                </div>
-            </div>
+      <!-- LEFT: Contentious Matters (The Dispute) -->
+      <div class="panel-container">
+        <div class="panel-header">
+          <div class="panel-title">
+            <i
+              class="fas fa-exclamation-triangle"
+              style="color: var(--warning)"
+            ></i>
+            <h2>Matters</h2>
+            <span class="badge" id="matterCount">0</span>
+          </div>
+          <button
+            class="btn btn-vericase btn-sm"
+            onclick="showCreateMatterModal()"
+          >
+            <i class="fas fa-plus"></i> New
+          </button>
         </div>
+        <div class="panel-content" id="mattersContainer">
+          <div class="loading">
+            <div class="spinner"></div>
+          </div>
+        </div>
+      </div>
 
-        <!-- MIDDLE: Heads of Claim (Line Items) -->
-        <div class="panel-container">
-            <div class="panel-header">
-                <div class="panel-title">
-                    <i class="fas fa-gavel" style="color: var(--error);"></i>
-                    <h2>Heads of Claim</h2>
-                    <span class="badge" id="claimCount">0</span>
-                </div>
-                <button class="btn btn-vericase btn-sm" onclick="showCreateClaimModal()">
-                    <i class="fas fa-plus"></i> New
-                </button>
-            </div>
-            <div class="panel-content" id="claimsContainer">
-                <div class="loading">
-                    <div class="spinner"></div>
-                </div>
-            </div>
+      <!-- MIDDLE: Heads of Claim (Line Items) -->
+      <div class="panel-container">
+        <div class="panel-header">
+          <div class="panel-title">
+            <i class="fas fa-gavel" style="color: var(--error)"></i>
+            <h2>Heads of Claim</h2>
+            <span class="badge" id="claimCount">0</span>
+          </div>
+          <button
+            class="btn btn-vericase btn-sm"
+            onclick="showCreateClaimModal()"
+          >
+            <i class="fas fa-plus"></i> New
+          </button>
         </div>
+        <div class="panel-content" id="claimsContainer">
+          <div class="loading">
+            <div class="spinner"></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- RIGHT: Detail Slide-over -->
     <div class="detail-slide-over" id="detailPanel">
-        <div class="detail-header">
-            <h3 id="detailTitle" style="font-size: 1.125rem; font-weight: 600; color: var(--vericase-navy);">Details</h3>
-            <button class="btn btn-ghost btn-icon" onclick="closeDetailPanel()">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <div class="detail-content" id="detailContent">
-            <!-- Dynamic Content -->
-        </div>
+      <div class="detail-header">
+        <h3
+          id="detailTitle"
+          style="
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--vericase-navy);
+          "
+        >
+          Details
+        </h3>
+        <button class="btn btn-ghost btn-icon" onclick="closeDetailPanel()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="detail-content" id="detailContent">
+        <!-- Dynamic Content -->
+      </div>
     </div>
 
     <!-- Scripts -->
     <script src="config.js"></script>
     <script src="app-state.js"></script>
-    
+
     <script>
-        // Init Shell
-        document.addEventListener('DOMContentLoaded', () => {
-            VericaseShell.inject({
-                title: 'Claims & Matters',
-                projectId: VericaseShell.getProjectId()
-            });
-            
-            // Load Data
-            loadMatters();
-            loadClaims();
+      // Init Shell
+      document.addEventListener("DOMContentLoaded", () => {
+        VericaseShell.inject({
+          title: "Claims & Matters",
+          projectId: VericaseShell.getProjectId(),
         });
 
-        // Mock Data for UI Preview
-        let matters = [
-            { id: 'm1', name: 'Delay to Completion', status: 'active', priority: 'high', estimated_value: 15000000, description: 'Dispute regarding EOT Claim No. 4 relating to weather events in Q1 2024.' },
-            { id: 'm2', name: 'Defective Cladding', status: 'pending', priority: 'medium', estimated_value: 450000, description: 'Alleged defects in the installation of the north elevation panels.' }
-        ];
+        // Load Data
+        loadMatters();
+        loadClaims();
+      });
 
-        let claims = [
-            { id: 'c1', matter_id: 'm1', name: 'EOT - Week 42', status: 'submitted', claimed_amount: 50000, claim_type: 'delay', description: 'Impact of Storm Henk on foundation works.' },
-            { id: 'c2', matter_id: 'm1', name: 'Prolongation Costs', status: 'draft', claimed_amount: 125000, claim_type: 'loss_expense', description: 'Preliminaries for extended period.' }
-        ];
+      // Mock Data for UI Preview
+      let matters = [
+        {
+          id: "m1",
+          name: "Delay to Completion",
+          status: "active",
+          priority: "high",
+          estimated_value: 15000000,
+          description:
+            "Dispute regarding EOT Claim No. 4 relating to weather events in Q1 2024.",
+        },
+        {
+          id: "m2",
+          name: "Defective Cladding",
+          status: "pending",
+          priority: "medium",
+          estimated_value: 450000,
+          description:
+            "Alleged defects in the installation of the north elevation panels.",
+        },
+      ];
 
-        // Load Matters
-        function loadMatters() {
-            const container = document.getElementById('mattersContainer');
-            container.innerHTML = matters.map(m => `
+      let claims = [
+        {
+          id: "c1",
+          matter_id: "m1",
+          name: "EOT - Week 42",
+          status: "submitted",
+          claimed_amount: 50000,
+          claim_type: "delay",
+          description: "Impact of Storm Henk on foundation works.",
+        },
+        {
+          id: "c2",
+          matter_id: "m1",
+          name: "Prolongation Costs",
+          status: "draft",
+          claimed_amount: 125000,
+          claim_type: "loss_expense",
+          description: "Preliminaries for extended period.",
+        },
+      ];
+
+      // Load Matters
+      function loadMatters() {
+        const container = document.getElementById("mattersContainer");
+        container.innerHTML = matters
+          .map(
+            (m) => `
                 <div class="claim-card" onclick="selectMatter('${m.id}')">
                     <div class="card-header">
                         <span class="card-title">${m.name}</span>
@@ -374,18 +449,22 @@
                     </div>
                     <div class="card-meta">${m.description}</div>
                     <div class="card-stats">
-                        <span><i class="fas fa-pound-sign"></i> <span class="card-amount">${(m.estimated_value/100).toLocaleString()}</span></span>
+                        <span><i class="fas fa-pound-sign"></i> <span class="card-amount">${(m.estimated_value / 100).toLocaleString()}</span></span>
                         <span><i class="fas fa-flag"></i> ${m.priority}</span>
                     </div>
                 </div>
-            `).join('');
-            document.getElementById('matterCount').textContent = matters.length;
-        }
+            `,
+          )
+          .join("");
+        document.getElementById("matterCount").textContent = matters.length;
+      }
 
-        // Load Claims
-        function loadClaims() {
-            const container = document.getElementById('claimsContainer');
-            container.innerHTML = claims.map(c => `
+      // Load Claims
+      function loadClaims() {
+        const container = document.getElementById("claimsContainer");
+        container.innerHTML = claims
+          .map(
+            (c) => `
                 <div class="claim-card" onclick="selectClaim('${c.id}')">
                     <div class="card-header">
                         <span class="card-title">${c.name}</span>
@@ -393,23 +472,25 @@
                     </div>
                     <div class="card-meta">${c.description}</div>
                     <div class="card-stats">
-                        <span><i class="fas fa-pound-sign"></i> <span class="card-amount">${(c.claimed_amount/100).toLocaleString()}</span></span>
+                        <span><i class="fas fa-pound-sign"></i> <span class="card-amount">${(c.claimed_amount / 100).toLocaleString()}</span></span>
                         <span><i class="fas fa-tag"></i> ${c.claim_type}</span>
                     </div>
                 </div>
-            `).join('');
-            document.getElementById('claimCount').textContent = claims.length;
-        }
+            `,
+          )
+          .join("");
+        document.getElementById("claimCount").textContent = claims.length;
+      }
 
-        // Select & Show Detail
-        function selectClaim(id) {
-            const claim = claims.find(c => c.id === id);
-            const panel = document.getElementById('detailPanel');
-            const content = document.getElementById('detailContent');
-            
-            document.getElementById('detailTitle').textContent = 'Head of Claim';
-            
-            content.innerHTML = `
+      // Select & Show Detail
+      function selectClaim(id) {
+        const claim = claims.find((c) => c.id === id);
+        const panel = document.getElementById("detailPanel");
+        const content = document.getElementById("detailContent");
+
+        document.getElementById("detailTitle").textContent = "Head of Claim";
+
+        content.innerHTML = `
                 <div class="detail-section">
                     <div class="detail-section-title">Overview</div>
                     <div class="detail-field">
@@ -422,7 +503,7 @@
                     </div>
                     <div class="detail-field">
                         <div class="detail-label">Claimed Amount</div>
-                        <div class="detail-value card-amount">£${(claim.claimed_amount/100).toLocaleString()}</div>
+                        <div class="detail-value card-amount">£${(claim.claimed_amount / 100).toLocaleString()}</div>
                     </div>
                     <div class="detail-field">
                         <div class="detail-label">Description</div>
@@ -468,18 +549,19 @@
                     </div>
                 </div>
             `;
-            
-            panel.classList.add('open');
-        }
 
-        function selectMatter(id) {
-            const matter = matters.find(m => m.id === id);
-            const panel = document.getElementById('detailPanel');
-            const content = document.getElementById('detailContent');
-            
-            document.getElementById('detailTitle').textContent = 'Contentious Matter';
-            
-            content.innerHTML = `
+        panel.classList.add("open");
+      }
+
+      function selectMatter(id) {
+        const matter = matters.find((m) => m.id === id);
+        const panel = document.getElementById("detailPanel");
+        const content = document.getElementById("detailContent");
+
+        document.getElementById("detailTitle").textContent =
+          "Contentious Matter";
+
+        content.innerHTML = `
                 <div class="detail-section">
                     <div class="detail-section-title">Overview</div>
                     <div class="detail-field">
@@ -488,21 +570,22 @@
                     </div>
                     <div class="detail-field">
                         <div class="detail-label">Total Value</div>
-                        <div class="detail-value card-amount">£${(matter.estimated_value/100).toLocaleString()}</div>
+                        <div class="detail-value card-amount">£${(matter.estimated_value / 100).toLocaleString()}</div>
                     </div>
                 </div>
             `;
-            panel.classList.add('open');
-        }
+        panel.classList.add("open");
+      }
 
-        function closeDetailPanel() {
-            document.getElementById('detailPanel').classList.remove('open');
-        }
+      function closeDetailPanel() {
+        document.getElementById("detailPanel").classList.remove("open");
+      }
 
-        // Modal Placeholders
-        window.showCreateMatterModal = () => VericaseUI.Toast.info("Create Matter modal would open here");
-        window.showCreateClaimModal = () => VericaseUI.Toast.info("Create Claim modal would open here");
-
+      // Modal Placeholders
+      window.showCreateMatterModal = () =>
+        VericaseUI.Toast.info("Create Matter modal would open here");
+      window.showCreateClaimModal = () =>
+        VericaseUI.Toast.info("Create Claim modal would open here");
     </script>
-</body>
+  </body>
 </html>

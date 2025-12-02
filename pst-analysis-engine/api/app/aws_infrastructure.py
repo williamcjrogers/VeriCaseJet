@@ -1,6 +1,5 @@
 # AWS Infrastructure as Code for VeriCase
 import json
-from typing import Dict, Any
 
 # CloudFormation template for complete AWS infrastructure
 VERICASE_CLOUDFORMATION_TEMPLATE = {
@@ -10,63 +9,65 @@ VERICASE_CLOUDFORMATION_TEMPLATE = {
         "Environment": {
             "Type": "String",
             "Default": "production",
-            "AllowedValues": ["development", "staging", "production"]
+            "AllowedValues": ["development", "staging", "production"],
         },
         "DatabasePassword": {
             "Type": "String",
             "NoEcho": True,
             "MinLength": 12,
-            "Description": "RDS PostgreSQL password"
+            "Description": "RDS PostgreSQL password",
         },
         "DomainName": {
             "Type": "String",
-            "Description": "Domain name for the application (e.g., vericase.com)"
-        }
+            "Description": "Domain name for the application (e.g., vericase.com)",
+        },
     },
     "Resources": {
         # S3 Buckets
         "VeriCaseDocumentsBucket": {
             "Type": "AWS::S3::Bucket",
             "Properties": {
-                "BucketName": {"Fn::Sub": "vericase-documents-${Environment}-${AWS::AccountId}"},
+                "BucketName": {
+                    "Fn::Sub": "vericase-documents-${Environment}-${AWS::AccountId}"
+                },
                 "VersioningConfiguration": {"Status": "Enabled"},
                 "PublicAccessBlockConfiguration": {
                     "BlockPublicAcls": True,
                     "BlockPublicPolicy": True,
                     "IgnorePublicAcls": True,
-                    "RestrictPublicBuckets": True
+                    "RestrictPublicBuckets": True,
                 },
                 "LifecycleConfiguration": {
-                    "Rules": [{
-                        "Id": "ArchiveOldVersions",
-                        "Status": "Enabled",
-                        "NoncurrentVersionTransitions": [{
-                            "TransitionInDays": 30,
-                            "StorageClass": "STANDARD_IA"
-                        }, {
-                            "TransitionInDays": 90,
-                            "StorageClass": "GLACIER"
-                        }]
-                    }]
+                    "Rules": [
+                        {
+                            "Id": "ArchiveOldVersions",
+                            "Status": "Enabled",
+                            "NoncurrentVersionTransitions": [
+                                {"TransitionInDays": 30, "StorageClass": "STANDARD_IA"},
+                                {"TransitionInDays": 90, "StorageClass": "GLACIER"},
+                            ],
+                        }
+                    ]
                 },
                 "NotificationConfiguration": {
                     "EventBridgeConfiguration": {"EventBridgeEnabled": True}
-                }
-            }
+                },
+            },
         },
         "VeriCaseKnowledgeBaseBucket": {
             "Type": "AWS::S3::Bucket",
             "Properties": {
-                "BucketName": {"Fn::Sub": "vericase-knowledge-base-${Environment}-${AWS::AccountId}"},
+                "BucketName": {
+                    "Fn::Sub": "vericase-knowledge-base-${Environment}-${AWS::AccountId}"
+                },
                 "PublicAccessBlockConfiguration": {
                     "BlockPublicAcls": True,
                     "BlockPublicPolicy": True,
                     "IgnorePublicAcls": True,
-                    "RestrictPublicBuckets": True
-                }
-            }
+                    "RestrictPublicBuckets": True,
+                },
+            },
         },
-        
         # RDS PostgreSQL Database
         "VeriCaseDatabase": {
             "Type": "AWS::RDS::DBInstance",
@@ -88,20 +89,20 @@ VERICASE_CLOUDFORMATION_TEMPLATE = {
                 "DeletionProtection": {"Fn::If": ["IsProduction", True, False]},
                 "EnablePerformanceInsights": True,
                 "MonitoringInterval": 60,
-                "MonitoringRoleArn": {"Fn::GetAtt": ["RDSEnhancedMonitoringRole", "Arn"]}
-            }
+                "MonitoringRoleArn": {
+                    "Fn::GetAtt": ["RDSEnhancedMonitoringRole", "Arn"]
+                },
+            },
         },
-        
         # OpenSearch Serverless Collection
         "VeriCaseSearchCollection": {
             "Type": "AWS::OpenSearchServerless::Collection",
             "Properties": {
                 "Name": {"Fn::Sub": "vericase-search-${Environment}"},
                 "Type": "SEARCH",
-                "Description": "VeriCase document search and analytics"
-            }
+                "Description": "VeriCase document search and analytics",
+            },
         },
-        
         # Bedrock Knowledge Base
         "VeriCaseKnowledgeBase": {
             "Type": "AWS::Bedrock::KnowledgeBase",
@@ -113,23 +114,24 @@ VERICASE_CLOUDFORMATION_TEMPLATE = {
                     "Type": "VECTOR",
                     "VectorKnowledgeBaseConfiguration": {
                         "EmbeddingModelArn": "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v1"
-                    }
+                    },
                 },
                 "StorageConfiguration": {
                     "Type": "OPENSEARCH_SERVERLESS",
                     "OpensearchServerlessConfiguration": {
-                        "CollectionArn": {"Fn::GetAtt": ["VeriCaseSearchCollection", "Arn"]},
+                        "CollectionArn": {
+                            "Fn::GetAtt": ["VeriCaseSearchCollection", "Arn"]
+                        },
                         "VectorIndexName": "vericase-evidence-index",
                         "FieldMapping": {
                             "VectorField": "content_vector",
                             "TextField": "content",
-                            "MetadataField": "metadata"
-                        }
-                    }
-                }
-            }
+                            "MetadataField": "metadata",
+                        },
+                    },
+                },
+            },
         },
-        
         # Bedrock Data Source
         "VeriCaseDataSource": {
             "Type": "AWS::Bedrock::DataSource",
@@ -139,18 +141,21 @@ VERICASE_CLOUDFORMATION_TEMPLATE = {
                 "DataSourceConfiguration": {
                     "Type": "S3",
                     "S3Configuration": {
-                        "BucketArn": {"Fn::GetAtt": ["VeriCaseKnowledgeBaseBucket", "Arn"]},
-                        "InclusionPrefixes": ["evidence/"]
-                    }
-                }
-            }
+                        "BucketArn": {
+                            "Fn::GetAtt": ["VeriCaseKnowledgeBaseBucket", "Arn"]
+                        },
+                        "InclusionPrefixes": ["evidence/"],
+                    },
+                },
+            },
         },
-        
         # Lambda Functions
         "TextractProcessorFunction": {
             "Type": "AWS::Lambda::Function",
             "Properties": {
-                "FunctionName": {"Fn::Sub": "vericase-textract-processor-${Environment}"},
+                "FunctionName": {
+                    "Fn::Sub": "vericase-textract-processor-${Environment}"
+                },
                 "Runtime": "python3.11",
                 "Handler": "lambda_function.textract_handler",
                 "Code": {"ZipFile": "# Lambda code will be deployed separately"},
@@ -160,40 +165,43 @@ VERICASE_CLOUDFORMATION_TEMPLATE = {
                 "Environment": {
                     "Variables": {
                         "ENVIRONMENT": {"Ref": "Environment"},
-                        "DB_HOST": {"Fn::GetAtt": ["VeriCaseDatabase", "Endpoint.Address"]},
+                        "DB_HOST": {
+                            "Fn::GetAtt": ["VeriCaseDatabase", "Endpoint.Address"]
+                        },
                         "DB_NAME": "vericase",
-                        "DOCUMENTS_BUCKET": {"Ref": "VeriCaseDocumentsBucket"}
+                        "DOCUMENTS_BUCKET": {"Ref": "VeriCaseDocumentsBucket"},
                     }
-                }
-            }
+                },
+            },
         },
-        
         "ComprehendAnalyzerFunction": {
             "Type": "AWS::Lambda::Function",
             "Properties": {
-                "FunctionName": {"Fn::Sub": "vericase-comprehend-analyzer-${Environment}"},
+                "FunctionName": {
+                    "Fn::Sub": "vericase-comprehend-analyzer-${Environment}"
+                },
                 "Runtime": "python3.11",
                 "Handler": "lambda_function.comprehend_handler",
                 "Code": {"ZipFile": "# Lambda code will be deployed separately"},
                 "Timeout": 300,
                 "MemorySize": 512,
-                "Role": {"Fn::GetAtt": ["LambdaExecutionRole", "Arn"]}
-            }
+                "Role": {"Fn::GetAtt": ["LambdaExecutionRole", "Arn"]},
+            },
         },
-        
         "DocumentClassifierFunction": {
             "Type": "AWS::Lambda::Function",
             "Properties": {
-                "FunctionName": {"Fn::Sub": "vericase-document-classifier-${Environment}"},
+                "FunctionName": {
+                    "Fn::Sub": "vericase-document-classifier-${Environment}"
+                },
                 "Runtime": "python3.11",
                 "Handler": "lambda_function.classifier_handler",
                 "Code": {"ZipFile": "# Lambda code will be deployed separately"},
                 "Timeout": 300,
                 "MemorySize": 512,
-                "Role": {"Fn::GetAtt": ["LambdaExecutionRole", "Arn"]}
-            }
+                "Role": {"Fn::GetAtt": ["LambdaExecutionRole", "Arn"]},
+            },
         },
-        
         "DatabaseUpdaterFunction": {
             "Type": "AWS::Lambda::Function",
             "Properties": {
@@ -206,72 +214,71 @@ VERICASE_CLOUDFORMATION_TEMPLATE = {
                 "Role": {"Fn::GetAtt": ["LambdaExecutionRole", "Arn"]},
                 "VpcConfig": {
                     "SecurityGroupIds": [{"Ref": "LambdaSecurityGroup"}],
-                    "SubnetIds": [{"Ref": "PrivateSubnet1"}, {"Ref": "PrivateSubnet2"}]
-                }
-            }
+                    "SubnetIds": [{"Ref": "PrivateSubnet1"}, {"Ref": "PrivateSubnet2"}],
+                },
+            },
         },
-        
         # Step Functions State Machine
         "EvidenceProcessingStateMachine": {
             "Type": "AWS::StepFunctions::StateMachine",
             "Properties": {
-                "StateMachineName": {"Fn::Sub": "VeriCase-Evidence-Processing-${Environment}"},
+                "StateMachineName": {
+                    "Fn::Sub": "VeriCase-Evidence-Processing-${Environment}"
+                },
                 "RoleArn": {"Fn::GetAtt": ["StepFunctionsRole", "Arn"]},
                 "DefinitionString": {
-                    "Fn::Sub": json.dumps({
-                        "Comment": "VeriCase Evidence Processing Workflow",
-                        "StartAt": "ExtractText",
-                        "States": {
-                            "ExtractText": {
-                                "Type": "Task",
-                                "Resource": "arn:aws:states:::lambda:invoke",
-                                "Parameters": {
-                                    "FunctionName": "${TextractProcessorFunction}",
-                                    "Payload.$": "$"
+                    "Fn::Sub": json.dumps(
+                        {
+                            "Comment": "VeriCase Evidence Processing Workflow",
+                            "StartAt": "ExtractText",
+                            "States": {
+                                "ExtractText": {
+                                    "Type": "Task",
+                                    "Resource": "arn:aws:states:::lambda:invoke",
+                                    "Parameters": {
+                                        "FunctionName": "${TextractProcessorFunction}",
+                                        "Payload.$": "$",
+                                    },
+                                    "Next": "AnalyzeEntities",
                                 },
-                                "Next": "AnalyzeEntities"
+                                "AnalyzeEntities": {
+                                    "Type": "Task",
+                                    "Resource": "arn:aws:states:::lambda:invoke",
+                                    "Parameters": {
+                                        "FunctionName": "${ComprehendAnalyzerFunction}",
+                                        "Payload.$": "$.Payload",
+                                    },
+                                    "Next": "ClassifyDocument",
+                                },
+                                "ClassifyDocument": {
+                                    "Type": "Task",
+                                    "Resource": "arn:aws:states:::lambda:invoke",
+                                    "Parameters": {
+                                        "FunctionName": "${DocumentClassifierFunction}",
+                                        "Payload.$": "$.Payload",
+                                    },
+                                    "Next": "UpdateDatabase",
+                                },
+                                "UpdateDatabase": {
+                                    "Type": "Task",
+                                    "Resource": "arn:aws:states:::lambda:invoke",
+                                    "Parameters": {
+                                        "FunctionName": "${DatabaseUpdaterFunction}",
+                                        "Payload.$": "$.Payload",
+                                    },
+                                    "End": True,
+                                },
                             },
-                            "AnalyzeEntities": {
-                                "Type": "Task",
-                                "Resource": "arn:aws:states:::lambda:invoke",
-                                "Parameters": {
-                                    "FunctionName": "${ComprehendAnalyzerFunction}",
-                                    "Payload.$": "$.Payload"
-                                },
-                                "Next": "ClassifyDocument"
-                            },
-                            "ClassifyDocument": {
-                                "Type": "Task",
-                                "Resource": "arn:aws:states:::lambda:invoke",
-                                "Parameters": {
-                                    "FunctionName": "${DocumentClassifierFunction}",
-                                    "Payload.$": "$.Payload"
-                                },
-                                "Next": "UpdateDatabase"
-                            },
-                            "UpdateDatabase": {
-                                "Type": "Task",
-                                "Resource": "arn:aws:states:::lambda:invoke",
-                                "Parameters": {
-                                    "FunctionName": "${DatabaseUpdaterFunction}",
-                                    "Payload.$": "$.Payload"
-                                },
-                                "End": True
-                            }
                         }
-                    })
-                }
-            }
+                    )
+                },
+            },
         },
-        
         # EventBridge Custom Bus
         "VeriCaseEventBus": {
             "Type": "AWS::Events::EventBus",
-            "Properties": {
-                "Name": {"Fn::Sub": "vericase-events-${Environment}"}
-            }
+            "Properties": {"Name": {"Fn::Sub": "vericase-events-${Environment}"}},
         },
-        
         # EventBridge Rules
         "EvidenceUploadedRule": {
             "Type": "AWS::Events::Rule",
@@ -279,16 +286,19 @@ VERICASE_CLOUDFORMATION_TEMPLATE = {
                 "EventBusName": {"Ref": "VeriCaseEventBus"},
                 "EventPattern": {
                     "source": ["vericase.evidence"],
-                    "detail-type": ["Evidence Uploaded"]
+                    "detail-type": ["Evidence Uploaded"],
                 },
-                "Targets": [{
-                    "Arn": {"Fn::GetAtt": ["EvidenceProcessingStateMachine", "Arn"]},
-                    "Id": "EvidenceProcessingTarget",
-                    "RoleArn": {"Fn::GetAtt": ["EventBridgeRole", "Arn"]}
-                }]
-            }
+                "Targets": [
+                    {
+                        "Arn": {
+                            "Fn::GetAtt": ["EvidenceProcessingStateMachine", "Arn"]
+                        },
+                        "Id": "EvidenceProcessingTarget",
+                        "RoleArn": {"Fn::GetAtt": ["EventBridgeRole", "Arn"]},
+                    }
+                ],
+            },
         },
-        
         # QuickSight Data Set
         "VeriCaseQuickSightDataSet": {
             "Type": "AWS::QuickSight::DataSet",
@@ -309,14 +319,13 @@ VERICASE_CLOUDFORMATION_TEMPLATE = {
                                 {"Name": "document_date", "Type": "DATETIME"},
                                 {"Name": "case_id", "Type": "STRING"},
                                 {"Name": "project_id", "Type": "STRING"},
-                                {"Name": "created_at", "Type": "DATETIME"}
-                            ]
+                                {"Name": "created_at", "Type": "DATETIME"},
+                            ],
                         }
                     }
-                }
-            }
+                },
+            },
         },
-        
         # Macie Classification Job
         "MacieClassificationJob": {
             "Type": "AWS::Macie::ClassificationJob",
@@ -325,173 +334,226 @@ VERICASE_CLOUDFORMATION_TEMPLATE = {
                 "Name": {"Fn::Sub": "VeriCase-Sensitivity-Scan-${Environment}"},
                 "Description": "Scan VeriCase documents for sensitive data",
                 "S3JobDefinition": {
-                    "BucketDefinitions": [{
-                        "AccountId": {"Ref": "AWS::AccountId"},
-                        "Buckets": [{"Ref": "VeriCaseDocumentsBucket"}]
-                    }]
+                    "BucketDefinitions": [
+                        {
+                            "AccountId": {"Ref": "AWS::AccountId"},
+                            "Buckets": [{"Ref": "VeriCaseDocumentsBucket"}],
+                        }
+                    ]
                 },
-                "ScheduleFrequency": {
-                    "WeeklySchedule": {"DayOfWeek": "SUNDAY"}
-                }
-            }
+                "ScheduleFrequency": {"WeeklySchedule": {"DayOfWeek": "SUNDAY"}},
+            },
         },
-        
         # IAM Roles
         "LambdaExecutionRole": {
             "Type": "AWS::IAM::Role",
             "Properties": {
                 "AssumeRolePolicyDocument": {
                     "Version": "2012-10-17",
-                    "Statement": [{
-                        "Effect": "Allow",
-                        "Principal": {"Service": "lambda.amazonaws.com"},
-                        "Action": "sts:AssumeRole"
-                    }]
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {"Service": "lambda.amazonaws.com"},
+                            "Action": "sts:AssumeRole",
+                        }
+                    ],
                 },
                 "ManagedPolicyArns": [
                     "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
-                    "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+                    "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole",
                 ],
-                "Policies": [{
-                    "PolicyName": "VeriCaseServiceAccess",
-                    "PolicyDocument": {
-                        "Version": "2012-10-17",
-                        "Statement": [
-                            {
-                                "Effect": "Allow",
-                                "Action": [
-                                    "textract:*",
-                                    "comprehend:*",
-                                    "rekognition:*",
-                                    "transcribe:*",
-                                    "bedrock:*"
-                                ],
-                                "Resource": "*"
-                            },
-                            {
-                                "Effect": "Allow",
-                                "Action": ["s3:GetObject", "s3:PutObject"],
-                                "Resource": [
-                                    {"Fn::Sub": "${VeriCaseDocumentsBucket}/*"},
-                                    {"Fn::Sub": "${VeriCaseKnowledgeBaseBucket}/*"}
-                                ]
-                            }
-                        ]
+                "Policies": [
+                    {
+                        "PolicyName": "VeriCaseServiceAccess",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "textract:*",
+                                        "comprehend:*",
+                                        "rekognition:*",
+                                        "transcribe:*",
+                                        "bedrock:*",
+                                    ],
+                                    "Resource": "*",
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": ["s3:GetObject", "s3:PutObject"],
+                                    "Resource": [
+                                        {"Fn::Sub": "${VeriCaseDocumentsBucket}/*"},
+                                        {"Fn::Sub": "${VeriCaseKnowledgeBaseBucket}/*"},
+                                    ],
+                                },
+                            ],
+                        },
                     }
-                }]
-            }
+                ],
+            },
         },
-        
         "BedrockKnowledgeBaseRole": {
             "Type": "AWS::IAM::Role",
             "Properties": {
                 "AssumeRolePolicyDocument": {
                     "Version": "2012-10-17",
-                    "Statement": [{
-                        "Effect": "Allow",
-                        "Principal": {"Service": "bedrock.amazonaws.com"},
-                        "Action": "sts:AssumeRole"
-                    }]
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {"Service": "bedrock.amazonaws.com"},
+                            "Action": "sts:AssumeRole",
+                        }
+                    ],
                 },
-                "Policies": [{
-                    "PolicyName": "BedrockKnowledgeBaseAccess",
-                    "PolicyDocument": {
-                        "Version": "2012-10-17",
-                        "Statement": [
-                            {
-                                "Effect": "Allow",
-                                "Action": ["s3:GetObject", "s3:ListBucket"],
-                                "Resource": [
-                                    {"Fn::GetAtt": ["VeriCaseKnowledgeBaseBucket", "Arn"]},
-                                    {"Fn::Sub": "${VeriCaseKnowledgeBaseBucket}/*"}
-                                ]
-                            },
-                            {
-                                "Effect": "Allow",
-                                "Action": ["aoss:APIAccessAll"],
-                                "Resource": {"Fn::GetAtt": ["VeriCaseSearchCollection", "Arn"]}
-                            },
-                            {
-                                "Effect": "Allow",
-                                "Action": ["bedrock:InvokeModel"],
-                                "Resource": "arn:aws:bedrock:*::foundation-model/amazon.titan-embed-text-v1"
-                            }
-                        ]
+                "Policies": [
+                    {
+                        "PolicyName": "BedrockKnowledgeBaseAccess",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": ["s3:GetObject", "s3:ListBucket"],
+                                    "Resource": [
+                                        {
+                                            "Fn::GetAtt": [
+                                                "VeriCaseKnowledgeBaseBucket",
+                                                "Arn",
+                                            ]
+                                        },
+                                        {"Fn::Sub": "${VeriCaseKnowledgeBaseBucket}/*"},
+                                    ],
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": ["aoss:APIAccessAll"],
+                                    "Resource": {
+                                        "Fn::GetAtt": [
+                                            "VeriCaseSearchCollection",
+                                            "Arn",
+                                        ]
+                                    },
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": ["bedrock:InvokeModel"],
+                                    "Resource": "arn:aws:bedrock:*::foundation-model/amazon.titan-embed-text-v1",
+                                },
+                            ],
+                        },
                     }
-                }]
-            }
+                ],
+            },
         },
-        
         "StepFunctionsRole": {
             "Type": "AWS::IAM::Role",
             "Properties": {
                 "AssumeRolePolicyDocument": {
                     "Version": "2012-10-17",
-                    "Statement": [{
-                        "Effect": "Allow",
-                        "Principal": {"Service": "states.amazonaws.com"},
-                        "Action": "sts:AssumeRole"
-                    }]
-                },
-                "Policies": [{
-                    "PolicyName": "StepFunctionsLambdaAccess",
-                    "PolicyDocument": {
-                        "Version": "2012-10-17",
-                        "Statement": [{
+                    "Statement": [
+                        {
                             "Effect": "Allow",
-                            "Action": ["lambda:InvokeFunction"],
-                            "Resource": [
-                                {"Fn::GetAtt": ["TextractProcessorFunction", "Arn"]},
-                                {"Fn::GetAtt": ["ComprehendAnalyzerFunction", "Arn"]},
-                                {"Fn::GetAtt": ["DocumentClassifierFunction", "Arn"]},
-                                {"Fn::GetAtt": ["DatabaseUpdaterFunction", "Arn"]}
-                            ]
-                        }]
+                            "Principal": {"Service": "states.amazonaws.com"},
+                            "Action": "sts:AssumeRole",
+                        }
+                    ],
+                },
+                "Policies": [
+                    {
+                        "PolicyName": "StepFunctionsLambdaAccess",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": ["lambda:InvokeFunction"],
+                                    "Resource": [
+                                        {
+                                            "Fn::GetAtt": [
+                                                "TextractProcessorFunction",
+                                                "Arn",
+                                            ]
+                                        },
+                                        {
+                                            "Fn::GetAtt": [
+                                                "ComprehendAnalyzerFunction",
+                                                "Arn",
+                                            ]
+                                        },
+                                        {
+                                            "Fn::GetAtt": [
+                                                "DocumentClassifierFunction",
+                                                "Arn",
+                                            ]
+                                        },
+                                        {
+                                            "Fn::GetAtt": [
+                                                "DatabaseUpdaterFunction",
+                                                "Arn",
+                                            ]
+                                        },
+                                    ],
+                                }
+                            ],
+                        },
                     }
-                }]
-            }
+                ],
+            },
         },
-        
         "EventBridgeRole": {
             "Type": "AWS::IAM::Role",
             "Properties": {
                 "AssumeRolePolicyDocument": {
                     "Version": "2012-10-17",
-                    "Statement": [{
-                        "Effect": "Allow",
-                        "Principal": {"Service": "events.amazonaws.com"},
-                        "Action": "sts:AssumeRole"
-                    }]
-                },
-                "Policies": [{
-                    "PolicyName": "EventBridgeStepFunctionsAccess",
-                    "PolicyDocument": {
-                        "Version": "2012-10-17",
-                        "Statement": [{
+                    "Statement": [
+                        {
                             "Effect": "Allow",
-                            "Action": ["states:StartExecution"],
-                            "Resource": {"Fn::GetAtt": ["EvidenceProcessingStateMachine", "Arn"]}
-                        }]
+                            "Principal": {"Service": "events.amazonaws.com"},
+                            "Action": "sts:AssumeRole",
+                        }
+                    ],
+                },
+                "Policies": [
+                    {
+                        "PolicyName": "EventBridgeStepFunctionsAccess",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": ["states:StartExecution"],
+                                    "Resource": {
+                                        "Fn::GetAtt": [
+                                            "EvidenceProcessingStateMachine",
+                                            "Arn",
+                                        ]
+                                    },
+                                }
+                            ],
+                        },
                     }
-                }]
-            }
+                ],
+            },
         },
-        
         "RDSEnhancedMonitoringRole": {
             "Type": "AWS::IAM::Role",
             "Properties": {
                 "AssumeRolePolicyDocument": {
                     "Version": "2012-10-17",
-                    "Statement": [{
-                        "Effect": "Allow",
-                        "Principal": {"Service": "monitoring.rds.amazonaws.com"},
-                        "Action": "sts:AssumeRole"
-                    }]
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {"Service": "monitoring.rds.amazonaws.com"},
+                            "Action": "sts:AssumeRole",
+                        }
+                    ],
                 },
-                "ManagedPolicyArns": ["arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"]
-            }
+                "ManagedPolicyArns": [
+                    "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
+                ],
+            },
         },
-        
         # VPC and Networking (simplified)
         "VPC": {
             "Type": "AWS::EC2::VPC",
@@ -499,94 +561,91 @@ VERICASE_CLOUDFORMATION_TEMPLATE = {
                 "CidrBlock": "10.0.0.0/16",
                 "EnableDnsHostnames": True,
                 "EnableDnsSupport": True,
-                "Tags": [{"Key": "Name", "Value": {"Fn::Sub": "VeriCase-VPC-${Environment}"}}]
-            }
+                "Tags": [
+                    {"Key": "Name", "Value": {"Fn::Sub": "VeriCase-VPC-${Environment}"}}
+                ],
+            },
         },
-        
         "PrivateSubnet1": {
             "Type": "AWS::EC2::Subnet",
             "Properties": {
                 "VpcId": {"Ref": "VPC"},
                 "CidrBlock": "10.0.1.0/24",
-                "AvailabilityZone": {"Fn::Select": [0, {"Fn::GetAZs": ""}]}
-            }
+                "AvailabilityZone": {"Fn::Select": [0, {"Fn::GetAZs": ""}]},
+            },
         },
-        
         "PrivateSubnet2": {
             "Type": "AWS::EC2::Subnet",
             "Properties": {
                 "VpcId": {"Ref": "VPC"},
                 "CidrBlock": "10.0.2.0/24",
-                "AvailabilityZone": {"Fn::Select": [1, {"Fn::GetAZs": ""}]}
-            }
+                "AvailabilityZone": {"Fn::Select": [1, {"Fn::GetAZs": ""}]},
+            },
         },
-        
         "DatabaseSubnetGroup": {
             "Type": "AWS::RDS::DBSubnetGroup",
             "Properties": {
                 "DBSubnetGroupDescription": "Subnet group for VeriCase database",
-                "SubnetIds": [{"Ref": "PrivateSubnet1"}, {"Ref": "PrivateSubnet2"}]
-            }
+                "SubnetIds": [{"Ref": "PrivateSubnet1"}, {"Ref": "PrivateSubnet2"}],
+            },
         },
-        
         "DatabaseSecurityGroup": {
             "Type": "AWS::EC2::SecurityGroup",
             "Properties": {
                 "GroupDescription": "Security group for VeriCase database",
                 "VpcId": {"Ref": "VPC"},
-                "SecurityGroupIngress": [{
-                    "IpProtocol": "tcp",
-                    "FromPort": 5432,
-                    "ToPort": 5432,
-                    "SourceSecurityGroupId": {"Ref": "LambdaSecurityGroup"}
-                }]
-            }
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": 5432,
+                        "ToPort": 5432,
+                        "SourceSecurityGroupId": {"Ref": "LambdaSecurityGroup"},
+                    }
+                ],
+            },
         },
-        
         "LambdaSecurityGroup": {
             "Type": "AWS::EC2::SecurityGroup",
             "Properties": {
                 "GroupDescription": "Security group for VeriCase Lambda functions",
-                "VpcId": {"Ref": "VPC"}
-            }
-        }
+                "VpcId": {"Ref": "VPC"},
+            },
+        },
     },
-    
     "Conditions": {
         "IsProduction": {"Fn::Equals": [{"Ref": "Environment"}, "production"]}
     },
-    
     "Outputs": {
         "DocumentsBucket": {
             "Description": "S3 bucket for documents",
             "Value": {"Ref": "VeriCaseDocumentsBucket"},
-            "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-DocumentsBucket"}}
+            "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-DocumentsBucket"}},
         },
         "KnowledgeBaseId": {
             "Description": "Bedrock Knowledge Base ID",
             "Value": {"Ref": "VeriCaseKnowledgeBase"},
-            "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-KnowledgeBaseId"}}
+            "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-KnowledgeBaseId"}},
         },
         "DatabaseEndpoint": {
             "Description": "RDS database endpoint",
             "Value": {"Fn::GetAtt": ["VeriCaseDatabase", "Endpoint.Address"]},
-            "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-DatabaseEndpoint"}}
+            "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-DatabaseEndpoint"}},
         },
         "StateMachineArn": {
             "Description": "Step Functions state machine ARN",
             "Value": {"Fn::GetAtt": ["EvidenceProcessingStateMachine", "Arn"]},
-            "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-StateMachineArn"}}
+            "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-StateMachineArn"}},
         },
         "EventBusName": {
             "Description": "EventBridge custom bus name",
             "Value": {"Ref": "VeriCaseEventBus"},
-            "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-EventBusName"}}
-        }
-    }
+            "Export": {"Name": {"Fn::Sub": "${AWS::StackName}-EventBusName"}},
+        },
+    },
 }
 
 # Terraform equivalent (for those who prefer Terraform)
-VERICASE_TERRAFORM_CONFIG = '''
+VERICASE_TERRAFORM_CONFIG = """
 # VeriCase AWS Infrastructure - Terraform Configuration
 
 terraform {
@@ -747,11 +806,12 @@ output "state_machine_arn" {
   description = "Step Functions state machine ARN"
   value       = aws_sfn_state_machine.evidence_processing.arn
 }
-'''
+"""
+
 
 def generate_deployment_script():
     """Generate deployment script for AWS infrastructure"""
-    return '''#!/bin/bash
+    return """#!/bin/bash
 # VeriCase AWS Infrastructure Deployment Script
 
 set -e
@@ -822,4 +882,4 @@ echo "Next steps:"
 echo "1. Update your application configuration with the new resource IDs"
 echo "2. Run database migrations"
 echo "3. Upload initial documents to trigger processing pipeline"
-'''
+"""

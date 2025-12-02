@@ -5,4 +5,3 @@ Background task processor for PST file analysis, document OCR, and search indexi
 """
 
 __version__ = "0.3.9"
-

@@ -1,895 +1,1228 @@
-<!DOCTYPE html>
+<!doctype html>
 <!--suppress HtmlFormInputWithoutLabel -->
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VeriCase - Admin Settings</title>
     <!-- Local Library -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="brand-styles.css">
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="brand-styles.css" />
     <style>
-        body {
-            background: var(--bg-primary);
-            background-image: radial-gradient(circle, rgba(23, 181, 163, 0.05) 1px, transparent 1px);
-            background-size: 30px 30px;
-        }
+      body {
+        background: var(--bg-primary);
+        background-image: radial-gradient(
+          circle,
+          rgba(23, 181, 163, 0.05) 1px,
+          transparent 1px
+        );
+        background-size: 30px 30px;
+      }
 
-        .header {
-            background: white;
-            border-bottom: 2px solid var(--gray-200);
-            padding: 1rem 2rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
+      .header {
+        background: white;
+        border-bottom: 2px solid var(--gray-200);
+        padding: 1rem 2rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      }
 
-        .header-content {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+      .header-content {
+        max-width: 1400px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
 
-        .logo-section {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
+      .logo-section {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
 
-        .logo {
-            height: 32px;
-        }
+      .logo {
+        height: 32px;
+      }
 
-        .container {
-            max-width: 1000px;
-            margin: 2rem auto;
-            padding: 0 2rem;
-        }
+      .container {
+        max-width: 1000px;
+        margin: 2rem auto;
+        padding: 0 2rem;
+      }
 
-        .page-title {
-            color: var(--vericase-navy);
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-        }
+      .page-title {
+        color: var(--vericase-navy);
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+      }
 
-        .page-subtitle {
-            color: var(--text-secondary);
-            margin-bottom: 2rem;
-        }
+      .page-subtitle {
+        color: var(--text-secondary);
+        margin-bottom: 2rem;
+      }
 
-        .settings-card {
-            background: white;
-            border-radius: var(--radius-xl);
-            box-shadow: var(--shadow-lg);
-            border: 1px solid var(--gray-100);
-            overflow: hidden;
-        }
+      .settings-card {
+        background: white;
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-lg);
+        border: 1px solid var(--gray-100);
+        overflow: hidden;
+      }
 
-        .setting-item {
-            padding: 1.5rem 2rem;
-            border-bottom: 1px solid var(--gray-100);
-        }
+      .setting-item {
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid var(--gray-100);
+      }
 
-        .setting-item:last-child {
-            border-bottom: none;
-        }
+      .setting-item:last-child {
+        border-bottom: none;
+      }
 
-        .setting-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 0.75rem;
-        }
+      .setting-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+      }
 
-        .setting-label {
-            font-weight: 600;
-            color: var(--vericase-navy);
-            font-size: 1.1rem;
-        }
+      .setting-label {
+        font-weight: 600;
+        color: var(--vericase-navy);
+        font-size: 1.1rem;
+      }
 
-        .setting-description {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            margin-top: 0.25rem;
-            margin-bottom: 1rem;
-        }
+      .setting-description {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        margin-top: 0.25rem;
+        margin-bottom: 1rem;
+      }
 
-        .setting-control {
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-        }
+      .setting-control {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+      }
 
-        .setting-input {
-            flex: 1;
-            padding: 0.75rem;
-            border: 2px solid var(--gray-200);
-            border-radius: var(--radius-md);
-            font-size: 1rem;
-            max-width: 200px;
-        }
+      .setting-input {
+        flex: 1;
+        padding: 0.75rem;
+        border: 2px solid var(--gray-200);
+        border-radius: var(--radius-md);
+        font-size: 1rem;
+        max-width: 200px;
+      }
 
-        .setting-input:focus {
-            outline: none;
-            border-color: var(--vericase-teal);
-        }
+      .setting-input:focus {
+        outline: none;
+        border-color: var(--vericase-teal);
+      }
 
-        .btn-save {
-            background: var(--vericase-teal);
-            color: white;
-            border: none;
-            padding: 0.75rem 1.5rem;
-            border-radius: var(--radius-md);
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
+      .btn-save {
+        background: var(--vericase-teal);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: var(--radius-md);
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
 
-        .btn-save:hover {
-            background: var(--vericase-teal-dark);
-            transform: translateY(-1px);
-        }
+      .btn-save:hover {
+        background: var(--vericase-teal-dark);
+        transform: translateY(-1px);
+      }
 
-        .btn-save:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
+      .btn-save:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
 
-        .success-message {
-            background: var(--success-light);
-            color: var(--success);
-            padding: 0.75rem 1rem;
-            border-radius: var(--radius-md);
-            margin-top: 0.5rem;
-            display: none;
-        }
+      .success-message {
+        background: var(--success-light);
+        color: var(--success);
+        padding: 0.75rem 1rem;
+        border-radius: var(--radius-md);
+        margin-top: 0.5rem;
+        display: none;
+      }
 
-        .success-message.show {
-            display: block;
-        }
+      .success-message.show {
+        display: block;
+      }
 
-        .back-link {
-            color: var(--vericase-teal);
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-        }
+      .back-link {
+        color: var(--vericase-teal);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+      }
 
-        .back-link:hover {
-            text-decoration: underline;
-        }
+      .back-link:hover {
+        text-decoration: underline;
+      }
 
-        .status-card {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 1rem;
-            background: var(--gray-50);
-            border-radius: var(--radius-md);
-            border: 1px solid var(--gray-200);
-        }
+      .status-card {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem;
+        background: var(--gray-50);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--gray-200);
+      }
 
-        .status-card .status-text {
-            margin-left: auto;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-        }
+      .status-card .status-text {
+        margin-left: auto;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+      }
 
-        .status-card.configured i {
-            color: var(--success);
-        }
+      .status-card.configured i {
+        color: var(--success);
+      }
 
-        .status-card.error i {
-            color: var(--error);
-        }
+      .status-card.error i {
+        color: var(--error);
+      }
 
-        .btn-test:hover {
-            background: var(--gray-300) !important;
-        }
+      .btn-test:hover {
+        background: var(--gray-300) !important;
+      }
 
-        .setting-input[type="password"] {
-            font-family: monospace;
-        }
+      .setting-input[type="password"] {
+        font-family: monospace;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="header">
-        <div class="header-content">
-            <div class="logo-section">
-                <img src="assets/LOGOTOBEUSED.png" alt="VeriCase" class="logo">
-                <span style="font-weight: 600; color: var(--vericase-navy);">Admin Settings</span>
-            </div>
+      <div class="header-content">
+        <div class="logo-section">
+          <img src="assets/LOGOTOBEUSED.png" alt="VeriCase" class="logo" />
+          <span style="font-weight: 600; color: var(--vericase-navy)"
+            >Admin Settings</span
+          >
         </div>
+      </div>
     </div>
 
     <div class="container">
-        <a href="dashboard.html" class="back-link">
-            <i class="fas fa-arrow-left"></i> Back to Dashboard
-        </a>
+      <a href="dashboard.html" class="back-link">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+      </a>
 
-        <h1 class="page-title">Application Settings</h1>
-        <p class="page-subtitle">Configure system-wide settings for document processing</p>
+      <h1 class="page-title">Application Settings</h1>
+      <p class="page-subtitle">
+        Configure system-wide settings for document processing
+      </p>
 
-        <div class="settings-card">
-            <div class="setting-item">
-                <div class="setting-header">
-                    <div>
-                        <div class="setting-label">Textract Page Threshold</div>
-                        <div class="setting-description">
-                            PDFs with more pages than this threshold will use Tika instead of AWS Textract. 
-                            This helps optimize cost and performance for large documents (e.g., 1000+ page PDFs).
-                            Default: 100 pages
-                        </div>
-                    </div>
-                </div>
-                <div class="setting-control">
-                    <input 
-                        type="number" 
-                        id="textract-page-threshold" 
-                        class="setting-input" 
-                        min="1" 
-                        max="500"
-                        value="100"
-                    >
-                    <span>pages</span>
-                    <button class="btn-save" onclick="saveSetting('textract_page_threshold', 'textract-page-threshold')">
-                        Save
-                    </button>
-                </div>
-                <div class="success-message" id="success-textract-page-threshold">
-                    Setting saved successfully!
-                </div>
+      <div class="settings-card">
+        <div class="setting-item">
+          <div class="setting-header">
+            <div>
+              <div class="setting-label">Textract Page Threshold</div>
+              <div class="setting-description">
+                PDFs with more pages than this threshold will use Tika instead
+                of AWS Textract. This helps optimize cost and performance for
+                large documents (e.g., 1000+ page PDFs). Default: 100 pages
+              </div>
             </div>
-
-            <div class="setting-item">
-                <div class="setting-header">
-                    <div>
-                        <div class="setting-label">Textract Max Pages</div>
-                        <div class="setting-description">
-                            Maximum number of pages Textract can process (AWS limit: 500 pages).
-                            Documents exceeding this will automatically use Tika.
-                        </div>
-                    </div>
-                </div>
-                <div class="setting-control">
-                    <input 
-                        type="number" 
-                        id="textract-max-pages" 
-                        class="setting-input" 
-                        min="1" 
-                        max="500"
-                        value="500"
-                    >
-                    <span>pages</span>
-                    <button class="btn-save" onclick="saveSetting('textract_max_pages', 'textract-max-pages')">
-                        Save
-                    </button>
-                </div>
-                <div class="success-message" id="success-textract-max-pages">
-                    Setting saved successfully!
-                </div>
-            </div>
+          </div>
+          <div class="setting-control">
+            <input
+              type="number"
+              id="textract-page-threshold"
+              class="setting-input"
+              min="1"
+              max="500"
+              value="100"
+            />
+            <span>pages</span>
+            <button
+              class="btn-save"
+              onclick="
+                saveSetting(
+                  'textract_page_threshold',
+                  'textract-page-threshold',
+                )
+              "
+            >
+              Save
+            </button>
+          </div>
+          <div class="success-message" id="success-textract-page-threshold">
+            Setting saved successfully!
+          </div>
         </div>
 
-        <!-- AI Configuration Section -->
-        <h2 style="color: var(--vericase-navy); margin: 2rem 0 1rem; font-size: 1.5rem;">
-            <i class="fas fa-robot" style="color: var(--vericase-teal);"></i> AI Model Configuration
-        </h2>
-        <p class="page-subtitle">Configure AI providers and models for evidence analysis</p>
-
-        <div class="settings-card">
-            <!-- OpenAI / GPT Configuration -->
-            <div class="setting-item">
-                <div class="setting-header">
-                    <div>
-                        <div class="setting-label">
-                            <i class="fas fa-brain" style="color: #10a37f;"></i> OpenAI (GPT)
-                        </div>
-                        <div class="setting-description">
-                            Used for chronology analysis and deep research. Get your API key from 
-                            <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a>
-                        </div>
-                    </div>
-                </div>
-                <div class="setting-control" style="flex-direction: column; align-items: stretch; gap: 0.75rem;">
-                    <div style="display: flex; gap: 1rem; align-items: center;">
-                        <input 
-                            type="password" 
-                            id="openai-api-key" 
-                            class="setting-input" 
-                            style="max-width: 400px; flex: 1;"
-                            placeholder="sk-..."
-                        >
-                        <button class="btn-save" onclick="saveSetting('openai_api_key', 'openai-api-key')">
-                            Save Key
-                        </button>
-                        <button class="btn-test" onclick="testAIProvider('openai')" style="background: var(--gray-200); color: var(--text-primary); border: none; padding: 0.75rem 1rem; border-radius: var(--radius-md); cursor: pointer;">
-                            <i class="fas fa-vial"></i> Test
-                        </button>
-                    </div>
-                    <div style="display: flex; gap: 1rem; align-items: center;">
-                        <label style="color: var(--text-secondary); min-width: 80px;">Model:</label>
-                        <select id="openai-model" class="setting-input" style="max-width: 300px;">
-                            <option value="gpt-5.1">GPT-5.1 (Flagship)</option>
-                            <option value="gpt-5.1-codex-max">GPT-5.1 Codex Max (Coding)</option>
-                            <option value="o3">o3 (Reasoning)</option>
-                            <option value="o3-mini">o3-mini (Fast Reasoning)</option>
-                            <option value="gpt-4o">GPT-4o (Legacy)</option>
-                        </select>
-                        <button class="btn-save" onclick="saveSetting('openai_model', 'openai-model')">
-                            Save
-                        </button>
-                    </div>
-                </div>
-                <div class="success-message" id="success-openai-api-key">Setting saved!</div>
-                <div class="success-message" id="success-openai-model">Model saved!</div>
+        <div class="setting-item">
+          <div class="setting-header">
+            <div>
+              <div class="setting-label">Textract Max Pages</div>
+              <div class="setting-description">
+                Maximum number of pages Textract can process (AWS limit: 500
+                pages). Documents exceeding this will automatically use Tika.
+              </div>
             </div>
+          </div>
+          <div class="setting-control">
+            <input
+              type="number"
+              id="textract-max-pages"
+              class="setting-input"
+              min="1"
+              max="500"
+              value="500"
+            />
+            <span>pages</span>
+            <button
+              class="btn-save"
+              onclick="saveSetting('textract_max_pages', 'textract-max-pages')"
+            >
+              Save
+            </button>
+          </div>
+          <div class="success-message" id="success-textract-max-pages">
+            Setting saved successfully!
+          </div>
+        </div>
+      </div>
 
-            <!-- Anthropic / Claude Configuration -->
-            <div class="setting-item">
-                <div class="setting-header">
-                    <div>
-                        <div class="setting-label">
-                            <i class="fas fa-comment-dots" style="color: #d97706;"></i> Anthropic (Claude)
-                        </div>
-                        <div class="setting-description">
-                            Used for narrative construction and legal reasoning. Get your API key from 
-                            <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>
-                        </div>
-                    </div>
-                </div>
-                <div class="setting-control" style="flex-direction: column; align-items: stretch; gap: 0.75rem;">
-                    <div style="display: flex; gap: 1rem; align-items: center;">
-                        <input 
-                            type="password" 
-                            id="anthropic-api-key" 
-                            class="setting-input" 
-                            style="max-width: 400px; flex: 1;"
-                            placeholder="sk-ant-..."
-                        >
-                        <button class="btn-save" onclick="saveSetting('anthropic_api_key', 'anthropic-api-key')">
-                            Save Key
-                        </button>
-                        <button class="btn-test" onclick="testAIProvider('anthropic')" style="background: var(--gray-200); color: var(--text-primary); border: none; padding: 0.75rem 1rem; border-radius: var(--radius-md); cursor: pointer;">
-                            <i class="fas fa-vial"></i> Test
-                        </button>
-                    </div>
-                    <div style="display: flex; gap: 1rem; align-items: center;">
-                        <label style="color: var(--text-secondary); min-width: 80px;">Model:</label>
-                        <select id="anthropic-model" class="setting-input" style="max-width: 300px;">
-                            <option value="claude-opus-4.5">Claude Opus 4.5 (Highest-end)</option>
-                            <option value="claude-sonnet-4.5">Claude Sonnet 4.5 (Workhorse)</option>
-                            <option value="claude-haiku-4.5">Claude Haiku 4.5 (Fast)</option>
-                            <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Legacy)</option>
-                        </select>
-                        <button class="btn-save" onclick="saveSetting('anthropic_model', 'anthropic-model')">
-                            Save
-                        </button>
-                    </div>
-                </div>
-                <div class="success-message" id="success-anthropic-api-key">Setting saved!</div>
-                <div class="success-message" id="success-anthropic-model">Model saved!</div>
-            </div>
+      <!-- AI Configuration Section -->
+      <h2
+        style="
+          color: var(--vericase-navy);
+          margin: 2rem 0 1rem;
+          font-size: 1.5rem;
+        "
+      >
+        <i class="fas fa-robot" style="color: var(--vericase-teal)"></i> AI
+        Model Configuration
+      </h2>
+      <p class="page-subtitle">
+        Configure AI providers and models for evidence analysis
+      </p>
 
-            <!-- Google / Gemini Configuration -->
-            <div class="setting-item">
-                <div class="setting-header">
-                    <div>
-                        <div class="setting-label">
-                            <i class="fas fa-gem" style="color: #4285f4;"></i> Google (Gemini)
-                        </div>
-                        <div class="setting-description">
-                            Used for pattern recognition and quick searches. Get your API key from 
-                            <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com</a>
-                        </div>
-                    </div>
-                </div>
-                <div class="setting-control" style="flex-direction: column; align-items: stretch; gap: 0.75rem;">
-                    <div style="display: flex; gap: 1rem; align-items: center;">
-                        <input 
-                            type="password" 
-                            id="gemini-api-key" 
-                            class="setting-input" 
-                            style="max-width: 400px; flex: 1;"
-                            placeholder="AIza..."
-                        >
-                        <button class="btn-save" onclick="saveSetting('gemini_api_key', 'gemini-api-key')">
-                            Save Key
-                        </button>
-                        <button class="btn-test" onclick="testAIProvider('gemini')" style="background: var(--gray-200); color: var(--text-primary); border: none; padding: 0.75rem 1rem; border-radius: var(--radius-md); cursor: pointer;">
-                            <i class="fas fa-vial"></i> Test
-                        </button>
-                    </div>
-                    <div style="display: flex; gap: 1rem; align-items: center;">
-                        <label style="color: var(--text-secondary); min-width: 80px;">Model:</label>
-                        <select id="gemini-model" class="setting-input" style="max-width: 300px;">
-                            <option value="gemini-3.0-pro">Gemini 3.0 Pro (Flagship)</option>
-                            <option value="gemini-3.0-flash">Gemini 3.0 Flash (Fast)</option>
-                            <option value="gemini-3.0-deep-think">Gemini 3.0 Deep Think (Reasoning)</option>
-                            <option value="gemini-2.0-flash">Gemini 2.0 Flash (Legacy)</option>
-                        </select>
-                        <button class="btn-save" onclick="saveSetting('gemini_model', 'gemini-model')">
-                            Save
-                        </button>
-                    </div>
-                </div>
-                <div class="success-message" id="success-gemini-api-key">Setting saved!</div>
-                <div class="success-message" id="success-gemini-model">Model saved!</div>
+      <div class="settings-card">
+        <!-- OpenAI / GPT Configuration -->
+        <div class="setting-item">
+          <div class="setting-header">
+            <div>
+              <div class="setting-label">
+                <i class="fas fa-brain" style="color: #10a37f"></i> OpenAI (GPT)
+              </div>
+              <div class="setting-description">
+                Used for chronology analysis and deep research. Get your API key
+                from
+                <a href="https://platform.openai.com/api-keys" target="_blank"
+                  >platform.openai.com</a
+                >
+              </div>
             </div>
-
-            <!-- xAI / Grok Configuration -->
-            <div class="setting-item">
-                <div class="setting-header">
-                    <div>
-                        <div class="setting-label">
-                            <i class="fas fa-bolt" style="color: #1da1f2;"></i> xAI (Grok)
-                        </div>
-                        <div class="setting-description">
-                            Used for gap analysis and critical review. Get your API key from 
-                            <a href="https://console.x.ai/" target="_blank">console.x.ai</a>
-                        </div>
-                    </div>
-                </div>
-                <div class="setting-control" style="flex-direction: column; align-items: stretch; gap: 0.75rem;">
-                    <div style="display: flex; gap: 1rem; align-items: center;">
-                        <input 
-                            type="password" 
-                            id="grok-api-key" 
-                            class="setting-input" 
-                            style="max-width: 400px; flex: 1;"
-                            placeholder="xai-..."
-                        >
-                        <button class="btn-save" onclick="saveSetting('grok_api_key', 'grok-api-key')">
-                            Save Key
-                        </button>
-                        <button class="btn-test" onclick="testAIProvider('grok')" style="background: var(--gray-200); color: var(--text-primary); border: none; padding: 0.75rem 1rem; border-radius: var(--radius-md); cursor: pointer;">
-                            <i class="fas fa-vial"></i> Test
-                        </button>
-                    </div>
-                    <div style="display: flex; gap: 1rem; align-items: center;">
-                        <label style="color: var(--text-secondary); min-width: 80px;">Model:</label>
-                        <select id="grok-model" class="setting-input" style="max-width: 300px;">
-                            <option value="grok-4.1-thinking">Grok 4.1 (Thinking)</option>
-                            <option value="grok-4.1">Grok 4.1 (Non-Thinking)</option>
-                            <option value="grok-2-1212">Grok 2 (Legacy)</option>
-                        </select>
-                        <button class="btn-save" onclick="saveSetting('grok_model', 'grok-model')">
-                            Save
-                        </button>
-                    </div>
-                </div>
-                <div class="success-message" id="success-grok-api-key">Setting saved!</div>
-                <div class="success-message" id="success-grok-model">Model saved!</div>
+          </div>
+          <div
+            class="setting-control"
+            style="flex-direction: column; align-items: stretch; gap: 0.75rem"
+          >
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <input
+                type="password"
+                id="openai-api-key"
+                class="setting-input"
+                style="max-width: 400px; flex: 1"
+                placeholder="sk-..."
+              />
+              <button
+                class="btn-save"
+                onclick="saveSetting('openai_api_key', 'openai-api-key')"
+              >
+                Save Key
+              </button>
+              <button
+                class="btn-test"
+                onclick="testAIProvider('openai')"
+                style="
+                  background: var(--gray-200);
+                  color: var(--text-primary);
+                  border: none;
+                  padding: 0.75rem 1rem;
+                  border-radius: var(--radius-md);
+                  cursor: pointer;
+                "
+              >
+                <i class="fas fa-vial"></i> Test
+              </button>
             </div>
-
-            <!-- Perplexity Configuration -->
-            <div class="setting-item">
-                <div class="setting-header">
-                    <div>
-                        <div class="setting-label">
-                            <i class="fas fa-search" style="color: #7c3aed;"></i> Perplexity
-                        </div>
-                        <div class="setting-description">
-                            Used for evidence-focused local queries (no web search). Get your API key from 
-                            <a href="https://www.perplexity.ai/settings/api" target="_blank">perplexity.ai/settings/api</a>
-                        </div>
-                    </div>
-                </div>
-                <div class="setting-control" style="flex-direction: column; align-items: stretch; gap: 0.75rem;">
-                    <div style="display: flex; gap: 1rem; align-items: center;">
-                        <input 
-                            type="password" 
-                            id="perplexity-api-key" 
-                            class="setting-input" 
-                            style="max-width: 400px; flex: 1;"
-                            placeholder="pplx-..."
-                        >
-                        <button class="btn-save" onclick="saveSetting('perplexity_api_key', 'perplexity-api-key')">
-                            Save Key
-                        </button>
-                        <button class="btn-test" onclick="testAIProvider('perplexity')" style="background: var(--gray-200); color: var(--text-primary); border: none; padding: 0.75rem 1rem; border-radius: var(--radius-md); cursor: pointer;">
-                            <i class="fas fa-vial"></i> Test
-                        </button>
-                    </div>
-                    <div style="display: flex; gap: 1rem; align-items: center;">
-                        <label style="color: var(--text-secondary); min-width: 80px;">Model:</label>
-                        <select id="perplexity-model" class="setting-input" style="max-width: 300px;">
-                            <option value="sonar-pro">Sonar Pro (Advanced)</option>
-                            <option value="sonar">Sonar (Default)</option>
-                            <option value="sonar-reasoning-pro">Sonar Reasoning Pro (Deep Research)</option>
-                        </select>
-                        <button class="btn-save" onclick="saveSetting('perplexity_model', 'perplexity-model')">
-                            Save
-                        </button>
-                    </div>
-                </div>
-                <div class="success-message" id="success-perplexity-api-key">Setting saved!</div>
-                <div class="success-message" id="success-perplexity-model">Model saved!</div>
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <label style="color: var(--text-secondary); min-width: 80px"
+                >Model:</label
+              >
+              <select
+                id="openai-model"
+                class="setting-input"
+                style="max-width: 300px"
+              >
+                <option value="gpt-5.1">GPT-5.1 (Flagship)</option>
+                <option value="gpt-5.1-codex-max">
+                  GPT-5.1 Codex Max (Coding)
+                </option>
+                <option value="o3">o3 (Reasoning)</option>
+                <option value="o3-mini">o3-mini (Fast Reasoning)</option>
+                <option value="gpt-4o">GPT-4o (Legacy)</option>
+              </select>
+              <button
+                class="btn-save"
+                onclick="saveSetting('openai_model', 'openai-model')"
+              >
+                Save
+              </button>
             </div>
-
-            <!-- Phi-4 (Self-Hosted) Configuration -->
-            <div class="setting-item">
-                <div class="setting-header">
-                    <div>
-                        <div class="setting-label">
-                            <i class="fas fa-server" style="color: #0078d4;"></i> Microsoft Phi-4 (Self-Hosted)
-                        </div>
-                        <div class="setting-description">
-                            Self-hosted Phi-4 model running on EC2. No API key required - uses direct connection.
-                        </div>
-                    </div>
-                </div>
-                <div class="setting-control" style="flex-direction: column; align-items: stretch; gap: 0.75rem;">
-                    <div style="display: flex; gap: 1rem; align-items: center;">
-                        <input 
-                            type="text" 
-                            id="phi-endpoint" 
-                            class="setting-input" 
-                            style="max-width: 400px; flex: 1;"
-                            placeholder="http://your-ec2-ip:11434"
-                        >
-                        <button class="btn-save" onclick="saveSetting('phi_endpoint', 'phi-endpoint')">
-                            Save Endpoint
-                        </button>
-                        <button class="btn-test" onclick="testAIProvider('phi')" style="background: var(--gray-200); color: var(--text-primary); border: none; padding: 0.75rem 1rem; border-radius: var(--radius-md); cursor: pointer;">
-                            <i class="fas fa-vial"></i> Test
-                        </button>
-                    </div>
-                    <div style="display: flex; gap: 1rem; align-items: center;">
-                        <label style="color: var(--text-secondary); min-width: 80px;">Model:</label>
-                        <select id="phi-model" class="setting-input" style="max-width: 300px;">
-                            <option value="phi4">Phi-4 (14B)</option>
-                            <option value="phi4:latest">Phi-4 Latest</option>
-                        </select>
-                        <button class="btn-save" onclick="saveSetting('phi_model', 'phi-model')">
-                            Save
-                        </button>
-                    </div>
-                </div>
-                <div class="success-message" id="success-phi-endpoint">Setting saved!</div>
-                <div class="success-message" id="success-phi-model">Model saved!</div>
-            </div>
-
-            <!-- AI Feature Toggles -->
-            <div class="setting-item">
-                <div class="setting-header">
-                    <div>
-                        <div class="setting-label">
-                            <i class="fas fa-sliders-h" style="color: var(--vericase-teal);"></i> AI Feature Settings
-                        </div>
-                        <div class="setting-description">
-                            Enable or disable AI features and configure behavior
-                        </div>
-                    </div>
-                </div>
-                <div class="setting-control" style="flex-direction: column; align-items: stretch; gap: 1rem;">
-                    <div style="display: flex; gap: 1rem; align-items: center;">
-                        <label style="color: var(--text-secondary); min-width: 200px;">Default AI Provider:</label>
-                        <select id="ai-default-provider" class="setting-input" style="max-width: 200px;">
-                            <option value="openai">OpenAI (GPT)</option>
-                            <option value="anthropic">Anthropic (Claude)</option>
-                            <option value="gemini">Google (Gemini)</option>
-                            <option value="grok">xAI (Grok)</option>
-                            <option value="phi">Microsoft Phi-4</option>
-                        </select>
-                        <button class="btn-save" onclick="saveSetting('ai_default_provider', 'ai-default-provider')">
-                            Save
-                        </button>
-                    </div>
-                    <div style="display: flex; gap: 1rem; align-items: center;">
-                        <label style="color: var(--text-secondary); min-width: 200px;">Enable Web Search:</label>
-                        <select id="ai-web-search" class="setting-input" style="max-width: 200px;">
-                            <option value="false">Disabled (Evidence Only)</option>
-                            <option value="true">Enabled</option>
-                        </select>
-                        <button class="btn-save" onclick="saveSetting('ai_web_search_enabled', 'ai-web-search')">
-                            Save
-                        </button>
-                    </div>
-                </div>
-                <div class="success-message" id="success-ai-default-provider">Setting saved!</div>
-                <div class="success-message" id="success-ai-web-search">Setting saved!</div>
-            </div>
+          </div>
+          <div class="success-message" id="success-openai-api-key">
+            Setting saved!
+          </div>
+          <div class="success-message" id="success-openai-model">
+            Model saved!
+          </div>
         </div>
 
-        <!-- AI Status Card -->
-        <div class="settings-card" style="margin-top: 1.5rem;">
-            <div class="setting-item">
-                <div class="setting-header">
-                    <div>
-                        <div class="setting-label">
-                            <i class="fas fa-heartbeat" style="color: var(--success);"></i> AI Provider Status
-                        </div>
-                        <div class="setting-description">
-                            Current status of configured AI providers
-                        </div>
-                    </div>
-                    <button onclick="checkAllProviders()" style="background: var(--vericase-teal); color: white; border: none; padding: 0.5rem 1rem; border-radius: var(--radius-md); cursor: pointer;">
-                        <i class="fas fa-sync"></i> Refresh Status
-                    </button>
-                </div>
-                <div id="ai-status-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
-                    <div class="status-card" id="status-openai">
-                        <i class="fas fa-circle" style="color: var(--gray-300);"></i>
-                        <span>OpenAI</span>
-                        <span class="status-text">Not configured</span>
-                    </div>
-                    <div class="status-card" id="status-anthropic">
-                        <i class="fas fa-circle" style="color: var(--gray-300);"></i>
-                        <span>Anthropic</span>
-                        <span class="status-text">Not configured</span>
-                    </div>
-                    <div class="status-card" id="status-gemini">
-                        <i class="fas fa-circle" style="color: var(--gray-300);"></i>
-                        <span>Google</span>
-                        <span class="status-text">Not configured</span>
-                    </div>
-                    <div class="status-card" id="status-grok">
-                        <i class="fas fa-circle" style="color: var(--gray-300);"></i>
-                        <span>xAI</span>
-                        <span class="status-text">Not configured</span>
-                    </div>
-                    <div class="status-card" id="status-perplexity">
-                        <i class="fas fa-circle" style="color: var(--gray-300);"></i>
-                        <span>Perplexity</span>
-                        <span class="status-text">Not configured</span>
-                    </div>
-                    <div class="status-card" id="status-phi">
-                        <i class="fas fa-circle" style="color: var(--gray-300);"></i>
-                        <span>Phi-4</span>
-                        <span class="status-text">Not configured</span>
-                    </div>
-                </div>
+        <!-- Anthropic / Claude Configuration -->
+        <div class="setting-item">
+          <div class="setting-header">
+            <div>
+              <div class="setting-label">
+                <i class="fas fa-comment-dots" style="color: #d97706"></i>
+                Anthropic (Claude)
+              </div>
+              <div class="setting-description">
+                Used for narrative construction and legal reasoning. Get your
+                API key from
+                <a
+                  href="https://console.anthropic.com/settings/keys"
+                  target="_blank"
+                  >console.anthropic.com</a
+                >
+              </div>
             </div>
+          </div>
+          <div
+            class="setting-control"
+            style="flex-direction: column; align-items: stretch; gap: 0.75rem"
+          >
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <input
+                type="password"
+                id="anthropic-api-key"
+                class="setting-input"
+                style="max-width: 400px; flex: 1"
+                placeholder="sk-ant-..."
+              />
+              <button
+                class="btn-save"
+                onclick="saveSetting('anthropic_api_key', 'anthropic-api-key')"
+              >
+                Save Key
+              </button>
+              <button
+                class="btn-test"
+                onclick="testAIProvider('anthropic')"
+                style="
+                  background: var(--gray-200);
+                  color: var(--text-primary);
+                  border: none;
+                  padding: 0.75rem 1rem;
+                  border-radius: var(--radius-md);
+                  cursor: pointer;
+                "
+              >
+                <i class="fas fa-vial"></i> Test
+              </button>
+            </div>
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <label style="color: var(--text-secondary); min-width: 80px"
+                >Model:</label
+              >
+              <select
+                id="anthropic-model"
+                class="setting-input"
+                style="max-width: 300px"
+              >
+                <option value="claude-opus-4.5">
+                  Claude Opus 4.5 (Highest-end)
+                </option>
+                <option value="claude-sonnet-4.5">
+                  Claude Sonnet 4.5 (Workhorse)
+                </option>
+                <option value="claude-haiku-4.5">
+                  Claude Haiku 4.5 (Fast)
+                </option>
+                <option value="claude-3-5-sonnet-20241022">
+                  Claude 3.5 Sonnet (Legacy)
+                </option>
+              </select>
+              <button
+                class="btn-save"
+                onclick="saveSetting('anthropic_model', 'anthropic-model')"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+          <div class="success-message" id="success-anthropic-api-key">
+            Setting saved!
+          </div>
+          <div class="success-message" id="success-anthropic-model">
+            Model saved!
+          </div>
         </div>
+
+        <!-- Google / Gemini Configuration -->
+        <div class="setting-item">
+          <div class="setting-header">
+            <div>
+              <div class="setting-label">
+                <i class="fas fa-gem" style="color: #4285f4"></i> Google
+                (Gemini)
+              </div>
+              <div class="setting-description">
+                Used for pattern recognition and quick searches. Get your API
+                key from
+                <a href="https://aistudio.google.com/app/apikey" target="_blank"
+                  >aistudio.google.com</a
+                >
+              </div>
+            </div>
+          </div>
+          <div
+            class="setting-control"
+            style="flex-direction: column; align-items: stretch; gap: 0.75rem"
+          >
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <input
+                type="password"
+                id="gemini-api-key"
+                class="setting-input"
+                style="max-width: 400px; flex: 1"
+                placeholder="AIza..."
+              />
+              <button
+                class="btn-save"
+                onclick="saveSetting('gemini_api_key', 'gemini-api-key')"
+              >
+                Save Key
+              </button>
+              <button
+                class="btn-test"
+                onclick="testAIProvider('gemini')"
+                style="
+                  background: var(--gray-200);
+                  color: var(--text-primary);
+                  border: none;
+                  padding: 0.75rem 1rem;
+                  border-radius: var(--radius-md);
+                  cursor: pointer;
+                "
+              >
+                <i class="fas fa-vial"></i> Test
+              </button>
+            </div>
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <label style="color: var(--text-secondary); min-width: 80px"
+                >Model:</label
+              >
+              <select
+                id="gemini-model"
+                class="setting-input"
+                style="max-width: 300px"
+              >
+                <option value="gemini-3.0-pro">
+                  Gemini 3.0 Pro (Flagship)
+                </option>
+                <option value="gemini-3.0-flash">
+                  Gemini 3.0 Flash (Fast)
+                </option>
+                <option value="gemini-3.0-deep-think">
+                  Gemini 3.0 Deep Think (Reasoning)
+                </option>
+                <option value="gemini-2.0-flash">
+                  Gemini 2.0 Flash (Legacy)
+                </option>
+              </select>
+              <button
+                class="btn-save"
+                onclick="saveSetting('gemini_model', 'gemini-model')"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+          <div class="success-message" id="success-gemini-api-key">
+            Setting saved!
+          </div>
+          <div class="success-message" id="success-gemini-model">
+            Model saved!
+          </div>
+        </div>
+
+        <!-- xAI / Grok Configuration -->
+        <div class="setting-item">
+          <div class="setting-header">
+            <div>
+              <div class="setting-label">
+                <i class="fas fa-bolt" style="color: #1da1f2"></i> xAI (Grok)
+              </div>
+              <div class="setting-description">
+                Used for gap analysis and critical review. Get your API key from
+                <a href="https://console.x.ai/" target="_blank">console.x.ai</a>
+              </div>
+            </div>
+          </div>
+          <div
+            class="setting-control"
+            style="flex-direction: column; align-items: stretch; gap: 0.75rem"
+          >
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <input
+                type="password"
+                id="grok-api-key"
+                class="setting-input"
+                style="max-width: 400px; flex: 1"
+                placeholder="xai-..."
+              />
+              <button
+                class="btn-save"
+                onclick="saveSetting('grok_api_key', 'grok-api-key')"
+              >
+                Save Key
+              </button>
+              <button
+                class="btn-test"
+                onclick="testAIProvider('grok')"
+                style="
+                  background: var(--gray-200);
+                  color: var(--text-primary);
+                  border: none;
+                  padding: 0.75rem 1rem;
+                  border-radius: var(--radius-md);
+                  cursor: pointer;
+                "
+              >
+                <i class="fas fa-vial"></i> Test
+              </button>
+            </div>
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <label style="color: var(--text-secondary); min-width: 80px"
+                >Model:</label
+              >
+              <select
+                id="grok-model"
+                class="setting-input"
+                style="max-width: 300px"
+              >
+                <option value="grok-4.1-thinking">Grok 4.1 (Thinking)</option>
+                <option value="grok-4.1">Grok 4.1 (Non-Thinking)</option>
+                <option value="grok-2-1212">Grok 2 (Legacy)</option>
+              </select>
+              <button
+                class="btn-save"
+                onclick="saveSetting('grok_model', 'grok-model')"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+          <div class="success-message" id="success-grok-api-key">
+            Setting saved!
+          </div>
+          <div class="success-message" id="success-grok-model">
+            Model saved!
+          </div>
+        </div>
+
+        <!-- Perplexity Configuration -->
+        <div class="setting-item">
+          <div class="setting-header">
+            <div>
+              <div class="setting-label">
+                <i class="fas fa-search" style="color: #7c3aed"></i> Perplexity
+              </div>
+              <div class="setting-description">
+                Used for evidence-focused local queries (no web search). Get
+                your API key from
+                <a href="https://www.perplexity.ai/settings/api" target="_blank"
+                  >perplexity.ai/settings/api</a
+                >
+              </div>
+            </div>
+          </div>
+          <div
+            class="setting-control"
+            style="flex-direction: column; align-items: stretch; gap: 0.75rem"
+          >
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <input
+                type="password"
+                id="perplexity-api-key"
+                class="setting-input"
+                style="max-width: 400px; flex: 1"
+                placeholder="pplx-..."
+              />
+              <button
+                class="btn-save"
+                onclick="
+                  saveSetting('perplexity_api_key', 'perplexity-api-key')
+                "
+              >
+                Save Key
+              </button>
+              <button
+                class="btn-test"
+                onclick="testAIProvider('perplexity')"
+                style="
+                  background: var(--gray-200);
+                  color: var(--text-primary);
+                  border: none;
+                  padding: 0.75rem 1rem;
+                  border-radius: var(--radius-md);
+                  cursor: pointer;
+                "
+              >
+                <i class="fas fa-vial"></i> Test
+              </button>
+            </div>
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <label style="color: var(--text-secondary); min-width: 80px"
+                >Model:</label
+              >
+              <select
+                id="perplexity-model"
+                class="setting-input"
+                style="max-width: 300px"
+              >
+                <option value="sonar-pro">Sonar Pro (Advanced)</option>
+                <option value="sonar">Sonar (Default)</option>
+                <option value="sonar-reasoning-pro">
+                  Sonar Reasoning Pro (Deep Research)
+                </option>
+              </select>
+              <button
+                class="btn-save"
+                onclick="saveSetting('perplexity_model', 'perplexity-model')"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+          <div class="success-message" id="success-perplexity-api-key">
+            Setting saved!
+          </div>
+          <div class="success-message" id="success-perplexity-model">
+            Model saved!
+          </div>
+        </div>
+
+        <!-- Phi-4 (Self-Hosted) Configuration -->
+        <div class="setting-item">
+          <div class="setting-header">
+            <div>
+              <div class="setting-label">
+                <i class="fas fa-server" style="color: #0078d4"></i> Microsoft
+                Phi-4 (Self-Hosted)
+              </div>
+              <div class="setting-description">
+                Self-hosted Phi-4 model running on EC2. No API key required -
+                uses direct connection.
+              </div>
+            </div>
+          </div>
+          <div
+            class="setting-control"
+            style="flex-direction: column; align-items: stretch; gap: 0.75rem"
+          >
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <input
+                type="text"
+                id="phi-endpoint"
+                class="setting-input"
+                style="max-width: 400px; flex: 1"
+                placeholder="http://your-ec2-ip:11434"
+              />
+              <button
+                class="btn-save"
+                onclick="saveSetting('phi_endpoint', 'phi-endpoint')"
+              >
+                Save Endpoint
+              </button>
+              <button
+                class="btn-test"
+                onclick="testAIProvider('phi')"
+                style="
+                  background: var(--gray-200);
+                  color: var(--text-primary);
+                  border: none;
+                  padding: 0.75rem 1rem;
+                  border-radius: var(--radius-md);
+                  cursor: pointer;
+                "
+              >
+                <i class="fas fa-vial"></i> Test
+              </button>
+            </div>
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <label style="color: var(--text-secondary); min-width: 80px"
+                >Model:</label
+              >
+              <select
+                id="phi-model"
+                class="setting-input"
+                style="max-width: 300px"
+              >
+                <option value="phi4">Phi-4 (14B)</option>
+                <option value="phi4:latest">Phi-4 Latest</option>
+              </select>
+              <button
+                class="btn-save"
+                onclick="saveSetting('phi_model', 'phi-model')"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+          <div class="success-message" id="success-phi-endpoint">
+            Setting saved!
+          </div>
+          <div class="success-message" id="success-phi-model">Model saved!</div>
+        </div>
+
+        <!-- AI Feature Toggles -->
+        <div class="setting-item">
+          <div class="setting-header">
+            <div>
+              <div class="setting-label">
+                <i
+                  class="fas fa-sliders-h"
+                  style="color: var(--vericase-teal)"
+                ></i>
+                AI Feature Settings
+              </div>
+              <div class="setting-description">
+                Enable or disable AI features and configure behavior
+              </div>
+            </div>
+          </div>
+          <div
+            class="setting-control"
+            style="flex-direction: column; align-items: stretch; gap: 1rem"
+          >
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <label style="color: var(--text-secondary); min-width: 200px"
+                >Default AI Provider:</label
+              >
+              <select
+                id="ai-default-provider"
+                class="setting-input"
+                style="max-width: 200px"
+              >
+                <option value="openai">OpenAI (GPT)</option>
+                <option value="anthropic">Anthropic (Claude)</option>
+                <option value="gemini">Google (Gemini)</option>
+                <option value="grok">xAI (Grok)</option>
+                <option value="phi">Microsoft Phi-4</option>
+              </select>
+              <button
+                class="btn-save"
+                onclick="
+                  saveSetting('ai_default_provider', 'ai-default-provider')
+                "
+              >
+                Save
+              </button>
+            </div>
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <label style="color: var(--text-secondary); min-width: 200px"
+                >Enable Web Search:</label
+              >
+              <select
+                id="ai-web-search"
+                class="setting-input"
+                style="max-width: 200px"
+              >
+                <option value="false">Disabled (Evidence Only)</option>
+                <option value="true">Enabled</option>
+              </select>
+              <button
+                class="btn-save"
+                onclick="saveSetting('ai_web_search_enabled', 'ai-web-search')"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+          <div class="success-message" id="success-ai-default-provider">
+            Setting saved!
+          </div>
+          <div class="success-message" id="success-ai-web-search">
+            Setting saved!
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Status Card -->
+      <div class="settings-card" style="margin-top: 1.5rem">
+        <div class="setting-item">
+          <div class="setting-header">
+            <div>
+              <div class="setting-label">
+                <i class="fas fa-heartbeat" style="color: var(--success)"></i>
+                AI Provider Status
+              </div>
+              <div class="setting-description">
+                Current status of configured AI providers
+              </div>
+            </div>
+            <button
+              onclick="checkAllProviders()"
+              style="
+                background: var(--vericase-teal);
+                color: white;
+                border: none;
+                padding: 0.5rem 1rem;
+                border-radius: var(--radius-md);
+                cursor: pointer;
+              "
+            >
+              <i class="fas fa-sync"></i> Refresh Status
+            </button>
+          </div>
+          <div
+            id="ai-status-grid"
+            style="
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+              gap: 1rem;
+              margin-top: 1rem;
+            "
+          >
+            <div class="status-card" id="status-openai">
+              <i class="fas fa-circle" style="color: var(--gray-300)"></i>
+              <span>OpenAI</span>
+              <span class="status-text">Not configured</span>
+            </div>
+            <div class="status-card" id="status-anthropic">
+              <i class="fas fa-circle" style="color: var(--gray-300)"></i>
+              <span>Anthropic</span>
+              <span class="status-text">Not configured</span>
+            </div>
+            <div class="status-card" id="status-gemini">
+              <i class="fas fa-circle" style="color: var(--gray-300)"></i>
+              <span>Google</span>
+              <span class="status-text">Not configured</span>
+            </div>
+            <div class="status-card" id="status-grok">
+              <i class="fas fa-circle" style="color: var(--gray-300)"></i>
+              <span>xAI</span>
+              <span class="status-text">Not configured</span>
+            </div>
+            <div class="status-card" id="status-perplexity">
+              <i class="fas fa-circle" style="color: var(--gray-300)"></i>
+              <span>Perplexity</span>
+              <span class="status-text">Not configured</span>
+            </div>
+            <div class="status-card" id="status-phi">
+              <i class="fas fa-circle" style="color: var(--gray-300)"></i>
+              <span>Phi-4</span>
+              <span class="status-text">Not configured</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script>
-        const API_BASE = window.location.origin;
-        const token = localStorage.getItem('token');
+      const API_BASE = window.location.origin;
+      const token = localStorage.getItem("token");
 
-        if (!token) {
-            window.location.href = 'login.html';
-        }
+      if (!token) {
+        window.location.href = "login.html";
+      }
 
-        // Setting descriptions for AI keys
-        const settingDescriptions = {
-            'textract_page_threshold': 'PDFs with more pages than this threshold will use Tika instead of AWS Textract',
-            'textract_max_pages': 'Maximum number of pages Textract can process',
-            'openai_api_key': 'OpenAI API key for GPT models',
-            'openai_model': 'OpenAI model to use for analysis',
-            'anthropic_api_key': 'Anthropic API key for Claude models',
-            'anthropic_model': 'Anthropic model to use for narrative construction',
-            'gemini_api_key': 'Google AI API key for Gemini models',
-            'gemini_model': 'Gemini model to use for pattern recognition',
-            'grok_api_key': 'xAI API key for Grok models',
-            'grok_model': 'Grok model to use for gap analysis',
-            'perplexity_api_key': 'Perplexity API key for local queries',
-            'perplexity_model': 'Perplexity model to use for search queries',
-            'phi_endpoint': 'Phi-4 endpoint URL for self-hosted model',
-            'phi_model': 'Phi-4 model variant to use',
-            'ai_default_provider': 'Default AI provider for quick searches',
-            'ai_web_search_enabled': 'Enable web search in AI queries'
-        };
+      // Setting descriptions for AI keys
+      const settingDescriptions = {
+        textract_page_threshold:
+          "PDFs with more pages than this threshold will use Tika instead of AWS Textract",
+        textract_max_pages: "Maximum number of pages Textract can process",
+        openai_api_key: "OpenAI API key for GPT models",
+        openai_model: "OpenAI model to use for analysis",
+        anthropic_api_key: "Anthropic API key for Claude models",
+        anthropic_model: "Anthropic model to use for narrative construction",
+        gemini_api_key: "Google AI API key for Gemini models",
+        gemini_model: "Gemini model to use for pattern recognition",
+        grok_api_key: "xAI API key for Grok models",
+        grok_model: "Grok model to use for gap analysis",
+        perplexity_api_key: "Perplexity API key for local queries",
+        perplexity_model: "Perplexity model to use for search queries",
+        phi_endpoint: "Phi-4 endpoint URL for self-hosted model",
+        phi_model: "Phi-4 model variant to use",
+        ai_default_provider: "Default AI provider for quick searches",
+        ai_web_search_enabled: "Enable web search in AI queries",
+      };
 
-        // Load current settings on page load
-        async function loadSettings() {
-            try {
-                const response = await fetch(`${API_BASE}/api/admin/settings`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+      // Load current settings on page load
+      async function loadSettings() {
+        try {
+          const response = await fetch(`${API_BASE}/api/admin/settings`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
 
-                if (response.status === 403) {
-                    alert('Admin access required');
-                    window.location.href = 'dashboard.html';
-                    return;
-                }
+          if (response.status === 403) {
+            alert("Admin access required");
+            window.location.href = "dashboard.html";
+            return;
+          }
 
-                if (!response.ok) {
-                    console.error('Error loading settings: Failed to load settings');
-                    return;
-                }
+          if (!response.ok) {
+            console.error("Error loading settings: Failed to load settings");
+            return;
+          }
 
-                const settings = await response.json();
-                
-                // Populate form fields
-                settings.forEach(setting => {
-                    const key = setting.key;
-                    const value = setting.value;
-                    
-                    // Map setting keys to input IDs
-                    const inputIdMap = {
-                        'textract_page_threshold': 'textract-page-threshold',
-                        'textract_max_pages': 'textract-max-pages',
-                        'openai_api_key': 'openai-api-key',
-                        'openai_model': 'openai-model',
-                        'anthropic_api_key': 'anthropic-api-key',
-                        'anthropic_model': 'anthropic-model',
-                        'gemini_api_key': 'gemini-api-key',
-                        'gemini_model': 'gemini-model',
-                        'grok_api_key': 'grok-api-key',
-                        'grok_model': 'grok-model',
-                        'perplexity_api_key': 'perplexity-api-key',
-                        'perplexity_model': 'perplexity-model',
-                        'phi_endpoint': 'phi-endpoint',
-                        'phi_model': 'phi-model',
-                        'ai_default_provider': 'ai-default-provider',
-                        'ai_web_search_enabled': 'ai-web-search'
-                    };
-                    
-                    const inputId = inputIdMap[key];
-                    if (inputId) {
-                        const input = document.getElementById(inputId);
-                        if (input) {
-                            // For API keys, show masked value if exists
-                            if (key.includes('api_key') && value) {
-                                input.placeholder = '••••••••' + value.slice(-4);
-                            } else {
-                                input.value = value;
-                            }
-                        }
-                    }
-                });
+          const settings = await response.json();
 
-                // Update status indicators
-                checkAllProviders();
+          // Populate form fields
+          settings.forEach((setting) => {
+            const key = setting.key;
+            const value = setting.value;
 
-            } catch (error) {
-                console.error('Error loading settings:', error);
-            }
-        }
+            // Map setting keys to input IDs
+            const inputIdMap = {
+              textract_page_threshold: "textract-page-threshold",
+              textract_max_pages: "textract-max-pages",
+              openai_api_key: "openai-api-key",
+              openai_model: "openai-model",
+              anthropic_api_key: "anthropic-api-key",
+              anthropic_model: "anthropic-model",
+              gemini_api_key: "gemini-api-key",
+              gemini_model: "gemini-model",
+              grok_api_key: "grok-api-key",
+              grok_model: "grok-model",
+              perplexity_api_key: "perplexity-api-key",
+              perplexity_model: "perplexity-model",
+              phi_endpoint: "phi-endpoint",
+              phi_model: "phi-model",
+              ai_default_provider: "ai-default-provider",
+              ai_web_search_enabled: "ai-web-search",
+            };
 
-        async function saveSetting(key, inputId) {
-            const input = document.getElementById(inputId);
-            const value = input.value;
-            
-            // Find success message - handle both underscore and hyphen formats
-            const successMsgId = `success-${inputId}`;
-            let successMsg = document.getElementById(successMsgId);
-            if (!successMsg) {
-                // Try alternative format
-                successMsg = document.getElementById(`success-${key.replace(/_/g, '-')}`);
-            }
-
-            try {
-                const response = await fetch(`${API_BASE}/api/admin/settings/${key}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        value: value,
-                        description: settingDescriptions[key] || key
-                    })
-                });
-
-                if (response.status === 403) {
-                    alert('Admin access required');
-                    return;
-                }
-
-                if (!response.ok) {
-                    console.error('Error saving setting: Failed to save setting');
-                    alert('Failed to save setting');
-                    return;
-                }
-
-                // Show success message
-                if (successMsg) {
-                    successMsg.classList.add('show');
-                    setTimeout(() => {
-                        successMsg.classList.remove('show');
-                    }, 3000);
-                }
-
-                // For API keys, update placeholder to show it's saved
-                if (key.includes('api_key') && value) {
-                    input.value = '';
-                    input.placeholder = '••••••••' + value.slice(-4);
-                }
-
-                // Refresh status after saving
-                if (key.includes('api_key')) {
-                    setTimeout(checkAllProviders, 500);
-                }
-
-            } catch (error) {
-                console.error('Error saving setting:', error);
-                alert('Failed to save setting. Please try again.');
-            }
-        }
-
-        async function testAIProvider(provider) {
-            const testBtn = event.target.closest('button');
-            const originalText = testBtn.innerHTML;
-            testBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
-            testBtn.disabled = true;
-
-            try {
-                const response = await fetch(`${API_BASE}/api/ai-chat/models/test/${provider}`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                const result = await response.json();
-                
-                if (response.ok && result.success) {
-                    alert(`${provider.toUpperCase()} connection successful!\n\nModel: ${result.model}\nResponse time: ${result.response_time}ms`);
-                    updateProviderStatus(provider, true, 'Connected');
+            const inputId = inputIdMap[key];
+            if (inputId) {
+              const input = document.getElementById(inputId);
+              if (input) {
+                // For API keys, show masked value if exists
+                if (key.includes("api_key") && value) {
+                  input.placeholder = "••••••••" + value.slice(-4);
                 } else {
-                    alert(`${provider.toUpperCase()} test failed:\n\n${result.error || 'Unknown error'}`);
-                    updateProviderStatus(provider, false, 'Error');
+                  input.value = value;
                 }
-            } catch (error) {
-                alert(`Failed to test ${provider}: ${error.message}`);
-                updateProviderStatus(provider, false, 'Error');
-            } finally {
-                testBtn.innerHTML = originalText;
-                testBtn.disabled = false;
+              }
             }
+          });
+
+          // Update status indicators
+          checkAllProviders();
+        } catch (error) {
+          console.error("Error loading settings:", error);
+        }
+      }
+
+      async function saveSetting(key, inputId) {
+        const input = document.getElementById(inputId);
+        const value = input.value;
+
+        // Find success message - handle both underscore and hyphen formats
+        const successMsgId = `success-${inputId}`;
+        let successMsg = document.getElementById(successMsgId);
+        if (!successMsg) {
+          // Try alternative format
+          successMsg = document.getElementById(
+            `success-${key.replace(/_/g, "-")}`,
+          );
         }
 
-        async function checkAllProviders() {
-            try {
-                const response = await fetch(`${API_BASE}/api/ai-chat/models/status`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+        try {
+          const response = await fetch(
+            `${API_BASE}/api/admin/settings/${key}`,
+            {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                value: value,
+                description: settingDescriptions[key] || key,
+              }),
+            },
+          );
 
-                if (!response.ok) return;
+          if (response.status === 403) {
+            alert("Admin access required");
+            return;
+          }
 
-                const status = await response.json();
-                
-                // Update each provider status
-                if (status.models) {
-                    updateProviderStatus('openai', status.models.gpt5_pro?.available, 
-                        status.models.gpt5_pro?.available ? 'Configured' : 'Not configured');
-                    updateProviderStatus('anthropic', status.models.claude_opus?.available,
-                        status.models.claude_opus?.available ? 'Configured' : 'Not configured');
-                    updateProviderStatus('gemini', status.models.gemini_2_5?.available,
-                        status.models.gemini_2_5?.available ? 'Configured' : 'Not configured');
-                    updateProviderStatus('grok', status.models.grok_4?.available,
-                        status.models.grok_4?.available ? 'Configured' : 'Not configured');
-                    updateProviderStatus('phi', status.models.phi4?.available,
-                        status.models.phi4?.available ? 'Configured' : 'Not configured');
-                }
-            } catch (error) {
-                console.error('Error checking provider status:', error);
-            }
+          if (!response.ok) {
+            console.error("Error saving setting: Failed to save setting");
+            alert("Failed to save setting");
+            return;
+          }
+
+          // Show success message
+          if (successMsg) {
+            successMsg.classList.add("show");
+            setTimeout(() => {
+              successMsg.classList.remove("show");
+            }, 3000);
+          }
+
+          // For API keys, update placeholder to show it's saved
+          if (key.includes("api_key") && value) {
+            input.value = "";
+            input.placeholder = "••••••••" + value.slice(-4);
+          }
+
+          // Refresh status after saving
+          if (key.includes("api_key")) {
+            setTimeout(checkAllProviders, 500);
+          }
+        } catch (error) {
+          console.error("Error saving setting:", error);
+          alert("Failed to save setting. Please try again.");
+        }
+      }
+
+      async function testAIProvider(provider) {
+        const testBtn = event.target.closest("button");
+        const originalText = testBtn.innerHTML;
+        testBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+        testBtn.disabled = true;
+
+        try {
+          const response = await fetch(
+            `${API_BASE}/api/ai-chat/models/test/${provider}`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            },
+          );
+
+          const result = await response.json();
+
+          if (response.ok && result.success) {
+            alert(
+              `${provider.toUpperCase()} connection successful!\n\nModel: ${result.model}\nResponse time: ${result.response_time}ms`,
+            );
+            updateProviderStatus(provider, true, "Connected");
+          } else {
+            alert(
+              `${provider.toUpperCase()} test failed:\n\n${result.error || "Unknown error"}`,
+            );
+            updateProviderStatus(provider, false, "Error");
+          }
+        } catch (error) {
+          alert(`Failed to test ${provider}: ${error.message}`);
+          updateProviderStatus(provider, false, "Error");
+        } finally {
+          testBtn.innerHTML = originalText;
+          testBtn.disabled = false;
+        }
+      }
+
+      async function checkAllProviders() {
+        try {
+          const response = await fetch(
+            `${API_BASE}/api/ai-chat/models/status`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            },
+          );
+
+          if (!response.ok) return;
+
+          const status = await response.json();
+
+          // Update each provider status
+          if (status.models) {
+            updateProviderStatus(
+              "openai",
+              status.models.gpt5_pro?.available,
+              status.models.gpt5_pro?.available
+                ? "Configured"
+                : "Not configured",
+            );
+            updateProviderStatus(
+              "anthropic",
+              status.models.claude_opus?.available,
+              status.models.claude_opus?.available
+                ? "Configured"
+                : "Not configured",
+            );
+            updateProviderStatus(
+              "gemini",
+              status.models.gemini_2_5?.available,
+              status.models.gemini_2_5?.available
+                ? "Configured"
+                : "Not configured",
+            );
+            updateProviderStatus(
+              "grok",
+              status.models.grok_4?.available,
+              status.models.grok_4?.available ? "Configured" : "Not configured",
+            );
+            updateProviderStatus(
+              "phi",
+              status.models.phi4?.available,
+              status.models.phi4?.available ? "Configured" : "Not configured",
+            );
+          }
+        } catch (error) {
+          console.error("Error checking provider status:", error);
+        }
+      }
+
+      function updateProviderStatus(provider, isConfigured, statusText) {
+        const statusCard = document.getElementById(`status-${provider}`);
+        if (!statusCard) return;
+
+        const icon = statusCard.querySelector("i");
+        const text = statusCard.querySelector(".status-text");
+
+        statusCard.classList.remove("configured", "error");
+
+        if (isConfigured) {
+          statusCard.classList.add("configured");
+          icon.style.color = "var(--success)";
+        } else {
+          icon.style.color = "var(--gray-300)";
         }
 
-        function updateProviderStatus(provider, isConfigured, statusText) {
-            const statusCard = document.getElementById(`status-${provider}`);
-            if (!statusCard) return;
-
-            const icon = statusCard.querySelector('i');
-            const text = statusCard.querySelector('.status-text');
-
-            statusCard.classList.remove('configured', 'error');
-            
-            if (isConfigured) {
-                statusCard.classList.add('configured');
-                icon.style.color = 'var(--success)';
-            } else {
-                icon.style.color = 'var(--gray-300)';
-            }
-
-            if (text) {
-                text.textContent = statusText;
-            }
+        if (text) {
+          text.textContent = statusText;
         }
+      }
 
-        // Load settings on page load
-        loadSettings();
+      // Load settings on page load
+      loadSettings();
     </script>
-</body>
+  </body>
 </html>
-

@@ -2,6 +2,7 @@
 Master Dashboard API
 Provides aggregated overview of user's projects, cases, and activity
 """
+
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Annotated, Any
@@ -54,8 +55,10 @@ def _set_cached(key: str, value: dict[str, Any]) -> None:
 # Response Models
 # ============================================================================
 
+
 class WorkItemSummary(BaseModel):
     """Unified work item representing either a Project or Case"""
+
     id: str
     type: str  # 'project' or 'case'
     name: str
@@ -63,17 +66,17 @@ class WorkItemSummary(BaseModel):
     status: str
     created_at: datetime | None = None
     updated_at: datetime | None = None
-    
+
     # Type-specific fields
     project_code: str | None = None  # For projects
-    case_number: str | None = None   # For cases
+    case_number: str | None = None  # For cases
     contract_type: str | None = None
-    
+
     # Statistics
     email_count: int = 0
     evidence_count: int = 0
     pst_count: int = 0
-    
+
     # User role on this item
     user_role: str = "viewer"
     is_owner: bool = False
@@ -81,6 +84,7 @@ class WorkItemSummary(BaseModel):
 
 class DashboardStats(BaseModel):
     """Aggregate statistics for the dashboard"""
+
     total_projects: int = 0
     total_cases: int = 0
     total_emails: int = 0
@@ -91,6 +95,7 @@ class DashboardStats(BaseModel):
 
 class DashboardOverviewResponse(BaseModel):
     """Complete dashboard overview response"""
+
     user: dict[str, Any]
     stats: DashboardStats
     work_items: list[WorkItemSummary]
@@ -100,17 +105,19 @@ class DashboardOverviewResponse(BaseModel):
 
 class CreateWorkItemRequest(BaseModel):
     """Request to create a new project or case"""
+
     type: str = Field(..., pattern="^(project|case)$")
     name: str = Field(..., min_length=2, max_length=255)
     description: str | None = None
     project_code: str | None = None  # Required for projects
-    case_number: str | None = None   # Auto-generated for cases if not provided
+    case_number: str | None = None  # Auto-generated for cases if not provided
     contract_type: str | None = None
 
 
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
 
 def get_user_projects(db: Session, user: User) -> list[Project]:
     """Get all projects accessible to a user"""
@@ -119,9 +126,12 @@ def get_user_projects(db: Session, user: User) -> list[Project]:
         return db.query(Project).order_by(desc(Project.created_at)).all()
     else:
         # Users see projects they own
-        return db.query(Project).filter(
-            Project.owner_user_id == user.id
-        ).order_by(desc(Project.created_at)).all()
+        return (
+            db.query(Project)
+            .filter(Project.owner_user_id == user.id)
+            .order_by(desc(Project.created_at))
+            .all()
+        )
 
 
 def get_user_cases(db: Session, user: User) -> list[Case]:
@@ -131,39 +141,52 @@ def get_user_cases(db: Session, user: User) -> list[Case]:
         return db.query(Case).order_by(desc(Case.created_at)).all()
     else:
         # Users see cases they own or are assigned to
-        case_ids_from_assignments = db.query(CaseUser.case_id).filter(
-            CaseUser.user_id == user.id
-        ).subquery()
-        
-        return db.query(Case).filter(
-            or_(
-                Case.owner_id == user.id,
-                Case.id.in_(case_ids_from_assignments)
+        case_ids_from_assignments = (
+            db.query(CaseUser.case_id).filter(CaseUser.user_id == user.id).subquery()
+        )
+
+        return (
+            db.query(Case)
+            .filter(
+                or_(Case.owner_id == user.id, Case.id.in_(case_ids_from_assignments))
             )
-        ).order_by(desc(Case.created_at)).all()
+            .order_by(desc(Case.created_at))
+            .all()
+        )
 
 
-def get_all_project_stats_batch(db: Session, project_ids: list[UUID]) -> dict[UUID, dict[str, int]]:
+def get_all_project_stats_batch(
+    db: Session, project_ids: list[UUID]
+) -> dict[UUID, dict[str, int]]:
     """Get statistics for all projects in a single batch query - eliminates N+1"""
     if not project_ids:
         return {}
 
     # Batch email counts
-    email_rows = db.query(EmailMessage.project_id, func.count(EmailMessage.id)).filter(
-        EmailMessage.project_id.in_(project_ids)
-    ).group_by(EmailMessage.project_id).all()
+    email_rows = (
+        db.query(EmailMessage.project_id, func.count(EmailMessage.id))
+        .filter(EmailMessage.project_id.in_(project_ids))
+        .group_by(EmailMessage.project_id)
+        .all()
+    )
     email_counts: dict[UUID | None, int] = {row[0]: row[1] for row in email_rows}
 
     # Batch evidence counts
-    evidence_rows = db.query(EvidenceItem.project_id, func.count(EvidenceItem.id)).filter(
-        EvidenceItem.project_id.in_(project_ids)
-    ).group_by(EvidenceItem.project_id).all()
+    evidence_rows = (
+        db.query(EvidenceItem.project_id, func.count(EvidenceItem.id))
+        .filter(EvidenceItem.project_id.in_(project_ids))
+        .group_by(EvidenceItem.project_id)
+        .all()
+    )
     evidence_counts: dict[UUID | None, int] = {row[0]: row[1] for row in evidence_rows}
 
     # Batch PST counts
-    pst_rows = db.query(PSTFile.project_id, func.count(PSTFile.id)).filter(
-        PSTFile.project_id.in_(project_ids)
-    ).group_by(PSTFile.project_id).all()
+    pst_rows = (
+        db.query(PSTFile.project_id, func.count(PSTFile.id))
+        .filter(PSTFile.project_id.in_(project_ids))
+        .group_by(PSTFile.project_id)
+        .all()
+    )
     pst_counts: dict[UUID | None, int] = {row[0]: row[1] for row in pst_rows}
 
     # Combine into result dict
@@ -171,33 +194,44 @@ def get_all_project_stats_batch(db: Session, project_ids: list[UUID]) -> dict[UU
         pid: {
             "email_count": email_counts.get(pid, 0),
             "evidence_count": evidence_counts.get(pid, 0),
-            "pst_count": pst_counts.get(pid, 0)
+            "pst_count": pst_counts.get(pid, 0),
         }
         for pid in project_ids
     }
 
 
-def get_all_case_stats_batch(db: Session, case_ids: list[UUID]) -> dict[UUID, dict[str, int]]:
+def get_all_case_stats_batch(
+    db: Session, case_ids: list[UUID]
+) -> dict[UUID, dict[str, int]]:
     """Get statistics for all cases in a single batch query - eliminates N+1"""
     if not case_ids:
         return {}
 
     # Batch email counts
-    email_rows = db.query(EmailMessage.case_id, func.count(EmailMessage.id)).filter(
-        EmailMessage.case_id.in_(case_ids)
-    ).group_by(EmailMessage.case_id).all()
+    email_rows = (
+        db.query(EmailMessage.case_id, func.count(EmailMessage.id))
+        .filter(EmailMessage.case_id.in_(case_ids))
+        .group_by(EmailMessage.case_id)
+        .all()
+    )
     email_counts: dict[UUID | None, int] = {row[0]: row[1] for row in email_rows}
 
     # Batch evidence counts
-    evidence_rows = db.query(EvidenceItem.case_id, func.count(EvidenceItem.id)).filter(
-        EvidenceItem.case_id.in_(case_ids)
-    ).group_by(EvidenceItem.case_id).all()
+    evidence_rows = (
+        db.query(EvidenceItem.case_id, func.count(EvidenceItem.id))
+        .filter(EvidenceItem.case_id.in_(case_ids))
+        .group_by(EvidenceItem.case_id)
+        .all()
+    )
     evidence_counts: dict[UUID | None, int] = {row[0]: row[1] for row in evidence_rows}
 
     # Batch PST counts
-    pst_rows = db.query(PSTFile.case_id, func.count(PSTFile.id)).filter(
-        PSTFile.case_id.in_(case_ids)
-    ).group_by(PSTFile.case_id).all()
+    pst_rows = (
+        db.query(PSTFile.case_id, func.count(PSTFile.id))
+        .filter(PSTFile.case_id.in_(case_ids))
+        .group_by(PSTFile.case_id)
+        .all()
+    )
     pst_counts: dict[UUID | None, int] = {row[0]: row[1] for row in pst_rows}
 
     # Combine into result dict
@@ -205,7 +239,7 @@ def get_all_case_stats_batch(db: Session, case_ids: list[UUID]) -> dict[UUID, di
         cid: {
             "email_count": email_counts.get(cid, 0),
             "evidence_count": evidence_counts.get(cid, 0),
-            "pst_count": pst_counts.get(cid, 0)
+            "pst_count": pst_counts.get(cid, 0),
         }
         for cid in case_ids
     }
@@ -213,31 +247,32 @@ def get_all_case_stats_batch(db: Session, case_ids: list[UUID]) -> dict[UUID, di
 
 def get_project_stats(db: Session, project_id: UUID) -> dict[str, int]:
     """Get statistics for a single project (legacy, prefer batch version)"""
-    return get_all_project_stats_batch(db, [project_id]).get(project_id, {
-        "email_count": 0, "evidence_count": 0, "pst_count": 0
-    })
+    return get_all_project_stats_batch(db, [project_id]).get(
+        project_id, {"email_count": 0, "evidence_count": 0, "pst_count": 0}
+    )
 
 
 def get_case_stats(db: Session, case_id: UUID) -> dict[str, int]:
     """Get statistics for a single case (legacy, prefer batch version)"""
-    return get_all_case_stats_batch(db, [case_id]).get(case_id, {
-        "email_count": 0, "evidence_count": 0, "pst_count": 0
-    })
+    return get_all_case_stats_batch(db, [case_id]).get(
+        case_id, {"email_count": 0, "evidence_count": 0, "pst_count": 0}
+    )
 
 
 def get_user_role_on_case(db: Session, user: User, case_id: UUID) -> str:
     """Determine user's role on a specific case"""
     if user.role == UserRole.ADMIN:
         return "admin"
-    
-    case_user = db.query(CaseUser).filter(
-        CaseUser.case_id == case_id,
-        CaseUser.user_id == user.id
-    ).first()
-    
+
+    case_user = (
+        db.query(CaseUser)
+        .filter(CaseUser.case_id == case_id, CaseUser.user_id == user.id)
+        .first()
+    )
+
     if case_user:
         return case_user.role
-    
+
     return "viewer"
 
 
@@ -245,10 +280,10 @@ def get_user_role_on_case(db: Session, user: User, case_id: UUID) -> str:
 # API Endpoints
 # ============================================================================
 
+
 @router.get("/overview", response_model=DashboardOverviewResponse)
 async def get_dashboard_overview(
-    db: DbDep,
-    user: User = Depends(current_user)
+    db: DbDep, user: User = Depends(current_user)
 ) -> DashboardOverviewResponse:
     """
     Get complete dashboard overview for the current user.
@@ -272,58 +307,68 @@ async def get_dashboard_overview(
 
     # Add projects to work items (using batch-loaded stats)
     for project in projects:
-        stats = project_stats.get(project.id, {"email_count": 0, "evidence_count": 0, "pst_count": 0})
+        stats = project_stats.get(
+            project.id, {"email_count": 0, "evidence_count": 0, "pst_count": 0}
+        )
         total_emails += stats["email_count"]
         total_evidence += stats["evidence_count"]
 
-        work_items.append(WorkItemSummary(
-            id=str(project.id),
-            type="project",
-            name=project.project_name,
-            description=None,
-            status="active",
-            created_at=project.created_at,
-            updated_at=project.updated_at,
-            project_code=project.project_code,
-            contract_type=project.contract_type,
-            email_count=stats["email_count"],
-            evidence_count=stats["evidence_count"],
-            pst_count=stats["pst_count"],
-            user_role="admin" if user.role == UserRole.ADMIN else "owner",
-            is_owner=(project.owner_user_id == user.id)
-        ))
+        work_items.append(
+            WorkItemSummary(
+                id=str(project.id),
+                type="project",
+                name=project.project_name,
+                description=None,
+                status="active",
+                created_at=project.created_at,
+                updated_at=project.updated_at,
+                project_code=project.project_code,
+                contract_type=project.contract_type,
+                email_count=stats["email_count"],
+                evidence_count=stats["evidence_count"],
+                pst_count=stats["pst_count"],
+                user_role="admin" if user.role == UserRole.ADMIN else "owner",
+                is_owner=(project.owner_user_id == user.id),
+            )
+        )
 
     # Add cases to work items (using batch-loaded stats)
     for case in cases:
-        stats = case_stats.get(case.id, {"email_count": 0, "evidence_count": 0, "pst_count": 0})
+        stats = case_stats.get(
+            case.id, {"email_count": 0, "evidence_count": 0, "pst_count": 0}
+        )
         total_emails += stats["email_count"]
         total_evidence += stats["evidence_count"]
 
         user_role = get_user_role_on_case(db, user, case.id)
 
-        work_items.append(WorkItemSummary(
-            id=str(case.id),
-            type="case",
-            name=case.name,
-            description=case.description,
-            status=case.status or "active",
-            created_at=case.created_at,
-            updated_at=case.updated_at,
-            case_number=case.case_number,
-            contract_type=case.contract_type,
-            email_count=stats["email_count"],
-            evidence_count=stats["evidence_count"],
-            pst_count=stats["pst_count"],
-            user_role=user_role,
-            is_owner=(case.owner_id == user.id)
-        ))
-    
+        work_items.append(
+            WorkItemSummary(
+                id=str(case.id),
+                type="case",
+                name=case.name,
+                description=case.description,
+                status=case.status or "active",
+                created_at=case.created_at,
+                updated_at=case.updated_at,
+                case_number=case.case_number,
+                contract_type=case.contract_type,
+                email_count=stats["email_count"],
+                evidence_count=stats["evidence_count"],
+                pst_count=stats["pst_count"],
+                user_role=user_role,
+                is_owner=(case.owner_id == user.id),
+            )
+        )
+
     # Sort work items by updated_at descending (most recent first)
     work_items.sort(
-        key=lambda x: x.updated_at or x.created_at or datetime.min.replace(tzinfo=timezone.utc),
-        reverse=True
+        key=lambda x: x.updated_at
+        or x.created_at
+        or datetime.min.replace(tzinfo=timezone.utc),
+        reverse=True,
     )
-    
+
     # Build stats
     stats = DashboardStats(
         total_projects=len(projects),
@@ -331,14 +376,21 @@ async def get_dashboard_overview(
         total_emails=total_emails,
         total_evidence=total_evidence,
         items_needing_attention=sum(1 for w in work_items if w.pst_count == 0),
-        recent_activity_count=len([
-            w for w in work_items 
-            if w.updated_at and (
-                w.updated_at.replace(tzinfo=timezone.utc) if w.updated_at.tzinfo is None else w.updated_at
-            ) > datetime.now(timezone.utc) - timedelta(days=7)
-        ])
+        recent_activity_count=len(
+            [
+                w
+                for w in work_items
+                if w.updated_at
+                and (
+                    w.updated_at.replace(tzinfo=timezone.utc)
+                    if w.updated_at.tzinfo is None
+                    else w.updated_at
+                )
+                > datetime.now(timezone.utc) - timedelta(days=7)
+            ]
+        ),
     )
-    
+
     # Build permissions based on user role
     permissions = {
         "can_create_project": user.role in [UserRole.ADMIN, UserRole.EDITOR],
@@ -347,7 +399,7 @@ async def get_dashboard_overview(
         "can_access_admin": user.role == UserRole.ADMIN,
         "can_delete_items": user.role == UserRole.ADMIN,
     }
-    
+
     # Recent activity (simplified - just return recent work items)
     recent_activity = [
         {
@@ -355,23 +407,27 @@ async def get_dashboard_overview(
             "item_type": w.type,
             "item_id": w.id,
             "item_name": w.name,
-            "timestamp": (w.updated_at or w.created_at).isoformat() if (w.updated_at or w.created_at) else None
+            "timestamp": (
+                (w.updated_at or w.created_at).isoformat()
+                if (w.updated_at or w.created_at)
+                else None
+            ),
         }
         for w in work_items[:10]
         if w.updated_at or w.created_at
     ]
-    
+
     return DashboardOverviewResponse(
         user={
             "id": str(user.id),
             "email": user.email,
             "display_name": user.display_name or user.email.split("@")[0],
-            "role": user.role.value
+            "role": user.role.value,
         },
         stats=stats,
         work_items=work_items,
         recent_activity=recent_activity,
-        permissions=permissions
+        permissions=permissions,
     )
 
 
@@ -403,70 +459,83 @@ async def get_dashboard_overview_public(db: DbDep) -> dict[str, Any]:
 
     # Add projects (using batch-loaded stats)
     for project in projects:
-        stats = project_stats.get(project.id, {"email_count": 0, "evidence_count": 0, "pst_count": 0})
+        stats = project_stats.get(
+            project.id, {"email_count": 0, "evidence_count": 0, "pst_count": 0}
+        )
         total_emails += stats["email_count"]
         total_evidence += stats["evidence_count"]
 
-        work_items.append({
-            "id": str(project.id),
-            "type": "project",
-            "name": project.project_name,
-            "description": None,
-            "status": "active",
-            "created_at": project.created_at.isoformat() if project.created_at else None,
-            "updated_at": project.updated_at.isoformat() if project.updated_at else None,
-            "project_code": project.project_code,
-            "contract_type": project.contract_type,
-            "email_count": stats["email_count"],
-            "evidence_count": stats["evidence_count"],
-            "pst_count": stats["pst_count"],
-            "user_role": "editor",
-            "is_owner": False
-        })
+        work_items.append(
+            {
+                "id": str(project.id),
+                "type": "project",
+                "name": project.project_name,
+                "description": None,
+                "status": "active",
+                "created_at": (
+                    project.created_at.isoformat() if project.created_at else None
+                ),
+                "updated_at": (
+                    project.updated_at.isoformat() if project.updated_at else None
+                ),
+                "project_code": project.project_code,
+                "contract_type": project.contract_type,
+                "email_count": stats["email_count"],
+                "evidence_count": stats["evidence_count"],
+                "pst_count": stats["pst_count"],
+                "user_role": "editor",
+                "is_owner": False,
+            }
+        )
 
     # Add cases (using batch-loaded stats)
     for case in cases:
-        stats = case_stats.get(case.id, {"email_count": 0, "evidence_count": 0, "pst_count": 0})
+        stats = case_stats.get(
+            case.id, {"email_count": 0, "evidence_count": 0, "pst_count": 0}
+        )
         total_emails += stats["email_count"]
         total_evidence += stats["evidence_count"]
 
-        work_items.append({
-            "id": str(case.id),
-            "type": "case",
-            "name": case.name,
-            "description": case.description,
-            "status": case.status or "active",
-            "created_at": case.created_at.isoformat() if case.created_at else None,
-            "updated_at": case.updated_at.isoformat() if case.updated_at else None,
-            "case_number": case.case_number,
-            "contract_type": case.contract_type,
-            "email_count": stats["email_count"],
-            "evidence_count": stats["evidence_count"],
-            "pst_count": stats["pst_count"],
-            "user_role": "editor",
-            "is_owner": False
-        })
-    
+        work_items.append(
+            {
+                "id": str(case.id),
+                "type": "case",
+                "name": case.name,
+                "description": case.description,
+                "status": case.status or "active",
+                "created_at": case.created_at.isoformat() if case.created_at else None,
+                "updated_at": case.updated_at.isoformat() if case.updated_at else None,
+                "case_number": case.case_number,
+                "contract_type": case.contract_type,
+                "email_count": stats["email_count"],
+                "evidence_count": stats["evidence_count"],
+                "pst_count": stats["pst_count"],
+                "user_role": "editor",
+                "is_owner": False,
+            }
+        )
+
     # Sort by most recent
     work_items.sort(
-        key=lambda x: x.get("updated_at") or x.get("created_at") or "",
-        reverse=True
+        key=lambda x: x.get("updated_at") or x.get("created_at") or "", reverse=True
     )
-    
+
     result: dict[str, Any] = {
         "user": {
             "id": "anonymous",
             "email": "user@vericase.com",
             "display_name": "User",
-            "role": "EDITOR"
+            "role": "EDITOR",
         },
         "stats": {
             "total_projects": len(projects),
             "total_cases": len(cases),
             "total_emails": total_emails,
             "total_evidence": total_evidence,
-            "items_needing_attention": sum(1 for w in work_items if w.get("pst_count", 0) == 0),
-            "recent_activity_count": len(work_items)
+            "items_needing_attention": sum(
+                1 for w in work_items if w.get("pst_count", 0) == 0
+            ),
+            "recent_activity_count": len(work_items),
         },
         "work_items": work_items,
         "recent_activity": [],
@@ -476,7 +545,7 @@ async def get_dashboard_overview_public(db: DbDep) -> dict[str, Any]:
             "can_manage_users": False,
             "can_access_admin": False,
             "can_delete_items": False,
-        }
+        },
     }
 
     # Cache the result
@@ -505,10 +574,9 @@ async def get_quick_stats(db: DbDep) -> dict[str, int]:
         "projects": project_count,
         "cases": case_count,
         "emails": email_count,
-        "evidence": evidence_count
+        "evidence": evidence_count,
     }
 
     # Cache the result
     _set_cached("quick_stats", result)
     return result
-

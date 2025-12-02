@@ -2,6 +2,7 @@
 Centralized AI model selection, priorities, and helper utilities.
 Ensures we consistently choose the right model for each task without web search.
 """
+
 from __future__ import annotations
 
 import logging
@@ -94,7 +95,12 @@ class AIModelService:
                 "grok-4-thinking",
                 "sonar-pro",
             ],
-            "features": ["comprehensive", "analytical", "extended_context", "reasoning"],
+            "features": [
+                "comprehensive",
+                "analytical",
+                "extended_context",
+                "reasoning",
+            ],
         },
     }
 
@@ -167,9 +173,13 @@ class AIModelService:
     }
 
     @classmethod
-    def select_model(cls, task_type: str, complexity: TaskComplexity | str) -> ModelConfig:
+    def select_model(
+        cls, task_type: str, complexity: TaskComplexity | str
+    ) -> ModelConfig:
         resolved_complexity = cls._ensure_complexity(complexity)
-        base_config = cls.MODELS.get(resolved_complexity, cls.MODELS[TaskComplexity.BASIC])
+        base_config = cls.MODELS.get(
+            resolved_complexity, cls.MODELS[TaskComplexity.BASIC]
+        )
         model_config: ModelConfig = {**base_config}
 
         preferences = getattr(settings, "AI_MODEL_PREFERENCES", {}) or {}
@@ -276,4 +286,3 @@ async def query_perplexity_local(prompt: str, context: str) -> str | None:
     except Exception as exc:
         logger.warning("Perplexity offline query failed: %s", exc)
         return None
-

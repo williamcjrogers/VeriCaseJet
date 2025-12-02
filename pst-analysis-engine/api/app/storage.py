@@ -2,6 +2,7 @@
 S3/MinIO storage management module.
 Handles bucket operations, presigned URLs, and multipart uploads.
 """
+
 from __future__ import annotations
 
 import html
@@ -45,7 +46,9 @@ class S3ClientProtocol(Protocol):
 
     def upload_part(self, *args: Any, **kwargs: Any) -> Any: ...
 
-    def complete_multipart_upload(self, *args: Any, **kwargs: Any) -> dict[str, Any]: ...
+    def complete_multipart_upload(
+        self, *args: Any, **kwargs: Any
+    ) -> dict[str, Any]: ...
 
     def delete_object(self, *args: Any, **kwargs: Any) -> Any: ...
 
@@ -133,18 +136,19 @@ def s3(public: bool = False) -> S3ClientProtocol:
         ),
     )
 
+
 def ensure_bucket() -> None:
     """Ensure S3 bucket exists and is accessible."""
     # Detect AWS mode: USE_AWS_SERVICES flag or empty MINIO_ENDPOINT
     use_aws = settings.USE_AWS_SERVICES or not settings.MINIO_ENDPOINT
-    
+
     LOGGER.info(
         "[BUCKET DEBUG] ensure_bucket called: USE_AWS_SERVICES=%s, MINIO_ENDPOINT=%s, use_aws=%s",
         settings.USE_AWS_SERVICES,
         settings.MINIO_ENDPOINT,
         use_aws,
     )
-    
+
     if use_aws:
         # In AWS mode, assume the S3 bucket already exists (managed by infrastructure)
         # Just verify we can access it by attempting a head_bucket call
@@ -178,7 +182,7 @@ def ensure_bucket() -> None:
                 versioning_config = {"Status": "Enabled"}
                 client.put_bucket_versioning(
                     Bucket=settings.MINIO_BUCKET,
-                    VersioningConfiguration=versioning_config
+                    VersioningConfiguration=versioning_config,
                 )
                 ensure_cors()
                 return
@@ -195,6 +199,7 @@ class S3BucketError(Exception):
 
 class S3AccessError(Exception):
     """S3 access denied."""
+
 
 def ensure_cors() -> None:
     """Configure CORS for S3 bucket."""
@@ -215,7 +220,9 @@ def ensure_cors() -> None:
         pass
 
 
-def put_object(key: str, data: bytes, content_type: str, *, bucket: str | None = None) -> None:
+def put_object(
+    key: str, data: bytes, content_type: str, *, bucket: str | None = None
+) -> None:
     """Upload object to S3 bucket."""
     target_bucket = bucket or settings.MINIO_BUCKET
     safe_content_type = html.escape(content_type)

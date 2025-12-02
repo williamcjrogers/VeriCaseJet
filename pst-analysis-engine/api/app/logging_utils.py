@@ -2,7 +2,7 @@ import logging
 import re
 from typing import Any
 
-_CONTROL_CHAR_PATTERN = re.compile(r'[\x00-\x08\x0b-\x1f\x7f]')
+_CONTROL_CHAR_PATTERN = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 
 
 def sanitize_log_value(value: Any, max_length: int = 512) -> str:
@@ -32,7 +32,9 @@ class LogSanitizerFilter(logging.Filter):
         super().__init__("vericase-log-sanitizer")
         self.max_length = max_length
 
-    def filter(self, record: logging.LogRecord) -> bool:  # pragma: no cover - exercised via logging
+    def filter(
+        self, record: logging.LogRecord
+    ) -> bool:  # pragma: no cover - exercised via logging
         if not record.args:
             record.msg = sanitize_log_value(record.msg, self.max_length)
             return True
@@ -57,7 +59,9 @@ class LogSanitizerFilter(logging.Filter):
         return True
 
 
-def install_log_sanitizer(target_logger: logging.Logger | None = None, max_length: int = 512) -> None:
+def install_log_sanitizer(
+    target_logger: logging.Logger | None = None, max_length: int = 512
+) -> None:
     """
     Attach the sanitizer filter to the provided logger (defaults to root).
 

@@ -17,7 +17,7 @@ endpoints = {
     "RDS": "database-1.cv8uwu0uqr7f.eu-west-2.rds.amazonaws.com",
     "Redis": "clustercfg.vericase-redis.dbbgbx.euw2.cache.amazonaws.com",
     "OpenSearch": "vpc-vericase-opensearch-sl2a3zd5dnrbt64bssyocnrofu.eu-west-2.es.amazonaws.com",
-    "Public DNS": "google.com"
+    "Public DNS": "google.com",
 }
 
 for service, endpoint in endpoints.items():
@@ -29,22 +29,23 @@ for service, endpoint in endpoints.items():
 
 # Test environment
 print("\n=== Environment Check ===")
-db_url = os.getenv('DATABASE_URL', '')
+db_url = os.getenv("DATABASE_URL", "")
 if db_url:
     # Extract just the hostname for display
     try:
         import re
-        match = re.search(r'@([^:/]+)', db_url)
+
+        match = re.search(r"@([^:/]+)", db_url)
         if match:
             hostname = match.group(1)
             print(f"DATABASE_URL hostname: {hostname}")
             print(f"DATABASE_URL length: {len(db_url)} characters")
-            
+
             # Check for corruption
-            if 'cv8uwu0uqr7fau-west-2' in hostname:
+            if "cv8uwu0uqr7fau-west-2" in hostname:
                 print("[WARN] Hostname appears corrupted!")
                 print("Expected: database-1.cv8uwu0uqr7f.eu-west-2.rds.amazonaws.com")
-    except:
+    except Exception:
         pass
     print("DATABASE_URL: SET")
 else:
@@ -53,7 +54,7 @@ print(f"AWS_REGION: {os.getenv('AWS_REGION', 'NOT SET')}")
 print(f"PORT: {os.getenv('PORT', '8000')}")
 
 # Set PYTHONPATH to include vendor directory
-vendor_path = os.path.join(os.path.dirname(__file__), 'vendor')
+vendor_path = os.path.join(os.path.dirname(__file__), "vendor")
 if os.path.exists(vendor_path):
     print(f"\n✓ Vendor directory found: {vendor_path}")
     sys.path.insert(0, vendor_path)
@@ -65,7 +66,7 @@ print("\n=== UI Directory Check ===")
 ui_candidates = [
     "/app/pst-analysis-engine/api/ui",
     "/app/pst-analysis-engine/ui",
-    "/app/ui"
+    "/app/ui",
 ]
 for ui_path in ui_candidates:
     if os.path.exists(ui_path):
@@ -79,19 +80,19 @@ for ui_path in ui_candidates:
 print("\n=== Running Database Migrations ===")
 try:
     # Add vendor to path first
-    vendor_path = os.path.join(os.path.dirname(__file__), 'vendor')
+    vendor_path = os.path.join(os.path.dirname(__file__), "vendor")
     if os.path.exists(vendor_path):
         sys.path.insert(0, vendor_path)
-    
+
     # Run migrations directly
-    migrations_script = os.path.join(os.path.dirname(__file__), 'apply_migrations.py')
+    migrations_script = os.path.join(os.path.dirname(__file__), "apply_migrations.py")
     if os.path.exists(migrations_script):
         result = subprocess.run(
             [sys.executable, migrations_script],
             capture_output=True,
             text=True,
             timeout=60,
-            env={**os.environ, 'PYTHONPATH': vendor_path}
+            env={**os.environ, "PYTHONPATH": vendor_path},
         )
         print(result.stdout)
         if result.stderr:
@@ -105,6 +106,7 @@ try:
 except Exception as e:
     print(f"⚠ Could not run migrations: {e}")
     import traceback
+
     traceback.print_exc()
     print("App will start anyway - migrations may need to be run manually")
 
@@ -122,18 +124,22 @@ if project_root not in sys.path:
 try:
     # Try to import FastAPI from vendor
     from fastapi import FastAPI
+
     print("✓ FastAPI imported successfully")
-    
+
     # Start with a basic app if main app fails
     try:
-        from app.main import app  # noqa: F401  # pyright: ignore[reportImplicitRelativeImport]  # Script runs directly, not as module
+        from app.main import (
+            app,
+        )  # noqa: F401  # pyright: ignore[reportImplicitRelativeImport]  # Script runs directly, not as module
+
         print("✓ Main application imported")
     except Exception as e:
         print(f"✗ Main application import failed: {e}")
         print("Creating fallback application...")
-        
+
         app = FastAPI()
-        
+
         @app.get("/")
         def root():
             return {
@@ -142,22 +148,24 @@ try:
                 "diagnostics": {
                     "dns_working": endpoints.get("Public DNS") is not None,
                     "vendor_path": os.path.exists(vendor_path),
-                    "database_url": bool(os.getenv('DATABASE_URL'))
-                }
+                    "database_url": bool(os.getenv("DATABASE_URL")),
+                },
             }
-        
+
         @app.get("/health")
         def health():
             return {"status": "healthy", "mode": "diagnostic"}
-    
+
     # Run uvicorn
     import uvicorn
-    port = int(os.getenv('PORT', '8000'))
+
+    port = int(os.getenv("PORT", "8000"))
     print(f"Starting uvicorn on port {port}...")
     uvicorn.run(app, host="0.0.0.0", port=port)
-    
+
 except Exception as e:
     print(f"FATAL ERROR: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)

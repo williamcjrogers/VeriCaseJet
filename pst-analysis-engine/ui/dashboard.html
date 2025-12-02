@@ -1,883 +1,1073 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VeriCase - Dispute Intelligence Dashboard</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="brand-styles.css">
-    <link rel="stylesheet" href="design-system.css">
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="brand-styles.css" />
+    <link rel="stylesheet" href="design-system.css" />
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
     <style>
-        /* Variables inherited from brand-styles.css */
+      /* Variables inherited from brand-styles.css */
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'SF Pro Display', 'Roboto', sans-serif;
-            background: var(--bg-primary);
-            color: var(--vericase-navy);
-            -webkit-font-smoothing: antialiased;
-            background-image: radial-gradient(circle, rgba(15, 157, 154, 0.03) 1px, transparent 1px);
-            background-size: 30px 30px;
-        }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter",
+          "SF Pro Display", "Roboto", sans-serif;
+        background: var(--bg-primary);
+        color: var(--vericase-navy);
+        -webkit-font-smoothing: antialiased;
+        background-image: radial-gradient(
+          circle,
+          rgba(15, 157, 154, 0.03) 1px,
+          transparent 1px
+        );
+        background-size: 30px 30px;
+      }
 
-        /* Override for dashboard - uses its own layout */
-        .app-shell .app-main {
-            margin-left: 260px;
-        }
+      /* Override for dashboard - uses its own layout */
+      .app-shell .app-main {
+        margin-left: 260px;
+      }
 
-        .top-bar {
-            background: white;
-            color: var(--vericase-navy);
-            padding: 1rem 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-            border-bottom: 1px solid var(--gray-200);
-        }
+      .top-bar {
+        background: white;
+        color: var(--vericase-navy);
+        padding: 1rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        border-bottom: 1px solid var(--gray-200);
+      }
 
-        .top-bar .logo-img {
-            height: 32px;
-            width: auto;
-            margin-right: 0.5rem;
-        }
+      .top-bar .logo-img {
+        height: 32px;
+        width: auto;
+        margin-right: 0.5rem;
+      }
 
-        .top-bar h1 {
-            font-size: 24px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
+      .top-bar h1 {
+        font-size: 24px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
 
-        .top-bar-actions {
-            display: flex;
-            gap: 10px;
-        }
+      .top-bar-actions {
+        display: flex;
+        gap: 10px;
+      }
 
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
+      .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
 
-        .btn-primary {
-            background: var(--vericase-teal);
-            color: white;
-            box-shadow: 0 4px 14px 0 rgba(23, 181, 163, 0.39);
-        }
+      .btn-primary {
+        background: var(--vericase-teal);
+        color: white;
+        box-shadow: 0 4px 14px 0 rgba(23, 181, 163, 0.39);
+      }
 
-        .btn-primary:hover {
-            background: var(--vericase-teal-dark);
-            box-shadow: 0 6px 20px rgba(23, 181, 163, 0.5);
-            transform: translateY(-2px);
-        }
+      .btn-primary:hover {
+        background: var(--vericase-teal-dark);
+        box-shadow: 0 6px 20px rgba(23, 181, 163, 0.5);
+        transform: translateY(-2px);
+      }
 
-        .btn-secondary {
-            background: white;
-            color: var(--vericase-navy);
-            border: 2px solid var(--gray-200);
-        }
+      .btn-secondary {
+        background: white;
+        color: var(--vericase-navy);
+        border: 2px solid var(--gray-200);
+      }
 
-        .btn-secondary:hover {
-            background: var(--gray-50);
-            border-color: var(--vericase-teal);
-        }
+      .btn-secondary:hover {
+        background: var(--gray-50);
+        border-color: var(--vericase-teal);
+      }
 
-        .btn-success {
-            background: #4caf50;
-            color: white;
-        }
+      .btn-success {
+        background: #4caf50;
+        color: white;
+      }
 
-        .btn-success:hover {
-            background: #45a049;
-        }
+      .btn-success:hover {
+        background: #45a049;
+      }
 
-        .dashboard-container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 30px;
-        }
+      .dashboard-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 30px;
+      }
 
-        .welcome-banner {
-            background: linear-gradient(135deg, var(--vericase-navy) 0%, var(--vericase-navy) 100%);
-            color: white;
-            padding: 2.5rem;
-            border-radius: 20px;
-            margin-bottom: 2rem;
-            box-shadow: 0 10px 40px rgba(31, 41, 55, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            position: relative;
-            overflow: hidden;
-        }
+      .welcome-banner {
+        background: linear-gradient(
+          135deg,
+          var(--vericase-navy) 0%,
+          var(--vericase-navy) 100%
+        );
+        color: white;
+        padding: 2.5rem;
+        border-radius: 20px;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 40px rgba(31, 41, 55, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        position: relative;
+        overflow: hidden;
+      }
 
-        .welcome-banner::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 300px;
-            height: 300px;
-            background: radial-gradient(circle, rgba(23, 181, 163, 0.2) 0%, transparent 70%);
-            border-radius: 50%;
-        }
+      .welcome-banner::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 300px;
+        height: 300px;
+        background: radial-gradient(
+          circle,
+          rgba(23, 181, 163, 0.2) 0%,
+          transparent 70%
+        );
+        border-radius: 50%;
+      }
 
-        .welcome-banner h2 {
-            font-size: 28px;
-            margin-bottom: 10px;
-        }
+      .welcome-banner h2 {
+        font-size: 28px;
+        margin-bottom: 10px;
+      }
 
-        .welcome-banner p {
-            font-size: 16px;
-            opacity: 0.95;
-            line-height: 1.6;
-        }
+      .welcome-banner p {
+        font-size: 16px;
+        opacity: 0.95;
+        line-height: 1.6;
+      }
 
-        .welcome-banner .meta {
-            margin-top: 15px;
-            display: flex;
-            gap: 30px;
-            font-size: 14px;
-        }
+      .welcome-banner .meta {
+        margin-top: 15px;
+        display: flex;
+        gap: 30px;
+        font-size: 14px;
+      }
 
-        .welcome-banner .meta-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
+      .welcome-banner .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+
+      .action-card {
+        background: white;
+        padding: 2rem;
+        border-radius: 16px;
+        box-shadow:
+          0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        cursor: pointer;
+        transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+        border: 2px solid #f3f4f6;
+      }
+
+      .action-card:hover {
+        transform: translateY(-4px);
+        box-shadow:
+          0 20px 25px -5px rgba(0, 0, 0, 0.1),
+          0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        border-color: var(--brand-primary);
+      }
+
+      .action-card .icon {
+        width: 64px;
+        height: 64px;
+        background: linear-gradient(
+          135deg,
+          var(--vericase-teal) 0%,
+          var(--vericase-teal-dark) 100%
+        );
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 28px;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 4px 14px 0 rgba(23, 181, 163, 0.39);
+      }
+
+      .action-card h3 {
+        font-size: 18px;
+        margin-bottom: 8px;
+        color: #333;
+      }
+
+      .action-card p {
+        font-size: 13px;
+        color: #666;
+        line-height: 1.5;
+      }
+
+      .widgets-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+
+      .widget {
+        background: white;
+        padding: 2rem;
+        border-radius: 16px;
+        box-shadow:
+          0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        border: 1px solid #f3f4f6;
+        transition: all 200ms;
+      }
+
+      .widget:hover {
+        box-shadow:
+          0 10px 15px -3px rgba(0, 0, 0, 0.1),
+          0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      }
+
+      .widget h3 {
+        font-size: 18px;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #333;
+      }
+
+      .widget h3 i {
+        color: var(--vericase-teal);
+      }
+
+      .stat-card {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        margin-bottom: 10px;
+      }
+
+      .stat-card:last-child {
+        margin-bottom: 0;
+      }
+
+      .stat-label {
+        font-size: 14px;
+        color: #666;
+      }
+
+      .stat-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: #333;
+      }
+
+      .progress-bar {
+        width: 100%;
+        height: 10px;
+        background: #e0e0e0;
+        border-radius: 5px;
+        overflow: hidden;
+        margin-top: 8px;
+      }
+
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          var(--vericase-teal) 0%,
+          var(--vericase-teal-dark) 100%
+        );
+        transition: width 0.3s;
+      }
+
+      .timeline {
+        position: relative;
+        padding-left: 30px;
+      }
+
+      .timeline::before {
+        content: "";
+        position: absolute;
+        left: 8px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #e0e0e0;
+      }
+
+      .timeline-item {
+        position: relative;
+        margin-bottom: 20px;
+      }
+
+      .timeline-item::before {
+        content: "";
+        position: absolute;
+        left: -26px;
+        top: 5px;
+        width: 12px;
+        height: 12px;
+        background: var(--vericase-teal);
+        border-radius: 50%;
+        border: 2px solid white;
+        box-shadow: 0 0 0 2px var(--vericase-teal);
+      }
+
+      .timeline-date {
+        font-size: 12px;
+        color: #999;
+        margin-bottom: 4px;
+      }
+
+      .timeline-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 2px;
+      }
+
+      .timeline-desc {
+        font-size: 13px;
+        color: #666;
+      }
+
+      .alert {
+        padding: 15px 20px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .alert-warning {
+        background: #fff3cd;
+        border-left: 4px solid #ffc107;
+        color: #856404;
+      }
+
+      .alert-info {
+        background: #d1ecf1;
+        border-left: 4px solid #17a2b8;
+        color: #0c5460;
+      }
+
+      .alert-success {
+        background: #d4edda;
+        border-left: 4px solid #28a745;
+        color: #155724;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #999;
+      }
+
+      .empty-state i {
+        font-size: 48px;
+        margin-bottom: 15px;
+        opacity: 0.5;
+      }
+
+      .empty-state p {
+        font-size: 14px;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .badge-discovery {
+        background: #e3f2fd;
+        color: #1976d2;
+      }
+
+      .badge-progress {
+        background: #fff3cd;
+        color: #856404;
+      }
+
+      .badge-complete {
+        background: #d4edda;
+        color: #155724;
+      }
+
+      .list-item {
+        padding: 12px 0;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .list-item:last-child {
+        border-bottom: none;
+      }
+
+      .list-item-title {
+        font-size: 14px;
+        color: #333;
+        font-weight: 500;
+      }
+
+      .list-item-meta {
+        font-size: 12px;
+        color: #999;
+        margin-top: 4px;
+      }
+
+      @media (max-width: 768px) {
+        .widgets-grid {
+          grid-template-columns: 1fr;
         }
 
         .quick-actions {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* Modal Styles */
+      .modal {
+        display: none;
+      }
+
+      .modal-content {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        animation: modalFadeIn 0.3s ease-out;
+      }
+
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.5rem 2rem;
+        border-bottom: 1px solid #e5e7eb;
+      }
+
+      .modal-header h2 {
+        margin: 0;
+        color: #1a202c;
+      }
+
+      .close {
+        font-size: 24px;
+        cursor: pointer;
+        color: #6b7280;
+        transition: color 0.2s;
+      }
+
+      .close:hover {
+        color: #1a202c;
+      }
+
+      @keyframes modalFadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(-20px);
         }
 
-        .action-card {
-            background: white;
-            padding: 2rem;
-            border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            cursor: pointer;
-            transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
-            border: 2px solid #F3F4F6;
+        to {
+          opacity: 1;
+          transform: translateY(0);
         }
-
-        .action-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-            border-color: var(--brand-primary);
-        }
-
-        .action-card .icon {
-            width: 64px;
-            height: 64px;
-            background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%);
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 28px;
-            margin-bottom: 1.25rem;
-            box-shadow: 0 4px 14px 0 rgba(23, 181, 163, 0.39);
-        }
-
-        .action-card h3 {
-            font-size: 18px;
-            margin-bottom: 8px;
-            color: #333;
-        }
-
-        .action-card p {
-            font-size: 13px;
-            color: #666;
-            line-height: 1.5;
-        }
-
-        .widgets-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .widget {
-            background: white;
-            padding: 2rem;
-            border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            border: 1px solid #F3F4F6;
-            transition: all 200ms;
-        }
-
-        .widget:hover {
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        }
-
-        .widget h3 {
-            font-size: 18px;
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            color: #333;
-        }
-
-        .widget h3 i {
-            color: var(--vericase-teal);
-        }
-
-        .stat-card {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            margin-bottom: 10px;
-        }
-
-        .stat-card:last-child {
-            margin-bottom: 0;
-        }
-
-        .stat-label {
-            font-size: 14px;
-            color: #666;
-        }
-
-        .stat-value {
-            font-size: 24px;
-            font-weight: 700;
-            color: #333;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 10px;
-            background: #e0e0e0;
-            border-radius: 5px;
-            overflow: hidden;
-            margin-top: 8px;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%);
-            transition: width 0.3s;
-        }
-
-        .timeline {
-            position: relative;
-            padding-left: 30px;
-        }
-
-        .timeline::before {
-            content: '';
-            position: absolute;
-            left: 8px;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background: #e0e0e0;
-        }
-
-        .timeline-item {
-            position: relative;
-            margin-bottom: 20px;
-        }
-
-        .timeline-item::before {
-            content: '';
-            position: absolute;
-            left: -26px;
-            top: 5px;
-            width: 12px;
-            height: 12px;
-            background: var(--vericase-teal);
-            border-radius: 50%;
-            border: 2px solid white;
-            box-shadow: 0 0 0 2px var(--vericase-teal);
-        }
-
-        .timeline-date {
-            font-size: 12px;
-            color: #999;
-            margin-bottom: 4px;
-        }
-
-        .timeline-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 2px;
-        }
-
-        .timeline-desc {
-            font-size: 13px;
-            color: #666;
-        }
-
-        .alert {
-            padding: 15px 20px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .alert-warning {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            color: #856404;
-        }
-
-        .alert-info {
-            background: #d1ecf1;
-            border-left: 4px solid #17a2b8;
-            color: #0c5460;
-        }
-
-        .alert-success {
-            background: #d4edda;
-            border-left: 4px solid #28a745;
-            color: #155724;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: #999;
-        }
-
-        .empty-state i {
-            font-size: 48px;
-            margin-bottom: 15px;
-            opacity: 0.5;
-        }
-
-        .empty-state p {
-            font-size: 14px;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .badge-discovery {
-            background: #e3f2fd;
-            color: #1976d2;
-        }
-
-        .badge-progress {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .badge-complete {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .list-item {
-            padding: 12px 0;
-            border-bottom: 1px solid #e0e0e0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .list-item:last-child {
-            border-bottom: none;
-        }
-
-        .list-item-title {
-            font-size: 14px;
-            color: #333;
-            font-weight: 500;
-        }
-
-        .list-item-meta {
-            font-size: 12px;
-            color: #999;
-            margin-top: 4px;
-        }
-
-        @media (max-width: 768px) {
-            .widgets-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .quick-actions {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        /* Modal Styles */
-        .modal {
-            display: none;
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            animation: modalFadeIn 0.3s ease-out;
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1.5rem 2rem;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        .modal-header h2 {
-            margin: 0;
-            color: #1a202c;
-        }
-
-        .close {
-            font-size: 24px;
-            cursor: pointer;
-            color: #6b7280;
-            transition: color 0.2s;
-        }
-
-        .close:hover {
-            color: #1a202c;
-        }
-
-        @keyframes modalFadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
+      }
     </style>
     <script src="config.js"></script>
     <script src="app-state.js"></script>
-</head>
+  </head>
 
-<body>
+  <body>
     <div class="top-bar">
-        <h1>
-            <img src="assets/LOGOTOBEUSED.png" alt="VeriCase" class="logo-img">
-            <span id="profileName">Dashboard</span>
-        </h1>
-        <div class="top-bar-actions">
-            <button class="btn btn-secondary" onclick="window.location.href='master-dashboard.html'"
-                title="Back to Command Center">
-                <i class="fas fa-th-large"></i> Command Center
-            </button>
-            <button class="btn btn-primary" id="uploadBtn" onclick="openPstUpload()">
-                <i class="fas fa-cloud-upload-alt"></i> Upload Evidence
-            </button>
-            <button class="btn btn-secondary" onclick="window.location.href='wizard.html'">
-                <i class="fas fa-plus"></i> New Profile
-            </button>
-            <button class="btn" onclick="window.location.href='wizard.html'"
-                style="background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%); color: white; border: none;">
-                <i class="fas fa-robot"></i> Intelligent Setup
-            </button>
-            <button class="btn" onclick="window.location.href='deep-research.html'"
-                style="background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-navy) 100%); color: white; border: none;">
-                <i class="fas fa-atom"></i> Deep Research
-            </button>
-            <button class="btn btn-secondary" onclick="showSettings()">
-                <i class="fas fa-cog"></i> Settings
-            </button>
-            <button class="btn btn-secondary" id="adminApprovalBtn"
-                onclick="window.location.href='admin-approvals.html'" style="display: none;">
-                <i class="fas fa-user-check"></i> <span id="pendingBadge"></span> Approvals
-            </button>
-            <button class="btn btn-secondary" id="adminSettingsBtn" onclick="window.location.href='admin-settings.html'"
-                style="display: none;">
-                <i class="fas fa-sliders-h"></i> Admin Settings
-            </button>
-        </div>
+      <h1>
+        <img src="assets/LOGOTOBEUSED.png" alt="VeriCase" class="logo-img" />
+        <span id="profileName">Dashboard</span>
+      </h1>
+      <div class="top-bar-actions">
+        <button
+          class="btn btn-secondary"
+          onclick="window.location.href = 'master-dashboard.html'"
+          title="Back to Command Center"
+        >
+          <i class="fas fa-th-large"></i> Command Center
+        </button>
+        <button
+          class="btn btn-primary"
+          id="uploadBtn"
+          onclick="openPstUpload()"
+        >
+          <i class="fas fa-cloud-upload-alt"></i> Upload Evidence
+        </button>
+        <button
+          class="btn btn-secondary"
+          onclick="window.location.href = 'wizard.html'"
+        >
+          <i class="fas fa-plus"></i> New Profile
+        </button>
+        <button
+          class="btn"
+          onclick="window.location.href = 'wizard.html'"
+          style="
+            background: linear-gradient(
+              135deg,
+              var(--vericase-teal) 0%,
+              var(--vericase-teal-dark) 100%
+            );
+            color: white;
+            border: none;
+          "
+        >
+          <i class="fas fa-robot"></i> Intelligent Setup
+        </button>
+        <button
+          class="btn"
+          onclick="window.location.href = 'deep-research.html'"
+          style="
+            background: linear-gradient(
+              135deg,
+              var(--vericase-teal) 0%,
+              var(--vericase-navy) 100%
+            );
+            color: white;
+            border: none;
+          "
+        >
+          <i class="fas fa-atom"></i> Deep Research
+        </button>
+        <button class="btn btn-secondary" onclick="showSettings()">
+          <i class="fas fa-cog"></i> Settings
+        </button>
+        <button
+          class="btn btn-secondary"
+          id="adminApprovalBtn"
+          onclick="window.location.href = 'admin-approvals.html'"
+          style="display: none"
+        >
+          <i class="fas fa-user-check"></i>
+          <span id="pendingBadge"></span> Approvals
+        </button>
+        <button
+          class="btn btn-secondary"
+          id="adminSettingsBtn"
+          onclick="window.location.href = 'admin-settings.html'"
+          style="display: none"
+        >
+          <i class="fas fa-sliders-h"></i> Admin Settings
+        </button>
+      </div>
     </div>
 
     <div class="dashboard-container">
-        <!-- Welcome Banner -->
-        <div class="welcome-banner" id="welcomeBanner">
-            <h2 id="welcomeTitle">Welcome to Your Dispute Intelligence Platform</h2>
-            <p id="welcomeMessage">VeriCase transforms fragmented evidence into dispute-winning insights. Start by
-                uploading your evidence or exploring the features below.</p>
-            <div class="meta">
-                <div class="meta-item">
-                    <i class="fas fa-calendar"></i>
-                    <span id="createdDate">Created Today</span>
-                </div>
-                <div class="meta-item">
-                    <i class="fas fa-briefcase"></i>
-                    <span id="profileType">Project</span>
-                </div>
-            </div>
+      <!-- Welcome Banner -->
+      <div class="welcome-banner" id="welcomeBanner">
+        <h2 id="welcomeTitle">Welcome to Your Dispute Intelligence Platform</h2>
+        <p id="welcomeMessage">
+          VeriCase transforms fragmented evidence into dispute-winning insights.
+          Start by uploading your evidence or exploring the features below.
+        </p>
+        <div class="meta">
+          <div class="meta-item">
+            <i class="fas fa-calendar"></i>
+            <span id="createdDate">Created Today</span>
+          </div>
+          <div class="meta-item">
+            <i class="fas fa-briefcase"></i>
+            <span id="profileType">Project</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project Selector -->
+      <div
+        class="project-selector-panel"
+        id="projectSelectorPanel"
+        style="
+          background: white;
+          border-radius: 12px;
+          padding: 1.5rem;
+          margin-bottom: 1.5rem;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        "
+      >
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+          "
+        >
+          <div style="display: flex; align-items: center; gap: 1rem; flex: 1">
+            <label
+              style="
+                font-weight: 600;
+                color: var(--vericase-navy);
+                white-space: nowrap;
+              "
+            >
+              <i
+                class="fas fa-folder-open"
+                style="color: var(--vericase-teal); margin-right: 0.5rem"
+              ></i>
+              Select Project:
+            </label>
+            <label for="projectSelector"></label
+            ><select
+              id="projectSelector"
+              onchange="onProjectSelected(this.value)"
+              style="
+                flex: 1;
+                max-width: 400px;
+                padding: 0.75rem 1rem;
+                border: 2px solid #e5e7eb;
+                border-radius: 8px;
+                font-size: 14px;
+                background: white;
+                cursor: pointer;
+                transition: border-color 0.2s;
+              "
+            >
+              <option value="">Loading projects...</option>
+            </select>
+          </div>
+          <div style="display: flex; gap: 0.75rem">
+            <button
+              class="btn btn-primary"
+              onclick="viewCorrespondence()"
+              id="viewCorrespondenceBtn"
+              style="padding: 0.6rem 1rem"
+            >
+              <i class="fas fa-envelope"></i> View Emails
+            </button>
+            <button
+              class="btn btn-secondary"
+              onclick="openPstUpload()"
+              id="uploadFromSelectorBtn"
+              style="padding: 0.6rem 1rem"
+            >
+              <i class="fas fa-upload"></i> Upload PST
+            </button>
+          </div>
+        </div>
+        <div id="projectStats" style="margin-top: 1rem; display: none">
+          <div
+            style="
+              display: flex;
+              gap: 2rem;
+              padding: 0.75rem;
+              background: #f9fafb;
+              border-radius: 8px;
+            "
+          >
+            <span style="color: var(--text-secondary); font-size: 0.875rem">
+              <i
+                class="fas fa-envelope"
+                style="color: var(--vericase-teal)"
+              ></i>
+              <strong id="emailCount">0</strong> emails
+            </span>
+            <span style="color: var(--text-secondary); font-size: 0.875rem">
+              <i class="fas fa-file" style="color: var(--vericase-blue)"></i>
+              <strong id="pstCount">0</strong> PST files
+            </span>
+            <span style="color: var(--text-secondary); font-size: 0.875rem">
+              <i class="fas fa-calendar" style="color: #6b7280"></i>
+              Created: <span id="projectCreated">-</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="quick-actions">
+        <div class="action-card" onclick="openPstUpload()">
+          <div class="icon">
+            <i class="fas fa-cloud-upload-alt"></i>
+          </div>
+          <h3>Upload Evidence</h3>
+          <p>Import PST files, emails, documents, and other evidence sources</p>
         </div>
 
-        <!-- Project Selector -->
-        <div class="project-selector-panel" id="projectSelectorPanel"
-            style="background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-            <div
-                style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
-                <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
-                    <label style="font-weight: 600; color: var(--vericase-navy); white-space: nowrap;">
-                        <i class="fas fa-folder-open" style="color: var(--vericase-teal); margin-right: 0.5rem;"></i>
-                        Select Project:
-                    </label>
-                    <label for="projectSelector"></label><select id="projectSelector"
-                        onchange="onProjectSelected(this.value)"
-                        style="flex: 1; max-width: 400px; padding: 0.75rem 1rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; background: white; cursor: pointer; transition: border-color 0.2s;">
-                        <option value="">Loading projects...</option>
-                    </select>
-                </div>
-                <div style="display: flex; gap: 0.75rem;">
-                    <button class="btn btn-primary" onclick="viewCorrespondence()" id="viewCorrespondenceBtn"
-                        style="padding: 0.6rem 1rem;">
-                        <i class="fas fa-envelope"></i> View Emails
-                    </button>
-                    <button class="btn btn-secondary" onclick="openPstUpload()" id="uploadFromSelectorBtn"
-                        style="padding: 0.6rem 1rem;">
-                        <i class="fas fa-upload"></i> Upload PST
-                    </button>
-                </div>
-            </div>
-            <div id="projectStats" style="margin-top: 1rem; display: none;">
-                <div style="display: flex; gap: 2rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px;">
-                    <span style="color: var(--text-secondary); font-size: 0.875rem;">
-                        <i class="fas fa-envelope" style="color: var(--vericase-teal);"></i>
-                        <strong id="emailCount">0</strong> emails
-                    </span>
-                    <span style="color: var(--text-secondary); font-size: 0.875rem;">
-                        <i class="fas fa-file" style="color: var(--vericase-blue);"></i>
-                        <strong id="pstCount">0</strong> PST files
-                    </span>
-                    <span style="color: var(--text-secondary); font-size: 0.875rem;">
-                        <i class="fas fa-calendar" style="color: #6b7280;"></i>
-                        Created: <span id="projectCreated">-</span>
-                    </span>
-                </div>
-            </div>
+        <div class="action-card" onclick="viewCorrespondence()">
+          <div class="icon">
+            <i class="fas fa-envelope"></i>
+          </div>
+          <h3>View Correspondence</h3>
+          <p>Access and analyze all project communications</p>
         </div>
 
-        <!-- Quick Actions -->
-        <div class="quick-actions">
-            <div class="action-card" onclick="openPstUpload()">
-                <div class="icon">
-                    <i class="fas fa-cloud-upload-alt"></i>
-                </div>
-                <h3>Upload Evidence</h3>
-                <p>Import PST files, emails, documents, and other evidence sources</p>
-            </div>
-
-            <div class="action-card" onclick="viewCorrespondence()">
-                <div class="icon">
-                    <i class="fas fa-envelope"></i>
-                </div>
-                <h3>View Correspondence</h3>
-                <p>Access and analyze all project communications</p>
-            </div>
-
-            <div class="action-card" onclick="manageStakeholders()">
-                <div class="icon">
-                    <i class="fas fa-users"></i>
-                </div>
-                <h3>Stakeholders</h3>
-                <p>Manage project parties and team members</p>
-            </div>
-
-            <div class="action-card" onclick="viewTimeline()">
-                <div class="icon">
-                    <i class="fas fa-timeline"></i>
-                </div>
-                <h3>Event Timeline</h3>
-                <p>Visualize project chronology and key events</p>
-            </div>
-
-            <div class="action-card" onclick="openAIRefinement()"
-                style="background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%); color: white; border-color: transparent;">
-                <div class="icon"
-                    style="background: rgba(255, 255, 255, 0.2); box-shadow: 0 4px 14px 0 rgba(255, 255, 255, 0.3);">
-                    <i class="fas fa-wand-magic-sparkles"></i>
-                </div>
-                <h3 style="color: white;">AI Refinement</h3>
-                <p style="color: rgba(255, 255, 255, 0.9);">Discover patterns and refine evidence with AI assistance</p>
-            </div>
+        <div class="action-card" onclick="manageStakeholders()">
+          <div class="icon">
+            <i class="fas fa-users"></i>
+          </div>
+          <h3>Stakeholders</h3>
+          <p>Manage project parties and team members</p>
         </div>
 
-        <!-- Widgets Grid -->
-        <div class="widgets-grid">
-            <!-- Evidence Status Widget -->
-            <div class="widget">
-                <h3><i class="fas fa-database"></i> Evidence Status</h3>
-                <div id="evidenceStatus">
-                    <div class="stat-card">
-                        <div>
-                            <div class="stat-label">Documents Uploaded</div>
-                            <div class="progress-bar">
-                                <div class="progress-fill" style="width: 0"></div>
-                            </div>
-                        </div>
-                        <div class="stat-value">0</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Emails Processed</div>
-                        <div class="stat-value">0</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Keywords Tagged</div>
-                        <div class="stat-value" id="keywordCount">0</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Evidence & Files Widget -->
-            <div class="widget" onclick="viewEvidenceRepository()" style="cursor: pointer;">
-                <h3><i class="fas fa-folder-open"></i> Evidence &amp; Files</h3>
-                <div id="evidenceFilesContent">
-                    <div class="empty-state">
-                        <i class="fas fa-file-alt"></i>
-                        <p>Loading evidence for this profile...</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Alerts & Deadlines Widget -->
-            <div class="widget">
-                <h3><i class="fas fa-bell"></i> Alerts & Deadlines</h3>
-                <div id="alertsContainer">
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle"></i>
-                        <div>
-                            <strong>Getting Started</strong><br>
-                            Upload your first evidence source to begin analysis
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Chronology / Recent Activity Widget -->
-            <div class="widget">
-                <h3>
-                    <i class="fas fa-clock"></i> Project Chronology
-                    <button class="btn btn-secondary" style="margin-left: 10px; padding: 6px 12px; font-size: 12px;"
-                        onclick="openChronologyPrompt()">
-                        <i class="fas fa-timeline"></i> Build Chronology
-                    </button>
-                </h3>
-                <div id="activityFeed">
-                    <div class="timeline" id="chronologyTimeline">
-                        <div class="timeline-item">
-                            <div class="timeline-date">Just now</div>
-                            <div class="timeline-title">Profile Created</div>
-                            <div class="timeline-desc" id="profileCreatedDesc">Project setup completed</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Heads of Claim / Project Progress Widget -->
-            <div class="widget" id="headsWidget">
-                <h3><i class="fas fa-list-check"></i> <span id="headsTitle">Heads of Claim</span></h3>
-                <div id="headsContent">
-                    <div class="empty-state">
-                        <i class="fas fa-clipboard-list"></i>
-                        <p>No claims defined yet</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Stakeholders Widget -->
-            <div class="widget">
-                <h3><i class="fas fa-users"></i> Key Stakeholders</h3>
-                <div id="stakeholdersContent">
-                    <div class="empty-state">
-                        <i class="fas fa-user-friends"></i>
-                        <p>Loading stakeholders...</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Quick Stats Widget -->
-            <div class="widget">
-                <h3><i class="fas fa-chart-pie"></i> Quick Stats</h3>
-                <div id="quickStats">
-                    <div class="list-item">
-                        <div>
-                            <div class="list-item-title">Evidence Sources</div>
-                            <div class="list-item-meta">Uploaded files and systems</div>
-                        </div>
-                        <div class="stat-value" style="font-size: 20px;">0</div>
-                    </div>
-                    <div class="list-item">
-                        <div>
-                            <div class="list-item-title">Team Members</div>
-                            <div class="list-item-meta">Collaborators on this matter</div>
-                        </div>
-                        <div class="stat-value" style="font-size: 20px;">1</div>
-                    </div>
-                    <div class="list-item">
-                        <div>
-                            <div class="list-item-title">Analysis Ready</div>
-                            <div class="list-item-meta">Evidence processed and searchable</div>
-                        </div>
-                        <div class="stat-value" style="font-size: 20px;">0%</div>
-                    </div>
-                </div>
-            </div>
+        <div class="action-card" onclick="viewTimeline()">
+          <div class="icon">
+            <i class="fas fa-timeline"></i>
+          </div>
+          <h3>Event Timeline</h3>
+          <p>Visualize project chronology and key events</p>
         </div>
+
+        <div
+          class="action-card"
+          onclick="openAIRefinement()"
+          style="
+            background: linear-gradient(
+              135deg,
+              var(--vericase-teal) 0%,
+              var(--vericase-teal-dark) 100%
+            );
+            color: white;
+            border-color: transparent;
+          "
+        >
+          <div
+            class="icon"
+            style="
+              background: rgba(255, 255, 255, 0.2);
+              box-shadow: 0 4px 14px 0 rgba(255, 255, 255, 0.3);
+            "
+          >
+            <i class="fas fa-wand-magic-sparkles"></i>
+          </div>
+          <h3 style="color: white">AI Refinement</h3>
+          <p style="color: rgba(255, 255, 255, 0.9)">
+            Discover patterns and refine evidence with AI assistance
+          </p>
+        </div>
+      </div>
+
+      <!-- Widgets Grid -->
+      <div class="widgets-grid">
+        <!-- Evidence Status Widget -->
+        <div class="widget">
+          <h3><i class="fas fa-database"></i> Evidence Status</h3>
+          <div id="evidenceStatus">
+            <div class="stat-card">
+              <div>
+                <div class="stat-label">Documents Uploaded</div>
+                <div class="progress-bar">
+                  <div class="progress-fill" style="width: 0"></div>
+                </div>
+              </div>
+              <div class="stat-value">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Emails Processed</div>
+              <div class="stat-value">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Keywords Tagged</div>
+              <div class="stat-value" id="keywordCount">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Evidence & Files Widget -->
+        <div
+          class="widget"
+          onclick="viewEvidenceRepository()"
+          style="cursor: pointer"
+        >
+          <h3><i class="fas fa-folder-open"></i> Evidence &amp; Files</h3>
+          <div id="evidenceFilesContent">
+            <div class="empty-state">
+              <i class="fas fa-file-alt"></i>
+              <p>Loading evidence for this profile...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alerts & Deadlines Widget -->
+        <div class="widget">
+          <h3><i class="fas fa-bell"></i> Alerts & Deadlines</h3>
+          <div id="alertsContainer">
+            <div class="alert alert-info">
+              <i class="fas fa-info-circle"></i>
+              <div>
+                <strong>Getting Started</strong><br />
+                Upload your first evidence source to begin analysis
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chronology / Recent Activity Widget -->
+        <div class="widget">
+          <h3>
+            <i class="fas fa-clock"></i> Project Chronology
+            <button
+              class="btn btn-secondary"
+              style="margin-left: 10px; padding: 6px 12px; font-size: 12px"
+              onclick="openChronologyPrompt()"
+            >
+              <i class="fas fa-timeline"></i> Build Chronology
+            </button>
+          </h3>
+          <div id="activityFeed">
+            <div class="timeline" id="chronologyTimeline">
+              <div class="timeline-item">
+                <div class="timeline-date">Just now</div>
+                <div class="timeline-title">Profile Created</div>
+                <div class="timeline-desc" id="profileCreatedDesc">
+                  Project setup completed
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Heads of Claim / Project Progress Widget -->
+        <div class="widget" id="headsWidget">
+          <h3>
+            <i class="fas fa-list-check"></i>
+            <span id="headsTitle">Heads of Claim</span>
+          </h3>
+          <div id="headsContent">
+            <div class="empty-state">
+              <i class="fas fa-clipboard-list"></i>
+              <p>No claims defined yet</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stakeholders Widget -->
+        <div class="widget">
+          <h3><i class="fas fa-users"></i> Key Stakeholders</h3>
+          <div id="stakeholdersContent">
+            <div class="empty-state">
+              <i class="fas fa-user-friends"></i>
+              <p>Loading stakeholders...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Stats Widget -->
+        <div class="widget">
+          <h3><i class="fas fa-chart-pie"></i> Quick Stats</h3>
+          <div id="quickStats">
+            <div class="list-item">
+              <div>
+                <div class="list-item-title">Evidence Sources</div>
+                <div class="list-item-meta">Uploaded files and systems</div>
+              </div>
+              <div class="stat-value" style="font-size: 20px">0</div>
+            </div>
+            <div class="list-item">
+              <div>
+                <div class="list-item-title">Team Members</div>
+                <div class="list-item-meta">Collaborators on this matter</div>
+              </div>
+              <div class="stat-value" style="font-size: 20px">1</div>
+            </div>
+            <div class="list-item">
+              <div>
+                <div class="list-item-title">Analysis Ready</div>
+                <div class="list-item-meta">
+                  Evidence processed and searchable
+                </div>
+              </div>
+              <div class="stat-value" style="font-size: 20px">0%</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script>
-        // Initialize VeriCaseApp on page load
-        VeriCaseApp.init().then(() => {
-            console.log('Dashboard: VeriCaseApp initialized - projectId:', VeriCaseApp.projectId);
-        });
+      // Initialize VeriCaseApp on page load
+      VeriCaseApp.init().then(() => {
+        console.log(
+          "Dashboard: VeriCaseApp initialized - projectId:",
+          VeriCaseApp.projectId,
+        );
+      });
 
-        // Chronology launcher – always pulls from email correspondence for this project
-        async function openChronologyPrompt() {
-            const focus = prompt("What do you want to build a chronology on?\n\nFor example: late design approvals, crane delays, prolongation costs.");
-            if (!focus || !focus.trim()) {
-                return;
-            }
-            await runChronologyAnalysis(focus.trim());
+      // Chronology launcher – always pulls from email correspondence for this project
+      async function openChronologyPrompt() {
+        const focus = prompt(
+          "What do you want to build a chronology on?\n\nFor example: late design approvals, crane delays, prolongation costs.",
+        );
+        if (!focus || !focus.trim()) {
+          return;
+        }
+        await runChronologyAnalysis(focus.trim());
+      }
+
+      async function runChronologyAnalysis(focus) {
+        try {
+          const projectId = VeriCaseApp.projectId;
+          if (!projectId) {
+            alert("No active project/profile found. Create a profile first.");
+            return;
+          }
+
+          const body = {
+            query: `Using only the email correspondence for this project, build a detailed chronology of: ${focus}`,
+            mode: "deep",
+            project_id: projectId,
+            case_id: null,
+          };
+
+          const response = await fetch("/api/ai-chat/query", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+          });
+
+          if (!response.ok) {
+            console.error(
+              "Chronology request failed",
+              response.status,
+              await response.text(),
+            );
+            alert(
+              "Sorry, I couldn't build the chronology from the correspondence. Please try again.",
+            );
+            return;
+          }
+
+          const data = await response.json();
+          const events = Array.isArray(data.chronology_events)
+            ? data.chronology_events
+            : [];
+          renderChronologyTimeline(events, focus);
+        } catch (err) {
+          console.error("Chronology error", err);
+          alert(
+            "Error running chronology analysis. Check the console for details.",
+          );
+        }
+      }
+
+      function renderChronologyTimeline(events, focusLabel) {
+        const container = document.getElementById("chronologyTimeline");
+        if (!container) {
+          return;
         }
 
-        async function runChronologyAnalysis(focus) {
-            try {
-                const projectId = VeriCaseApp.projectId;
-                if (!projectId) {
-                    alert("No active project/profile found. Create a profile first.");
-                    return;
-                }
+        container.innerHTML = "";
 
-                const body = {
-                    query: `Using only the email correspondence for this project, build a detailed chronology of: ${focus}`,
-                    mode: "deep",
-                    project_id: projectId,
-                    case_id: null
-                };
-
-                const response = await fetch("/api/ai-chat/query", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify(body)
-                });
-
-                if (!response.ok) {
-                    console.error("Chronology request failed", response.status, await response.text());
-                    alert("Sorry, I couldn't build the chronology from the correspondence. Please try again.");
-                    return;
-                }
-
-                const data = await response.json();
-                const events = Array.isArray(data.chronology_events) ? data.chronology_events : [];
-                renderChronologyTimeline(events, focus);
-            } catch (err) {
-                console.error("Chronology error", err);
-                alert("Error running chronology analysis. Check the console for details.");
-            }
-        }
-
-        function renderChronologyTimeline(events, focusLabel) {
-            const container = document.getElementById("chronologyTimeline");
-            if (!container) {
-                return;
-            }
-
-            container.innerHTML = "";
-
-            if (!events.length) {
-                container.innerHTML = `<div class="timeline-item">
+        if (!events.length) {
+          container.innerHTML = `<div class="timeline-item">
                         <div class="timeline-date">No events found</div>
                         <div class="timeline-title">No chronology available</div>
                         <div class="timeline-desc">Try a different description or upload and process more email correspondence.</div>
                     </div>`;
-                return;
+          return;
+        }
+
+        // Normalise and sort by date if possible
+        const normalised = events.map((ev) => {
+          const dateValue = ev.date || ev.event_date || ev.when || "";
+          const titleValue = ev.title || ev.event || ev.summary || "";
+          const descValue =
+            ev.description || ev.details || ev.explanation || ev.reason || "";
+
+          let parsedDate = null;
+          if (dateValue) {
+            const d = new Date(dateValue);
+            if (!isNaN(d.getTime())) {
+              parsedDate = d;
             }
+          }
 
-            // Normalise and sort by date if possible
-            const normalised = events.map(ev => {
-                const dateValue = ev.date || ev.event_date || ev.when || "";
-                const titleValue = ev.title || ev.event || ev.summary || "";
-                const descValue = ev.description || ev.details || ev.explanation || ev.reason || "";
+          return {
+            raw: ev,
+            dateLabel: parsedDate
+              ? parsedDate.toLocaleDateString(undefined, {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                })
+              : typeof dateValue === "string"
+                ? dateValue
+                : "",
+            sortKey: parsedDate
+              ? parsedDate.getTime()
+              : Number.MAX_SAFE_INTEGER,
+            title: titleValue || "Untitled event",
+            description: descValue || "",
+          };
+        });
 
-                let parsedDate = null;
-                if (dateValue) {
-                    const d = new Date(dateValue);
-                    if (!isNaN(d.getTime())) {
-                        parsedDate = d;
-                    }
-                }
+        normalised.sort((a, b) => a.sortKey - b.sortKey);
 
-                return {
-                    raw: ev,
-                    dateLabel: parsedDate
-                        ? parsedDate.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
-                        : (typeof dateValue === "string" ? dateValue : ""),
-                    sortKey: parsedDate ? parsedDate.getTime() : Number.MAX_SAFE_INTEGER,
-                    title: titleValue || "Untitled event",
-                    description: descValue || ""
-                };
-            });
-
-            normalised.sort((a, b) => a.sortKey - b.sortKey);
-
-            normalised.forEach(item => {
-                const el = document.createElement("div");
-                el.className = "timeline-item";
-                el.innerHTML = `
+        normalised.forEach((item) => {
+          const el = document.createElement("div");
+          el.className = "timeline-item";
+          el.innerHTML = `
                     <div class="timeline-date">${item.dateLabel || ""}</div>
                     <div class="timeline-title">${item.title}</div>
                     <div class="timeline-desc">${item.description}</div>
                 `;
-                container.appendChild(el);
-            });
-        }
+          container.appendChild(el);
+        });
+      }
 
-        // Define navigation functions first (before DOMContentLoaded)
-        async function openPstUpload() {
-            // Use VeriCaseApp - it always has a valid project (creates default if needed)
-            VeriCaseApp.gotoUpload();
-        }
+      // Define navigation functions first (before DOMContentLoaded)
+      async function openPstUpload() {
+        // Use VeriCaseApp - it always has a valid project (creates default if needed)
+        VeriCaseApp.gotoUpload();
+      }
 
-        function showQuickProfileDialog() {
-            const modal = document.createElement('div');
-            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+      function showQuickProfileDialog() {
+        const modal = document.createElement("div");
+        modal.style.cssText =
+          "position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;";
 
-            const content = document.createElement('div');
-            content.style.cssText = 'background: white; border-radius: 16px; padding: 2.5rem; max-width: 550px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);';
+        const content = document.createElement("div");
+        content.style.cssText =
+          "background: white; border-radius: 16px; padding: 2.5rem; max-width: 550px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);";
 
-            content.innerHTML = `
+        content.innerHTML = `
                 <h3 style="color: var(--vericase-navy); margin: 0 0 0.75rem 0; font-size: 1.5rem;">
                     <i class="fas fa-rocket" style="color: var(--vericase-teal);"></i> Quick Start
                 </h3>
@@ -915,22 +1105,22 @@
                 </div>
             `;
 
-            modal.id = 'quickProfileModal';
-            modal.appendChild(content);
-            document.body.appendChild(modal);
+        modal.id = "quickProfileModal";
+        modal.appendChild(content);
+        document.body.appendChild(modal);
 
-            // Close on background click
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) modal.remove();
-            });
-        }
+        // Close on background click
+        modal.addEventListener("click", (e) => {
+          if (e.target === modal) modal.remove();
+        });
+      }
 
-        async function createQuickProfile() {
-            const modal = document.getElementById('quickProfileModal');
-            const content = modal.querySelector('div > div');
+      async function createQuickProfile() {
+        const modal = document.getElementById("quickProfileModal");
+        const content = modal.querySelector("div > div");
 
-            // Show loading state
-            content.innerHTML = `
+        // Show loading state
+        content.innerHTML = `
                 <div style="text-align: center; padding: 2rem;">
                     <i class="fas fa-spinner fa-spin" style="font-size: 3rem; color: var(--vericase-teal); margin-bottom: 1rem;"></i>
                     <h3 style="color: var(--vericase-navy); margin: 0 0 0.5rem 0;">Creating your profile...</h3>
@@ -938,43 +1128,43 @@
                 </div>
             `;
 
-            try {
-                const timestamp = Date.now();
-                // Set date range from 2010 to current date
-                const startDate = '2010-01-01';
-                const today = new Date();
-                const completionDate = today.toISOString().split('T')[0]; // YYYY-MM-DD format
+        try {
+          const timestamp = Date.now();
+          // Set date range from 2010 to current date
+          const startDate = "2010-01-01";
+          const today = new Date();
+          const completionDate = today.toISOString().split("T")[0]; // YYYY-MM-DD format
 
-                const projectData = {
-                    project_name: `Quick Start Project`,
-                    project_code: `QUICK-${timestamp}`,
-                    start_date: startDate,
-                    completion_date: completionDate,
-                    contract_type: null,
-                    stakeholders: [],
-                    keywords: []
-                };
+          const projectData = {
+            project_name: `Quick Start Project`,
+            project_code: `QUICK-${timestamp}`,
+            start_date: startDate,
+            completion_date: completionDate,
+            contract_type: null,
+            stakeholders: [],
+            keywords: [],
+          };
 
-                const response = await fetch(`${apiUrl}/api/projects`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(projectData)
-                });
+          const response = await fetch(`${apiUrl}/api/projects`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(projectData),
+          });
 
-                if (!response.ok) {
-                    throw new Error('Failed to create profile');
-                }
+          if (!response.ok) {
+            throw new Error("Failed to create profile");
+          }
 
-                const result = await response.json();
+          const result = await response.json();
 
-                // Update VeriCaseApp state
-                VeriCaseApp.projectId = result.id;
-                VeriCaseApp.projectName = result.project_name;
+          // Update VeriCaseApp state
+          VeriCaseApp.projectId = result.id;
+          VeriCaseApp.projectName = result.project_name;
 
-                // Show success and redirect
-                content.innerHTML = `
+          // Show success and redirect
+          content.innerHTML = `
                     <div style="text-align: center; padding: 2rem;">
                         <i class="fas fa-check-circle" style="font-size: 3rem; color: #10b981; margin-bottom: 1rem;"></i>
                         <h3 style="color: var(--vericase-navy); margin: 0 0 0.5rem 0;">Profile created!</h3>
@@ -982,14 +1172,13 @@
                     </div>
                 `;
 
-                setTimeout(() => {
-                    modal.remove();
-                    VeriCaseApp.gotoUpload();
-                }, 800);
-
-            } catch (error) {
-                console.error('Error creating quick profile:', error);
-                content.innerHTML = `
+          setTimeout(() => {
+            modal.remove();
+            VeriCaseApp.gotoUpload();
+          }, 800);
+        } catch (error) {
+          console.error("Error creating quick profile:", error);
+          content.innerHTML = `
                     <div style="text-align: center; padding: 2rem;">
                         <i class="fas fa-exclamation-circle" style="font-size: 3rem; color: #ef4444; margin-bottom: 1rem;"></i>
                         <h3 style="color: var(--vericase-navy); margin: 0 0 0.5rem 0;">Unable to create profile</h3>
@@ -999,346 +1188,392 @@
                         </button>
                     </div>
                 `;
+        }
+      }
+
+      function viewCorrespondence() {
+        VeriCaseApp.gotoCorrespondence();
+      }
+
+      function viewEvidenceRepository() {
+        VeriCaseApp.gotoEvidence();
+      }
+
+      function manageStakeholders() {
+        alert("Stakeholder management coming soon!");
+      }
+
+      function viewTimeline() {
+        alert("Timeline view coming soon!");
+      }
+
+      // Lazy-loaded settings modal (deferred DOM creation for faster initial page load)
+      let settingsModalLoaded = false;
+
+      function showSettings(tab = "general") {
+        // Lazy load the settings modal on first open
+        if (!settingsModalLoaded) {
+          loadSettingsModal();
+          settingsModalLoaded = true;
+        }
+        document.getElementById("settingsModal").style.display = "flex";
+        showSettingsTab(tab);
+        loadAIStatus();
+      }
+
+      function closeSettings() {
+        document.getElementById("settingsModal").style.display = "none";
+      }
+
+      function loadSettingsModal() {
+        // Create settings modal HTML dynamically on first use
+        const modalContainer = document.getElementById(
+          "settingsModalContainer",
+        );
+        if (!modalContainer) return;
+        modalContainer.innerHTML = window.SETTINGS_MODAL_HTML || "";
+      }
+
+      function showSettingsTab(tab) {
+        // Hide all tabs
+        document
+          .querySelectorAll(".settings-tab-content")
+          .forEach((t) => (t.style.display = "none"));
+        document
+          .querySelectorAll(".settings-tab-btn")
+          .forEach((b) => b.classList.remove("active"));
+
+        // Show selected tab
+        document.getElementById(`${tab}Tab`).style.display = "block";
+        document.querySelector(`[data-tab="${tab}"]`).classList.add("active");
+      }
+
+      async function loadAIStatus() {
+        try {
+          const response = await fetch(`${apiUrl}/api/ai/status`);
+
+          if (response.ok) {
+            const status = await response.json();
+            updateAIStatusDisplay(status);
+          }
+        } catch (error) {
+          console.error("Error loading AI status:", error);
+        }
+      }
+
+      function updateAIStatusDisplay(status) {
+        const providers = [
+          "openai",
+          "anthropic",
+          "gemini",
+          "grok",
+          "perplexity",
+        ];
+        providers.forEach((provider) => {
+          const indicator = document.getElementById(`${provider}Status`);
+          if (indicator) {
+            indicator.className = `status-indicator ${status[provider] ? "status-active" : "status-inactive"}`;
+            indicator.title = status[provider]
+              ? "Configured"
+              : "Not configured";
+          }
+        });
+
+        const overallStatus = document.getElementById("aiOverallStatus");
+        if (overallStatus) {
+          if (status.any_available) {
+            overallStatus.innerHTML =
+              '<i class="fas fa-check-circle" style="color: var(--success);"></i> AI services are configured and ready';
+          } else {
+            overallStatus.innerHTML =
+              '<i class="fas fa-exclamation-triangle" style="color: var(--warning);"></i> No AI services configured - some features will be unavailable';
+          }
+        }
+      }
+
+      async function openAIRefinement() {
+        const profileId =
+          localStorage.getItem("currentProjectId") ||
+          localStorage.getItem("currentCaseId");
+        const profileType = localStorage.getItem("profileType") || "project";
+
+        if (!profileId) {
+          showContextualError(
+            "No Profile Selected",
+            "You need to create a profile before using AI refinement. Would you like to create one now?",
+            [
+              {
+                text: "Create Profile (Manual)",
+                action: () => (window.location.href = "wizard.html"),
+              },
+              {
+                text: "Intelligent Setup (AI)",
+                action: () => (window.location.href = "wizard.html"),
+              },
+              { text: "Cancel", action: null },
+            ],
+          );
+          return;
+        }
+
+        // Check if AI is configured
+        try {
+          const response = await fetch(`${apiUrl}/api/ai/status`);
+
+          if (response.ok) {
+            const status = await response.json();
+            if (!status.any_available) {
+              showContextualError(
+                "AI Not Configured",
+                "AI refinement requires AI services to be configured. Please configure at least one AI provider in settings.",
+                [
+                  { text: "Open Settings", action: () => showSettings("ai") },
+                  { text: "Cancel", action: null },
+                ],
+              );
+              return;
             }
+          }
+        } catch (error) {
+          console.error("Error checking AI status:", error);
         }
 
-        function viewCorrespondence() {
-            VeriCaseApp.gotoCorrespondence();
-        }
+        window.location.href = `ai-refinement-wizard.html?projectId=${profileId}`;
+      }
 
-        function viewEvidenceRepository() {
-            VeriCaseApp.gotoEvidence();
-        }
+      function showContextualError(title, message, actions) {
+        const modal = document.createElement("div");
+        modal.style.cssText =
+          "position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;";
 
-        function manageStakeholders() {
-            alert('Stakeholder management coming soon!');
-        }
+        const content = document.createElement("div");
+        content.style.cssText =
+          "background: white; border-radius: 12px; padding: 2rem; max-width: 500px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);";
 
-        function viewTimeline() {
-            alert('Timeline view coming soon!');
-        }
-
-        // Lazy-loaded settings modal (deferred DOM creation for faster initial page load)
-        let settingsModalLoaded = false;
-
-        function showSettings(tab = 'general') {
-            // Lazy load the settings modal on first open
-            if (!settingsModalLoaded) {
-                loadSettingsModal();
-                settingsModalLoaded = true;
-            }
-            document.getElementById('settingsModal').style.display = 'flex';
-            showSettingsTab(tab);
-            loadAIStatus();
-        }
-
-        function closeSettings() {
-            document.getElementById('settingsModal').style.display = 'none';
-        }
-
-        function loadSettingsModal() {
-            // Create settings modal HTML dynamically on first use
-            const modalContainer = document.getElementById('settingsModalContainer');
-            if (!modalContainer) return;
-            modalContainer.innerHTML = window.SETTINGS_MODAL_HTML || '';
-        }
-
-        function showSettingsTab(tab) {
-            // Hide all tabs
-            document.querySelectorAll('.settings-tab-content').forEach(t => t.style.display = 'none');
-            document.querySelectorAll('.settings-tab-btn').forEach(b => b.classList.remove('active'));
-
-            // Show selected tab
-            document.getElementById(`${tab}Tab`).style.display = 'block';
-            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
-        }
-
-        async function loadAIStatus() {
-            try {
-                const response = await fetch(`${apiUrl}/api/ai/status`);
-
-                if (response.ok) {
-                    const status = await response.json();
-                    updateAIStatusDisplay(status);
-                }
-            } catch (error) {
-                console.error('Error loading AI status:', error);
-            }
-        }
-
-        function updateAIStatusDisplay(status) {
-            const providers = ['openai', 'anthropic', 'gemini', 'grok', 'perplexity'];
-            providers.forEach(provider => {
-                const indicator = document.getElementById(`${provider}Status`);
-                if (indicator) {
-                    indicator.className = `status-indicator ${status[provider] ? 'status-active' : 'status-inactive'}`;
-                    indicator.title = status[provider] ? 'Configured' : 'Not configured';
-                }
-            });
-
-            const overallStatus = document.getElementById('aiOverallStatus');
-            if (overallStatus) {
-                if (status.any_available) {
-                    overallStatus.innerHTML = '<i class="fas fa-check-circle" style="color: var(--success);"></i> AI services are configured and ready';
-                } else {
-                    overallStatus.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: var(--warning);"></i> No AI services configured - some features will be unavailable';
-                }
-            }
-        }
-
-        async function openAIRefinement() {
-            const profileId = localStorage.getItem('currentProjectId') || localStorage.getItem('currentCaseId');
-            const profileType = localStorage.getItem('profileType') || 'project';
-
-            if (!profileId) {
-                showContextualError(
-                    'No Profile Selected',
-                    'You need to create a profile before using AI refinement. Would you like to create one now?',
-                    [
-                        { text: 'Create Profile (Manual)', action: () => window.location.href = 'wizard.html' },
-                        { text: 'Intelligent Setup (AI)', action: () => window.location.href = 'wizard.html' },
-                        { text: 'Cancel', action: null }
-                    ]
-                );
-                return;
-            }
-
-            // Check if AI is configured
-            try {
-                const response = await fetch(`${apiUrl}/api/ai/status`);
-
-                if (response.ok) {
-                    const status = await response.json();
-                    if (!status.any_available) {
-                        showContextualError(
-                            'AI Not Configured',
-                            'AI refinement requires AI services to be configured. Please configure at least one AI provider in settings.',
-                            [
-                                { text: 'Open Settings', action: () => showSettings('ai') },
-                                { text: 'Cancel', action: null }
-                            ]
-                        );
-                        return;
-                    }
-                }
-            } catch (error) {
-                console.error('Error checking AI status:', error);
-            }
-
-            window.location.href = `ai-refinement-wizard.html?projectId=${profileId}`;
-        }
-
-        function showContextualError(title, message, actions) {
-            const modal = document.createElement('div');
-            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;';
-
-            const content = document.createElement('div');
-            content.style.cssText = 'background: white; border-radius: 12px; padding: 2rem; max-width: 500px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);';
-
-            content.innerHTML = `
+        content.innerHTML = `
                 <h3 style="color: var(--vericase-navy); margin: 0 0 1rem 0; font-size: 1.25rem;">
                     <i class="fas fa-exclamation-circle" style="color: var(--warning);"></i> ${title}
                 </h3>
                 <p style="color: var(--text-secondary); margin: 0 0 1.5rem 0;">${message}</p>
                 <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
-                    ${actions.map((action, idx) => `
+                    ${actions
+                      .map(
+                        (action, idx) => `
                         <button 
-                            class="btn ${idx === 0 ? 'btn-primary' : 'btn-secondary'}" 
-                            onclick="document.getElementById('contextualErrorModal').remove(); ${action.action ? 'arguments[0]()' : ''}"
-                            ${action.action ? `data-action="${idx}"` : ''}
+                            class="btn ${idx === 0 ? "btn-primary" : "btn-secondary"}" 
+                            onclick="document.getElementById('contextualErrorModal').remove(); ${action.action ? "arguments[0]()" : ""}"
+                            ${action.action ? `data-action="${idx}"` : ""}
                         >
                             ${action.text}
                         </button>
-                    `).join('')}
+                    `,
+                      )
+                      .join("")}
                 </div>
             `;
 
-            modal.id = 'contextualErrorModal';
-            modal.appendChild(content);
-            document.body.appendChild(modal);
+        modal.id = "contextualErrorModal";
+        modal.appendChild(content);
+        document.body.appendChild(modal);
 
-            // Attach action handlers
-            actions.forEach((action, idx) => {
-                if (action.action) {
-                    const btn = content.querySelector(`[data-action="${idx}"]`);
-                    if (btn) {
-                        btn.onclick = () => {
-                            modal.remove();
-                            action.action();
-                        };
-                    }
-                }
-            });
-
-            // Close on background click
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) modal.remove();
-            });
-        }
-
-        // Get URL parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        let profileId = urlParams.get('projectId') || urlParams.get('caseId');
-        const isFirstTime = urlParams.get('firstTime') === 'true';
-        const profileType = localStorage.getItem('profileType') || 'project';
-        // Fallbacks: grab stored IDs when URL param is missing
-        if (!profileId) {
-            const storedId = profileType === 'project'
-                ? (localStorage.getItem('currentProjectId') || localStorage.getItem('projectId'))
-                : (localStorage.getItem('currentCaseId') || localStorage.getItem('caseId'));
-            if (storedId) profileId = storedId;
-        }
-
-        // Load token
-        const token = urlParams.get('token') || localStorage.getItem('token') || localStorage.getItem('jwt');
-
-        // Use centralized configuration
-        const apiUrl = window.VeriCaseConfig ? window.VeriCaseConfig.apiUrl : window.location.origin;
-        console.log('Dashboard using API URL:', apiUrl);
-
-        // Upload button is always enabled - quick profile creation handles missing profileId
-
-        // Load all projects for the selector
-        async function loadProjects() {
-            try {
-                const response = await fetch(`${apiUrl}/api/projects`);
-                if (!response.ok) throw new Error('Failed to load projects');
-
-                const projects = await response.json();
-                const selector = document.getElementById('projectSelector');
-
-                if (!projects || projects.length === 0) {
-                    selector.innerHTML = '<option value="">No projects found - Create one first</option>';
-                    return;
-                }
-
-                // Build options
-                let options = '<option value="">-- Select a Project --</option>';
-                projects.forEach(p => {
-                    const selected = (p.id === profileId) ? 'selected' : '';
-                    const name = p.project_name || p.name || 'Unnamed Project';
-                    options += `<option value="${p.id}" ${selected}>${name}</option>`;
-                });
-                selector.innerHTML = options;
-
-                // If no project is selected but we have projects, auto-select the first one
-                if (!profileId && projects.length > 0) {
-                    const firstProject = projects[0];
-                    profileId = firstProject.id;
-                    localStorage.setItem('currentProjectId', profileId);
-                    localStorage.setItem('profileType', 'project');
-                    selector.value = profileId;
-                    onProjectSelected(profileId);
-                } else if (profileId) {
-                    // Load stats for current project
-                    loadProjectStats(profileId);
-                }
-
-            } catch (error) {
-                console.error('Error loading projects:', error);
-                document.getElementById('projectSelector').innerHTML = '<option value="">Error loading projects</option>';
+        // Attach action handlers
+        actions.forEach((action, idx) => {
+          if (action.action) {
+            const btn = content.querySelector(`[data-action="${idx}"]`);
+            if (btn) {
+              btn.onclick = () => {
+                modal.remove();
+                action.action();
+              };
             }
-        }
-
-        // Handle project selection
-        async function onProjectSelected(projectId) {
-            if (!projectId) {
-                document.getElementById('projectStats').style.display = 'none';
-                return;
-            }
-
-            // Update localStorage and global variable
-            profileId = projectId;
-            localStorage.setItem('currentProjectId', projectId);
-            localStorage.setItem('profileType', 'project');
-
-            // Update profile name in header
-            const selector = document.getElementById('projectSelector');
-            const selectedOption = selector.options[selector.selectedIndex];
-            if (selectedOption) {
-                document.getElementById('profileName').textContent = selectedOption.text;
-            }
-
-            // Load project stats
-            loadProjectStats(projectId);
-
-            // Load profile data for the widgets
-            loadProfileData();
-        }
-
-        // Load project statistics (parallel API calls for speed)
-        async function loadProjectStats(projectId) {
-            try {
-                // Fetch email count (using lightweight count endpoint) and project details in parallel
-                const [emailResponse, projectResponse] = await Promise.all([
-                    fetch(`${apiUrl}/api/correspondence/emails/count?project_id=${projectId}`),
-                    fetch(`${apiUrl}/api/projects/${projectId}`)
-                ]);
-
-                if (emailResponse.ok) {
-                    const emailData = await emailResponse.json();
-                    document.getElementById('emailCount').textContent = emailData.count || 0;
-                }
-
-                if (projectResponse.ok) {
-                    const project = await projectResponse.json();
-                    document.getElementById('projectCreated').textContent = project.created_at
-                        ? new Date(project.created_at).toLocaleDateString()
-                        : '-';
-                }
-
-                // Show stats panel
-                document.getElementById('projectStats').style.display = 'block';
-
-            } catch (error) {
-                console.error('Error loading project stats:', error);
-            }
-        }
-
-        // Initialize dashboard
-        document.addEventListener('DOMContentLoaded', () => {
-            // Always load projects list first
-            loadProjects();
-
-            // Don't force redirect - let users land on dashboard first
-            if (profileId) {
-                loadProfileData();
-                loadEvidenceWidget();
-                if (isFirstTime) {
-                    showFirstTimeOnboarding();
-                }
-            } else {
-                // Show welcome message for users without a profile
-                document.getElementById('welcomeTitle').textContent = 'Welcome to VeriCase';
-                document.getElementById('welcomeMessage').innerHTML = 'Select a project above or create a new one to get started.';
-                document.getElementById('profileName').textContent = 'Dashboard';
-                // Still load evidence widget to show the repository link
-                loadEvidenceWidget();
-            }
-
-            // Check if user is admin and show approval button
-            checkAdminStatus();
+          }
         });
 
-        async function loadEvidenceWidget() {
-            const container = document.getElementById('evidenceFilesContent');
-            if (!container) return;
+        // Close on background click
+        modal.addEventListener("click", (e) => {
+          if (e.target === modal) modal.remove();
+        });
+      }
 
-            try {
-                // Build query params for the evidence stats API
-                let statsUrl = `${apiUrl}/api/evidence/stats`;
-                if (profileId) {
-                    const paramType = profileType === 'project' ? 'project_id' : 'case_id';
-                    statsUrl += `?${paramType}=${profileId}`;
-                }
+      // Get URL parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      let profileId = urlParams.get("projectId") || urlParams.get("caseId");
+      const isFirstTime = urlParams.get("firstTime") === "true";
+      const profileType = localStorage.getItem("profileType") || "project";
+      // Fallbacks: grab stored IDs when URL param is missing
+      if (!profileId) {
+        const storedId =
+          profileType === "project"
+            ? localStorage.getItem("currentProjectId") ||
+              localStorage.getItem("projectId")
+            : localStorage.getItem("currentCaseId") ||
+              localStorage.getItem("caseId");
+        if (storedId) profileId = storedId;
+      }
 
-                const response = await fetch(statsUrl);
+      // Load token
+      const token =
+        urlParams.get("token") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("jwt");
 
-                if (response.ok) {
-                    const stats = await response.json();
+      // Use centralized configuration
+      const apiUrl = window.VeriCaseConfig
+        ? window.VeriCaseConfig.apiUrl
+        : window.location.origin;
+      console.log("Dashboard using API URL:", apiUrl);
 
-                    if (stats.total === 0) {
-                        container.innerHTML = `
+      // Upload button is always enabled - quick profile creation handles missing profileId
+
+      // Load all projects for the selector
+      async function loadProjects() {
+        try {
+          const response = await fetch(`${apiUrl}/api/projects`);
+          if (!response.ok) throw new Error("Failed to load projects");
+
+          const projects = await response.json();
+          const selector = document.getElementById("projectSelector");
+
+          if (!projects || projects.length === 0) {
+            selector.innerHTML =
+              '<option value="">No projects found - Create one first</option>';
+            return;
+          }
+
+          // Build options
+          let options = '<option value="">-- Select a Project --</option>';
+          projects.forEach((p) => {
+            const selected = p.id === profileId ? "selected" : "";
+            const name = p.project_name || p.name || "Unnamed Project";
+            options += `<option value="${p.id}" ${selected}>${name}</option>`;
+          });
+          selector.innerHTML = options;
+
+          // If no project is selected but we have projects, auto-select the first one
+          if (!profileId && projects.length > 0) {
+            const firstProject = projects[0];
+            profileId = firstProject.id;
+            localStorage.setItem("currentProjectId", profileId);
+            localStorage.setItem("profileType", "project");
+            selector.value = profileId;
+            onProjectSelected(profileId);
+          } else if (profileId) {
+            // Load stats for current project
+            loadProjectStats(profileId);
+          }
+        } catch (error) {
+          console.error("Error loading projects:", error);
+          document.getElementById("projectSelector").innerHTML =
+            '<option value="">Error loading projects</option>';
+        }
+      }
+
+      // Handle project selection
+      async function onProjectSelected(projectId) {
+        if (!projectId) {
+          document.getElementById("projectStats").style.display = "none";
+          return;
+        }
+
+        // Update localStorage and global variable
+        profileId = projectId;
+        localStorage.setItem("currentProjectId", projectId);
+        localStorage.setItem("profileType", "project");
+
+        // Update profile name in header
+        const selector = document.getElementById("projectSelector");
+        const selectedOption = selector.options[selector.selectedIndex];
+        if (selectedOption) {
+          document.getElementById("profileName").textContent =
+            selectedOption.text;
+        }
+
+        // Load project stats
+        loadProjectStats(projectId);
+
+        // Load profile data for the widgets
+        loadProfileData();
+      }
+
+      // Load project statistics (parallel API calls for speed)
+      async function loadProjectStats(projectId) {
+        try {
+          // Fetch email count (using lightweight count endpoint) and project details in parallel
+          const [emailResponse, projectResponse] = await Promise.all([
+            fetch(
+              `${apiUrl}/api/correspondence/emails/count?project_id=${projectId}`,
+            ),
+            fetch(`${apiUrl}/api/projects/${projectId}`),
+          ]);
+
+          if (emailResponse.ok) {
+            const emailData = await emailResponse.json();
+            document.getElementById("emailCount").textContent =
+              emailData.count || 0;
+          }
+
+          if (projectResponse.ok) {
+            const project = await projectResponse.json();
+            document.getElementById("projectCreated").textContent =
+              project.created_at
+                ? new Date(project.created_at).toLocaleDateString()
+                : "-";
+          }
+
+          // Show stats panel
+          document.getElementById("projectStats").style.display = "block";
+        } catch (error) {
+          console.error("Error loading project stats:", error);
+        }
+      }
+
+      // Initialize dashboard
+      document.addEventListener("DOMContentLoaded", () => {
+        // Always load projects list first
+        loadProjects();
+
+        // Don't force redirect - let users land on dashboard first
+        if (profileId) {
+          loadProfileData();
+          loadEvidenceWidget();
+          if (isFirstTime) {
+            showFirstTimeOnboarding();
+          }
+        } else {
+          // Show welcome message for users without a profile
+          document.getElementById("welcomeTitle").textContent =
+            "Welcome to VeriCase";
+          document.getElementById("welcomeMessage").innerHTML =
+            "Select a project above or create a new one to get started.";
+          document.getElementById("profileName").textContent = "Dashboard";
+          // Still load evidence widget to show the repository link
+          loadEvidenceWidget();
+        }
+
+        // Check if user is admin and show approval button
+        checkAdminStatus();
+      });
+
+      async function loadEvidenceWidget() {
+        const container = document.getElementById("evidenceFilesContent");
+        if (!container) return;
+
+        try {
+          // Build query params for the evidence stats API
+          let statsUrl = `${apiUrl}/api/evidence/stats`;
+          if (profileId) {
+            const paramType =
+              profileType === "project" ? "project_id" : "case_id";
+            statsUrl += `?${paramType}=${profileId}`;
+          }
+
+          const response = await fetch(statsUrl);
+
+          if (response.ok) {
+            const stats = await response.json();
+
+            if (stats.total === 0) {
+              container.innerHTML = `
                             <div class="empty-state" style="padding: 1.5rem;">
                                 <i class="fas fa-folder-plus" style="font-size: 2.5rem; color: var(--vericase-teal); margin-bottom: 0.75rem;"></i>
                                 <p style="margin-bottom: 0.5rem; color: var(--vericase-navy); font-weight: 500;">No evidence uploaded yet</p>
@@ -1348,13 +1583,13 @@
                                 </button>
                             </div>
                         `;
-                    } else {
-                        const typeStats = stats.by_type || {};
-                        const topTypes = Object.entries(typeStats)
-                            .sort((a, b) => b[1] - a[1])
-                            .slice(0, 4);
+            } else {
+              const typeStats = stats.by_type || {};
+              const topTypes = Object.entries(typeStats)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 4);
 
-                        container.innerHTML = `
+              container.innerHTML = `
                             <div style="padding: 0.5rem 0;">
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
                                     <div style="padding: 0.75rem; background: #f0fdf4; border-radius: 8px; text-align: center;">
@@ -1367,22 +1602,34 @@
                                     </div>
                                 </div>
                                 
-                                ${stats.unassigned > 0 ? `
+                                ${
+                                  stats.unassigned > 0
+                                    ? `
                                     <div style="padding: 0.5rem 0.75rem; background: #fef3c7; border-radius: 6px; margin-bottom: 0.75rem; font-size: 0.8rem; color: #92400e;">
                                         <i class="fas fa-inbox"></i> ${stats.unassigned} unassigned files need review
                                     </div>
-                                ` : ''}
+                                `
+                                    : ""
+                                }
                                 
-                                ${topTypes.length > 0 ? `
+                                ${
+                                  topTypes.length > 0
+                                    ? `
                                     <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.5rem;">Top Evidence Types</div>
                                     <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                                        ${topTypes.map(([type, count]) => `
+                                        ${topTypes
+                                          .map(
+                                            ([type, count]) => `
                                             <span style="padding: 0.25rem 0.5rem; background: #e2e8f0; border-radius: 4px; font-size: 0.75rem; color: #475569;">
-                                                ${type || 'other'}: ${count}
+                                                ${type || "other"}: ${count}
                                             </span>
-                                        `).join('')}
+                                        `,
+                                          )
+                                          .join("")}
                                     </div>
-                                ` : ''}
+                                `
+                                    : ""
+                                }
                                 
                                 <div style="margin-top: 1rem; text-align: center; padding-top: 0.75rem; border-top: 1px solid #e5e7eb;">
                                     <span style="color: var(--vericase-teal); font-size: 0.8rem; font-weight: 500;">
@@ -1391,10 +1638,10 @@
                                 </div>
                             </div>
                         `;
-                    }
-                } else {
-                    // Fallback if evidence API not available
-                    container.innerHTML = `
+            }
+          } else {
+            // Fallback if evidence API not available
+            container.innerHTML = `
                         <div class="empty-state" style="padding: 1.5rem;">
                             <i class="fas fa-folder-open" style="font-size: 2.5rem; color: var(--vericase-teal); margin-bottom: 0.75rem;"></i>
                             <p style="margin-bottom: 0.5rem; color: var(--vericase-navy); font-weight: 500;">Evidence Repository</p>
@@ -1404,10 +1651,10 @@
                             </div>
                         </div>
                     `;
-                }
-            } catch (error) {
-                console.error('Error loading evidence widget:', error);
-                container.innerHTML = `
+          }
+        } catch (error) {
+          console.error("Error loading evidence widget:", error);
+          container.innerHTML = `
                     <div class="empty-state" style="padding: 1.5rem;">
                         <i class="fas fa-folder-open" style="font-size: 2.5rem; color: var(--vericase-teal); margin-bottom: 0.75rem;"></i>
                         <p style="margin-bottom: 0.5rem; color: var(--vericase-navy); font-weight: 500;">Evidence Repository</p>
@@ -1417,285 +1664,341 @@
                         </div>
                     </div>
                 `;
+        }
+      }
+
+      async function checkAdminStatus() {
+        try {
+          const user = JSON.parse(localStorage.getItem("user") || "{}");
+          if (user.role === "ADMIN") {
+            document.getElementById("adminApprovalBtn").style.display =
+              "inline-flex";
+            document.getElementById("adminSettingsBtn").style.display =
+              "inline-flex";
+
+            // Check for pending users
+            const response = await fetch(`${apiUrl}/api/admin/users/pending`);
+
+            if (response.ok) {
+              const pending = await response.json();
+              if (pending.length > 0) {
+                document.getElementById("pendingBadge").innerHTML =
+                  `<span style="background: var(--error); color: white; padding: 0.125rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; margin-left: 0.25rem;">${pending.length}</span>`;
+              }
             }
+          }
+        } catch (error) {
+          console.error("Error checking admin status:", error);
+        }
+      }
+
+      async function loadProfileData() {
+        try {
+          const endpoint =
+            profileType === "project" ? "/api/projects" : "/api/cases";
+          const response = await fetch(`${apiUrl}${endpoint}/${profileId}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            populateDashboard(data);
+          } else {
+            console.error("Failed to load profile data");
+            populateDashboard(null);
+          }
+        } catch (error) {
+          console.error("Error loading profile:", error);
+          populateDashboard(null);
+        }
+      }
+
+      function populateDashboard(data) {
+        if (!data) {
+          // Use defaults for new profiles
+          document.getElementById("profileName").textContent =
+            "New " + (profileType === "project" ? "Project" : "Case");
+          document.getElementById("profileType").textContent =
+            profileType.charAt(0).toUpperCase() + profileType.slice(1);
+          return;
         }
 
-        async function checkAdminStatus() {
-            try {
-                const user = JSON.parse(localStorage.getItem('user') || '{}');
-                if (user.role === 'ADMIN') {
-                    document.getElementById('adminApprovalBtn').style.display = 'inline-flex';
-                    document.getElementById('adminSettingsBtn').style.display = 'inline-flex';
+        // Update profile info
+        const profileName = data.projectName || data.caseName || "Untitled";
+        document.getElementById("profileName").textContent = profileName;
+        document.getElementById("welcomeTitle").textContent =
+          `Welcome to ${profileName}`;
 
-                    // Check for pending users
-                    const response = await fetch(`${apiUrl}/api/admin/users/pending`);
+        // Update type badge
+        document.getElementById("profileType").textContent =
+          profileType.charAt(0).toUpperCase() + profileType.slice(1);
 
-                    if (response.ok) {
-                        const pending = await response.json();
-                        if (pending.length > 0) {
-                            document.getElementById('pendingBadge').innerHTML = `<span style="background: var(--error); color: white; padding: 0.125rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; margin-left: 0.25rem;">${pending.length}</span>`;
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error('Error checking admin status:', error);
-            }
-        }
+        // Populate stakeholders
+        const stakeholders =
+          data["project-stakeholders"]?.stakeholders ||
+          data["case-legal-team"]?.legalTeam ||
+          [];
+        const stakeholdersContainer = document.getElementById(
+          "stakeholdersContent",
+        );
 
-        async function loadProfileData() {
-            try {
-                const endpoint = profileType === 'project' ? '/api/projects' : '/api/cases';
-                const response = await fetch(`${apiUrl}${endpoint}/${profileId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    populateDashboard(data);
-                } else {
-                    console.error('Failed to load profile data');
-                    populateDashboard(null);
-                }
-            } catch (error) {
-                console.error('Error loading profile:', error);
-                populateDashboard(null);
-            }
-        }
-
-        function populateDashboard(data) {
-            if (!data) {
-                // Use defaults for new profiles
-                document.getElementById('profileName').textContent = 'New ' + (profileType === 'project' ? 'Project' : 'Case');
-                document.getElementById('profileType').textContent = profileType.charAt(0).toUpperCase() + profileType.slice(1);
-                return;
-            }
-
-            // Update profile info
-            const profileName = data.projectName || data.caseName || 'Untitled';
-            document.getElementById('profileName').textContent = profileName;
-            document.getElementById('welcomeTitle').textContent = `Welcome to ${profileName}`;
-
-            // Update type badge
-            document.getElementById('profileType').textContent = profileType.charAt(0).toUpperCase() + profileType.slice(1);
-
-            // Populate stakeholders
-            const stakeholders = data['project-stakeholders']?.stakeholders || data['case-legal-team']?.legalTeam || [];
-            const stakeholdersContainer = document.getElementById('stakeholdersContent');
-
-            if (stakeholders.length > 0) {
-                stakeholdersContainer.innerHTML = stakeholders.map(s => `
+        if (stakeholders.length > 0) {
+          stakeholdersContainer.innerHTML = stakeholders
+            .map(
+              (s) => `
                     <div class="list-item">
                         <div>
-                            <div class="list-item-title">${s['stakeholder-role'] || s['team-role'] || 'Unknown'}</div>
-                            <div class="list-item-meta">${s['stakeholder-name'] || s['team-name'] || 'N/A'}</div>
+                            <div class="list-item-title">${s["stakeholder-role"] || s["team-role"] || "Unknown"}</div>
+                            <div class="list-item-meta">${s["stakeholder-name"] || s["team-name"] || "N/A"}</div>
                         </div>
                     </div>
-                `).join('');
-            }
+                `,
+            )
+            .join("");
+        }
 
-            // Update keywords count
-            const keywords = data['project-stakeholders']?.keywords || data['case-heads-keywords']?.keywords || [];
-            document.getElementById('keywordCount').textContent = keywords.length;
+        // Update keywords count
+        const keywords =
+          data["project-stakeholders"]?.keywords ||
+          data["case-heads-keywords"]?.keywords ||
+          [];
+        document.getElementById("keywordCount").textContent = keywords.length;
 
-            // Populate heads of claim for cases
-            if (profileType === 'case' && data['case-heads-keywords']?.headsOfClaim) {
-                const heads = data['case-heads-keywords'].headsOfClaim;
-                const headsContainer = document.getElementById('headsContent');
+        // Populate heads of claim for cases
+        if (
+          profileType === "case" &&
+          data["case-heads-keywords"]?.headsOfClaim
+        ) {
+          const heads = data["case-heads-keywords"].headsOfClaim;
+          const headsContainer = document.getElementById("headsContent");
 
-                if (heads.length > 0) {
-                    headsContainer.innerHTML = heads.map(h => `
+          if (heads.length > 0) {
+            headsContainer.innerHTML = heads
+              .map(
+                (h) => `
                         <div class="list-item">
                             <div>
-                                <div class="list-item-title">${h['claim-head']}</div>
-                                <div class="list-item-meta">${h['claim-actions'] || 'No actions'}</div>
+                                <div class="list-item-title">${h["claim-head"]}</div>
+                                <div class="list-item-meta">${h["claim-actions"] || "No actions"}</div>
                             </div>
-                            <span class="badge badge-${h['claim-status'] === 'Complete' ? 'complete' : 'discovery'}">${h['claim-status']}</span>
+                            <span class="badge badge-${h["claim-status"] === "Complete" ? "complete" : "discovery"}">${h["claim-status"]}</span>
                         </div>
-                    `).join('');
-                }
-            } else if (profileType === 'project') {
-                document.getElementById('headsTitle').textContent = 'Project Milestones';
-                document.getElementById('headsContent').innerHTML = `
+                    `,
+              )
+              .join("");
+          }
+        } else if (profileType === "project") {
+          document.getElementById("headsTitle").textContent =
+            "Project Milestones";
+          document.getElementById("headsContent").innerHTML = `
                     <div class="empty-state">
                         <i class="fas fa-tasks"></i>
                         <p>Track project progress here</p>
                     </div>
                 `;
-            }
+        }
 
-            // Show deadlines for cases
-            if (profileType === 'case' && data['case-deadlines']?.deadlines) {
-                const deadlines = data['case-deadlines'].deadlines;
-                const alertsContainer = document.getElementById('alertsContainer');
+        // Show deadlines for cases
+        if (profileType === "case" && data["case-deadlines"]?.deadlines) {
+          const deadlines = data["case-deadlines"].deadlines;
+          const alertsContainer = document.getElementById("alertsContainer");
 
-                if (deadlines.length > 0) {
-                    const upcomingDeadlines = deadlines.slice(0, 3);
-                    const deadlineHTML = upcomingDeadlines.map(d => `
+          if (deadlines.length > 0) {
+            const upcomingDeadlines = deadlines.slice(0, 3);
+            const deadlineHTML = upcomingDeadlines
+              .map(
+                (d) => `
                         <div class="alert alert-warning">
                             <i class="fas fa-exclamation-triangle"></i>
                             <div>
-                                <strong>${d['deadline-task']}</strong><br>
-                                ${d['deadline-description']} - ${d['deadline-date'] || 'No date set'}
+                                <strong>${d["deadline-task"]}</strong><br>
+                                ${d["deadline-description"]} - ${d["deadline-date"] || "No date set"}
                             </div>
                         </div>
-                    `).join('');
-                    alertsContainer.innerHTML += deadlineHTML;
-                }
-            }
+                    `,
+              )
+              .join("");
+            alertsContainer.innerHTML += deadlineHTML;
+          }
+        }
+      }
+
+      function showFirstTimeOnboarding() {
+        const welcomeMsg =
+          profileType === "project"
+            ? "Your project has been created! Start by uploading evidence to reconstruct the project timeline."
+            : "Your case has been set up! Upload evidence sources to begin building your dispute strategy.";
+
+        document.getElementById("welcomeMessage").textContent = welcomeMsg;
+      }
+
+      // Check URL for openSettings parameter
+      const openSettingsParam = urlParams.get("openSettings");
+      if (openSettingsParam) {
+        setTimeout(() => showSettings(openSettingsParam), 500);
+      }
+
+      // AI Key Management Functions
+      function saveLocalAIKey(provider) {
+        const inputId = `${provider}KeyInput`;
+        const input = document.getElementById(inputId);
+        const key = input.value.trim();
+
+        if (!key) {
+          showKeyMessage(provider, "Please enter an API key", "error");
+          input.style.borderColor = "#ef4444";
+          setTimeout(() => (input.style.borderColor = "#e5e7eb"), 1500);
+          return;
         }
 
-        function showFirstTimeOnboarding() {
-            const welcomeMsg = profileType === 'project'
-                ? 'Your project has been created! Start by uploading evidence to reconstruct the project timeline.'
-                : 'Your case has been set up! Upload evidence sources to begin building your dispute strategy.';
+        // Save to localStorage
+        localStorage.setItem(`ai_key_${provider}`, key);
 
-            document.getElementById('welcomeMessage').textContent = welcomeMsg;
+        // Update status indicator
+        const statusEl = document.getElementById(`${provider}Status`);
+        if (statusEl) {
+          statusEl.className = "status-indicator status-active";
+          statusEl.title = "Configured (local)";
         }
 
-        // Check URL for openSettings parameter
-        const openSettingsParam = urlParams.get('openSettings');
-        if (openSettingsParam) {
-            setTimeout(() => showSettings(openSettingsParam), 500);
+        // Clear input (for security)
+        input.value = "";
+        input.placeholder = "•••••••••• (saved)";
+
+        showKeyMessage(provider, "API key saved successfully!", "success");
+
+        // Update overall status
+        updateLocalAIStatus();
+      }
+
+      function clearLocalAIKey(provider) {
+        if (
+          !confirm(
+            `Remove ${provider.toUpperCase()} API key from local storage?`,
+          )
+        ) {
+          return;
         }
 
-        // AI Key Management Functions
-        function saveLocalAIKey(provider) {
-            const inputId = `${provider}KeyInput`;
-            const input = document.getElementById(inputId);
-            const key = input.value.trim();
+        localStorage.removeItem(`ai_key_${provider}`);
 
-            if (!key) {
-                showKeyMessage(provider, 'Please enter an API key', 'error');
-                input.style.borderColor = '#ef4444';
-                setTimeout(() => input.style.borderColor = '#e5e7eb', 1500);
-                return;
-            }
-
-            // Save to localStorage
-            localStorage.setItem(`ai_key_${provider}`, key);
-
-            // Update status indicator
-            const statusEl = document.getElementById(`${provider}Status`);
-            if (statusEl) {
-                statusEl.className = 'status-indicator status-active';
-                statusEl.title = 'Configured (local)';
-            }
-
-            // Clear input (for security)
-            input.value = '';
-            input.placeholder = '•••••••••• (saved)';
-
-            showKeyMessage(provider, 'API key saved successfully!', 'success');
-
-            // Update overall status
-            updateLocalAIStatus();
+        // Update status indicator
+        const statusEl = document.getElementById(`${provider}Status`);
+        if (statusEl) {
+          statusEl.className = "status-indicator status-inactive";
+          statusEl.title = "Not configured";
         }
 
-        function clearLocalAIKey(provider) {
-            if (!confirm(`Remove ${provider.toUpperCase()} API key from local storage?`)) {
-                return;
-            }
-
-            localStorage.removeItem(`ai_key_${provider}`);
-
-            // Update status indicator
-            const statusEl = document.getElementById(`${provider}Status`);
-            if (statusEl) {
-                statusEl.className = 'status-indicator status-inactive';
-                statusEl.title = 'Not configured';
-            }
-
-            // Reset input placeholder
-            const inputId = `${provider}KeyInput`;
-            const input = document.getElementById(inputId);
-            if (input) {
-                input.value = '';
-                const placeholders = {
-                    openai: 'sk-...',
-                    anthropic: 'sk-ant-...',
-                    gemini: 'AI...',
-                    grok: 'xai-...',
-                    perplexity: 'pplx-...'
-                };
-                input.placeholder = placeholders[provider] || 'Enter API key';
-            }
-
-            showKeyMessage(provider, 'API key removed', 'info');
-
-            // Update overall status
-            updateLocalAIStatus();
+        // Reset input placeholder
+        const inputId = `${provider}KeyInput`;
+        const input = document.getElementById(inputId);
+        if (input) {
+          input.value = "";
+          const placeholders = {
+            openai: "sk-...",
+            anthropic: "sk-ant-...",
+            gemini: "AI...",
+            grok: "xai-...",
+            perplexity: "pplx-...",
+          };
+          input.placeholder = placeholders[provider] || "Enter API key";
         }
 
-        function showKeyMessage(provider, message, type) {
-            const banner = document.getElementById('wizardBanner') || createBanner();
-            banner.textContent = `${provider.toUpperCase()}: ${message}`;
-            banner.style.background = type === 'error' ? '#fee2e2' : type === 'success' ? '#ecfdf5' : '#eef2ff';
-            banner.style.color = type === 'error' ? '#991b1b' : type === 'success' ? '#065f46' : '#1e3a8a';
-            banner.style.display = 'block';
-            setTimeout(() => banner.style.display = 'none', 3000);
-        }
+        showKeyMessage(provider, "API key removed", "info");
 
-        function createBanner() {
-            const el = document.createElement('div');
-            el.id = 'wizardBanner';
-            el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;display:none;padding:10px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;border-bottom:1px solid #e2e8f0;text-align:center;';
-            document.body.appendChild(el);
-            return el;
-        }
+        // Update overall status
+        updateLocalAIStatus();
+      }
 
-        function updateLocalAIStatus() {
-            const providers = ['openai', 'anthropic', 'gemini', 'grok', 'perplexity'];
-            let anyConfigured = false;
+      function showKeyMessage(provider, message, type) {
+        const banner =
+          document.getElementById("wizardBanner") || createBanner();
+        banner.textContent = `${provider.toUpperCase()}: ${message}`;
+        banner.style.background =
+          type === "error"
+            ? "#fee2e2"
+            : type === "success"
+              ? "#ecfdf5"
+              : "#eef2ff";
+        banner.style.color =
+          type === "error"
+            ? "#991b1b"
+            : type === "success"
+              ? "#065f46"
+              : "#1e3a8a";
+        banner.style.display = "block";
+        setTimeout(() => (banner.style.display = "none"), 3000);
+      }
 
-            providers.forEach(provider => {
-                const key = localStorage.getItem(`ai_key_${provider}`);
-                const statusEl = document.getElementById(`${provider}Status`);
+      function createBanner() {
+        const el = document.createElement("div");
+        el.id = "wizardBanner";
+        el.style.cssText =
+          "position:fixed;top:0;left:0;right:0;z-index:9999;display:none;padding:10px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;border-bottom:1px solid #e2e8f0;text-align:center;";
+        document.body.appendChild(el);
+        return el;
+      }
 
-                if (statusEl) {
-                    if (key && key.trim().length > 0) {
-                        statusEl.className = 'status-indicator status-active';
-                        statusEl.title = 'Configured (local)';
-                        anyConfigured = true;
-                    } else {
-                        statusEl.className = 'status-indicator status-inactive';
-                        statusEl.title = 'Not configured';
-                    }
-                }
+      function updateLocalAIStatus() {
+        const providers = [
+          "openai",
+          "anthropic",
+          "gemini",
+          "grok",
+          "perplexity",
+        ];
+        let anyConfigured = false;
 
-                // Load existing keys into inputs (masked)
-                const inputId = `${provider}KeyInput`;
-                const input = document.getElementById(inputId);
-                if (input && key && key.trim().length > 0) {
-                    input.placeholder = '•••••••••• (saved)';
-                }
-            });
+        providers.forEach((provider) => {
+          const key = localStorage.getItem(`ai_key_${provider}`);
+          const statusEl = document.getElementById(`${provider}Status`);
 
-            // Update overall status
-            const overallStatus = document.getElementById('aiOverallStatus');
-            if (overallStatus) {
-                if (anyConfigured) {
-                    overallStatus.innerHTML = '<i class="fas fa-check-circle" style="color: #10b981;"></i> <strong>API keys configured locally</strong> - Intelligent features are available in this browser';
-                    overallStatus.style.background = '#ecfdf5';
-                    overallStatus.style.borderColor = '#10b981';
-                } else {
-                    overallStatus.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: #f59e0b;"></i> <strong>No local API keys configured</strong> - Add keys above to enable AI features';
-                    overallStatus.style.background = '#fffbeb';
-                    overallStatus.style.borderColor = '#fbbf24';
-                }
+          if (statusEl) {
+            if (key && key.trim().length > 0) {
+              statusEl.className = "status-indicator status-active";
+              statusEl.title = "Configured (local)";
+              anyConfigured = true;
+            } else {
+              statusEl.className = "status-indicator status-inactive";
+              statusEl.title = "Not configured";
             }
+          }
+
+          // Load existing keys into inputs (masked)
+          const inputId = `${provider}KeyInput`;
+          const input = document.getElementById(inputId);
+          if (input && key && key.trim().length > 0) {
+            input.placeholder = "•••••••••• (saved)";
+          }
+        });
+
+        // Update overall status
+        const overallStatus = document.getElementById("aiOverallStatus");
+        if (overallStatus) {
+          if (anyConfigured) {
+            overallStatus.innerHTML =
+              '<i class="fas fa-check-circle" style="color: #10b981;"></i> <strong>API keys configured locally</strong> - Intelligent features are available in this browser';
+            overallStatus.style.background = "#ecfdf5";
+            overallStatus.style.borderColor = "#10b981";
+          } else {
+            overallStatus.innerHTML =
+              '<i class="fas fa-exclamation-triangle" style="color: #f59e0b;"></i> <strong>No local API keys configured</strong> - Add keys above to enable AI features';
+            overallStatus.style.background = "#fffbeb";
+            overallStatus.style.borderColor = "#fbbf24";
+          }
         }
+      }
 
-        // Load local AI status on settings open
-        const originalShowSettings = showSettings;
-        showSettings = function (tab = 'general') {
-            originalShowSettings(tab);
-            if (tab === 'ai') {
-                setTimeout(() => updateLocalAIStatus(), 100);
-            }
-        };
-
+      // Load local AI status on settings open
+      const originalShowSettings = showSettings;
+      showSettings = function (tab = "general") {
+        originalShowSettings(tab);
+        if (tab === "ai") {
+          setTimeout(() => updateLocalAIStatus(), 100);
+        }
+      };
     </script>
 
     <!-- Settings Modal Container (lazy loaded for faster initial page load) -->
@@ -1703,7 +2006,7 @@
 
     <!-- Settings Modal Template (stored as string, not parsed until needed) -->
     <script>
-        window.SETTINGS_MODAL_HTML = `
+      window.SETTINGS_MODAL_HTML = `
     <div id="settingsModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
         <div style="background: white; border-radius: 12px; width: 90%; max-width: 800px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
             <!-- Header -->
@@ -1881,33 +2184,32 @@
     </script>
 
     <style>
-        .settings-tab-btn.active {
-            color: var(--vericase-teal);
-            border-bottom-color: var(--vericase-teal) !important;
-        }
+      .settings-tab-btn.active {
+        color: var(--vericase-teal);
+        border-bottom-color: var(--vericase-teal) !important;
+      }
 
-        .settings-tab-btn:hover {
-            color: var(--vericase-teal);
-            background: rgba(23, 181, 163, 0.05);
-        }
+      .settings-tab-btn:hover {
+        color: var(--vericase-teal);
+        background: rgba(23, 181, 163, 0.05);
+      }
 
-        .status-indicator {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            display: inline-block;
-        }
+      .status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+      }
 
-        .status-active {
-            background: #10b981;
-            box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
-        }
+      .status-active {
+        background: #10b981;
+        box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+      }
 
-        .status-inactive {
-            background: #ef4444;
-            box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
-        }
+      .status-inactive {
+        background: #ef4444;
+        box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+      }
     </style>
-</body>
-
+  </body>
 </html>

@@ -77,7 +77,8 @@ docker-compose -f docker-compose.prod.yml run --rm api python -m app.apply_migra
 
 # Start application services
 Write-Host "`n🚀 Starting application services..." -ForegroundColor Cyan
-docker-compose -f docker-compose.prod.yml up -d api worker beat flower
+docker-compose -f docker-compose.prod.yml up -d api worker beat flower nginx
+
 
 # Wait for API to be healthy
 Check-ServiceHealth "api"
@@ -85,7 +86,9 @@ Check-ServiceHealth "api"
 # Show status
 Write-Host "`n✨ Deployment complete!" -ForegroundColor Green
 Write-Host "`n📍 Service URLs:" -ForegroundColor Cyan
-Write-Host "   - API:        http://localhost:8010"
+Write-Host "   - API (HTTPS): https://localhost"
+Write-Host "   - API (HTTP):  http://localhost:8010"
+
 Write-Host "   - MinIO:      http://localhost:9001 (user: $MINIO_ACCESS_KEY)"
 Write-Host "   - Flower:     http://localhost:5555"
 Write-Host "   - OpenSearch: http://localhost:9200"
