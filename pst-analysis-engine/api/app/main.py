@@ -13,6 +13,10 @@ from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, text
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+import subprocess
+import os
 
 
 # Filter out favicon requests from access logs
@@ -192,6 +196,40 @@ class PathListResponse(BaseModel):
 app = FastAPI(
     title="VeriCase Docs API", version="0.3.9"
 )  # Updated 2025-11-12 added AWS Secrets Manager for AI keys
+
+# Security Middleware
+if os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_REGION"):
+    # Enforce HTTPS in production
+    app.add_middleware(HTTPSRedirectMiddleware)
+    # Trust headers from AWS Load Balancer
+    # Note: Uvicorn proxy_headers=True handles X-Forwarded-Proto, but this ensures redirect
+    
+    # Restrict Host header if domain is known (optional, good for security)
+    # app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*.elb.amazonaws.com", "vericase.yourdomain.com", "localhost"])
+
+# Startup Event: Run Migrations
+@app.on_event("startup")
+async def run_migrations():
+    """Run Alembic migrations on startup to ensure DB schema is up to date."""
+    if os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_REGION"):
+        try:
+            logger.info("Running database migrations...")
+            # Run alembic upgrade head
+            # We use subprocess because alembic is a CLI tool
+            # Ensure we are in the api directory where alembic.ini is likely located
+            cwd = Path(__file__).parent.parent
+            result = subprocess.run(
+                ["alembic", "upgrade", "head"], 
+                cwd=str(cwd),
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                logger.info("Database migrations completed successfully.")
+            else:
+                logger.error(f"Database migrations failed: {result.stderr}")
+        except Exception as e:
+            logger.error(f"Error running migrations: {e}")
 
 # Mount UI BEFORE routers (order matters in FastAPI!)
 _here = Path(__file__).resolve()
