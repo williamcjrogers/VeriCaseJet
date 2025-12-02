@@ -1,5 +1,14 @@
 {
   "recommendations": [
-    "cweijan.vscode-database-client2"
+    "cweijan.vscode-database-client2",
+    "cweijan.dbclient-jdbc",
+    "databricks.sqltools-databricks-driver",
+    "cweijan.vscode-es-client2",
+    "dbaeumer.vscode-eslint",
+    "cweijan.vscode-mysql-client2",
+    "cweijan.vscode-postgresql-client2",
+    "cweijan.vscode-mssql-client2",
+    "cweijan.vscode-ssh",
+    "cweijan.vscode-excel"
   ]
 }
