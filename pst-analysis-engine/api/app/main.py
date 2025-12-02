@@ -586,6 +586,13 @@ def startup():
                     logger.warning(f"Migration skipped for pst_files: {e}")
                     conn.rollback()
 
+                try:
+                    conn.execute(text("ALTER TABLE pst_files ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()"))
+                    conn.commit()
+                except Exception as e:
+                    logger.warning(f"Migration skipped for pst_files uploaded_at: {e}")
+                    conn.rollback()
+
                 # 3. Email Attachments
                 try:
                     conn.execute(text("ALTER TABLE email_attachments ALTER COLUMN file_size_bytes TYPE BIGINT"))
