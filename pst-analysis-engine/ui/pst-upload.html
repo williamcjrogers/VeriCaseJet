@@ -1,1127 +1,1111 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VeriCase - Upload Evidence</title>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
-    <link rel="stylesheet" href="brand-styles.css" />
-    <link rel="stylesheet" href="design-system.css" />
-    <script src="vericase-ui.js"></script>
-    <script src="nav-shell.js"></script>
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
 
-      body {
-        font-family:
-          "Segoe UI",
-          -apple-system,
-          BlinkMacSystemFont,
-          Roboto,
-          sans-serif;
-        background: var(--bg-primary);
-        min-height: 100vh;
-        color: var(--text-primary);
-      }
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VeriCase - Upload Evidence</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="brand-styles.css" />
+  <link rel="stylesheet" href="design-system.css" />
+  <script src="vericase-ui.js"></script>
+  <script src="nav-shell.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-      .top-bar {
-        background: white;
-        backdrop-filter: blur(20px);
-        color: var(--vericase-navy);
-        padding: 12px 24px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 1px solid var(--gray-200);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        position: sticky;
-        top: 0;
-        z-index: 100;
-      }
+    body {
+      font-family:
+        "Segoe UI",
+        -apple-system,
+        BlinkMacSystemFont,
+        Roboto,
+        sans-serif;
+      background: var(--bg-primary);
+      min-height: 100vh;
+      color: var(--text-primary);
+    }
 
-      .top-bar h1 {
-        font-size: 20px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-weight: 600;
-      }
+    .top-bar {
+      background: white;
+      backdrop-filter: blur(20px);
+      color: var(--vericase-navy);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--gray-200);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
 
-      .top-bar h1 img {
-        height: 28px;
-      }
+    .top-bar h1 {
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 600;
+    }
 
-      .btn {
-        padding: 10px 20px;
-        border: none;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-      }
+    .top-bar h1 img {
+      height: 28px;
+    }
 
-      .btn-ghost {
-        background: transparent;
-        color: #a0a0c0;
-        border: 1px solid rgba(160, 160, 192, 0.3);
-      }
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
 
-      .btn-ghost:hover {
-        background: rgba(15, 157, 154, 0.1);
-        color: var(--vericase-navy);
-        border-color: rgba(15, 157, 154, 0.5);
-      }
+    .btn-ghost {
+      background: transparent;
+      color: #a0a0c0;
+      border: 1px solid rgba(160, 160, 192, 0.3);
+    }
 
-      .container {
-        max-width: 1400px;
-        margin: 0 auto;
-        padding: 30px 20px;
-      }
+    .btn-ghost:hover {
+      background: rgba(15, 157, 154, 0.1);
+      color: var(--vericase-navy);
+      border-color: rgba(15, 157, 154, 0.5);
+    }
 
-      /* Stats Bar */
-      .stats-bar {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 16px;
-        margin-bottom: 24px;
-      }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 30px 20px;
+    }
 
-      .stat-card {
-        background: white;
-        border: 1px solid var(--gray-200);
-        border-radius: 12px;
-        padding: 20px;
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-      }
+    /* Stats Bar */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
 
-      .stat-icon {
-        width: 48px;
-        height: 48px;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 20px;
-        color: white;
-      }
+    .stat-card {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
 
-      .stat-icon.blue {
-        background: linear-gradient(
-          135deg,
+    .stat-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      color: white;
+    }
+
+    .stat-icon.blue {
+      background: linear-gradient(135deg,
           var(--vericase-teal),
-          var(--vericase-navy)
-        );
-      }
-      .stat-icon.green {
-        background: linear-gradient(135deg, #10b981, #059669);
-      }
-      .stat-icon.orange {
-        background: linear-gradient(135deg, #f59e0b, #d97706);
-      }
-      .stat-icon.red {
-        background: linear-gradient(135deg, #ef4444, #dc2626);
-      }
+          var(--vericase-navy));
+    }
 
-      .stat-info h3 {
-        font-size: 24px;
-        font-weight: 700;
-        color: var(--vericase-navy);
-      }
+    .stat-icon.green {
+      background: linear-gradient(135deg, #10b981, #059669);
+    }
 
-      .stat-info p {
-        font-size: 12px;
-        color: var(--text-muted);
-        margin-top: 2px;
-      }
+    .stat-icon.orange {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+    }
 
-      /* Main Upload Area */
+    .stat-icon.red {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+    }
+
+    .stat-info h3 {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--vericase-navy);
+    }
+
+    .stat-info p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Main Upload Area */
+    .upload-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 1024px) {
       .upload-section {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 24px;
-        margin-bottom: 24px;
+        grid-template-columns: 1fr;
       }
+    }
 
-      @media (max-width: 1024px) {
-        .upload-section {
-          grid-template-columns: 1fr;
-        }
-      }
+    .upload-card {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
 
-      .upload-card {
-        background: white;
-        border: 1px solid var(--gray-200);
-        border-radius: 16px;
-        padding: 24px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-      }
+    .upload-card h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      color: var(--vericase-navy);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
 
-      .upload-card h2 {
-        font-size: 18px;
-        margin-bottom: 16px;
-        color: var(--vericase-navy);
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
+    .upload-zone {
+      border: 2px dashed rgba(15, 157, 154, 0.5);
+      border-radius: 12px;
+      padding: 48px 24px;
+      text-align: center;
+      background: rgba(15, 157, 154, 0.05);
+      transition: all 0.3s;
+      cursor: pointer;
+    }
 
-      .upload-zone {
-        border: 2px dashed rgba(15, 157, 154, 0.5);
-        border-radius: 12px;
-        padding: 48px 24px;
-        text-align: center;
-        background: rgba(15, 157, 154, 0.05);
-        transition: all 0.3s;
-        cursor: pointer;
-      }
+    .upload-zone:hover {
+      background: rgba(15, 157, 154, 0.1);
+      border-color: rgba(15, 157, 154, 0.8);
+    }
 
-      .upload-zone:hover {
-        background: rgba(15, 157, 154, 0.1);
-        border-color: rgba(15, 157, 154, 0.8);
-      }
+    .upload-zone.dragover {
+      background: rgba(15, 157, 154, 0.15);
+      border-color: var(--vericase-teal);
+      transform: scale(1.01);
+    }
 
-      .upload-zone.dragover {
-        background: rgba(15, 157, 154, 0.15);
-        border-color: var(--vericase-teal);
-        transform: scale(1.01);
-      }
+    .upload-zone.uploading {
+      pointer-events: none;
+      opacity: 0.7;
+    }
 
-      .upload-zone.uploading {
-        pointer-events: none;
-        opacity: 0.7;
-      }
+    .upload-zone i {
+      font-size: 48px;
+      color: var(--vericase-teal);
+      margin-bottom: 16px;
+    }
 
-      .upload-zone i {
-        font-size: 48px;
-        color: var(--vericase-teal);
-        margin-bottom: 16px;
-      }
+    .upload-zone h3 {
+      font-size: 18px;
+      color: var(--vericase-navy);
+      margin-bottom: 8px;
+    }
 
-      .upload-zone h3 {
-        font-size: 18px;
-        color: var(--vericase-navy);
-        margin-bottom: 8px;
-      }
+    .upload-zone p {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
 
-      .upload-zone p {
-        color: var(--text-muted);
-        font-size: 14px;
-        margin-bottom: 16px;
-      }
-
-      .btn-primary {
-        background: linear-gradient(
-          135deg,
+    .btn-primary {
+      background: linear-gradient(135deg,
           var(--vericase-teal) 0%,
-          var(--vericase-navy) 100%
-        );
-        color: white;
-        border: none;
-      }
+          var(--vericase-navy) 100%);
+      color: white;
+      border: none;
+    }
 
-      .btn-primary:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(15, 157, 154, 0.4);
-      }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(15, 157, 154, 0.4);
+    }
 
-      .file-types {
-        display: flex;
-        justify-content: center;
-        gap: 8px;
-        flex-wrap: wrap;
-        margin-top: 20px;
-      }
+    .file-types {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
 
-      .file-type-badge {
-        background: rgba(15, 157, 154, 0.2);
-        padding: 6px 14px;
-        border-radius: 16px;
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--vericase-teal);
-        border: 1px solid rgba(15, 157, 154, 0.3);
-      }
+    .file-type-badge {
+      background: rgba(15, 157, 154, 0.2);
+      padding: 6px 14px;
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--vericase-teal);
+      border: 1px solid rgba(15, 157, 154, 0.3);
+    }
 
-      /* File Queue */
-      .queue-card {
-        background: white;
-        border: 1px solid var(--gray-200);
-        border-radius: 16px;
-        max-height: 500px;
-        display: flex;
-        flex-direction: column;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-      }
+    /* File Queue */
+    .queue-card {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 16px;
+      max-height: 500px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
 
-      .queue-header {
-        padding: 16px 20px;
-        border-bottom: 1px solid var(--gray-200);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
+    .queue-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--gray-200);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
 
-      .queue-header h2 {
-        font-size: 16px;
-        color: var(--vericase-navy);
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
+    .queue-header h2 {
+      font-size: 16px;
+      color: var(--vericase-navy);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
 
-      .queue-actions {
-        display: flex;
-        gap: 8px;
-      }
+    .queue-actions {
+      display: flex;
+      gap: 8px;
+    }
 
-      .btn-sm {
-        padding: 6px 12px;
-        font-size: 12px;
-        border-radius: 6px;
-      }
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 12px;
+      border-radius: 6px;
+    }
 
-      .btn-success {
-        background: linear-gradient(135deg, #10b981, #059669);
-        color: white;
-      }
+    .btn-success {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+    }
 
-      .btn-danger {
-        background: rgba(239, 68, 68, 0.2);
-        color: #ef4444;
-        border: 1px solid rgba(239, 68, 68, 0.3);
-      }
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
 
-      .btn-danger:hover {
-        background: #ef4444;
-        color: white;
-      }
+    .btn-danger:hover {
+      background: #ef4444;
+      color: white;
+    }
 
-      .queue-list {
-        flex: 1;
-        overflow-y: auto;
-        padding: 12px;
-      }
+    .queue-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
 
-      .queue-empty {
-        text-align: center;
-        padding: 48px 24px;
-        color: #606080;
-      }
+    .queue-empty {
+      text-align: center;
+      padding: 48px 24px;
+      color: #606080;
+    }
 
-      .queue-empty i {
-        font-size: 48px;
-        margin-bottom: 16px;
-        opacity: 0.5;
-      }
+    .queue-empty i {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
 
-      .file-item {
-        background: white;
-        border: 1px solid var(--gray-200);
-        border-radius: 10px;
-        padding: 12px 16px;
-        margin-bottom: 8px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        transition: all 0.2s;
-      }
+    .file-item {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: all 0.2s;
+    }
 
-      .file-item:hover {
-        border-color: rgba(15, 157, 154, 0.3);
-      }
+    .file-item:hover {
+      border-color: rgba(15, 157, 154, 0.3);
+    }
 
-      .file-item.uploading {
-        border-color: rgba(15, 157, 154, 0.5);
-        background: rgba(15, 157, 154, 0.05);
-      }
+    .file-item.uploading {
+      border-color: rgba(15, 157, 154, 0.5);
+      background: rgba(15, 157, 154, 0.05);
+    }
 
-      .file-item.complete {
-        border-color: rgba(16, 185, 129, 0.5);
-        background: rgba(16, 185, 129, 0.1);
-      }
+    .file-item.complete {
+      border-color: rgba(16, 185, 129, 0.5);
+      background: rgba(16, 185, 129, 0.1);
+    }
 
-      .file-item.error {
-        border-color: rgba(239, 68, 68, 0.5);
-        background: rgba(239, 68, 68, 0.1);
-      }
+    .file-item.error {
+      border-color: rgba(239, 68, 68, 0.5);
+      background: rgba(239, 68, 68, 0.1);
+    }
 
-      .file-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 18px;
-        flex-shrink: 0;
-      }
+    .file-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
 
-      .file-icon.pst {
-        background: linear-gradient(
-          135deg,
+    .file-icon.pst {
+      background: linear-gradient(135deg,
           var(--vericase-teal),
-          var(--vericase-navy)
-        );
-        color: white;
-      }
-      .file-icon.eml {
-        background: linear-gradient(135deg, #3b82f6, #2563eb);
-        color: white;
-      }
-      .file-icon.msg {
-        background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-        color: white;
-      }
-      .file-icon.pdf {
-        background: linear-gradient(135deg, #ef4444, #dc2626);
-        color: white;
-      }
-      .file-icon.doc {
-        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-        color: white;
-      }
-      .file-icon.xls {
-        background: linear-gradient(135deg, #10b981, #059669);
-        color: white;
-      }
-      .file-icon.default {
-        background: rgba(100, 100, 140, 0.5);
-        color: #a0a0c0;
-      }
+          var(--vericase-navy));
+      color: white;
+    }
 
-      .file-details {
-        flex: 1;
-        min-width: 0;
-      }
+    .file-icon.eml {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: white;
+    }
 
-      .file-details h4 {
-        font-size: 13px;
-        color: var(--vericase-navy);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        margin-bottom: 4px;
-      }
+    .file-icon.msg {
+      background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+      color: white;
+    }
 
-      .file-meta {
-        display: flex;
-        gap: 12px;
-        font-size: 11px;
-        color: var(--text-muted);
-      }
+    .file-icon.pdf {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: white;
+    }
 
-      .file-progress {
-        width: 100px;
-        flex-shrink: 0;
-      }
+    .file-icon.doc {
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      color: white;
+    }
 
-      .progress-bar {
-        height: 6px;
-        background: var(--gray-200);
-        border-radius: 3px;
-        overflow: hidden;
-        margin-bottom: 4px;
-      }
+    .file-icon.xls {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+    }
 
-      .progress-fill {
-        height: 100%;
-        background: linear-gradient(
-          90deg,
+    .file-icon.default {
+      background: rgba(100, 100, 140, 0.5);
+      color: #a0a0c0;
+    }
+
+    .file-details {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .file-details h4 {
+      font-size: 13px;
+      color: var(--vericase-navy);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+
+    .file-meta {
+      display: flex;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .file-progress {
+      width: 100px;
+      flex-shrink: 0;
+    }
+
+    .progress-bar {
+      height: 6px;
+      background: var(--gray-200);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 4px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg,
           var(--vericase-teal),
-          var(--vericase-navy)
-        );
-        transition: width 0.2s;
-        border-radius: 3px;
+          var(--vericase-navy));
+      transition: width 0.2s;
+      border-radius: 3px;
+    }
+
+    .progress-fill.complete {
+      background: linear-gradient(90deg, #10b981, #059669);
+    }
+
+    .progress-fill.error {
+      background: linear-gradient(90deg, #ef4444, #dc2626);
+    }
+
+    .progress-text {
+      font-size: 10px;
+      color: #a0a0c0;
+      text-align: center;
+    }
+
+    .file-status {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .status-queued {
+      background: var(--gray-200);
+      color: var(--text-muted);
+    }
+
+    .status-uploading {
+      background: rgba(15, 157, 154, 0.2);
+      color: var(--vericase-teal);
+    }
+
+    .status-processing {
+      background: rgba(245, 158, 11, 0.3);
+      color: #f59e0b;
+    }
+
+    .status-complete {
+      background: rgba(16, 185, 129, 0.3);
+      color: #10b981;
+    }
+
+    .status-error {
+      background: rgba(239, 68, 68, 0.3);
+      color: #ef4444;
+    }
+
+    .file-remove {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: #606080;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .file-remove:hover {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    /* History Section */
+    .history-card {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
+    .history-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--gray-200);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .history-header h2 {
+      font-size: 16px;
+      color: var(--vericase-navy);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .history-table th,
+    .history-table td {
+      padding: 14px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .history-table th {
+      background: var(--gray-100);
+      font-weight: 600;
+      color: var(--text-muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .history-table tr:hover {
+      background: rgba(15, 157, 154, 0.05);
+    }
+
+    .history-filename {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 500;
+      color: var(--vericase-navy);
+    }
+
+    .history-filename i {
+      color: var(--vericase-teal);
+    }
+
+    .email-count {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .email-count .processed {
+      color: #10b981;
+      font-weight: 600;
+    }
+
+    .email-count .total {
+      color: #606080;
+      font-size: 11px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .status-pending {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+    }
+
+    .status-processing {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+    }
+
+    .status-completed {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+    }
+
+    .status-failed {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .history-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      border: 1px solid rgba(15, 157, 154, 0.3);
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .btn-icon:hover {
+      background: rgba(15, 157, 154, 0.2);
+      color: var(--vericase-teal);
+      border-color: rgba(15, 157, 154, 0.5);
+    }
+
+    .no-history {
+      text-align: center;
+      padding: 60px 24px;
+      color: #606080;
+    }
+
+    .no-history i {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    /* Global Progress Overlay */
+    .global-progress {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: white;
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--gray-200);
+      border-radius: 16px;
+      padding: 20px 24px;
+      min-width: 320px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+      display: none;
+      z-index: 1000;
+    }
+
+    .global-progress.active {
+      display: block;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateY(20px);
+        opacity: 0;
       }
 
-      .progress-fill.complete {
-        background: linear-gradient(90deg, #10b981, #059669);
+      to {
+        transform: translateY(0);
+        opacity: 1;
       }
+    }
 
-      .progress-fill.error {
-        background: linear-gradient(90deg, #ef4444, #dc2626);
-      }
+    .global-progress h3 {
+      font-size: 14px;
+      color: var(--vericase-navy);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
 
-      .progress-text {
-        font-size: 10px;
-        color: #a0a0c0;
-        text-align: center;
-      }
+    .global-progress h3 i {
+      color: var(--vericase-teal);
+    }
 
-      .file-status {
-        font-size: 11px;
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-weight: 600;
-        white-space: nowrap;
-      }
+    .global-stats {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 16px;
+    }
 
-      .status-queued {
-        background: var(--gray-200);
-        color: var(--text-muted);
-      }
-      .status-uploading {
-        background: rgba(15, 157, 154, 0.2);
-        color: var(--vericase-teal);
-      }
-      .status-processing {
-        background: rgba(245, 158, 11, 0.3);
-        color: #f59e0b;
-      }
-      .status-complete {
-        background: rgba(16, 185, 129, 0.3);
-        color: #10b981;
-      }
-      .status-error {
-        background: rgba(239, 68, 68, 0.3);
-        color: #ef4444;
-      }
+    .global-stat {
+      text-align: center;
+    }
 
-      .file-remove {
-        width: 28px;
-        height: 28px;
-        border-radius: 6px;
-        border: none;
-        background: transparent;
-        color: #606080;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.2s;
-      }
+    .global-stat .number {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--vericase-navy);
+    }
 
-      .file-remove:hover {
-        background: rgba(239, 68, 68, 0.2);
-        color: #ef4444;
-      }
+    .global-stat .label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
 
-      /* History Section */
-      .history-card {
-        background: white;
-        border: 1px solid var(--gray-200);
-        border-radius: 16px;
-        overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-      }
+    .global-bar {
+      height: 8px;
+      background: var(--gray-200);
+      border-radius: 4px;
+      overflow: hidden;
+    }
 
-      .history-header {
-        padding: 16px 20px;
-        border-bottom: 1px solid var(--gray-200);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-
-      .history-header h2 {
-        font-size: 16px;
-        color: var(--vericase-navy);
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .history-table {
-        width: 100%;
-        border-collapse: collapse;
-      }
-
-      .history-table th,
-      .history-table td {
-        padding: 14px 16px;
-        text-align: left;
-        border-bottom: 1px solid var(--gray-200);
-      }
-
-      .history-table th {
-        background: var(--gray-100);
-        font-weight: 600;
-        color: var(--text-muted);
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-      }
-
-      .history-table tr:hover {
-        background: rgba(15, 157, 154, 0.05);
-      }
-
-      .history-filename {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-weight: 500;
-        color: var(--vericase-navy);
-      }
-
-      .history-filename i {
-        color: var(--vericase-teal);
-      }
-
-      .email-count {
-        display: flex;
-        flex-direction: column;
-      }
-
-      .email-count .processed {
-        color: #10b981;
-        font-weight: 600;
-      }
-
-      .email-count .total {
-        color: #606080;
-        font-size: 11px;
-      }
-
-      .status-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 5px 12px;
-        border-radius: 16px;
-        font-size: 12px;
-        font-weight: 600;
-      }
-
-      .status-pending {
-        background: rgba(245, 158, 11, 0.2);
-        color: #f59e0b;
-      }
-      .status-processing {
-        background: rgba(59, 130, 246, 0.2);
-        color: #3b82f6;
-      }
-      .status-completed {
-        background: rgba(16, 185, 129, 0.2);
-        color: #10b981;
-      }
-      .status-failed {
-        background: rgba(239, 68, 68, 0.2);
-        color: #ef4444;
-      }
-
-      .history-actions {
-        display: flex;
-        gap: 6px;
-      }
-
-      .btn-icon {
-        width: 32px;
-        height: 32px;
-        border-radius: 6px;
-        border: 1px solid rgba(15, 157, 154, 0.3);
-        background: transparent;
-        color: var(--text-muted);
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.2s;
-      }
-
-      .btn-icon:hover {
-        background: rgba(15, 157, 154, 0.2);
-        color: var(--vericase-teal);
-        border-color: rgba(15, 157, 154, 0.5);
-      }
-
-      .no-history {
-        text-align: center;
-        padding: 60px 24px;
-        color: #606080;
-      }
-
-      .no-history i {
-        font-size: 48px;
-        margin-bottom: 16px;
-        opacity: 0.5;
-      }
-
-      /* Global Progress Overlay */
-      .global-progress {
-        position: fixed;
-        bottom: 24px;
-        right: 24px;
-        background: white;
-        backdrop-filter: blur(20px);
-        border: 1px solid var(--gray-200);
-        border-radius: 16px;
-        padding: 20px 24px;
-        min-width: 320px;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
-        display: none;
-        z-index: 1000;
-      }
-
-      .global-progress.active {
-        display: block;
-        animation: slideIn 0.3s ease-out;
-      }
-
-      @keyframes slideIn {
-        from {
-          transform: translateY(20px);
-          opacity: 0;
-        }
-        to {
-          transform: translateY(0);
-          opacity: 1;
-        }
-      }
-
-      .global-progress h3 {
-        font-size: 14px;
-        color: var(--vericase-navy);
-        margin-bottom: 12px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .global-progress h3 i {
-        color: var(--vericase-teal);
-      }
-
-      .global-stats {
-        display: flex;
-        gap: 24px;
-        margin-bottom: 16px;
-      }
-
-      .global-stat {
-        text-align: center;
-      }
-
-      .global-stat .number {
-        font-size: 20px;
-        font-weight: 700;
-        color: var(--vericase-navy);
-      }
-
-      .global-stat .label {
-        font-size: 10px;
-        color: var(--text-muted);
-        text-transform: uppercase;
-      }
-
-      .global-bar {
-        height: 8px;
-        background: var(--gray-200);
-        border-radius: 4px;
-        overflow: hidden;
-      }
-
-      .global-fill {
-        height: 100%;
-        background: linear-gradient(
-          90deg,
+    .global-fill {
+      height: 100%;
+      background: linear-gradient(90deg,
           var(--vericase-teal),
-          var(--vericase-navy)
-        );
-        transition: width 0.3s;
-      }
+          var(--vericase-navy));
+      transition: width 0.3s;
+    }
 
-      /* Scrollbar */
-      ::-webkit-scrollbar {
-        width: 8px;
-      }
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
 
-      ::-webkit-scrollbar-track {
-        background: var(--gray-100);
-      }
+    ::-webkit-scrollbar-track {
+      background: var(--gray-100);
+    }
 
-      ::-webkit-scrollbar-thumb {
-        background: rgba(15, 157, 154, 0.3);
-        border-radius: 4px;
-      }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(15, 157, 154, 0.3);
+      border-radius: 4px;
+    }
 
-      ::-webkit-scrollbar-thumb:hover {
-        background: rgba(15, 157, 154, 0.5);
-      }
-    </style>
-    <script src="config.js"></script>
-    <script src="app-state.js"></script>
-  </head>
-  <body>
-    <div class="top-bar">
-      <h1>
-        <img src="../assets/Asset 1.png" alt="VeriCase" />
-        <i
-          class="fas fa-cloud-upload-alt"
-          style="color: var(--vericase-teal)"
-        ></i>
-        Evidence Upload
-      </h1>
-      <button
-        class="btn btn-ghost"
-        onclick="goToDashboard()"
-        style="
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(15, 157, 154, 0.5);
+    }
+  </style>
+  <script src="config.js"></script>
+  <script src="app-state.js"></script>
+</head>
+
+<body>
+  <div class="top-bar">
+    <h1>
+      <img src="../assets/Asset 1.png" alt="VeriCase" />
+      <i class="fas fa-cloud-upload-alt" style="color: var(--vericase-teal)"></i>
+      Evidence Upload
+    </h1>
+    <button class="btn btn-ghost" onclick="goToDashboard()" style="
           background: white;
           color: var(--vericase-navy);
           border: 2px solid var(--gray-200);
-        "
-      >
-        <i class="fas fa-arrow-left"></i> Back to Dashboard
-      </button>
+        ">
+      <i class="fas fa-arrow-left"></i> Back to Dashboard
+    </button>
+  </div>
+
+  <div class="container">
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+      <div class="stat-card">
+        <div class="stat-icon blue"><i class="fas fa-file-alt"></i></div>
+        <div class="stat-info">
+          <h3 id="statTotal">0</h3>
+          <p>Files Selected</p>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+        <div class="stat-info">
+          <h3 id="statComplete">0</h3>
+          <p>Completed</p>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon orange"><i class="fas fa-spinner"></i></div>
+        <div class="stat-info">
+          <h3 id="statProcessing">0</h3>
+          <p>Uploading</p>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon red">
+          <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <div class="stat-info">
+          <h3 id="statErrors">0</h3>
+          <p>Errors</p>
+        </div>
+      </div>
     </div>
 
-    <div class="container">
-      <!-- Stats Bar -->
-      <div class="stats-bar">
-        <div class="stat-card">
-          <div class="stat-icon blue"><i class="fas fa-file-alt"></i></div>
-          <div class="stat-info">
-            <h3 id="statTotal">0</h3>
-            <p>Files Selected</p>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
-          <div class="stat-info">
-            <h3 id="statComplete">0</h3>
-            <p>Completed</p>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon orange"><i class="fas fa-spinner"></i></div>
-          <div class="stat-info">
-            <h3 id="statProcessing">0</h3>
-            <p>Uploading</p>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon red">
-            <i class="fas fa-exclamation-triangle"></i>
-          </div>
-          <div class="stat-info">
-            <h3 id="statErrors">0</h3>
-            <p>Errors</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Upload Section -->
-      <div class="upload-section">
-        <div class="upload-card">
-          <h2><i class="fas fa-upload"></i> Add Files</h2>
-          <div class="upload-zone" id="uploadZone">
-            <i class="fas fa-cloud-upload-alt"></i>
-            <h3>Drag & drop files here</h3>
-            <p>or click to browse your computer</p>
-            <button class="btn btn-primary">
-              <i class="fas fa-folder-open"></i> Select Files
-            </button>
-            <div class="file-types">
-              <span class="file-type-badge">.PST</span>
-              <span class="file-type-badge">.EML</span>
-              <span class="file-type-badge">.MSG</span>
-              <span class="file-type-badge">.PDF</span>
-              <span class="file-type-badge">.DOCX</span>
-              <span class="file-type-badge">.XLSX</span>
-            </div>
-          </div>
-          <input
-            type="file"
-            id="fileInput"
-            multiple
-            accept=".pst,.eml,.msg,.pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.zip"
-            style="display: none"
-          />
-        </div>
-
-        <div class="queue-card">
-          <div class="queue-header">
-            <h2>
-              <i class="fas fa-list"></i> Upload Queue
-              <span id="queueCount">(0)</span>
-            </h2>
-            <div class="queue-actions">
-              <button
-                class="btn btn-sm btn-danger"
-                onclick="clearQueue()"
-                id="btnClear"
-                disabled
-              >
-                <i class="fas fa-trash"></i> Clear
-              </button>
-              <button
-                class="btn btn-sm btn-success"
-                onclick="startUpload()"
-                id="btnUpload"
-                disabled
-              >
-                <i class="fas fa-play"></i> Upload All
-              </button>
-            </div>
-          </div>
-          <div class="queue-list" id="queueList">
-            <div class="queue-empty">
-              <i class="fas fa-inbox"></i>
-              <p>No files in queue</p>
-              <p style="font-size: 12px; margin-top: 8px">
-                Drop files or click above to add
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Upload History -->
-      <div class="history-card">
-        <div class="history-header">
-          <h2><i class="fas fa-history"></i> Recent Uploads</h2>
-          <button class="btn btn-sm btn-ghost" onclick="loadPSTHistory()">
-            <i class="fas fa-sync-alt"></i> Refresh
+    <!-- Upload Section -->
+    <div class="upload-section">
+      <div class="upload-card">
+        <h2><i class="fas fa-upload"></i> Add Files</h2>
+        <div class="upload-zone" id="uploadZone">
+          <i class="fas fa-cloud-upload-alt"></i>
+          <h3>Drag & drop files here</h3>
+          <p>or click to browse your computer</p>
+          <button class="btn btn-primary">
+            <i class="fas fa-folder-open"></i> Select Files
           </button>
+          <div class="file-types">
+            <span class="file-type-badge">.PST</span>
+            <span class="file-type-badge">.EML</span>
+            <span class="file-type-badge">.MSG</span>
+            <span class="file-type-badge">.PDF</span>
+            <span class="file-type-badge">.DOCX</span>
+            <span class="file-type-badge">.XLSX</span>
+          </div>
         </div>
-        <div id="historyContent">
-          <div class="no-history">
-            <i class="fas fa-spinner fa-spin"></i>
-            <p>Loading history...</p>
+        <input type="file" id="fileInput" multiple accept=".pst,.eml,.msg,.pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.zip"
+          style="display: none" />
+      </div>
+
+      <div class="queue-card">
+        <div class="queue-header">
+          <h2>
+            <i class="fas fa-list"></i> Upload Queue
+            <span id="queueCount">(0)</span>
+          </h2>
+          <div class="queue-actions">
+            <button class="btn btn-sm btn-danger" onclick="clearQueue()" id="btnClear" disabled>
+              <i class="fas fa-trash"></i> Clear
+            </button>
+            <button class="btn btn-sm btn-success" onclick="startUpload()" id="btnUpload" disabled>
+              <i class="fas fa-play"></i> Upload All
+            </button>
+          </div>
+        </div>
+        <div class="queue-list" id="queueList">
+          <div class="queue-empty">
+            <i class="fas fa-inbox"></i>
+            <p>No files in queue</p>
+            <p style="font-size: 12px; margin-top: 8px">
+              Drop files or click above to add
+            </p>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Global Progress Overlay -->
-    <div class="global-progress" id="globalProgress">
-      <h3><i class="fas fa-cloud-upload-alt"></i> Uploading Files...</h3>
-      <div class="global-stats">
-        <div class="global-stat">
-          <div class="number" id="gpComplete">0</div>
-          <div class="label">Complete</div>
-        </div>
-        <div class="global-stat">
-          <div class="number" id="gpTotal">0</div>
-          <div class="label">Total</div>
-        </div>
-        <div class="global-stat">
-          <div class="number" id="gpSpeed">--</div>
-          <div class="label">Speed</div>
-        </div>
+    <!-- Upload History -->
+    <div class="history-card">
+      <div class="history-header">
+        <h2><i class="fas fa-history"></i> Recent Uploads</h2>
+        <button class="btn btn-sm btn-ghost" onclick="loadPSTHistory()">
+          <i class="fas fa-sync-alt"></i> Refresh
+        </button>
       </div>
-      <div class="global-bar">
-        <div class="global-fill" id="gpFill" style="width: 0"></div>
+      <div id="historyContent">
+        <div class="no-history">
+          <i class="fas fa-spinner fa-spin"></i>
+          <p>Loading history...</p>
+        </div>
       </div>
     </div>
+  </div>
 
-    <script>
-      const apiUrl = window.VeriCaseConfig
-        ? window.VeriCaseConfig.apiUrl
-        : window.location.origin;
-      console.log("Upload using API URL:", apiUrl);
+  <!-- Global Progress Overlay -->
+  <div class="global-progress" id="globalProgress">
+    <h3><i class="fas fa-cloud-upload-alt"></i> Uploading Files...</h3>
+    <div class="global-stats">
+      <div class="global-stat">
+        <div class="number" id="gpComplete">0</div>
+        <div class="label">Complete</div>
+      </div>
+      <div class="global-stat">
+        <div class="number" id="gpTotal">0</div>
+        <div class="label">Total</div>
+      </div>
+      <div class="global-stat">
+        <div class="number" id="gpSpeed">--</div>
+        <div class="label">Speed</div>
+      </div>
+    </div>
+    <div class="global-bar">
+      <div class="global-fill" id="gpFill" style="width: 0"></div>
+    </div>
+  </div>
 
-      // Retry helper for network issues
-      async function fetchWithRetry(url, options, retries = 3) {
-        for (let i = 0; i < retries; i++) {
-          try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 300000); // 5 min timeout
+  <script>
+    const apiUrl = window.VeriCaseConfig
+      ? window.VeriCaseConfig.apiUrl
+      : window.location.origin;
+    console.log("Upload using API URL:", apiUrl);
 
-            const response = await fetch(url, {
-              ...options,
-              signal: controller.signal,
-            });
-            clearTimeout(timeout);
+    // Retry helper for network issues
+    async function fetchWithRetry(url, options, retries = 3) {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 300000); // 5 min timeout
 
-            if (response.ok) return response;
-            if (response.status >= 500 && i < retries - 1) {
-              await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
-              continue;
-            }
-            return response;
-          } catch (error) {
-            if (i === retries - 1) throw error;
+          const response = await fetch(url, {
+            ...options,
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+
+          if (response.ok) return response;
+          if (response.status >= 500 && i < retries - 1) {
             await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+            continue;
           }
+          return response;
+        } catch (error) {
+          if (i === retries - 1) throw error;
+          await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
         }
       }
+    }
 
-      // State
-      let fileQueue = [];
-      let isUploading = false;
-      let uploadStats = { total: 0, complete: 0, errors: 0, uploading: 0 };
-      let uploadStartTime = null;
-      let totalBytesUploaded = 0;
+    // State
+    let fileQueue = [];
+    let isUploading = false;
+    let uploadStats = { total: 0, complete: 0, errors: 0, uploading: 0 };
+    let uploadStartTime = null;
+    let totalBytesUploaded = 0;
 
-      // Concurrent upload settings
-      const MAX_CONCURRENT = 4; // Max parallel uploads
-      const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks for large files
+    // Concurrent upload settings
+    const MAX_CONCURRENT = 4; // Max parallel uploads
+    const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks for large files
 
-      // DOM Elements
-      const uploadZone = document.getElementById("uploadZone");
-      const fileInput = document.getElementById("fileInput");
-      const queueList = document.getElementById("queueList");
-      const queueCount = document.getElementById("queueCount");
-      const btnUpload = document.getElementById("btnUpload");
-      const btnClear = document.getElementById("btnClear");
-      const globalProgress = document.getElementById("globalProgress");
+    // DOM Elements
+    const uploadZone = document.getElementById("uploadZone");
+    const fileInput = document.getElementById("fileInput");
+    const queueList = document.getElementById("queueList");
+    const queueCount = document.getElementById("queueCount");
+    const btnUpload = document.getElementById("btnUpload");
+    const btnClear = document.getElementById("btnClear");
+    const globalProgress = document.getElementById("globalProgress");
 
-      // Event Listeners
-      uploadZone.addEventListener(
-        "click",
-        () => !isUploading && fileInput.click(),
-      );
+    // Event Listeners
+    uploadZone.addEventListener(
+      "click",
+      () => !isUploading && fileInput.click(),
+    );
 
-      uploadZone.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        if (!isUploading) uploadZone.classList.add("dragover");
-      });
+    uploadZone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      if (!isUploading) uploadZone.classList.add("dragover");
+    });
 
-      uploadZone.addEventListener("dragleave", () => {
-        uploadZone.classList.remove("dragover");
-      });
+    uploadZone.addEventListener("dragleave", () => {
+      uploadZone.classList.remove("dragover");
+    });
 
-      uploadZone.addEventListener("drop", (e) => {
-        e.preventDefault();
-        uploadZone.classList.remove("dragover");
-        if (!isUploading) addFiles(e.dataTransfer.files);
-      });
+    uploadZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      uploadZone.classList.remove("dragover");
+      if (!isUploading) addFiles(e.dataTransfer.files);
+    });
 
-      fileInput.addEventListener("change", (e) => {
-        addFiles(e.target.files);
-        fileInput.value = ""; // Reset so same files can be selected again
-      });
+    fileInput.addEventListener("change", (e) => {
+      addFiles(e.target.files);
+      fileInput.value = ""; // Reset so same files can be selected again
+    });
 
-      // Add files to queue
-      function addFiles(files) {
-        const newFiles = Array.from(files).map((file) => ({
-          id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          file: file,
-          name: file.name,
-          size: file.size,
-          type: getFileType(file.name),
-          status: "queued",
-          progress: 0,
-          error: null,
-        }));
+    // Add files to queue
+    function addFiles(files) {
+      const newFiles = Array.from(files).map((file) => ({
+        id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        file: file,
+        name: file.name,
+        size: file.size,
+        type: getFileType(file.name),
+        status: "queued",
+        progress: 0,
+        error: null,
+      }));
 
-        fileQueue.push(...newFiles);
-        updateStats();
-        renderQueue();
-      }
+      fileQueue.push(...newFiles);
+      updateStats();
+      renderQueue();
+    }
 
-      function getFileType(filename) {
-        const ext = filename.split(".").pop().toLowerCase();
-        return ext;
-      }
+    function getFileType(filename) {
+      const ext = filename.split(".").pop().toLowerCase();
+      return ext;
+    }
 
-      function getFileIconClass(type) {
-        const typeMap = {
-          pst: "pst",
-          eml: "eml",
-          msg: "msg",
-          pdf: "pdf",
-          doc: "doc",
-          docx: "doc",
-          xls: "xls",
-          xlsx: "xls",
-          csv: "xls",
-        };
-        return typeMap[type] || "default";
-      }
+    function getFileIconClass(type) {
+      const typeMap = {
+        pst: "pst",
+        eml: "eml",
+        msg: "msg",
+        pdf: "pdf",
+        doc: "doc",
+        docx: "doc",
+        xls: "xls",
+        xlsx: "xls",
+        csv: "xls",
+      };
+      return typeMap[type] || "default";
+    }
 
-      function getFileIcon(type) {
-        const iconMap = {
-          pst: "fa-envelope",
-          eml: "fa-envelope-open",
-          msg: "fa-envelope",
-          pdf: "fa-file-pdf",
-          doc: "fa-file-word",
-          docx: "fa-file-word",
-          xls: "fa-file-excel",
-          xlsx: "fa-file-excel",
-          csv: "fa-file-csv",
-          txt: "fa-file-alt",
-          zip: "fa-file-archive",
-        };
-        return iconMap[type] || "fa-file";
-      }
+    function getFileIcon(type) {
+      const iconMap = {
+        pst: "fa-envelope",
+        eml: "fa-envelope-open",
+        msg: "fa-envelope",
+        pdf: "fa-file-pdf",
+        doc: "fa-file-word",
+        docx: "fa-file-word",
+        xls: "fa-file-excel",
+        xlsx: "fa-file-excel",
+        csv: "fa-file-csv",
+        txt: "fa-file-alt",
+        zip: "fa-file-archive",
+      };
+      return iconMap[type] || "fa-file";
+    }
 
-      function formatSize(bytes) {
-        if (bytes === 0) return "0 B";
-        const k = 1024;
-        const sizes = ["B", "KB", "MB", "GB"];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-      }
+    function formatSize(bytes) {
+      if (bytes === 0) return "0 B";
+      const k = 1024;
+      const sizes = ["B", "KB", "MB", "GB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+    }
 
-      function updateStats() {
-        uploadStats.total = fileQueue.length;
-        uploadStats.complete = fileQueue.filter(
-          (f) => f.status === "complete",
-        ).length;
-        uploadStats.errors = fileQueue.filter(
-          (f) => f.status === "error",
-        ).length;
-        uploadStats.uploading = fileQueue.filter(
-          (f) => f.status === "uploading" || f.status === "processing",
-        ).length;
+    function updateStats() {
+      uploadStats.total = fileQueue.length;
+      uploadStats.complete = fileQueue.filter(
+        (f) => f.status === "complete",
+      ).length;
+      uploadStats.errors = fileQueue.filter(
+        (f) => f.status === "error",
+      ).length;
+      uploadStats.uploading = fileQueue.filter(
+        (f) => f.status === "uploading" || f.status === "processing",
+      ).length;
 
-        document.getElementById("statTotal").textContent = uploadStats.total;
-        document.getElementById("statComplete").textContent =
+      document.getElementById("statTotal").textContent = uploadStats.total;
+      document.getElementById("statComplete").textContent =
+        uploadStats.complete;
+      document.getElementById("statProcessing").textContent =
+        uploadStats.uploading;
+      document.getElementById("statErrors").textContent = uploadStats.errors;
+
+      queueCount.textContent = `(${uploadStats.total})`;
+
+      const hasFiles = fileQueue.length > 0;
+      const hasPending = fileQueue.some((f) => f.status === "queued");
+      btnUpload.disabled = !hasFiles || isUploading || !hasPending;
+      btnClear.disabled = isUploading;
+
+      // Update global progress
+      if (isUploading) {
+        document.getElementById("gpComplete").textContent =
           uploadStats.complete;
-        document.getElementById("statProcessing").textContent =
-          uploadStats.uploading;
-        document.getElementById("statErrors").textContent = uploadStats.errors;
+        document.getElementById("gpTotal").textContent = uploadStats.total;
+        const pct =
+          uploadStats.total > 0
+            ? (uploadStats.complete / uploadStats.total) * 100
+            : 0;
+        document.getElementById("gpFill").style.width = `${pct}%`;
 
-        queueCount.textContent = `(${uploadStats.total})`;
-
-        const hasFiles = fileQueue.length > 0;
-        const hasPending = fileQueue.some((f) => f.status === "queued");
-        btnUpload.disabled = !hasFiles || isUploading || !hasPending;
-        btnClear.disabled = isUploading;
-
-        // Update global progress
-        if (isUploading) {
-          document.getElementById("gpComplete").textContent =
-            uploadStats.complete;
-          document.getElementById("gpTotal").textContent = uploadStats.total;
-          const pct =
-            uploadStats.total > 0
-              ? (uploadStats.complete / uploadStats.total) * 100
-              : 0;
-          document.getElementById("gpFill").style.width = `${pct}%`;
-
-          // Calculate speed
-          if (uploadStartTime && totalBytesUploaded > 0) {
-            const elapsed = (Date.now() - uploadStartTime) / 1000;
-            const speed = totalBytesUploaded / elapsed;
-            document.getElementById("gpSpeed").textContent =
-              `${formatSize(speed)}/s`;
-          }
+        // Calculate speed
+        if (uploadStartTime && totalBytesUploaded > 0) {
+          const elapsed = (Date.now() - uploadStartTime) / 1000;
+          const speed = totalBytesUploaded / elapsed;
+          document.getElementById("gpSpeed").textContent =
+            `${formatSize(speed)}/s`;
         }
       }
+    }
 
-      function renderQueue() {
-        if (fileQueue.length === 0) {
-          queueList.innerHTML = `
+    function renderQueue() {
+      if (fileQueue.length === 0) {
+        queueList.innerHTML = `
                     <div class="queue-empty">
                         <i class="fas fa-inbox"></i>
                         <p>No files in queue</p>
                         <p style="font-size: 12px; margin-top: 8px;">Drop files or click above to add</p>
                     </div>
                 `;
-          return;
-        }
+        return;
+      }
 
-        queueList.innerHTML = fileQueue
-          .map(
-            (item) => `
+      queueList.innerHTML = fileQueue
+        .map(
+          (item) => `
                 <div class="file-item ${item.status}" id="${item.id}">
                     <div class="file-icon ${getFileIconClass(item.type)}">
                         <i class="fas ${getFileIcon(item.type)}"></i>
@@ -1144,167 +1128,403 @@
                     <span class="file-status status-${item.status}">
                         ${getStatusText(item.status)}
                     </span>
-                    ${
-                      item.status === "queued"
-                        ? `
+                    ${item.status === "queued"
+              ? `
                         <button class="file-remove" onclick="removeFile('${item.id}')" title="Remove">
                             <i class="fas fa-times"></i>
                         </button>
                     `
-                        : ""
-                    }
+              : ""
+            }
                 </div>
             `,
-          )
-          .join("");
+        )
+        .join("");
+    }
+
+    function getStatusText(status) {
+      const texts = {
+        queued: "Queued",
+        uploading: "Uploading",
+        processing: "Processing",
+        complete: "Complete",
+        error: "Failed",
+      };
+      return texts[status] || status;
+    }
+
+    function removeFile(id) {
+      fileQueue = fileQueue.filter((f) => f.id !== id);
+      updateStats();
+      renderQueue();
+    }
+
+    function clearQueue() {
+      if (isUploading) return;
+      fileQueue = [];
+      updateStats();
+      renderQueue();
+    }
+
+    function updateFileItem(id, updates) {
+      const item = fileQueue.find((f) => f.id === id);
+      if (item) {
+        Object.assign(item, updates);
+        updateStats();
+
+        // Update DOM directly for performance
+        const el = document.getElementById(id);
+        if (el) {
+          el.className = `file-item ${item.status}`;
+          const progressFill = el.querySelector(".progress-fill");
+          const progressText = el.querySelector(".progress-text");
+          const statusEl = el.querySelector(".file-status");
+
+          if (progressFill) {
+            progressFill.style.width = `${item.progress}%`;
+            progressFill.className = `progress-fill ${item.status === "complete" ? "complete" : ""} ${item.status === "error" ? "error" : ""}`;
+          }
+          if (progressText) progressText.textContent = `${item.progress}%`;
+          if (statusEl) {
+            statusEl.className = `file-status status-${item.status}`;
+            statusEl.textContent = getStatusText(item.status);
+          }
+        }
+      }
+    }
+
+    // Main upload orchestrator
+    async function startUpload() {
+      if (isUploading) return;
+
+      isUploading = true;
+      uploadStartTime = Date.now();
+      totalBytesUploaded = 0;
+
+      uploadZone.classList.add("uploading");
+      globalProgress.classList.add("active");
+      updateStats();
+
+      const pendingFiles = fileQueue.filter((f) => f.status === "queued");
+
+      // Group files by type for optimal upload strategy
+      const pstFiles = pendingFiles.filter((f) => f.type === "pst");
+      const emailFiles = pendingFiles.filter((f) =>
+        ["eml", "msg"].includes(f.type),
+      );
+      const otherFiles = pendingFiles.filter(
+        (f) => !["pst", "eml", "msg"].includes(f.type),
+      );
+
+      try {
+        // Upload PST files with controlled concurrency (1 at a time due to size)
+        for (const item of pstFiles) {
+          await uploadPSTFile(item);
+        }
+
+        // Bulk upload email files in batches
+        if (emailFiles.length > 0) {
+          await uploadEmailsBulk(emailFiles);
+        }
+
+        // Upload other files with concurrency
+        await uploadWithConcurrency(otherFiles, MAX_CONCURRENT);
+      } catch (error) {
+        console.error("Upload error:", error);
       }
 
-      function getStatusText(status) {
-        const texts = {
-          queued: "Queued",
-          uploading: "Uploading",
-          processing: "Processing",
-          complete: "Complete",
-          error: "Failed",
+      isUploading = false;
+      uploadZone.classList.remove("uploading");
+
+      // Show completion
+      setTimeout(() => {
+        globalProgress.classList.remove("active");
+        loadPSTHistory();
+
+        if (uploadStats.complete > 0) {
+          if (uploadStats.errors > 0) {
+            alert(
+              `Upload complete: ${uploadStats.complete} succeeded, ${uploadStats.errors} failed.`,
+            );
+          } else {
+            alert(`All ${uploadStats.complete} files uploaded successfully!`);
+          }
+        }
+      }, 1500);
+    }
+
+    // Concurrent upload helper
+    async function uploadWithConcurrency(items, maxConcurrent) {
+      const executing = new Set();
+
+      for (const item of items) {
+        const promise = uploadRegularFile(item).finally(() =>
+          executing.delete(promise),
+        );
+        executing.add(promise);
+
+        if (executing.size >= maxConcurrent) {
+          await Promise.race(executing);
+        }
+      }
+
+      await Promise.all(executing);
+    }
+
+    // Upload PST file with progress
+    async function uploadPSTFile(item) {
+      updateFileItem(item.id, { status: "uploading", progress: 0 });
+
+      try {
+        // Use server-side upload for all PST files (more reliable than direct S3)
+        await uploadPSTViaServer(item);
+
+        updateFileItem(item.id, { status: "complete", progress: 100 });
+        totalBytesUploaded += item.size;
+      } catch (error) {
+        console.error(`PST upload error for ${item.name}:`, error);
+        updateFileItem(item.id, { status: "error", error: error.message });
+      }
+    }
+
+    async function uploadPSTViaServer(item) {
+      const formData = new FormData();
+      formData.append("file", item.file);
+
+      if (VeriCaseApp.projectId) {
+        formData.append("project_id", VeriCaseApp.projectId);
+      } else if (VeriCaseApp.caseId) {
+        formData.append("case_id", VeriCaseApp.caseId);
+      } else {
+        // Fallback or error handling
+        console.warn("No project or case ID found for upload");
+      }
+
+      // Use XMLHttpRequest for progress tracking
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `${apiUrl}/api/correspondence/pst/upload`, true);
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 95);
+            updateFileItem(item.id, { progress: pct });
+          }
         };
-        return texts[status] || status;
-      }
 
-      function removeFile(id) {
-        fileQueue = fileQueue.filter((f) => f.id !== id);
-        updateStats();
-        renderQueue();
-      }
-
-      function clearQueue() {
-        if (isUploading) return;
-        fileQueue = [];
-        updateStats();
-        renderQueue();
-      }
-
-      function updateFileItem(id, updates) {
-        const item = fileQueue.find((f) => f.id === id);
-        if (item) {
-          Object.assign(item, updates);
-          updateStats();
-
-          // Update DOM directly for performance
-          const el = document.getElementById(id);
-          if (el) {
-            el.className = `file-item ${item.status}`;
-            const progressFill = el.querySelector(".progress-fill");
-            const progressText = el.querySelector(".progress-text");
-            const statusEl = el.querySelector(".file-status");
-
-            if (progressFill) {
-              progressFill.style.width = `${item.progress}%`;
-              progressFill.className = `progress-fill ${item.status === "complete" ? "complete" : ""} ${item.status === "error" ? "error" : ""}`;
-            }
-            if (progressText) progressText.textContent = `${item.progress}%`;
-            if (statusEl) {
-              statusEl.className = `file-status status-${item.status}`;
-              statusEl.textContent = getStatusText(item.status);
-            }
+        xhr.onload = () => {
+          if (xhr.status < 400) {
+            updateFileItem(item.id, { status: "processing", progress: 98 });
+            resolve();
+          } else {
+            reject(new Error(`Upload failed: ${xhr.status}`));
           }
-        }
+        };
+
+        xhr.onerror = () => reject(new Error("Network error"));
+        xhr.send(formData);
+      });
+    }
+
+    async function uploadPSTDirect(item) {
+      // Initialize upload
+      const initBody = {
+        filename: item.name,
+        file_size: item.size,
+      };
+
+      if (VeriCaseApp.projectId) {
+        initBody.project_id = VeriCaseApp.projectId;
+      } else if (VeriCaseApp.caseId) {
+        initBody.case_id = VeriCaseApp.caseId;
       }
 
-      // Main upload orchestrator
-      async function startUpload() {
-        if (isUploading) return;
+      const initResp = await fetch(
+        `${apiUrl}/api/correspondence/pst/upload/init`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(initBody),
+        },
+      );
 
-        isUploading = true;
-        uploadStartTime = Date.now();
-        totalBytesUploaded = 0;
+      if (!initResp.ok) throw new Error("Failed to initialize upload");
 
-        uploadZone.classList.add("uploading");
-        globalProgress.classList.add("active");
-        updateStats();
+      const { pst_file_id, upload_url } = await initResp.json();
 
-        const pendingFiles = fileQueue.filter((f) => f.status === "queued");
+      // Upload with progress
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", upload_url, true);
+        xhr.setRequestHeader("Content-Type", "application/vnd.ms-outlook");
 
-        // Group files by type for optimal upload strategy
-        const pstFiles = pendingFiles.filter((f) => f.type === "pst");
-        const emailFiles = pendingFiles.filter((f) =>
-          ["eml", "msg"].includes(f.type),
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 90); // 90% for upload
+            updateFileItem(item.id, { progress: pct });
+          }
+        };
+
+        xhr.onload = () =>
+          xhr.status < 400
+            ? resolve()
+            : reject(new Error(`Upload failed: ${xhr.status}`));
+        xhr.onerror = () => reject(new Error("Network error"));
+        xhr.send(item.file);
+      });
+
+      updateFileItem(item.id, { status: "processing", progress: 95 });
+
+      // Start processing
+      await fetch(`${apiUrl}/api/correspondence/pst/${pst_file_id}/process`, {
+        method: "POST",
+      });
+    }
+
+    async function uploadPSTMultipart(item) {
+      const initBody = {
+        filename: item.name,
+        file_size: item.size,
+        content_type: "application/vnd.ms-outlook",
+      };
+
+      if (VeriCaseApp.projectId) initBody.project_id = VeriCaseApp.projectId;
+      else if (VeriCaseApp.caseId) initBody.case_id = VeriCaseApp.caseId;
+
+      const initResp = await fetch(
+        `${apiUrl}/api/correspondence/pst/upload/multipart/init`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(initBody),
+        },
+      );
+
+      if (!initResp.ok)
+        throw new Error("Failed to initialize multipart upload");
+
+      const { pst_file_id, upload_id, chunk_size } = await initResp.json();
+      const actualChunkSize = chunk_size || CHUNK_SIZE;
+      const totalChunks = Math.ceil(item.size / actualChunkSize);
+      const parts = [];
+
+      for (let partNumber = 1; partNumber <= totalChunks; partNumber++) {
+        const start = (partNumber - 1) * actualChunkSize;
+        const end = Math.min(start + actualChunkSize, item.size);
+        const chunk = item.file.slice(start, end);
+
+        const partUrlResp = await fetch(
+          `${apiUrl}/api/correspondence/pst/upload/multipart/part?pst_file_id=${pst_file_id}&upload_id=${encodeURIComponent(upload_id)}&part_number=${partNumber}`,
         );
-        const otherFiles = pendingFiles.filter(
-          (f) => !["pst", "eml", "msg"].includes(f.type),
+
+        if (!partUrlResp.ok)
+          throw new Error(`Failed to get URL for part ${partNumber}`);
+
+        const { url } = await partUrlResp.json();
+
+        const uploadResp = await fetchWithRetry(
+          url,
+          {
+            method: "PUT",
+            body: chunk,
+            headers: { "Content-Type": "application/octet-stream" },
+          },
+          3,
         );
 
-        try {
-          // Upload PST files with controlled concurrency (1 at a time due to size)
-          for (const item of pstFiles) {
-            await uploadPSTFile(item);
-          }
+        if (!uploadResp.ok)
+          throw new Error(`Failed to upload part ${partNumber}`);
 
-          // Bulk upload email files in batches
-          if (emailFiles.length > 0) {
-            await uploadEmailsBulk(emailFiles);
-          }
+        const etag = uploadResp.headers.get("ETag") || `part${partNumber}`;
+        parts.push({ ETag: etag.replace(/"/g, ""), PartNumber: partNumber });
 
-          // Upload other files with concurrency
-          await uploadWithConcurrency(otherFiles, MAX_CONCURRENT);
-        } catch (error) {
-          console.error("Upload error:", error);
-        }
-
-        isUploading = false;
-        uploadZone.classList.remove("uploading");
-
-        // Show completion
-        setTimeout(() => {
-          globalProgress.classList.remove("active");
-          loadPSTHistory();
-
-          if (uploadStats.complete > 0) {
-            if (uploadStats.errors > 0) {
-              alert(
-                `Upload complete: ${uploadStats.complete} succeeded, ${uploadStats.errors} failed.`,
-              );
-            } else {
-              alert(`All ${uploadStats.complete} files uploaded successfully!`);
-            }
-          }
-        }, 1500);
+        const pct = Math.round((partNumber / totalChunks) * 85);
+        updateFileItem(item.id, { progress: pct });
       }
 
-      // Concurrent upload helper
-      async function uploadWithConcurrency(items, maxConcurrent) {
-        const executing = new Set();
+      // Complete multipart
+      const completeResp = await fetch(
+        `${apiUrl}/api/correspondence/pst/upload/multipart/complete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pst_file_id, upload_id, parts }),
+        },
+      );
 
-        for (const item of items) {
-          const promise = uploadRegularFile(item).finally(() =>
-            executing.delete(promise),
-          );
-          executing.add(promise);
+      if (!completeResp.ok)
+        throw new Error("Failed to complete multipart upload");
 
-          if (executing.size >= maxConcurrent) {
-            await Promise.race(executing);
+      updateFileItem(item.id, { status: "processing", progress: 95 });
+
+      await fetch(`${apiUrl}/api/correspondence/pst/${pst_file_id}/process`, {
+        method: "POST",
+      });
+    }
+
+    // Bulk email upload
+    async function uploadEmailsBulk(items) {
+      // Update all to uploading
+      items.forEach((item) =>
+        updateFileItem(item.id, { status: "uploading", progress: 10 }),
+      );
+
+      try {
+        const formData = new FormData();
+
+        if (VeriCaseApp.projectId) {
+          formData.append("profileId", VeriCaseApp.projectId);
+          formData.append("profileType", "project");
+        } else if (VeriCaseApp.caseId) {
+          formData.append("profileId", VeriCaseApp.caseId);
+          formData.append("profileType", "case");
+        } else {
+          formData.append("profileType", "project");
+        }
+
+        items.forEach((item) => formData.append("files", item.file));
+
+        // Update progress during upload
+        items.forEach((item) => updateFileItem(item.id, { progress: 50 }));
+
+        const response = await fetch(`${apiUrl}/api/evidence/upload-bulk`, {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok)
+          throw new Error(`Bulk upload failed: ${response.status}`);
+
+        const result = await response.json();
+
+        // Update individual statuses
+        items.forEach((item) => {
+          const hadError = result.errors?.some((e) => e.file === item.name);
+          if (hadError) {
+            const err = result.errors.find((e) => e.file === item.name);
+            updateFileItem(item.id, {
+              status: "error",
+              error: err?.error || "Failed",
+              progress: 100,
+            });
+          } else {
+            updateFileItem(item.id, { status: "complete", progress: 100 });
+            totalBytesUploaded += item.size;
           }
-        }
-
-        await Promise.all(executing);
+        });
+      } catch (error) {
+        console.error("Bulk upload error:", error);
+        items.forEach((item) =>
+          updateFileItem(item.id, { status: "error", error: error.message }),
+        );
       }
+    }
 
-      // Upload PST file with progress
-      async function uploadPSTFile(item) {
-        updateFileItem(item.id, { status: "uploading", progress: 0 });
+    // Regular file upload
+    async function uploadRegularFile(item) {
+      updateFileItem(item.id, { status: "uploading", progress: 0 });
 
-        try {
-          // Use server-side upload for all PST files (more reliable than direct S3)
-          await uploadPSTViaServer(item);
-
-          updateFileItem(item.id, { status: "complete", progress: 100 });
-          totalBytesUploaded += item.size;
-        } catch (error) {
-          console.error(`PST upload error for ${item.name}:`, error);
-          updateFileItem(item.id, { status: "error", error: error.message });
-        }
-      }
-
-      async function uploadPSTViaServer(item) {
+      try {
         const formData = new FormData();
         formData.append("file", item.file);
 
@@ -1318,321 +1538,83 @@
           formData.append("profileType", "project");
         }
 
-        // Use XMLHttpRequest for progress tracking
+        // Use XMLHttpRequest for progress
         await new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.open("POST", `${apiUrl}/api/evidence/upload`, true);
 
           xhr.upload.onprogress = (e) => {
             if (e.lengthComputable) {
-              const pct = Math.round((e.loaded / e.total) * 95);
+              const pct = Math.round((e.loaded / e.total) * 100);
               updateFileItem(item.id, { progress: pct });
             }
           };
 
           xhr.onload = () => {
-            if (xhr.status < 400) {
-              updateFileItem(item.id, { status: "processing", progress: 98 });
-              resolve();
-            } else {
-              reject(new Error(`Upload failed: ${xhr.status}`));
-            }
+            if (xhr.status < 400) resolve();
+            else reject(new Error(`Upload failed: ${xhr.status}`));
           };
 
           xhr.onerror = () => reject(new Error("Network error"));
           xhr.send(formData);
         });
+
+        updateFileItem(item.id, { status: "complete", progress: 100 });
+        totalBytesUploaded += item.size;
+      } catch (error) {
+        console.error(`Upload error for ${item.name}:`, error);
+        updateFileItem(item.id, { status: "error", error: error.message });
       }
+    }
 
-      async function uploadPSTDirect(item) {
-        // Initialize upload
-        const initBody = {
-          filename: item.name,
-          file_size: item.size,
-        };
-
-        if (VeriCaseApp.projectId) {
-          initBody.project_id = VeriCaseApp.projectId;
-        } else if (VeriCaseApp.caseId) {
-          initBody.case_id = VeriCaseApp.caseId;
-        }
-
-        const initResp = await fetch(
-          `${apiUrl}/api/correspondence/pst/upload/init`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(initBody),
-          },
-        );
-
-        if (!initResp.ok) throw new Error("Failed to initialize upload");
-
-        const { pst_file_id, upload_url } = await initResp.json();
-
-        // Upload with progress
-        await new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open("PUT", upload_url, true);
-          xhr.setRequestHeader("Content-Type", "application/vnd.ms-outlook");
-
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-              const pct = Math.round((e.loaded / e.total) * 90); // 90% for upload
-              updateFileItem(item.id, { progress: pct });
-            }
-          };
-
-          xhr.onload = () =>
-            xhr.status < 400
-              ? resolve()
-              : reject(new Error(`Upload failed: ${xhr.status}`));
-          xhr.onerror = () => reject(new Error("Network error"));
-          xhr.send(item.file);
-        });
-
-        updateFileItem(item.id, { status: "processing", progress: 95 });
-
-        // Start processing
-        await fetch(`${apiUrl}/api/correspondence/pst/${pst_file_id}/process`, {
-          method: "POST",
-        });
-      }
-
-      async function uploadPSTMultipart(item) {
-        const initBody = {
-          filename: item.name,
-          file_size: item.size,
-          content_type: "application/vnd.ms-outlook",
-        };
-
-        if (VeriCaseApp.projectId) initBody.project_id = VeriCaseApp.projectId;
-        else if (VeriCaseApp.caseId) initBody.case_id = VeriCaseApp.caseId;
-
-        const initResp = await fetch(
-          `${apiUrl}/api/correspondence/pst/upload/multipart/init`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(initBody),
-          },
-        );
-
-        if (!initResp.ok)
-          throw new Error("Failed to initialize multipart upload");
-
-        const { pst_file_id, upload_id, chunk_size } = await initResp.json();
-        const actualChunkSize = chunk_size || CHUNK_SIZE;
-        const totalChunks = Math.ceil(item.size / actualChunkSize);
-        const parts = [];
-
-        for (let partNumber = 1; partNumber <= totalChunks; partNumber++) {
-          const start = (partNumber - 1) * actualChunkSize;
-          const end = Math.min(start + actualChunkSize, item.size);
-          const chunk = item.file.slice(start, end);
-
-          const partUrlResp = await fetch(
-            `${apiUrl}/api/correspondence/pst/upload/multipart/part?pst_file_id=${pst_file_id}&upload_id=${encodeURIComponent(upload_id)}&part_number=${partNumber}`,
-          );
-
-          if (!partUrlResp.ok)
-            throw new Error(`Failed to get URL for part ${partNumber}`);
-
-          const { url } = await partUrlResp.json();
-
-          const uploadResp = await fetchWithRetry(
-            url,
-            {
-              method: "PUT",
-              body: chunk,
-              headers: { "Content-Type": "application/octet-stream" },
-            },
-            3,
-          );
-
-          if (!uploadResp.ok)
-            throw new Error(`Failed to upload part ${partNumber}`);
-
-          const etag = uploadResp.headers.get("ETag") || `part${partNumber}`;
-          parts.push({ ETag: etag.replace(/"/g, ""), PartNumber: partNumber });
-
-          const pct = Math.round((partNumber / totalChunks) * 85);
-          updateFileItem(item.id, { progress: pct });
-        }
-
-        // Complete multipart
-        const completeResp = await fetch(
-          `${apiUrl}/api/correspondence/pst/upload/multipart/complete`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ pst_file_id, upload_id, parts }),
-          },
-        );
-
-        if (!completeResp.ok)
-          throw new Error("Failed to complete multipart upload");
-
-        updateFileItem(item.id, { status: "processing", progress: 95 });
-
-        await fetch(`${apiUrl}/api/correspondence/pst/${pst_file_id}/process`, {
-          method: "POST",
-        });
-      }
-
-      // Bulk email upload
-      async function uploadEmailsBulk(items) {
-        // Update all to uploading
-        items.forEach((item) =>
-          updateFileItem(item.id, { status: "uploading", progress: 10 }),
-        );
-
-        try {
-          const formData = new FormData();
-
-          if (VeriCaseApp.projectId) {
-            formData.append("profileId", VeriCaseApp.projectId);
-            formData.append("profileType", "project");
-          } else if (VeriCaseApp.caseId) {
-            formData.append("profileId", VeriCaseApp.caseId);
-            formData.append("profileType", "case");
-          } else {
-            formData.append("profileType", "project");
-          }
-
-          items.forEach((item) => formData.append("files", item.file));
-
-          // Update progress during upload
-          items.forEach((item) => updateFileItem(item.id, { progress: 50 }));
-
-          const response = await fetch(`${apiUrl}/api/evidence/upload-bulk`, {
-            method: "POST",
-            body: formData,
-          });
-
-          if (!response.ok)
-            throw new Error(`Bulk upload failed: ${response.status}`);
-
-          const result = await response.json();
-
-          // Update individual statuses
-          items.forEach((item) => {
-            const hadError = result.errors?.some((e) => e.file === item.name);
-            if (hadError) {
-              const err = result.errors.find((e) => e.file === item.name);
-              updateFileItem(item.id, {
-                status: "error",
-                error: err?.error || "Failed",
-                progress: 100,
-              });
-            } else {
-              updateFileItem(item.id, { status: "complete", progress: 100 });
-              totalBytesUploaded += item.size;
-            }
-          });
-        } catch (error) {
-          console.error("Bulk upload error:", error);
-          items.forEach((item) =>
-            updateFileItem(item.id, { status: "error", error: error.message }),
-          );
-        }
-      }
-
-      // Regular file upload
-      async function uploadRegularFile(item) {
-        updateFileItem(item.id, { status: "uploading", progress: 0 });
-
-        try {
-          const formData = new FormData();
-          formData.append("file", item.file);
-
-          if (VeriCaseApp.projectId) {
-            formData.append("profileId", VeriCaseApp.projectId);
-            formData.append("profileType", "project");
-          } else if (VeriCaseApp.caseId) {
-            formData.append("profileId", VeriCaseApp.caseId);
-            formData.append("profileType", "case");
-          } else {
-            formData.append("profileType", "project");
-          }
-
-          // Use XMLHttpRequest for progress
-          await new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open("POST", `${apiUrl}/api/evidence/upload`, true);
-
-            xhr.upload.onprogress = (e) => {
-              if (e.lengthComputable) {
-                const pct = Math.round((e.loaded / e.total) * 100);
-                updateFileItem(item.id, { progress: pct });
-              }
-            };
-
-            xhr.onload = () => {
-              if (xhr.status < 400) resolve();
-              else reject(new Error(`Upload failed: ${xhr.status}`));
-            };
-
-            xhr.onerror = () => reject(new Error("Network error"));
-            xhr.send(formData);
-          });
-
-          updateFileItem(item.id, { status: "complete", progress: 100 });
-          totalBytesUploaded += item.size;
-        } catch (error) {
-          console.error(`Upload error for ${item.name}:`, error);
-          updateFileItem(item.id, { status: "error", error: error.message });
-        }
-      }
-
-      // History
-      async function loadPSTHistory() {
-        const historyContent = document.getElementById("historyContent");
-        historyContent.innerHTML = `
+    // History
+    async function loadPSTHistory() {
+      const historyContent = document.getElementById("historyContent");
+      historyContent.innerHTML = `
                 <div class="no-history">
                     <i class="fas fa-spinner fa-spin"></i>
                     <p>Loading history...</p>
                 </div>
             `;
 
-        try {
-          const params = new URLSearchParams();
-          if (VeriCaseApp.projectId)
-            params.append("project_id", VeriCaseApp.projectId);
-          params.append("page_size", "20");
+      try {
+        const params = new URLSearchParams();
+        if (VeriCaseApp.projectId)
+          params.append("project_id", VeriCaseApp.projectId);
+        params.append("page_size", "20");
 
-          const response = await fetch(
-            `${apiUrl}/api/correspondence/pst/files?${params}`,
-          );
-          if (!response.ok) throw new Error("Failed to load history");
+        const response = await fetch(
+          `${apiUrl}/api/correspondence/pst/files?${params}`,
+        );
+        if (!response.ok) throw new Error("Failed to load history");
 
-          const data = await response.json();
-          displayHistory(data);
-        } catch (error) {
-          console.error("Error loading history:", error);
-          historyContent.innerHTML = `
+        const data = await response.json();
+        displayHistory(data);
+      } catch (error) {
+        console.error("Error loading history:", error);
+        historyContent.innerHTML = `
                     <div class="no-history">
                         <i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i>
                         <p>Failed to load upload history</p>
                     </div>
                 `;
-        }
       }
+    }
 
-      function displayHistory(data) {
-        const historyContent = document.getElementById("historyContent");
+    function displayHistory(data) {
+      const historyContent = document.getElementById("historyContent");
 
-        if (!data.items || data.items.length === 0) {
-          historyContent.innerHTML = `
+      if (!data.items || data.items.length === 0) {
+        historyContent.innerHTML = `
                     <div class="no-history">
                         <i class="fas fa-inbox"></i>
                         <p>No uploads yet</p>
                     </div>
                 `;
-          return;
-        }
+        return;
+      }
 
-        historyContent.innerHTML = `
+      historyContent.innerHTML = `
                 <table class="history-table">
                     <thead>
                         <tr>
@@ -1646,8 +1628,8 @@
                     </thead>
                     <tbody>
                         ${data.items
-                          .map(
-                            (pst) => `
+          .map(
+            (pst) => `
                             <tr>
                                 <td>
                                     <span class="history-filename">
@@ -1669,119 +1651,120 @@
                                 </td>
                             </tr>
                         `,
-                          )
-                          .join("")}
+          )
+          .join("")}
                     </tbody>
                 </table>
             `;
+    }
+
+    function getStatusBadge(status) {
+      const badges = {
+        pending:
+          '<span class="status-badge status-pending"><i class="fas fa-clock"></i> Pending</span>',
+        uploaded:
+          '<span class="status-badge status-pending"><i class="fas fa-cloud"></i> Uploaded</span>',
+        queued:
+          '<span class="status-badge status-pending"><i class="fas fa-list"></i> Queued</span>',
+        processing:
+          '<span class="status-badge status-processing"><i class="fas fa-spinner fa-spin"></i> Processing</span>',
+        completed:
+          '<span class="status-badge status-completed"><i class="fas fa-check"></i> Complete</span>',
+        failed:
+          '<span class="status-badge status-failed"><i class="fas fa-times"></i> Failed</span>',
+      };
+      return badges[status] || `<span class="status-badge">${status}</span>`;
+    }
+
+    function getActionButtons(pst) {
+      const buttons = [];
+
+      if (
+        pst.processing_status === "uploaded" ||
+        pst.processing_status === "pending"
+      ) {
+        buttons.push(
+          `<button class="btn-icon" onclick="processPST('${pst.id}')" title="Start Processing"><i class="fas fa-play"></i></button>`,
+        );
       }
 
-      function getStatusBadge(status) {
-        const badges = {
-          pending:
-            '<span class="status-badge status-pending"><i class="fas fa-clock"></i> Pending</span>',
-          uploaded:
-            '<span class="status-badge status-pending"><i class="fas fa-cloud"></i> Uploaded</span>',
-          queued:
-            '<span class="status-badge status-pending"><i class="fas fa-list"></i> Queued</span>',
-          processing:
-            '<span class="status-badge status-processing"><i class="fas fa-spinner fa-spin"></i> Processing</span>',
-          completed:
-            '<span class="status-badge status-completed"><i class="fas fa-check"></i> Complete</span>',
-          failed:
-            '<span class="status-badge status-failed"><i class="fas fa-times"></i> Failed</span>',
-        };
-        return badges[status] || `<span class="status-badge">${status}</span>`;
+      if (pst.processing_status === "processing") {
+        buttons.push(
+          `<button class="btn-icon" onclick="checkStatus('${pst.id}')" title="Check Status"><i class="fas fa-sync-alt"></i></button>`,
+        );
       }
 
-      function getActionButtons(pst) {
-        const buttons = [];
-
-        if (
-          pst.processing_status === "uploaded" ||
-          pst.processing_status === "pending"
-        ) {
-          buttons.push(
-            `<button class="btn-icon" onclick="processPST('${pst.id}')" title="Start Processing"><i class="fas fa-play"></i></button>`,
-          );
-        }
-
-        if (pst.processing_status === "processing") {
-          buttons.push(
-            `<button class="btn-icon" onclick="checkStatus('${pst.id}')" title="Check Status"><i class="fas fa-sync-alt"></i></button>`,
-          );
-        }
-
-        if (pst.processing_status === "completed" && pst.processed_emails > 0) {
-          buttons.push(
-            `<button class="btn-icon" onclick="viewEmails('${pst.project_id}')" title="View Emails"><i class="fas fa-envelope-open-text"></i></button>`,
-          );
-        }
-
-        return buttons.join("") || '<span style="color: #606080;">—</span>';
+      if (pst.processing_status === "completed" && pst.processed_emails > 0) {
+        buttons.push(
+          `<button class="btn-icon" onclick="viewEmails('${pst.project_id}')" title="View Emails"><i class="fas fa-envelope-open-text"></i></button>`,
+        );
       }
 
-      function formatDate(dateStr) {
-        if (!dateStr) return "—";
-        const date = new Date(dateStr);
-        return date.toLocaleDateString("en-GB", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-      }
+      return buttons.join("") || '<span style="color: #606080;">—</span>';
+    }
 
-      function escapeHtml(text) {
-        const div = document.createElement("div");
-        div.textContent = text;
-        return div.innerHTML;
-      }
-
-      async function processPST(pstFileId) {
-        try {
-          const response = await fetch(
-            `${apiUrl}/api/correspondence/pst/${pstFileId}/process`,
-            { method: "POST" },
-          );
-          if (!response.ok) throw new Error("Failed to start processing");
-          alert("Processing started!");
-          loadPSTHistory();
-        } catch (error) {
-          alert("Failed to start processing: " + error.message);
-        }
-      }
-
-      async function checkStatus(pstFileId) {
-        try {
-          const response = await fetch(
-            `${apiUrl}/api/correspondence/pst/${pstFileId}/status`,
-          );
-          if (!response.ok) throw new Error("Failed to get status");
-          const status = await response.json();
-          alert(
-            `Status: ${status.status}\nProgress: ${status.progress_percent}%\nProcessed: ${status.processed_emails}/${status.total_emails} emails`,
-          );
-          loadPSTHistory();
-        } catch (error) {
-          alert("Failed to get status: " + error.message);
-        }
-      }
-
-      function viewEmails(projectId) {
-        window.location.href = `correspondence-enterprise.html?projectId=${projectId}`;
-      }
-
-      function goToDashboard() {
-        VeriCaseApp.gotoDashboard();
-      }
-
-      // Initialize
-      VeriCaseApp.init().then(() => {
-        console.log("VeriCaseApp initialized:", VeriCaseApp.projectId);
-        loadPSTHistory();
+    function formatDate(dateStr) {
+      if (!dateStr) return "—";
+      const date = new Date(dateStr);
+      return date.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
       });
-    </script>
-  </body>
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    async function processPST(pstFileId) {
+      try {
+        const response = await fetch(
+          `${apiUrl}/api/correspondence/pst/${pstFileId}/process`,
+          { method: "POST" },
+        );
+        if (!response.ok) throw new Error("Failed to start processing");
+        alert("Processing started!");
+        loadPSTHistory();
+      } catch (error) {
+        alert("Failed to start processing: " + error.message);
+      }
+    }
+
+    async function checkStatus(pstFileId) {
+      try {
+        const response = await fetch(
+          `${apiUrl}/api/correspondence/pst/${pstFileId}/status`,
+        );
+        if (!response.ok) throw new Error("Failed to get status");
+        const status = await response.json();
+        alert(
+          `Status: ${status.status}\nProgress: ${status.progress_percent}%\nProcessed: ${status.processed_emails}/${status.total_emails} emails`,
+        );
+        loadPSTHistory();
+      } catch (error) {
+        alert("Failed to get status: " + error.message);
+      }
+    }
+
+    function viewEmails(projectId) {
+      window.location.href = `correspondence-enterprise.html?projectId=${projectId}`;
+    }
+
+    function goToDashboard() {
+      VeriCaseApp.gotoDashboard();
+    }
+
+    // Initialize
+    VeriCaseApp.init().then(() => {
+      console.log("VeriCaseApp initialized:", VeriCaseApp.projectId);
+      loadPSTHistory();
+    });
+  </script>
+</body>
+
 </html>

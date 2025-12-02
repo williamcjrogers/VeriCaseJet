@@ -495,6 +495,21 @@
   };
 
   // ============================================
+  // API CONFIGURATION
+  // ============================================
+
+  const API = {
+    baseUrl: window.VERICASE_API_URL || "",
+
+    getUrl(path) {
+      // Ensure path starts with /
+      const cleanPath = path.startsWith("/") ? path : `/${path}`;
+      // If baseUrl is set, prepend it. Otherwise use relative path.
+      return this.baseUrl ? `${this.baseUrl}${cleanPath}` : cleanPath;
+    },
+  };
+
+  // ============================================
   // INIT & EXPORT
   // ============================================
 
@@ -530,5 +545,6 @@
     Shortcuts,
     Confirm,
     ProjectContext,
+    API,
   };
 })();

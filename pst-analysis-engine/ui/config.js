@@ -16,7 +16,12 @@
         return window.location.protocol + "//localhost:8010";
       }
 
-      // AWS App Runner deployment
+      // Check for explicit API URL (e.g. from Amplify environment variables)
+      if (window.VERICASE_API_URL) {
+        return window.VERICASE_API_URL;
+      }
+
+      // AWS App Runner deployment (Monolith fallback)
       // The API is hosted on the same App Runner service, accessible via the same URL
       // App Runner handles both static files (UI) and API routes
       return window.location.origin;
