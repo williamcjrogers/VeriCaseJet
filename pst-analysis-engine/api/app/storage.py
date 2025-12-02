@@ -122,9 +122,11 @@ def s3(public: bool = False) -> S3ClientProtocol:
         )
 
     # Use IRSA for credentials (no explicit keys)
+    # Use S3_REGION if set, otherwise fall back to AWS_REGION
+    s3_region = getattr(settings, 'S3_REGION', None) or settings.AWS_REGION
     LOGGER.info(
         "[S3 DEBUG] Creating AWS S3 client with IRSA, region=%s, bucket=%s",
-        settings.AWS_REGION,
+        s3_region,
         settings.MINIO_BUCKET,
     )
     return cast(
@@ -132,7 +134,7 @@ def s3(public: bool = False) -> S3ClientProtocol:
         boto3.client(
             "s3",
             config=Config(signature_version="s3v4"),
-            region_name=settings.AWS_REGION,
+            region_name=s3_region,
         ),
     )
 

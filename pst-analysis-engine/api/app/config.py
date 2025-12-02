@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     )
     S3_ATTACHMENTS_BUCKET: str | None = None
     S3_PST_BUCKET: str | None = None
+    S3_REGION: str = "us-east-1"  # S3 bucket region (can differ from AWS_REGION)
     AWS_REGION: str = "us-east-1"
 
     # AWS Credentials (optional - for non-IRSA deployments)
