@@ -14,4 +14,4 @@ python -m app.reset_admin || echo "Warning: Could not reset admin user"
 
 echo "Starting Uvicorn..."
 # Use exec to replace shell with uvicorn process
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips '*'
