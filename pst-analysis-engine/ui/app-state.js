@@ -73,6 +73,13 @@ window.VeriCaseApp = {
    * Fetch a project by ID
    */
   async _fetchProject(projectId) {
+    // Validate UUID format to prevent 400 errors
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!projectId || !uuidRegex.test(projectId)) {
+      console.warn("[VeriCaseApp] Invalid project ID format:", projectId);
+      return null;
+    }
+
     try {
       const response = await fetch(`${this.apiBase}/projects/${projectId}`, {
         credentials: "include",
@@ -90,6 +97,13 @@ window.VeriCaseApp = {
    * Fetch a case by ID
    */
   async _fetchCase(caseId) {
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!caseId || !uuidRegex.test(caseId)) {
+      console.warn("[VeriCaseApp] Invalid case ID format:", caseId);
+      return null;
+    }
+
     try {
       const response = await fetch(`${this.apiBase}/cases/${caseId}`, {
         credentials: "include",

@@ -210,28 +210,7 @@ if os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_REGION") or os.getenv("USE_A
     # app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*.elb.amazonaws.com", "vericase.yourdomain.com", "localhost"])
 
 # Startup Event: Run Migrations
-@app.on_event("startup")
-async def run_migrations():
-    """Run Alembic migrations on startup to ensure DB schema is up to date."""
-    if os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_REGION") or os.getenv("USE_AWS_SERVICES") == "true":
-        try:
-            logger.info("Running database migrations...")
-            # Run alembic upgrade head
-            # We use subprocess because alembic is a CLI tool
-            # Ensure we are in the api directory where alembic.ini is likely located
-            cwd = Path(__file__).parent.parent
-            result = subprocess.run(
-                ["alembic", "upgrade", "head"], 
-                cwd=str(cwd),
-                capture_output=True,
-                text=True
-            )
-            if result.returncode == 0:
-                logger.info("Database migrations completed successfully.")
-            else:
-                logger.error(f"Database migrations failed: {result.stderr}")
-        except Exception as e:
-            logger.error(f"Error running migrations: {e}")
+
 
 # Mount UI BEFORE routers (order matters in FastAPI!)
 _here = Path(__file__).resolve()
