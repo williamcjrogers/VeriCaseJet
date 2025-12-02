@@ -613,8 +613,8 @@ def startup():
                 try:
                     # Default Case
                     conn.execute(text("""
-                        INSERT INTO cases (id, name, description, created_at, updated_at)
-                        VALUES ('dca0d854-1655-4498-97f3-399b47a4d65f', 'Default Case', 'Auto-generated default case', NOW(), NOW())
+                        INSERT INTO cases (id, name, case_number, description, created_at, updated_at)
+                        VALUES ('dca0d854-1655-4498-97f3-399b47a4d65f', 'Default Case', 'DEFAULT-001', 'Auto-generated default case', NOW(), NOW())
                         ON CONFLICT (id) DO NOTHING;
                     """))
                     
