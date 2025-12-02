@@ -1862,6 +1862,13 @@ class ProjectCreateRequest(BaseModel):
     exclude_keywords: str | None = None
 
 
+class ProjectUpdateRequest(BaseModel):
+    """Update project details"""
+    project_name: str | None = None
+    project_code: str | None = None
+    # Add other fields as needed for flexibility
+
+
 class CaseCreateRequest(BaseModel):
     """Create case from wizard"""
 
@@ -2207,6 +2214,37 @@ async def create_project(
     }
 
 
+@wizard_router.put("/projects/{project_id}")
+async def update_project(
+    project_id: str,
+    request: ProjectUpdateRequest,
+    db: Session = Depends(get_db),
+):
+    """Update project details (e.g. rename)"""
+    try:
+        p_uuid = uuid.UUID(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID")
+
+    project = db.query(Project).filter(Project.id == p_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if request.project_name:
+        project.project_name = request.project_name
+    if request.project_code:
+        project.project_code = request.project_code
+
+    db.commit()
+    db.refresh(project)
+
+    return {
+        "id": str(project.id),
+        "name": project.project_name,
+        "code": project.project_code,
+        "status": "updated",
+    }
+
 @wizard_router.post("/cases", status_code=201)
 async def create_case(
     request: CaseCreateRequest,
@@ -2462,28 +2500,70 @@ async def upload_evidence(
     If no profileId is provided, uses/creates a default project automatically.
     """
     try:
-        # Get default admin user (from dependency)
-        default_user = user
+        # --- SIMPLIFICATION: Robust Fallback for Single User ---
+        # If IDs are missing or invalid, fallback to defaults instead of failing.
+        
+        # 1. Handle User
+        if not user:
+            # Fallback to default admin user
+            logger.warning("No user provided, falling back to default admin")
+            stmt = select(User).where(User.email == "admin@vericase.com")
+            result = db.execute(stmt)
+            default_user = result.scalar_one_or_none()
+            if not default_user:
+                 # Should be seeded by startup, but just in case
+                 logger.error("Default admin user not found!")
+                 raise HTTPException(status_code=500, detail="System configuration error: Default user missing")
+        else:
+            default_user = user
 
-        # If no profileId provided, use default project
-        if not profileId or profileId == "null" or profileId == "undefined":
-            default_project = _get_or_create_default_project(db, default_user)
-            profileId = str(default_project.id)
+        # 2. Handle Profile ID (Project/Case)
+        target_profile_id = profileId
+        
+        # If missing or invalid UUID, fallback to default project
+        use_default = False
+        if not target_profile_id or target_profile_id == "null" or target_profile_id == "undefined":
+            use_default = True
+        else:
+            try:
+                uuid.UUID(target_profile_id)
+                # Verify it exists
+                if profileType == "project":
+                    stmt = select(Project).where(Project.id == target_profile_id)
+                    if not db.execute(stmt).scalar_one_or_none():
+                        logger.warning(f"Project {target_profile_id} not found, falling back")
+                        use_default = True
+                elif profileType == "case":
+                    stmt = select(Case).where(Case.id == target_profile_id)
+                    if not db.execute(stmt).scalar_one_or_none():
+                        logger.warning(f"Case {target_profile_id} not found, falling back")
+                        use_default = True
+            except ValueError:
+                logger.warning(f"Invalid UUID {target_profile_id}, falling back")
+                use_default = True
+        
+        if use_default:
+            logger.info("Using default project fallback")
+            # Use known default project UUID
+            default_project_id = "dbae0b15-8b63-46f7-bb2e-1b5a4de13ed8"
+            # Ensure it exists (it should from startup)
+            stmt = select(Project).where(Project.id == default_project_id)
+            if not db.execute(stmt).scalar_one_or_none():
+                 # Create it if missing (safety net)
+                 logger.warning("Default project missing in DB, creating on fly")
+                 default_project = _get_or_create_default_project(db, default_user)
+                 target_profile_id = str(default_project.id)
+            else:
+                 target_profile_id = default_project_id
             profileType = "project"
-            logger.info(f"Using default project: {profileId}")
 
-        if profileType not in {"project", "case"}:
-            profileType = "project"  # Default to project
+        # Use the resolved ID
+        profileId = target_profile_id
+        profile_uuid = uuid.UUID(profileId)
+        
+        logger.info(f"Upload context resolved: User={default_user.id}, Profile={profileId} ({profileType})")
+        # -------------------------------------------------------
 
-        try:
-            profile_uuid = uuid.UUID(profileId)
-        except ValueError:
-            # If invalid UUID, use default project
-            default_project = _get_or_create_default_project(db, default_user)
-            profileId = str(default_project.id)
-            profile_uuid = default_project.id
-            profileType = "project"
-            logger.info(f"Invalid profileId, using default project: {profileId}")
 
         if not file or not file.filename:
             raise HTTPException(status_code=400, detail="Missing file")
