@@ -605,8 +605,25 @@ def startup():
                 try:
                     conn.execute(text("ALTER TABLE evidence_items ALTER COLUMN file_size TYPE BIGINT"))
                     conn.commit()
+                # 5. Ensure Default Data (Robust Seeding)
+                try:
+                    # Default Case
+                    conn.execute(text("""
+                        INSERT INTO cases (id, name, description, created_at, updated_at)
+                        VALUES ('dca0d854-1655-4498-97f3-399b47a4d65f', 'Default Case', 'Auto-generated default case', NOW(), NOW())
+                        ON CONFLICT (id) DO NOTHING;
+                    """))
+                    
+                    # Default Project (linked to Default Case)
+                    conn.execute(text("""
+                        INSERT INTO projects (id, name, description, case_id, created_at, updated_at)
+                        VALUES ('dbae0b15-8b63-46f7-bb2e-1b5a4de13ed8', 'Default Project', 'Auto-generated default project', 'dca0d854-1655-4498-97f3-399b47a4d65f', NOW(), NOW())
+                        ON CONFLICT (id) DO NOTHING;
+                    """))
+                    conn.commit()
+                    logger.info("Verified/Created default Case and Project")
                 except Exception as e:
-                    logger.warning(f"Migration skipped for evidence_items: {e}")
+                    logger.warning(f"Failed to seed default data: {e}")
                     conn.rollback()
 
                 # 5. Evidence Sources
