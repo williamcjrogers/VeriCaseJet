@@ -605,6 +605,10 @@ def startup():
                 try:
                     conn.execute(text("ALTER TABLE evidence_items ALTER COLUMN file_size TYPE BIGINT"))
                     conn.commit()
+                except Exception as e:
+                    logger.warning(f"Migration skipped for evidence_items: {e}")
+                    conn.rollback()
+
                 # 5. Ensure Default Data (Robust Seeding)
                 try:
                     # Default Case
