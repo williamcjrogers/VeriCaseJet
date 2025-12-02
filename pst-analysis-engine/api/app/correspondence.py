@@ -302,6 +302,105 @@ class EmailUpdate(BaseModel):
 # ========================================
 
 
+@router.post("/pst/upload")
+async def upload_pst_file(
+    file: Annotated[UploadFile, File(...)],
+    case_id: Annotated[str | None, Form()] = None,
+    project_id: Annotated[str | None, Form()] = None,
+    db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+):
+    """
+    Direct server-side upload for PST files.
+    Uploads to S3 and creates PSTFile record.
+    """
+    # Get default admin user
+    default_user = db.query(User).filter(User.email == "admin@vericase.com").first()
+    if not default_user:
+        from .security import hash_password
+        from .models import UserRole
+
+        default_user = User(
+            email="admin@vericase.com",
+            password_hash=hash_password("admin123"),
+            role=UserRole.ADMIN,
+            is_active=True,
+            email_verified=True,
+            display_name="Administrator",
+        )
+        db.add(default_user)
+        db.commit()
+        db.refresh(default_user)
+
+    # Verify case or project exists
+    if not case_id and not project_id:
+        raise HTTPException(400, "Either case_id or project_id must be provided")
+
+    if case_id:
+        case = db.query(Case).filter_by(id=case_id).first()
+        if not case:
+            raise HTTPException(404, "Case not found")
+        entity_prefix = f"case_{case_id}"
+    else:
+        project = db.query(Project).filter_by(id=project_id).first()
+        if not project:
+            raise HTTPException(404, "Project not found")
+        entity_prefix = f"project_{project_id}"
+
+    if not file.filename:
+        raise HTTPException(400, "Filename is required")
+
+    # Read file content
+    content = await file.read()
+    file_size = len(content)
+
+    # Generate PST file record
+    pst_file_id = str(uuid.uuid4())
+    s3_bucket = settings.S3_PST_BUCKET or settings.S3_BUCKET
+    s3_key = f"{entity_prefix}/pst/{pst_file_id}/{file.filename}"
+
+    # Upload to S3
+    s3_client = s3()
+    if s3_client is not None:  # pyright: ignore[reportUnnecessaryComparison]
+        s3_client.put_object(
+            Bucket=s3_bucket,
+            Key=s3_key,
+            Body=content,
+            ContentType="application/vnd.ms-outlook",
+        )
+
+    # Create PST file record
+    pst_file = PSTFile(
+        id=pst_file_id,
+        filename=file.filename,
+        case_id=case_id,
+        project_id=project_id,
+        s3_bucket=s3_bucket,
+        s3_key=s3_key,
+        file_size_bytes=file_size,
+        processing_status="pending",
+        uploaded_by=default_user.id,
+    )
+
+    db.add(pst_file)
+    db.commit()
+
+    logger.info(f"Uploaded PST file via server: {pst_file_id}")
+
+    # Trigger processing immediately
+    # Enqueue Celery task for PST processing
+    task = celery_app.send_task(
+        "worker_app.worker.process_pst_file",
+        args=[pst_file_id],
+        queue=settings.CELERY_PST_QUEUE,
+    )
+
+    return {
+        "pst_file_id": pst_file_id,
+        "message": "PST uploaded and processing started",
+        "task_id": task.id
+    }
+
+
 @router.post("/pst/upload/init", response_model=PSTUploadInitResponse)
 async def init_pst_upload(
     request: PSTUploadInitRequest,
