@@ -611,21 +611,28 @@ def startup():
 
                 # 5. Ensure Default Data (Robust Seeding)
                 try:
-                    # Default Case
-                    conn.execute(text("""
-                        INSERT INTO cases (id, name, case_number, description, created_at, updated_at)
-                        VALUES ('dca0d854-1655-4498-97f3-399b47a4d65f', 'Default Case', 'DEFAULT-001', 'Auto-generated default case', NOW(), NOW())
-                        ON CONFLICT (id) DO NOTHING;
-                    """))
-                    
-                    # Default Project (linked to Default Case)
-                    conn.execute(text("""
-                        INSERT INTO projects (id, name, description, case_id, created_at, updated_at)
-                        VALUES ('dbae0b15-8b63-46f7-bb2e-1b5a4de13ed8', 'Default Project', 'Auto-generated default project', 'dca0d854-1655-4498-97f3-399b47a4d65f', NOW(), NOW())
-                        ON CONFLICT (id) DO NOTHING;
-                    """))
-                    conn.commit()
-                    logger.info("Verified/Created default Case and Project")
+                    # Get admin user ID for ownership
+                    result = conn.execute(text("SELECT id FROM users WHERE email = 'admin@vericase.com' LIMIT 1"))
+                    admin_row = result.fetchone()
+                    if admin_row:
+                        admin_id = str(admin_row[0])
+                        # Default Case (with owner_id)
+                        conn.execute(text("""
+                            INSERT INTO cases (id, name, case_number, description, owner_id, created_at, updated_at)
+                            VALUES ('dca0d854-1655-4498-97f3-399b47a4d65f', 'Default Case', 'DEFAULT-001', 'Auto-generated default case', :owner_id, NOW(), NOW())
+                            ON CONFLICT (id) DO NOTHING;
+                        """), {"owner_id": admin_id})
+                        
+                        # Default Project (linked to Default Case, with owner)
+                        conn.execute(text("""
+                            INSERT INTO projects (id, project_name, description, owner_user_id, created_at, updated_at)
+                            VALUES ('dbae0b15-8b63-46f7-bb2e-1b5a4de13ed8', 'Default Project', 'Auto-generated default project', :owner_id, NOW(), NOW())
+                            ON CONFLICT (id) DO NOTHING;
+                        """), {"owner_id": admin_id})
+                        conn.commit()
+                        logger.info("Verified/Created default Case and Project")
+                    else:
+                        logger.warning("Admin user not found, skipping default data seeding")
                 except Exception as e:
                     logger.warning(f"Failed to seed default data: {e}")
                     conn.rollback()

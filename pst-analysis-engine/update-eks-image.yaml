@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: api
-        image: wcjrogers/vericase-api:latest
+        image: 526015377510.dkr.ecr.eu-west-2.amazonaws.com/vericase-api:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
