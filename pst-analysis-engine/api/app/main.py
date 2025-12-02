@@ -198,9 +198,11 @@ app = FastAPI(
 )  # Updated 2025-11-12 added AWS Secrets Manager for AI keys
 
 # Security Middleware
-if os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_REGION"):
+# Check for AWS_EXECUTION_ENV (Lambda/AppRunner) OR AWS_REGION (Generic AWS) OR USE_AWS_SERVICES (K8s)
+if os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_REGION") or os.getenv("USE_AWS_SERVICES") == "true":
     # Enforce HTTPS in production
     app.add_middleware(HTTPSRedirectMiddleware)
+    print("[STARTUP] HTTPS Redirect Middleware enabled")
     # Trust headers from AWS Load Balancer
     # Note: Uvicorn proxy_headers=True handles X-Forwarded-Proto, but this ensures redirect
     
@@ -211,7 +213,7 @@ if os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_REGION"):
 @app.on_event("startup")
 async def run_migrations():
     """Run Alembic migrations on startup to ensure DB schema is up to date."""
-    if os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_REGION"):
+    if os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_REGION") or os.getenv("USE_AWS_SERVICES") == "true":
         try:
             logger.info("Running database migrations...")
             # Run alembic upgrade head
