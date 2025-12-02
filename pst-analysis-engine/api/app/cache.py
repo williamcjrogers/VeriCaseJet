@@ -8,7 +8,6 @@ import hashlib
 import functools
 import logging
 from typing import Any, Callable, TypeVar, ParamSpec
-from datetime import timedelta
 
 from redis import Redis
 from .config import settings
@@ -16,8 +15,8 @@ from .config import settings
 logger = logging.getLogger(__name__)
 
 # Type variables for proper typing
-P = ParamSpec('P')
-R = TypeVar('R')
+P = ParamSpec("P")
+R = TypeVar("R")
 
 # Global Redis client (lazy initialization)
 _redis_client: Redis | None = None
@@ -32,7 +31,7 @@ def get_redis() -> Redis | None:
                 settings.REDIS_URL,
                 decode_responses=True,
                 socket_connect_timeout=2,
-                socket_timeout=2
+                socket_timeout=2,
             )
             # Test connection
             try:
@@ -57,22 +56,23 @@ def cache_key(*args: Any, prefix: str = "cache") -> str:
 def cached(
     ttl_seconds: int = 300,
     prefix: str = "api",
-    key_builder: Callable[..., str] | None = None
+    key_builder: Callable[..., str] | None = None,
 ):
     """
     Decorator for caching function results in Redis.
-    
+
     Args:
         ttl_seconds: Time-to-live for cache entries (default 5 minutes)
         prefix: Cache key prefix for namespacing
         key_builder: Optional custom function to build cache key
-    
+
     Usage:
         @cached(ttl_seconds=60, prefix="emails")
         def get_email_stats(project_id: str):
             # expensive query
             return stats
     """
+
     def decorator(func: Callable[P, R]) -> Callable[P, R]:
         @functools.wraps(func)
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
@@ -80,13 +80,13 @@ def cached(
             if redis is None:
                 # No cache available, just call the function
                 return func(*args, **kwargs)
-            
+
             # Build cache key
             if key_builder:
                 cache_k = key_builder(*args, **kwargs)
             else:
                 cache_k = cache_key(func.__name__, args, kwargs, prefix=prefix)
-            
+
             try:
                 # Try to get from cache
                 cached_value = redis.get(cache_k)
@@ -97,49 +97,51 @@ def cached(
                     return json.loads(str(cached_value))
             except Exception as e:
                 logger.warning(f"Cache read error: {e}")
-            
+
             # Cache miss - execute function
             result = func(*args, **kwargs)
-            
+
             try:
                 # Store in cache
                 _ = redis.setex(cache_k, ttl_seconds, json.dumps(result, default=str))
                 logger.debug(f"Cache SET: {cache_k} (TTL: {ttl_seconds}s)")
             except Exception as e:
                 logger.warning(f"Cache write error: {e}")
-            
+
             return result
-        
+
         return wrapper
+
     return decorator
 
 
 async def acached(
     ttl_seconds: int = 300,
     prefix: str = "api",
-    key_builder: Callable[..., str] | None = None
+    key_builder: Callable[..., str] | None = None,
 ):
     """
     Async decorator for caching coroutine results in Redis.
-    
+
     Usage:
         @acached(ttl_seconds=60, prefix="emails")
         async def get_email_stats(project_id: str):
             # expensive async query
             return stats
     """
+
     def decorator(func: Callable[P, R]) -> Callable[P, R]:
         @functools.wraps(func)
         async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             redis = get_redis()
             if redis is None:
                 return await func(*args, **kwargs)
-            
+
             if key_builder:
                 cache_k = key_builder(*args, **kwargs)
             else:
                 cache_k = cache_key(func.__name__, args, kwargs, prefix=prefix)
-            
+
             try:
                 cached_value = redis.get(cache_k)
                 if cached_value:
@@ -149,35 +151,36 @@ async def acached(
                     return json.loads(str(cached_value))
             except Exception as e:
                 logger.warning(f"Async cache read error: {e}")
-            
+
             result = await func(*args, **kwargs)
-            
+
             try:
                 _ = redis.setex(cache_k, ttl_seconds, json.dumps(result, default=str))
                 logger.debug(f"Async Cache SET: {cache_k}")
             except Exception as e:
                 logger.warning(f"Async cache write error: {e}")
-            
+
             return result
-        
+
         return wrapper
+
     return decorator
 
 
 def invalidate_cache(pattern: str) -> int:
     """
     Invalidate cache entries matching a pattern.
-    
+
     Args:
         pattern: Redis key pattern (e.g., "api:emails:*")
-    
+
     Returns:
         Number of keys deleted
     """
     redis = get_redis()
     if redis is None:
         return 0
-    
+
     try:
         keys = redis.keys(pattern)
         if keys:
@@ -195,7 +198,7 @@ def get_cached(key: str) -> Any | None:
     redis = get_redis()
     if redis is None:
         return None
-    
+
     try:
         value = redis.get(key)
         return json.loads(value) if value else None
@@ -208,7 +211,7 @@ def set_cached(key: str, value: Any, ttl_seconds: int = 300) -> bool:
     redis = get_redis()
     if redis is None:
         return False
-    
+
     try:
         redis.setex(key, ttl_seconds, json.dumps(value, default=str))
         return True
@@ -223,8 +226,9 @@ def project_cache_key(func_name: str, project_id: str, *extra: Any) -> str:
     return f"proj:{project_id}:{func_name}:{cache_key(*extra)}"
 
 
-def email_stats_cache_key(project_id: str | None = None, case_id: str | None = None) -> str:
+def email_stats_cache_key(
+    project_id: str | None = None, case_id: str | None = None
+) -> str:
     """Cache key builder for email statistics"""
     scope = project_id or case_id or "all"
     return f"stats:email:{scope}"
-

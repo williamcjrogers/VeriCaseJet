@@ -16,17 +16,13 @@ https://www.egnyte.com/blog/post/inside-the-architecture-of-a-deep-research-agen
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
-import json
 import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable, TypedDict, cast
-from functools import lru_cache
+from typing import Any, TypedDict
 
-import numpy as np
 
 from .config import settings
 
@@ -59,8 +55,10 @@ KNN_M = 16  # Number of bi-directional links - good balance
 # Data Types
 # =============================================================================
 
+
 class ChunkMetadata(TypedDict, total=False):
     """Metadata for a semantic chunk"""
+
     chunk_index: int
     total_chunks: int
     char_start: int
@@ -76,6 +74,7 @@ class ChunkMetadata(TypedDict, total=False):
 @dataclass
 class SemanticChunk:
     """A semantically coherent piece of text with embedding"""
+
     text: str
     embedding: list[float] | None = None
     metadata: ChunkMetadata = field(default_factory=dict)  # type: ignore[assignment]
@@ -89,6 +88,7 @@ class SemanticChunk:
 @dataclass
 class EntityExtraction:
     """Extracted named entities from text"""
+
     persons: list[str] = field(default_factory=list)
     organizations: list[str] = field(default_factory=list)
     dates: list[str] = field(default_factory=list)
@@ -100,6 +100,7 @@ class EntityExtraction:
 # =============================================================================
 # Singleton Model Loaders (Lazy Loading)
 # =============================================================================
+
 
 class ModelRegistry:
     """Centralized model loading with lazy initialization"""
@@ -115,11 +116,14 @@ class ModelRegistry:
         if cls._embedding_model is None:
             try:
                 from sentence_transformers import SentenceTransformer
+
                 logger.info(f"Loading embedding model: {EMBEDDING_MODEL}")
                 cls._embedding_model = SentenceTransformer(EMBEDDING_MODEL)
                 logger.info("Embedding model loaded successfully")
             except ImportError:
-                logger.error("sentence-transformers not installed. Run: pip install sentence-transformers")
+                logger.error(
+                    "sentence-transformers not installed. Run: pip install sentence-transformers"
+                )
                 raise
             except Exception as e:
                 logger.error(f"Failed to load embedding model: {e}")
@@ -132,6 +136,7 @@ class ModelRegistry:
         if cls._cross_encoder is None:
             try:
                 from sentence_transformers import CrossEncoder
+
                 logger.info(f"Loading cross-encoder: {CROSS_ENCODER_MODEL}")
                 cls._cross_encoder = CrossEncoder(CROSS_ENCODER_MODEL)
                 logger.info("Cross-encoder loaded successfully")
@@ -149,6 +154,7 @@ class ModelRegistry:
         if cls._ner_model is None:
             try:
                 import spacy
+
                 # Try to load the medium English model (better NER)
                 try:
                     cls._ner_model = spacy.load("en_core_web_md")
@@ -157,7 +163,9 @@ class ModelRegistry:
                     try:
                         cls._ner_model = spacy.load("en_core_web_sm")
                     except OSError:
-                        logger.warning("No spaCy model found. Run: python -m spacy download en_core_web_md")
+                        logger.warning(
+                            "No spaCy model found. Run: python -m spacy download en_core_web_md"
+                        )
                         return None
                 logger.info("spaCy NER model loaded successfully")
             except ImportError:
@@ -169,6 +177,7 @@ class ModelRegistry:
 # =============================================================================
 # Semantic Chunking
 # =============================================================================
+
 
 class SemanticChunker:
     """
@@ -183,30 +192,30 @@ class SemanticChunker:
 
     # Email structure patterns
     QUOTE_PATTERNS = [
-        r'^>+\s*',  # > quoted text
-        r'^On .+ wrote:',  # On [date] [name] wrote:
-        r'^From:\s',  # Forwarded headers
-        r'^-{3,}\s*Original Message',  # --- Original Message ---
-        r'^_{3,}\s*',  # ___ separators
+        r"^>+\s*",  # > quoted text
+        r"^On .+ wrote:",  # On [date] [name] wrote:
+        r"^From:\s",  # Forwarded headers
+        r"^-{3,}\s*Original Message",  # --- Original Message ---
+        r"^_{3,}\s*",  # ___ separators
     ]
 
     SIGNATURE_PATTERNS = [
-        r'^--\s*$',  # Standard -- signature delimiter
-        r'^Best regards',
-        r'^Kind regards',
-        r'^Regards,',
-        r'^Thanks,',
-        r'^Cheers,',
-        r'^Sent from my iPhone',
-        r'^Sent from my Android',
-        r'^\*{3,}',  # *** confidentiality notice
+        r"^--\s*$",  # Standard -- signature delimiter
+        r"^Best regards",
+        r"^Kind regards",
+        r"^Regards,",
+        r"^Thanks,",
+        r"^Cheers,",
+        r"^Sent from my iPhone",
+        r"^Sent from my Android",
+        r"^\*{3,}",  # *** confidentiality notice
     ]
 
     def __init__(
         self,
         chunk_size: int = DEFAULT_CHUNK_SIZE,
         chunk_overlap: int = DEFAULT_CHUNK_OVERLAP,
-        respect_sentences: bool = True
+        respect_sentences: bool = True,
     ):
         self.chunk_size = min(chunk_size, MAX_CHUNK_SIZE)
         self.chunk_overlap = chunk_overlap
@@ -217,7 +226,7 @@ class SemanticChunker:
         text: str,
         source_type: str = "unknown",
         source_id: str = "",
-        parent_id: str | None = None
+        parent_id: str | None = None,
     ) -> list[SemanticChunk]:
         """
         Split text into semantic chunks.
@@ -244,45 +253,44 @@ class SemanticChunker:
     def _normalize_text(self, text: str) -> str:
         """Normalize whitespace and remove control characters"""
         # Remove zero-width characters
-        text = re.sub(r'[\u200b\u200c\u200d\ufeff\u00ad]', '', text)
+        text = re.sub(r"[\u200b\u200c\u200d\ufeff\u00ad]", "", text)
         # Normalize line endings
-        text = text.replace('\r\n', '\n').replace('\r', '\n')
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
         # Remove excessive blank lines
-        text = re.sub(r'\n{4,}', '\n\n\n', text)
+        text = re.sub(r"\n{4,}", "\n\n\n", text)
         return text.strip()
 
     def _chunk_email(
-        self,
-        text: str,
-        source_id: str,
-        parent_id: str | None
+        self, text: str, source_id: str, parent_id: str | None
     ) -> list[SemanticChunk]:
         """Structure-aware email chunking"""
         chunks: list[SemanticChunk] = []
-        lines = text.split('\n')
+        lines = text.split("\n")
 
         current_section = "body"
         current_text: list[str] = []
         char_pos = 0
 
         for line in lines:
-            line_with_newline = line + '\n'
+            line_with_newline = line + "\n"
 
             # Detect section changes
             new_section = self._detect_email_section(line, current_section)
 
             if new_section != current_section and current_text:
                 # Emit current chunk
-                chunk_text = '\n'.join(current_text)
+                chunk_text = "\n".join(current_text)
                 if chunk_text.strip():
-                    chunks.extend(self._split_if_needed(
-                        chunk_text,
-                        section_type=current_section,
-                        source_type="email",
-                        source_id=source_id,
-                        parent_id=parent_id,
-                        char_start=char_pos - len(chunk_text)
-                    ))
+                    chunks.extend(
+                        self._split_if_needed(
+                            chunk_text,
+                            section_type=current_section,
+                            source_type="email",
+                            source_id=source_id,
+                            parent_id=parent_id,
+                            char_start=char_pos - len(chunk_text),
+                        )
+                    )
                 current_text = []
 
             current_section = new_section
@@ -291,16 +299,18 @@ class SemanticChunker:
 
         # Don't forget last section
         if current_text:
-            chunk_text = '\n'.join(current_text)
+            chunk_text = "\n".join(current_text)
             if chunk_text.strip():
-                chunks.extend(self._split_if_needed(
-                    chunk_text,
-                    section_type=current_section,
-                    source_type="email",
-                    source_id=source_id,
-                    parent_id=parent_id,
-                    char_start=char_pos - len(chunk_text)
-                ))
+                chunks.extend(
+                    self._split_if_needed(
+                        chunk_text,
+                        section_type=current_section,
+                        source_type="email",
+                        source_id=source_id,
+                        parent_id=parent_id,
+                        char_start=char_pos - len(chunk_text),
+                    )
+                )
 
         # Add chunk indexing
         for i, chunk in enumerate(chunks):
@@ -326,22 +336,18 @@ class SemanticChunker:
         # If we're in quote/signature, stay there unless clear body content
         if current_section in ("quote", "signature"):
             # Only exit if we see clear new content
-            if len(line_stripped) > 50 and not line_stripped.startswith('>'):
+            if len(line_stripped) > 50 and not line_stripped.startswith(">"):
                 return "body"
             return current_section
 
         return "body"
 
     def _chunk_document(
-        self,
-        text: str,
-        source_type: str,
-        source_id: str,
-        parent_id: str | None
+        self, text: str, source_type: str, source_id: str, parent_id: str | None
     ) -> list[SemanticChunk]:
         """Paragraph-aware document chunking"""
         # Split by double newlines (paragraphs)
-        paragraphs = re.split(r'\n\n+', text)
+        paragraphs = re.split(r"\n\n+", text)
 
         chunks: list[SemanticChunk] = []
         current_chunk: list[str] = []
@@ -357,19 +363,21 @@ class SemanticChunker:
 
             # If adding this paragraph exceeds chunk size, emit current
             if current_length + para_length > self.chunk_size and current_chunk:
-                chunk_text = '\n\n'.join(current_chunk)
-                chunks.append(SemanticChunk(
-                    text=chunk_text,
-                    metadata={
-                        "source_type": source_type,
-                        "source_id": source_id,
-                        "parent_id": parent_id,
-                        "section_type": "body",
-                        "char_start": char_pos - len(chunk_text),
-                        "char_end": char_pos,
-                        "embedding_model": EMBEDDING_MODEL
-                    }
-                ))
+                chunk_text = "\n\n".join(current_chunk)
+                chunks.append(
+                    SemanticChunk(
+                        text=chunk_text,
+                        metadata={
+                            "source_type": source_type,
+                            "source_id": source_id,
+                            "parent_id": parent_id,
+                            "section_type": "body",
+                            "char_start": char_pos - len(chunk_text),
+                            "char_end": char_pos,
+                            "embedding_model": EMBEDDING_MODEL,
+                        },
+                    )
+                )
 
                 # Keep overlap
                 if self.chunk_overlap > 0 and current_chunk:
@@ -387,19 +395,21 @@ class SemanticChunker:
 
         # Emit final chunk
         if current_chunk:
-            chunk_text = '\n\n'.join(current_chunk)
-            chunks.append(SemanticChunk(
-                text=chunk_text,
-                metadata={
-                    "source_type": source_type,
-                    "source_id": source_id,
-                    "parent_id": parent_id,
-                    "section_type": "body",
-                    "char_start": char_pos - len(chunk_text),
-                    "char_end": char_pos,
-                    "embedding_model": EMBEDDING_MODEL
-                }
-            ))
+            chunk_text = "\n\n".join(current_chunk)
+            chunks.append(
+                SemanticChunk(
+                    text=chunk_text,
+                    metadata={
+                        "source_type": source_type,
+                        "source_id": source_id,
+                        "parent_id": parent_id,
+                        "section_type": "body",
+                        "char_start": char_pos - len(chunk_text),
+                        "char_end": char_pos,
+                        "embedding_model": EMBEDDING_MODEL,
+                    },
+                )
+            )
 
         # Add indexing
         for i, chunk in enumerate(chunks):
@@ -415,24 +425,26 @@ class SemanticChunker:
         source_type: str,
         source_id: str,
         parent_id: str | None,
-        char_start: int
+        char_start: int,
     ) -> list[SemanticChunk]:
         """Split text further if it exceeds chunk size"""
         word_count = len(text.split())
 
         if word_count <= self.chunk_size:
-            return [SemanticChunk(
-                text=text,
-                metadata={
-                    "source_type": source_type,
-                    "source_id": source_id,
-                    "parent_id": parent_id,
-                    "section_type": section_type,
-                    "char_start": char_start,
-                    "char_end": char_start + len(text),
-                    "embedding_model": EMBEDDING_MODEL
-                }
-            )]
+            return [
+                SemanticChunk(
+                    text=text,
+                    metadata={
+                        "source_type": source_type,
+                        "source_id": source_id,
+                        "parent_id": parent_id,
+                        "section_type": section_type,
+                        "char_start": char_start,
+                        "char_end": char_start + len(text),
+                        "embedding_model": EMBEDDING_MODEL,
+                    },
+                )
+            ]
 
         # Split by sentences if too long
         if self.respect_sentences:
@@ -445,20 +457,22 @@ class SemanticChunker:
         chunks: list[SemanticChunk] = []
 
         for i in range(0, len(words), self.chunk_size - self.chunk_overlap):
-            chunk_words = words[i:i + self.chunk_size]
-            chunk_text = ' '.join(chunk_words)
-            chunks.append(SemanticChunk(
-                text=chunk_text,
-                metadata={
-                    "source_type": source_type,
-                    "source_id": source_id,
-                    "parent_id": parent_id,
-                    "section_type": section_type,
-                    "char_start": char_start,
-                    "char_end": char_start + len(chunk_text),
-                    "embedding_model": EMBEDDING_MODEL
-                }
-            ))
+            chunk_words = words[i : i + self.chunk_size]
+            chunk_text = " ".join(chunk_words)
+            chunks.append(
+                SemanticChunk(
+                    text=chunk_text,
+                    metadata={
+                        "source_type": source_type,
+                        "source_id": source_id,
+                        "parent_id": parent_id,
+                        "section_type": section_type,
+                        "char_start": char_start,
+                        "char_end": char_start + len(chunk_text),
+                        "embedding_model": EMBEDDING_MODEL,
+                    },
+                )
+            )
 
         return chunks
 
@@ -469,11 +483,11 @@ class SemanticChunker:
         source_type: str,
         source_id: str,
         parent_id: str | None,
-        char_start: int
+        char_start: int,
     ) -> list[SemanticChunk]:
         """Split text by sentence boundaries"""
         # Simple sentence splitting (handles common cases)
-        sentence_endings = re.compile(r'(?<=[.!?])\s+(?=[A-Z])')
+        sentence_endings = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
         sentences = sentence_endings.split(text)
 
         chunks: list[SemanticChunk] = []
@@ -484,8 +498,31 @@ class SemanticChunker:
             sentence_length = len(sentence.split())
 
             if current_length + sentence_length > self.chunk_size and current_chunk:
-                chunk_text = ' '.join(current_chunk)
-                chunks.append(SemanticChunk(
+                chunk_text = " ".join(current_chunk)
+                chunks.append(
+                    SemanticChunk(
+                        text=chunk_text,
+                        metadata={
+                            "source_type": source_type,
+                            "source_id": source_id,
+                            "parent_id": parent_id,
+                            "section_type": section_type,
+                            "char_start": char_start,
+                            "char_end": char_start + len(chunk_text),
+                            "embedding_model": EMBEDDING_MODEL,
+                        },
+                    )
+                )
+                current_chunk = []
+                current_length = 0
+
+            current_chunk.append(sentence)
+            current_length += sentence_length
+
+        if current_chunk:
+            chunk_text = " ".join(current_chunk)
+            chunks.append(
+                SemanticChunk(
                     text=chunk_text,
                     metadata={
                         "source_type": source_type,
@@ -494,29 +531,10 @@ class SemanticChunker:
                         "section_type": section_type,
                         "char_start": char_start,
                         "char_end": char_start + len(chunk_text),
-                        "embedding_model": EMBEDDING_MODEL
-                    }
-                ))
-                current_chunk = []
-                current_length = 0
-
-            current_chunk.append(sentence)
-            current_length += sentence_length
-
-        if current_chunk:
-            chunk_text = ' '.join(current_chunk)
-            chunks.append(SemanticChunk(
-                text=chunk_text,
-                metadata={
-                    "source_type": source_type,
-                    "source_id": source_id,
-                    "parent_id": parent_id,
-                    "section_type": section_type,
-                    "char_start": char_start,
-                    "char_end": char_start + len(chunk_text),
-                    "embedding_model": EMBEDDING_MODEL
-                }
-            ))
+                        "embedding_model": EMBEDDING_MODEL,
+                    },
+                )
+            )
 
         return chunks
 
@@ -524,6 +542,7 @@ class SemanticChunker:
 # =============================================================================
 # Embedding Generation
 # =============================================================================
+
 
 class EmbeddingService:
     """Generate dense vector embeddings for text"""
@@ -563,7 +582,7 @@ class EmbeddingService:
             [t for _, t in valid_texts],
             batch_size=batch_size,
             convert_to_numpy=True,
-            show_progress_bar=len(valid_texts) > 100
+            show_progress_bar=len(valid_texts) > 100,
         )
 
         # Reconstruct full list with zeros for empty texts
@@ -573,7 +592,9 @@ class EmbeddingService:
 
         return result
 
-    def embed_chunks(self, chunks: list[SemanticChunk], batch_size: int = 32) -> list[SemanticChunk]:
+    def embed_chunks(
+        self, chunks: list[SemanticChunk], batch_size: int = 32
+    ) -> list[SemanticChunk]:
         """Add embeddings to chunks"""
         texts = [c.text for c in chunks]
         embeddings = self.embed_texts(texts, batch_size)
@@ -588,21 +609,22 @@ class EmbeddingService:
 # Entity Extraction
 # =============================================================================
 
+
 class EntityExtractor:
     """Extract named entities from text using spaCy"""
 
     # Construction/legal domain patterns
     MONEY_PATTERN = re.compile(
-        r'(?:[$\u00a3\u20ac])\s*[\d,]+(?:\.\d{2})?(?:\s*(?:million|billion|m|bn|k))?|'
-        r'[\d,]+(?:\.\d{2})?\s*(?:dollars|pounds|euros|USD|GBP|EUR)',
-        re.IGNORECASE
+        r"(?:[$\u00a3\u20ac])\s*[\d,]+(?:\.\d{2})?(?:\s*(?:million|billion|m|bn|k))?|"
+        r"[\d,]+(?:\.\d{2})?\s*(?:dollars|pounds|euros|USD|GBP|EUR)",
+        re.IGNORECASE,
     )
 
     DATE_PATTERN = re.compile(
-        r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b|'
-        r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}\b|'
-        r'\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}\b',
-        re.IGNORECASE
+        r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b|"
+        r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}\b|"
+        r"\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}\b",
+        re.IGNORECASE,
     )
 
     def __init__(self):
@@ -657,6 +679,7 @@ class EntityExtractor:
 # OpenSearch Vector Index
 # =============================================================================
 
+
 class VectorIndexService:
     """Manage OpenSearch k-NN vector index"""
 
@@ -668,15 +691,18 @@ class VectorIndexService:
         if self._client is None:
             try:
                 from opensearchpy import OpenSearch
+
                 self._client = OpenSearch(
-                    hosts=[{
-                        'host': getattr(settings, 'OPENSEARCH_HOST', 'localhost'),
-                        'port': int(getattr(settings, 'OPENSEARCH_PORT', 9200))
-                    }],
+                    hosts=[
+                        {
+                            "host": getattr(settings, "OPENSEARCH_HOST", "localhost"),
+                            "port": int(getattr(settings, "OPENSEARCH_PORT", 9200)),
+                        }
+                    ],
                     http_compress=True,
                     use_ssl=False,
                     verify_certs=False,
-                    timeout=30
+                    timeout=30,
                 )
             except ImportError:
                 logger.error("opensearch-py not installed")
@@ -697,7 +723,7 @@ class VectorIndexService:
                         "knn": True,
                         "knn.algo_param.ef_search": 100,
                         "number_of_shards": 1,
-                        "number_of_replicas": 0
+                        "number_of_replicas": 0,
                     }
                 },
                 "mappings": {
@@ -712,36 +738,32 @@ class VectorIndexService:
                                 "engine": "nmslib",
                                 "parameters": {
                                     "ef_construction": KNN_EF_CONSTRUCTION,
-                                    "m": KNN_M
-                                }
-                            }
+                                    "m": KNN_M,
+                                },
+                            },
                         },
                         # Chunk content
                         "text": {"type": "text", "analyzer": "english"},
                         "chunk_hash": {"type": "keyword"},
-
                         # Source identification
                         "source_type": {"type": "keyword"},
                         "source_id": {"type": "keyword"},
                         "parent_id": {"type": "keyword"},
-
                         # Metadata
                         "section_type": {"type": "keyword"},
                         "chunk_index": {"type": "integer"},
                         "total_chunks": {"type": "integer"},
-
                         # Entities (for filtering)
                         "entities_persons": {"type": "keyword"},
                         "entities_organizations": {"type": "keyword"},
                         "entities_dates": {"type": "keyword"},
                         "entities_money": {"type": "keyword"},
-
                         # Organizational
                         "case_id": {"type": "keyword"},
                         "project_id": {"type": "keyword"},
-                        "indexed_at": {"type": "date"}
+                        "indexed_at": {"type": "date"},
                     }
-                }
+                },
             }
 
             self.client.indices.create(VECTOR_INDEX_NAME, body=index_body)
@@ -757,7 +779,7 @@ class VectorIndexService:
         chunk: SemanticChunk,
         entities: EntityExtraction | None = None,
         case_id: str | None = None,
-        project_id: str | None = None
+        project_id: str | None = None,
     ) -> str | None:
         """Index a single chunk with its embedding"""
         if not chunk.embedding:
@@ -778,7 +800,7 @@ class VectorIndexService:
             "total_chunks": chunk.metadata.get("total_chunks"),
             "case_id": case_id,
             "project_id": project_id,
-            "indexed_at": datetime.now(timezone.utc).isoformat()
+            "indexed_at": datetime.now(timezone.utc).isoformat(),
         }
 
         if entities:
@@ -792,7 +814,7 @@ class VectorIndexService:
                 index=VECTOR_INDEX_NAME,
                 body=doc,
                 id=doc_id,
-                refresh=False  # Don't refresh on every insert
+                refresh=False,  # Don't refresh on every insert
             )
             return doc_id
         except Exception as e:
@@ -804,7 +826,7 @@ class VectorIndexService:
         chunks: list[SemanticChunk],
         entities_list: list[EntityExtraction | None] | None = None,
         case_id: str | None = None,
-        project_id: str | None = None
+        project_id: str | None = None,
     ) -> int:
         """Bulk index multiple chunks"""
         if not chunks:
@@ -833,7 +855,7 @@ class VectorIndexService:
                 "total_chunks": chunk.metadata.get("total_chunks"),
                 "case_id": case_id,
                 "project_id": project_id,
-                "indexed_at": datetime.now(timezone.utc).isoformat()
+                "indexed_at": datetime.now(timezone.utc).isoformat(),
             }
 
             if entities_list and i < len(entities_list) and entities_list[i]:
@@ -864,7 +886,7 @@ class VectorIndexService:
         case_id: str | None = None,
         project_id: str | None = None,
         source_types: list[str] | None = None,
-        section_types: list[str] | None = None
+        section_types: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Fast k-NN search for similar chunks.
@@ -886,46 +908,37 @@ class VectorIndexService:
         # Build k-NN query
         query: dict[str, Any] = {
             "size": k,
-            "query": {
-                "knn": {
-                    "embedding": {
-                        "vector": query_embedding,
-                        "k": k
-                    }
-                }
-            }
+            "query": {"knn": {"embedding": {"vector": query_embedding, "k": k}}},
         }
 
         # Add filter if any
         if filter_clauses:
             query["query"] = {
-                "bool": {
-                    "must": [query["query"]],
-                    "filter": filter_clauses
-                }
+                "bool": {"must": [query["query"]], "filter": filter_clauses}
             }
 
         try:
-            response = self.client.search(
-                index=VECTOR_INDEX_NAME,
-                body=query
-            )
+            response = self.client.search(index=VECTOR_INDEX_NAME, body=query)
 
             results = []
             for hit in response["hits"]["hits"]:
                 source = hit["_source"]
-                results.append({
-                    "id": hit["_id"],
-                    "score": hit["_score"],
-                    "text": source.get("text"),
-                    "content": source.get("text"),  # Alias for compatibility
-                    "source_type": source.get("source_type"),
-                    "source_id": source.get("source_id"),
-                    "section_type": source.get("section_type"),
-                    "chunk_index": source.get("chunk_index"),
-                    "entities_persons": source.get("entities_persons", []),
-                    "entities_organizations": source.get("entities_organizations", []),
-                })
+                results.append(
+                    {
+                        "id": hit["_id"],
+                        "score": hit["_score"],
+                        "text": source.get("text"),
+                        "content": source.get("text"),  # Alias for compatibility
+                        "source_type": source.get("source_type"),
+                        "source_id": source.get("source_id"),
+                        "section_type": source.get("section_type"),
+                        "chunk_index": source.get("chunk_index"),
+                        "entities_persons": source.get("entities_persons", []),
+                        "entities_organizations": source.get(
+                            "entities_organizations", []
+                        ),
+                    }
+                )
 
             return results
 
@@ -944,6 +957,7 @@ class VectorIndexService:
 # =============================================================================
 # High-Level Semantic Ingestion Service
 # =============================================================================
+
 
 class SemanticIngestionService:
     """
@@ -973,7 +987,7 @@ class SemanticIngestionService:
         sender: str | None = None,
         recipients: list[str] | None = None,
         case_id: str | None = None,
-        project_id: str | None = None
+        project_id: str | None = None,
     ) -> int:
         """
         Process an email for semantic indexing.
@@ -996,9 +1010,7 @@ class SemanticIngestionService:
 
         # Chunk the email
         chunks = self.chunker.chunk_text(
-            text=full_text,
-            source_type="email",
-            source_id=email_id
+            text=full_text, source_type="email", source_id=email_id
         )
 
         if not chunks:
@@ -1031,7 +1043,7 @@ class SemanticIngestionService:
         text: str,
         document_type: str = "document",
         case_id: str | None = None,
-        project_id: str | None = None
+        project_id: str | None = None,
     ) -> int:
         """
         Process a document (attachment, evidence item) for semantic indexing.
@@ -1046,9 +1058,7 @@ class SemanticIngestionService:
 
         # Chunk the document
         chunks = self.chunker.chunk_text(
-            text=text,
-            source_type=document_type,
-            source_id=document_id
+            text=text, source_type=document_type, source_id=document_id
         )
 
         if not chunks:
@@ -1095,12 +1105,11 @@ def process_email_semantics(
     subject: str | None,
     body_text: str | None,
     case_id: str | None = None,
-    project_id: str | None = None
+    project_id: str | None = None,
 ) -> int:
     """Convenience function to process an email"""
     return get_semantic_service().process_email(
-        email_id, subject, body_text,
-        case_id=case_id, project_id=project_id
+        email_id, subject, body_text, case_id=case_id, project_id=project_id
     )
 
 
@@ -1109,10 +1118,9 @@ def process_document_semantics(
     text: str,
     document_type: str = "document",
     case_id: str | None = None,
-    project_id: str | None = None
+    project_id: str | None = None,
 ) -> int:
     """Convenience function to process a document"""
     return get_semantic_service().process_document(
-        document_id, text, document_type,
-        case_id=case_id, project_id=project_id
+        document_id, text, document_type, case_id=case_id, project_id=project_id
     )

@@ -21,44 +21,59 @@ spec:
     spec:
       serviceAccountName: vericase-api-sa
       containers:
-      - name: vericase-api
-        image: wcjrogers/vericase-api:latest
-        ports:
-        - containerPort: 8000
-        env:
-        - name: USE_AWS_SERVICES
-          value: "true"
-        - name: AWS_REGION
-          value: "eu-west-2"
-        - name: AWS_DEFAULT_REGION
-          value: "eu-west-2"
-        - name: S3_BUCKET
-          value: "vericase-docs-526015377510"
-        - name: MINIO_BUCKET
-          value: "vericase-docs-526015377510"
-        - name: MINIO_ENDPOINT
-          value: ""
-        - name: BEDROCK_KB_ID
-          value: "ACKHIYIHPK"
-        - name: BEDROCK_DS_ID
-          value: "D9BX79MBSG"
-        - name: CORS_ORIGINS
-          value: "*"
-        - name: AWS_SECRET_NAME
-          value: "vericase/production"
-        - name: DATABASE_URL
-          value: "postgresql+psycopg2://postgres:ZS6q|?Ccxr]Ba_tMYIyI(>~0b|W4@database-1.cv8uwu0uqr7f.eu-west-2.rds.amazonaws.com:5432/postgres"
-        - name: JWT_SECRET
-          value: "4d7c0214a2a0ea74c824e33337e75857ccd2d2da9900c40f1da3229a91937b1c"
+        - name: vericase-api
+          image: wcjrogers/vericase-api:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: USE_AWS_SERVICES
+              value: "true"
+            - name: AWS_REGION
+              value: "eu-west-2"
+            - name: AWS_DEFAULT_REGION
+              value: "eu-west-2"
+            - name: S3_BUCKET
+              value: "vericase-docs-526015377510"
+            - name: MINIO_BUCKET
+              value: "vericase-docs-526015377510"
+            - name: MINIO_ENDPOINT
+              value: ""
+            - name: BEDROCK_KB_ID
+              value: "ACKHIYIHPK"
+            - name: BEDROCK_DS_ID
+              value: "D9BX79MBSG"
+            - name: CORS_ORIGINS
+              value: "*"
+            - name: AWS_SECRET_NAME
+              value: "vericase/production"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vericase-secrets
+                  key: DATABASE_URL
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: vericase-secrets
+                  key: JWT_SECRET
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: vericase-api
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:eu-west-2:526015377510:certificate/586fefe1-dd4b-4e2d-8298-74bcaa8a303e"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-negotiation-policy: "ELBSecurityPolicy-TLS-1-2-2017-01"
 spec:
   type: LoadBalancer
   ports:
-  - port: 80
-    targetPort: 8000
+    - port: 80
+      targetPort: 8000
+      name: http
+    - port: 443
+      targetPort: 8000
+      name: https
   selector:
     app: vericase-api

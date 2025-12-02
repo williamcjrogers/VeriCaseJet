@@ -2,6 +2,7 @@
 Document Sharing API Endpoints
 Allows users to share documents with other users with permissions
 """
+
 from __future__ import annotations
 
 import logging
@@ -227,9 +228,7 @@ async def list_shared_documents(
     user: Annotated[User, Depends(current_user)],
 ) -> list[SharedDocumentItem]:
     """List documents shared with the current user"""
-    shares = (
-        db.query(DocumentShare).filter(DocumentShare.shared_with == user.id).all()
-    )
+    shares = db.query(DocumentShare).filter(DocumentShare.shared_with == user.id).all()
 
     result: list[SharedDocumentItem] = []
     for share in shares:

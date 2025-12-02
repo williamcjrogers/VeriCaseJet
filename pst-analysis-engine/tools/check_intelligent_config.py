@@ -16,7 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import requests
 
@@ -124,4 +124,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

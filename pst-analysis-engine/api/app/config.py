@@ -14,10 +14,7 @@ install_log_sanitizer()
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file='.env',
-        env_file_encoding='utf-8',
-        case_sensitive=True,
-        extra='ignore'
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore"
     )
     # AWS mode flag - when true, use AWS S3 (IRSA) instead of MinIO
     USE_AWS_SERVICES: bool = False
@@ -27,24 +24,22 @@ class Settings(BaseSettings):
     MINIO_PUBLIC_ENDPOINT: str = ""
     MINIO_ACCESS_KEY: str | None = Field(
         default=None,
-        description=(
-            "MinIO/S3 access key - MUST be provided via environment variable"
-        ))
+        description=("MinIO/S3 access key - MUST be provided via environment variable"),
+    )
     MINIO_SECRET_KEY: str | None = Field(
         default=None,
-        description=(
-            "MinIO/S3 secret key - MUST be provided via environment variable"
-        ))
+        description=("MinIO/S3 secret key - MUST be provided via environment variable"),
+    )
     MINIO_BUCKET: str = "vericase-docs"
     S3_BUCKET: str = "vericase-docs"  # Alias for MINIO_BUCKET
     S3_ENDPOINT: str = "http://minio:9000"  # Alias for MINIO_ENDPOINT
     S3_ACCESS_KEY: str | None = Field(
         default=None,
-        description="S3 access key - MUST be provided via environment variable"
+        description="S3 access key - MUST be provided via environment variable",
     )
     S3_SECRET_KEY: str | None = Field(
         default=None,
-        description="S3 secret key - MUST be provided via environment variable"
+        description="S3 secret key - MUST be provided via environment variable",
     )
     S3_ATTACHMENTS_BUCKET: str | None = None
     S3_PST_BUCKET: str | None = None
@@ -59,22 +54,25 @@ class Settings(BaseSettings):
     # Database - Railway provides postgresql://, we need postgresql+psycopg2://
     DATABASE_URL: str = Field(
         default="postgresql+psycopg2://vericase:vericase@postgres:5432/vericase",
-        description=(
-            "SQLAlchemy connection URL; defaults to local postgres for dev"
-        ),
+        description=("SQLAlchemy connection URL; defaults to local postgres for dev"),
         min_length=1,
     )
 
-    @field_validator('DATABASE_URL')
+    @field_validator("DATABASE_URL")
     @classmethod
     def convert_postgres_url(cls, v: str) -> str:
         """Convert postgresql:// to postgresql+psycopg2:// for SQLAlchemy"""
-        if v and v.startswith('postgresql://'):
-            return v.replace('postgresql://', 'postgresql+psycopg2://', 1)
+        if v and v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+psycopg2://", 1)
         return v
 
-    @field_validator('MINIO_ACCESS_KEY', 'MINIO_SECRET_KEY',
-                     'S3_ACCESS_KEY', 'S3_SECRET_KEY', 'DATABASE_URL')
+    @field_validator(
+        "MINIO_ACCESS_KEY",
+        "MINIO_SECRET_KEY",
+        "S3_ACCESS_KEY",
+        "S3_SECRET_KEY",
+        "DATABASE_URL",
+    )
     @classmethod
     def validate_secrets_not_default(cls, v: str | None, info: ValidationInfo):
         """Prevent use of weak/default credentials in any environment."""
@@ -108,26 +106,38 @@ class Settings(BaseSettings):
                 weak_db_patterns = [
                     "vericase:vericase@",
                     "postgres:postgres@",
-                    "admin:admin@"]
+                    "admin:admin@",
+                ]
                 if any(pattern in (v or "") for pattern in weak_db_patterns):
                     raise ValueError(
-                        "DATABASE_URL uses default credentials in production")
+                        "DATABASE_URL uses default credentials in production"
+                    )
         else:
 
             # Warn in non-production environments
-            if info.field_name in {
-                    "MINIO_ACCESS_KEY", "S3_ACCESS_KEY",
-            } and v.lower() in weak_access_keys:
+            if (
+                info.field_name
+                in {
+                    "MINIO_ACCESS_KEY",
+                    "S3_ACCESS_KEY",
+                }
+                and v.lower() in weak_access_keys
+            ):
                 logging.warning(
                     "%s uses default value - override via environment variable",
-                    info.field_name
+                    info.field_name,
                 )
-            if info.field_name in {
-                    "MINIO_SECRET_KEY", "S3_SECRET_KEY",
-            } and v.lower() in weak_secret_keys:
+            if (
+                info.field_name
+                in {
+                    "MINIO_SECRET_KEY",
+                    "S3_SECRET_KEY",
+                }
+                and v.lower() in weak_secret_keys
+            ):
                 logging.warning(
                     "%s uses default value - override via environment variable",
-                    info.field_name
+                    info.field_name,
                 )
 
         return v
@@ -138,8 +148,7 @@ class Settings(BaseSettings):
         Ensure secrets are provided exclusively via environment variables.
         """
         if not self.DATABASE_URL:
-            raise ValueError(
-                "DATABASE_URL must be set via environment variables")
+            raise ValueError("DATABASE_URL must be set via environment variables")
 
         use_aws = self.USE_AWS_SERVICES or not self.MINIO_ENDPOINT
         if not use_aws:
@@ -155,8 +164,7 @@ class Settings(BaseSettings):
             # Allow AWS IRSA without explicit keys, but normalize aliases if
             # provided
             if not self.MINIO_BUCKET:
-                raise ValueError(
-                    "MINIO_BUCKET (storage bucket name) is required")
+                raise ValueError("MINIO_BUCKET (storage bucket name) is required")
 
         if not self.S3_ACCESS_KEY:
             self.S3_ACCESS_KEY = self.MINIO_ACCESS_KEY
@@ -195,8 +203,8 @@ class Settings(BaseSettings):
     BEDROCK_KB_ID: str = ""
     BEDROCK_DS_ID: str = ""  # Bedrock Data Source ID (e.g., "VERICASE-DS-001")
     BEDROCK_EMBEDDING_MODEL: str = (
-        "amazon.titan-embed-text-v1"
-    )  # Embedding model for KB
+        "amazon.titan-embed-text-v1"  # Embedding model for KB
+    )
 
     # AWS Step Functions settings
     STEP_FUNCTION_ARN: str = ""  # ARN of the evidence processing state machine
@@ -207,9 +215,7 @@ class Settings(BaseSettings):
     # AWS OpenSearch Serverless settings
     OPENSEARCH_COLLECTION_ARN: str = ""  # OpenSearch Serverless collection ARN
     OPENSEARCH_COLLECTION_ENDPOINT: str = ""  # OpenSearch Serverless endpoint
-    OPENSEARCH_VECTOR_INDEX: str = (
-        "vericase-evidence-index"
-    )  # Vector index name
+    OPENSEARCH_VECTOR_INDEX: str = "vericase-evidence-index"  # Vector index name
 
     # AWS QuickSight settings
     QUICKSIGHT_DASHBOARD_ID: str = ""  # QuickSight dashboard ID
@@ -245,7 +251,7 @@ class Settings(BaseSettings):
         min_length=32,
     )
 
-    @field_validator('JWT_SECRET')
+    @field_validator("JWT_SECRET")
     @classmethod
     def validate_jwt_secret(cls, v: str) -> str:
         """Validate JWT_SECRET is secure."""
@@ -258,24 +264,25 @@ class Settings(BaseSettings):
             "changeme",
             "default",
             "jwt-secret",
-            "change-this-secret"}
+            "change-this-secret",
+        }
         if v.lower() in weak_secrets:
             try:
                 env = os.getenv("ENV", "development").lower()
                 if env == "production":
-                    raise ValueError(
-                        "JWT_SECRET uses weak/default value in production")
+                    raise ValueError("JWT_SECRET uses weak/default value in production")
                 else:
                     logging.warning(
-                        "JWT_SECRET uses weak value - change via environment variable")
+                        "JWT_SECRET uses weak value - change via environment variable"
+                    )
             except (AttributeError, TypeError):
                 pass
 
         if len(v) < 32:
-            logging.warning(
-                "JWT_SECRET is shorter than recommended 32 characters")
+            logging.warning("JWT_SECRET is shorter than recommended 32 characters")
 
         return v
+
     JWT_ISSUER: str = "vericase-docs"
     JWT_EXPIRE_MIN: int = 7200
 

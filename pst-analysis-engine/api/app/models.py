@@ -4,56 +4,119 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Column, String, DateTime, Text, JSON, Enum, Integer, BigInteger, ForeignKey, Boolean, Index, ARRAY
+from sqlalchemy import (
+    String,
+    DateTime,
+    Text,
+    JSON,
+    Enum,
+    Integer,
+    BigInteger,
+    ForeignKey,
+    Boolean,
+    Index,
+    ARRAY,
+)
 from sqlalchemy.sql import func, expression
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from enum import Enum as PyEnum
 from .db import Base
 
+
 class DocStatus(str, PyEnum):
-    NEW="NEW"; PROCESSING="PROCESSING"; READY="READY"; FAILED="FAILED"
+    NEW = "NEW"
+    PROCESSING = "PROCESSING"
+    READY = "READY"
+    FAILED = "FAILED"
+
 
 class UserRole(str, PyEnum):
-    ADMIN="ADMIN"; EDITOR="EDITOR"; VIEWER="VIEWER"
+    ADMIN = "ADMIN"
+    EDITOR = "EDITOR"
+    VIEWER = "VIEWER"
+
 
 class User(Base):
     __tablename__ = "users"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    email: Mapped[str] = mapped_column(
+        String(255), unique=True, nullable=False, index=True
+    )
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole), nullable=False, default=UserRole.EDITOR)
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole), nullable=False, default=UserRole.EDITOR
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
     # Enhanced security fields
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     verification_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
     reset_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    reset_token_expires: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    failed_login_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_failed_attempt: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    reset_token_expires: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    failed_login_attempts: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
+    locked_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_failed_attempt: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    password_changed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
     # Relationships
-    sessions: Mapped[list[UserSession]] = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
-    password_history: Mapped[list[PasswordHistory]] = relationship("PasswordHistory", back_populates="user", cascade="all, delete-orphan")
-    login_attempts: Mapped[list[LoginAttempt]] = relationship("LoginAttempt", back_populates="user", cascade="all, delete-orphan")
+    sessions: Mapped[list[UserSession]] = relationship(
+        "UserSession", back_populates="user", cascade="all, delete-orphan"
+    )
+    password_history: Mapped[list[PasswordHistory]] = relationship(
+        "PasswordHistory", back_populates="user", cascade="all, delete-orphan"
+    )
+    login_attempts: Mapped[list[LoginAttempt]] = relationship(
+        "LoginAttempt", back_populates="user", cascade="all, delete-orphan"
+    )
+
 
 class UserSession(Base):
     __tablename__ = "user_sessions"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    token_jti: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
-    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)  # Supports both IPv4 and IPv6
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    token_jti: Mapped[str] = mapped_column(
+        String(255), nullable=False, unique=True, index=True
+    )
+    ip_address: Mapped[str | None] = mapped_column(
+        String(45), nullable=True
+    )  # Supports both IPv4 and IPv6
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_activity: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_activity: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
     # Relationships
     user: Mapped[User] = relationship("User", back_populates="sessions")
@@ -61,10 +124,16 @@ class UserSession(Base):
 
 class PasswordHistory(Base):
     __tablename__ = "password_history"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
     # Relationships
     user: Mapped[User] = relationship("User", back_populates="password_history")
@@ -72,14 +141,20 @@ class PasswordHistory(Base):
 
 class LoginAttempt(Base):
     __tablename__ = "login_attempts"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
     success: Mapped[bool] = mapped_column(Boolean, nullable=False)
     failure_reason: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    attempted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    attempted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
     # Relationships
     user: Mapped[User | None] = relationship("User", back_populates="login_attempts")
@@ -87,126 +162,221 @@ class LoginAttempt(Base):
 
 class Document(Base):
     __tablename__ = "documents"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     content_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
     size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     bucket: Mapped[str] = mapped_column(String(128), nullable=False)
     s3_key: Mapped[str] = mapped_column(String(2048), nullable=False)
-    status: Mapped[DocStatus] = mapped_column(Enum(DocStatus), nullable=False, default=DocStatus.NEW)
+    status: Mapped[DocStatus] = mapped_column(
+        Enum(DocStatus), nullable=False, default=DocStatus.NEW
+    )
     title: Mapped[str | None] = mapped_column(String(512), nullable=True)
     meta: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSON, nullable=True)
     text_excerpt: Mapped[str | None] = mapped_column(Text, nullable=True)
-    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    last_accessed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_accessed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    is_private: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=expression.false())
-    workspace_type: Mapped[str] = mapped_column(String(20), nullable=False, server_default="shared")
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    last_accessed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_accessed_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    is_private: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=expression.false()
+    )
+    workspace_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="shared"
+    )
     owner: Mapped[User | None] = relationship("User", foreign_keys=[owner_user_id])
-    last_accessed_user: Mapped[User | None] = relationship("User", foreign_keys=[last_accessed_by])
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    last_accessed_user: Mapped[User | None] = relationship(
+        "User", foreign_keys=[last_accessed_by]
+    )
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
 
 
 class Folder(Base):
     __tablename__ = "folders"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     path: Mapped[str] = mapped_column(String(1024), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     parent_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
     owner: Mapped[User] = relationship("User")
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
 
 
 class ShareLink(Base):
     __tablename__ = "share_links"
     token: Mapped[str] = mapped_column(String(64), primary_key=True)
-    document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False
+    )
     document: Mapped[Document] = relationship("Document")
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
 class UserInvitation(Base):
     __tablename__ = "user_invitations"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    invited_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    invited_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
     inviter: Mapped[User] = relationship("User", foreign_keys=[invited_by])
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole), nullable=False, default=UserRole.VIEWER)
-    token: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole), nullable=False, default=UserRole.VIEWER
+    )
+    token: Mapped[str] = mapped_column(
+        String(255), unique=True, nullable=False, index=True
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class DocumentShare(Base):
     __tablename__ = "document_shares"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False
+    )
     document: Mapped[Document] = relationship("Document")
-    shared_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    shared_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
     sharer: Mapped[User] = relationship("User", foreign_keys=[shared_by])
-    shared_with: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    shared_with: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
     recipient: Mapped[User] = relationship("User", foreign_keys=[shared_with])
-    permission: Mapped[str] = mapped_column(String(20), nullable=False, default='view')
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    permission: Mapped[str] = mapped_column(String(20), nullable=False, default="view")
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class FolderShare(Base):
     __tablename__ = "folder_shares"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     folder_path: Mapped[str] = mapped_column(String(500), nullable=False)
-    owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
     owner: Mapped[User] = relationship("User", foreign_keys=[owner_id])
-    shared_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    shared_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
     sharer: Mapped[User] = relationship("User", foreign_keys=[shared_by])
-    shared_with: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    shared_with: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
     recipient: Mapped[User] = relationship("User", foreign_keys=[shared_with])
-    permission: Mapped[str] = mapped_column(String(20), nullable=False, default='view')
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    permission: Mapped[str] = mapped_column(String(20), nullable=False, default="view")
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class Favorite(Base):
     __tablename__ = "favorites"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
     user: Mapped[User] = relationship("User")
-    document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False
+    )
     document: Mapped[Document] = relationship("Document")
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class DocumentVersion(Base):
     __tablename__ = "document_versions"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False
+    )
     document: Mapped[Document] = relationship("Document")
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     s3_key: Mapped[str] = mapped_column(String(2048), nullable=False)
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     content_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
     creator: Mapped[User | None] = relationship("User")
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+
 
 # ============================================================================
 # LEGAL DOMAIN MODELS - Case Management
 # ============================================================================
 
+
 class Company(Base):
     """Multi-tenant company workspace"""
+
     __tablename__ = "companies"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     company_name: Mapped[str] = mapped_column(String(255), nullable=False)
     domain: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
     subscription_tier: Mapped[str] = mapped_column(String(50), default="professional")
@@ -214,116 +384,223 @@ class Company(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     logo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     primary_color: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
 
 
 class UserCompany(Base):
     """Many-to-many: Users can belong to multiple companies"""
+
     __tablename__ = "user_companies"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False)
-    role: Mapped[str] = mapped_column(String(50), default="user")  # admin, manager, user, viewer
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    company_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False
+    )
+    role: Mapped[str] = mapped_column(
+        String(50), default="user"
+    )  # admin, manager, user, viewer
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
-    joined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    joined_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
     user: Mapped[User] = relationship("User")
     company: Mapped[Company] = relationship("Company")
 
 
 class Case(Base):
     """Legal case with construction-specific fields"""
+
     __tablename__ = "cases"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    case_number: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
-    case_id_custom: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    case_number: Mapped[str] = mapped_column(
+        String(100), unique=True, nullable=False, index=True
+    )
+    case_id_custom: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, index=True
+    )
     name: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     project_name: Mapped[str | None] = mapped_column(String(500))
     contract_type: Mapped[str | None] = mapped_column(String(100))  # JCT, NEC, FIDIC
-    dispute_type: Mapped[str | None] = mapped_column(String(100))   # Delay, Defects, Variation
-    status: Mapped[str] = mapped_column(String(50), default="active")  # active, closed, archived
+    dispute_type: Mapped[str | None] = mapped_column(
+        String(100)
+    )  # Delay, Defects, Variation
+    status: Mapped[str] = mapped_column(
+        String(50), default="active"
+    )  # active, closed, archived
     case_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
     resolution_route: Mapped[str | None] = mapped_column(String(100), nullable=True)
     claimant: Mapped[str | None] = mapped_column(String(255), nullable=True)
     defendant: Mapped[str | None] = mapped_column(String(255), nullable=True)
     client: Mapped[str | None] = mapped_column(String(255), nullable=True)
     legal_team: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
-    heads_of_claim: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
+    heads_of_claim: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSON, nullable=True
+    )
     deadlines: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
-    owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
-    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    company_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False
+    )
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    closed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     owner: Mapped[User] = relationship("User")
     company: Mapped[Company] = relationship("Company")
 
 
 class CaseUser(Base):
     """Case team members with roles"""
+
     __tablename__ = "case_users"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    case_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    role: Mapped[str] = mapped_column(String(50), default="viewer")  # admin, editor, viewer
-    added_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    added_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    role: Mapped[str] = mapped_column(
+        String(50), default="viewer"
+    )  # admin, editor, viewer
+    added_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    added_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
     case: Mapped[Case | None] = relationship("Case")
     user: Mapped[User] = relationship("User", foreign_keys=[user_id])
 
+
 class Issue(Base):
     """Legal issues within a case"""
+
     __tablename__ = "issues"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    case_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    case_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False
+    )
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    issue_type: Mapped[str | None] = mapped_column(String(100))  # Liability, Causation, Quantum
-    status: Mapped[str] = mapped_column(String(50), default="open")  # open, resolved, disputed
+    issue_type: Mapped[str | None] = mapped_column(
+        String(100)
+    )  # Liability, Causation, Quantum
+    status: Mapped[str] = mapped_column(
+        String(50), default="open"
+    )  # open, resolved, disputed
     relevant_contract_clauses: Mapped[list[str] | None] = mapped_column(JSON)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
     case: Mapped[Case] = relationship("Case")
 
 
 class Evidence(Base):
     """Evidence linking documents to cases and issues"""
+
     __tablename__ = "evidence"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    case_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
-    document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
-    issue_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("issues.id"), nullable=True)
-    evidence_type: Mapped[str | None] = mapped_column(String(100))  # email, contract, photo, expert_report
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    case_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False
+    )
+    issue_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("issues.id"), nullable=True
+    )
+    evidence_type: Mapped[str | None] = mapped_column(
+        String(100)
+    )  # email, contract, photo, expert_report
     exhibit_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    date_of_evidence: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    date_of_evidence: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     email_from: Mapped[str | None] = mapped_column(String(255), nullable=True)
     email_to: Mapped[str | None] = mapped_column(String(500), nullable=True)
     email_cc: Mapped[str | None] = mapped_column(String(500), nullable=True)
     email_subject: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    email_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    email_message_id: Mapped[str | None] = mapped_column(String(500), nullable=True, index=True)  # For threading
-    email_in_reply_to: Mapped[str | None] = mapped_column(String(500), nullable=True, index=True)  # For threading
+    email_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    email_message_id: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, index=True
+    )  # For threading
+    email_in_reply_to: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, index=True
+    )  # For threading
     email_thread_topic: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    email_conversation_index: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    thread_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)  # Computed thread ID
-    content: Mapped[str | None] = mapped_column(Text, nullable=True)  # Email body stored directly
-    content_type: Mapped[str | None] = mapped_column(String(50), nullable=True)  # html or text
-    attachments: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)  # Array of attachment info
+    email_conversation_index: Mapped[str | None] = mapped_column(
+        String(500), nullable=True
+    )
+    thread_id: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, index=True
+    )  # Computed thread ID
+    content: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # Email body stored directly
+    content_type: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # html or text
+    attachments: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB, nullable=True
+    )  # Array of attachment info
     relevance_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text)
     meta: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSON, nullable=True)
-    as_planned_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
+    as_planned_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True
+    )
     as_planned_activity: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    as_built_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
+    as_built_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True
+    )
     as_built_activity: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    delay_days: Mapped[int | None] = mapped_column(Integer, nullable=True, server_default="0")
-    is_critical_path: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=expression.false())
-    added_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    added_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    delay_days: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, server_default="0"
+    )
+    is_critical_path: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=expression.false()
+    )
+    added_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    added_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
     case: Mapped[Case] = relationship("Case")
     document: Mapped[Document] = relationship("Document")
     issue: Mapped[Issue | None] = relationship("Issue")
+
 
 class ClaimType(str, PyEnum):
     DELAY = "delay"
@@ -333,83 +610,143 @@ class ClaimType(str, PyEnum):
     LOSS_EXPENSE = "loss_and_expense"
     OTHER = "other"
 
+
 class Claim(Base):
     """Construction claims (delay, defects, variations)"""
+
     __tablename__ = "claims"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    case_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    case_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False
+    )
     claim_type: Mapped[ClaimType] = mapped_column(Enum(ClaimType), nullable=False)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    claimed_amount: Mapped[int | None] = mapped_column(Integer, nullable=True)  # Store in cents
+    claimed_amount: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # Store in cents
     currency: Mapped[str] = mapped_column(String(10), default="GBP")
     claim_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    response_due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    status: Mapped[str] = mapped_column(String(50), default="draft")  # draft, submitted, under_review, accepted, rejected
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    response_due_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(50), default="draft"
+    )  # draft, submitted, under_review, accepted, rejected
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
     case: Mapped[Case] = relationship("Case")
 
 
 class ChronologyItem(Base):
     """Timeline events for cases"""
+
     __tablename__ = "chronology_items"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    case_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
-    claim_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("claims.id"), nullable=True)
-    event_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
-    event_type: Mapped[str | None] = mapped_column(String(100))  # notice, meeting, correspondence, site_event
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    case_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False
+    )
+    claim_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("claims.id"), nullable=True
+    )
+    event_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    event_type: Mapped[str | None] = mapped_column(
+        String(100)
+    )  # notice, meeting, correspondence, site_event
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     evidence_ids: Mapped[list[str] | None] = mapped_column(JSON)  # List of evidence IDs
     parties_involved: Mapped[list[str] | None] = mapped_column(JSON)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
     case: Mapped[Case] = relationship("Case")
     claim: Mapped[Claim | None] = relationship("Claim")
 
 
 class Rebuttal(Base):
     """Arguments and counter-arguments for issues"""
+
     __tablename__ = "rebuttals"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    issue_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("issues.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    issue_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("issues.id"), nullable=False
+    )
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     argument: Mapped[str] = mapped_column(Text, nullable=False)
     counter_argument: Mapped[str | None] = mapped_column(Text)
     supporting_evidence_ids: Mapped[list[str] | None] = mapped_column(JSON)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
     issue: Mapped[Issue] = relationship("Issue")
 
 
 class ContractClause(Base):
     """Parsed contract clauses with unique IDs"""
+
     __tablename__ = "contract_clauses"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    case_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
-    document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    case_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False
+    )
     clause_id: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g., "4.2.1"
     clause_text: Mapped[str] = mapped_column(Text, nullable=False)
     clause_title: Mapped[str | None] = mapped_column(String(500))
     parent_clause_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
     case: Mapped[Case] = relationship("Case")
     document: Mapped[Document] = relationship("Document")
 
 
 class SearchQuery(Base):
     """Search analytics"""
+
     __tablename__ = "search_queries"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
-    company_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.id"))
-    case_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("companies.id")
+    )
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True
+    )
     query_text: Mapped[str] = mapped_column(String(1000), nullable=False)
-    query_type: Mapped[str | None] = mapped_column(String(50))  # keyword, semantic, hybrid
+    query_type: Mapped[str | None] = mapped_column(
+        String(50)
+    )  # keyword, semantic, hybrid
     filters_applied: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     results_count: Mapped[int | None] = mapped_column(Integer)
     execution_time_ms: Mapped[int | None] = mapped_column(Integer)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
     user: Mapped[User | None] = relationship("User")
     company: Mapped[Company | None] = relationship("Company")
     case: Mapped[Case | None] = relationship("Case")
@@ -417,11 +754,20 @@ class SearchQuery(Base):
 
 class DelayEvent(Base):
     """Identified delay/slippage between as-planned and as-built"""
+
     __tablename__ = "delay_events"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    case_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
-    as_planned_programme_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("programmes.id"))
-    as_built_programme_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("programmes.id"))
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    case_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False
+    )
+    as_planned_programme_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("programmes.id")
+    )
+    as_built_programme_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("programmes.id")
+    )
     activity_id: Mapped[str | None] = mapped_column(String(100))
     activity_name: Mapped[str | None] = mapped_column(String(500))
     planned_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -429,15 +775,27 @@ class DelayEvent(Base):
     planned_finish: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     actual_finish: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     delay_days: Mapped[int | None] = mapped_column(Integer)
-    delay_type: Mapped[str | None] = mapped_column(String(50))  # critical, non_critical, concurrent
+    delay_type: Mapped[str | None] = mapped_column(
+        String(50)
+    )  # critical, non_critical, concurrent
     is_on_critical_path: Mapped[bool] = mapped_column(Boolean, default=False)
-    delay_cause: Mapped[str | None] = mapped_column(String(100))  # employer, contractor, neutral, concurrent
+    delay_cause: Mapped[str | None] = mapped_column(
+        String(100)
+    )  # employer, contractor, neutral, concurrent
     description: Mapped[str | None] = mapped_column(Text)
-    linked_correspondence_ids: Mapped[list[str] | None] = mapped_column(JSON)  # Document IDs of related emails
-    linked_issue_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("issues.id"), nullable=True)
+    linked_correspondence_ids: Mapped[list[str] | None] = mapped_column(
+        JSON
+    )  # Document IDs of related emails
+    linked_issue_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("issues.id"), nullable=True
+    )
     eot_entitlement_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    created_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id")
+    )
     case: Mapped[Case] = relationship("Case")
     issue: Mapped[Issue | None] = relationship("Issue")
 
@@ -446,51 +804,100 @@ class DelayEvent(Base):
 # PST ANALYSIS SPECIFIC MODELS
 # ========================================
 
+
 class Project(Base):
     """Project management for construction/engineering projects"""
+
     __tablename__ = "projects"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     project_name: Mapped[str] = mapped_column(String(255), nullable=False)
     project_code: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    start_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    completion_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    start_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completion_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     contract_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # Retrospective analysis fields
-    analysis_type: Mapped[str | None] = mapped_column(String(50), nullable=True, default='project')  # 'retrospective' or 'project'
-    project_aliases: Mapped[str | None] = mapped_column(Text, nullable=True)  # Comma-separated alternative names
+    analysis_type: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, default="project"
+    )  # 'retrospective' or 'project'
+    project_aliases: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # Comma-separated alternative names
     site_address: Mapped[str | None] = mapped_column(Text, nullable=True)
-    include_domains: Mapped[str | None] = mapped_column(Text, nullable=True)  # Comma-separated domains
-    exclude_people: Mapped[str | None] = mapped_column(Text, nullable=True)  # Comma-separated names/emails
-    project_terms: Mapped[str | None] = mapped_column(Text, nullable=True)  # Project-specific terms
-    exclude_keywords: Mapped[str | None] = mapped_column(Text, nullable=True)  # Keywords to exclude
-    meta: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSON, nullable=True, default=dict)  # Flexible storage for refinements etc
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    include_domains: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # Comma-separated domains
+    exclude_people: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # Comma-separated names/emails
+    project_terms: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # Project-specific terms
+    exclude_keywords: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # Keywords to exclude
+    meta: Mapped[dict[str, Any] | None] = mapped_column(
+        "metadata", JSON, nullable=True, default=dict
+    )  # Flexible storage for refinements etc
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
     owner: Mapped[User] = relationship("User")
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
 
 
 class PSTFile(Base):
     """Uploaded PST files for email forensics"""
+
     __tablename__ = "pst_files"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
-    case_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)  # Fixed: DB allows NULL
-    project_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
-    s3_bucket: Mapped[str | None] = mapped_column(String(128), nullable=True)  # Fixed: DB allows NULL
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True
+    )  # Fixed: DB allows NULL
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True
+    )
+    s3_bucket: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )  # Fixed: DB allows NULL
     s3_key: Mapped[str] = mapped_column(String(2048), nullable=False)
-    file_size_bytes: Mapped[int | None] = mapped_column("file_size_bytes", BigInteger, nullable=True)  # Fixed: Match DB column name
+    file_size_bytes: Mapped[int | None] = mapped_column(
+        "file_size_bytes", BigInteger, nullable=True
+    )  # Fixed: Match DB column name
     total_emails: Mapped[int] = mapped_column(Integer, default=0)
     processed_emails: Mapped[int] = mapped_column(Integer, default=0)
-    processing_status: Mapped[str] = mapped_column(String(50), default='pending')  # Fixed: Match DB default
-    processing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)  # Fixed: DB has no timezone
-    processing_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)  # Fixed: DB has no timezone
+    processing_status: Mapped[str] = mapped_column(
+        String(50), default="pending"
+    )  # Fixed: Match DB default
+    processing_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True
+    )  # Fixed: DB has no timezone
+    processing_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True
+    )  # Fixed: DB has no timezone
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
     uploader: Mapped[User | None] = relationship("User")
     case: Mapped[Case | None] = relationship("Case")
     project: Mapped[Project | None] = relationship("Project")
-    uploaded_at: Mapped[datetime | None] = mapped_column("uploaded_at", DateTime(timezone=False), server_default=func.now())  # Fixed: Match DB column name
+    uploaded_at: Mapped[datetime | None] = mapped_column(
+        "uploaded_at", DateTime(timezone=False), server_default=func.now()
+    )  # Fixed: Match DB column name
 
     @property
     def file_size(self) -> int | None:
@@ -500,38 +907,69 @@ class PSTFile(Base):
 
 class EmailMessage(Base):
     """Extracted email messages from PST files with forensic metadata"""
+
     __tablename__ = "email_messages"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    pst_file_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("pst_files.id"), nullable=False)
-    case_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)  # Now nullable
-    project_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)  # New field
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    pst_file_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("pst_files.id"), nullable=False
+    )
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True
+    )  # Now nullable
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True
+    )  # New field
 
     # Email metadata
-    message_id: Mapped[str | None] = mapped_column(String(512), nullable=True, index=True)  # RFC message-id
+    message_id: Mapped[str | None] = mapped_column(
+        String(512), nullable=True, index=True
+    )  # RFC message-id
     in_reply_to: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    email_references: Mapped[str | None] = mapped_column(Text, nullable=True)  # For threading (renamed from references)
+    email_references: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # For threading (renamed from references)
     conversation_index: Mapped[str | None] = mapped_column(String(1024), nullable=True)
-    thread_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)  # Computed thread ID for grouping
+    thread_id: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, index=True
+    )  # Computed thread ID for grouping
 
     # PST forensic data
-    pst_message_offset: Mapped[int | None] = mapped_column(Integer, nullable=True)  # Position in PST file
-    pst_message_path: Mapped[str | None] = mapped_column(Text, nullable=True)  # Folder path in PST
+    pst_message_offset: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # Position in PST file
+    pst_message_path: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # Folder path in PST
 
     # Email content
     subject: Mapped[str | None] = mapped_column(Text, nullable=True)
-    sender_email: Mapped[str | None] = mapped_column(String(512), nullable=True, index=True)
+    sender_email: Mapped[str | None] = mapped_column(
+        String(512), nullable=True, index=True
+    )
     sender_name: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    recipients_to: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)  # Array of recipients
+    recipients_to: Mapped[list[str] | None] = mapped_column(
+        ARRAY(Text), nullable=True
+    )  # Array of recipients
     recipients_cc: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
     recipients_bcc: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
-    date_sent: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
-    date_received: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    date_sent: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    date_received: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     body_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     body_html: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Canonical body and deduplication
-    body_text_clean: Mapped[str | None] = mapped_column(Text, nullable=True)  # Top-message canonical text (quotes stripped, normalised)
-    content_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)  # Hash of canonical body + key metadata
+    body_text_clean: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # Top-message canonical text (quotes stripped, normalised)
+    content_hash: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )  # Hash of canonical body + key metadata
 
     # Programme linking
     as_planned_activity: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -542,45 +980,64 @@ class EmailMessage(Base):
     # Flags
     has_attachments: Mapped[bool] = mapped_column(Boolean, default=False)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
-    importance: Mapped[str | None] = mapped_column(String(20), nullable=True)  # high, normal, low
+    importance: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
+    )  # high, normal, low
 
     # Tagging (populated during processing)
-    matched_stakeholders: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)  # Array of stakeholder IDs
-    matched_keywords: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)  # Array of keyword IDs
+    matched_stakeholders: Mapped[list[str] | None] = mapped_column(
+        JSONB, nullable=True
+    )  # Array of stakeholder IDs
+    matched_keywords: Mapped[list[str] | None] = mapped_column(
+        JSONB, nullable=True
+    )  # Array of keyword IDs
 
     # Storage optimization: Store only preview if body is too large
     body_preview: Mapped[str | None] = mapped_column(Text, nullable=True)  # First 10KB
-    body_full_s3_key: Mapped[str | None] = mapped_column(String(512), nullable=True)  # S3 key if body > 10KB
+    body_full_s3_key: Mapped[str | None] = mapped_column(
+        String(512), nullable=True
+    )  # S3 key if body > 10KB
 
     # Flexible metadata storage
-    meta: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSON, nullable=True, default=dict)
+    meta: Mapped[dict[str, Any] | None] = mapped_column(
+        "metadata", JSON, nullable=True, default=dict
+    )
 
     pst_file: Mapped[PSTFile] = relationship("PSTFile")
     case: Mapped[Case | None] = relationship("Case")
     project: Mapped[Project | None] = relationship("Project")
-    attachments: Mapped[list["EmailAttachment"]] = relationship("EmailAttachment", back_populates="email_message", lazy="selectin")
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    attachments: Mapped[list["EmailAttachment"]] = relationship(
+        "EmailAttachment", back_populates="email_message", lazy="selectin"
+    )
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
     # Add indexes for performance
     __table_args__ = (
-        Index('idx_email_case_date', 'case_id', 'date_sent'),
-        Index('idx_email_project_date', 'project_id', 'date_sent'),
-        Index('idx_email_stakeholders', 'matched_stakeholders', postgresql_using='gin'),
-        Index('idx_email_keywords', 'matched_keywords', postgresql_using='gin'),
-        Index('idx_email_has_attachments', 'case_id', 'has_attachments'),
-        Index('idx_email_project_has_attachments', 'project_id', 'has_attachments'),
-        Index('idx_email_conversation', 'case_id', 'conversation_index'),
-        Index('idx_email_project_conversation', 'project_id', 'conversation_index'),
-        Index('idx_email_case_content_hash', 'case_id', 'content_hash'),
-        Index('idx_email_project_content_hash', 'project_id', 'content_hash'),
+        Index("idx_email_case_date", "case_id", "date_sent"),
+        Index("idx_email_project_date", "project_id", "date_sent"),
+        Index("idx_email_stakeholders", "matched_stakeholders", postgresql_using="gin"),
+        Index("idx_email_keywords", "matched_keywords", postgresql_using="gin"),
+        Index("idx_email_has_attachments", "case_id", "has_attachments"),
+        Index("idx_email_project_has_attachments", "project_id", "has_attachments"),
+        Index("idx_email_conversation", "case_id", "conversation_index"),
+        Index("idx_email_project_conversation", "project_id", "conversation_index"),
+        Index("idx_email_case_content_hash", "case_id", "content_hash"),
+        Index("idx_email_project_content_hash", "project_id", "content_hash"),
     )
 
 
 class EmailAttachment(Base):
     """Email attachments extracted from PST files"""
+
     __tablename__ = "email_attachments"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email_message_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("email_messages.id"), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    email_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("email_messages.id"), nullable=True
+    )
     filename: Mapped[str | None] = mapped_column(String(512), nullable=True)
     content_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
     file_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
@@ -597,12 +1054,14 @@ class EmailAttachment(Base):
     has_been_ocred: Mapped[bool] = mapped_column(Boolean, default=False)
     extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    email_message: Mapped[EmailMessage | None] = relationship("EmailMessage", back_populates="attachments")
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-    __table_args__ = (
-        Index('idx_email_attachment_hash', 'attachment_hash'),
+    email_message: Mapped[EmailMessage | None] = relationship(
+        "EmailMessage", back_populates="attachments"
     )
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    __table_args__ = (Index("idx_email_attachment_hash", "attachment_hash"),)
 
     @property
     def file_size(self) -> int | None:
@@ -612,57 +1071,94 @@ class EmailAttachment(Base):
 
 class Stakeholder(Base):
     """Stakeholders for auto-tagging emails"""
-    __tablename__ = "stakeholders"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    case_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)
-    project_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
 
-    role: Mapped[str] = mapped_column(String(255), nullable=False)  # e.g., "Main Contractor", "Client"
+    __tablename__ = "stakeholders"
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True
+    )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True
+    )
+
+    role: Mapped[str] = mapped_column(
+        String(255), nullable=False
+    )  # e.g., "Main Contractor", "Client"
     name: Mapped[str] = mapped_column(String(512), nullable=False)
     email: Mapped[str | None] = mapped_column(String(512), nullable=True)
     organization: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     # For fuzzy matching
-    email_domain: Mapped[str | None] = mapped_column(String(255), nullable=True)  # Extracted domain for matching
+    email_domain: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )  # Extracted domain for matching
 
     case: Mapped[Case | None] = relationship("Case")
     project: Mapped[Project | None] = relationship("Project")
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class Keyword(Base):
     """Keywords for auto-tagging emails"""
+
     __tablename__ = "keywords"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    case_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)
-    project_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True
+    )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True
+    )
 
     keyword_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    variations: Mapped[str | None] = mapped_column(Text, nullable=True)  # Comma-separated variations
+    variations: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # Comma-separated variations
     is_regex: Mapped[bool] = mapped_column(Boolean, default=False)
 
     case: Mapped[Case | None] = relationship("Case")
     project: Mapped[Project | None] = relationship("Project")
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class Programme(Base):
     """Construction programmes (Asta Powerproject, MS Project, etc.)"""
+
     __tablename__ = "programmes"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    case_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
-    project_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    case_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False
+    )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True
+    )
 
     programme_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    programme_type: Mapped[str] = mapped_column(String(100), nullable=False)  # baseline, actual, as-built, etc.
-    programme_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    programme_type: Mapped[str] = mapped_column(
+        String(100), nullable=False
+    )  # baseline, actual, as-built, etc.
+    programme_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     version_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # File storage
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     s3_bucket: Mapped[str] = mapped_column(String(128), nullable=False)
     s3_key: Mapped[str] = mapped_column(String(2048), nullable=False)
-    file_format: Mapped[str | None] = mapped_column(String(50), nullable=True)  # XML, PP, MPP
+    file_format: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # XML, PP, MPP
 
     # Parsed data (JSON)
     activities: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
@@ -670,27 +1166,44 @@ class Programme(Base):
     milestones: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
 
     # Summary dates
-    project_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    project_finish: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    project_start: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    project_finish: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    uploaded_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    uploaded_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
     uploader: Mapped[User] = relationship("User")
     case: Mapped[Case] = relationship("Case")
     project: Mapped[Project | None] = relationship("Project")
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class AppSetting(Base):
     """Application settings that can be modified by admins"""
+
     __tablename__ = "app_settings"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    key: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    key: Mapped[str] = mapped_column(
+        String(128), unique=True, nullable=False, index=True
+    )
     value: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     updater: Mapped[User | None] = relationship("User")
 
@@ -700,8 +1213,10 @@ class AppSetting(Base):
 # Case-independent evidence management system
 # ============================================================================
 
+
 class EvidenceType(str, PyEnum):
     """Classification of evidence types"""
+
     CONTRACT = "contract"
     VARIATION = "variation"
     DRAWING = "drawing"
@@ -727,6 +1242,7 @@ class EvidenceType(str, PyEnum):
 
 class DocumentCategory(str, PyEnum):
     """Construction-specific document categories"""
+
     JCT_RELEVANT_EVENT = "jct_relevant_event"
     JCT_EXTENSION_TIME = "jct_extension_time"
     JCT_LOSS_EXPENSE = "jct_loss_expense"
@@ -746,6 +1262,7 @@ class DocumentCategory(str, PyEnum):
 
 class EvidenceSourceType(str, PyEnum):
     """Source types for evidence provenance"""
+
     PST_ATTACHMENT = "pst_attachment"
     DIRECT_UPLOAD = "direct_upload"
     BULK_IMPORT = "bulk_import"
@@ -757,6 +1274,7 @@ class EvidenceSourceType(str, PyEnum):
 
 class CorrespondenceLinkType(str, PyEnum):
     """Types of links between evidence and correspondence"""
+
     ATTACHMENT = "attachment"
     MENTIONED = "mentioned"
     RELATED = "related"
@@ -768,6 +1286,7 @@ class CorrespondenceLinkType(str, PyEnum):
 
 class EvidenceRelationType(str, PyEnum):
     """Types of relationships between evidence items"""
+
     SUPERSEDES = "supersedes"
     REFERENCES = "references"
     RESPONDS_TO = "responds_to"
@@ -780,6 +1299,7 @@ class EvidenceRelationType(str, PyEnum):
 
 class EvidenceProcessingStatus(str, PyEnum):
     """Processing status for evidence items"""
+
     PENDING = "pending"
     PROCESSING = "processing"
     READY = "ready"
@@ -789,9 +1309,12 @@ class EvidenceProcessingStatus(str, PyEnum):
 
 class EvidenceSource(Base):
     """Track provenance of evidence (PST files, bulk imports, etc.)"""
+
     __tablename__ = "evidence_sources"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
 
     # Source identification
     source_type: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -800,7 +1323,9 @@ class EvidenceSource(Base):
     source_description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # For PST files (optional link)
-    pst_file_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("pst_files.id"), nullable=True)
+    pst_file_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("pst_files.id"), nullable=True
+    )
 
     # Original file storage
     original_s3_bucket: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -815,19 +1340,33 @@ class EvidenceSource(Base):
     duplicate_items: Mapped[int] = mapped_column(Integer, default=0)
 
     # Processing status
-    status: Mapped[str] = mapped_column(String(50), default='pending')
+    status: Mapped[str] = mapped_column(String(50), default="pending")
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Optional associations
-    case_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)
-    project_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True
+    )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True
+    )
 
     # Audit
-    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
 
     # Relationships
     pst_file: Mapped[PSTFile | None] = relationship("PSTFile")
@@ -838,26 +1377,37 @@ class EvidenceSource(Base):
 
 class EvidenceCollection(Base):
     """Virtual folders for organizing evidence"""
+
     __tablename__ = "evidence_collections"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
 
     # Collection info
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    collection_type: Mapped[str] = mapped_column(String(50), default='manual')  # manual, smart, auto_date, auto_type
+    collection_type: Mapped[str] = mapped_column(
+        String(50), default="manual"
+    )  # manual, smart, auto_date, auto_type
 
     # Smart collection rules
     filter_rules: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
 
     # Hierarchy support
-    parent_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence_collections.id"), nullable=True)
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("evidence_collections.id"), nullable=True
+    )
     path: Mapped[str | None] = mapped_column(Text, nullable=True)  # Materialized path
     depth: Mapped[int] = mapped_column(Integer, default=0)
 
     # Optional associations
-    case_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)
-    project_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True
+    )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True
+    )
 
     # Display settings
     color: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -869,12 +1419,20 @@ class EvidenceCollection(Base):
     item_count: Mapped[int] = mapped_column(Integer, default=0)
 
     # Audit
-    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
 
     # Relationships
-    parent: Mapped[EvidenceCollection | None] = relationship("EvidenceCollection", remote_side=[id], backref="children")
+    parent: Mapped[EvidenceCollection | None] = relationship(
+        "EvidenceCollection", remote_side=[id], backref="children"
+    )
     case: Mapped[Case | None] = relationship("Case")
     project: Mapped[Project | None] = relationship("Project")
     creator: Mapped[User | None] = relationship("User")
@@ -882,15 +1440,22 @@ class EvidenceCollection(Base):
 
 class EvidenceItem(Base):
     """Core evidence repository - NOT case-dependent"""
+
     __tablename__ = "evidence_items"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
 
     # Core file metadata
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     original_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    file_type: Mapped[str | None] = mapped_column(String(255), nullable=True)  # Increased from 50 for flexibility
-    mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)  # Increased for edge cases
+    file_type: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )  # Increased from 50 for flexibility
+    mime_type: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )  # Increased for edge cases
     file_size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     file_hash: Mapped[str] = mapped_column(String(128), nullable=False)  # SHA-256
 
@@ -904,8 +1469,12 @@ class EvidenceItem(Base):
     document_category: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # Auto-extracted metadata
-    document_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
-    document_date_confidence: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0-100
+    document_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True
+    )
+    document_date_confidence: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # 0-100
     title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     author: Mapped[str | None] = mapped_column(String(255), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -913,7 +1482,7 @@ class EvidenceItem(Base):
 
     # Full-text content
     extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    text_language: Mapped[str] = mapped_column(String(10), default='en')
+    text_language: Mapped[str] = mapped_column(String(10), default="en")
 
     # Entity extraction (auto-populated)
     extracted_parties: Mapped[list[str]] = mapped_column(JSONB, default=list)
@@ -929,48 +1498,78 @@ class EvidenceItem(Base):
     stakeholders_matched: Mapped[list[str]] = mapped_column(JSONB, default=list)
 
     # Comprehensive metadata (from extraction service)
-    extracted_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)  # Full metadata from MetadataExtractor
-    metadata_extracted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    extracted_metadata: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )  # Full metadata from MetadataExtractor
+    metadata_extracted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Classification confidence
-    classification_confidence: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0-100
+    classification_confidence: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # 0-100
     classification_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # Processing status
-    processing_status: Mapped[str] = mapped_column(String(50), default='pending')
+    processing_status: Mapped[str] = mapped_column(String(50), default="pending")
     processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     ocr_completed: Mapped[bool] = mapped_column(Boolean, default=False)
     ai_analyzed: Mapped[bool] = mapped_column(Boolean, default=False)
-    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    processed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Provenance
     source_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    source_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence_sources.id"), nullable=True)
+    source_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("evidence_sources.id"), nullable=True
+    )
     source_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    source_email_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("email_messages.id"), nullable=True)
+    source_email_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("email_messages.id"), nullable=True
+    )
 
     # Optional associations (NULL = unassigned)
-    case_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)
-    project_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
-    collection_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence_collections.id"), nullable=True)
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True
+    )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True
+    )
+    collection_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("evidence_collections.id"), nullable=True
+    )
 
     # Flags
     is_duplicate: Mapped[bool] = mapped_column(Boolean, default=False)
-    duplicate_of_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=True)
+    duplicate_of_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=True
+    )
     is_privileged: Mapped[bool] = mapped_column(Boolean, default=False)
     is_confidential: Mapped[bool] = mapped_column(Boolean, default=False)
     is_starred: Mapped[bool] = mapped_column(Boolean, default=False)
     is_reviewed: Mapped[bool] = mapped_column(Boolean, default=False)
-    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # User notes
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Audit
-    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
 
     # Relationships
     source: Mapped[EvidenceSource | None] = relationship("EvidenceSource")
@@ -978,31 +1577,38 @@ class EvidenceItem(Base):
     case: Mapped[Case | None] = relationship("Case")
     project: Mapped[Project | None] = relationship("Project")
     collection: Mapped[EvidenceCollection | None] = relationship("EvidenceCollection")
-    duplicate_of: Mapped[EvidenceItem | None] = relationship("EvidenceItem", remote_side=[id])
+    duplicate_of: Mapped[EvidenceItem | None] = relationship(
+        "EvidenceItem", remote_side=[id]
+    )
     uploader: Mapped[User | None] = relationship("User", foreign_keys=[uploaded_by])
     reviewer: Mapped[User | None] = relationship("User", foreign_keys=[reviewed_by])
 
     # Indexes defined in __table_args__
     __table_args__ = (
-        Index('idx_evidence_items_hash', 'file_hash'),
-        Index('idx_evidence_items_type', 'evidence_type'),
-        Index('idx_evidence_items_date', 'document_date'),
-        Index('idx_evidence_items_status', 'processing_status'),
-        Index('idx_evidence_items_case', 'case_id'),
-        Index('idx_evidence_items_project', 'project_id'),
-        Index('idx_evidence_items_auto_tags', 'auto_tags', postgresql_using='gin'),
-        Index('idx_evidence_items_manual_tags', 'manual_tags', postgresql_using='gin'),
+        Index("idx_evidence_items_hash", "file_hash"),
+        Index("idx_evidence_items_type", "evidence_type"),
+        Index("idx_evidence_items_date", "document_date"),
+        Index("idx_evidence_items_status", "processing_status"),
+        Index("idx_evidence_items_case", "case_id"),
+        Index("idx_evidence_items_project", "project_id"),
+        Index("idx_evidence_items_auto_tags", "auto_tags", postgresql_using="gin"),
+        Index("idx_evidence_items_manual_tags", "manual_tags", postgresql_using="gin"),
     )
 
 
 class EvidenceCorrespondenceLink(Base):
     """Links evidence items to emails/correspondence"""
+
     __tablename__ = "evidence_correspondence_links"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
 
     # Evidence item
-    evidence_item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=False)
+    evidence_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=False
+    )
 
     # Link type and confidence
     link_type: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -1010,12 +1616,18 @@ class EvidenceCorrespondenceLink(Base):
     link_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # Target: Email message
-    email_message_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("email_messages.id"), nullable=True)
+    email_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("email_messages.id"), nullable=True
+    )
 
     # OR: External correspondence
     correspondence_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    correspondence_reference: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    correspondence_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
+    correspondence_reference: Mapped[str | None] = mapped_column(
+        String(500), nullable=True
+    )
+    correspondence_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True
+    )
     correspondence_from: Mapped[str | None] = mapped_column(String(255), nullable=True)
     correspondence_to: Mapped[str | None] = mapped_column(String(255), nullable=True)
     correspondence_subject: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -1029,13 +1641,23 @@ class EvidenceCorrespondenceLink(Base):
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Audit
-    linked_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    verified_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    linked_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    verified_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Relationships
-    evidence_item: Mapped[EvidenceItem] = relationship("EvidenceItem", backref="correspondence_links")
+    evidence_item: Mapped[EvidenceItem] = relationship(
+        "EvidenceItem", backref="correspondence_links"
+    )
     email_message: Mapped[EmailMessage | None] = relationship("EmailMessage")
     linker: Mapped[User | None] = relationship("User", foreign_keys=[linked_by])
     verifier: Mapped[User | None] = relationship("User", foreign_keys=[verified_by])
@@ -1043,17 +1665,26 @@ class EvidenceCorrespondenceLink(Base):
 
 class EvidenceRelation(Base):
     """Relationships between evidence items"""
+
     __tablename__ = "evidence_relations"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
 
     # Source and target
-    source_evidence_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=False)
-    target_evidence_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=False)
+    source_evidence_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=False
+    )
+    target_evidence_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=False
+    )
 
     # Relation details
     relation_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    relation_direction: Mapped[str] = mapped_column(String(20), default='unidirectional')
+    relation_direction: Mapped[str] = mapped_column(
+        String(20), default="unidirectional"
+    )
 
     # Context
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -1065,63 +1696,101 @@ class EvidenceRelation(Base):
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Audit
-    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    verified_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    verified_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Relationships
-    source_evidence: Mapped[EvidenceItem] = relationship("EvidenceItem", foreign_keys=[source_evidence_id], backref="outgoing_relations")
-    target_evidence: Mapped[EvidenceItem] = relationship("EvidenceItem", foreign_keys=[target_evidence_id], backref="incoming_relations")
+    source_evidence: Mapped[EvidenceItem] = relationship(
+        "EvidenceItem", foreign_keys=[source_evidence_id], backref="outgoing_relations"
+    )
+    target_evidence: Mapped[EvidenceItem] = relationship(
+        "EvidenceItem", foreign_keys=[target_evidence_id], backref="incoming_relations"
+    )
     creator: Mapped[User | None] = relationship("User", foreign_keys=[created_by])
     verifier: Mapped[User | None] = relationship("User", foreign_keys=[verified_by])
 
 
 class EvidenceCollectionItem(Base):
     """Junction table: evidence items can be in multiple collections"""
+
     __tablename__ = "evidence_collection_items"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    collection_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence_collections.id"), nullable=False)
-    evidence_item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    collection_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("evidence_collections.id"), nullable=False
+    )
+    evidence_item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=False
+    )
 
     # Order within collection
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
     # How added
-    added_method: Mapped[str] = mapped_column(String(50), default='manual')
+    added_method: Mapped[str] = mapped_column(String(50), default="manual")
 
     # Audit
-    added_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    added_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    added_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    added_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
     # Relationships
-    collection: Mapped[EvidenceCollection] = relationship("EvidenceCollection", backref="items")
-    evidence_item: Mapped[EvidenceItem] = relationship("EvidenceItem", backref="collection_memberships")
+    collection: Mapped[EvidenceCollection] = relationship(
+        "EvidenceCollection", backref="items"
+    )
+    evidence_item: Mapped[EvidenceItem] = relationship(
+        "EvidenceItem", backref="collection_memberships"
+    )
     adder: Mapped[User | None] = relationship("User")
 
 
 class EvidenceActivityLog(Base):
     """Audit trail for evidence access and modifications"""
+
     __tablename__ = "evidence_activity_log"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
 
     # Target
-    evidence_item_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=True)
-    collection_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("evidence_collections.id"), nullable=True)
+    evidence_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=True
+    )
+    collection_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("evidence_collections.id"), nullable=True
+    )
 
     # Action
     action: Mapped[str] = mapped_column(String(50), nullable=False)
     action_details: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     # Actor
-    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Timestamp
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
     # Relationships
     evidence_item: Mapped[EvidenceItem | None] = relationship("EvidenceItem")
@@ -1133,17 +1802,20 @@ class EvidenceActivityLog(Base):
 # Contentious Matters and Heads of Claim Module
 # =============================================================================
 
+
 class MatterStatus(str, PyEnum):
     ACTIVE = "active"
     PENDING = "pending"
     RESOLVED = "resolved"
     CLOSED = "closed"
 
+
 class MatterPriority(str, PyEnum):
     LOW = "low"
     NORMAL = "normal"
     HIGH = "high"
     CRITICAL = "critical"
+
 
 class ClaimStatus(str, PyEnum):
     DRAFT = "draft"
@@ -1154,11 +1826,13 @@ class ClaimStatus(str, PyEnum):
     SETTLED = "settled"
     WITHDRAWN = "withdrawn"
 
+
 class LinkType(str, PyEnum):
     SUPPORTING = "supporting"
     CONTRADICTING = "contradicting"
     NEUTRAL = "neutral"
     KEY = "key"
+
 
 class ItemType(str, PyEnum):
     CORRESPONDENCE = "correspondence"
@@ -1173,43 +1847,70 @@ class ContentiousMatter(Base):
     A contentious matter represents a significant dispute area that may
     contain multiple specific heads of claim.
     """
+
     __tablename__ = "contentious_matters"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    project_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
-    case_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id", ondelete="CASCADE"), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True
+    )
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id", ondelete="CASCADE"), nullable=True
+    )
 
     # Matter details
     name: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(50), default='active')  # Uses MatterStatus values
-    priority: Mapped[str] = mapped_column(String(20), default='normal')  # Uses MatterPriority values
+    status: Mapped[str] = mapped_column(
+        String(50), default="active"
+    )  # Uses MatterStatus values
+    priority: Mapped[str] = mapped_column(
+        String(20), default="normal"
+    )  # Uses MatterPriority values
 
     # Financial
-    estimated_value: Mapped[int | None] = mapped_column(Integer, nullable=True)  # Store in cents/pence
-    currency: Mapped[str] = mapped_column(String(10), default='GBP')
+    estimated_value: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # Store in cents/pence
+    currency: Mapped[str] = mapped_column(String(10), default="GBP")
 
     # Dates
-    date_identified: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    resolution_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    date_identified: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    resolution_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Audit
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
-    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
 
     # Relationships
     project: Mapped[Project | None] = relationship("Project")
     case: Mapped[Case | None] = relationship("Case")
     creator: Mapped[User | None] = relationship("User", foreign_keys=[created_by])
-    heads_of_claim: Mapped[list[HeadOfClaim]] = relationship("HeadOfClaim", back_populates="contentious_matter")
-    item_links: Mapped[list[ItemClaimLink]] = relationship("ItemClaimLink", back_populates="contentious_matter")
+    heads_of_claim: Mapped[list[HeadOfClaim]] = relationship(
+        "HeadOfClaim", back_populates="contentious_matter"
+    )
+    item_links: Mapped[list[ItemClaimLink]] = relationship(
+        "ItemClaimLink", back_populates="contentious_matter"
+    )
 
     # Indexes
     __table_args__ = (
-        Index('idx_contentious_matters_project', 'project_id'),
-        Index('idx_contentious_matters_case', 'case_id'),
-        Index('idx_contentious_matters_status', 'status'),
+        Index("idx_contentious_matters_project", "project_id"),
+        Index("idx_contentious_matters_case", "case_id"),
+        Index("idx_contentious_matters_status", "status"),
     )
 
 
@@ -1218,52 +1919,89 @@ class HeadOfClaim(Base):
     Specific legal claims, can be nested under contentious matters.
     Represents individual claims such as delay damages, defect remediation costs, etc.
     """
+
     __tablename__ = "heads_of_claim"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    project_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
-    case_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id", ondelete="CASCADE"), nullable=True)
-    contentious_matter_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("contentious_matters.id", ondelete="SET NULL"), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True
+    )
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id", ondelete="CASCADE"), nullable=True
+    )
+    contentious_matter_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("contentious_matters.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     # Claim identification
-    reference_number: Mapped[str | None] = mapped_column(String(100), nullable=True)  # e.g., "HOC-001", "EOT-001"
+    reference_number: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )  # e.g., "HOC-001", "EOT-001"
     name: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    claim_type: Mapped[str | None] = mapped_column(String(100), nullable=True)  # delay, defects, variation, loss_expense, extension_of_time
+    claim_type: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )  # delay, defects, variation, loss_expense, extension_of_time
 
     # Financial
-    claimed_amount: Mapped[int | None] = mapped_column(Integer, nullable=True)  # Store in cents/pence
-    awarded_amount: Mapped[int | None] = mapped_column(Integer, nullable=True)  # Store in cents/pence
-    currency: Mapped[str] = mapped_column(String(10), default='GBP')
+    claimed_amount: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # Store in cents/pence
+    awarded_amount: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )  # Store in cents/pence
+    currency: Mapped[str] = mapped_column(String(10), default="GBP")
 
     # Status and dates
-    status: Mapped[str] = mapped_column(String(50), default='draft')  # Uses ClaimStatus values
-    submission_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    response_due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    determination_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(50), default="draft"
+    )  # Uses ClaimStatus values
+    submission_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    response_due_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    determination_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Supporting information
     supporting_contract_clause: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Audit
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
-    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
 
     # Relationships
     project: Mapped[Project | None] = relationship("Project")
     case: Mapped[Case | None] = relationship("Case")
-    contentious_matter: Mapped[ContentiousMatter | None] = relationship("ContentiousMatter", back_populates="heads_of_claim")
+    contentious_matter: Mapped[ContentiousMatter | None] = relationship(
+        "ContentiousMatter", back_populates="heads_of_claim"
+    )
     creator: Mapped[User | None] = relationship("User", foreign_keys=[created_by])
-    item_links: Mapped[list[ItemClaimLink]] = relationship("ItemClaimLink", back_populates="head_of_claim")
+    item_links: Mapped[list[ItemClaimLink]] = relationship(
+        "ItemClaimLink", back_populates="head_of_claim"
+    )
 
     # Indexes
     __table_args__ = (
-        Index('idx_heads_of_claim_project', 'project_id'),
-        Index('idx_heads_of_claim_case', 'case_id'),
-        Index('idx_heads_of_claim_matter', 'contentious_matter_id'),
-        Index('idx_heads_of_claim_status', 'status'),
-        Index('idx_heads_of_claim_ref', 'reference_number'),
+        Index("idx_heads_of_claim_project", "project_id"),
+        Index("idx_heads_of_claim_case", "case_id"),
+        Index("idx_heads_of_claim_matter", "contentious_matter_id"),
+        Index("idx_heads_of_claim_status", "status"),
+        Index("idx_heads_of_claim_ref", "reference_number"),
     )
 
 
@@ -1273,40 +2011,69 @@ class ItemClaimLink(Base):
     This allows tagging emails and documents as supporting/contradicting evidence
     for specific disputes.
     """
+
     __tablename__ = "item_claim_links"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
 
     # Linked item
-    item_type: Mapped[str] = mapped_column(String(50), nullable=False)  # 'correspondence' or 'evidence'
+    item_type: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # 'correspondence' or 'evidence'
     item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
 
     # Link targets (at least one must be set)
-    contentious_matter_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("contentious_matters.id", ondelete="CASCADE"), nullable=True)
-    head_of_claim_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("heads_of_claim.id", ondelete="CASCADE"), nullable=True)
+    contentious_matter_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("contentious_matters.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    head_of_claim_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("heads_of_claim.id", ondelete="CASCADE"),
+        nullable=True,
+    )
 
     # Link details
-    link_type: Mapped[str] = mapped_column(String(50), default='supporting')  # Uses LinkType values
+    link_type: Mapped[str] = mapped_column(
+        String(50), default="supporting"
+    )  # Uses LinkType values
     relevance_score: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0-100
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String(50), default='active')  # active, removed, superseded
+    status: Mapped[str] = mapped_column(
+        String(50), default="active"
+    )  # active, removed, superseded
 
     # Audit
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
-    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
 
     # Relationships
-    contentious_matter: Mapped[ContentiousMatter | None] = relationship("ContentiousMatter", back_populates="item_links")
-    head_of_claim: Mapped[HeadOfClaim | None] = relationship("HeadOfClaim", back_populates="item_links")
+    contentious_matter: Mapped[ContentiousMatter | None] = relationship(
+        "ContentiousMatter", back_populates="item_links"
+    )
+    head_of_claim: Mapped[HeadOfClaim | None] = relationship(
+        "HeadOfClaim", back_populates="item_links"
+    )
     creator: Mapped[User | None] = relationship("User", foreign_keys=[created_by])
-    comments: Mapped[list[ItemComment]] = relationship("ItemComment", back_populates="item_link", cascade="all, delete-orphan")
+    comments: Mapped[list[ItemComment]] = relationship(
+        "ItemComment", back_populates="item_link", cascade="all, delete-orphan"
+    )
 
     # Indexes
     __table_args__ = (
-        Index('idx_item_claim_links_item', 'item_type', 'item_id'),
-        Index('idx_item_claim_links_matter', 'contentious_matter_id'),
-        Index('idx_item_claim_links_claim', 'head_of_claim_id'),
+        Index("idx_item_claim_links_item", "item_type", "item_id"),
+        Index("idx_item_claim_links_matter", "contentious_matter_id"),
+        Index("idx_item_claim_links_claim", "head_of_claim_id"),
     )
 
 
@@ -1315,40 +2082,63 @@ class ItemComment(Base):
     Comment history on linked items.
     Supports threaded comments through parent_comment_id.
     """
+
     __tablename__ = "item_comments"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
 
     # Link to item_claim_link (if commenting on a linked item)
-    item_claim_link_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("item_claim_links.id", ondelete="CASCADE"), nullable=True)
+    item_claim_link_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("item_claim_links.id", ondelete="CASCADE"),
+        nullable=True,
+    )
 
     # Direct item reference (if commenting directly on an item without link)
-    item_type: Mapped[str | None] = mapped_column(String(50), nullable=True)  # 'correspondence', 'evidence', 'matter', 'claim'
+    item_type: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # 'correspondence', 'evidence', 'matter', 'claim'
     item_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
     # Comment threading
-    parent_comment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("item_comments.id", ondelete="CASCADE"), nullable=True)
+    parent_comment_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("item_comments.id", ondelete="CASCADE"),
+        nullable=True,
+    )
 
     # Content
     content: Mapped[str] = mapped_column(Text, nullable=False)
     is_edited: Mapped[bool] = mapped_column(Boolean, default=False)
-    edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    edited_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Audit
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
 
     # Relationships
-    item_link: Mapped[ItemClaimLink | None] = relationship("ItemClaimLink", back_populates="comments")
-    parent_comment: Mapped[ItemComment | None] = relationship("ItemComment", remote_side=[id], backref="replies")
+    item_link: Mapped[ItemClaimLink | None] = relationship(
+        "ItemClaimLink", back_populates="comments"
+    )
+    parent_comment: Mapped[ItemComment | None] = relationship(
+        "ItemComment", remote_side=[id], backref="replies"
+    )
     creator: Mapped[User | None] = relationship("User", foreign_keys=[created_by])
 
     # Indexes
     __table_args__ = (
-        Index('idx_item_comments_link', 'item_claim_link_id'),
-        Index('idx_item_comments_item', 'item_type', 'item_id'),
-        Index('idx_item_comments_parent', 'parent_comment_id'),
-        Index('idx_item_comments_created', 'created_at'),
+        Index("idx_item_comments_link", "item_claim_link_id"),
+        Index("idx_item_comments_item", "item_type", "item_id"),
+        Index("idx_item_comments_parent", "parent_comment_id"),
+        Index("idx_item_comments_created", "created_at"),
     )
 
 
@@ -1356,32 +2146,48 @@ class ItemComment(Base):
 # AI Refinement Session Storage
 # =============================================================================
 
+
 class RefinementSessionDB(Base):
     """
     Persistent storage for AI refinement sessions.
     Sessions are stored in the database to survive server restarts.
     """
+
     __tablename__ = "refinement_sessions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUID as string
     project_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
-    status: Mapped[str] = mapped_column(String(50), default="active")  # active, awaiting_answers, ready_to_apply, applied, cancelled, failed
+    status: Mapped[str] = mapped_column(
+        String(50), default="active"
+    )  # active, awaiting_answers, ready_to_apply, applied, cancelled, failed
     current_stage: Mapped[str] = mapped_column(String(50), default="initial_analysis")
 
     # Store complex data as JSON
-    questions_asked: Mapped[list[Any] | None] = mapped_column(JSONB, nullable=True, default=list)
-    answers_received: Mapped[list[Any] | None] = mapped_column(JSONB, nullable=True, default=list)
-    analysis_results: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True, default=dict)
-    exclusion_rules: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True, default=dict)
+    questions_asked: Mapped[list[Any] | None] = mapped_column(
+        JSONB, nullable=True, default=list
+    )
+    answers_received: Mapped[list[Any] | None] = mapped_column(
+        JSONB, nullable=True, default=list
+    )
+    analysis_results: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True, default=dict
+    )
+    exclusion_rules: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True, default=dict
+    )
 
     # Timestamps
-    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
 
     # Indexes
     __table_args__ = (
-        Index('idx_refinement_sessions_project', 'project_id'),
-        Index('idx_refinement_sessions_user', 'user_id'),
-        Index('idx_refinement_sessions_status', 'status'),
+        Index("idx_refinement_sessions_project", "project_id"),
+        Index("idx_refinement_sessions_user", "user_id"),
+        Index("idx_refinement_sessions_status", "status"),
     )

@@ -1,18 +1,22 @@
 """
-Simple Cases API for testing without authentication
+Simple Cases APIE for testing without authentication
 """
 from typing import Annotated, cast
+import logging
+import uuid
+import re
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, or_
-from datetime import datetime, timezone
+from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, Field
-import uuid
-import re
 
 from .db import get_db
 from .models import Case, Project, Stakeholder, Keyword
+
+logger = logging.getLogger(__name__)
 
 def validate_search_input(search: str) -> str:
     """Validate and sanitize search input to prevent any injection attempts"""
@@ -180,7 +184,6 @@ def create_project(project_data: ProjectCreate, db: DbDep) -> dict[str, str]:
                 variations=keyword_data.variations
             )
             db.add(keyword)
-        
         db.commit()
         db.refresh(project)
         
@@ -192,18 +195,14 @@ def create_project(project_data: ProjectCreate, db: DbDep) -> dict[str, str]:
             "created_at": project.created_at.isoformat() if project.created_at else datetime.now(timezone.utc).isoformat()
         }
         
-    except HTTPException:
-        raise
-    except Exception:
-        # Return mock response if database fails
-        new_id = str(uuid.uuid4())
-        return {
-            "id": new_id,
-            "project_name": project_data.project_name,
-            "project_code": project_data.project_code,
-            "status": "active",
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
+    except IntegrityError as e:
+        db.rollback()
+        logger.warning(f"Integrity error creating project: {e}")
+        raise HTTPException(status_code=400, detail="Project code already exists")
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Error creating project: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create project: {str(e)}")
 
 @router.get("/projects")
 def list_projects(db: DbDep) -> list[dict[str, str | None]]:
@@ -290,31 +289,21 @@ def get_keyword_suggestions() -> list[dict[str, str]]:
         {"name": "Relevant Matter", "variations": ""},
         {"name": "Section 278", "variations": "Section 278, Highways Agreement, Section 106"},
         {"name": "Delay", "variations": "delays, delayed, postpone, postponement"},
-        {"name": "Risk", "variations": "risks, risky, risk event"},
-        {"name": "Change", "variations": "changes, changed, modification"},
-        {"name": "Variation", "variations": "variations, varied, change order"}
     ]
 
 @router.post("/cases")
-def create_case_simple(case_data: CaseCreate, db: DbDep) -> dict[str, str]:
-    """Create a case without authentication (for testing)"""
+def create_case(case_data: CaseCreate, db: DbDep) -> dict[str, str]:
+    """Create a case with details"""
     try:
-        # Generate case number if not provided
-        case_number = case_data.case_id or "CASE-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid.uuid4().hex[:4].upper()}"
-        
         case = Case(
             id=uuid.uuid4(),
             name=case_data.case_name,
-            case_number=case_number,
-            description="Resolution: {case_data.resolution_route}, Client: {case_data.client or 'N/A'}",
-            status=case_data.case_status or "discovery",
-            owner_id=uuid.uuid4(),  # Mock user ID
-            company_id=uuid.uuid4()  # Mock company ID
+            case_number=case_data.case_id or f"CASE-{uuid.uuid4().hex[:8].upper()}",
+            description=f"Case regarding {case_data.project_name if hasattr(case_data, 'project_name') else 'Project'}", # inferred
+            status=case_data.case_status,
+            created_at=datetime.now(timezone.utc)
         )
         
-        # Add additional fields if they exist in the model
-        if hasattr(Case, 'resolution_route'):
-            case.resolution_route = case_data.resolution_route
         if hasattr(Case, 'claimant'):
             case.claimant = case_data.claimant
         if hasattr(Case, 'defendant'):
@@ -349,13 +338,7 @@ def create_case_simple(case_data: CaseCreate, db: DbDep) -> dict[str, str]:
             "created_at": case.created_at.isoformat() if case.created_at else datetime.now(timezone.utc).isoformat()
         }
         
-    except Exception:
-        # Return mock response if database fails
-        new_id = str(uuid.uuid4())
-        return {
-            "id": new_id,
-            "case_name": case_data.case_name,
-            "case_number": case_data.case_id or "CASE-{new_id[:8]}",
-            "status": "active",
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Error creating case: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create case: {str(e)}")

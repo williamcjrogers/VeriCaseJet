@@ -19,7 +19,9 @@ logger = logging.getLogger(__name__)
 class PSTIngestionEngine:
     """Ingest PST files by indexing email metadata and extracting attachments only."""
 
-    def __init__(self, db_path: str = "vericase.db", attachments_root: str | Path = "evidence") -> None:
+    def __init__(
+        self, db_path: str = "vericase.db", attachments_root: str | Path = "evidence"
+    ) -> None:
         self.db_path = db_path
         self.attachments_root = Path(attachments_root)
         self.attachments_root.mkdir(parents=True, exist_ok=True)
@@ -67,10 +69,14 @@ class PSTIngestionEngine:
             cursor = conn.cursor()
 
             keyword_list = (
-                keywords if keywords is not None else self._load_keywords(conn, profile_id, profile_type)
+                keywords
+                if keywords is not None
+                else self._load_keywords(conn, profile_id, profile_type)
             )
             stakeholder_list = (
-                stakeholders if stakeholders is not None else self._load_stakeholders(conn, profile_id, profile_type)
+                stakeholders
+                if stakeholders is not None
+                else self._load_stakeholders(conn, profile_id, profile_type)
             )
 
             pst = pypff.file()
@@ -96,7 +102,9 @@ class PSTIngestionEngine:
             conn.commit()
 
             stats["end_time"] = datetime.now(timezone.utc).isoformat()
-            stats["threads_identified"] = len({tid for tid in thread_by_msgid.values() if tid})
+            stats["threads_identified"] = len(
+                {tid for tid in thread_by_msgid.values() if tid}
+            )
             stats["duration_seconds"] = self._compute_duration(stats)
             logger.info(
                 "PST ingestion complete: %s processed, %s attachments",
@@ -271,9 +279,14 @@ class PSTIngestionEngine:
                 if binary is None:
                     continue
                 att_name = self._safe_attr(attachment, "name", f"attachment_{index}")
-                mime_type = self._safe_attr(attachment, "mime_type", "") or self._safe_attr(attachment, "content_type", "")
+                mime_type = self._safe_attr(
+                    attachment, "mime_type", ""
+                ) or self._safe_attr(attachment, "content_type", "")
                 size = len(binary)
-                is_inline = bool(self._safe_attr(attachment, "is_inline", False) or self._safe_attr(attachment, "content_id", None))
+                is_inline = bool(
+                    self._safe_attr(attachment, "is_inline", False)
+                    or self._safe_attr(attachment, "content_id", None)
+                )
                 attachment_records.append(
                     {
                         "name": att_name,
@@ -286,8 +299,12 @@ class PSTIngestionEngine:
             except Exception:  # noqa: BLE001
                 logger.exception("Failed to extract attachment from email")
 
-        matched_keywords = self._match_keywords(subject, body_text, attachment_records, keywords)
-        identified_stakeholders = self._identify_stakeholders(sender, to_addresses, cc_addresses, stakeholders)
+        matched_keywords = self._match_keywords(
+            subject, body_text, attachment_records, keywords
+        )
+        identified_stakeholders = self._identify_stakeholders(
+            sender, to_addresses, cc_addresses, stakeholders
+        )
 
         email_row = (
             profile_id,
@@ -346,7 +363,9 @@ class PSTIngestionEngine:
         conn.commit()
         return True
 
-    def _load_keywords(self, conn: sqlite3.Connection, profile_id: str, profile_type: str) -> list:
+    def _load_keywords(
+        self, conn: sqlite3.Connection, profile_id: str, profile_type: str
+    ) -> list:
         cursor = conn.cursor()
         cursor.execute(
             "SELECT keyword_name, variations FROM keywords WHERE profile_id = ? AND profile_type = ?",
@@ -354,17 +373,27 @@ class PSTIngestionEngine:
         )
         items = []
         for row in cursor.fetchall():
-            name = (row["keyword_name"] if isinstance(row, sqlite3.Row) else row[0]) or ""
-            variations = (row["variations"] if isinstance(row, sqlite3.Row) else row[1]) or ""
-            variation_list = [v.strip().lower() for v in variations.split(',') if v.strip()]
-            items.append({
-                'label': name,
-                'needle': name.lower(),
-                'variations': variation_list,
-            })
+            name = (
+                row["keyword_name"] if isinstance(row, sqlite3.Row) else row[0]
+            ) or ""
+            variations = (
+                row["variations"] if isinstance(row, sqlite3.Row) else row[1]
+            ) or ""
+            variation_list = [
+                v.strip().lower() for v in variations.split(",") if v.strip()
+            ]
+            items.append(
+                {
+                    "label": name,
+                    "needle": name.lower(),
+                    "variations": variation_list,
+                }
+            )
         return items
 
-    def _load_stakeholders(self, conn: sqlite3.Connection, profile_id: str, profile_type: str) -> list:
+    def _load_stakeholders(
+        self, conn: sqlite3.Connection, profile_id: str, profile_type: str
+    ) -> list:
         cursor = conn.cursor()
         cursor.execute(
             "SELECT name, email, role FROM stakeholders WHERE profile_id = ? AND profile_type = ?",
@@ -381,26 +410,32 @@ class PSTIngestionEngine:
                 email = (row[1] or "").lower()
                 role = row[2] or ""
             display = name or row[1] or role or "Stakeholder"
-            items.append({
-                'name': name,
-                'name_lower': name.lower(),
-                'email': email,
-                'role': role,
-                'display': display,
-            })
+            items.append(
+                {
+                    "name": name,
+                    "name_lower": name.lower(),
+                    "email": email,
+                    "role": role,
+                    "display": display,
+                }
+            )
         return items
 
-    def _match_keywords(self, subject: str, body_text: str, attachments: list, keywords: list) -> list:
+    def _match_keywords(
+        self, subject: str, body_text: str, attachments: list, keywords: list
+    ) -> list:
         if not keywords:
             return []
-        combined_text = " ".join(filter(None, [subject.lower(), body_text.lower()])).strip()
+        combined_text = " ".join(
+            filter(None, [subject.lower(), body_text.lower()])
+        ).strip()
         results = set()
         for keyword in keywords:
-            label = keyword.get('label') or keyword.get('needle') or ''
+            label = keyword.get("label") or keyword.get("needle") or ""
             if not label:
                 continue
-            needle = keyword.get('needle', '').lower()
-            variations = keyword.get('variations', [])
+            needle = keyword.get("needle", "").lower()
+            variations = keyword.get("variations", [])
 
             def _match_in_text(text: str) -> bool:
                 if not text:
@@ -414,22 +449,32 @@ class PSTIngestionEngine:
                 continue
 
             for attachment in attachments:
-                att_name = str(attachment.get('name', '')).lower()
+                att_name = str(attachment.get("name", "")).lower()
                 if _match_in_text(att_name):
                     results.add(label)
                     break
 
         return sorted(results)
 
-    def _identify_stakeholders(self, sender: Optional[str], to_addresses: Optional[str], cc_addresses: Optional[str], stakeholders: list) -> list:
+    def _identify_stakeholders(
+        self,
+        sender: Optional[str],
+        to_addresses: Optional[str],
+        cc_addresses: Optional[str],
+        stakeholders: list,
+    ) -> list:
         if not stakeholders:
             return []
         emails, tokens = self._normalise_addresses(sender, to_addresses, cc_addresses)
         matches = set()
         for stakeholder in stakeholders:
-            email = stakeholder.get('email')
-            name_lower = stakeholder.get('name_lower', '')
-            display = stakeholder.get('display') or stakeholder.get('name') or stakeholder.get('email')
+            email = stakeholder.get("email")
+            name_lower = stakeholder.get("name_lower", "")
+            display = (
+                stakeholder.get("display")
+                or stakeholder.get("name")
+                or stakeholder.get("email")
+            )
             if email and email in emails:
                 matches.add(display)
                 continue
@@ -441,19 +486,19 @@ class PSTIngestionEngine:
     def _html_to_text(html: str) -> str:
         if not html:
             return ""
-        text = re.sub(r'<[^>]+>', ' ', html)
-        text = re.sub(r'\s+', ' ', text)
+        text = re.sub(r"<[^>]+>", " ", html)
+        text = re.sub(r"\s+", " ", text)
         return text.strip()
 
     @staticmethod
     def _normalise_addresses(*fields: Optional[str]) -> Tuple[set, set]:
-        email_pattern = re.compile(r'[\w.+-]+@[\w.-]+')
+        email_pattern = re.compile(r"[\w.+-]+@[\w.-]+")
         emails = set()
         tokens = set()
         for field in fields:
             if not field:
                 continue
-            parts = re.split(r'[;,]', field)
+            parts = re.split(r"[;,]", field)
             for part in parts:
                 cleaned = part.strip()
                 if not cleaned:
@@ -464,12 +509,14 @@ class PSTIngestionEngine:
         return emails, tokens
 
     @staticmethod
-    def _is_noise_attachment(filename: str, size_bytes: int, is_inline: bool = False) -> bool:
+    def _is_noise_attachment(
+        filename: str, size_bytes: int, is_inline: bool = False
+    ) -> bool:
         """
         Returns True if the attachment is likely a signature image or noise.
         """
         filename_lower = (filename or "").lower()
-        
+
         # 1. Tiny files are almost always spacers or icons (< 4KB)
         if size_bytes < 4000:
             return True
@@ -482,9 +529,11 @@ class PSTIngestionEngine:
 
         # 3. Explicit "logo" or "signature" naming
         # Filter if < 50KB
-        if ("logo" in filename_lower or "signature" in filename_lower) and size_bytes < 50000:
+        if (
+            "logo" in filename_lower or "signature" in filename_lower
+        ) and size_bytes < 50000:
             return True
-            
+
         return False
 
     def _store_attachment(
@@ -508,7 +557,7 @@ class PSTIngestionEngine:
         size = len(data)
         filename = str(attachment.get("name", ""))
         is_inline = bool(attachment.get("is_inline"))
-        
+
         if self._is_noise_attachment(filename, size, is_inline):
             return False  # Skip noise
 
@@ -697,7 +746,9 @@ def main():  # pragma: no cover - manual CLI helper
     parser = argparse.ArgumentParser(description="VeriCase PST Ingestion Engine")
     parser.add_argument("pst_file", help="Path to PST file")
     parser.add_argument("--profile-id", required=True, help="Project or Case ID")
-    parser.add_argument("--profile-type", default="project", choices=["project", "case"])
+    parser.add_argument(
+        "--profile-type", default="project", choices=["project", "case"]
+    )
     parser.add_argument("--db", default="vericase.db", help="Database path")
 
     args = parser.parse_args()
@@ -710,4 +761,3 @@ def main():  # pragma: no cover - manual CLI helper
 
 if __name__ == "__main__":  # pragma: no cover
     main()
-

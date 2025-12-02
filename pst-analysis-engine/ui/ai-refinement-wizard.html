@@ -1,999 +1,1045 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VeriCase - AI Refinement Wizard</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="brand-styles.css">
-    <link rel="stylesheet" href="design-system.css">
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="brand-styles.css" />
+    <link rel="stylesheet" href="design-system.css" />
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
     <style>
-        :root {
-            --vericase-teal: #0F9D9A;
-            --vericase-teal-dark: #0A7D7A;
-            --vericase-blue: #2B7FBF;
-            --vericase-navy: #0F172A;
-            --bg-primary: #f8fafc;
-            --bg-secondary: #ffffff;
-            --bg-card: #ffffff;
-            --text-primary: #0F172A;
-            --text-secondary: #64748b;
-            --gray-100: #f1f5f9;
-            --gray-200: #e2e8f0;
-            --accent-green: #10b981;
-            --accent-amber: #f59e0b;
-            --accent-red: #ef4444;
-            --accent-purple: #8b5cf6;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            min-height: 100vh;
-            line-height: 1.6;
-            -webkit-font-smoothing: antialiased;
-        }
-
-        .header {
-            background: white;
-            border-bottom: 1px solid var(--gray-200);
-            padding: 1rem 2rem;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        }
-
-        .header-content {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            font-size: 1.125rem;
-            font-weight: 600;
-            color: var(--vericase-teal);
-        }
-
-        .logo i {
-            font-size: 1.5rem;
-        }
-
-        .project-info {
-            display: flex;
-            align-items: center;
-            gap: 1.5rem;
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-        }
-
-        .project-info span {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 2rem auto;
-            padding: 0 2rem;
-        }
-
-        .wizard-layout {
-            display: grid;
-            grid-template-columns: 280px 1fr;
-            gap: 2rem;
-            min-height: calc(100vh - 180px);
-        }
-
-        /* Progress Sidebar */
-        .progress-sidebar {
-            background: var(--bg-secondary);
-            border-radius: 16px;
-            padding: 1.5rem;
-            border: 1px solid var(--gray-200);
-            height: fit-content;
-            position: sticky;
-            top: 100px;
-            box-shadow: 0 4px 12px rgba(23, 181, 163, 0.1);
-        }
-
-        .sidebar-header {
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: var(--text-secondary);
-            margin-bottom: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .analysis-stats {
-            background: rgba(23, 181, 163, 0.1);
-            border: 1px solid rgba(23, 181, 163, 0.2);
-            border-radius: 12px;
-            padding: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 0.5rem 0;
-            font-size: 0.875rem;
-            border-bottom: 1px solid var(--gray-200);
-        }
-
-        .stat-row:last-child {
-            border-bottom: none;
-        }
-
-        .stat-label {
-            color: var(--text-secondary);
-        }
-
-        .stat-value {
-            font-weight: 600;
-            color: var(--vericase-teal);
-        }
-
-        .stat-value.warning {
-            color: var(--accent-amber);
-        }
-
-        .stat-value.danger {
-            color: var(--accent-red);
-        }
-
-        .progress-steps {
-            margin-top: 1.5rem;
-        }
-
-        .step {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            padding: 0.75rem;
-            border-radius: 8px;
-            margin-bottom: 0.5rem;
-            transition: all 0.2s;
-        }
-
-        .step.active {
-            background: rgba(23, 181, 163, 0.15);
-            border-left: 3px solid var(--vericase-teal);
-        }
-
-        .step.completed {
-            opacity: 0.6;
-        }
-
-        .step-icon {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            background: var(--bg-card);
-            color: var(--text-secondary);
-            flex-shrink: 0;
-        }
-
-        .step.active .step-icon {
-            background: var(--vericase-teal);
-            color: white;
-            box-shadow: 0 0 20px rgba(23, 181, 163, 0.4);
-        }
-
-        .step.completed .step-icon {
-            background: var(--accent-green);
-            color: white;
-        }
-
-        .step-text {
-            font-size: 0.875rem;
-        }
-
-        /* Main Content */
-        .main-content {
-            background: var(--bg-secondary);
-            border-radius: 16px;
-            border: 1px solid var(--gray-200);
-            overflow: hidden;
-            box-shadow: 0 4px 12px rgba(23, 181, 163, 0.1);
-        }
-
-        .question-container {
-            padding: 2rem;
-        }
-
-        /* AI Avatar and Question */
-        .ai-header {
-            display: flex;
-            align-items: flex-start;
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        .ai-avatar {
-            width: 56px;
-            height: 56px;
-            background: linear-gradient(135deg, var(--vericase-teal), var(--accent-purple));
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            flex-shrink: 0;
-            box-shadow: 0 8px 32px rgba(23, 181, 163, 0.3);
-        }
-
-        .ai-message {
-            flex: 1;
-        }
-
-        .ai-label {
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: var(--vericase-teal);
-            margin-bottom: 0.5rem;
-        }
-
-        .question-text {
-            font-size: 1.25rem;
-            font-weight: 500;
-            color: var(--text-primary);
-            margin-bottom: 0.75rem;
-            line-height: 1.5;
-        }
-
-        .question-context {
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-            line-height: 1.7;
-        }
-
-        /* Detected Items */
-        .detected-items {
-            margin: 2rem 0;
-        }
-
-        .items-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-
-        .items-title {
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-        }
-
-        .select-actions {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .select-btn {
-            padding: 0.375rem 0.75rem;
-            font-size: 0.75rem;
-            border: 1px solid var(--gray-200);
-            background: white;
-            color: var(--text-secondary);
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .select-btn:hover {
-            background: var(--gray-100);
-            border-color: var(--vericase-teal);
-            color: var(--vericase-teal);
-        }
-
-        .item-card {
-            background: var(--bg-card);
-            border: 1px solid var(--gray-200);
-            border-radius: 12px;
-            padding: 1rem 1.25rem;
-            margin-bottom: 0.75rem;
-            transition: all 0.2s;
-            cursor: pointer;
-        }
-
-        .item-card:hover {
-            border-color: rgba(15, 157, 154, 0.3);
-            transform: translateX(4px);
-            box-shadow: 0 2px 8px rgba(23, 181, 163, 0.1);
-        }
-
-        .item-card.selected {
-            border-color: var(--vericase-teal);
-            background: rgba(23, 181, 163, 0.1);
-        }
-
-        .item-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 0.75rem;
-        }
-
-        .item-main {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .item-checkbox {
-            width: 20px;
-            height: 20px;
-            border: 2px solid var(--gray-200);
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            transition: all 0.2s;
-            position: relative;
-            background: white;
-        }
-
-        .item-checkbox input[type="checkbox"] {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            opacity: 0;
-            cursor: pointer;
-            z-index: 10;
-            margin: 0;
-        }
-
-        .item-card.selected .item-checkbox {
-            background: var(--vericase-teal);
-            border-color: var(--vericase-teal);
-        }
-
-        .item-checkbox i {
-            color: white;
-            font-size: 12px;
-            opacity: 0;
-            transition: opacity 0.2s;
-            pointer-events: none;
-        }
-
-        .item-card.selected .item-checkbox i {
-            opacity: 1;
-        }
-
-        .item-name {
-            font-weight: 600;
-            font-size: 0.9375rem;
-        }
-
-        .item-type {
-            font-size: 0.75rem;
-            padding: 0.25rem 0.5rem;
-            background: rgba(139, 92, 246, 0.15);
-            color: var(--accent-purple);
-            border-radius: 4px;
-        }
-
-        .item-type.spam {
-            background: rgba(239, 68, 68, 0.15);
-            color: var(--accent-red);
-        }
-
-        .item-type.project {
-            background: rgba(245, 158, 11, 0.15);
-            color: var(--accent-amber);
-        }
-
-        .item-type.domain {
-            background: rgba(43, 127, 191, 0.15);
-            color: var(--vericase-blue);
-        }
-
-        .item-badges {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .badge {
-            font-size: 0.75rem;
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            gap: 0.25rem;
-        }
-
-        .badge.count {
-            background: var(--gray-100);
-            color: var(--text-secondary);
-        }
-
-        .badge.confidence-high {
-            background: rgba(16, 185, 129, 0.15);
-            color: var(--accent-green);
-        }
-
-        .badge.confidence-medium {
-            background: rgba(245, 158, 11, 0.15);
-            color: var(--accent-amber);
-        }
-
-        .badge.confidence-low {
-            background: rgba(239, 68, 68, 0.15);
-            color: var(--accent-red);
-        }
-
-        .item-description {
-            font-size: 0.8125rem;
-            color: var(--text-secondary);
-            margin-bottom: 0.75rem;
-            padding-left: 2rem;
-        }
-
-        .item-reasoning {
-            font-size: 0.8125rem;
-            color: var(--text-secondary);
-            font-style: italic;
-            padding-left: 2rem;
-            border-left: 2px solid var(--gray-200);
-            margin-left: 2rem;
-        }
-
-        .item-samples {
-            margin-top: 0.75rem;
-            padding-left: 2rem;
-        }
-
-        .sample-header {
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            margin-bottom: 0.5rem;
-        }
-
-        .sample-item {
-            background: var(--gray-100);
-            border-radius: 6px;
-            padding: 0.5rem 0.75rem;
-            margin-bottom: 0.5rem;
-            font-size: 0.8125rem;
-            border: 1px solid var(--gray-200);
-        }
-
-        .sample-subject {
-            color: var(--text-primary);
-            margin-bottom: 0.25rem;
-        }
-
-        .sample-meta {
-            color: var(--text-secondary);
-            font-size: 0.75rem;
-        }
-
-        /* Response Options */
-        .response-options {
-            margin: 2rem 0;
-            display: grid;
-            gap: 0.75rem;
-        }
-
-        .option-card {
-            display: flex;
-            align-items: flex-start;
-            gap: 1rem;
-            padding: 1rem 1.25rem;
-            border: 2px solid var(--gray-200);
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-            background: white;
-        }
-
-        .option-card:hover {
-            border-color: rgba(15, 157, 154, 0.3);
-            background: var(--gray-100);
-        }
-
-        .option-card.selected {
-            border-color: var(--vericase-teal);
-            background: rgba(23, 181, 163, 0.1);
-        }
-
-        .option-radio {
-            width: 20px;
-            height: 20px;
-            border: 2px solid var(--gray-200);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            margin-top: 2px;
-            background: white;
-        }
-
-        .option-card.selected .option-radio {
-            border-color: var(--vericase-teal);
-        }
-
-        .option-radio::after {
-            content: '';
-            width: 10px;
-            height: 10px;
-            background: var(--vericase-teal);
-            border-radius: 50%;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-
-        .option-card.selected .option-radio::after {
-            opacity: 1;
-        }
-
-        .option-content {
-            flex: 1;
-        }
-
-        .option-title {
-            font-weight: 600;
-            margin-bottom: 0.25rem;
-        }
-
-        .option-desc {
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-        }
-
-        /* Actions */
-        .actions {
-            display: flex;
-            justify-content: space-between;
-            padding: 1.5rem 2rem;
-            background: var(--gray-100);
-            border-top: 1px solid var(--gray-200);
-        }
-
-        .btn {
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.875rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-family: inherit;
-        }
-
-        .btn-secondary {
-            background: white;
-            color: var(--text-secondary);
-            border: 1px solid var(--gray-200);
-        }
-
-        .btn-secondary:hover {
-            background: var(--gray-100);
-            color: var(--text-primary);
-            border-color: var(--vericase-teal);
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-teal-dark));
-            color: white;
-            box-shadow: 0 4px 16px rgba(23, 181, 163, 0.3);
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 24px rgba(23, 181, 163, 0.4);
-        }
-
-        .btn-primary:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        /* Loading State */
-        .loading-state {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 4rem 2rem;
-        }
-
-        .loading-spinner {
-            width: 64px;
-            height: 64px;
-            border: 3px solid var(--gray-200);
-            border-top-color: var(--vericase-teal);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 1.5rem;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .loading-text {
-            font-size: 1rem;
-            color: var(--text-secondary);
-            margin-bottom: 0.5rem;
-        }
-
-        .loading-subtext {
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-            opacity: 0.6;
-        }
-
-        /* Summary State */
-        .summary-container {
-            padding: 2rem;
-        }
-
-        .summary-header {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        .summary-icon {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, var(--accent-green), var(--vericase-teal));
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 36px;
-            margin: 0 auto 1rem;
-            box-shadow: 0 8px 32px rgba(16, 185, 129, 0.3);
-        }
-
-        .summary-title {
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-
-        .summary-desc {
-            color: var(--text-secondary);
-        }
-
-        .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
-            margin: 2rem 0;
-        }
-
-        .summary-card {
-            background: var(--bg-card);
-            border: 1px solid var(--gray-200);
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 2px 8px rgba(23, 181, 163, 0.08);
-        }
-
-        .summary-card-title {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            color: var(--text-primary);
-        }
-
-        .summary-card-title i {
-            color: var(--vericase-teal);
-        }
-
-        .summary-list {
-            list-style: none;
-        }
-
-        .summary-list li {
-            display: flex;
-            justify-content: space-between;
-            padding: 0.5rem 0;
-            border-bottom: 1px solid var(--gray-200);
-            font-size: 0.875rem;
-        }
-
-        .summary-list li:last-child {
-            border-bottom: none;
-        }
-
-        .summary-value {
-            font-weight: 600;
-            color: var(--vericase-teal);
-        }
-
-        .summary-value.danger {
-            color: var(--accent-red);
-        }
-
-        /* Progress Bar */
-        .progress-bar-container {
-            margin: 1rem 0;
-        }
-
-        .progress-bar {
-            height: 6px;
-            background: var(--gray-200);
-            border-radius: 3px;
-            overflow: hidden;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--vericase-teal), var(--accent-green));
-            border-radius: 3px;
-            transition: width 0.3s ease;
-        }
-
-        .progress-text {
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            margin-top: 0.5rem;
-            text-align: center;
-        }
+      :root {
+        --vericase-teal: #0f9d9a;
+        --vericase-teal-dark: #0a7d7a;
+        --vericase-blue: #2b7fbf;
+        --vericase-navy: #0f172a;
+        --bg-primary: #f8fafc;
+        --bg-secondary: #ffffff;
+        --bg-card: #ffffff;
+        --text-primary: #0f172a;
+        --text-secondary: #64748b;
+        --gray-100: #f1f5f9;
+        --gray-200: #e2e8f0;
+        --accent-green: #10b981;
+        --accent-amber: #f59e0b;
+        --accent-red: #ef4444;
+        --accent-purple: #8b5cf6;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family:
+          "Segoe UI",
+          -apple-system,
+          BlinkMacSystemFont,
+          Roboto,
+          sans-serif;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        min-height: 100vh;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .header {
+        background: white;
+        border-bottom: 1px solid var(--gray-200);
+        padding: 1rem 2rem;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      }
+
+      .header-content {
+        max-width: 1400px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--vericase-teal);
+      }
+
+      .logo i {
+        font-size: 1.5rem;
+      }
+
+      .project-info {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+      }
+
+      .project-info span {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 2rem auto;
+        padding: 0 2rem;
+      }
+
+      .wizard-layout {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 2rem;
+        min-height: calc(100vh - 180px);
+      }
+
+      /* Progress Sidebar */
+      .progress-sidebar {
+        background: var(--bg-secondary);
+        border-radius: 16px;
+        padding: 1.5rem;
+        border: 1px solid var(--gray-200);
+        height: fit-content;
+        position: sticky;
+        top: 100px;
+        box-shadow: 0 4px 12px rgba(23, 181, 163, 0.1);
+      }
+
+      .sidebar-header {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--text-secondary);
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .analysis-stats {
+        background: rgba(23, 181, 163, 0.1);
+        border: 1px solid rgba(23, 181, 163, 0.2);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .stat-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        font-size: 0.875rem;
+        border-bottom: 1px solid var(--gray-200);
+      }
+
+      .stat-row:last-child {
+        border-bottom: none;
+      }
+
+      .stat-label {
+        color: var(--text-secondary);
+      }
+
+      .stat-value {
+        font-weight: 600;
+        color: var(--vericase-teal);
+      }
+
+      .stat-value.warning {
+        color: var(--accent-amber);
+      }
+
+      .stat-value.danger {
+        color: var(--accent-red);
+      }
+
+      .progress-steps {
+        margin-top: 1.5rem;
+      }
+
+      .step {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        transition: all 0.2s;
+      }
+
+      .step.active {
+        background: rgba(23, 181, 163, 0.15);
+        border-left: 3px solid var(--vericase-teal);
+      }
+
+      .step.completed {
+        opacity: 0.6;
+      }
+
+      .step-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        background: var(--bg-card);
+        color: var(--text-secondary);
+        flex-shrink: 0;
+      }
+
+      .step.active .step-icon {
+        background: var(--vericase-teal);
+        color: white;
+        box-shadow: 0 0 20px rgba(23, 181, 163, 0.4);
+      }
+
+      .step.completed .step-icon {
+        background: var(--accent-green);
+        color: white;
+      }
+
+      .step-text {
+        font-size: 0.875rem;
+      }
+
+      /* Main Content */
+      .main-content {
+        background: var(--bg-secondary);
+        border-radius: 16px;
+        border: 1px solid var(--gray-200);
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(23, 181, 163, 0.1);
+      }
+
+      .question-container {
+        padding: 2rem;
+      }
+
+      /* AI Avatar and Question */
+      .ai-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 2rem;
+      }
+
+      .ai-avatar {
+        width: 56px;
+        height: 56px;
+        background: linear-gradient(
+          135deg,
+          var(--vericase-teal),
+          var(--accent-purple)
+        );
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        flex-shrink: 0;
+        box-shadow: 0 8px 32px rgba(23, 181, 163, 0.3);
+      }
+
+      .ai-message {
+        flex: 1;
+      }
+
+      .ai-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--vericase-teal);
+        margin-bottom: 0.5rem;
+      }
+
+      .question-text {
+        font-size: 1.25rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 0.75rem;
+        line-height: 1.5;
+      }
+
+      .question-context {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        line-height: 1.7;
+      }
+
+      /* Detected Items */
+      .detected-items {
+        margin: 2rem 0;
+      }
+
+      .items-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+
+      .items-title {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+      }
+
+      .select-actions {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .select-btn {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.75rem;
+        border: 1px solid var(--gray-200);
+        background: white;
+        color: var(--text-secondary);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .select-btn:hover {
+        background: var(--gray-100);
+        border-color: var(--vericase-teal);
+        color: var(--vericase-teal);
+      }
+
+      .item-card {
+        background: var(--bg-card);
+        border: 1px solid var(--gray-200);
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 0.75rem;
+        transition: all 0.2s;
+        cursor: pointer;
+      }
+
+      .item-card:hover {
+        border-color: rgba(15, 157, 154, 0.3);
+        transform: translateX(4px);
+        box-shadow: 0 2px 8px rgba(23, 181, 163, 0.1);
+      }
+
+      .item-card.selected {
+        border-color: var(--vericase-teal);
+        background: rgba(23, 181, 163, 0.1);
+      }
+
+      .item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+      }
+
+      .item-main {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .item-checkbox {
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--gray-200);
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: all 0.2s;
+        position: relative;
+        background: white;
+      }
+
+      .item-checkbox input[type="checkbox"] {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        cursor: pointer;
+        z-index: 10;
+        margin: 0;
+      }
+
+      .item-card.selected .item-checkbox {
+        background: var(--vericase-teal);
+        border-color: var(--vericase-teal);
+      }
+
+      .item-checkbox i {
+        color: white;
+        font-size: 12px;
+        opacity: 0;
+        transition: opacity 0.2s;
+        pointer-events: none;
+      }
+
+      .item-card.selected .item-checkbox i {
+        opacity: 1;
+      }
+
+      .item-name {
+        font-weight: 600;
+        font-size: 0.9375rem;
+      }
+
+      .item-type {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        background: rgba(139, 92, 246, 0.15);
+        color: var(--accent-purple);
+        border-radius: 4px;
+      }
+
+      .item-type.spam {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--accent-red);
+      }
+
+      .item-type.project {
+        background: rgba(245, 158, 11, 0.15);
+        color: var(--accent-amber);
+      }
+
+      .item-type.domain {
+        background: rgba(43, 127, 191, 0.15);
+        color: var(--vericase-blue);
+      }
+
+      .item-badges {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+      }
+
+      .badge.count {
+        background: var(--gray-100);
+        color: var(--text-secondary);
+      }
+
+      .badge.confidence-high {
+        background: rgba(16, 185, 129, 0.15);
+        color: var(--accent-green);
+      }
+
+      .badge.confidence-medium {
+        background: rgba(245, 158, 11, 0.15);
+        color: var(--accent-amber);
+      }
+
+      .badge.confidence-low {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--accent-red);
+      }
+
+      .item-description {
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.75rem;
+        padding-left: 2rem;
+      }
+
+      .item-reasoning {
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+        font-style: italic;
+        padding-left: 2rem;
+        border-left: 2px solid var(--gray-200);
+        margin-left: 2rem;
+      }
+
+      .item-samples {
+        margin-top: 0.75rem;
+        padding-left: 2rem;
+      }
+
+      .sample-header {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+      }
+
+      .sample-item {
+        background: var(--gray-100);
+        border-radius: 6px;
+        padding: 0.5rem 0.75rem;
+        margin-bottom: 0.5rem;
+        font-size: 0.8125rem;
+        border: 1px solid var(--gray-200);
+      }
+
+      .sample-subject {
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+      }
+
+      .sample-meta {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+      }
+
+      /* Response Options */
+      .response-options {
+        margin: 2rem 0;
+        display: grid;
+        gap: 0.75rem;
+      }
+
+      .option-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 1rem 1.25rem;
+        border: 2px solid var(--gray-200);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: white;
+      }
+
+      .option-card:hover {
+        border-color: rgba(15, 157, 154, 0.3);
+        background: var(--gray-100);
+      }
+
+      .option-card.selected {
+        border-color: var(--vericase-teal);
+        background: rgba(23, 181, 163, 0.1);
+      }
+
+      .option-radio {
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--gray-200);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        margin-top: 2px;
+        background: white;
+      }
+
+      .option-card.selected .option-radio {
+        border-color: var(--vericase-teal);
+      }
+
+      .option-radio::after {
+        content: "";
+        width: 10px;
+        height: 10px;
+        background: var(--vericase-teal);
+        border-radius: 50%;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+
+      .option-card.selected .option-radio::after {
+        opacity: 1;
+      }
+
+      .option-content {
+        flex: 1;
+      }
+
+      .option-title {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+      }
+
+      .option-desc {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+      }
+
+      /* Actions */
+      .actions {
+        display: flex;
+        justify-content: space-between;
+        padding: 1.5rem 2rem;
+        background: var(--gray-100);
+        border-top: 1px solid var(--gray-200);
+      }
+
+      .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-family: inherit;
+      }
+
+      .btn-secondary {
+        background: white;
+        color: var(--text-secondary);
+        border: 1px solid var(--gray-200);
+      }
+
+      .btn-secondary:hover {
+        background: var(--gray-100);
+        color: var(--text-primary);
+        border-color: var(--vericase-teal);
+      }
+
+      .btn-primary {
+        background: linear-gradient(
+          135deg,
+          var(--vericase-teal),
+          var(--vericase-teal-dark)
+        );
+        color: white;
+        box-shadow: 0 4px 16px rgba(23, 181, 163, 0.3);
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 24px rgba(23, 181, 163, 0.4);
+      }
+
+      .btn-primary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      /* Loading State */
+      .loading-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 4rem 2rem;
+      }
+
+      .loading-spinner {
+        width: 64px;
+        height: 64px;
+        border: 3px solid var(--gray-200);
+        border-top-color: var(--vericase-teal);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 1.5rem;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .loading-text {
+        font-size: 1rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+      }
+
+      .loading-subtext {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        opacity: 0.6;
+      }
+
+      /* Summary State */
+      .summary-container {
+        padding: 2rem;
+      }
+
+      .summary-header {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+
+      .summary-icon {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(
+          135deg,
+          var(--accent-green),
+          var(--vericase-teal)
+        );
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 36px;
+        margin: 0 auto 1rem;
+        box-shadow: 0 8px 32px rgba(16, 185, 129, 0.3);
+      }
+
+      .summary-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+      }
+
+      .summary-desc {
+        color: var(--text-secondary);
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin: 2rem 0;
+      }
+
+      .summary-card {
+        background: var(--bg-card);
+        border: 1px solid var(--gray-200);
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(23, 181, 163, 0.08);
+      }
+
+      .summary-card-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: var(--text-primary);
+      }
+
+      .summary-card-title i {
+        color: var(--vericase-teal);
+      }
+
+      .summary-list {
+        list-style: none;
+      }
+
+      .summary-list li {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--gray-200);
+        font-size: 0.875rem;
+      }
+
+      .summary-list li:last-child {
+        border-bottom: none;
+      }
+
+      .summary-value {
+        font-weight: 600;
+        color: var(--vericase-teal);
+      }
+
+      .summary-value.danger {
+        color: var(--accent-red);
+      }
+
+      /* Progress Bar */
+      .progress-bar-container {
+        margin: 1rem 0;
+      }
+
+      .progress-bar {
+        height: 6px;
+        background: var(--gray-200);
+        border-radius: 3px;
+        overflow: hidden;
+      }
+
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          var(--vericase-teal),
+          var(--accent-green)
+        );
+        border-radius: 3px;
+        transition: width 0.3s ease;
+      }
+
+      .progress-text {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-top: 0.5rem;
+        text-align: center;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="header">
-        <div class="header-content">
-            <div class="logo">
-                <img src="../assets/Asset 1.png" alt="VeriCase" style="height: 28px;">
-                <i class="fas fa-wand-magic-sparkles"></i>
-                AI Refinement
-            </div>
-            <div class="project-info">
-                <span><i class="fas fa-project-diagram"></i> <span id="projectName">Loading...</span></span>
-                <span><i class="fas fa-envelope"></i> <span id="emailCount">0</span> emails</span>
-            </div>
+      <div class="header-content">
+        <div class="logo">
+          <img
+            src="../assets/Asset 1.png"
+            alt="VeriCase"
+            style="height: 28px"
+          />
+          <i class="fas fa-wand-magic-sparkles"></i>
+          AI Refinement
         </div>
+        <div class="project-info">
+          <span
+            ><i class="fas fa-project-diagram"></i>
+            <span id="projectName">Loading...</span></span
+          >
+          <span
+            ><i class="fas fa-envelope"></i>
+            <span id="emailCount">0</span> emails</span
+          >
+        </div>
+      </div>
     </div>
 
     <div class="container">
-        <div class="wizard-layout">
-            <!-- Progress Sidebar -->
-            <div class="progress-sidebar">
-                <div class="sidebar-header">
-                    <i class="fas fa-chart-line"></i>
-                    Analysis Progress
-                </div>
-                
-                <div class="analysis-stats">
-                    <div class="stat-row">
-                        <span class="stat-label">Emails analyzed</span>
-                        <span class="stat-value" id="statEmails">0</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Other projects</span>
-                        <span class="stat-value warning" id="statProjects">0</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Spam detected</span>
-                        <span class="stat-value danger" id="statSpam">0</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">Unknown domains</span>
-                        <span class="stat-value" id="statDomains">0</span>
-                    </div>
-                </div>
+      <div class="wizard-layout">
+        <!-- Progress Sidebar -->
+        <div class="progress-sidebar">
+          <div class="sidebar-header">
+            <i class="fas fa-chart-line"></i>
+            Analysis Progress
+          </div>
 
-                <div class="progress-steps">
-                    <div class="step" id="step-analysis">
-                        <div class="step-icon"><i class="fas fa-microscope"></i></div>
-                        <span class="step-text">AI Analysis</span>
-                    </div>
-                    <div class="step" id="step-projects">
-                        <div class="step-icon"><i class="fas fa-folder-tree"></i></div>
-                        <span class="step-text">Cross-Reference Projects</span>
-                    </div>
-                    <div class="step" id="step-spam">
-                        <div class="step-icon"><i class="fas fa-shield-halved"></i></div>
-                        <span class="step-text">Spam Detection</span>
-                    </div>
-                    <div class="step" id="step-domains">
-                        <div class="step-icon"><i class="fas fa-globe"></i></div>
-                        <span class="step-text">Domain Validation</span>
-                    </div>
-                    <div class="step" id="step-people">
-                        <div class="step-icon"><i class="fas fa-users"></i></div>
-                        <span class="step-text">People Validation</span>
-                    </div>
-                    <div class="step" id="step-review">
-                        <div class="step-icon"><i class="fas fa-check-double"></i></div>
-                        <span class="step-text">Review & Apply</span>
-                    </div>
-                </div>
+          <div class="analysis-stats">
+            <div class="stat-row">
+              <span class="stat-label">Emails analyzed</span>
+              <span class="stat-value" id="statEmails">0</span>
             </div>
+            <div class="stat-row">
+              <span class="stat-label">Other projects</span>
+              <span class="stat-value warning" id="statProjects">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Spam detected</span>
+              <span class="stat-value danger" id="statSpam">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Unknown domains</span>
+              <span class="stat-value" id="statDomains">0</span>
+            </div>
+          </div>
 
-            <!-- Main Content -->
-            <div class="main-content">
-                <div id="wizardContent">
-                    <!-- Dynamic content will be loaded here -->
-                </div>
+          <div class="progress-steps">
+            <div class="step" id="step-analysis">
+              <div class="step-icon"><i class="fas fa-microscope"></i></div>
+              <span class="step-text">AI Analysis</span>
             </div>
+            <div class="step" id="step-projects">
+              <div class="step-icon"><i class="fas fa-folder-tree"></i></div>
+              <span class="step-text">Cross-Reference Projects</span>
+            </div>
+            <div class="step" id="step-spam">
+              <div class="step-icon"><i class="fas fa-shield-halved"></i></div>
+              <span class="step-text">Spam Detection</span>
+            </div>
+            <div class="step" id="step-domains">
+              <div class="step-icon"><i class="fas fa-globe"></i></div>
+              <span class="step-text">Domain Validation</span>
+            </div>
+            <div class="step" id="step-people">
+              <div class="step-icon"><i class="fas fa-users"></i></div>
+              <span class="step-text">People Validation</span>
+            </div>
+            <div class="step" id="step-review">
+              <div class="step-icon"><i class="fas fa-check-double"></i></div>
+              <span class="step-text">Review & Apply</span>
+            </div>
+          </div>
         </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+          <div id="wizardContent">
+            <!-- Dynamic content will be loaded here -->
+          </div>
+        </div>
+      </div>
     </div>
 
     <script>
-        // State
-        let sessionId = null;
-        let currentQuestion = null;
-        let questions = [];
-        let answeredQuestions = [];
-        let analysisResults = null;
-        let selectedItems = new Set();
-        let selectedOption = null;
+      // State
+      let sessionId = null;
+      let currentQuestion = null;
+      let questions = [];
+      let answeredQuestions = [];
+      let analysisResults = null;
+      let selectedItems = new Set();
+      let selectedOption = null;
 
-        // Get API URL
-        const getApiUrl = () => {
-            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                return `${window.location.protocol}//localhost:8010`;
-            }
-            return window.location.origin || '';
-        };
-        const apiUrl = getApiUrl();
+      // Get API URL
+      const getApiUrl = () => {
+        if (
+          window.location.hostname === "localhost" ||
+          window.location.hostname === "127.0.0.1"
+        ) {
+          return `${window.location.protocol}//localhost:8010`;
+        }
+        return window.location.origin || "";
+      };
+      const apiUrl = getApiUrl();
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', async () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            let projectId = urlParams.get('projectId');
-            
-            if (!projectId) {
-                projectId = localStorage.getItem('currentProjectId') || localStorage.getItem('projectId');
-            }
-            
-            if (!projectId) {
-                alert('No project selected. Redirecting to dashboard...');
-                window.location.href = 'dashboard.html';
-                return;
-            }
+      // Initialize
+      document.addEventListener("DOMContentLoaded", async () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        let projectId = urlParams.get("projectId");
 
-            // Update header
-            document.getElementById('projectName').textContent = 
-                localStorage.getItem('currentProjectName') || 'Project';
-            
-            // Start analysis
-            await startAnalysis(projectId);
-        });
-
-        async function startAnalysis(projectId) {
-            showLoading('Analyzing your emails with AI...', 'This may take a moment for large datasets');
-            setActiveStep('step-analysis');
-
-            try {
-                const response = await fetch(`${apiUrl}/api/ai-refinement/analyze`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-                    },
-                    body: JSON.stringify({
-                        project_id: projectId,
-                        include_spam_detection: true,
-                        include_project_detection: true,
-                        max_emails_to_analyze: 2000
-                    })
-                });
-
-                if (!response.ok) {
-                    const error = await response.text();
-                    throw new Error(error);
-                }
-
-                const data = await response.json();
-                sessionId = data.session_id;
-                questions = data.next_questions || [];
-                analysisResults = data.summary;
-
-                // Update stats
-                updateStats(data.summary);
-                document.getElementById('emailCount').textContent = 
-                    data.summary.total_emails?.toLocaleString() || '0';
-
-                // Show first question or summary
-                if (questions.length > 0) {
-                    showQuestion(0);
-                } else {
-                    showNoIssuesFound();
-                }
-
-            } catch (error) {
-                console.error('Analysis failed:', error);
-                showError(error.message);
-            }
+        if (!projectId) {
+          projectId =
+            localStorage.getItem("currentProjectId") ||
+            localStorage.getItem("projectId");
         }
 
-        function updateStats(summary) {
-            document.getElementById('statEmails').textContent = 
-                (summary.total_emails || 0).toLocaleString();
-            document.getElementById('statProjects').textContent = 
-                summary.other_projects_found || 0;
-            document.getElementById('statSpam').textContent = 
-                summary.spam_sources_found || 0;
-            document.getElementById('statDomains').textContent = 
-                summary.unknown_domains || 0;
+        if (!projectId) {
+          alert("No project selected. Redirecting to dashboard...");
+          window.location.href = "dashboard.html";
+          return;
         }
 
-        function showLoading(text, subtext) {
-            document.getElementById('wizardContent').innerHTML = `
+        // Update header
+        document.getElementById("projectName").textContent =
+          localStorage.getItem("currentProjectName") || "Project";
+
+        // Start analysis
+        await startAnalysis(projectId);
+      });
+
+      async function startAnalysis(projectId) {
+        showLoading(
+          "Analyzing your emails with AI...",
+          "This may take a moment for large datasets",
+        );
+        setActiveStep("step-analysis");
+
+        try {
+          const response = await fetch(`${apiUrl}/api/ai-refinement/analyze`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+            },
+            body: JSON.stringify({
+              project_id: projectId,
+              include_spam_detection: true,
+              include_project_detection: true,
+              max_emails_to_analyze: 2000,
+            }),
+          });
+
+          if (!response.ok) {
+            const error = await response.text();
+            throw new Error(error);
+          }
+
+          const data = await response.json();
+          sessionId = data.session_id;
+          questions = data.next_questions || [];
+          analysisResults = data.summary;
+
+          // Update stats
+          updateStats(data.summary);
+          document.getElementById("emailCount").textContent =
+            data.summary.total_emails?.toLocaleString() || "0";
+
+          // Show first question or summary
+          if (questions.length > 0) {
+            showQuestion(0);
+          } else {
+            showNoIssuesFound();
+          }
+        } catch (error) {
+          console.error("Analysis failed:", error);
+          showError(error.message);
+        }
+      }
+
+      function updateStats(summary) {
+        document.getElementById("statEmails").textContent = (
+          summary.total_emails || 0
+        ).toLocaleString();
+        document.getElementById("statProjects").textContent =
+          summary.other_projects_found || 0;
+        document.getElementById("statSpam").textContent =
+          summary.spam_sources_found || 0;
+        document.getElementById("statDomains").textContent =
+          summary.unknown_domains || 0;
+      }
+
+      function showLoading(text, subtext) {
+        document.getElementById("wizardContent").innerHTML = `
                 <div class="loading-state">
                     <div class="loading-spinner"></div>
                     <div class="loading-text">${text}</div>
                     <div class="loading-subtext">${subtext}</div>
                 </div>
             `;
+      }
+
+      function setActiveStep(stepId) {
+        document.querySelectorAll(".step").forEach((s) => {
+          s.classList.remove("active", "completed");
+        });
+        document.getElementById(stepId)?.classList.add("active");
+      }
+
+      function markStepComplete(stepId) {
+        document.getElementById(stepId)?.classList.add("completed");
+        document.getElementById(stepId)?.classList.remove("active");
+      }
+
+      function showQuestion(index) {
+        if (index >= questions.length) {
+          showSummary();
+          return;
         }
 
-        function setActiveStep(stepId) {
-            document.querySelectorAll('.step').forEach(s => {
-                s.classList.remove('active', 'completed');
-            });
-            document.getElementById(stepId)?.classList.add('active');
-        }
+        currentQuestion = questions[index];
+        selectedItems.clear();
+        selectedOption = null;
 
-        function markStepComplete(stepId) {
-            document.getElementById(stepId)?.classList.add('completed');
-            document.getElementById(stepId)?.classList.remove('active');
-        }
+        // Update step indicator
+        const stageMap = {
+          project_cross_reference: "step-projects",
+          spam_detection: "step-spam",
+          domain_questions: "step-domains",
+          people_validation: "step-people",
+        };
+        setActiveStep(stageMap[currentQuestion.stage] || "step-analysis");
 
-        function showQuestion(index) {
-            if (index >= questions.length) {
-                showSummary();
-                return;
-            }
+        const hasItems =
+          currentQuestion.detected_items &&
+          currentQuestion.detected_items.length > 0;
 
-            currentQuestion = questions[index];
-            selectedItems.clear();
-            selectedOption = null;
-
-            // Update step indicator
-            const stageMap = {
-                'project_cross_reference': 'step-projects',
-                'spam_detection': 'step-spam',
-                'domain_questions': 'step-domains',
-                'people_validation': 'step-people'
-            };
-            setActiveStep(stageMap[currentQuestion.stage] || 'step-analysis');
-
-            const hasItems = currentQuestion.detected_items && currentQuestion.detected_items.length > 0;
-            
-            let itemsHtml = '';
-            if (hasItems) {
-                itemsHtml = `
+        let itemsHtml = "";
+        if (hasItems) {
+          itemsHtml = `
                     <div class="detected-items">
                         <div class="items-header">
                             <span class="items-title">
@@ -1004,23 +1050,27 @@
                                 <button class="select-btn" onclick="selectNone()">Select None</button>
                             </div>
                         </div>
-                        ${currentQuestion.detected_items.map(item => renderItemCard(item)).join('')}
+                        ${currentQuestion.detected_items.map((item) => renderItemCard(item)).join("")}
                     </div>
                 `;
-            }
+        }
 
-            const optionsHtml = currentQuestion.options.map(opt => `
-                <div class="option-card ${selectedOption === opt.value ? 'selected' : ''}" 
+        const optionsHtml = currentQuestion.options
+          .map(
+            (opt) => `
+                <div class="option-card ${selectedOption === opt.value ? "selected" : ""}" 
                      onclick="selectOption('${opt.value}')">
                     <div class="option-radio"></div>
                     <div class="option-content">
                         <div class="option-title">${opt.label}</div>
-                        ${opt.description ? `<div class="option-desc">${opt.description}</div>` : ''}
+                        ${opt.description ? `<div class="option-desc">${opt.description}</div>` : ""}
                     </div>
                 </div>
-            `).join('');
+            `,
+          )
+          .join("");
 
-            document.getElementById('wizardContent').innerHTML = `
+        document.getElementById("wizardContent").innerHTML = `
                 <div class="question-container">
                     <div class="ai-header">
                         <div class="ai-avatar">
@@ -1056,47 +1106,56 @@
                     </button>
                 </div>
             `;
-        }
+      }
 
-        function renderItemCard(item) {
-            const typeClass = {
-                'other_project': 'project',
-                'spam_newsletter': 'spam',
-                'unknown_domain': 'domain',
-                'duplicate_email': 'spam',
-                'unknown_person': ''
-            }[item.item_type] || '';
+      function renderItemCard(item) {
+        const typeClass =
+          {
+            other_project: "project",
+            spam_newsletter: "spam",
+            unknown_domain: "domain",
+            duplicate_email: "spam",
+            unknown_person: "",
+          }[item.item_type] || "";
 
-            const typeLabel = {
-                'other_project': 'Other Project',
-                'spam_newsletter': 'Spam/Newsletter',
-                'unknown_domain': 'Unknown Domain',
-                'duplicate_email': 'Duplicate',
-                'unknown_person': 'Unknown Person'
-            }[item.item_type] || item.item_type;
+        const typeLabel =
+          {
+            other_project: "Other Project",
+            spam_newsletter: "Spam/Newsletter",
+            unknown_domain: "Unknown Domain",
+            duplicate_email: "Duplicate",
+            unknown_person: "Unknown Person",
+          }[item.item_type] || item.item_type;
 
-            const samplesHtml = item.sample_emails?.length ? `
+        const samplesHtml = item.sample_emails?.length
+          ? `
                 <div class="item-samples">
                     <div class="sample-header">Sample emails:</div>
-                    ${item.sample_emails.slice(0, 2).map(s => `
+                    ${item.sample_emails
+                      .slice(0, 2)
+                      .map(
+                        (s) => `
                         <div class="sample-item">
-                            <div class="sample-subject">${s.subject || 'No subject'}</div>
-                            <div class="sample-meta">${s.date || ''} • ${s.sender || ''}</div>
+                            <div class="sample-subject">${s.subject || "No subject"}</div>
+                            <div class="sample-meta">${s.date || ""} • ${s.sender || ""}</div>
                         </div>
-                    `).join('')}
+                    `,
+                      )
+                      .join("")}
                 </div>
-            ` : '';
+            `
+          : "";
 
-            const isSelected = selectedItems.has(item.id);
+        const isSelected = selectedItems.has(item.id);
 
-            return `
-                <div class="item-card ${isSelected ? 'selected' : ''}" 
+        return `
+                <div class="item-card ${isSelected ? "selected" : ""}" 
                      data-item-id="${item.id}"
                      onclick="toggleItem(event, '${item.id}')">
                     <div class="item-header">
                         <div class="item-main">
                             <div class="item-checkbox">
-                                <input type="checkbox" ${isSelected ? 'checked' : ''} 
+                                <input type="checkbox" ${isSelected ? "checked" : ""} 
                                        onclick="toggleItem(event, '${item.id}')"
                                        id="check-${item.id}">
                                 <i class="fas fa-check"></i>
@@ -1114,162 +1173,166 @@
                         </div>
                     </div>
                     <div class="item-description">${item.description}</div>
-                    ${item.ai_reasoning ? `<div class="item-reasoning">"${item.ai_reasoning}"</div>` : ''}
+                    ${item.ai_reasoning ? `<div class="item-reasoning">"${item.ai_reasoning}"</div>` : ""}
                     ${samplesHtml}
                 </div>
             `;
+      }
+
+      function toggleItem(event, itemId) {
+        // Prevent double-firing when clicking the checkbox
+        if (event) {
+          event.stopPropagation();
         }
 
-        function toggleItem(event, itemId) {
-            // Prevent double-firing when clicking the checkbox
-            if (event) {
-                event.stopPropagation();
+        // Toggle the selection
+        if (selectedItems.has(itemId)) {
+          selectedItems.delete(itemId);
+        } else {
+          selectedItems.add(itemId);
+        }
+
+        // Update the visual state without re-rendering everything
+        const card = document.querySelector(`[data-item-id="${itemId}"]`);
+        const checkbox = document.getElementById(`check-${itemId}`);
+
+        if (card) {
+          if (selectedItems.has(itemId)) {
+            card.classList.add("selected");
+            if (checkbox) checkbox.checked = true;
+          } else {
+            card.classList.remove("selected");
+            if (checkbox) checkbox.checked = false;
+          }
+        }
+      }
+
+      function selectAll() {
+        currentQuestion.detected_items.forEach((item) => {
+          selectedItems.add(item.id);
+          const card = document.querySelector(`[data-item-id="${item.id}"]`);
+          const checkbox = document.getElementById(`check-${item.id}`);
+          if (card) card.classList.add("selected");
+          if (checkbox) checkbox.checked = true;
+        });
+      }
+
+      function selectNone() {
+        currentQuestion.detected_items.forEach((item) => {
+          selectedItems.delete(item.id);
+          const card = document.querySelector(`[data-item-id="${item.id}"]`);
+          const checkbox = document.getElementById(`check-${item.id}`);
+          if (card) card.classList.remove("selected");
+          if (checkbox) checkbox.checked = false;
+        });
+      }
+
+      function selectOption(value) {
+        selectedOption = value;
+        document.querySelectorAll(".option-card").forEach((card) => {
+          card.classList.remove("selected");
+        });
+        event.currentTarget.classList.add("selected");
+        document.getElementById("nextBtn").disabled = false;
+      }
+
+      async function submitAnswer() {
+        if (!selectedOption) return;
+
+        const answer = {
+          question_id: currentQuestion.id,
+          answer_value: selectedOption,
+          selected_items: Array.from(selectedItems),
+        };
+
+        try {
+          const response = await fetch(
+            `${apiUrl}/api/ai-refinement/answer?session_id=${sessionId}`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+              },
+              body: JSON.stringify(answer),
+            },
+          );
+
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
+
+          const result = await response.json();
+
+          // Mark current step complete
+          const stageMap = {
+            project_cross_reference: "step-projects",
+            spam_detection: "step-spam",
+            domain_questions: "step-domains",
+            people_validation: "step-people",
+          };
+          markStepComplete(stageMap[currentQuestion.stage] || "step-analysis");
+
+          answeredQuestions.push({
+            question: currentQuestion,
+            answer: answer,
+          });
+
+          if (result.status === "complete") {
+            showSummary();
+          } else {
+            showQuestion(answeredQuestions.length);
+          }
+        } catch (error) {
+          console.error("Submit failed:", error);
+
+          // Check if session was lost (server restart, etc.)
+          if (error.message && error.message.includes("Session not found")) {
+            if (
+              confirm(
+                "Your session has expired (the server may have restarted). Would you like to restart the analysis?",
+              )
+            ) {
+              sessionId = null;
+              questions = [];
+              answeredQuestions = [];
+              analysisResults = null;
+              selectedItems.clear();
+              selectedOption = null;
+              const projectId =
+                new URLSearchParams(window.location.search).get("projectId") ||
+                localStorage.getItem("currentProjectId");
+              await startAnalysis(projectId);
             }
-            
-            // Toggle the selection
-            if (selectedItems.has(itemId)) {
-                selectedItems.delete(itemId);
-            } else {
-                selectedItems.add(itemId);
-            }
-            
-            // Update the visual state without re-rendering everything
-            const card = document.querySelector(`[data-item-id="${itemId}"]`);
-            const checkbox = document.getElementById(`check-${itemId}`);
-            
-            if (card) {
-                if (selectedItems.has(itemId)) {
-                    card.classList.add('selected');
-                    if (checkbox) checkbox.checked = true;
-                } else {
-                    card.classList.remove('selected');
-                    if (checkbox) checkbox.checked = false;
-                }
-            }
+            return;
+          }
+
+          alert("Failed to submit answer. Please try again.");
         }
+      }
 
-        function selectAll() {
-            currentQuestion.detected_items.forEach(item => {
-                selectedItems.add(item.id);
-                const card = document.querySelector(`[data-item-id="${item.id}"]`);
-                const checkbox = document.getElementById(`check-${item.id}`);
-                if (card) card.classList.add('selected');
-                if (checkbox) checkbox.checked = true;
-            });
+      function goBack() {
+        if (answeredQuestions.length > 0) {
+          answeredQuestions.pop();
+          showQuestion(answeredQuestions.length);
+        } else {
+          window.location.href = `correspondence-enterprise.html?projectId=${new URLSearchParams(window.location.search).get("projectId")}`;
         }
+      }
 
-        function selectNone() {
-            currentQuestion.detected_items.forEach(item => {
-                selectedItems.delete(item.id);
-                const card = document.querySelector(`[data-item-id="${item.id}"]`);
-                const checkbox = document.getElementById(`check-${item.id}`);
-                if (card) card.classList.remove('selected');
-                if (checkbox) checkbox.checked = false;
-            });
-        }
+      function showSummary() {
+        setActiveStep("step-review");
 
-        function selectOption(value) {
-            selectedOption = value;
-            document.querySelectorAll('.option-card').forEach(card => {
-                card.classList.remove('selected');
-            });
-            event.currentTarget.classList.add('selected');
-            document.getElementById('nextBtn').disabled = false;
-        }
+        const exclusionCount = answeredQuestions.reduce((count, qa) => {
+          if (qa.answer.answer_value === "exclude_all") {
+            return count + (qa.question.detected_items?.length || 0);
+          } else if (qa.answer.answer_value === "select_individual") {
+            return count + qa.answer.selected_items.length;
+          }
+          return count;
+        }, 0);
 
-        async function submitAnswer() {
-            if (!selectedOption) return;
-
-            const answer = {
-                question_id: currentQuestion.id,
-                answer_value: selectedOption,
-                selected_items: Array.from(selectedItems)
-            };
-
-            try {
-                const response = await fetch(
-                    `${apiUrl}/api/ai-refinement/answer?session_id=${sessionId}`,
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-                        },
-                        body: JSON.stringify(answer)
-                    }
-                );
-
-                if (!response.ok) {
-                    throw new Error(await response.text());
-                }
-
-                const result = await response.json();
-                
-                // Mark current step complete
-                const stageMap = {
-                    'project_cross_reference': 'step-projects',
-                    'spam_detection': 'step-spam',
-                    'domain_questions': 'step-domains',
-                    'people_validation': 'step-people'
-                };
-                markStepComplete(stageMap[currentQuestion.stage] || 'step-analysis');
-
-                answeredQuestions.push({
-                    question: currentQuestion,
-                    answer: answer
-                });
-
-                if (result.status === 'complete') {
-                    showSummary();
-                } else {
-                    showQuestion(answeredQuestions.length);
-                }
-
-            } catch (error) {
-                console.error('Submit failed:', error);
-
-                // Check if session was lost (server restart, etc.)
-                if (error.message && error.message.includes('Session not found')) {
-                    if (confirm('Your session has expired (the server may have restarted). Would you like to restart the analysis?')) {
-                        sessionId = null;
-                        questions = [];
-                        answeredQuestions = [];
-                        analysisResults = null;
-                        selectedItems.clear();
-                        selectedOption = null;
-                        const projectId = new URLSearchParams(window.location.search).get('projectId') ||
-                                        localStorage.getItem('currentProjectId');
-                        await startAnalysis(projectId);
-                    }
-                    return;
-                }
-
-                alert('Failed to submit answer. Please try again.');
-            }
-        }
-
-        function goBack() {
-            if (answeredQuestions.length > 0) {
-                answeredQuestions.pop();
-                showQuestion(answeredQuestions.length);
-            } else {
-                window.location.href = `correspondence-enterprise.html?projectId=${new URLSearchParams(window.location.search).get('projectId')}`;
-            }
-        }
-
-        function showSummary() {
-            setActiveStep('step-review');
-
-            const exclusionCount = answeredQuestions.reduce((count, qa) => {
-                if (qa.answer.answer_value === 'exclude_all') {
-                    return count + (qa.question.detected_items?.length || 0);
-                } else if (qa.answer.answer_value === 'select_individual') {
-                    return count + qa.answer.selected_items.length;
-                }
-                return count;
-            }, 0);
-
-            document.getElementById('wizardContent').innerHTML = `
+        document.getElementById("wizardContent").innerHTML = `
                 <div class="summary-container">
                     <div class="summary-header">
                         <div class="summary-icon">
@@ -1335,29 +1398,32 @@
                     </button>
                 </div>
             `;
-        }
+      }
 
-        async function applyRefinement() {
-            showLoading('Applying refinement rules...', 'Filtering your emails based on your choices');
+      async function applyRefinement() {
+        showLoading(
+          "Applying refinement rules...",
+          "Filtering your emails based on your choices",
+        );
 
-            try {
-                const response = await fetch(
-                    `${apiUrl}/api/ai-refinement/${sessionId}/apply`,
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-                        }
-                    }
-                );
+        try {
+          const response = await fetch(
+            `${apiUrl}/api/ai-refinement/${sessionId}/apply`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+              },
+            },
+          );
 
-                if (!response.ok) {
-                    throw new Error(await response.text());
-                }
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
 
-                const result = await response.json();
+          const result = await response.json();
 
-                document.getElementById('wizardContent').innerHTML = `
+          document.getElementById("wizardContent").innerHTML = `
                     <div class="summary-container">
                         <div class="summary-header">
                             <div class="summary-icon">
@@ -1394,20 +1460,19 @@
                         <button class="btn btn-secondary" onclick="window.location.href='dashboard.html'">
                             <i class="fas fa-home"></i> Back to Dashboard
                         </button>
-                        <button class="btn btn-primary" onclick="window.location.href='correspondence-enterprise.html?projectId=${new URLSearchParams(window.location.search).get('projectId')}&refined=true'">
+                        <button class="btn btn-primary" onclick="window.location.href='correspondence-enterprise.html?projectId=${new URLSearchParams(window.location.search).get("projectId")}&refined=true'">
                             View Filtered Emails <i class="fas fa-arrow-right"></i>
                         </button>
                     </div>
                 `;
-
-            } catch (error) {
-                console.error('Apply failed:', error);
-                showError(error.message);
-            }
+        } catch (error) {
+          console.error("Apply failed:", error);
+          showError(error.message);
         }
+      }
 
-        function showNoIssuesFound() {
-            document.getElementById('wizardContent').innerHTML = `
+      function showNoIssuesFound() {
+        document.getElementById("wizardContent").innerHTML = `
                 <div class="summary-container">
                     <div class="summary-header">
                         <div class="summary-icon" style="background: linear-gradient(135deg, #10b981, #17B5A3);">
@@ -1432,27 +1497,27 @@
                 </div>
 
                 <div class="actions">
-                    <button class="btn btn-primary" onclick="window.location.href='correspondence-enterprise.html?projectId=${new URLSearchParams(window.location.search).get('projectId')}'">
+                    <button class="btn btn-primary" onclick="window.location.href='correspondence-enterprise.html?projectId=${new URLSearchParams(window.location.search).get("projectId")}'">
                         <i class="fas fa-envelope"></i> View Correspondence
                     </button>
                 </div>
             `;
-        }
+      }
 
-        function showError(message) {
-            document.getElementById('wizardContent').innerHTML = `
+      function showError(message) {
+        document.getElementById("wizardContent").innerHTML = `
                 <div class="summary-container">
                     <div class="summary-header">
                         <div class="summary-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
                             <i class="fas fa-exclamation-triangle"></i>
                         </div>
                         <h2 class="summary-title">Analysis Failed</h2>
-                        <p class="summary-desc">${message || 'An unexpected error occurred'}</p>
+                        <p class="summary-desc">${message || "An unexpected error occurred"}</p>
                     </div>
                 </div>
 
                 <div class="actions">
-                    <button class="btn btn-secondary" onclick="window.location.href='correspondence-enterprise.html?projectId=${new URLSearchParams(window.location.search).get('projectId')}'">
+                    <button class="btn btn-secondary" onclick="window.location.href='correspondence-enterprise.html?projectId=${new URLSearchParams(window.location.search).get("projectId")}'">
                         <i class="fas fa-arrow-left"></i> Back to Correspondence
                     </button>
                     <button class="btn btn-primary" onclick="location.reload()">
@@ -1460,7 +1525,7 @@
                     </button>
                 </div>
             `;
-        }
+      }
     </script>
-</body>
+  </body>
 </html>

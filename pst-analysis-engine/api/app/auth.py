@@ -1,6 +1,7 @@
 """
 Authentication helpers for case management and programmes
 """
+
 from typing import Annotated
 
 from fastapi import Depends

@@ -79,3 +79,12 @@ apprunner.yaml
 
 # Environment files with secrets
 .env.production
+.env.aws
+
+# Certificates
+certs/
+
+# Report files
+*_report.txt
+*_errors.txt
+compile_errors.txt

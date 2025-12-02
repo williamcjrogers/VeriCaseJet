@@ -9,14 +9,14 @@ class PSTReader:
         - if file_path contains 'invalid' raise FileNotFoundError
         - otherwise populate a minimal data structure and return it
         """
-        if not file_path or 'invalid' in file_path:
+        if not file_path or "invalid" in file_path:
             raise FileNotFoundError(f"File not found: {file_path}")
 
         # Simulate extraction
         self.file_path = file_path
         self._data = {
-            'emails': [
-                {'subject': 'Hello', 'body': 'Test email body', 'attachments': []}
+            "emails": [
+                {"subject": "Hello", "body": "Test email body", "attachments": []}
             ]
         }
         return self._data
@@ -24,7 +24,7 @@ class PSTReader:
     def extract_data(self):
         """Return data extracted by the last read_file call."""
         if self._data is None:
-            return {'emails': []}
+            return {"emails": []}
         return self._data
 
     # back-compat convenience methods

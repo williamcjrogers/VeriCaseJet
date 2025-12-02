@@ -1,54 +1,49 @@
 # AWS Lambda Functions for VeriCase Processing Pipeline
-import json
-import boto3
-import logging
-from typing import Dict, Any
-import os
 
 # Lambda function configurations
 LAMBDA_FUNCTIONS = {
-    'textract_processor': {
-        'name': 'vericase-textract-processor',
-        'runtime': 'python3.11',
-        'handler': 'lambda_function.textract_handler',
-        'timeout': 900,  # 15 minutes
-        'memory': 1024
+    "textract_processor": {
+        "name": "vericase-textract-processor",
+        "runtime": "python3.11",
+        "handler": "lambda_function.textract_handler",
+        "timeout": 900,  # 15 minutes
+        "memory": 1024,
     },
-    'comprehend_analyzer': {
-        'name': 'vericase-comprehend-analyzer',
-        'runtime': 'python3.11',
-        'handler': 'lambda_function.comprehend_handler',
-        'timeout': 300,  # 5 minutes
-        'memory': 512
+    "comprehend_analyzer": {
+        "name": "vericase-comprehend-analyzer",
+        "runtime": "python3.11",
+        "handler": "lambda_function.comprehend_handler",
+        "timeout": 300,  # 5 minutes
+        "memory": 512,
     },
-    'document_classifier': {
-        'name': 'vericase-document-classifier',
-        'runtime': 'python3.11',
-        'handler': 'lambda_function.classifier_handler',
-        'timeout': 300,
-        'memory': 512
+    "document_classifier": {
+        "name": "vericase-document-classifier",
+        "runtime": "python3.11",
+        "handler": "lambda_function.classifier_handler",
+        "timeout": 300,
+        "memory": 512,
     },
-    'database_updater': {
-        'name': 'vericase-database-updater',
-        'runtime': 'python3.11',
-        'handler': 'lambda_function.database_handler',
-        'timeout': 300,
-        'memory': 256
+    "database_updater": {
+        "name": "vericase-database-updater",
+        "runtime": "python3.11",
+        "handler": "lambda_function.database_handler",
+        "timeout": 300,
+        "memory": 256,
     },
-    'knowledge_base_ingester': {
-        'name': 'vericase-kb-ingester',
-        'runtime': 'python3.11',
-        'handler': 'lambda_function.kb_handler',
-        'timeout': 600,
-        'memory': 512
+    "knowledge_base_ingester": {
+        "name": "vericase-kb-ingester",
+        "runtime": "python3.11",
+        "handler": "lambda_function.kb_handler",
+        "timeout": 600,
+        "memory": 512,
     },
-    'analytics_processor': {
-        'name': 'vericase-analytics-processor',
-        'runtime': 'python3.11',
-        'handler': 'lambda_function.analytics_handler',
-        'timeout': 300,
-        'memory': 512
-    }
+    "analytics_processor": {
+        "name": "vericase-analytics-processor",
+        "runtime": "python3.11",
+        "handler": "lambda_function.analytics_handler",
+        "timeout": 300,
+        "memory": 512,
+    },
 }
 
 # Lambda Function Code Templates
@@ -549,29 +544,31 @@ def analytics_handler(event, context):
         }
 '''
 
+
 # Lambda deployment helper
 def create_lambda_deployment_package():
     """Create deployment packages for all Lambda functions"""
     lambda_codes = {
-        'textract_processor': TEXTRACT_PROCESSOR_CODE,
-        'comprehend_analyzer': COMPREHEND_ANALYZER_CODE,
-        'document_classifier': DOCUMENT_CLASSIFIER_CODE,
-        'database_updater': DATABASE_UPDATER_CODE,
-        'knowledge_base_ingester': KNOWLEDGE_BASE_INGESTER_CODE,
-        'analytics_processor': ANALYTICS_PROCESSOR_CODE
+        "textract_processor": TEXTRACT_PROCESSOR_CODE,
+        "comprehend_analyzer": COMPREHEND_ANALYZER_CODE,
+        "document_classifier": DOCUMENT_CLASSIFIER_CODE,
+        "database_updater": DATABASE_UPDATER_CODE,
+        "knowledge_base_ingester": KNOWLEDGE_BASE_INGESTER_CODE,
+        "analytics_processor": ANALYTICS_PROCESSOR_CODE,
     }
-    
+
     return lambda_codes
+
 
 # Environment variables for Lambda functions
 LAMBDA_ENV_VARS = {
-    'DB_HOST': '${DATABASE_HOST}',
-    'DB_NAME': '${DATABASE_NAME}',
-    'DB_USER': '${DATABASE_USER}',
-    'DB_PASSWORD': '${DATABASE_PASSWORD}',
-    'KNOWLEDGE_BASE_ID': '${BEDROCK_KB_ID}',
-    'DATA_SOURCE_ID': '${BEDROCK_DS_ID}',
-    'KNOWLEDGE_BASE_BUCKET': '${KB_BUCKET}',
-    'QUICKSIGHT_DATASET_ID': '${QUICKSIGHT_DATASET}',
-    'AWS_ACCOUNT_ID': '${AWS_ACCOUNT_ID}'
+    "DB_HOST": "${DATABASE_HOST}",
+    "DB_NAME": "${DATABASE_NAME}",
+    "DB_USER": "${DATABASE_USER}",
+    "DB_PASSWORD": "${DATABASE_PASSWORD}",
+    "KNOWLEDGE_BASE_ID": "${BEDROCK_KB_ID}",
+    "DATA_SOURCE_ID": "${BEDROCK_DS_ID}",
+    "KNOWLEDGE_BASE_BUCKET": "${KB_BUCKET}",
+    "QUICKSIGHT_DATASET_ID": "${QUICKSIGHT_DATASET}",
+    "AWS_ACCOUNT_ID": "${AWS_ACCOUNT_ID}",
 }
