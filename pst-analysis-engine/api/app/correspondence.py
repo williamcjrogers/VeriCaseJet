@@ -388,16 +388,22 @@ async def upload_pst_file(
 
     # Trigger processing immediately
     # Enqueue Celery task for PST processing
-    task = celery_app.send_task(
-        "worker_app.worker.process_pst_file",
-        args=[pst_file_id],
-        queue=settings.CELERY_PST_QUEUE,
-    )
+    task_id = None
+    try:
+        task = celery_app.send_task(
+            "worker_app.worker.process_pst_file",
+            args=[pst_file_id],
+            queue=settings.CELERY_PST_QUEUE,
+        )
+        task_id = task.id
+    except Exception as e:
+        logger.warning(f"Failed to enqueue Celery task (Redis unavailable?): {e}")
+        # Upload still succeeded, just no async processing
 
     return {
         "pst_file_id": pst_file_id,
-        "message": "PST uploaded and processing started",
-        "task_id": task.id
+        "message": "PST uploaded successfully" + (" and processing started" if task_id else " (processing pending)"),
+        "task_id": task_id
     }
 
 
@@ -3216,7 +3222,7 @@ async def get_unified_evidence(
                 {
                     "id": str(att.id),
                     "filename": att.filename,
-                    "size": att.file_size,
+                    "size": att.file_size_bytes,
                     "content_type": att.content_type,
                     "s3_bucket": att.s3_bucket,
                     "s3_key": att.s3_key,
