@@ -13,8 +13,9 @@ from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, text
-from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import RedirectResponse as StarletteRedirect
 import subprocess
 import os
 
@@ -197,17 +198,52 @@ app = FastAPI(
     title="VeriCase Docs API", version="0.3.9"
 )  # Updated 2025-11-12 added AWS Secrets Manager for AI keys
 
+# Custom HTTPS Redirect Middleware that excludes health checks
+# Standard HTTPSRedirectMiddleware breaks Kubernetes liveness/readiness probes
+class HTTPSRedirectExcludeHealthMiddleware(BaseHTTPMiddleware):
+    """HTTPS redirect that excludes health check endpoints for Kubernetes probes"""
+    
+    # Paths that should NOT be redirected (used by K8s probes internally over HTTP)
+    EXCLUDED_PATHS = {"/health", "/healthz", "/ready", "/readyz", "/livez"}
+    
+    async def dispatch(self, request, call_next):
+        # Skip redirect for health endpoints (K8s probes use HTTP internally)
+        if request.url.path in self.EXCLUDED_PATHS:
+            return await call_next(request)
+        
+        # Check X-Forwarded-Proto header (set by ALB)
+        forwarded_proto = request.headers.get("x-forwarded-proto", "")
+        
+        # If already HTTPS or behind ALB with HTTPS, don't redirect
+        if forwarded_proto == "https" or request.url.scheme == "https":
+            return await call_next(request)
+        
+        # Only redirect external requests (not internal K8s traffic)
+        # ALB sets X-Forwarded-For, K8s probes don't
+        if "x-forwarded-for" in request.headers:
+            # External request via ALB - redirect to HTTPS
+            https_url = request.url.replace(scheme="https")
+            return StarletteRedirect(url=str(https_url), status_code=307)
+        
+        # Internal request (K8s probe or pod-to-pod) - allow HTTP
+        return await call_next(request)
+
+
 # Security Middleware
-# Check for AWS_EXECUTION_ENV (Lambda/AppRunner) OR AWS_REGION (Generic AWS) OR USE_AWS_SERVICES (K8s)
-if os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_REGION") or os.getenv("USE_AWS_SERVICES") == "true":
-    # Enforce HTTPS in production
-    app.add_middleware(HTTPSRedirectMiddleware)
-    print("[STARTUP] HTTPS Redirect Middleware enabled")
+# Only enable HTTPS redirect in actual AWS production environments
+# AWS_EXECUTION_ENV is set by Lambda/AppRunner, USE_AWS_SERVICES=true is explicit production flag
+# NOTE: AWS_REGION is NOT used as a trigger since it's just a configuration value for local testing
+if os.getenv("AWS_EXECUTION_ENV") or os.getenv("USE_AWS_SERVICES") == "true":
+    # Use custom middleware that excludes health endpoints
+    app.add_middleware(HTTPSRedirectExcludeHealthMiddleware)
+    print("[STARTUP] HTTPS Redirect Middleware enabled (health checks excluded)")
     # Trust headers from AWS Load Balancer
     # Note: Uvicorn proxy_headers=True handles X-Forwarded-Proto, but this ensures redirect
     
     # Restrict Host header if domain is known (optional, good for security)
     # app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*.elb.amazonaws.com", "vericase.yourdomain.com", "localhost"])
+else:
+    print("[STARTUP] HTTPS Redirect Middleware DISABLED (local development mode)")
 
 # Startup Event: Run Migrations
 
@@ -222,6 +258,29 @@ _ui_candidates = [
 print(f"[STARTUP] Looking for UI directory. Candidates: {_ui_candidates}")
 logger.info(f"Looking for UI directory. Candidates: {_ui_candidates}")
 UI_DIR = next((c for c in _ui_candidates if c.exists()), None)
+# Mount assets directory for static files (logos, images, etc.)
+_assets_candidates = [
+    _base_dir / "assets",
+    _base_dir.parent / "assets",
+]
+ASSETS_DIR = next((c for c in _assets_candidates if c.exists()), None)
+if ASSETS_DIR:
+    print(f"[STARTUP] [OK] Assets directory found: {ASSETS_DIR}")
+    logger.info(f"[OK] Assets directory found and mounting at /assets: {ASSETS_DIR}")
+    try:
+        assets_path = ASSETS_DIR.resolve()
+        app.mount(
+            "/assets",
+            StaticFiles(directory=str(assets_path), check_dir=False),
+            name="static_assets",
+        )
+        print("[STARTUP] [OK] Assets mount complete at /assets")
+    except Exception as e:
+        logger.error(f"Failed to mount assets: {e}")
+        print(f"[STARTUP] [ERROR] Failed to mount assets: {e}")
+else:
+    print("[STARTUP] [WARNING] Assets directory not found")
+
 if UI_DIR:
     print(f"[STARTUP] [OK] UI directory found: {UI_DIR}")
     logger.info(f"[OK] UI directory found and mounting at /ui: {UI_DIR}")
