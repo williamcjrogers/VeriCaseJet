@@ -128,12 +128,10 @@ def update_production_config() -> None:
         os.environ["S3_ENDPOINT"] = ""
         os.environ["MINIO_ENDPOINT"] = ""
 
-    # Ensure region is set
-    aws_s3_region = os.getenv("AWS_S3_REGION_NAME")
-    if aws_s3_region:
-        os.environ["AWS_REGION"] = aws_s3_region
-    elif not os.getenv("AWS_REGION"):
-        os.environ["AWS_REGION"] = "us-east-1"
+    # Only set AWS_REGION if not already set - do NOT overwrite from env var!
+    # AWS_S3_REGION_NAME is ONLY for S3 operations, don't use it for general AWS_REGION
+    if not os.getenv("AWS_REGION"):
+        os.environ["AWS_REGION"] = "eu-west-2"
 
 
 # Call this before importing the main app
@@ -142,14 +140,13 @@ update_production_config()
 # Load AI keys from Secrets Manager (after basic config is set)
 # Try to load if:
 # 1. Running in AWS environment (AWS_EXECUTION_ENV set)
-# 2. USE_AWS_SERVICES is true
+# 2. USE_AWS_SERVICES is explicitly true
 # 3. AWS_SECRETS_MANAGER_AI_KEYS is explicitly configured
-# 4. AWS_REGION is set (indicates AWS deployment)
+# Note: AWS_REGION alone doesn't trigger loading (used for local dev with region set)
 _should_load = (
     os.getenv("AWS_EXECUTION_ENV")
-    or os.getenv("USE_AWS_SERVICES") == "true"
+    or os.getenv("USE_AWS_SERVICES", "").lower() == "true"
     or os.getenv("AWS_SECRETS_MANAGER_AI_KEYS")
-    or os.getenv("AWS_REGION")
 )
 print(
     f"[config_production] Should load AI keys from Secrets Manager: " f"{_should_load}"
@@ -161,3 +158,5 @@ print(
 if _should_load:
     print("[config_production] Loading AI keys from Secrets Manager...")
     _ = load_ai_keys_from_secrets_manager()
+else:
+    print("[config_production] Skipping Secrets Manager (local development mode)")
