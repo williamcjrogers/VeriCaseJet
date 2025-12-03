@@ -1,4 +1,4 @@
-# pyright: reportCallInDefaultInitializer=false, reportDeprecatedType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportUnknownParameterType=false
+# pyright: reportCallInDefaultInitializer=false, reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportUnknownParameterType=false
 """
 Correspondence API Endpoints
 Email correspondence management for PST analysis
@@ -13,7 +13,7 @@ from typing import Any, Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import or_, and_, func
+from sqlalchemy import or_, and_, func, select
 from pydantic import BaseModel
 from pydantic.fields import Field
 import re as _re_module
@@ -2581,7 +2581,7 @@ def _get_or_create_default_project(db: Session, user: User) -> Project:
             project_code="DEFAULT",
             start_date=date(2010, 1, 1),
             completion_date=date.today(),
-            owner_user_id=user.id,
+            owner_user_id=None,
         )
         db.add(default_project)
         db.commit()
