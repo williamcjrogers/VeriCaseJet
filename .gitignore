@@ -71,3 +71,7 @@ logs/
 temp/
 tmp/
 NUL
+*.pst
+
+# Archive folder (old docs, scripts, logs)
+archive/
