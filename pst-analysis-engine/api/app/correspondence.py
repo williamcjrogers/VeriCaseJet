@@ -2350,6 +2350,42 @@ async def update_project(
         "status": "updated",
     }
 
+
+@wizard_router.delete("/projects/{project_id}")
+async def delete_project(
+    project_id: str,
+    db: Session = Depends(get_db),
+):
+    """Delete a project and all associated data"""
+    try:
+        p_uuid = uuid.UUID(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID")
+
+    project = db.query(Project).filter(Project.id == p_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    project_name = project.project_name
+
+    # Delete associated PST files records
+    db.query(PSTFile).filter(PSTFile.project_id == p_uuid).delete()
+
+    # Delete associated email messages
+    db.query(EmailMessage).filter(EmailMessage.project_id == p_uuid).delete()
+
+    # Delete the project itself
+    db.delete(project)
+    db.commit()
+
+    return {
+        "id": project_id,
+        "name": project_name,
+        "status": "deleted",
+        "message": f"Project '{project_name}' and all associated data have been deleted",
+    }
+
+
 @wizard_router.post("/cases", status_code=201)
 async def create_case(
     request: CaseCreateRequest,
