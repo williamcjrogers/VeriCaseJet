@@ -82,11 +82,11 @@ spec:
               value: ""
             # Redis/Celery Configuration (ElastiCache with TLS)
             - name: REDIS_URL
-              value: "rediss://master.vericase-redis-simple.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_REQUIRED"
+              value: "rediss://master.vericase-redis-simple.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=required"
             - name: CELERY_BROKER_URL
-              value: "rediss://master.vericase-redis-simple.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_REQUIRED"
+              value: "rediss://master.vericase-redis-simple.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=required"
             - name: CELERY_RESULT_BACKEND
-              value: "rediss://master.vericase-redis-simple.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_REQUIRED"
+              value: "rediss://master.vericase-redis-simple.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=required"
             - name: CELERY_BROKER_USE_SSL
               value: "true"
             - name: CELERY_REDIS_BACKEND_USE_SSL
@@ -193,11 +193,11 @@ spec:
               value: ""
             # Redis/Celery Configuration (ElastiCache with TLS)
             - name: REDIS_URL
-              value: "rediss://master.vericase-redis-simple.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_REQUIRED"
+              value: "rediss://master.vericase-redis-simple.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=required"
             - name: CELERY_BROKER_URL
-              value: "rediss://master.vericase-redis-simple.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_REQUIRED"
+              value: "rediss://master.vericase-redis-simple.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=required"
             - name: CELERY_RESULT_BACKEND
-              value: "rediss://master.vericase-redis-simple.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_REQUIRED"
+              value: "rediss://master.vericase-redis-simple.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=required"
             - name: CELERY_BROKER_USE_SSL
               value: "true"
             - name: CELERY_REDIS_BACKEND_USE_SSL

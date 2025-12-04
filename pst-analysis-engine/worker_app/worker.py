@@ -473,7 +473,8 @@ def process_pst_file(
 
     try:
         # Import PST processor (import here to avoid loading pypff in main process)
-        sys.path.insert(0, "/code")
+        # The pst_processor module is in /code/api/app/
+        sys.path.insert(0, "/code/api")
         from app.pst_processor import UltimatePSTProcessor
 
         # Create DB session
