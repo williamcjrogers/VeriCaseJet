@@ -102,6 +102,7 @@
   letter-spacing: 0.06em;
   font-size: 10px;
   font-weight: 600;
+  color: #ffffff !important;
 }
 
 .ag-theme-vericase .ag-header-cell-label {
@@ -129,6 +130,8 @@
     background-color 0.12s ease,
     transform 0.12s ease;
   border-bottom: 1px solid var(--gray-100, #f0ede8);
+  background-color: #ffffff;
+  color: var(--text-primary, #1a2b3c);
 }
 
 .ag-theme-vericase .ag-row:hover {
@@ -158,6 +161,11 @@
   display: flex;
   align-items: center;
   line-height: 1.4;
+  color: var(--text-primary, #1a2b3c) !important;
+}
+
+.ag-theme-vericase .ag-cell-value {
+  color: var(--text-primary, #1a2b3c) !important;
 }
 
 .ag-theme-vericase .ag-cell-focus {
