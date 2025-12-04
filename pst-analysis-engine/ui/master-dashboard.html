@@ -127,7 +127,7 @@
       transition: all var(--transition-base);
       cursor: pointer;
       position: relative;
-      overflow: hidden;
+      overflow: visible;
       display: flex;
       flex-direction: column;
     }
@@ -456,9 +456,8 @@
       box-shadow: var(--shadow-lg);
       border: 1px solid var(--gray-200);
       min-width: 150px;
-      z-index: 100;
+      z-index: 1000;
       display: none;
-      overflow: hidden;
     }
 
     .card-menu.active {

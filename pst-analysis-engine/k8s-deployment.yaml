@@ -239,7 +239,7 @@ metadata:
   # NOTE: SSL annotations removed - no ACM certificate exists in eu-west-2
   # To enable HTTPS, create an ACM certificate and add annotations back
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   ports:
     - port: 80
       targetPort: 8000

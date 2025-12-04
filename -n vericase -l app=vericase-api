@@ -1,0 +1,20 @@
+[33m3d86d2bf[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m feat: add Stakeholder Manager to assign roles to email domains
+[33ma6c07625[m Fix evidence grid reload loop and ag-grid warnings
+[33mfa0a81cb[m Revert "fix: remove Stakeholders button from correspondence toolbar"
+[33m8da4b8a3[m fix: remove Stakeholders button from correspondence toolbar
+[33m96c8db45[m fix: enable auto-height rows and top-align email content in correspondence grid
+[33m52b953a9[m fix: add explicit color rules for AG Grid header and cell text visibility
+[33mc5c1c6f1[m fix: add missing --bg-white CSS variable for grid visibility
+[33m5777e16a[m fix: Switch k8s deployment to Docker Hub image
+[33mfab031e1[m feat: Add project rename and delete functionality to Command Center
+[33m60ecb0a7[m fix: Switch S3 bucket to production (eu-west-2)
+[33mc0c7aa2e[m fix: PST processing import path and Redis SSL config
+[33m5b1cab46[m chore: Clean up file structure - archive old docs, scripts, and logs
+[33m9fac5c49[m Update .gitignore to include PST files and add an archive folder for old documents, scripts, and logs.
+[33m2548029d[m Fix EKS LoadBalancer - Remove SSL annotations (no ACM cert in eu-west-2)
+[33m73571bef[m Fix EKS health check 307 redirect issue - custom HTTPS middleware excludes /health endpoint
+[33m338d14b9[m feat: optimize k8s deployment with resource limits, health checks, HPA, and full Bedrock config
+[33mff9d8836[m fix: deploy to vericase namespace with correct Redis/Celery config
+[33m648f5412[m Fix: Redis SSL cert parameter (CERT_REQUIRED→required) + update correspondence UI
+[33m147e6cc2[m Fix: Change att.file_size to att.file_size_bytes in get_unified_evidence
+[33mabb687f1[m Fix S3 region: use S3_REGION for bucket operations (us-east-1)
