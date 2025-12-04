@@ -38,6 +38,7 @@
        ============================================ */
 
   /* Backgrounds */
+  --bg-white: #ffffff;
   --bg-primary: var(--vericase-cream);
   --bg-secondary: #ffffff;
   --bg-tertiary: var(--vericase-cream-dark);
