@@ -3864,67 +3864,239 @@
       }
     }
 
+    // Stakeholder role options
+    const STAKEHOLDER_ROLES = [
+      "Client",
+      "Main Contractor",
+      "Subcontractor", 
+      "Architect",
+      "Structural Engineer",
+      "M&E Consultant",
+      "Quantity Surveyor",
+      "Project Manager",
+      "Building Control",
+      "Council / Local Authority",
+      "Legal / Solicitor",
+      "Insurance",
+      "Supplier",
+      "Internal",
+      "Other"
+    ];
+
     async function showStakeholderFilter() {
       try {
-        const entityId = resolveEntityId();
-        if (!entityId || entityId === "null") {
-          console.warn("No case/project id found for stakeholders; skipping");
+        const projectId = resolveEntityId();
+        if (!projectId || projectId === "null") {
+          showNotification("No project selected", "error");
           return;
         }
+        
+        // Fetch unique domains from correspondence
         const response = await fetch(
-          `${API_BASE}/api/unified/${entityId}/stakeholders`,
+          `${API_BASE}/api/wizard/projects/${projectId}/domains`,
         );
-        const stakeholders = await response.json();
+        
+        if (!response.ok) {
+          throw new Error("Failed to fetch domains");
+        }
+        
+        const data = await response.json();
+        const domains = data.domains || [];
 
-        // Get current filter
-        const stakeholderColumn = gridApi.getColumnDef("stakeholder");
-        const currentFilter = gridApi.getFilterInstance("stakeholder");
+        if (domains.length === 0) {
+          showNotification("No email domains found. Upload some PST files first.", "info");
+          return;
+        }
 
-        // Create filter modal
+        // Create stakeholder manager modal
         const modal = document.createElement("div");
+        modal.className = "stakeholder-manager-modal";
         modal.style.cssText = `
-                    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-                    background: white; padding: 20px; border-radius: 8px;
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1000;
-                    min-width: 300px; max-width: 400px;
-                `;
+          position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+          background: var(--bg-white, #ffffff); padding: 24px; border-radius: 12px;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.2); z-index: 1000;
+          min-width: 700px; max-width: 900px; max-height: 85vh;
+          display: flex; flex-direction: column;
+          font-family: var(--font-primary, 'Instrument Sans', sans-serif);
+        `;
 
         modal.innerHTML = `
-                    <h3 style="margin-bottom: 16px;">Filter by Stakeholder</h3>
-                    <div style="max-height: 300px; overflow-y: auto; margin-bottom: 16px;">
-                        ${stakeholders
-            .map(
-              (s) => `
-                            <label style="display: block; margin-bottom: 8px; cursor: pointer;">
-                                <input type="checkbox" value="${s.name}" style="margin-right: 8px;">
-                                ${s.role}: ${s.name}
-                            </label>
-                        `,
-            )
-            .join("")}
-                    </div>
-                    <div style="display: flex; gap: 10px;">
-                        <button onclick="applyStakeholderFilter()" style="flex: 1; padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">Apply</button>
-                        <button onclick="clearStakeholderFilter()" style="flex: 1; padding: 8px 16px; background: #e5e7eb; color: #374151; border: none; border-radius: 6px; cursor: pointer;">Clear</button>
-                        <button onclick="closeFilterModal()" style="flex: 1; padding: 8px 16px; background: #e5e7eb; color: #374151; border: none; border-radius: 6px; cursor: pointer;">Cancel</button>
-                    </div>
-                `;
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--gray-200, #e5e7eb);">
+            <div>
+              <h2 style="margin: 0; color: var(--vericase-navy, #1a365d); font-size: 20px;">
+                <i class="fas fa-users" style="margin-right: 10px; color: var(--vericase-teal, #0d9488);"></i>
+                Stakeholder Manager
+              </h2>
+              <p style="margin: 4px 0 0 0; color: var(--text-muted, #6b7280); font-size: 13px;">
+                Assign roles to email domains found in your correspondence (${domains.length} domains found)
+              </p>
+            </div>
+            <button onclick="closeStakeholderModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted, #6b7280); padding: 4px;">&times;</button>
+          </div>
+          
+          <div style="flex: 1; overflow-y: auto; margin-bottom: 20px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              <thead style="position: sticky; top: 0; background: var(--bg-white, #ffffff); z-index: 1;">
+                <tr style="border-bottom: 2px solid var(--vericase-teal, #0d9488);">
+                  <th style="text-align: left; padding: 12px 8px; color: var(--vericase-navy, #1a365d); font-weight: 600;">Domain</th>
+                  <th style="text-align: center; padding: 12px 8px; color: var(--vericase-navy, #1a365d); font-weight: 600; width: 80px;">Emails</th>
+                  <th style="text-align: center; padding: 12px 8px; color: var(--vericase-navy, #1a365d); font-weight: 600; width: 80px;">Sent</th>
+                  <th style="text-align: center; padding: 12px 8px; color: var(--vericase-navy, #1a365d); font-weight: 600; width: 80px;">Received</th>
+                  <th style="text-align: left; padding: 12px 8px; color: var(--vericase-navy, #1a365d); font-weight: 600; width: 200px;">Role</th>
+                  <th style="text-align: left; padding: 12px 8px; color: var(--vericase-navy, #1a365d); font-weight: 600;">Organization Name</th>
+                </tr>
+              </thead>
+              <tbody id="stakeholderTableBody">
+                ${domains.map((d, idx) => `
+                  <tr data-domain="${d.domain}" style="border-bottom: 1px solid var(--gray-100, #f3f4f6); ${idx % 2 === 0 ? 'background: var(--bg-primary, #faf9f7);' : ''}">
+                    <td style="padding: 10px 8px;">
+                      <span style="font-family: monospace; background: var(--gray-100, #f3f4f6); padding: 2px 6px; border-radius: 4px;">
+                        ${d.domain}
+                      </span>
+                    </td>
+                    <td style="text-align: center; padding: 10px 8px; font-weight: 500;">${d.total_emails}</td>
+                    <td style="text-align: center; padding: 10px 8px; color: var(--vericase-teal, #0d9488);">${d.as_sender}</td>
+                    <td style="text-align: center; padding: 10px 8px; color: var(--text-muted, #6b7280);">${d.as_recipient}</td>
+                    <td style="padding: 10px 8px;">
+                      <select 
+                        class="stakeholder-role-select"
+                        data-domain="${d.domain}"
+                        style="width: 100%; padding: 6px 8px; border: 1px solid var(--gray-200, #e5e7eb); border-radius: 6px; font-size: 13px; background: white; cursor: pointer;"
+                      >
+                        <option value="">-- Select Role --</option>
+                        ${STAKEHOLDER_ROLES.map(role => `
+                          <option value="${role}" ${d.role === role ? 'selected' : ''}>${role}</option>
+                        `).join('')}
+                      </select>
+                    </td>
+                    <td style="padding: 10px 8px;">
+                      <input 
+                        type="text" 
+                        class="stakeholder-org-input"
+                        data-domain="${d.domain}"
+                        value="${d.organization || ''}"
+                        placeholder="Organization name..."
+                        style="width: 100%; padding: 6px 8px; border: 1px solid var(--gray-200, #e5e7eb); border-radius: 6px; font-size: 13px;"
+                      >
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          
+          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid var(--gray-200, #e5e7eb);">
+            <div style="color: var(--text-muted, #6b7280); font-size: 12px;">
+              <i class="fas fa-info-circle" style="margin-right: 4px;"></i>
+              Roles are used to tag emails and filter correspondence
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button onclick="closeStakeholderModal()" style="padding: 10px 20px; background: var(--gray-100, #e5e7eb); color: var(--text-primary, #374151); border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">
+                Cancel
+              </button>
+              <button onclick="saveStakeholderMappings()" style="padding: 10px 24px; background: var(--vericase-teal, #0d9488); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">
+                <i class="fas fa-save" style="margin-right: 6px;"></i>
+                Save Changes
+              </button>
+            </div>
+          </div>
+        `;
 
         // Add backdrop
         const backdrop = document.createElement("div");
+        backdrop.id = "stakeholderBackdrop";
         backdrop.style.cssText =
           "position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999;";
-        backdrop.onclick = () => closeFilterModal();
+        backdrop.onclick = () => closeStakeholderModal();
 
         document.body.appendChild(backdrop);
         document.body.appendChild(modal);
 
-        // Store modal references globally
+        // Store modal reference
         window.stakeholderModal = modal;
         window.stakeholderBackdrop = backdrop;
+        
       } catch (error) {
         console.error("Error loading stakeholders:", error);
-        showNotification("Failed to load stakeholders", "error");
+        showNotification("Failed to load stakeholder data", "error");
+      }
+    }
+
+    function closeStakeholderModal() {
+      if (window.stakeholderModal) {
+        window.stakeholderModal.remove();
+        window.stakeholderModal = null;
+      }
+      if (window.stakeholderBackdrop) {
+        window.stakeholderBackdrop.remove();
+        window.stakeholderBackdrop = null;
+      }
+    }
+
+    async function saveStakeholderMappings() {
+      try {
+        const projectId = resolveEntityId();
+        if (!projectId || projectId === "null") {
+          showNotification("No project selected", "error");
+          return;
+        }
+
+        // Collect all mappings with a role selected
+        const mappings = [];
+        const rows = document.querySelectorAll('#stakeholderTableBody tr[data-domain]');
+        
+        rows.forEach(row => {
+          const domain = row.dataset.domain;
+          const roleSelect = row.querySelector('.stakeholder-role-select');
+          const orgInput = row.querySelector('.stakeholder-org-input');
+          
+          const role = roleSelect?.value;
+          const organization = orgInput?.value?.trim();
+          
+          if (role) {
+            mappings.push({
+              domain: domain,
+              role: role,
+              organization: organization || null
+            });
+          }
+        });
+
+        if (mappings.length === 0) {
+          showNotification("No roles assigned. Select at least one role to save.", "warning");
+          return;
+        }
+
+        // Save to API
+        const response = await fetch(
+          `${API_BASE}/api/wizard/projects/${projectId}/stakeholders/bulk`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mappings })
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to save stakeholder mappings");
+        }
+
+        const result = await response.json();
+        showNotification(
+          `Saved ${result.created} new and updated ${result.updated} stakeholder mappings`,
+          "success"
+        );
+        
+        closeStakeholderModal();
+        
+        // Refresh grid to show updated stakeholder tags
+        if (gridApi) {
+          gridApi.refreshInfiniteCache();
+        }
+        
+      } catch (error) {
+        console.error("Error saving stakeholder mappings:", error);
+        showNotification("Failed to save stakeholder mappings", "error");
       }
     }
 
