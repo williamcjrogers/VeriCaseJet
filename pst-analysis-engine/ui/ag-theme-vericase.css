@@ -159,13 +159,18 @@
    ---------------------------------------- */
 .ag-theme-vericase .ag-cell {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   line-height: 1.4;
   color: var(--text-primary, #1a2b3c) !important;
+  padding-top: 8px;
 }
 
 .ag-theme-vericase .ag-cell-value {
   color: var(--text-primary, #1a2b3c) !important;
+}
+
+.ag-theme-vericase .ag-cell-wrapper {
+  align-items: flex-start;
 }
 
 .ag-theme-vericase .ag-cell-focus {
