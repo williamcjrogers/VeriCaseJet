@@ -571,81 +571,6 @@
           </div>
         </div>
 
-        <!-- xAI / Grok Configuration -->
-        <div class="setting-item">
-          <div class="setting-header">
-            <div>
-              <div class="setting-label">
-                <i class="fas fa-bolt" style="color: #1da1f2"></i> xAI (Grok)
-              </div>
-              <div class="setting-description">
-                Used for gap analysis and critical review. Get your API key from
-                <a href="https://console.x.ai/" target="_blank">console.x.ai</a>
-              </div>
-            </div>
-          </div>
-          <div
-            class="setting-control"
-            style="flex-direction: column; align-items: stretch; gap: 0.75rem"
-          >
-            <div style="display: flex; gap: 1rem; align-items: center">
-              <input
-                type="password"
-                id="grok-api-key"
-                class="setting-input"
-                style="max-width: 400px; flex: 1"
-                placeholder="xai-..."
-              />
-              <button
-                class="btn-save"
-                onclick="saveSetting('grok_api_key', 'grok-api-key')"
-              >
-                Save Key
-              </button>
-              <button
-                class="btn-test"
-                onclick="testAIProvider('grok')"
-                style="
-                  background: var(--gray-200);
-                  color: var(--text-primary);
-                  border: none;
-                  padding: 0.75rem 1rem;
-                  border-radius: var(--radius-md);
-                  cursor: pointer;
-                "
-              >
-                <i class="fas fa-vial"></i> Test
-              </button>
-            </div>
-            <div style="display: flex; gap: 1rem; align-items: center">
-              <label style="color: var(--text-secondary); min-width: 80px"
-                >Model:</label
-              >
-              <select
-                id="grok-model"
-                class="setting-input"
-                style="max-width: 300px"
-              >
-                <option value="grok-4.1-thinking">Grok 4.1 (Thinking)</option>
-                <option value="grok-4.1">Grok 4.1 (Non-Thinking)</option>
-                <option value="grok-2-1212">Grok 2 (Legacy)</option>
-              </select>
-              <button
-                class="btn-save"
-                onclick="saveSetting('grok_model', 'grok-model')"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-          <div class="success-message" id="success-grok-api-key">
-            Setting saved!
-          </div>
-          <div class="success-message" id="success-grok-model">
-            Model saved!
-          </div>
-        </div>
-
         <!-- Perplexity Configuration -->
         <div class="setting-item">
           <div class="setting-header">
@@ -753,6 +678,7 @@
                 class="setting-input"
                 style="max-width: 400px; flex: 1"
                 placeholder="http://your-ec2-ip:11434"
+                value="http://your-ec2-ip:11434"
               />
               <button
                 class="btn-save"
@@ -833,7 +759,6 @@
                 <option value="openai">OpenAI (GPT)</option>
                 <option value="anthropic">Anthropic (Claude)</option>
                 <option value="gemini">Google (Gemini)</option>
-                <option value="grok">xAI (Grok)</option>
                 <option value="phi">Microsoft Phi-4</option>
               </select>
               <button
@@ -925,11 +850,6 @@
               <span>Google</span>
               <span class="status-text">Not configured</span>
             </div>
-            <div class="status-card" id="status-grok">
-              <i class="fas fa-circle" style="color: var(--gray-300)"></i>
-              <span>xAI</span>
-              <span class="status-text">Not configured</span>
-            </div>
             <div class="status-card" id="status-perplexity">
               <i class="fas fa-circle" style="color: var(--gray-300)"></i>
               <span>Perplexity</span>
@@ -964,8 +884,6 @@
         anthropic_model: "Anthropic model to use for narrative construction",
         gemini_api_key: "Google AI API key for Gemini models",
         gemini_model: "Gemini model to use for pattern recognition",
-        grok_api_key: "xAI API key for Grok models",
-        grok_model: "Grok model to use for gap analysis",
         perplexity_api_key: "Perplexity API key for local queries",
         perplexity_model: "Perplexity model to use for search queries",
         phi_endpoint: "Phi-4 endpoint URL for self-hosted model",
@@ -1011,8 +929,6 @@
               anthropic_model: "anthropic-model",
               gemini_api_key: "gemini-api-key",
               gemini_model: "gemini-model",
-              grok_api_key: "grok-api-key",
-              grok_model: "grok-model",
               perplexity_api_key: "perplexity-api-key",
               perplexity_model: "perplexity-model",
               phi_endpoint: "phi-endpoint",
@@ -1034,6 +950,17 @@
               }
             }
           });
+
+          // Ensure Phi defaults are pre-populated when unset
+          const defaultPhiEndpoint = "http://your-ec2-ip:11434";
+          const phiEndpointInput = document.getElementById("phi-endpoint");
+          if (phiEndpointInput && !phiEndpointInput.value) {
+            phiEndpointInput.value = defaultPhiEndpoint;
+          }
+          const phiModelSelect = document.getElementById("phi-model");
+          if (phiModelSelect && !phiModelSelect.value) {
+            phiModelSelect.value = "phi4";
+          }
 
           // Update status indicators
           checkAllProviders();
@@ -1183,11 +1110,6 @@
               status.models.gemini_2_5?.available
                 ? "Configured"
                 : "Not configured",
-            );
-            updateProviderStatus(
-              "grok",
-              status.models.grok_4?.available,
-              status.models.grok_4?.available ? "Configured" : "Not configured",
             );
             updateProviderStatus(
               "phi",

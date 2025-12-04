@@ -1266,7 +1266,6 @@
           "openai",
           "anthropic",
           "gemini",
-          "grok",
           "perplexity",
         ];
         providers.forEach((provider) => {
@@ -1894,17 +1893,16 @@
         // Reset input placeholder
         const inputId = `${provider}KeyInput`;
         const input = document.getElementById(inputId);
-        if (input) {
-          input.value = "";
-          const placeholders = {
-            openai: "sk-...",
-            anthropic: "sk-ant-...",
-            gemini: "AI...",
-            grok: "xai-...",
-            perplexity: "pplx-...",
-          };
-          input.placeholder = placeholders[provider] || "Enter API key";
-        }
+          if (input) {
+            input.value = "";
+            const placeholders = {
+              openai: "sk-...",
+              anthropic: "sk-ant-...",
+              gemini: "AI...",
+              perplexity: "pplx-...",
+            };
+            input.placeholder = placeholders[provider] || "Enter API key";
+          }
 
         showKeyMessage(provider, "API key removed", "info");
 
@@ -1946,7 +1944,6 @@
           "openai",
           "anthropic",
           "gemini",
-          "grok",
           "perplexity",
         ];
         let anyConfigured = false;
@@ -2110,26 +2107,6 @@
                                     <i class="fas fa-save"></i> Save
                                 </button>
                                 <button onclick="clearLocalAIKey('gemini')" class="btn btn-secondary" style="padding: 0.75rem 1rem;">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- xAI Grok -->
-                        <div class="ai-provider-card" style="padding: 1.5rem; border: 2px solid #e5e7eb; border-radius: 12px; background: white;">
-                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
-                                <div>
-                                    <h4 style="color: var(--vericase-navy); margin: 0 0 0.25rem 0;"><i class="fas fa-bolt"></i> xAI (Grok)</h4>
-                                    <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">For gap analysis and alternative perspectives</p>
-                                </div>
-                                <span id="grokStatus" class="status-indicator status-inactive"></span>
-                            </div>
-                            <div style="display: flex; gap: 0.75rem; align-items: center;">
-                                <label for="grokKeyInput"></label><input type="password" id="grokKeyInput" placeholder="xai-..." style="flex: 1; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.875rem;">
-                                <button onclick="saveLocalAIKey('grok')" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">
-                                    <i class="fas fa-save"></i> Save
-                                </button>
-                                <button onclick="clearLocalAIKey('grok')" class="btn btn-secondary" style="padding: 0.75rem 1rem;">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>
