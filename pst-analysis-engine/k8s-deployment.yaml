@@ -67,17 +67,17 @@ spec:
               value: "eu-west-2"
             - name: AWS_DEFAULT_REGION
               value: "eu-west-2"
-            # S3 Configuration (bucket in us-east-1)
+            # S3 Configuration (bucket in eu-west-2 - production)
             - name: AWS_S3_REGION_NAME
-              value: "us-east-1"
+              value: "eu-west-2"
             - name: S3_BUCKET
-              value: "vericase-docs-526015377510"
+              value: "vericase-docs"
             - name: S3_PST_BUCKET
-              value: "vericase-docs-526015377510"
+              value: "vericase-docs"
             - name: S3_REGION
-              value: "us-east-1"
+              value: "eu-west-2"
             - name: MINIO_BUCKET
-              value: "vericase-docs-526015377510"
+              value: "vericase-docs"
             - name: MINIO_ENDPOINT
               value: ""
             # Redis/Celery Configuration (ElastiCache with TLS)
@@ -178,17 +178,17 @@ spec:
               value: "eu-west-2"
             - name: AWS_DEFAULT_REGION
               value: "eu-west-2"
-            # S3 Configuration (bucket in us-east-1)
+            # S3 Configuration (bucket in eu-west-2 - production)
             - name: AWS_S3_REGION_NAME
-              value: "us-east-1"
+              value: "eu-west-2"
             - name: S3_BUCKET
-              value: "vericase-docs-526015377510"
+              value: "vericase-docs"
             - name: S3_PST_BUCKET
-              value: "vericase-docs-526015377510"
+              value: "vericase-docs"
             - name: S3_REGION
-              value: "us-east-1"
+              value: "eu-west-2"
             - name: MINIO_BUCKET
-              value: "vericase-docs-526015377510"
+              value: "vericase-docs"
             - name: MINIO_ENDPOINT
               value: ""
             # Redis/Celery Configuration (ElastiCache with TLS)
