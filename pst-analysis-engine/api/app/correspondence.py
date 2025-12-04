@@ -2131,6 +2131,178 @@ async def get_project_keywords(
     ]
 
 
+@wizard_router.get("/projects/{project_id}/domains")
+async def get_project_email_domains(
+    project_id: str,
+    db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+):
+    """
+    Get unique email domains from all correspondence in a project.
+    Extracts domains from sender_email, recipients_to, and recipients_cc fields.
+    Returns domains with email counts and any existing stakeholder role assignment.
+    """
+    try:
+        project_uuid = uuid.UUID(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+
+    # Get all PST files for this project
+    pst_files = db.query(PSTFile).filter(PSTFile.project_id == project_uuid).all()
+    pst_ids = [p.id for p in pst_files]
+
+    if not pst_ids:
+        return {"domains": [], "total": 0}
+
+    # Get all emails for this project's PSTs
+    emails = db.query(EmailMessage).filter(EmailMessage.pst_file_id.in_(pst_ids)).all()
+
+    # Extract domains from all email addresses
+    domain_counts: dict[str, dict[str, Any]] = {}
+
+    def extract_domain(email_addr: str | None) -> str | None:
+        if not email_addr:
+            return None
+        # Handle "Name <email@domain.com>" format
+        if "<" in email_addr and ">" in email_addr:
+            email_addr = email_addr.split("<")[1].split(">")[0]
+        if "@" in email_addr:
+            return email_addr.split("@")[1].lower().strip()
+        return None
+
+    def add_domain(domain: str | None, email_type: str):
+        if not domain:
+            return
+        if domain not in domain_counts:
+            domain_counts[domain] = {
+                "domain": domain,
+                "total_emails": 0,
+                "as_sender": 0,
+                "as_recipient": 0,
+                "role": None,
+                "stakeholder_id": None,
+            }
+        domain_counts[domain]["total_emails"] += 1
+        if email_type == "sender":
+            domain_counts[domain]["as_sender"] += 1
+        else:
+            domain_counts[domain]["as_recipient"] += 1
+
+    for email in emails:
+        # Extract sender domain
+        sender_domain = extract_domain(email.sender_email)
+        add_domain(sender_domain, "sender")
+
+        # Extract recipient domains from recipients_to
+        if email.recipients_to:
+            for recipient in email.recipients_to:
+                recipient_domain = extract_domain(recipient)
+                add_domain(recipient_domain, "recipient")
+
+        # Extract recipient domains from recipients_cc
+        if email.recipients_cc:
+            for recipient in email.recipients_cc:
+                recipient_domain = extract_domain(recipient)
+                add_domain(recipient_domain, "recipient")
+
+    # Look up existing stakeholder assignments for these domains
+    existing_stakeholders = (
+        db.query(Stakeholder)
+        .filter(
+            Stakeholder.project_id == project_uuid,
+            Stakeholder.email_domain.in_(domain_counts.keys()),
+        )
+        .all()
+    )
+
+    # Map existing stakeholders to domains
+    for s in existing_stakeholders:
+        if s.email_domain and s.email_domain in domain_counts:
+            domain_counts[s.email_domain]["role"] = s.role
+            domain_counts[s.email_domain]["stakeholder_id"] = str(s.id)
+            domain_counts[s.email_domain]["organization"] = s.organization
+
+    # Sort by total emails descending
+    sorted_domains = sorted(
+        domain_counts.values(), key=lambda x: x["total_emails"], reverse=True
+    )
+
+    return {"domains": sorted_domains, "total": len(sorted_domains)}
+
+
+class DomainRoleMapping(BaseModel):
+    """Mapping of a domain to a stakeholder role"""
+
+    domain: str
+    role: str
+    organization: str | None = None
+
+
+class BulkStakeholderUpdate(BaseModel):
+    """Bulk update of domain-to-role mappings"""
+
+    mappings: list[DomainRoleMapping]
+
+
+@wizard_router.post("/projects/{project_id}/stakeholders/bulk")
+async def update_project_stakeholders_bulk(
+    project_id: str,
+    update_data: BulkStakeholderUpdate,
+    db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+):
+    """
+    Bulk update/create stakeholders for domain-to-role mappings.
+    Creates new stakeholders or updates existing ones based on email_domain.
+    """
+    try:
+        project_uuid = uuid.UUID(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    created = 0
+    updated = 0
+
+    for mapping in update_data.mappings:
+        # Check if stakeholder already exists for this domain
+        existing = (
+            db.query(Stakeholder)
+            .filter(
+                Stakeholder.project_id == project_uuid,
+                Stakeholder.email_domain == mapping.domain.lower(),
+            )
+            .first()
+        )
+
+        if existing:
+            existing.role = mapping.role
+            if mapping.organization:
+                existing.organization = mapping.organization
+            updated += 1
+        else:
+            new_stakeholder = Stakeholder(
+                id=uuid.uuid4(),
+                project_id=project_uuid,
+                role=mapping.role,
+                name=mapping.organization or mapping.domain,
+                email_domain=mapping.domain.lower(),
+                organization=mapping.organization,
+            )
+            db.add(new_stakeholder)
+            created += 1
+
+    db.commit()
+
+    return {
+        "message": f"Stakeholders updated successfully",
+        "created": created,
+        "updated": updated,
+    }
+
+
 @wizard_router.post("/projects/default")
 async def get_or_create_default_project(
     db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
