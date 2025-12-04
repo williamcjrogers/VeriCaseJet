@@ -2,7 +2,7 @@
 
 ## ✅ Production EKS Cluster
 
-**URL:** http://af2f6cb519c4f4d4d94e1633e3c91f1c-509256539.eu-west-2.elb.amazonaws.com
+**URL:** http://a61989df377ff43a5b36d956e82baee8-21465387.eu-west-2.elb.amazonaws.com
 
 **Cluster:** vericase-cluster  
 **Region:** eu-west-2  
@@ -69,4 +69,4 @@
 - **Auto-Build:** GitHub Actions on push to main
 
 ---
-**Last Updated:** December 1, 2025
+**Last Updated:** December 4, 2025

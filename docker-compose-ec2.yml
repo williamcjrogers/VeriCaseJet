@@ -25,6 +25,7 @@ services:
     environment:
       - JWT_SECRET=c3bef73578895c08045f8848192958b2dbfaf55a57f97509553c3d5324a7d2b1
       - DEV_NO_AUTH=true
+      - DISABLE_HTTPS_REDIRECT=true
       - DATABASE_URL=postgresql://vericase:vericase123@db:5432/vericase
       - REDIS_URL=redis://redis:6379/0
       - USE_AWS_SERVICES=true
