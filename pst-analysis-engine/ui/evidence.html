@@ -1440,6 +1440,8 @@
         // Handle grid errors gracefully
         onGridSizeChanged: (params) => {
           try {
+            const gridEl = document.getElementById("evidenceGrid");
+            if (!gridEl || gridEl.offsetWidth === 0) return;
             params.api.sizeColumnsToFit();
           } catch (e) {
             console.warn("Grid size adjustment failed:", e);
@@ -1484,9 +1486,6 @@
     async function loadAllData() {
       const prefetched = getPrefetchedData();
 
-      // Show loading skeleton while we fetch evidence items
-      VericaseUI.Loading.showSkeleton(".grid-wrapper");
-
       // Use prefetched collections/stats if available (for faster sidebar render)
       // Note: Dashboard only prefetches collections and stats, NOT items
       if (prefetched) {
@@ -1515,6 +1514,10 @@
 
     async function loadEvidence() {
       try {
+        if (gridApi) {
+          gridApi.showLoadingOverlay();
+        }
+
         const params = new URLSearchParams();
         params.append("page", "1");
         params.append("page_size", "10000"); // Load ALL evidence items
@@ -1547,11 +1550,6 @@
           const data = await response.json();
           allEvidenceItems = data.items || [];
 
-          // Restore grid
-          document.querySelector(".grid-wrapper").innerHTML =
-            '<div id="evidenceGrid" class="ag-theme-alpine ag-theme-vericase" style="height: 100%;"></div>';
-          initGrid();
-
           updateCategoryCounts();
           applyFilters();
 
@@ -1570,6 +1568,10 @@
         VericaseUI.Toast.error("Failed to load evidence");
         allEvidenceItems = [];
         if (gridApi) gridApi.setGridOption("rowData", []);
+      } finally {
+        if (gridApi) {
+          gridApi.hideOverlay();
+        }
       }
     }
 
