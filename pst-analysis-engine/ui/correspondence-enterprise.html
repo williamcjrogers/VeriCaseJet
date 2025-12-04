@@ -3164,7 +3164,14 @@
 
     const gridOptions = {
       columnDefs: columnDefs,
-      rowHeight: 150, // Larger rows to show more email content
+      // Use auto-height for rows to expand to content
+      getRowHeight: (params) => {
+        // Auto-height when showing full content, fixed height for preview
+        if (showFullContent) {
+          return null; // null = auto-height
+        }
+        return 80; // Preview mode fixed height
+      },
       headerHeight: 48,
       floatingFiltersHeight: 38,
       defaultColDef: {
@@ -3188,10 +3195,15 @@
         // Auto-size to content
         flex: 1,
         minWidth: 100,
-        // Handle long text gracefully
-        wrapText: false,
-        autoHeight: false,
-        cellStyle: { overflow: "hidden", "text-overflow": "ellipsis" },
+        // Enable text wrapping and auto-height for full content
+        wrapText: true,
+        autoHeight: true,
+        cellStyle: { 
+          "white-space": "normal", 
+          "line-height": "1.5",
+          "padding-top": "8px",
+          "padding-bottom": "8px"
+        },
       },
 
       // Auto-generate columns for any unknown fields in the data
@@ -3419,6 +3431,10 @@
       gridApi.forEachNode((node) => {
         node.data.expanded = showFullContent;
       });
+      
+      // Reset row heights to recalculate based on new mode
+      gridApi.resetRowHeights();
+      
       gridApi.refreshCells({
         columns: ["email_body"],
         force: true,
