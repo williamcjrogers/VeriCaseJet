@@ -422,6 +422,99 @@
     .type-option.selected i {
       color: var(--vericase-teal);
     }
+
+    /* Card Menu Dropdown */
+    .card-menu-wrapper {
+      position: relative;
+    }
+
+    .card-menu-btn {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .card-menu-btn:hover {
+      background: var(--gray-100);
+      color: var(--text-primary);
+    }
+
+    .card-menu {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background: white;
+      border-radius: 8px;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--gray-200);
+      min-width: 150px;
+      z-index: 100;
+      display: none;
+      overflow: hidden;
+    }
+
+    .card-menu.active {
+      display: block;
+    }
+
+    .card-menu button {
+      width: 100%;
+      padding: 10px 16px;
+      border: none;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.875rem;
+      color: var(--text-primary);
+      transition: background 0.15s;
+    }
+
+    .card-menu button:hover {
+      background: var(--gray-50);
+    }
+
+    .card-menu button.danger {
+      color: #dc2626;
+    }
+
+    .card-menu button.danger:hover {
+      background: #fef2f2;
+    }
+
+    /* Delete Modal Styles */
+    .delete-warning {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      color: #991b1b;
+    }
+
+    .delete-warning i {
+      margin-right: 8px;
+    }
+
+    .btn-danger {
+      background: #dc2626;
+      color: white;
+      border: none;
+    }
+
+    .btn-danger:hover {
+      background: #b91c1c;
+    }
   </style>
 </head>
 
@@ -596,6 +689,68 @@
     </div>
   </div>
 
+  <!-- Rename Modal -->
+  <div class="modal-overlay" id="renameModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Rename Project</h2>
+        <button class="modal-close" onclick="closeRenameModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="renameForm">
+          <input type="hidden" id="renameItemId" />
+          <input type="hidden" id="renameItemType" />
+          <div class="form-group">
+            <label for="renameItemName" style="font-weight: 600; margin-bottom: 8px; display: block">Name *</label>
+            <input type="text" id="renameItemName" class="input" required placeholder="Enter new name..." />
+          </div>
+          <div class="form-group">
+            <label for="renameItemCode" style="font-weight: 600; margin-bottom: 8px; display: block">Code</label>
+            <input type="text" id="renameItemCode" class="input" placeholder="Project code..." />
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeRenameModal()">Cancel</button>
+        <button class="btn btn-vericase" id="confirmRename">
+          <i class="fas fa-save"></i> Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal-overlay" id="deleteModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Delete Project</h2>
+        <button class="modal-close" onclick="closeDeleteModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="deleteItemId" />
+        <input type="hidden" id="deleteItemType" />
+        <div class="delete-warning">
+          <i class="fas fa-exclamation-triangle"></i>
+          <strong>Warning:</strong> This action cannot be undone!
+        </div>
+        <p>Are you sure you want to delete <strong id="deleteItemName"></strong>?</p>
+        <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 8px;">
+          This will permanently delete the project and all associated emails, attachments, and evidence.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeDeleteModal()">Cancel</button>
+        <button class="btn btn-danger" id="confirmDelete">
+          <i class="fas fa-trash"></i> Delete Project
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // Initialize Shell
     document.addEventListener("DOMContentLoaded", () => {
@@ -690,7 +845,22 @@
                         <div class="project-icon">
                             <i class="fas ${item.type === "project" ? "fa-project-diagram" : "fa-briefcase"}"></i>
                         </div>
-                        <span class="status-badge status-active">${item.status}</span>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="status-badge status-active">${item.status}</span>
+                            <div class="card-menu-wrapper">
+                                <button class="card-menu-btn" title="More actions" onclick="event.stopPropagation(); toggleCardMenu('${item.id}')">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </button>
+                                <div class="card-menu" id="menu-${item.id}">
+                                    <button onclick="event.stopPropagation(); openRenameModal('${item.id}', '${escapeHtml(item.name)}', '${escapeHtml(item.project_code || item.case_number || "")}', '${item.type}')">
+                                        <i class="fas fa-edit"></i> Rename
+                                    </button>
+                                    <button class="danger" onclick="event.stopPropagation(); openDeleteModal('${item.id}', '${escapeHtml(item.name)}', '${item.type}')">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="project-title">${escapeHtml(item.name)}</div>
@@ -864,6 +1034,159 @@
       localStorage.setItem("vericase_current_project", id);
       window.location.href = `wizard.html?projectId=${id}&edit=true`;
     }
+
+    // --- Project Management ---
+    let activeMenu = null;
+
+    function toggleCardMenu(itemId) {
+      const menu = document.getElementById(`menu-${itemId}`);
+      
+      // Close any other open menu
+      if (activeMenu && activeMenu !== menu) {
+        activeMenu.classList.remove('active');
+      }
+      
+      menu.classList.toggle('active');
+      activeMenu = menu.classList.contains('active') ? menu : null;
+    }
+
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+      if (activeMenu && !e.target.closest('.card-menu-wrapper')) {
+        activeMenu.classList.remove('active');
+        activeMenu = null;
+      }
+    });
+
+    function openRenameModal(id, name, code, type) {
+      document.getElementById('renameItemId').value = id;
+      document.getElementById('renameItemType').value = type;
+      document.getElementById('renameItemName').value = name;
+      document.getElementById('renameItemCode').value = code;
+      document.getElementById('renameModal').classList.add('active');
+      
+      // Close any open card menu
+      if (activeMenu) {
+        activeMenu.classList.remove('active');
+        activeMenu = null;
+      }
+    }
+
+    function closeRenameModal() {
+      document.getElementById('renameModal').classList.remove('active');
+    }
+
+    function openDeleteModal(id, name, type) {
+      document.getElementById('deleteItemId').value = id;
+      document.getElementById('deleteItemType').value = type;
+      document.getElementById('deleteItemName').textContent = name;
+      document.getElementById('deleteModal').classList.add('active');
+      
+      // Close any open card menu
+      if (activeMenu) {
+        activeMenu.classList.remove('active');
+        activeMenu = null;
+      }
+    }
+
+    function closeDeleteModal() {
+      document.getElementById('deleteModal').classList.remove('active');
+    }
+
+    // Rename handler
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('confirmRename').addEventListener('click', async () => {
+        const id = document.getElementById('renameItemId').value;
+        const type = document.getElementById('renameItemType').value;
+        const name = document.getElementById('renameItemName').value;
+        const code = document.getElementById('renameItemCode').value;
+
+        if (!name) {
+          alert('Please enter a name');
+          return;
+        }
+
+        const btn = document.getElementById('confirmRename');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        btn.disabled = true;
+
+        try {
+          const token = localStorage.getItem('vericase_token');
+          const headers = {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          };
+
+          const endpoint = type === 'project' ? `/api/projects/${id}` : `/api/cases/${id}`;
+          const payload = type === 'project' 
+            ? { project_name: name, project_code: code }
+            : { name: name, case_number: code };
+
+          const response = await fetch(endpoint, {
+            method: 'PUT',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (response.ok) {
+            VericaseUI.Toast.success('Renamed successfully');
+            closeRenameModal();
+            loadDashboard();
+          } else {
+            const error = await response.json();
+            throw new Error(error.detail || 'Rename failed');
+          }
+        } catch (error) {
+          console.error('Rename error:', error);
+          alert(`Error: ${error.message}`);
+        } finally {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+        }
+      });
+
+      // Delete handler
+      document.getElementById('confirmDelete').addEventListener('click', async () => {
+        const id = document.getElementById('deleteItemId').value;
+        const type = document.getElementById('deleteItemType').value;
+
+        const btn = document.getElementById('confirmDelete');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+        btn.disabled = true;
+
+        try {
+          const token = localStorage.getItem('vericase_token');
+          const headers = {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          };
+
+          const endpoint = type === 'project' ? `/api/projects/${id}` : `/api/cases/${id}`;
+
+          const response = await fetch(endpoint, {
+            method: 'DELETE',
+            headers: headers
+          });
+
+          if (response.ok) {
+            VericaseUI.Toast.success('Deleted successfully');
+            closeDeleteModal();
+            loadDashboard();
+          } else {
+            const error = await response.json();
+            throw new Error(error.detail || 'Delete failed');
+          }
+        } catch (error) {
+          console.error('Delete error:', error);
+          alert(`Error: ${error.message}`);
+        } finally {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+        }
+      });
+    });
 
     // Utils
     function escapeHtml(str) {
