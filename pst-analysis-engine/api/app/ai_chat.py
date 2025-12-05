@@ -404,7 +404,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
                     f"To: {email.recipients_to or 'Unknown'}\n"
                     f"Subject: {email.subject or 'No subject'}\n"
                     f"Content: {(email.body_text or email.body_preview or '')[:800]}\n"
-                    f"Attachments: {email.attachment_count or 0}\n"
+                    f"Attachments: {getattr(email, 'attachment_count', 0) or 0}\n"
                     f"---"
                 )
             else:
