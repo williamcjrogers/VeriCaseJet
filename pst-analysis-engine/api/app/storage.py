@@ -71,6 +71,12 @@ def s3(public: bool = False) -> S3ClientProtocol:
     if public and settings.MINIO_PUBLIC_ENDPOINT and not use_aws:
         # Always create fresh client for public endpoint
         # Using public MinIO endpoint for presigned URLs
+        normalized_endpoint = _normalize_endpoint(settings.MINIO_PUBLIC_ENDPOINT)
+        LOGGER.info(
+            "[S3 DEBUG] Creating PUBLIC endpoint client: endpoint=%s (normalized=%s)",
+            settings.MINIO_PUBLIC_ENDPOINT,
+            normalized_endpoint,
+        )
         session = Session(
             aws_access_key_id=settings.MINIO_ACCESS_KEY,
             aws_secret_access_key=settings.MINIO_SECRET_KEY,
@@ -80,7 +86,7 @@ def s3(public: bool = False) -> S3ClientProtocol:
             S3ClientProtocol,
             session.client(
                 "s3",
-                endpoint_url=_normalize_endpoint(settings.MINIO_PUBLIC_ENDPOINT),
+                endpoint_url=normalized_endpoint,
                 config=Config(signature_version="s3v4"),
             ),
         )
@@ -263,12 +269,21 @@ def presign_put(
     """Generate presigned PUT URL for uploading to S3."""
     target_bucket = bucket or settings.MINIO_BUCKET
     client = s3(public=bool(settings.MINIO_PUBLIC_ENDPOINT))
-    return client.generate_presigned_url(
+    url = client.generate_presigned_url(
         "put_object",
         Params={"Bucket": target_bucket, "Key": key, "ContentType": content_type},
         ExpiresIn=expires,
         HttpMethod="PUT",
     )
+
+    # Replace internal MinIO hostname with public endpoint if configured
+    if settings.MINIO_PUBLIC_ENDPOINT and settings.MINIO_ENDPOINT:
+        internal_endpoint = _normalize_endpoint(settings.MINIO_ENDPOINT)
+        public_endpoint = _normalize_endpoint(settings.MINIO_PUBLIC_ENDPOINT)
+        if internal_endpoint and public_endpoint:
+            url = url.replace(internal_endpoint, public_endpoint)
+
+    return url
 
 
 def presign_get(
@@ -280,7 +295,7 @@ def presign_get(
     """Generate presigned GET URL for downloading from S3."""
     target_bucket = bucket or settings.MINIO_BUCKET
     client = s3(public=bool(settings.MINIO_PUBLIC_ENDPOINT))
-    return client.generate_presigned_url(
+    url = client.generate_presigned_url(
         "get_object",
         Params={
             "Bucket": target_bucket,
@@ -290,6 +305,15 @@ def presign_get(
         ExpiresIn=expires,
         HttpMethod="GET",
     )
+
+    # Replace internal MinIO hostname with public endpoint if configured
+    if settings.MINIO_PUBLIC_ENDPOINT and settings.MINIO_ENDPOINT:
+        internal_endpoint = _normalize_endpoint(settings.MINIO_ENDPOINT)
+        public_endpoint = _normalize_endpoint(settings.MINIO_PUBLIC_ENDPOINT)
+        if internal_endpoint and public_endpoint:
+            url = url.replace(internal_endpoint, public_endpoint)
+
+    return url
 
 
 def multipart_start(key: str, content_type: str, bucket: str | None = None) -> str:
@@ -312,8 +336,14 @@ def presign_part(
 ) -> str:
     """Generate presigned URL for uploading a part in multipart upload."""
     target_bucket = bucket or settings.MINIO_BUCKET
-    client = s3(public=bool(settings.MINIO_PUBLIC_ENDPOINT))
-    return client.generate_presigned_url(
+    use_public = bool(settings.MINIO_PUBLIC_ENDPOINT)
+    LOGGER.info(
+        "[PRESIGN DEBUG] presign_part: MINIO_PUBLIC_ENDPOINT=%s, use_public=%s",
+        settings.MINIO_PUBLIC_ENDPOINT,
+        use_public,
+    )
+    client = s3(public=use_public)
+    url = client.generate_presigned_url(
         "upload_part",
         Params={
             "Bucket": target_bucket,
@@ -324,6 +354,18 @@ def presign_part(
         ExpiresIn=expires,
         HttpMethod="PUT",
     )
+    LOGGER.info("[PRESIGN DEBUG] Generated URL (before fix): %s", url)
+
+    # Workaround: boto3 sometimes generates URLs with internal hostname
+    # Replace internal MinIO hostname with public endpoint if configured
+    if settings.MINIO_PUBLIC_ENDPOINT and settings.MINIO_ENDPOINT:
+        internal_endpoint = _normalize_endpoint(settings.MINIO_ENDPOINT)
+        public_endpoint = _normalize_endpoint(settings.MINIO_PUBLIC_ENDPOINT)
+        if internal_endpoint and public_endpoint:
+            url = url.replace(internal_endpoint, public_endpoint)
+            LOGGER.info("[PRESIGN DEBUG] URL after hostname replacement: %s", url)
+
+    return url
 
 
 def multipart_complete(
