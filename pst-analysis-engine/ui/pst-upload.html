@@ -1275,19 +1275,49 @@
     async function uploadPSTFile(item) {
       updateFileItem(item.id, { status: "uploading", progress: 0 });
 
-      try {
-        // Use server-side upload for all PST files (more reliable than direct S3)
-        await uploadPSTViaServer(item);
+      // Pick the safest path per size: multipart for large, presigned PUT for medium, server for tiny
+      const BYTES_MB = 1024 * 1024;
+      const isHuge = item.size > 500 * BYTES_MB; // >500MB
+      const isLarge = item.size > 100 * BYTES_MB; // >100MB
+      const isSmall = item.size <= 20 * BYTES_MB; // <=20MB
 
-        updateFileItem(item.id, { status: "complete", progress: 100 });
+      try {
+        if (isHuge || isLarge) {
+          await uploadPSTMultipart(item);
+        } else if (isSmall) {
+          // small files keep server-side for simplicity
+          await uploadPSTViaServer(item);
+        } else {
+          // medium files: direct presigned PUT
+          await uploadPSTDirect(item);
+        }
+
+        updateFileItem(item.id, { status: "processing", progress: 98 });
         totalBytesUploaded += item.size;
       } catch (error) {
         console.error(`PST upload error for ${item.name}:`, error);
         updateFileItem(item.id, { status: "error", error: error.message });
+        return;
       }
+
+      // Mark complete locally; backend processing will update real status
+      updateFileItem(item.id, { status: "complete", progress: 100 });
     }
 
     async function uploadPSTViaServer(item) {
+      const BYTES_MB = 1024 * 1024;
+
+      // Safety net: if an older cached build routes large PSTs here, bounce to the right flow
+      if (item.size > 20 * BYTES_MB) {
+        console.warn(
+          "Large PST routed to legacy /pst/upload endpoint; switching to presigned flow.",
+        );
+        if (item.size > 100 * BYTES_MB) {
+          return uploadPSTMultipart(item);
+        }
+        return uploadPSTDirect(item);
+      }
+
       const formData = new FormData();
       formData.append("file", item.file);
 
@@ -1318,12 +1348,28 @@
           if (xhr.status < 400) {
             updateFileItem(item.id, { status: "processing", progress: 98 });
             resolve();
+          } else if ([413, 502, 504].includes(xhr.status)) {
+            // Fall back to presigned/multipart when API rejects large uploads
+            const fallback =
+              item.size > 100 * BYTES_MB
+                ? uploadPSTMultipart(item)
+                : uploadPSTDirect(item);
+            fallback.then(resolve).catch(reject);
           } else {
             reject(new Error(`Upload failed: ${xhr.status}`));
           }
         };
 
-        xhr.onerror = () => reject(new Error("Network error"));
+        xhr.onerror = () => {
+          const fallback =
+            item.size > 100 * BYTES_MB
+              ? uploadPSTMultipart(item)
+              : uploadPSTDirect(item);
+          fallback.then(resolve).catch((err) => {
+            console.error("Fallback upload also failed", err);
+            reject(new Error("Network error"));
+          });
+        };
         xhr.send(formData);
       });
     }

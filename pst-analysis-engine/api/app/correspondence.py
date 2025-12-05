@@ -10,6 +10,7 @@ import os
 import logging
 from datetime import datetime
 from typing import Any, Annotated
+from boto3.s3.transfer import TransferConfig
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -349,9 +350,18 @@ async def upload_pst_file(
     if not file.filename:
         raise HTTPException(400, "Filename is required")
 
-    # Read file content
-    content = await file.read()
-    file_size = len(content)
+    # Best-effort size detection without reading the whole file into memory
+    file_size = 0
+    try:
+        file.file.seek(0, os.SEEK_END)
+        file_size = file.file.tell()
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Could not determine PST file size for %s: %s", file.filename, exc)
+    finally:
+        try:
+            file.file.seek(0)
+        except Exception:
+            pass
 
     # Generate PST file record
     pst_file_id = str(uuid.uuid4())
@@ -361,12 +371,86 @@ async def upload_pst_file(
     # Upload to S3
     s3_client = s3()
     if s3_client is not None:  # pyright: ignore[reportUnnecessaryComparison]
-        s3_client.put_object(
-            Bucket=s3_bucket,
-            Key=s3_key,
-            Body=content,
-            ContentType="application/vnd.ms-outlook",
+        transfer_config = TransferConfig(
+            multipart_threshold=8 * 1024 * 1024,
+            multipart_chunksize=8 * 1024 * 1024,
+            max_concurrency=2,
+            use_threads=True,
         )
+
+        async def _stream_upload() -> int:
+            """
+            Stream upload to S3 to avoid buffering large PSTs in memory.
+            Falls back to manual multipart if the legacy endpoint receives a big file.
+            """
+            nonlocal file_size
+
+            # If the incoming PST is large, fall back to explicit multipart upload
+            if file_size and file_size > MULTIPART_CHUNK_SIZE:
+                upload_id = s3_client.create_multipart_upload(
+                    Bucket=s3_bucket,
+                    Key=s3_key,
+                    ContentType="application/vnd.ms-outlook",
+                )["UploadId"]
+                parts: list[dict[str, Any]] = []
+                part_number = 1
+                uploaded_bytes = 0
+                try:
+                    while True:
+                        chunk = file.file.read(SERVER_STREAMING_CHUNK_SIZE)
+                        if not chunk:
+                            break
+                        uploaded_bytes += len(chunk)
+                        resp = s3_client.upload_part(
+                            Bucket=s3_bucket,
+                            Key=s3_key,
+                            UploadId=upload_id,
+                            PartNumber=part_number,
+                            Body=chunk,
+                        )
+                        parts.append({"ETag": resp["ETag"], "PartNumber": part_number})
+                        part_number += 1
+
+                    s3_client.complete_multipart_upload(
+                        Bucket=s3_bucket,
+                        Key=s3_key,
+                        UploadId=upload_id,
+                        MultipartUpload={"Parts": parts},
+                    )
+                    if uploaded_bytes and not file_size:
+                        file_size = uploaded_bytes
+                    return uploaded_bytes or file_size
+                except Exception:
+                    try:
+                        s3_client.abort_multipart_upload(
+                            Bucket=s3_bucket, Key=s3_key, UploadId=upload_id
+                        )
+                    except Exception as abort_exc:  # pragma: no cover - best effort cleanup
+                        logger.warning(
+                            "Failed to abort multipart upload for %s: %s",
+                            s3_key,
+                            abort_exc,
+                        )
+                    raise
+
+            # Default path: use TransferManager for efficient streaming
+            file.file.seek(0)
+            s3_client.upload_fileobj(
+                Fileobj=file.file,
+                Bucket=s3_bucket,
+                Key=s3_key,
+                ExtraArgs={"ContentType": "application/vnd.ms-outlook"},
+                Config=transfer_config,
+            )
+            return file_size
+
+        try:
+            uploaded_size = await asyncio.to_thread(_stream_upload)
+            if uploaded_size and not file_size:
+                file_size = uploaded_size
+        except Exception as exc:
+            logger.error("Failed to upload PST %s to S3: %s", file.filename, exc)
+            raise HTTPException(502, f"Failed to store PST: {exc}") from exc
 
     # Create PST file record
     pst_file = PSTFile(
@@ -376,7 +460,7 @@ async def upload_pst_file(
         project_id=project_id,
         s3_bucket=s3_bucket,
         s3_key=s3_key,
-        file_size_bytes=file_size,
+        file_size_bytes=file_size or None,
         processing_status="pending",
         uploaded_by=default_user.id,
     )
@@ -492,6 +576,8 @@ async def init_pst_upload(
 
 # Recommended chunk size: 100MB for optimal performance
 MULTIPART_CHUNK_SIZE = 100 * 1024 * 1024  # 100MB
+# Server-side streaming chunk size for legacy uploads to avoid buffering entire files
+SERVER_STREAMING_CHUNK_SIZE = 10 * 1024 * 1024  # 10MB
 
 
 @router.post("/pst/upload/multipart/init", response_model=PSTMultipartInitResponse)

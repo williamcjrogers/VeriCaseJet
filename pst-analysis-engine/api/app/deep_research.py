@@ -27,11 +27,13 @@ from dataclasses import dataclass
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from redis import Redis  # type: ignore
 
 from .models import User, EmailMessage, Project, EvidenceItem
 from .db import get_db
 from .security import current_user
 from .ai_settings import get_ai_api_key, get_ai_model
+from .settings import settings
 
 if TYPE_CHECKING:
     from openai.types.chat import (
@@ -121,8 +123,49 @@ class ResearchSession(BaseModel):
     error_message: str | None = None
 
 
-# In-memory session store (in production, use Redis or database)
+# Session store (uses Redis if available, otherwise in-memory)
 _research_sessions: dict[str, ResearchSession] = {}
+
+
+def _get_redis() -> Redis | None:
+    try:
+        if settings.REDIS_URL:
+            return Redis.from_url(settings.REDIS_URL)  # type: ignore[call-arg]
+    except Exception as e:  # pragma: no cover - best-effort cache
+        logger.warning(f"Redis unavailable for deep research sessions: {e}")
+    return None
+
+
+def save_session(session: ResearchSession) -> None:
+    """Persist session to in-memory store and Redis (if available)."""
+    _research_sessions[session.id] = session
+    try:
+        redis_client = _get_redis()
+        if redis_client:
+            redis_client.set(
+                f"deep_research:session:{session.id}", session.model_dump_json()
+            )
+    except Exception as e:  # pragma: no cover - non-critical
+        logger.warning(f"Failed to persist session to Redis: {e}")
+
+
+def load_session(session_id: str) -> ResearchSession | None:
+    """Load session from in-memory store or Redis."""
+    if session_id in _research_sessions:
+        return _research_sessions[session_id]
+
+    try:
+        redis_client = _get_redis()
+        if redis_client:
+            data = redis_client.get(f"deep_research:session:{session_id}")
+            if data:
+                session = ResearchSession.model_validate_json(data)
+                _research_sessions[session_id] = session
+                return session
+    except Exception as e:  # pragma: no cover - non-critical
+        logger.warning(f"Failed to load session from Redis: {e}")
+
+    return None
 
 
 # =============================================================================
@@ -1425,7 +1468,7 @@ async def start_research(
         status=ResearchStatus.PENDING,
     )
 
-    _research_sessions[session_id] = session
+    save_session(session)
 
     # Start planning in background
     async def run_planning():
@@ -1441,6 +1484,8 @@ async def start_research(
             logger.exception(f"Planning failed: {e}")
             session.status = ResearchStatus.FAILED
             session.error_message = str(e)
+        finally:
+            save_session(session)
 
     # Schedule background task properly - wrap async function for BackgroundTasks
     def sync_run_planning():
@@ -1468,7 +1513,7 @@ async def get_research_status(
 ):
     """Get the current status of a research session"""
 
-    session = _research_sessions.get(session_id)
+    session = load_session(session_id)
     if not session:
         raise HTTPException(404, "Research session not found")
 
@@ -1507,7 +1552,7 @@ async def approve_research_plan(
     If approved, the research phase begins.
     If modifications are provided, the plan is regenerated.
     """
-    session = _research_sessions.get(request.session_id)
+    session = load_session(request.session_id)
     if not session:
         raise HTTPException(404, "Research session not found")
 
@@ -1537,6 +1582,8 @@ async def approve_research_plan(
                 logger.exception(f"Plan regeneration failed: {e}")
                 session.status = ResearchStatus.FAILED
                 session.error_message = str(e)
+            finally:
+                save_session(session)
 
         def sync_regenerate_plan():
             import asyncio
@@ -1576,6 +1623,8 @@ async def approve_research_plan(
             logger.exception(f"Research failed: {e}")
             session.status = ResearchStatus.FAILED
             session.error_message = str(e)
+        finally:
+            save_session(session)
 
     def sync_run_research():
         import asyncio
@@ -1598,7 +1647,7 @@ async def cancel_research(
 ):
     """Cancel a research session"""
 
-    session = _research_sessions.get(session_id)
+    session = load_session(session_id)
     if not session:
         raise HTTPException(404, "Research session not found")
 
@@ -1606,6 +1655,7 @@ async def cancel_research(
         raise HTTPException(403, "Not authorized")
 
     session.status = ResearchStatus.CANCELLED
+    save_session(session)
 
     return {"status": "cancelled", "message": "Research session cancelled"}
 
@@ -1624,8 +1674,20 @@ async def list_research_sessions(
             "created_at": s.created_at.isoformat(),
             "has_report": s.final_report is not None,
         }
-        for s in _research_sessions.values()
-        if s.user_id == str(user.id)
+        for s in (
+            list(_research_sessions.values())
+            + [
+                load_session(
+                    key.decode().split(":")[-1] if isinstance(key, (bytes, bytearray)) else str(key).split(":")[-1]
+                )
+                for key in (
+                    _get_redis().scan_iter("deep_research:session:*")
+                    if _get_redis()
+                    else []
+                )
+            ]
+        )
+        if s and s.user_id == str(user.id)
     ]
 
     # Sort by created_at descending
