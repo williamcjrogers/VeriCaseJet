@@ -20,7 +20,7 @@ DB_USER = os.environ.get('DB_USER', 'vericase')
 DB_PASS = os.environ.get('DB_PASS', 'vericase')
 
 # New password to set
-NEW_PASSWORD = "admin123"
+NEW_PASSWORD = "VeriCase1234?!"
 ADMIN_EMAIL = "admin@veri-case.com"
 
 def hash_password(p: str) -> str:

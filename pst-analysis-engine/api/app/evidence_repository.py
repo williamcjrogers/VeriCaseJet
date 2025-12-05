@@ -319,7 +319,7 @@ def get_default_user(db: Session) -> User:
 
         user = User(
             email="admin@vericase.com",
-            password_hash=hash_password("admin123"),
+            password_hash=hash_password("VeriCase1234?!"),
             role=UserRole.ADMIN,
             is_active=True,
             email_verified=True,

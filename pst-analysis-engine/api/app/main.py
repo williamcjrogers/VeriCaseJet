@@ -743,9 +743,7 @@ def signup(payload: dict = Body(...), db: Session = Depends(get_db)):
     display_name = (
         payload.get("display_name") or payload.get("full_name") or ""
     ).strip()
-    requires_approval = payload.get(
-        "requires_approval", True
-    )  # Default to requiring approval
+    requires_approval = True  # Always require admin approval
 
     if db.query(User).filter(User.email == email).first():
         raise HTTPException(409, "email already registered")
@@ -846,6 +844,12 @@ def login(payload: dict = Body(...), db: Session = Depends(get_db)):
         user = db.query(User).filter(User.email == email).first()
         if user is None:
             raise HTTPException(status_code=401, detail="Invalid credentials")
+
+        if not user.is_active:
+            raise HTTPException(
+                status_code=403,
+                detail="Your account is pending administrator approval.",
+            )
 
         # Check if account is locked
         if is_account_locked(user):

@@ -153,6 +153,12 @@ async def login_secure(
             detail=f"Invalid credentials. {attempts_remaining} attempts remaining.",
         )
 
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is pending administrator approval.",
+        )
+
     if not user.email_verified:
         logger.warning(f"Unverified email login attempt for {user.email}")
 
