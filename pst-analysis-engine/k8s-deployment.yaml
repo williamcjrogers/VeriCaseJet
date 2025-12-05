@@ -236,8 +236,7 @@ kind: Service
 metadata:
   name: vericase-api
   namespace: vericase
-  # NOTE: SSL annotations removed - no ACM certificate exists in eu-west-2
-  # To enable HTTPS, create an ACM certificate and add annotations back
+  # Using ClusterIP - external access via Ingress with HTTPS
 spec:
   type: ClusterIP
   ports:
