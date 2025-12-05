@@ -63,7 +63,10 @@ class EmailProcessor:
         inline_images = []
 
         for item in att:
+            # Allow simple filename strings for legacy callers/tests
             if not isinstance(item, dict):
+                if isinstance(item, str):
+                    attachments.append({"filename": item})
                 continue
 
             filename = item.get("filename", "").lower()
