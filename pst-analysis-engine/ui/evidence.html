@@ -1452,6 +1452,10 @@
       const gridDiv = document.getElementById("evidenceGrid");
       // Use createGrid API (v31+) instead of deprecated new Grid()
       gridApi = agGrid.createGrid(gridDiv, gridOptions);
+      gridApi.setGridOption("rowData", []); // initialize with empty set to render headers
+
+      // Show overlay immediately so user sees a loading state
+      gridApi.showLoadingOverlay();
 
       // Load data after grid is initialized
       console.log("[Evidence] Grid initialized, starting data load...");
@@ -1549,6 +1553,14 @@
         if (response.ok) {
           const data = await response.json();
           allEvidenceItems = data.items || [];
+
+          // Ensure grid exists before applying filters (in case it failed to init earlier)
+          const gridDiv = document.getElementById("evidenceGrid");
+          if (!gridApi || !gridDiv) {
+            document.querySelector(".grid-wrapper").innerHTML =
+              '<div id="evidenceGrid" class="ag-theme-alpine ag-theme-vericase" style="height: 100%;"></div>';
+            initGrid();
+          }
 
           updateCategoryCounts();
           applyFilters();
