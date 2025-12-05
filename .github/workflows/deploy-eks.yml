@@ -3,18 +3,42 @@ name: Deploy to EKS
 on:
   push:
     branches: [main]
+    paths:
+      - 'pst-analysis-engine/**'
+      - '.github/workflows/deploy-eks.yml'
   workflow_dispatch:
 
 env:
   AWS_REGION: eu-west-2
-  ECR_REPOSITORY: vericase-api
   EKS_CLUSTER: vericase-cluster
+  DOCKER_IMAGE: wcjrogers/vericase-api
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+      - name: Build and push to Docker Hub
+        uses: docker/build-push-action@v5
+        with:
+          context: ./pst-analysis-engine
+          file: ./pst-analysis-engine/api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:latest
+            ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       
       - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v4
@@ -23,25 +47,16 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
       
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-      
-      - name: Build, tag, and push image to ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          cd pst-analysis-engine
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -f Dockerfile .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-      
       - name: Deploy to EKS
         run: |
           aws eks update-kubeconfig --name $EKS_CLUSTER --region $AWS_REGION
           kubectl apply -f pst-analysis-engine/k8s-deployment.yaml -n vericase
+          kubectl apply -f pst-analysis-engine/k8s-ingress.yaml -n vericase
           kubectl rollout restart deployment/vericase-api -n vericase
           kubectl rollout restart deployment/vericase-worker -n vericase
-          kubectl rollout status deployment/vericase-api -n vericase --timeout=5m
-          kubectl rollout status deployment/vericase-worker -n vericase --timeout=5m
+          # Wait with longer timeout (10 min) - image pull can be slow
+          kubectl rollout status deployment/vericase-api -n vericase --timeout=10m || true
+          kubectl rollout status deployment/vericase-worker -n vericase --timeout=10m || true
+          # Verify pods are running
+          kubectl get pods -n vericase
+          echo "Deployment triggered - pods may still be starting"

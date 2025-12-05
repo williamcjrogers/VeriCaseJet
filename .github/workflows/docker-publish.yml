@@ -1,11 +1,9 @@
 name: Build and Push Docker Image
 
+# This workflow is now handled by deploy-eks.yml
+# Keeping for manual builds only
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'pst-analysis-engine/**'
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:  # Manual trigger only
 
 env:
   REGISTRY: docker.io
