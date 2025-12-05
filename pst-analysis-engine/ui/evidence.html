@@ -1045,7 +1045,7 @@
   </div>
 
   <script>
-    console.log("Evidence UI Version: 2.0.4 - CACHE BUSTED - " + Date.now());
+    console.log("Evidence UI Version: 2.0.5 - CACHE BUSTED - " + Date.now());
 
     // ============================================
     // CONFIGURATION v1.0.1 - Cache bust
@@ -1067,6 +1067,8 @@
     let caseId = null;
     let currentCategory = "documents";
     let allEvidenceItems = [];
+    let loadEvidencePromise = null;
+    let loadAllDataPromise = null; // Prevent infinite loops
 
     // Evidence type configuration
     const typeConfig = {
@@ -1490,103 +1492,127 @@
     }
 
     async function loadAllData() {
-      const prefetched = getPrefetchedData();
-
-      // Use prefetched collections/stats if available (for faster sidebar render)
-      // Note: Dashboard only prefetches collections and stats, NOT items
-      if (prefetched) {
-        console.log(
-          "[Evidence] Using prefetched collections/stats from dashboard",
-        );
-
-        // Render collections and stats immediately from cache
-        if (prefetched.collections) {
-          renderCollections(prefetched.collections);
-        }
-        if (prefetched.stats) {
-          renderStats(prefetched.stats);
-        }
-
-        // Clear used cache
-        sessionStorage.removeItem("vericase_evidence_prefetch");
-
-        // Still need to load evidence items (not prefetched)
-        await loadEvidence();
-      } else {
-        // Normal loading - fetch everything
-        await Promise.all([loadEvidence(), loadCollections(), loadStats()]);
+      // Prevent multiple simultaneous loads (fixes infinite loop)
+      if (loadAllDataPromise) {
+        console.log("[Evidence] loadAllData already running, skipping duplicate call");
+        return loadAllDataPromise;
       }
+
+      loadAllDataPromise = (async () => {
+        try {
+          const prefetched = getPrefetchedData();
+
+          // Use prefetched collections/stats if available (for faster sidebar render)
+          // Note: Dashboard only prefetches collections and stats, NOT items
+          if (prefetched) {
+            console.log(
+              "[Evidence] Using prefetched collections/stats from dashboard",
+            );
+
+            // Render collections and stats immediately from cache
+            if (prefetched.collections) {
+              renderCollections(prefetched.collections);
+            }
+            if (prefetched.stats) {
+              renderStats(prefetched.stats);
+            }
+
+            // Clear used cache
+            sessionStorage.removeItem("vericase_evidence_prefetch");
+
+            // Still need to load evidence items (not prefetched)
+            await loadEvidence();
+          } else {
+            // Normal loading - fetch everything
+            await Promise.all([loadEvidence(), loadCollections(), loadStats()]);
+          }
+        } finally {
+          loadAllDataPromise = null;
+        }
+      })();
+
+      return loadAllDataPromise;
     }
 
     async function loadEvidence() {
-      try {
-        if (gridApi) {
-          gridApi.showLoadingOverlay();
-        }
+      // Deduplicate overlapping calls (filter changes/collections/upload)
+      if (loadEvidencePromise) {
+        return loadEvidencePromise;
+      }
 
-        const params = new URLSearchParams();
-        params.append("page", "1");
-        params.append("page_size", "10000"); // Load ALL evidence items
-        params.append("include_email_info", "true");
-
-        // Include project_id if we have one
-        if (projectId) params.append("project_id", projectId);
-
-        const activeCollection = document.querySelector(
-          ".collection-item.active",
-        );
-        const collectionId = activeCollection?.dataset.id;
-        if (collectionId) params.append("collection_id", collectionId);
-
-        console.log(
-          "[Evidence] Fetching from:",
-          `${apiUrl}/api/evidence/items?${params.toString()}`,
-        );
-        const response = await fetch(
-          `${apiUrl}/api/evidence/items?${params.toString()}`,
-        );
-
-        console.log(
-          "[Evidence] Response status:",
-          response.status,
-          response.statusText,
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          allEvidenceItems = data.items || [];
-
-          // Ensure grid exists before applying filters (in case it failed to init earlier)
-          const gridDiv = document.getElementById("evidenceGrid");
-          if (!gridApi || !gridDiv) {
-            document.querySelector(".grid-wrapper").innerHTML =
-              '<div id="evidenceGrid" class="ag-theme-alpine ag-theme-vericase" style="height: 100%;"></div>';
-            initGrid();
+      loadEvidencePromise = (async () => {
+        try {
+          if (gridApi) {
+            gridApi.showLoadingOverlay();
           }
 
-          updateCategoryCounts();
-          applyFilters();
+          const params = new URLSearchParams();
+          params.append("page", "1");
+          params.append("page_size", "10000"); // Load ALL evidence items
+          params.append("include_email_info", "true");
 
-          VericaseUI.Toast.success(
-            `Loaded ${allEvidenceItems.length} evidence items`,
+          // Include project_id if we have one
+          if (projectId) params.append("project_id", projectId);
+
+          const activeCollection = document.querySelector(
+            ".collection-item.active",
           );
-        } else {
-          const errorText = await response.text();
-          console.error("[Evidence] API Error:", response.status, errorText);
-          throw new Error(
-            `Failed to load evidence: ${response.status} - ${errorText}`,
+          const collectionId = activeCollection?.dataset.id;
+          if (collectionId) params.append("collection_id", collectionId);
+
+          console.log(
+            "[Evidence] Fetching from:",
+            `${apiUrl}/api/evidence/items?${params.toString()}`,
           );
+          const response = await fetch(
+            `${apiUrl}/api/evidence/items?${params.toString()}`,
+          );
+
+          console.log(
+            "[Evidence] Response status:",
+            response.status,
+            response.statusText,
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+            allEvidenceItems = data.items || [];
+
+            // Ensure grid exists before applying filters (in case it failed to init earlier)
+            const gridDiv = document.getElementById("evidenceGrid");
+            if (!gridApi || !gridDiv) {
+              document.querySelector(".grid-wrapper").innerHTML =
+                '<div id="evidenceGrid" class="ag-theme-alpine ag-theme-vericase" style="height: 100%;"></div>';
+              initGrid();
+            }
+
+            updateCategoryCounts();
+            applyFilters();
+
+            VericaseUI.Toast.success(
+              `Loaded ${allEvidenceItems.length} evidence items`,
+            );
+          } else {
+            const errorText = await response.text();
+            console.error("[Evidence] API Error:", response.status, errorText);
+            throw new Error(
+              `Failed to load evidence: ${response.status} - ${errorText}`,
+            );
+          }
+        } catch (error) {
+          console.error("Error loading evidence:", error);
+          VericaseUI.Toast.error("Failed to load evidence");
+          allEvidenceItems = [];
+          if (gridApi) gridApi.setGridOption("rowData", []);
+        } finally {
+          if (gridApi) {
+            gridApi.hideOverlay();
+          }
+          loadEvidencePromise = null;
         }
-      } catch (error) {
-        console.error("Error loading evidence:", error);
-        VericaseUI.Toast.error("Failed to load evidence");
-        allEvidenceItems = [];
-        if (gridApi) gridApi.setGridOption("rowData", []);
-      } finally {
-        if (gridApi) {
-          gridApi.hideOverlay();
-        }
-      }
+      })();
+
+      return loadEvidencePromise;
     }
 
     function updateCategoryCounts() {
