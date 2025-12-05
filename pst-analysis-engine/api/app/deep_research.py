@@ -1609,6 +1609,11 @@ async def approve_research_plan(
     # Approved - start research
     start_time = datetime.now(timezone.utc)
 
+    # Set status and save BEFORE starting background task to prevent race condition
+    session.status = ResearchStatus.RESEARCHING
+    session.updated_at = datetime.now(timezone.utc)
+    save_session(session)
+
     async def run_research():
         try:
             evidence_context = await build_evidence_context(

@@ -1704,7 +1704,11 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
       // Plan actions
       document
         .getElementById("btnApprove")
-        .addEventListener("click", async () => {
+        .addEventListener("click", async (e) => {
+          const button = e.target;
+          if (button.disabled) return; // Prevent double-click
+          button.disabled = true;
+
           try {
             const response = await secureApiFetch(
               `/api/deep-research/approve-plan`,
@@ -1725,6 +1729,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
           } catch (error) {
             console.error("Error approving plan:", error);
             alert("Failed to approve plan: " + error.message);
+            button.disabled = false; // Re-enable button on error
           }
         });
 
