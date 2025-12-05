@@ -4,9 +4,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
+  <meta name="build-version" content="2.0.4-<?php echo time(); ?>" />
   <title>VeriCase - Evidence Repository</title>
 
   <!-- AG-Grid Enterprise CSS -->
@@ -323,149 +324,152 @@
     }
 
     #evidenceGrid {
-      .ag-theme-alpine .ag-root-wrapper {
-        border: 1px solid var(--gray-200);
-        border-radius: var(--radius-lg);
-      }
+      width: 100%;
+      height: 100%;
+    }
 
-      .ag-theme-alpine .ag-header {
-        border-bottom: 2px solid var(--gray-200);
-      }
+    #evidenceGrid.ag-theme-alpine .ag-root-wrapper {
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-lg);
+    }
 
-      .ag-theme-alpine .ag-header-cell {
-        font-weight: 600;
-        text-transform: uppercase;
-        font-size: 0.6875rem;
-        letter-spacing: 0.05em;
-      }
+    #evidenceGrid.ag-theme-alpine .ag-header {
+      border-bottom: 2px solid var(--gray-200);
+    }
 
-      .ag-theme-alpine .ag-row {
-        transition: background-color var(--duration-fast);
-      }
+    #evidenceGrid.ag-theme-alpine .ag-header-cell {
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.6875rem;
+      letter-spacing: 0.05em;
+    }
 
-      .ag-theme-alpine .ag-row:hover {
-        background-color: rgba(23, 181, 163, 0.04) !important;
-      }
+    #evidenceGrid.ag-theme-alpine .ag-row {
+      transition: background-color var(--duration-fast);
+    }
 
-      .ag-theme-alpine .ag-row-selected {
-        background-color: rgba(23, 181, 163, 0.08) !important;
-      }
+    #evidenceGrid.ag-theme-alpine .ag-row:hover {
+      background-color: rgba(23, 181, 163, 0.04) !important;
+    }
 
-      /* Grid Cell Renderers */
-      .grid-thumbnail {
-        width: 36px;
-        height: 36px;
-        object-fit: cover;
-        border-radius: var(--radius-sm);
-        background: var(--gray-100);
-      }
+    #evidenceGrid.ag-theme-alpine .ag-row-selected {
+      background-color: rgba(23, 181, 163, 0.08) !important;
+    }
 
-      .grid-file-icon {
-        width: 36px;
-        height: 36px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: var(--gray-100);
-        border-radius: var(--radius-sm);
-        font-size: 1rem;
-      }
+    /* Grid Cell Renderers */
+    .grid-thumbnail {
+      width: 36px;
+      height: 36px;
+      object-fit: cover;
+      border-radius: var(--radius-sm);
+      background: var(--gray-100);
+    }
 
-      .grid-file-icon.pdf {
-        background: #fee2e2;
-        color: #dc2626;
-      }
+    .grid-file-icon {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--gray-100);
+      border-radius: var(--radius-sm);
+      font-size: 1rem;
+    }
 
-      .grid-file-icon.word {
-        background: #dbeafe;
-        color: #2563eb;
-      }
+    .grid-file-icon.pdf {
+      background: #fee2e2;
+      color: #dc2626;
+    }
 
-      .grid-file-icon.excel {
-        background: #d1fae5;
-        color: #059669;
-      }
+    .grid-file-icon.word {
+      background: #dbeafe;
+      color: #2563eb;
+    }
 
-      .grid-file-icon.image {
-        background: #ede9fe;
-        color: #7c3aed;
-      }
+    .grid-file-icon.excel {
+      background: #d1fae5;
+      color: #059669;
+    }
 
-      .grid-file-icon.email {
-        background: #fef3c7;
-        color: #d97706;
-      }
+    .grid-file-icon.image {
+      background: #ede9fe;
+      color: #7c3aed;
+    }
 
-      .file-info {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        min-width: 0;
-      }
+    .grid-file-icon.email {
+      background: #fef3c7;
+      color: #d97706;
+    }
 
-      .file-name {
-        font-weight: 500;
-        color: var(--text-primary);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
+    .file-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
 
-      .file-meta {
-        font-size: 0.75rem;
-        color: var(--text-muted);
-      }
+    .file-name {
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
 
-      .status-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 10px;
-        border-radius: var(--radius-full);
-        font-size: 0.6875rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.02em;
-      }
+    .file-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
 
-      .status-processed {
-        background: #d1fae5;
-        color: #065f46;
-      }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
 
-      .status-processing {
-        background: #fef3c7;
-        color: #92400e;
-      }
+    .status-processed {
+      background: #d1fae5;
+      color: #065f46;
+    }
 
-      .status-pending {
-        background: #e0e7ff;
-        color: #3730a3;
-      }
+    .status-processing {
+      background: #fef3c7;
+      color: #92400e;
+    }
 
-      .status-error {
-        background: #fee2e2;
-        color: #991b1b;
-      }
+    .status-pending {
+      background: #e0e7ff;
+      color: #3730a3;
+    }
 
-      .star-btn {
-        background: transparent;
-        border: none;
-        cursor: pointer;
-        color: var(--gray-300);
-        font-size: 1rem;
-        padding: 4px;
-        transition: all var(--duration-fast);
-      }
+    .status-error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
 
-      .star-btn:hover {
-        color: var(--warning);
-        transform: scale(1.15);
-      }
+    .star-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: var(--gray-300);
+      font-size: 1rem;
+      padding: 4px;
+      transition: all var(--duration-fast);
+    }
 
-      .star-btn.starred {
-        color: var(--warning);
-      }
+    .star-btn:hover {
+      color: var(--warning);
+      transform: scale(1.15);
+    }
+
+    .star-btn.starred {
+      color: var(--warning);
     }
 
     /* Detail Panel */
@@ -1041,7 +1045,7 @@
   </div>
 
   <script>
-    console.log("Evidence UI Version: 2.0.2 - FORCE RELOAD");
+    console.log("Evidence UI Version: 2.0.4 - CACHE BUSTED - " + Date.now());
 
     // ============================================
     // CONFIGURATION v1.0.1 - Cache bust
@@ -1457,9 +1461,7 @@
       // Show overlay immediately so user sees a loading state
       gridApi.showLoadingOverlay();
 
-      // Load data after grid is initialized
-      console.log("[Evidence] Grid initialized, starting data load...");
-      loadAllData();
+      console.log("[Evidence] Grid initialized");
     }
 
     // ============================================
@@ -1741,17 +1743,7 @@
       });
 
       list.innerHTML = html;
-
-      // Re-attach click handlers
-      list.querySelectorAll(".collection-item").forEach((item) => {
-        item.addEventListener("click", () => {
-          list
-            .querySelectorAll(".collection-item")
-            .forEach((i) => i.classList.remove("active"));
-          item.classList.add("active");
-          loadEvidence();
-        });
-      });
+      // Note: Click handler is attached via event delegation in DOMContentLoaded
     }
 
     async function loadCollections() {
@@ -2341,6 +2333,18 @@
           currentCategory = tab.dataset.category;
           applyFilters();
         });
+      });
+
+      // Collection list - use event delegation to avoid listener accumulation
+      document.getElementById("collectionList").addEventListener("click", (e) => {
+        const item = e.target.closest(".collection-item");
+        if (item) {
+          const list = document.getElementById("collectionList");
+          list.querySelectorAll(".collection-item")
+            .forEach((i) => i.classList.remove("active"));
+          item.classList.add("active");
+          loadEvidence();
+        }
       });
 
       // Search with debounce

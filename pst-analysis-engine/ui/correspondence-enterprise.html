@@ -2635,6 +2635,8 @@
               "",
             );
             cleaned = cleaned.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
+            // Strip inline cid images that browsers can't render
+            cleaned = cleaned.replace(/<img[^>]+src=["']cid:[^"']+["'][^>]*>/gi, "");
 
             // Remove EXTERNAL EMAIL warning text patterns
             cleaned = cleaned.replace(
