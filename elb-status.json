@@ -1,0 +1,148 @@
+{
+    "LoadBalancers": [
+        {
+            "LoadBalancerArn": "arn:aws:elasticloadbalancing:eu-west-2:526015377510:loadbalancer/net/k8s-vericase-vericase-61c843d0b7/b58884c6c3fbbbf5",
+            "DNSName": "k8s-vericase-vericase-61c843d0b7-b58884c6c3fbbbf5.elb.eu-west-2.amazonaws.com",
+            "CanonicalHostedZoneId": "ZD4D7Y8KGAS4G",
+            "CreatedTime": "2025-12-05T00:38:26.533000+00:00",
+            "LoadBalancerName": "k8s-vericase-vericase-61c843d0b7",
+            "Scheme": "internal",
+            "VpcId": "vpc-0880b8ccf488f327e",
+            "State": {
+                "Code": "active"
+            },
+            "Type": "network",
+            "AvailabilityZones": [
+                {
+                    "ZoneName": "eu-west-2b",
+                    "SubnetId": "subnet-057724e3c46032bde",
+                    "LoadBalancerAddresses": []
+                },
+                {
+                    "ZoneName": "eu-west-2a",
+                    "SubnetId": "subnet-0e9100ee9f24e16f7",
+                    "LoadBalancerAddresses": []
+                },
+                {
+                    "ZoneName": "eu-west-2c",
+                    "SubnetId": "subnet-0fabb5ef31101a85e",
+                    "LoadBalancerAddresses": []
+                }
+            ],
+            "SecurityGroups": [
+                "sg-087b25603ce705cf3",
+                "sg-0968c8d49076b232d"
+            ],
+            "IpAddressType": "ipv4",
+            "EnablePrefixForIpv6SourceNat": "off"
+        },
+        {
+            "LoadBalancerArn": "arn:aws:elasticloadbalancing:eu-west-2:526015377510:loadbalancer/app/k8s-vericase-vericase-831b8104f3/1ddc93afce514ff7",
+            "DNSName": "k8s-vericase-vericase-831b8104f3-1782642699.eu-west-2.elb.amazonaws.com",
+            "CanonicalHostedZoneId": "ZHURV8PSTC4K8",
+            "CreatedTime": "2025-12-04T23:56:44.369000+00:00",
+            "LoadBalancerName": "k8s-vericase-vericase-831b8104f3",
+            "Scheme": "internet-facing",
+            "VpcId": "vpc-0880b8ccf488f327e",
+            "State": {
+                "Code": "active"
+            },
+            "Type": "application",
+            "AvailabilityZones": [
+                {
+                    "ZoneName": "eu-west-2a",
+                    "SubnetId": "subnet-0a08bdb3693b37c59",
+                    "LoadBalancerAddresses": []
+                },
+                {
+                    "ZoneName": "eu-west-2b",
+                    "SubnetId": "subnet-0cf964a7683ffd976",
+                    "LoadBalancerAddresses": []
+                },
+                {
+                    "ZoneName": "eu-west-2c",
+                    "SubnetId": "subnet-0ebf135ec366de090",
+                    "LoadBalancerAddresses": []
+                }
+            ],
+            "SecurityGroups": [
+                "sg-0258d61197960aaa2",
+                "sg-0968c8d49076b232d"
+            ],
+            "IpAddressType": "ipv4",
+            "EnablePrefixForIpv6SourceNat": "off"
+        },
+        {
+            "LoadBalancerArn": "arn:aws:elasticloadbalancing:eu-west-2:526015377510:loadbalancer/app/k8s-vericase-cmacmeht-693d1e98bb/09a3213c24796816",
+            "DNSName": "internal-k8s-vericase-cmacmeht-693d1e98bb-1995020933.eu-west-2.elb.amazonaws.com",
+            "CanonicalHostedZoneId": "ZHURV8PSTC4K8",
+            "CreatedTime": "2025-12-05T00:36:27.124000+00:00",
+            "LoadBalancerName": "k8s-vericase-cmacmeht-693d1e98bb",
+            "Scheme": "internal",
+            "VpcId": "vpc-0880b8ccf488f327e",
+            "State": {
+                "Code": "active"
+            },
+            "Type": "application",
+            "AvailabilityZones": [
+                {
+                    "ZoneName": "eu-west-2b",
+                    "SubnetId": "subnet-057724e3c46032bde",
+                    "LoadBalancerAddresses": []
+                },
+                {
+                    "ZoneName": "eu-west-2a",
+                    "SubnetId": "subnet-0e9100ee9f24e16f7",
+                    "LoadBalancerAddresses": []
+                },
+                {
+                    "ZoneName": "eu-west-2c",
+                    "SubnetId": "subnet-0fabb5ef31101a85e",
+                    "LoadBalancerAddresses": []
+                }
+            ],
+            "SecurityGroups": [
+                "sg-0968c8d49076b232d",
+                "sg-0bb8cd2e9cec5d120"
+            ],
+            "IpAddressType": "ipv4",
+            "EnablePrefixForIpv6SourceNat": "off"
+        },
+        {
+            "LoadBalancerArn": "arn:aws:elasticloadbalancing:eu-west-2:526015377510:loadbalancer/app/k8s-vericase-cmacmeht-ae254d5305/751088de0426ef2b",
+            "DNSName": "internal-k8s-vericase-cmacmeht-ae254d5305-1730025711.eu-west-2.elb.amazonaws.com",
+            "CanonicalHostedZoneId": "ZHURV8PSTC4K8",
+            "CreatedTime": "2025-12-05T00:36:38.090000+00:00",
+            "LoadBalancerName": "k8s-vericase-cmacmeht-ae254d5305",
+            "Scheme": "internal",
+            "VpcId": "vpc-0880b8ccf488f327e",
+            "State": {
+                "Code": "active"
+            },
+            "Type": "application",
+            "AvailabilityZones": [
+                {
+                    "ZoneName": "eu-west-2b",
+                    "SubnetId": "subnet-057724e3c46032bde",
+                    "LoadBalancerAddresses": []
+                },
+                {
+                    "ZoneName": "eu-west-2a",
+                    "SubnetId": "subnet-0e9100ee9f24e16f7",
+                    "LoadBalancerAddresses": []
+                },
+                {
+                    "ZoneName": "eu-west-2c",
+                    "SubnetId": "subnet-0fabb5ef31101a85e",
+                    "LoadBalancerAddresses": []
+                }
+            ],
+            "SecurityGroups": [
+                "sg-0281086b262828cce",
+                "sg-0968c8d49076b232d"
+            ],
+            "IpAddressType": "ipv4",
+            "EnablePrefixForIpv6SourceNat": "off"
+        }
+    ]
+}

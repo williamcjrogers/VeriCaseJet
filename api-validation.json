@@ -1,0 +1,17 @@
+{
+  "Changes": [
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "_ae4c7f8564629efea04a772e220ccfa8.api.veri-case.com",
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [
+          {
+            "Value": "_e86980685a0dd119e424f1f947646eca.jkddzztszm.acm-validations.aws."
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -4,20 +4,25 @@ metadata:
   name: vericase-ingress
   namespace: vericase
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
     alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:eu-west-2:526015377510:certificate/fa1c323e-4062-4480-9234-b0c7476a23d0
 spec:
-  tls:
-  - hosts:
-    - vericase.com
-    - www.vericase.com
-    secretName: vericase-tls
   rules:
-  - host: vericase.com
+  # Default rule - accepts any host (for direct ALB access)
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: vericase-api
+            port:
+              number: 80
+  - host: veri-case.com
     http:
       paths:
       - path: /
@@ -27,7 +32,17 @@ spec:
             name: vericase-api
             port:
               number: 80
-  - host: www.vericase.com
+  - host: www.veri-case.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: vericase-api
+            port:
+              number: 80
+  - host: api.veri-case.com
     http:
       paths:
       - path: /
