@@ -27,7 +27,11 @@ from dataclasses import dataclass
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from redis import Redis  # type: ignore
+
+try:  # Optional Redis
+    from redis import Redis  # type: ignore
+except ImportError:  # pragma: no cover - runtime fallback if redis-py not installed
+    Redis = None  # type: ignore
 
 from .models import User, EmailMessage, Project, EvidenceItem
 from .db import get_db
@@ -129,7 +133,7 @@ _research_sessions: dict[str, ResearchSession] = {}
 
 def _get_redis() -> Redis | None:
     try:
-        if settings.REDIS_URL:
+        if settings.REDIS_URL and Redis:
             return Redis.from_url(settings.REDIS_URL)  # type: ignore[call-arg]
     except Exception as e:  # pragma: no cover - best-effort cache
         logger.warning(f"Redis unavailable for deep research sessions: {e}")
