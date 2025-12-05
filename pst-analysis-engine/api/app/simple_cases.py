@@ -291,6 +291,89 @@ def get_keyword_suggestions() -> list[dict[str, str]]:
         {"name": "Delay", "variations": "delays, delayed, postpone, postponement"},
     ]
 
+class ProjectUpdate(BaseModel):
+    project_name: str = Field(..., min_length=2, max_length=200)
+    project_code: str | None = None
+    description: str | None = None
+    contract_type: str | None = None
+
+@router.put("/projects/{project_id}")
+def update_project(project_id: str, project_data: ProjectUpdate, db: DbDep) -> dict[str, str]:
+    """Update a project's details"""
+    try:
+        # Find the project
+        project = db.query(Project).filter(Project.id == uuid.UUID(project_id)).first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        # Check if new project code conflicts with another project
+        if project_data.project_code and project_data.project_code != project.project_code:
+            existing = db.query(Project).filter(
+                Project.project_code == project_data.project_code,
+                Project.id != uuid.UUID(project_id)
+            ).first()
+            if existing:
+                raise HTTPException(status_code=400, detail="Project code already exists")
+
+        # Update fields
+        project.project_name = project_data.project_name
+        if project_data.project_code:
+            project.project_code = project_data.project_code
+        if project_data.description is not None:
+            project.description = project_data.description
+        if project_data.contract_type is not None:
+            project.contract_type = project_data.contract_type
+
+        db.commit()
+        db.refresh(project)
+
+        return {
+            "id": str(project.id),
+            "project_name": project.project_name,
+            "project_code": project.project_code,
+            "status": "success",
+            "message": "Project updated successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Error updating project: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update project: {str(e)}")
+
+@router.delete("/projects/{project_id}")
+def delete_project(project_id: str, db: DbDep) -> dict[str, str]:
+    """Delete a project and all associated data"""
+    try:
+        # Find the project
+        project = db.query(Project).filter(Project.id == uuid.UUID(project_id)).first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        # Delete associated stakeholders
+        _ = db.query(Stakeholder).filter(Stakeholder.project_id == uuid.UUID(project_id)).delete()
+
+        # Delete associated keywords
+        _ = db.query(Keyword).filter(Keyword.project_id == uuid.UUID(project_id)).delete()
+
+        # Delete the project
+        db.delete(project)
+        db.commit()
+
+        return {
+            "id": str(project_id),
+            "status": "success",
+            "message": "Project deleted successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Error deleting project: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete project: {str(e)}")
+
 @router.post("/cases")
 def create_case(case_data: CaseCreate, db: DbDep) -> dict[str, str]:
     """Create a case with details"""
@@ -299,7 +382,7 @@ def create_case(case_data: CaseCreate, db: DbDep) -> dict[str, str]:
             id=uuid.uuid4(),
             name=case_data.case_name,
             case_number=case_data.case_id or f"CASE-{uuid.uuid4().hex[:8].upper()}",
-            description=f"Case regarding {case_data.project_name if hasattr(case_data, 'project_name') else 'Project'}", # inferred
+            description=f"Dispute case: {case_data.case_name}",
             status=case_data.case_status,
             created_at=datetime.now(timezone.utc)
         )
@@ -337,8 +420,37 @@ def create_case(case_data: CaseCreate, db: DbDep) -> dict[str, str]:
             "status": "active",
             "created_at": case.created_at.isoformat() if case.created_at else datetime.now(timezone.utc).isoformat()
         }
-        
+
     except Exception as e:
         db.rollback()
         logger.exception(f"Error creating case: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create case: {str(e)}")
+
+@router.delete("/cases/{case_id}")
+def delete_case(case_id: str, db: DbDep) -> dict[str, str]:
+    """Delete a case and all associated data"""
+    try:
+        # Find the case
+        case = db.query(Case).filter(Case.id == uuid.UUID(case_id)).first()
+        if not case:
+            raise HTTPException(status_code=404, detail="Case not found")
+
+        # Delete associated keywords
+        _ = db.query(Keyword).filter(Keyword.case_id == uuid.UUID(case_id)).delete()
+
+        # Delete the case
+        db.delete(case)
+        db.commit()
+
+        return {
+            "id": str(case_id),
+            "status": "success",
+            "message": "Case deleted successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Error deleting case: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete case: {str(e)}")
