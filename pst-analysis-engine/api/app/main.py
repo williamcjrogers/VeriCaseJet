@@ -377,8 +377,10 @@ async def add_cache_headers(request: Request, call_next):
         )
     elif path.startswith("/ui/") and path.endswith(".html"):
         # HTML pages should revalidate more often
+        # In development, set to 0 to avoid caching issues
+        cache_age = 0 if os.getenv("ENVIRONMENT") != "production" else 300
         response.headers["Cache-Control"] = (
-            "public, max-age=300, must-revalidate"  # 5 minutes
+            f"public, max-age={cache_age}, must-revalidate"
         )
 
     return response

@@ -3676,3 +3676,172 @@ async def get_unified_keywords(
         {"id": str(k.id), "name": k.keyword_name, "variations": k.variations}
         for k in keywords
     ]
+
+
+# ============================================================================
+# Data Management & Background Tasks
+# ============================================================================
+
+@router.delete("/projects/{project_id}/clear-emails")
+async def clear_project_emails(
+    project_id: str,
+    db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+):
+    """
+    Clear all emails and PST files for a project.
+    This allows you to re-upload fresh PST data.
+    """
+    try:
+        proj_uuid = uuid.UUID(project_id)
+
+        # Delete all email messages for this project
+        deleted_emails = db.query(EmailMessage).filter(EmailMessage.project_id == proj_uuid).delete()
+
+        # Delete all email attachments for this project
+        deleted_attachments = db.query(EmailAttachment).filter(
+            EmailAttachment.project_id == proj_uuid
+        ).delete()
+
+        # Delete all PST files for this project
+        deleted_psts = db.query(PSTFile).filter(PSTFile.project_id == proj_uuid).delete()
+
+        db.commit()
+
+        logger.info(
+            f"Cleared project {project_id}: {deleted_emails} emails, "
+            f"{deleted_attachments} attachments, {deleted_psts} PST files"
+        )
+
+        return {
+            "status": "success",
+            "message": "All email data cleared for project",
+            "deleted": {
+                "emails": deleted_emails,
+                "attachments": deleted_attachments,
+                "pst_files": deleted_psts,
+            }
+        }
+
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Failed to clear project emails: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/projects/{project_id}/index-semantic")
+async def trigger_semantic_indexing_project(
+    project_id: str,
+    db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+):
+    """
+    Manually trigger semantic indexing for all emails in a project.
+    Returns task ID for tracking progress.
+    """
+    try:
+        # Verify project exists
+        project = db.query(Project).filter(Project.id == uuid.UUID(project_id)).first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        # Queue the indexing task
+        from .tasks import index_project_emails_semantic
+        task = index_project_emails_semantic.delay(project_id)
+
+        return {
+            "status": "queued",
+            "task_id": task.id,
+            "message": "Semantic indexing task queued",
+            "check_status_url": f"/api/correspondence/tasks/{task.id}/status"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to queue semantic indexing: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/cases/{case_id}/index-semantic")
+async def trigger_semantic_indexing_case(
+    case_id: str,
+    db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+):
+    """
+    Manually trigger semantic indexing for all emails in a case.
+    Returns task ID for tracking progress.
+    """
+    try:
+        # Verify case exists
+        case = db.query(Case).filter(Case.id == uuid.UUID(case_id)).first()
+        if not case:
+            raise HTTPException(status_code=404, detail="Case not found")
+
+        # Queue the indexing task
+        from .tasks import index_case_emails_semantic
+        task = index_case_emails_semantic.delay(case_id)
+
+        return {
+            "status": "queued",
+            "task_id": task.id,
+            "message": "Semantic indexing task queued",
+            "check_status_url": f"/api/correspondence/tasks/{task.id}/status"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to queue semantic indexing: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tasks/{task_id}/status")
+async def get_task_status(task_id: str):
+    """
+    Check the status of a background task (e.g., semantic indexing).
+    
+    Returns:
+        - status: PENDING, PROGRESS, SUCCESS, FAILURE
+        - result: Task result if completed
+        - info: Progress information if in progress
+    """
+    try:
+        from celery.result import AsyncResult
+        
+        task = AsyncResult(task_id, app=celery_app)
+        
+        if task.state == 'PENDING':
+            response = {
+                'status': task.state,
+                'message': 'Task is waiting to start'
+            }
+        elif task.state == 'PROGRESS':
+            response = {
+                'status': task.state,
+                'current': task.info.get('current', 0),
+                'total': task.info.get('total', 0),
+                'percent': task.info.get('percent', 0),
+                'indexed': task.info.get('indexed', 0),
+            }
+        elif task.state == 'SUCCESS':
+            response = {
+                'status': task.state,
+                'result': task.result,
+                'message': 'Task completed successfully'
+            }
+        elif task.state == 'FAILURE':
+            response = {
+                'status': task.state,
+                'error': str(task.info),
+                'message': 'Task failed'
+            }
+        else:
+            response = {
+                'status': task.state,
+                'info': str(task.info)
+            }
+        
+        return response
+        
+    except Exception as e:
+        logger.exception(f"Failed to get task status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

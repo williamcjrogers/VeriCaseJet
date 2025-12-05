@@ -294,14 +294,36 @@ class ForensicPSTProcessor:
             if matched_keywords:
                 stats["keywords_matched"] += 1
 
+            # Build canonical body (top-message only, quotes/signatures stripped)
+            # For performance: Only create preview, skip HTML parsing during ingestion
+            canonical_body = ""
+
+            # Fast path: Just extract a preview from plain text
+            if body_text:
+                canonical_body = body_text
+                # Quick split on reply markers
+                try:
+                    reply_split_pattern = (
+                        r"(?mi)^On .+ wrote:|^From:\s|^Sent:\s|^-----Original Message-----"
+                    )
+                    parts = re.split(reply_split_pattern, canonical_body, maxsplit=1)
+                    canonical_body = parts[0] if parts else canonical_body
+                    canonical_body = re.sub(r"\s+", " ", canonical_body).strip()
+                except re.error:
+                    pass
+            elif body_html:
+                # Fallback: Strip HTML tags quickly (no BeautifulSoup for speed)
+                canonical_body = re.sub(r"<[^>]+>", " ", body_html)
+                canonical_body = re.sub(r"\s+", " ", canonical_body).strip()
+
             # Storage optimization: Large emails go to S3
             body_preview = None
             body_full_s3_key = None
             BODY_SIZE_LIMIT = 10 * 1024  # 10KB limit
 
-            if body_text and len(body_text) > BODY_SIZE_LIMIT:
+            if canonical_body and len(canonical_body) > BODY_SIZE_LIMIT:
                 # Store full body in S3
-                body_preview = body_text[:BODY_SIZE_LIMIT]
+                body_preview = canonical_body[:BODY_SIZE_LIMIT]
                 # Support both projects and cases
                 if pst_file.project_id:
                     body_full_s3_key = "project_{pst_file.project_id}/email_bodies/{message_id or message_offset}.txt"
@@ -312,13 +334,16 @@ class ForensicPSTProcessor:
                 try:
                     put_object(
                         body_full_s3_key,
-                        body_text.encode("utf-8"),
+                        canonical_body.encode("utf-8"),
                         "text/plain; charset=utf-8",
                         bucket=settings.S3_BUCKET,
                     )
-                    body_text = None
+                    canonical_body_to_store = None
                 except Exception:
                     logger.warning("Failed to store body in S3: {e}")
+                    canonical_body_to_store = canonical_body
+            else:
+                canonical_body_to_store = canonical_body
 
             # Create email message record
             email_msg = EmailMessage(
@@ -341,11 +366,7 @@ class ForensicPSTProcessor:
                 recipients_bcc=recipients_bcc,
                 date_sent=date_sent,
                 date_received=date_received,
-                body_text=(
-                    body_text
-                    if body_text and len(body_text) <= BODY_SIZE_LIMIT
-                    else None
-                ),
+                body_text=canonical_body_to_store,  # Store only the top message, not the full thread
                 body_html=(
                     body_html[:20000] if body_html else None
                 ),  # Limit HTML to 20KB

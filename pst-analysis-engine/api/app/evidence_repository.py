@@ -141,6 +141,8 @@ class EvidenceItemSummary(BaseModel):
     correspondence_link_count: int = 0  # Alias for frontend compatibility
     auto_tags: list[str] = []
     manual_tags: list[str] = []
+    extracted_parties: list[Any] = []
+    extracted_amounts: list[Any] = []
     case_id: str | None = None
     project_id: str | None = None
     source_type: str | None = None
@@ -743,6 +745,8 @@ async def list_evidence(
                 correspondence_link_count=corr_count,
                 auto_tags=item.auto_tags or [],
                 manual_tags=item.manual_tags or [],
+                extracted_parties=item.extracted_parties or [],
+                extracted_amounts=item.extracted_amounts or [],
                 case_id=str(item.case_id) if item.case_id else None,
                 project_id=str(item.project_id) if item.project_id else None,
                 source_type=item.source_type,
@@ -823,6 +827,8 @@ async def list_evidence(
                             correspondence_link_count=0,
                             auto_tags=[],
                             manual_tags=[],
+                            extracted_parties=[],
+                            extracted_amounts=[],
                             case_id=str(email.case_id) if email.case_id else None,
                             project_id=(
                                 str(email.project_id) if email.project_id else None

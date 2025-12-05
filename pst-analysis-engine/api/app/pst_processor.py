@@ -301,6 +301,19 @@ class UltimatePSTProcessor:
                 pst_file_record.processing_completed_at = datetime.now(timezone.utc)
             self.db.commit()
 
+            # Trigger background semantic indexing after successful completion
+            try:
+                from .tasks import index_project_emails_semantic, index_case_emails_semantic
+
+                if project_id:
+                    logger.info(f"Queueing semantic indexing for project {project_id}")
+                    index_project_emails_semantic.delay(str(project_id))
+                elif case_id:
+                    logger.info(f"Queueing semantic indexing for case {case_id}")
+                    index_case_emails_semantic.delay(str(case_id))
+            except Exception as task_error:
+                logger.warning(f"Failed to queue semantic indexing task: {task_error}")
+
             pst_file.close()
 
             logger.info(f"PST processing completed: {stats}")
@@ -375,7 +388,7 @@ class UltimatePSTProcessor:
         logger.info("Processing folder: %s (%d messages)", current_path, num_messages)
 
         # Process messages in this folder
-        COMMIT_BATCH_SIZE = 25  # Commit every N messages for performance
+        COMMIT_BATCH_SIZE = 100  # Commit every N messages for performance (increased for speed)
 
         for i in range(num_messages):
             try:
@@ -689,21 +702,27 @@ class UltimatePSTProcessor:
         else:
             body_text = f"From: {from_email}\nTo: {', '.join(to_recipients)}\nSubject: {subject}\n\n[No body content available]"
 
-        # Build canonical body (top-message only, quotes stripped where possible)
-        canonical_body = body_text or ""
-        try:
-            # Simple heuristic: split on common reply markers and keep the first block
-            # This avoids pulling entire threads into the canonical body.
-            reply_split_pattern = (
-                r"(?mi)^On .+ wrote:|^From:\s|^Sent:\s|^-----Original Message-----"
-            )
-            parts = re.split(reply_split_pattern, canonical_body, maxsplit=1)
-            canonical_body = parts[0] if parts else canonical_body
+        # Build canonical body (top-message only, quotes/signatures stripped)
+        # For performance: Only create preview, store full body in PST for on-demand retrieval
+        canonical_body = ""
 
-            # Normalise whitespace
+        # Fast path: Just extract a preview from plain text (no HTML parsing during ingestion)
+        if body_text:
+            canonical_body = body_text
+            # Quick split on reply markers
+            try:
+                reply_split_pattern = (
+                    r"(?mi)^On .+ wrote:|^From:\s|^Sent:\s|^-----Original Message-----"
+                )
+                parts = re.split(reply_split_pattern, canonical_body, maxsplit=1)
+                canonical_body = parts[0] if parts else canonical_body
+                canonical_body = re.sub(r"\s+", " ", canonical_body).strip()
+            except re.error:
+                pass
+        elif body_html:
+            # Fallback: Strip HTML tags quickly (no BeautifulSoup for speed)
+            canonical_body = re.sub(r"<[^>]+>", " ", body_html)
             canonical_body = re.sub(r"\s+", " ", canonical_body).strip()
-        except re.error as e:
-            logger.debug("Canonical body regex failed: %s", e)
 
         # Calculate size saved by NOT storing the email as a file
         combined_content = (body_html_content or "") + (body_text or "")
@@ -771,7 +790,7 @@ class UltimatePSTProcessor:
             recipients_bcc=bcc_recipients if bcc_recipients else None,
             date_sent=email_date,
             date_received=email_date,
-            body_text=body_text,
+            body_text=canonical_body,  # Store only the top message, not the full thread
             body_html=body_html_content,
             body_text_clean=body_text_clean or None,
             content_hash=content_hash,
@@ -817,12 +836,14 @@ class UltimatePSTProcessor:
                 )
 
         # Semantic indexing for deep research acceleration
-        if self.semantic_service is not None:
+        # Skip during initial PST processing for speed - can be done in background later
+        ENABLE_SEMANTIC_INDEXING = False  # Set to True to enable (slower but better search)
+        if ENABLE_SEMANTIC_INDEXING and self.semantic_service is not None:
             try:
                 self.semantic_service.process_email(
                     email_id=str(email_message.id),
                     subject=subject,
-                    body_text=body_text_clean or body_text,
+                    body_text=body_text_clean or canonical_body,
                     sender=from_email,
                     recipients=to_recipients,
                     case_id=str(case_id) if case_id else None,
