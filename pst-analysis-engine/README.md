@@ -6,6 +6,28 @@
 ![Docker](https://img.shields.io/badge/Deployment-Docker_Compose-blue)
 ![Python](https://img.shields.io/badge/Python-3.11-yellow)
 
+---
+
+## ⚡ **NEW: Ultra-Fast Local Development**
+
+**Stop waiting for CI/CD!** Test locally in 2 minutes or develop with instant hot-reload:
+
+- **📖 [QUICK_START.md](QUICK_START.md)** - Pull from Docker Hub and run in 2 minutes
+- **📖 [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md)** - Full local dev guide with hot reload
+
+```powershell
+# Pull latest from Docker Hub (fastest)
+.\scripts\dev.ps1 pull
+.\scripts\dev.ps1 start -Hub
+
+# OR build locally with hot reload
+.\scripts\dev.ps1 start
+```
+
+**Time saved:** From 10+ minutes per iteration to 1 second! 🚀
+
+---
+
 ## 🚨 Forensic Architecture Warning
 
 *Read this before touching the code. This project has been aggressively cleaned, and this document is the single source of truth.*

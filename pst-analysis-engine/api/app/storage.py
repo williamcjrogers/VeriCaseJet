@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import html
 import logging
+import os
 import time
 from typing import Any, BinaryIO, Protocol, cast
 
@@ -64,8 +65,6 @@ def _normalize_endpoint(url: str | None) -> str | None:
 
 def s3(public: bool = False) -> S3ClientProtocol:
     """Get S3 client for AWS S3 or MinIO."""
-    import os
-
     # Detect AWS mode: USE_AWS_SERVICES flag or empty MINIO_ENDPOINT
     use_aws = settings.USE_AWS_SERVICES or not settings.MINIO_ENDPOINT
 
