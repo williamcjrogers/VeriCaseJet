@@ -323,7 +323,7 @@ async def upload_pst_file(
 
         default_user = User(
             email="admin@vericase.com",
-            password_hash=hash_password("admin123"),
+            password_hash=hash_password("VeriCase1234?!"),
             role=UserRole.ADMIN,
             is_active=True,
             email_verified=True,
@@ -510,7 +510,7 @@ async def init_pst_upload(
 
         default_user = User(
             email="admin@vericase.com",
-            password_hash=hash_password("admin123"),
+            password_hash=hash_password("VeriCase1234?!"),
             role=UserRole.ADMIN,
             is_active=True,
             email_verified=True,
@@ -598,7 +598,7 @@ async def init_pst_multipart_upload(
 
         default_user = User(
             email="admin@vericase.com",
-            password_hash=hash_password("admin123"),
+            password_hash=hash_password("VeriCase1234?!"),
             role=UserRole.ADMIN,
             is_active=True,
             email_verified=True,
@@ -2407,7 +2407,7 @@ async def get_or_create_default_project(
 
         default_user = User(
             email="admin@vericase.com",
-            password_hash=hash_password("admin123"),
+            password_hash=hash_password("VeriCase1234?!"),
             role=UserRole.ADMIN,
             is_active=True,
             email_verified=True,
@@ -2475,7 +2475,7 @@ async def create_project(
 
         default_user = User(
             email="admin@vericase.com",
-            password_hash=hash_password("admin123"),
+            password_hash=hash_password("VeriCase1234?!"),
             role=UserRole.ADMIN,
             is_active=True,
             email_verified=True,
@@ -2661,7 +2661,7 @@ async def create_case(
 
         default_user = User(
             email="admin@vericase.com",
-            password_hash=hash_password("admin123"),
+            password_hash=hash_password("VeriCase1234?!"),
             role=UserRole.ADMIN,
             is_active=True,
             email_verified=True,
