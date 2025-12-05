@@ -1563,6 +1563,20 @@ async def approve_research_plan(
     if session.user_id != str(user.id):
         raise HTTPException(403, "Not authorized")
 
+    # If the plan exists but status is still pending/planning (e.g. cross-worker desync),
+    # normalize to awaiting approval so the user can proceed.
+    if session.plan and session.status in {
+        ResearchStatus.PENDING,
+        ResearchStatus.PLANNING,
+    }:
+        logger.warning(
+            "Session %s has plan but status=%s; promoting to awaiting approval",
+            session.id,
+            session.status,
+        )
+        session.status = ResearchStatus.AWAITING_APPROVAL
+        save_session(session)
+
     if session.status != ResearchStatus.AWAITING_APPROVAL:
         raise HTTPException(
             400, f"Session not awaiting approval. Status: {session.status}"

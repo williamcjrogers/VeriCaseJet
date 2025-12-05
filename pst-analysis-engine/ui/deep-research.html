@@ -1722,7 +1722,12 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
               },
             );
 
-            if (!response.ok) throw new Error("Failed to approve plan");
+            if (!response.ok) {
+              const detail = await response.text();
+              throw new Error(
+                `Failed to approve plan (${response.status}): ${detail || "unknown error"}`,
+              );
+            }
 
             // Hide plan review, keep status visible
             planReview.style.display = "none";
@@ -1764,7 +1769,12 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
             },
           );
 
-          if (!response.ok) throw new Error("Failed to submit modifications");
+          if (!response.ok) {
+            const detail = await response.text();
+            throw new Error(
+              `Failed to submit modifications (${response.status}): ${detail || "unknown error"}`,
+            );
+          }
 
           closeModifyModal();
           planReview.style.display = "none";
