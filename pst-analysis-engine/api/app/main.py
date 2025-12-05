@@ -13,10 +13,8 @@ from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, text
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse as StarletteRedirect
-import subprocess
 import os
 
 
@@ -46,8 +44,6 @@ uvicorn_access_logger = logging.getLogger("uvicorn.access")
 uvicorn_access_logger.addFilter(FaviconFilter())
 
 # Import production config helper if in production
-import os
-
 if os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_REGION"):
     from .config_production import update_production_config
 

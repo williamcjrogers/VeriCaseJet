@@ -374,14 +374,14 @@ export const EvidenceView: React.FC = () => {
     };
 
     // Handle star toggle
-    const handleStarToggle = async (evidenceId: string) => {
+    const handleStarToggle = useCallback(async (evidenceId: string) => {
         try {
             await toggleEvidenceStar(evidenceId);
             loadData();
         } catch (error) {
             console.error('Failed to toggle star:', error);
         }
-    };
+    }, [loadData]);
 
     // Handle file upload
     const handleFileUpload = async (files: FileList | null) => {
@@ -509,7 +509,7 @@ export const EvidenceView: React.FC = () => {
                 return new Date(params.data.created_at).toLocaleDateString();
             }
         }
-    ], []);
+    ], [handleStarToggle]);
 
     const defaultColDef = useMemo<ColDef>(() => ({
         resizable: true,

@@ -1,6 +1,9 @@
+# pyright: reportArgumentType=false
+import uuid
+
 from collections.abc import Generator
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -52,15 +55,14 @@ def current_user(creds: BearerCreds, db: DBSessionDep) -> User:
     token = creds.credentials if creds else None
     if token:
         try:
-            import uuid as _u
-
             payload = jwt.decode(
                 token,
                 settings.JWT_SECRET,
                 algorithms=["HS256"],
                 issuer=settings.JWT_ISSUER,
             )
-            user = db.query(User).filter(User.id == _u.UUID(payload["sub"])).first()
+            user_id_str = cast(str, payload["sub"])
+            user = db.query(User).filter(User.id == uuid.UUID(user_id_str)).first()
             if user:
                 return user
         except Exception:
@@ -105,9 +107,8 @@ def optional_current_user(creds: OptionalBearerCreds, db: DBSessionDep) -> User 
             algorithms=["HS256"],
             issuer=settings.JWT_ISSUER,
         )
-        import uuid as _u
-
-        user = db.query(User).filter(User.id == _u.UUID(payload["sub"])).first()
+        user_id_str = cast(str, payload["sub"])
+        user = db.query(User).filter(User.id == uuid.UUID(user_id_str)).first()
         return user
     except Exception:
         return None

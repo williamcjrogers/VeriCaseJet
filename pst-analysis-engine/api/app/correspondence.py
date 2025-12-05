@@ -1,47 +1,48 @@
-# pyright: reportCallInDefaultInitializer=false, reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportUnknownParameterType=false
+# pyright: reportCallInDefaultInitializer=false, reportUnknownMemberType=false, reportUnknownVariableType=false
 """
 Correspondence API Endpoints
 Email correspondence management for PST analysis
 """
 
-import uuid
 import asyncio
-import os
 import logging
+import os
+import re as _re_module
+import uuid
 from datetime import datetime
-from typing import Any, Annotated
+from typing import Annotated, Any
+
 from boto3.s3.transfer import TransferConfig
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy import or_, and_, func, select
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from pydantic.fields import Field
-import re as _re_module
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
-from .security import get_db, current_user
+from .config import settings
 from .models import (
     Case,
-    PSTFile,
-    EmailMessage,
+    Company,
+    DocStatus,
+    Document,
     EmailAttachment,
-    Stakeholder,
+    EmailMessage,
     Keyword,
     Project,
+    PSTFile,
+    Stakeholder,
     User,
-    Company,
-    Document,
-    DocStatus,
 )
+from .security import current_user, get_db
 from .storage import (
-    presign_put,
-    presign_get,
-    s3,
-    multipart_start,
-    presign_part,
     multipart_complete,
+    multipart_start,
+    presign_get,
+    presign_part,
+    presign_put,
+    s3,
 )
-from .config import settings
 from .tasks import celery_app
 
 logger = logging.getLogger(__name__)
@@ -2383,7 +2384,7 @@ async def update_project_stakeholders_bulk(
     db.commit()
 
     return {
-        "message": f"Stakeholders updated successfully",
+        "message": "Stakeholders updated successfully",
         "created": created,
         "updated": updated,
     }
