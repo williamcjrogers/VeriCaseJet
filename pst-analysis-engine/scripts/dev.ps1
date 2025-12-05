@@ -138,9 +138,9 @@ try {
                 Write-Host "💡 TIPS:" -ForegroundColor Yellow
                 Write-Host "  • Edit code → Save → Refresh browser (changes auto-reload!)" -ForegroundColor Gray
                 Write-Host "  • Watch logs: " -ForegroundColor Gray -NoNewline
-                Write-Host ".\scripts\dev.ps1 logs api" -ForegroundColor White
+                Write-Host '.\scripts\dev.ps1 logs api' -ForegroundColor White
                 Write-Host "  • Check health: " -ForegroundColor Gray -NoNewline
-                Write-Host ".\scripts\dev.ps1 health" -ForegroundColor White
+                Write-Host '.\scripts\dev.ps1 health' -ForegroundColor White
             }
             Write-Host ""
         }
