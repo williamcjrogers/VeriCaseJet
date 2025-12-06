@@ -113,6 +113,7 @@ from .claims_module import (
     router as claims_router,
 )  # Contentious Matters and Heads of Claim
 from .dashboard_api import router as dashboard_router  # Master Dashboard API
+from .timeline import router as timeline_router  # Project Timeline (Event + Chronology)
 from .enhanced_api_routes import (
     aws_router,
 )  # AWS AI Services (Bedrock, Textract, Comprehend, etc.)
@@ -334,6 +335,7 @@ app.include_router(claims_router)  # Contentious Matters and Heads of Claim
 app.include_router(dashboard_router)  # Master Dashboard API
 app.include_router(aws_router)  # AWS AI Services (Bedrock, Textract, Comprehend, etc.)
 app.include_router(ai_models_router)  # 2025 AI Models API
+app.include_router(timeline_router)  # Project Timeline (Event + Chronology)
 
 # Import and include unified router
 from .correspondence import unified_router
