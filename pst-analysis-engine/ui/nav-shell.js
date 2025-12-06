@@ -262,7 +262,7 @@
             <aside class="app-sidebar" id="appSidebar">
                 <div class="sidebar-header">
                     <a href="master-dashboard.html" class="sidebar-logo">
-                        <img src="assets/Gemini_Generated_Image_g97f1ug97f1ug97f.JPG" alt="VeriCase" />
+                        <img src="assets/Gemini_Generated_Image_iaegbtiaegbtiaeg.png" alt="VeriCase" />
                     </a>
                 </div>
                 ${projectContext}
@@ -291,6 +291,54 @@
                 </div>
             </header>
         `;
+  }
+
+  // Load and display the current project name in the sidebar
+  async function loadCurrentProjectName() {
+    const projectId = getProjectId();
+    const nameElement = document.getElementById("currentProjectName");
+
+    if (!projectId || !nameElement) return;
+
+    try {
+      // Try to get from cache first
+      if (projectsCache && projectsCache.length > 0) {
+        const project = projectsCache.find((p) => p.id === projectId);
+        if (project) {
+          nameElement.textContent =
+            project.project_name || project.name || "Unnamed Project";
+          return;
+        }
+      }
+
+      // Fetch project details from API
+      const apiUrl = window.location.origin;
+      const token = localStorage.getItem("token");
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+      const response = await fetch(`${apiUrl}/api/projects/${projectId}`, {
+        headers,
+      });
+
+      if (response.ok) {
+        const project = await response.json();
+        nameElement.textContent =
+          project.project_name || project.name || "Unnamed Project";
+      } else {
+        // Fallback: try to load all projects and find this one
+        const projects = await fetchProjects();
+        const project = projects.find((p) => p.id === projectId);
+        if (project) {
+          nameElement.textContent =
+            project.project_name || project.name || "Unnamed Project";
+        } else {
+          nameElement.textContent = "Unknown Project";
+        }
+      }
+    } catch (error) {
+      console.error("[VericaseShell] Failed to load project name:", error);
+      nameElement.textContent = "Project";
+    }
   }
 
   function injectShell(options = {}) {
@@ -325,6 +373,9 @@
     if (showProgress && projectId && window.VericaseUI) {
       window.VericaseUI.Progress.render("progressTracker", projectId);
     }
+
+    // Load and display the current project name
+    loadCurrentProjectName();
 
     // Setup responsive sidebar toggle
     const mediaQuery = window.matchMedia("(max-width: 1024px)");
