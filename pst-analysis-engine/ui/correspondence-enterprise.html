@@ -5143,11 +5143,10 @@
     function setViewMode(mode) {
       currentViewMode = mode;
 
-      // Update button states
-      document.querySelectorAll(".btn-group .btn").forEach((btn) => {
-        btn.classList.remove("active");
+      // Update button states - find button by data-view attribute
+      document.querySelectorAll(".btn-group .btn[data-view]").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.view === mode);
       });
-      event.target.classList.add("active");
 
       // Apply filters based on mode
       switch (mode) {
