@@ -3827,7 +3827,7 @@
 
       // Server-side configuration
       cacheBlockSize: 100, // Load 100 rows at a time
-      maxBlocksInCache: 20, // Keep 20 blocks (2000 rows) in memory
+      // Note: maxBlocksInCache removed - incompatible with autoHeight on columns
       blockLoadDebounceMillis: 100, // Debounce rapid scroll
 
       // Enterprise features
