@@ -283,6 +283,19 @@
 
 .app-header-breadcrumb .separator {
   color: var(--text-muted);
+  font-size: 0.625rem;
+}
+
+.app-header-breadcrumb .breadcrumb-current {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.app-header-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border-default);
+  margin: 0 var(--space-3);
 }
 
 .app-header-actions {
