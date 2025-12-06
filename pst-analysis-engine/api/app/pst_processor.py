@@ -1225,10 +1225,10 @@ class UltimatePSTProcessor:
                         )
                         file_ext = raw_ext[:255] if raw_ext else None
 
-                        # Check if this is a duplicate in the EvidenceItem context
-                        # (attachment_hashes tracks Documents, evidence_item_hashes tracks EvidenceItems)
-                        evidence_duplicate_of_id = self.evidence_item_hashes.get(file_hash)
-                        evidence_is_duplicate = evidence_duplicate_of_id is not None
+                        # Check if this is a duplicate based on file hash
+                        # Note: We don't set duplicate_of_id because the referenced ID may not
+                        # exist if a previous batch was rolled back. The is_duplicate flag is sufficient.
+                        evidence_is_duplicate = file_hash in self.evidence_item_hashes
 
                         evidence_item = EvidenceItem(
                             filename=safe_filename,
@@ -1245,7 +1245,7 @@ class UltimatePSTProcessor:
                             case_id=case_id,
                             project_id=project_id,
                             is_duplicate=evidence_is_duplicate,
-                            duplicate_of_id=evidence_duplicate_of_id,
+                            duplicate_of_id=None,  # Avoid FK issues from rollback scenarios
                             processing_status="pending",
                             auto_tags=["email-attachment", "from-pst"],
                         )
