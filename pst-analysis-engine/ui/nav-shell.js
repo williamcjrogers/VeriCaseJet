@@ -262,7 +262,7 @@
             <aside class="app-sidebar" id="appSidebar">
                 <div class="sidebar-header">
                     <a href="master-dashboard.html" class="sidebar-logo">
-                        <span class="logo-veri">Veri</span><span class="logo-case">Case</span>
+                        <img src="assets/Gemini_Generated_Image_g97f1ug97f1ug97f.JPG" alt="VeriCase" />
                     </a>
                 </div>
                 ${projectContext}

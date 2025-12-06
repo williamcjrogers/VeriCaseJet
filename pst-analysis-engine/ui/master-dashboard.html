@@ -225,12 +225,17 @@
 
     .card-actions {
       position: absolute;
-      top: 24px;
-      right: 24px;
+      top: 16px;
+      right: 50px;
       opacity: 0;
       transition: opacity 0.2s;
       display: flex;
-      gap: 8px;
+      gap: 4px;
+      z-index: 10;
+      background: rgba(255,255,255,0.95);
+      padding: 4px;
+      border-radius: 8px;
+      box-shadow: var(--shadow-md);
     }
 
     .project-card:hover .card-actions {
@@ -255,6 +260,12 @@
       background: var(--vericase-teal);
       color: white;
       border-color: var(--vericase-teal);
+    }
+
+    .action-btn-danger:hover {
+      background: #dc2626;
+      color: white;
+      border-color: #dc2626;
     }
 
     /* Quick Links */
@@ -878,8 +889,11 @@
                         <button class="action-btn" title="Correspondence" onclick="event.stopPropagation(); goToCorrespondence('${item.id}')">
                             <i class="fas fa-envelope"></i>
                         </button>
-                        <button class="action-btn" title="Settings" onclick="event.stopPropagation(); goToSettings('${item.id}')">
-                            <i class="fas fa-cog"></i>
+                        <button class="action-btn" title="Edit Project" onclick="event.stopPropagation(); openRenameModal('${item.id}', '${escapeHtml(item.name)}', '${escapeHtml(item.project_code || item.case_number || "")}', '${item.type}')">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="action-btn action-btn-danger" title="Delete Project" onclick="event.stopPropagation(); openDeleteModal('${item.id}', '${escapeHtml(item.name)}', '${item.type}')">
+                            <i class="fas fa-trash"></i>
                         </button>
                     </div>
                 </div>
