@@ -262,8 +262,16 @@ class BaseAgent:
     async def _call_llm(
         self, prompt: str, system_prompt: str = "", use_powerful: bool = False
     ) -> str:
-        """Call the appropriate LLM based on configuration (4 providers)"""
-        # Try Anthropic first for powerful tasks
+        """Call the appropriate LLM based on configuration (4 providers) - Bedrock first for cost optimization"""
+        # Try Bedrock FIRST - uses AWS billing, more cost effective
+        if self.bedrock_enabled:
+            try:
+                return await self._call_bedrock(prompt, system_prompt)
+            except Exception as e:
+                logger.warning(f"Bedrock call failed, trying fallback: {e}")
+
+        # Fallback to external APIs
+        # Use Anthropic for powerful/complex tasks
         if use_powerful and self.anthropic_key:
             return await self._call_anthropic(prompt, system_prompt)
 
@@ -275,11 +283,7 @@ class BaseAgent:
         if self.gemini_key:
             return await self._call_gemini(prompt, system_prompt)
 
-        # Try Bedrock
-        if self.bedrock_enabled:
-            return await self._call_bedrock(prompt, system_prompt)
-
-        # Fallback to Anthropic
+        # Final fallback to Anthropic
         if self.anthropic_key:
             return await self._call_anthropic(prompt, system_prompt)
 

@@ -586,8 +586,15 @@ class AIRefinementEngine:
         return context
 
     async def _call_llm(self, prompt: str, system_prompt: str = "") -> str:
-        """Call the best available LLM (4 providers)"""
-        # Prefer Anthropic for analysis tasks
+        """Call the best available LLM (4 providers) - Bedrock first for cost optimization"""
+        # Try Bedrock FIRST - uses AWS billing, more cost effective
+        if self.bedrock_enabled:
+            try:
+                return await self._call_bedrock(prompt, system_prompt)
+            except Exception as e:
+                logger.warning(f"Bedrock call failed, trying fallback: {e}")
+
+        # Fallback to external APIs
         if self.anthropic_key:
             return await self._call_anthropic(prompt, system_prompt)
 
@@ -596,9 +603,6 @@ class AIRefinementEngine:
 
         if self.gemini_key:
             return await self._call_gemini(prompt, system_prompt)
-
-        if self.bedrock_enabled:
-            return await self._call_bedrock(prompt, system_prompt)
 
         raise HTTPException(
             500, "No AI providers configured. Please add API keys in Admin Settings."

@@ -50,37 +50,43 @@ class AIFallbackChain:
         )
     """
 
-    # Default fallback chains ordered by speed/cost efficiency
+    # Default fallback chains - BEDROCK FIRST for cost optimization
+    # Bedrock models are primary, external APIs are fallbacks only
     FALLBACK_CHAINS: dict[str, list[tuple[str, str]]] = {
         "quick_search": [
-            ("gemini", "gemini-2.0-flash"),
-            ("openai", "gpt-4o-mini"),
-            ("anthropic", "claude-4.5-haiku"),
-            ("bedrock", "amazon.titan-text-lite-v1"),
+            ("bedrock", "amazon.nova-micro-v1:0"),      # Primary: fastest, cheapest
+            ("bedrock", "amazon.nova-lite-v1:0"),       # Fallback 1
+            ("anthropic", "claude-4.5-haiku"),          # External fallback
         ],
         "deep_analysis": [
-            ("anthropic", "claude-4.5-sonnet"),
-            ("openai", "gpt-4o"),
-            ("bedrock", "anthropic.claude-4.5-sonnet-v1:0"),
-            ("gemini", "gemini-2.0-pro"),
+            ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),  # Primary: Claude via Bedrock
+            ("bedrock", "amazon.nova-pro-v1:0"),        # Fallback 1: Nova Pro
+            ("anthropic", "claude-4.5-sonnet"),         # External fallback
         ],
         "narrative": [
-            ("anthropic", "claude-4.5-opus"),
-            ("anthropic", "claude-4.5-sonnet"),
-            ("openai", "gpt-4o"),
-            ("bedrock", "anthropic.claude-4.5-opus-v1:0"),
+            ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),  # Primary
+            ("bedrock", "amazon.nova-pro-v1:0"),        # Fallback 1
+            ("anthropic", "claude-4.5-sonnet"),         # External fallback
         ],
         "pattern_recognition": [
-            ("gemini", "gemini-3.0-pro"),
-            ("gemini", "gemini-2.0-pro"),
-            ("openai", "gpt-4o"),
-            ("anthropic", "claude-4.5-sonnet"),
+            ("bedrock", "amazon.nova-pro-v1:0"),        # Primary
+            ("bedrock", "amazon.nova-lite-v1:0"),       # Fallback 1
+            ("gemini", "gemini-2.0-pro"),               # External fallback
         ],
         "gap_analysis": [
-            ("bedrock", "amazon.titan-text-premier-v1"),
-            ("anthropic", "claude-4.5-sonnet"),
-            ("openai", "gpt-4o"),
-            ("gemini", "gemini-2.0-pro"),
+            ("bedrock", "amazon.nova-pro-v1:0"),        # Primary
+            ("bedrock", "amazon.nova-lite-v1:0"),       # Fallback 1
+            ("anthropic", "claude-4.5-sonnet"),         # External fallback
+        ],
+        "chat": [
+            ("bedrock", "amazon.nova-pro-v1:0"),        # Primary for copilot
+            ("bedrock", "amazon.nova-lite-v1:0"),       # Fallback 1
+            ("anthropic", "claude-4.5-sonnet"),         # External fallback
+        ],
+        "refinement": [
+            ("bedrock", "amazon.nova-lite-v1:0"),       # Primary: cost-effective
+            ("bedrock", "amazon.nova-micro-v1:0"),      # Fallback 1: fastest
+            ("anthropic", "claude-4.5-haiku"),          # External fallback
         ],
     }
 
