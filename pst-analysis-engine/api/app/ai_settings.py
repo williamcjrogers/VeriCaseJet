@@ -37,22 +37,22 @@ class AISettings:
     # Default models for each provider
     DEFAULT_MODELS: dict[str, str] = {
         "openai": "gpt-4o",
-        "anthropic": "claude-sonnet-4-5-20250929",
-        "gemini": "gemini-2.5-flash",
-        "bedrock": "anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "anthropic": "claude-4.5-sonnet",
+        "gemini": "gemini-2.0-flash",
+        "bedrock": "anthropic.claude-4.5-sonnet-v1:0",
     }
 
     # Default function configurations (cost-aware defaults)
     DEFAULT_FUNCTION_CONFIGS: dict[str, dict[str, Any]] = {
         "quick_search": {
             "provider": "gemini",
-            "model": "gemini-2.5-flash",  # Budget tier
+            "model": "gemini-2.0-flash",  # Budget tier
             "thinking_enabled": False,
             "max_duration_seconds": 30,
         },
         "deep_analysis": {
             "provider": "anthropic",
-            "model": "claude-sonnet-4-5-20250929",  # Balanced tier (was Opus)
+            "model": "claude-4.5-sonnet",  # Balanced tier (was Opus)
             "thinking_enabled": True,
             "thinking_budget_tokens": 5000,  # Reduced for cost efficiency
             "max_duration_seconds": 300,
@@ -66,10 +66,21 @@ class AISettings:
 
     # Bedrock model mapping for Claude routing
     CLAUDE_TO_BEDROCK_MAP: dict[str, str] = {
-        "claude-opus-4-5-20251101": "anthropic.claude-opus-4-5-20251101-v1:0",
-        "claude-sonnet-4-5-20250929": "anthropic.claude-sonnet-4-5-20250929-v1:0",
-        "claude-haiku-4-5-20251001": "anthropic.claude-haiku-4-5-20251001-v1:0",
-        "claude-opus-4-1-20250805": "anthropic.claude-4-opus-4-1-20250805-v1:0",
+        # Claude 4.5 series
+        "claude-4.5-opus": "anthropic.claude-4.5-opus-v1:0",
+        "claude-4.5-sonnet": "anthropic.claude-4.5-sonnet-v1:0",
+        "claude-4.5-haiku": "anthropic.claude-4.5-haiku-v1:0",
+        # Claude 4.1 series
+        "claude-4.1-opus": "anthropic.claude-4.1-opus-v1:0",
+        "claude-4.1-sonnet": "anthropic.claude-4.1-sonnet-v1:0",
+        # Claude 4.0 series
+        "claude-4-opus": "anthropic.claude-4-opus-v1:0",
+        "claude-4-sonnet": "anthropic.claude-4-sonnet-v1:0",
+        "claude-4-haiku": "anthropic.claude-4-haiku-v1:0",
+        # Claude 3.5 series
+        "claude-3.5-sonnet": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+        "claude-3-5-sonnet-20241022": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+        "claude-3.5-haiku": "anthropic.claude-3-5-haiku-20240620-v1:0",
     }
 
     @classmethod

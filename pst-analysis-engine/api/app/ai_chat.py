@@ -477,11 +477,22 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
             client = openai.AsyncOpenAI(api_key=self.openai_key)
             # Use configured model or fallback
             actual_model: str = model_name or self.openai_model or "gpt-4o"
-            response = await client.chat.completions.create(
-                model=actual_model,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=1000,
-            )
+
+            # o-series models require max_completion_tokens instead of max_tokens
+            is_o_series = actual_model.startswith(("o1", "o3", "o4"))
+
+            if is_o_series:
+                response = await client.chat.completions.create(
+                    model=actual_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_completion_tokens=1000,
+                )
+            else:
+                response = await client.chat.completions.create(
+                    model=actual_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=1000,
+                )
             return response.choices[0].message.content
         except Exception as e:
             raise Exception(f"GPT error: {str(e)}")
@@ -494,7 +505,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
             client = anthropic.AsyncAnthropic(api_key=self.anthropic_key)
             # Use configured model or fallback
             actual_model: str = (
-                model_name or self.anthropic_model or "claude-sonnet-4-20250514"
+                model_name or self.anthropic_model or "claude-4.5-sonnet"
             )
             response = await client.messages.create(
                 model=actual_model,

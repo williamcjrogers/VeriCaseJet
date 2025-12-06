@@ -44,13 +44,13 @@ DEPRECATED_SETTINGS = [
 DEFAULT_FUNCTION_CONFIGS = {
     "ai_function_quick_search": {
         "provider": "gemini",
-        "model": "gemini-2.5-flash",  # Budget tier: ~$0.075/1M tokens
+        "model": "gemini-2.0-flash",  # Budget tier: ~$0.075/1M tokens
         "thinking_enabled": False,
         "max_duration_seconds": 30,
     },
     "ai_function_deep_analysis": {
         "provider": "anthropic",
-        "model": "claude-sonnet-4-5-20250929",  # Balanced tier: ~$3/1M tokens (was Opus ~$75/1M)
+        "model": "claude-4.5-sonnet",  # Balanced tier: ~$3/1M tokens (was Opus ~$75/1M)
         "thinking_enabled": True,
         "thinking_budget_tokens": 5000,  # Reduced from 10000 for cost efficiency
         "max_duration_seconds": 300,
@@ -68,32 +68,31 @@ MODEL_COST_TIERS = {
     "budget": {
         "description": "Fast & cheap - best for quick searches",
         "models": [
-            "gemini-2.5-flash",
-            "gemini-2.5-flash-lite",
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-lite",
             "gpt-4o-mini",
-            "claude-haiku-4-5-20251001",
-            "amazon.nova-micro-v1:0",
-            "amazon.nova-lite-v1:0",
+            "claude-4.5-haiku",
+            "amazon.titan-text-lite-v1",
         ],
     },
     "balanced": {
         "description": "Good quality at reasonable cost - recommended default",
         "models": [
-            "gemini-2.5-pro",
+            "gemini-2.0-pro",
             "gpt-4o",
-            "claude-sonnet-4-5-20250929",
-            "amazon.nova-pro-v1:0",
-            "meta.llama3-3-70b-instruct-v1:0",
+            "claude-4.5-sonnet",
+            "amazon.titan-text-premier-v1",
+            "meta.llama3-70b-instruct-v1:0",
         ],
     },
     "premium": {
         "description": "Best quality - use for complex analysis",
         "models": [
-            "gemini-3-pro-preview",
+            "gemini-3.0-pro",
             "o3",
             "gpt-5.1",
-            "claude-opus-4-5-20251101",
-            "anthropic.claude-opus-4-5-20251101-v1:0",
+            "claude-4.5-opus",
+            "anthropic.claude-4.5-opus-v1:0",
         ],
     },
 }

@@ -268,33 +268,33 @@ async def get_model_recommendations(
     """Get model recommendations for specific use cases"""
     recommendations = {
         "legal_analysis": {
-            "primary": ["claude-opus-4.5", "gpt-5.1", "gemini-3.0-pro"],
-            "budget": ["claude-sonnet-4.5", "amazon-nova-pro"],
+            "primary": ["claude-4.5-opus", "gpt-5.1", "gemini-3.0-pro"],
+            "budget": ["claude-4.5-sonnet", "amazon.titan-text-premier-v1"],
             "reasoning": "These models excel at complex legal reasoning and document analysis",
         },
         "document_review": {
-            "primary": ["claude-sonnet-4.5", "gpt-5.1", "gemini-3.0-pro"],
-            "budget": ["claude-haiku-4.5", "gemini-3.0-flash"],
+            "primary": ["claude-4.5-sonnet", "gpt-5.1", "gemini-3.0-pro"],
+            "budget": ["claude-4.5-haiku", "gemini-3.0-flash"],
             "reasoning": "Fast, accurate models for processing large volumes of documents",
         },
         "legal_research": {
-            "primary": ["claude-opus-4.5", "gpt-5.1", "gemini-3.0-pro"],
-            "budget": ["amazon-nova-pro", "gemini-3.0-flash"],
+            "primary": ["claude-4.5-opus", "gpt-5.1", "gemini-3.0-pro"],
+            "budget": ["amazon.titan-text-premier-v1", "gemini-3.0-flash"],
             "reasoning": "Models for finding patterns and analyzing legal precedents",
         },
         "contract_analysis": {
-            "primary": ["claude-opus-4.5", "gpt-5.1", "o3"],
-            "budget": ["claude-sonnet-4.5", "o3-mini"],
+            "primary": ["claude-4.5-opus", "gpt-5.1", "o3"],
+            "budget": ["claude-4.5-sonnet", "o4-mini"],
             "reasoning": "Specialized reasoning models for complex contract interpretation",
         },
         "automation": {
-            "primary": ["gpt-5.1", "claude-sonnet-4.5"],
-            "budget": ["amazon-nova-lite", "gemini-3.0-flash"],
+            "primary": ["gpt-5.1", "claude-4.5-sonnet"],
+            "budget": ["amazon.titan-text-lite-v1", "gemini-3.0-flash"],
             "reasoning": "Coding-optimized models for building legal automation tools",
         },
         "cost_effective": {
-            "primary": ["amazon-nova-pro", "amazon-nova-lite", "claude-haiku-4.5"],
-            "budget": ["amazon-nova-micro", "gemini-3.0-flash"],
+            "primary": ["amazon.titan-text-premier-v1", "amazon.titan-text-lite-v1", "claude-4.5-haiku"],
+            "budget": ["gemini-2.0-flash-lite", "gemini-3.0-flash"],
             "reasoning": "High-quality models with lower costs for budget-conscious deployments",
         },
     }

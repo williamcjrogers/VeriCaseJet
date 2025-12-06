@@ -53,34 +53,34 @@ class AIFallbackChain:
     # Default fallback chains ordered by speed/cost efficiency
     FALLBACK_CHAINS: dict[str, list[tuple[str, str]]] = {
         "quick_search": [
-            ("gemini", "gemini-2.5-flash"),
+            ("gemini", "gemini-2.0-flash"),
             ("openai", "gpt-4o-mini"),
-            ("anthropic", "claude-haiku-4-5-20251001"),
-            ("bedrock", "amazon.nova-lite-v1:0"),
+            ("anthropic", "claude-4.5-haiku"),
+            ("bedrock", "amazon.titan-text-lite-v1"),
         ],
         "deep_analysis": [
-            ("anthropic", "claude-sonnet-4-5-20250929"),
+            ("anthropic", "claude-4.5-sonnet"),
             ("openai", "gpt-4o"),
-            ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
-            ("gemini", "gemini-2.5-pro"),
+            ("bedrock", "anthropic.claude-4.5-sonnet-v1:0"),
+            ("gemini", "gemini-2.0-pro"),
         ],
         "narrative": [
-            ("anthropic", "claude-opus-4-5-20251101"),
-            ("anthropic", "claude-sonnet-4-5-20250929"),
+            ("anthropic", "claude-4.5-opus"),
+            ("anthropic", "claude-4.5-sonnet"),
             ("openai", "gpt-4o"),
-            ("bedrock", "anthropic.claude-opus-4-5-20251101-v1:0"),
+            ("bedrock", "anthropic.claude-4.5-opus-v1:0"),
         ],
         "pattern_recognition": [
-            ("gemini", "gemini-3-pro-preview"),
-            ("gemini", "gemini-2.5-pro"),
+            ("gemini", "gemini-3.0-pro"),
+            ("gemini", "gemini-2.0-pro"),
             ("openai", "gpt-4o"),
-            ("anthropic", "claude-sonnet-4-5-20250929"),
+            ("anthropic", "claude-4.5-sonnet"),
         ],
         "gap_analysis": [
-            ("bedrock", "amazon.nova-pro-v1:0"),
-            ("anthropic", "claude-sonnet-4-5-20250929"),
+            ("bedrock", "amazon.titan-text-premier-v1"),
+            ("anthropic", "claude-4.5-sonnet"),
             ("openai", "gpt-4o"),
-            ("gemini", "gemini-2.5-pro"),
+            ("gemini", "gemini-2.0-pro"),
         ],
     }
 
