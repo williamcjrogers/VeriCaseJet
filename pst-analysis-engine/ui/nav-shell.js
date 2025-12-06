@@ -105,6 +105,30 @@
           url: "correspondence-enterprise.html",
         },
         {
+          id: "programme",
+          label: "Programme",
+          icon: "fa-project-diagram",
+          url: "programme.html",
+        },
+        {
+          id: "delays",
+          label: "Delays",
+          icon: "fa-clock",
+          url: "delays.html",
+        },
+        {
+          id: "chronology",
+          label: "Chronology",
+          icon: "fa-history",
+          url: "chronology.html",
+        },
+        {
+          id: "timeline",
+          label: "Timeline",
+          icon: "fa-timeline",
+          url: "project-timeline.html",
+        },
+        {
           id: "claims",
           label: "Claims & Matters",
           icon: "fa-balance-scale",
@@ -135,9 +159,9 @@
         },
         {
           id: "research",
-          label: "Deep Research",
+          label: "VeriCase Analysis",
           icon: "fa-microscope",
-          url: "deep-research.html",
+          url: "vericase-analysis.html",
           badge: "NEW",
         },
       ],
@@ -262,7 +286,7 @@
             <aside class="app-sidebar" id="appSidebar">
                 <div class="sidebar-header">
                     <a href="master-dashboard.html" class="sidebar-logo">
-                        <img src="assets/Gemini_Generated_Image_iaegbtiaegbtiaeg.png" alt="VeriCase" />
+                        <img src="assets/Adobe Express 2025-12-06 13.11.37.png" alt="VeriCase" />
                     </a>
                 </div>
                 ${projectContext}
@@ -326,7 +350,14 @@
     if (!projectId || !nameElement) return;
 
     try {
-      // Try to get from cache first
+      // Try to get from localStorage first (fastest)
+      const storedName = localStorage.getItem("vericase_current_project_name");
+      if (storedName && storedName !== "-- Select a project --") {
+        nameElement.textContent = storedName;
+        return;
+      }
+
+      // Try to get from cache
       if (projectsCache && projectsCache.length > 0) {
         const project = projectsCache.find((p) => p.id === projectId);
         if (project) {
@@ -529,6 +560,8 @@
   function confirmProjectSelection() {
     const select = document.getElementById("globalProjectSelect");
     const selectedId = select?.value;
+    const selectedOption = select?.options[select?.selectedIndex];
+    const selectedName = selectedOption?.text || "";
 
     if (!selectedId) {
       if (window.VericaseUI?.Toast) {
@@ -541,6 +574,7 @@
 
     // Store in localStorage
     localStorage.setItem("vericase_current_project", selectedId);
+    localStorage.setItem("vericase_current_project_name", selectedName);
 
     // Close modal
     const modal = document.getElementById("projectSelectorModal");
