@@ -208,15 +208,6 @@
     </div>
 
     <script>
-      const getApiUrl = () => {
-        if (
-          window.location.hostname === "localhost" ||
-          window.location.hostname === "127.0.0.1"
-        ) {
-          return `${window.location.protocol}//localhost:8010`;
-        }
-        return window.location.origin || "";
-      };
       const apiUrl = getApiUrl();
       const token = localStorage.getItem("token");
 
