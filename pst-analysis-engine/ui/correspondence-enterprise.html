@@ -1519,11 +1519,19 @@
         field: "email_date",
         width: 180,
         sort: "desc",
+        wrapText: true,
+        autoHeight: true,
+        cellStyle: {
+          "vertical-align": "top",
+          "text-align": "center",
+          "padding-top": "8px",
+          "padding-bottom": "8px",
+        },
         cellRenderer: (params) => {
           if (!params.value) return "-";
           const date = new Date(params.value);
           return `
-                        <div style="display: flex; flex-direction: column;">
+                        <div style="display: flex; flex-direction: column; align-items: center;">
                             <span style="font-weight: 500;">${date.toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}</span>
                             <span style="font-size: 0.75rem; color: var(--text-muted);">${date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
@@ -1569,8 +1577,10 @@
           "padding-bottom": "8px",
         },
         valueGetter: (params) => {
-          const to = params.data.email_to;
+          // Use recipients_to (includes email) if available, fallback to email_to
+          const to = params.data.recipients_to || params.data.email_to;
           if (!to || to === "-") return "-";
+          if (Array.isArray(to)) return to.join(", ");
           return to;
         },
         filter: "agSetColumnFilter",
@@ -1591,8 +1601,10 @@
           "padding-bottom": "8px",
         },
         valueGetter: (params) => {
-          const cc = params.data.email_cc;
+          // Use recipients_cc (includes email) if available, fallback to email_cc
+          const cc = params.data.recipients_cc || params.data.email_cc;
           if (!cc || cc === "-") return "-";
+          if (Array.isArray(cc)) return cc.join(", ");
           return cc;
         },
         filter: "agSetColumnFilter",
@@ -2489,11 +2501,18 @@
         width: 120,
         sort: "desc",
         wrapText: true,
+        autoHeight: true,
+        cellStyle: {
+          "vertical-align": "top",
+          "text-align": "center",
+          "padding-top": "8px",
+          "padding-bottom": "8px",
+        },
         cellRenderer: (params) => {
           if (!params.value) return "-";
           const date = new Date(params.value);
           return `
-                        <div style="display: flex; flex-direction: column;">
+                        <div style="display: flex; flex-direction: column; align-items: center;">
                             <span style="font-weight: 600;">${date.toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}</span>
                             <span style="font-size: 0.75rem; color: var(--text-muted);">${date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
@@ -2521,13 +2540,15 @@
         field: "email_to",
         width: 140,
         wrapText: true,
+        autoHeight: true,
         cellStyle: {
           "white-space": "normal",
           "word-wrap": "break-word",
         },
         valueGetter: (params) => {
           if (!params.data) return "-";
-          const val = params.data.email_to;
+          // Use recipients_to (includes email) if available, fallback to email_to
+          const val = params.data.recipients_to || params.data.email_to;
           if (Array.isArray(val)) return val.join(", ") || "-";
           return val || "-";
         },
@@ -2542,16 +2563,16 @@
         field: "email_cc",
         width: 140,
         hide: true, // Hidden by default - show via column chooser
-        wrapText: false,
-        autoHeight: false,
+        wrapText: true,
+        autoHeight: true,
         cellStyle: {
-          overflow: "hidden",
-          "text-overflow": "ellipsis",
-          "white-space": "nowrap",
+          "white-space": "normal",
+          "word-wrap": "break-word",
         },
         valueGetter: (params) => {
           if (!params.data) return "-";
-          const val = params.data.email_cc;
+          // Use recipients_cc (includes email) if available, fallback to email_cc
+          const val = params.data.recipients_cc || params.data.email_cc;
           if (Array.isArray(val)) return val.join(", ") || "-";
           return val || "-";
         },
@@ -2702,6 +2723,24 @@
             cleaned = cleaned.replace(/-{3,}/g, ''); // Dashes
             cleaned = cleaned.replace(/={3,}/g, ''); // Equal signs
 
+            // Remove signature blocks - everything after common sign-offs
+            cleaned = cleaned.replace(/\n--\s*\n[\s\S]*$/i, ''); // Double-dash delimiter
+            cleaned = cleaned.replace(/\nRegards,?\s*\n[\s\S]*/i, '');
+            cleaned = cleaned.replace(/\nKind [Rr]egards,?\s*\n[\s\S]*/i, '');
+            cleaned = cleaned.replace(/\nBest [Rr]egards,?\s*\n[\s\S]*/i, '');
+            cleaned = cleaned.replace(/\nMany [Tt]hanks,?\s*\n[\s\S]*/i, '');
+            cleaned = cleaned.replace(/\nThanks,?\s*\n[\s\S]*/i, '');
+            cleaned = cleaned.replace(/\nBest,?\s*\n[\s\S]*/i, '');
+            cleaned = cleaned.replace(/\nCheers,?\s*\n[\s\S]*/i, '');
+            cleaned = cleaned.replace(/\nYours (?:sincerely|faithfully),?\s*\n[\s\S]*/i, '');
+            cleaned = cleaned.replace(/\nWarm regards,?\s*\n[\s\S]*/i, '');
+            cleaned = cleaned.replace(/\nWith (?:kind )?regards,?\s*\n[\s\S]*/i, '');
+
+            // Remove mobile/app signatures
+            cleaned = cleaned.replace(/Sent from my (?:iPhone|iPad|Android|mobile)[^\n]*(?:\n[\s\S]*)?$/i, '');
+            cleaned = cleaned.replace(/Get Outlook for (?:iOS|Android|Mac|Windows)[^\n]*(?:\n[\s\S]*)?$/i, '');
+            cleaned = cleaned.replace(/Sent from Mail for Windows[^\n]*(?:\n[\s\S]*)?$/i, '');
+
             // Remove HTML entities
             cleaned = cleaned.replace(/&nbsp;/g, " ");
             cleaned = cleaned.replace(/&[a-z]+;/gi, " ");
@@ -2709,10 +2748,21 @@
             // Remove cid references
             cleaned = cleaned.replace(/\[cid:[^\]]+\]/g, "");
 
-            // Clean up whitespace (remove extra spaces and normalize line breaks)
-            cleaned = cleaned.replace(/[\r\n]+/g, "\n");
+            // Clean up whitespace while preserving paragraph structure
+            // First normalize line endings
+            cleaned = cleaned.replace(/\r\n/g, "\n");
+            cleaned = cleaned.replace(/\r/g, "\n");
+
+            // Remove leading whitespace/indent from each line (fixes massive indent issue)
+            cleaned = cleaned.replace(/^[ \t]+/gm, "");
+
+            // Collapse multiple spaces to single space (within lines)
             cleaned = cleaned.replace(/ +/g, " ");
-            cleaned = cleaned.replace(/\n\s*\n\s*\n+/g, "\n\n"); // Max 2 consecutive newlines
+
+            // Preserve paragraph breaks: collapse 3+ newlines to 2 (paragraph break)
+            cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
+
+            // Trim whitespace from start/end
             cleaned = cleaned.trim();
 
             // If empty after cleaning, show placeholder
