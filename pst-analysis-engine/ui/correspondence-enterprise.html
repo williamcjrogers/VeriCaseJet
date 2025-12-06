@@ -1093,6 +1093,9 @@
       <button class="btn btn-primary" onclick="openRefinementWizard()">
         <i class="fas fa-wand-magic-sparkles"></i> AI Refinement Wizard
       </button>
+      <button class="btn" id="toggleExcludedBtn" onclick="toggleExcludedEmails()" title="Show/hide emails excluded by refinement">
+        <i class="fas fa-eye-slash" id="excludedIcon"></i> <span id="excludedLabel">Excluded Hidden</span>
+      </button>
       <button class="btn" id="toggleViewBtn" onclick="toggleAllEmails()">
         <i class="fas fa-compress"></i> Preview Mode
       </button>
@@ -1499,6 +1502,7 @@
     let allEmails = [];
     let currentViewMode = "all";
     let showFullContent = true; // Default to showing full content
+    let hideExcludedEmails = true; // Default to hiding excluded emails
 
     // Column Definitions with Enterprise Features
     let columnDefs = [
@@ -1690,6 +1694,39 @@
           return `<div style="display: flex; flex-wrap: wrap; align-items: center;">${attachmentLinks}</div>`;
         },
         filter: "agTextColumnFilter",
+      },
+      {
+        headerName: "Refinement",
+        field: "refinement_status",
+        width: 140,
+        valueGetter: (params) => {
+          const meta = params.data.meta || {};
+          if (meta.ai_excluded) {
+            const reason = meta.ai_exclude_reason || "excluded";
+            if (reason.startsWith("spam:")) return "Spam";
+            if (reason.startsWith("other_project:")) return "Other Project";
+            if (reason === "duplicate") return "Duplicate";
+            if (reason.startsWith("excluded_person:")) return "Excluded Person";
+            return "Excluded";
+          }
+          return "";
+        },
+        cellRenderer: (params) => {
+          if (!params.value) return "";
+          const colorMap = {
+            "Spam": "#ef4444",
+            "Other Project": "#f59e0b",
+            "Duplicate": "#8b5cf6",
+            "Excluded Person": "#ec4899",
+            "Excluded": "#6b7280"
+          };
+          const color = colorMap[params.value] || "#6b7280";
+          return `<span style="background:${color}; color:white; padding:2px 8px; border-radius:4px; font-size:0.75rem;">${params.value}</span>`;
+        },
+        filter: "agSetColumnFilter",
+        filterParams: {
+          buttons: ["apply", "clear", "reset"],
+        },
       },
       {
         headerName: "Baseline Activity",
@@ -3368,8 +3405,38 @@
       onCellValueChanged: onCellValueChanged,
     };
 
+    // Load AG Grid configuration from admin settings
+    async function loadGridConfig() {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return {}; // Return empty config if not logged in
+
+        const response = await fetch(`${API_BASE}/api/admin/settings`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) return {}; // Return empty config if fetch fails
+
+        const settings = await response.json();
+        const config = {};
+
+        settings.forEach(s => {
+          if (s.key.startsWith('ag_grid_')) {
+            const settingKey = s.key.replace('ag_grid_', '');
+            config[settingKey] = s.value;
+          }
+        });
+
+        console.log('[Grid Config] Loaded admin settings:', config);
+        return config;
+      } catch (error) {
+        console.error('[Grid Config] Error loading settings:', error);
+        return {}; // Return empty config on error
+      }
+    }
+
     // Initialize Grid
-    document.addEventListener("DOMContentLoaded", function () {
+    document.addEventListener("DOMContentLoaded", async function () {
       // Check if ag-Grid is loaded
       if (typeof agGrid === "undefined") {
         console.error("ag-Grid library failed to load");
@@ -3384,8 +3451,26 @@
       }
 
       try {
-        // Ensure theme classes are present
-        gridDiv.className = "ag-theme-quartz ag-theme-vericase";
+        // Load grid configuration from admin settings
+        const adminConfig = await loadGridConfig();
+
+        // Apply row height from admin settings if available
+        if (adminConfig.default_row_height) {
+          gridOptions.rowHeight = parseInt(adminConfig.default_row_height);
+          console.log('[Grid Config] Applied row height:', gridOptions.rowHeight);
+        }
+
+        // Apply pagination page size from admin settings if available
+        if (adminConfig.pagination_page_size) {
+          gridOptions.paginationPageSize = parseInt(adminConfig.pagination_page_size);
+          console.log('[Grid Config] Applied page size:', gridOptions.paginationPageSize);
+        }
+
+        // Apply theme from admin settings if available
+        const theme = adminConfig.theme || 'quartz';
+        gridDiv.className = `ag-theme-${theme} ag-theme-vericase`;
+        console.log('[Grid Config] Applied theme:', theme);
+
         gridApi = agGrid.createGrid(gridDiv, gridOptions);
         console.log("[Grid] AG Grid initialized with server-side row model");
         // Note: Server-side datasource automatically loads data on grid ready
@@ -3478,6 +3563,9 @@
 
       // Fetch stats directly for server-side mode
       fetchAndUpdateStats();
+
+      // Apply default filter to hide excluded emails
+      setTimeout(() => applyExcludedFilter(), 100);
     }
 
     // Legacy function - now using server-side row model
@@ -3526,6 +3614,48 @@
         btn.innerHTML = showFullContent
           ? '<i class="fas fa-compress"></i> Preview Mode'
           : '<i class="fas fa-expand"></i> Full Content';
+      }
+    }
+
+    // Toggle visibility of excluded emails
+    function toggleExcludedEmails() {
+      hideExcludedEmails = !hideExcludedEmails;
+      applyExcludedFilter();
+
+      // Update button appearance
+      const btn = document.getElementById("toggleExcludedBtn");
+      const icon = document.getElementById("excludedIcon");
+      const label = document.getElementById("excludedLabel");
+
+      if (hideExcludedEmails) {
+        if (icon) icon.className = "fas fa-eye-slash";
+        if (label) label.textContent = "Excluded Hidden";
+        if (btn) btn.classList.remove("active");
+      } else {
+        if (icon) icon.className = "fas fa-eye";
+        if (label) label.textContent = "Showing All";
+        if (btn) btn.classList.add("active");
+      }
+    }
+
+    // Apply filter to hide/show excluded emails
+    function applyExcludedFilter() {
+      if (!gridApi) return;
+
+      if (hideExcludedEmails) {
+        // Filter to only show non-excluded emails
+        const filterInstance = gridApi.getFilterInstance("refinement_status");
+        if (filterInstance) {
+          filterInstance.setModel({ values: [""] });
+          gridApi.onFilterChanged();
+        }
+      } else {
+        // Clear the refinement filter to show all
+        const filterInstance = gridApi.getFilterInstance("refinement_status");
+        if (filterInstance) {
+          filterInstance.setModel(null);
+          gridApi.onFilterChanged();
+        }
       }
     }
 

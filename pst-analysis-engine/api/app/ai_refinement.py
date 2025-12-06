@@ -53,28 +53,43 @@ LATEST_MODEL_DEFAULTS = {
     "bedrock": "amazon.nova-pro-v1:0",  # Amazon Nova Pro via Bedrock
 }
 
-# Spam/Newsletter detection patterns
+# Spam/Newsletter detection patterns - tiered by confidence
 SPAM_INDICATORS = {
-    "newsletter_words": [
+    # HIGH CONFIDENCE - Safe to auto-flag as spam (+3 points each)
+    "high_confidence_words": [
         "unsubscribe",
         "newsletter",
-        "weekly digest",
-        "daily digest",
-        "promotional",
-        "marketing",
-        "click here to",
+        "webinar",
+        "% off",
+        "discount",
+        "exhibition",
+        "conference",
+        "summit",
+        "open house",
+        "early bird",
+        "book now",
+        "free pass",
+        "secure yours",
         "view in browser",
         "email preferences",
-        "opt-out",
         "manage subscription",
-        "automated message",
-        "do not reply",
-        "no-reply",
-        "noreply",
-        "auto-generated",
+        "promotional",
+        "marketing",
+        "opt-out",
     ],
+    # MEDIUM CONFIDENCE - Flag but suggest review (+1 point each)
+    "medium_confidence_words": [
+        "out of office",
+        "automatic reply",
+        "away from",
+        "on holiday",
+        "annual leave",
+        "survey",
+        "feedback",
+        "your opinion",
+    ],
+    # Marketing/automation domains (+3 points)
     "spam_domains": [
-        "",
         "sendgrid",
         "constantcontact",
         "hubspot",
@@ -90,18 +105,13 @@ SPAM_INDICATORS = {
         "eventbrite",
         "surveymonkey",
     ],
+    # LinkedIn/social notification patterns (+3 points)
     "automated_subjects": [
-        "out of office",
-        "automatic reply",
-        "delivery status",
-        "read receipt",
-        "calendar invitation",
-        "meeting request",
-        "meeting canceled",
-        "invitation:",
-        "accepted:",
-        "declined:",
-        "tentative:",
+        "person is noticing",
+        "person noticed",
+        "people viewed",
+        "weekly digest",
+        "daily digest",
     ],
 }
 
@@ -1085,23 +1095,29 @@ Only include references that appear to be OTHER projects (is_other_project: true
                 sender_email_addr.split("@")[-1] if "@" in sender_email_addr else ""
             )
 
-            # Check newsletter/unsubscribe indicators
-            for word in SPAM_INDICATORS["newsletter_words"]:
+            # Check HIGH CONFIDENCE spam indicators (+3 points each)
+            for word in SPAM_INDICATORS["high_confidence_words"]:
                 if word in body_lower or word in subject_lower:
-                    spam_score += 2
+                    spam_score += 3
                     reasons.add(f"Contains '{word}'")
 
-            # Check spam domains
+            # Check MEDIUM CONFIDENCE indicators (+1 point each)
+            for word in SPAM_INDICATORS["medium_confidence_words"]:
+                if word in body_lower or word in subject_lower:
+                    spam_score += 1
+                    reasons.add(f"Contains '{word}' (review suggested)")
+
+            # Check spam domains (+3 points)
             for domain in SPAM_INDICATORS["spam_domains"]:
                 if domain in sender_domain or domain in sender_email_addr:
                     spam_score += 3
                     reasons.add(f"From marketing/social domain: {domain}")
 
-            # Check automated subjects
+            # Check automated subjects (+3 points)
             for pattern in SPAM_INDICATORS["automated_subjects"]:
                 if pattern in subject_lower:
-                    spam_score += 2
-                    reasons.add(f"Automated message: '{pattern}'")
+                    spam_score += 3
+                    reasons.add(f"Automated notification: '{pattern}'")
 
             # Check for HTML-heavy content with minimal text (typical of newsletters)
             if email.body_html and len(email.body_html) > 5000:
@@ -1110,8 +1126,8 @@ Only include references that appear to be OTHER projects (is_other_project: true
                     spam_score += 1
                     reasons.add("HTML-heavy with minimal text content")
 
-            # Group by sender domain for bulk detection
-            if spam_score >= 2:
+            # Group by sender domain for bulk detection (threshold: 3 = high confidence hit)
+            if spam_score >= 3:
                 key = sender_domain or sender_email_addr
                 candidate = spam_candidates[key]
                 cand_count_obj: object = candidate.get("count")
@@ -1873,7 +1889,13 @@ async def submit_answer(
                     item.name for item in question.detected_items
                 ]
             elif answer_val == "select_individual":
-                session.exclusion_rules["exclude_project_refs"] = answer.selected_items
+                # Map selected IDs back to project names
+                selected_names = [
+                    item.name
+                    for item in question.detected_items
+                    if item.id in answer.selected_items
+                ]
+                session.exclusion_rules["exclude_project_refs"] = selected_names
 
         elif question.stage == RefinementStage.SPAM_DETECTION:
             if answer_val == "exclude_all":
@@ -1883,7 +1905,13 @@ async def submit_answer(
                     if item.metadata.get("domain")
                 ]
             elif answer_val == "select_individual":
-                session.exclusion_rules["exclude_spam_domains"] = answer.selected_items
+                # Map selected IDs back to domains
+                selected_domains = [
+                    item.metadata.get("domain")
+                    for item in question.detected_items
+                    if item.id in answer.selected_items and item.metadata.get("domain")
+                ]
+                session.exclusion_rules["exclude_spam_domains"] = selected_domains
 
     # Find next unanswered question
     answered_ids = {a.question_id for a in session.answers_received}
