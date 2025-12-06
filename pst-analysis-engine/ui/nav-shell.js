@@ -279,18 +279,43 @@
         `;
   }
 
-  function renderHeader(title = "", actions = "") {
+  function renderHeader(title = "", actions = "", breadcrumbs = null) {
+    const breadcrumbHtml = breadcrumbs ? renderBreadcrumbs(breadcrumbs) : '';
     return `
             <header class="app-header">
                 <button class="btn btn-icon btn-ghost" id="sidebarToggle" style="display: none;">
                     <i class="fas fa-bars"></i>
                 </button>
+                ${breadcrumbHtml ? `
+                <div class="app-header-breadcrumb">
+                    ${breadcrumbHtml}
+                </div>
+                <div class="app-header-divider"></div>
+                ` : ''}
                 <h1 class="app-header-title">${title}</h1>
                 <div class="app-header-actions">
                     ${actions}
                 </div>
             </header>
         `;
+  }
+
+  function renderBreadcrumbs(breadcrumbs) {
+    if (!breadcrumbs || breadcrumbs.length === 0) return '';
+    
+    return breadcrumbs.map((crumb, index) => {
+      const isLast = index === breadcrumbs.length - 1;
+      const icon = crumb.icon ? `<i class="fas ${crumb.icon}"></i> ` : '';
+      
+      if (isLast) {
+        return `<span class="breadcrumb-current">${icon}${crumb.label}</span>`;
+      }
+      
+      return `
+        <a href="${crumb.url || '#'}" class="breadcrumb-link">${icon}${crumb.label}</a>
+        <span class="separator"><i class="fas fa-chevron-right"></i></span>
+      `;
+    }).join('');
   }
 
   // Load and display the current project name in the sidebar
@@ -347,6 +372,8 @@
       headerActions = "",
       showProgress = false,
       projectId = null,
+      breadcrumbs = null,
+      contentClass = "",
     } = options;
 
     // Don't inject if already has shell
@@ -359,9 +386,9 @@
             <div class="app-shell">
                 ${renderSidebar()}
                 <main class="app-main">
-                    ${renderHeader(title, headerActions)}
+                    ${renderHeader(title, headerActions, breadcrumbs)}
                     ${showProgress ? '<div id="progressTracker"></div>' : ""}
-                    <div class="app-content">
+                    <div class="app-content ${contentClass}">
                         ${existingContent}
                     </div>
                 </main>
@@ -541,5 +568,6 @@
     showProjectSelector,
     closeProjectSelector,
     confirmProjectSelection,
+    renderBreadcrumbs,
   };
 })();
