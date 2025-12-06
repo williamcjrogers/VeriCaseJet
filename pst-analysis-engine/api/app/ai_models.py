@@ -1,15 +1,13 @@
 """
 Centralized AI model selection, priorities, and helper utilities.
-Ensures we consistently choose the right model for each task without web search.
+Supports: OpenAI, Anthropic, Gemini, and Amazon Bedrock providers.
 """
 
 from __future__ import annotations
 
 import logging
 from enum import Enum
-from typing import Any, TypedDict, cast
-
-import aiohttp
+from typing import TypedDict
 
 from .config import settings
 
@@ -32,28 +30,28 @@ def log_model_selection(task: str, selected_model: str, reason: str) -> None:
 class ModelPriorityManager:
     """
     Defines global ordering so fallbacks are deterministic across the platform.
+    Consolidated to 4 providers: OpenAI, Anthropic, Gemini, Bedrock
     """
 
     BASIC_ORDER = [
         "claude-sonnet-4",
         "gpt-4o",
         "gemini-2-flash",
-        "perplexity-sonar",
+        "bedrock-nova-lite",
     ]
 
     MODERATE_ORDER = [
         "gpt-4o",
         "claude-sonnet-4",
-        "gemini-2-flash",
-        "grok-3",
+        "gemini-3-pro",
+        "bedrock-nova-pro",
     ]
 
     DEEP_RESEARCH_ORDER = [
-        "gpt-5.1-reasoning",
+        "o1-reasoning",
         "claude-opus-4-extended",
         "gemini-3-pro",
-        "grok-4-thinking",
-        "sonar-pro",
+        "bedrock-claude-opus",
     ]
 
     @staticmethod
@@ -74,26 +72,26 @@ class ModelConfig(TypedDict, total=False):
 class AIModelService:
     """
     Provides centralized selection and metadata for all AI tasks.
+    Supports 4 providers: OpenAI, Anthropic, Gemini, Amazon Bedrock
     """
 
     MODELS: dict[TaskComplexity, ModelConfig] = {
         TaskComplexity.BASIC: {
             "primary": "claude-sonnet-4",
-            "fallbacks": ["gpt-4o", "gemini-2-flash", "perplexity-sonar"],
+            "fallbacks": ["gpt-4o", "gemini-2-flash", "bedrock-nova-lite"],
             "features": ["fast", "structured", "conversational"],
         },
         TaskComplexity.MODERATE: {
-            "primary": "gpt-5.1",
-            "fallbacks": ["claude-sonnet-4", "gemini-3-pro", "grok-3"],
+            "primary": "gpt-4o",
+            "fallbacks": ["claude-sonnet-4", "gemini-3-pro", "bedrock-nova-pro"],
             "features": ["analysis", "extraction", "structured"],
         },
         TaskComplexity.DEEP_RESEARCH: {
-            "primary": "gpt-5.1-reasoning",
+            "primary": "o1-reasoning",
             "fallbacks": [
                 "claude-opus-4-extended",
                 "gemini-3-pro",
-                "grok-4-thinking",
-                "sonar-pro",
+                "bedrock-claude-opus",
             ],
             "features": [
                 "comprehensive",
@@ -106,70 +104,107 @@ class AIModelService:
 
     MODEL_API_MAP: dict[str, dict[str, str]] = {
         # Friendly name -> provider + actual model identifier
-        # ============ ANTHROPIC (Claude) ============
+        # ============ ANTHROPIC (Claude) - Direct API ============
         "claude-sonnet-4": {
             "provider": "anthropic",
-            "model": "claude-sonnet-4-20250514",
+            "model": "claude-sonnet-4-5-20250929",
         },
         "claude-opus-4-extended": {
             "provider": "anthropic",
-            "model": "claude-opus-4-5-20251101",  # Latest Opus 4.5 with extended thinking
+            "model": "claude-opus-4-5-20251101",  # Opus 4.5 with extended thinking
+        },
+        "claude-haiku-4": {
+            "provider": "anthropic",
+            "model": "claude-haiku-4-5-20251001",
         },
         # ============ OPENAI (GPT) ============
         "gpt-4o": {
             "provider": "openai",
             "model": "gpt-4o",
         },
-        "gpt-5.1": {
+        "gpt-4o-mini": {
             "provider": "openai",
-            "model": "gpt-5.1-2025-11-13",  # Latest flagship
+            "model": "gpt-4o-mini",
         },
-        "gpt-5.1-reasoning": {
+        "o1-reasoning": {
             "provider": "openai",
-            "model": "gpt-5.1-2025-11-13",  # With effort: "high" for deep reasoning
-            "reasoning_effort": "high",
+            "model": "o1",  # OpenAI o1 reasoning model
+        },
+        "o3-reasoning": {
+            "provider": "openai",
+            "model": "o3",  # OpenAI o3 reasoning model
+        },
+        "gpt-5": {
+            "provider": "openai",
+            "model": "gpt-5.1",  # GPT-5.1 flagship
         },
         # ============ GOOGLE (Gemini) ============
         "gemini-2-flash": {
             "provider": "google",
-            "model": "gemini-2.0-flash",
+            "model": "gemini-2.5-flash",
         },
         "gemini-3-pro": {
             "provider": "google",
-            "model": "gemini-3.0-pro",  # Flagship multimodal, 1M+ context
+            "model": "gemini-3-pro-preview",  # Flagship multimodal, 1M+ context
         },
-        # ============ XAI (Grok) ============
-        "grok-3": {
-            "provider": "xai",
-            "model": "grok-3",
+        "gemini-2-5-pro": {
+            "provider": "google",
+            "model": "gemini-2.5-pro",
         },
-        "grok-4-thinking": {
-            "provider": "xai",
-            "model": "grok-4-1-fast-reasoning",  # Exposes chain-of-thought
+        # ============ AMAZON BEDROCK ============
+        "bedrock-claude-opus": {
+            "provider": "bedrock",
+            "model": "anthropic.claude-opus-4-5-20251101-v1:0",
         },
-        # ============ PERPLEXITY ============
-        "perplexity-sonar": {
-            "provider": "perplexity",
-            "model": "sonar",
+        "bedrock-claude-sonnet": {
+            "provider": "bedrock",
+            "model": "anthropic.claude-sonnet-4-5-20250929-v1:0",
         },
-        "sonar-pro": {
-            "provider": "perplexity",
-            "model": "sonar-pro",  # Deep research, 200k context, 2x citations
+        "bedrock-nova-pro": {
+            "provider": "bedrock",
+            "model": "amazon.nova-pro-v1:0",
+        },
+        "bedrock-nova-lite": {
+            "provider": "bedrock",
+            "model": "amazon.nova-lite-v1:0",
+        },
+        "bedrock-nova-micro": {
+            "provider": "bedrock",
+            "model": "amazon.nova-micro-v1:0",
+        },
+        "bedrock-llama-70b": {
+            "provider": "bedrock",
+            "model": "meta.llama3-3-70b-instruct-v1:0",
+        },
+        "bedrock-mistral-large": {
+            "provider": "bedrock",
+            "model": "mistral.mistral-large-2407-v1:0",
         },
     }
 
     MODEL_LABELS: dict[str, str] = {
-        "claude-sonnet-4": "Claude Sonnet 4",
-        "claude-opus-4-extended": "Claude Opus 4.5 Extended Thinking",
+        # Anthropic
+        "claude-sonnet-4": "Claude 4.5 Sonnet",
+        "claude-opus-4-extended": "Claude 4.5 Opus (Extended Thinking)",
+        "claude-haiku-4": "Claude 4.5 Haiku",
+        # OpenAI
         "gpt-4o": "GPT-4o",
-        "gpt-5.1": "GPT-5.1 Flagship",
-        "gpt-5.1-reasoning": "GPT-5.1 Deep Reasoning",
-        "gemini-2-flash": "Gemini 2.0 Flash",
+        "gpt-4o-mini": "GPT-4o Mini",
+        "o1-reasoning": "OpenAI o1 (Reasoning)",
+        "o3-reasoning": "OpenAI o3 (Reasoning)",
+        "gpt-5": "GPT-5.1 Flagship",
+        # Gemini
+        "gemini-2-flash": "Gemini 2.5 Flash",
         "gemini-3-pro": "Gemini 3.0 Pro",
-        "grok-3": "Grok 3",
-        "grok-4-thinking": "Grok 4.1 Thinking",
-        "perplexity-sonar": "Perplexity Sonar",
-        "sonar-pro": "Perplexity Sonar Pro (Deep Research)",
+        "gemini-2-5-pro": "Gemini 2.5 Pro",
+        # Bedrock
+        "bedrock-claude-opus": "Claude Opus 4.5 (Bedrock)",
+        "bedrock-claude-sonnet": "Claude Sonnet 4.5 (Bedrock)",
+        "bedrock-nova-pro": "Amazon Nova Pro",
+        "bedrock-nova-lite": "Amazon Nova Lite",
+        "bedrock-nova-micro": "Amazon Nova Micro",
+        "bedrock-llama-70b": "Llama 3.3 70B (Bedrock)",
+        "bedrock-mistral-large": "Mistral Large (Bedrock)",
     }
 
     @classmethod
@@ -225,64 +260,3 @@ class AIModelService:
             return TaskComplexity(value.lower())
         except Exception:
             return TaskComplexity.BASIC
-
-
-async def query_perplexity_local(prompt: str, context: str) -> str | None:
-    """
-    Query Perplexity with web search disabled so we only rely on provided evidence.
-    """
-    api_key = getattr(settings, "PERPLEXITY_API_KEY", None)
-    if not api_key:
-        return None
-
-    headers: dict[str, str] = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-
-    payload: dict[str, Any] = {
-        "model": "sonar-pro",  # Deep research model with 200k context
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are Perplexity Sonar Pro. Analyze the supplied context thoroughly and provide comprehensive insights.",
-            },
-            {
-                "role": "user",
-                "content": f"Context:\n{context}\n\nPrompt:\n{prompt}",
-            },
-        ],
-        # Control web search based on settings
-        "search_web": bool(getattr(settings, "AI_WEB_ACCESS_ENABLED", False)),
-        "temperature": 0.2,
-        "top_p": 0.9,
-    }
-
-    try:
-        timeout = aiohttp.ClientTimeout(total=30)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(
-                "https://api.perplexity.ai/chat/completions",
-                headers=headers,
-                json=payload,
-            ) as response:
-                response.raise_for_status()
-                data: dict[str, Any] = await response.json()
-                choices_raw = data.get("choices")
-                if not isinstance(choices_raw, list) or not choices_raw:
-                    return None
-                first_choice_raw = cast(object, choices_raw[0])
-                if not isinstance(first_choice_raw, dict):
-                    return None
-                first_choice = cast(dict[str, object], first_choice_raw)
-                message_raw = first_choice.get("message")
-                if not isinstance(message_raw, dict):
-                    return None
-                message = cast(dict[str, object], message_raw)
-                content = message.get("content")
-                if isinstance(content, str):
-                    return content
-                return None
-    except Exception as exc:
-        logger.warning("Perplexity offline query failed: %s", exc)
-        return None

@@ -36,8 +36,9 @@ except ImportError:  # pragma: no cover - runtime fallback if redis-py not insta
 from .models import User, EmailMessage, Project, EvidenceItem
 from .db import get_db
 from .security import current_user
-from .ai_settings import get_ai_api_key, get_ai_model
+from .ai_settings import get_ai_api_key, get_ai_model, is_bedrock_enabled, get_bedrock_region
 from .settings import settings
+from .ai_providers import BedrockProvider, bedrock_available
 
 if TYPE_CHECKING:
     from openai.types.chat import (
@@ -54,13 +55,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/deep-research", tags=["deep-research"])
 
-# Latest flagship model defaults for Deep Research (use most powerful models)
+# Latest flagship model defaults for Deep Analysis (use most powerful models)
+# Supports 4 providers: OpenAI, Anthropic, Gemini, Amazon Bedrock
 LATEST_MODEL_DEFAULTS = {
     "openai": "gpt-5.1-2025-11-13",  # GPT-5.1 Flagship with configurable reasoning
     "anthropic": "claude-opus-4-5-20251101",  # Claude Opus 4.5 - smartest for complex tasks
     "gemini": "gemini-3.0-pro",  # Gemini 3.0 Pro - 1M+ context multimodal
-    "grok": "grok-4-1-fast-reasoning",  # Grok 4.1 Thinking - chain-of-thought reasoning
-    "perplexity": "sonar-pro",  # Sonar Pro - 200k context, 2x citations
+    "bedrock": "amazon.nova-pro-v1:0",  # Amazon Nova Pro - enterprise AI via Bedrock
 }
 
 
@@ -229,27 +230,39 @@ class ResearchStatusResponse(BaseModel):
 
 
 class BaseAgent:
-    """Base class for all agents"""
+    """Base class for all agents - supports 4 providers: OpenAI, Anthropic, Gemini, Bedrock"""
 
     def __init__(self, db: Session):
         self.db = db
         self.openai_key = get_ai_api_key("openai", db)
         self.anthropic_key = get_ai_api_key("anthropic", db)
         self.gemini_key = get_ai_api_key("gemini", db)
-        self.grok_key = get_ai_api_key("grok", db)
-        self.perplexity_key = get_ai_api_key("perplexity", db)
+
+        # Bedrock uses IAM credentials, not API keys
+        self.bedrock_enabled = is_bedrock_enabled(db) and bedrock_available()
+        self.bedrock_region = get_bedrock_region(db)
+        self._bedrock_provider: BedrockProvider | None = None
 
         # Model selections
         self.openai_model = get_ai_model("openai", db)
         self.anthropic_model = get_ai_model("anthropic", db)
         self.gemini_model = get_ai_model("gemini", db)
-        self.grok_model = get_ai_model("grok", db)
-        self.perplexity_model = get_ai_model("perplexity", db)
+        self.bedrock_model = get_ai_model("bedrock", db)
+
+    @property
+    def bedrock_provider(self) -> BedrockProvider | None:
+        """Lazy-load Bedrock provider"""
+        if self._bedrock_provider is None and self.bedrock_enabled:
+            try:
+                self._bedrock_provider = BedrockProvider(region=self.bedrock_region)
+            except Exception as e:
+                logger.warning(f"Failed to initialize Bedrock provider: {e}")
+        return self._bedrock_provider
 
     async def _call_llm(
         self, prompt: str, system_prompt: str = "", use_powerful: bool = False
     ) -> str:
-        """Call the appropriate LLM based on configuration"""
+        """Call the appropriate LLM based on configuration (4 providers)"""
         # Try Anthropic first for powerful tasks
         if use_powerful and self.anthropic_key:
             return await self._call_anthropic(prompt, system_prompt)
@@ -262,13 +275,9 @@ class BaseAgent:
         if self.gemini_key:
             return await self._call_gemini(prompt, system_prompt)
 
-        # Try Grok
-        if self.grok_key:
-            return await self._call_grok(prompt, system_prompt)
-
-        # Try Perplexity
-        if self.perplexity_key:
-            return await self._call_perplexity(prompt, system_prompt)
+        # Try Bedrock
+        if self.bedrock_enabled:
+            return await self._call_bedrock(prompt, system_prompt)
 
         # Fallback to Anthropic
         if self.anthropic_key:
@@ -344,65 +353,19 @@ class BaseAgent:
         )  # pyright: ignore[reportAny]
         return str(getattr(response, "text", ""))  # pyright: ignore[reportAny]
 
-    async def _call_grok(self, prompt: str, system_prompt: str = "") -> str:
-        """Call xAI Grok API (OpenAI-compatible endpoint)"""
-        import openai
+    async def _call_bedrock(self, prompt: str, system_prompt: str = "") -> str:
+        """Call Amazon Bedrock via BedrockProvider"""
+        if not self.bedrock_provider:
+            raise RuntimeError("Bedrock provider not available")
 
-        client = openai.AsyncOpenAI(
-            api_key=self.grok_key, base_url="https://api.x.ai/v1"
-        )
-
-        messages: list[ChatCompletionMessageParam] = []
-        if system_prompt:
-            system_message: ChatCompletionSystemMessageParam = {
-                "role": "system",
-                "content": system_prompt,
-            }
-            messages.append(system_message)
-        user_message: ChatCompletionUserMessageParam = {
-            "role": "user",
-            "content": prompt,
-        }
-        messages.append(user_message)
-
-        response = await client.chat.completions.create(
-            model=self.grok_model or LATEST_MODEL_DEFAULTS["grok"],
-            messages=messages,
+        response = await self.bedrock_provider.invoke(
+            model_id=self.bedrock_model or LATEST_MODEL_DEFAULTS["bedrock"],
+            prompt=prompt,
             max_tokens=4000,
             temperature=0.3,
+            system_prompt=system_prompt if system_prompt else None,
         )
-        content = response.choices[0].message.content
-        return content or ""
-
-    async def _call_perplexity(self, prompt: str, system_prompt: str = "") -> str:
-        """Call Perplexity API (OpenAI-compatible endpoint)"""
-        import openai
-
-        client = openai.AsyncOpenAI(
-            api_key=self.perplexity_key, base_url="https://api.perplexity.ai"
-        )
-
-        messages: list[ChatCompletionMessageParam] = []
-        if system_prompt:
-            system_message: ChatCompletionSystemMessageParam = {
-                "role": "system",
-                "content": system_prompt,
-            }
-            messages.append(system_message)
-        user_message: ChatCompletionUserMessageParam = {
-            "role": "user",
-            "content": prompt,
-        }
-        messages.append(user_message)
-
-        response = await client.chat.completions.create(
-            model=self.perplexity_model or LATEST_MODEL_DEFAULTS["perplexity"],
-            messages=messages,
-            max_tokens=4000,
-            temperature=0.3,
-        )
-        content = response.choices[0].message.content
-        return content or ""
+        return response
 
 
 class PlannerAgent(BaseAgent):

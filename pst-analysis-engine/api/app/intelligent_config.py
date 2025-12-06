@@ -19,7 +19,6 @@ from .ai_models import (
     AIModelService,
     TaskComplexity,
     log_model_selection,
-    query_perplexity_local,
 )
 
 if TYPE_CHECKING:
@@ -377,14 +376,6 @@ async def _get_ai_config_response(
                 if response_text:
                     log_model_selection(
                         "configuration", display_name, f"Gemini:{model_name}"
-                    )
-                    return response_text
-
-            if provider == "perplexity":
-                response_text = await query_perplexity_local(prompt, "")
-                if response_text:
-                    log_model_selection(
-                        "configuration", display_name, "Perplexity offline"
                     )
                     return response_text
 

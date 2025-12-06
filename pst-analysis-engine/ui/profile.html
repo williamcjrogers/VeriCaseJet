@@ -3,75 +3,35 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Profile - VeriCase</title>
+    <title>VeriCase - Profile</title>
+    <!-- Font Awesome -->
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
+    <!-- VeriCase Design System -->
+    <link rel="stylesheet" href="brand-styles.css" />
+    <link rel="stylesheet" href="design-system.css" />
+    <script src="vericase-ui.js"></script>
+    <script src="nav-shell.js"></script>
     <style>
-      :root {
-        --vericase-teal: #0f9d9a;
-        --vericase-teal-dark: #0a7d7a;
-        --vericase-navy: #0f172a;
-        --bg-primary: #f8fafc;
-        --bg-secondary: #ffffff;
-        --text-primary: #0f172a;
-        --text-secondary: #64748b;
-        --gray-100: #f1f5f9;
-        --gray-200: #e2e8f0;
-      }
-
       * {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
       }
       body {
-        font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
-          Cantarell, sans-serif;
+        font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
         background: var(--bg-primary);
         min-height: 100vh;
         color: var(--text-primary);
       }
 
-      /* Header */
-      .header {
-        background: white;
-        border-bottom: 1px solid var(--gray-200);
-        padding: 16px 24px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-      }
-      .header h1 {
-        font-size: 24px;
-        color: var(--text-primary);
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-      .header-actions {
-        display: flex;
-        gap: 16px;
-      }
-      .header-actions a {
-        color: var(--vericase-teal);
-        text-decoration: none;
-        font-size: 14px;
-        font-weight: 500;
-      }
-      .header-actions a:hover {
-        text-decoration: underline;
-        color: var(--vericase-teal-dark);
-      }
-
-      /* Main Content */
+      /* Main Content - adjusted for nav shell */
       .container {
         max-width: 1200px;
         margin: 0 auto;
-        padding: 32px 24px;
+        padding: 24px;
       }
 
       /* Profile Grid */
@@ -353,24 +313,8 @@
       }
     </style>
   </head>
-  <body>
-    <!-- Header -->
-    <header class="header">
-      <h1>
-        <img
-          src="../assets/Asset 1.png"
-          alt="VeriCase"
-          style="height: 28px; margin-right: 12px; vertical-align: middle"
-        />
-        User Profile
-      </h1>
-      <div class="header-actions">
-        <a href="dashboard.html">← Back to Dashboard</a>
-        <a href="#" id="logoutLink">Logout</a>
-      </div>
-    </header>
-
-    <!-- Main Container -->
+  <body class="preload">
+    <!-- Nav shell injected by JavaScript -->
     <div class="container">
       <!-- Email Verification Banner -->
       <div id="verifyBanner" class="verify-banner">
@@ -489,6 +433,29 @@
     </div>
 
     <script>
+      // Inject navigation shell
+      document.addEventListener("DOMContentLoaded", () => {
+        VericaseShell.inject({
+          title: "User Profile",
+          headerActions: '<a href="#" id="logoutLink" style="color: var(--vericase-teal); text-decoration: none; font-size: 14px; font-weight: 500;"><i class="fas fa-sign-out-alt"></i> Logout</a>',
+        });
+
+        // Remove preload class
+        requestAnimationFrame(() => {
+          document.body.classList.remove("preload");
+        });
+
+        // Setup logout handler after shell is injected
+        const logoutLink = document.getElementById("logoutLink");
+        if (logoutLink) {
+          logoutLink.addEventListener("click", handleLogout);
+        }
+
+        // Initialize page
+        loadProfile();
+        loadSessions();
+      });
+
       const apiUrl = window.location.origin;
       const token = localStorage.getItem("token");
       let currentUser = null;
@@ -756,26 +723,20 @@
         alert("Verification email sent!");
       }
 
-      // Logout
-      document
-        .getElementById("logoutLink")
-        .addEventListener("click", async (e) => {
-          e.preventDefault();
+      // Logout handler
+      async function handleLogout(e) {
+        e.preventDefault();
 
-          try {
-            await apiCall("/api/auth/logout", "POST");
-          } catch (error) {
-            // Logout anyway
-          }
+        try {
+          await apiCall("/api/auth/logout", "POST");
+        } catch (error) {
+          // Logout anyway
+        }
 
-          localStorage.removeItem("token");
-          localStorage.removeItem("user");
-          window.location.href = "login.html";
-        });
-
-      // Initialize
-      loadProfile();
-      loadSessions();
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "login.html";
+      }
     </script>
   </body>
 </html>

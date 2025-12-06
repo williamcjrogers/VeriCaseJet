@@ -35,7 +35,8 @@ from .models import (
     User,
     RefinementSessionDB,
 )
-from .ai_settings import get_ai_api_key, get_ai_model
+from .ai_settings import get_ai_api_key, get_ai_model, is_bedrock_enabled, get_bedrock_region
+from .ai_providers import BedrockProvider, bedrock_available
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +50,7 @@ LATEST_MODEL_DEFAULTS = {
     "openai": "gpt-5.1-2025-11-13",  # GPT-5.1 Flagship
     "anthropic": "claude-opus-4-5-20251101",  # Claude Opus 4.5 Extended Thinking
     "gemini": "gemini-3.0-pro",  # Gemini 3.0 Pro (1M+ context)
-    "grok": "grok-4-1-fast-reasoning",  # Grok 4.1 Thinking (chain-of-thought)
-    "perplexity": "sonar-pro",  # Sonar Pro (200k context, 2x citations)
+    "bedrock": "amazon.nova-pro-v1:0",  # Amazon Nova Pro via Bedrock
 }
 
 # Spam/Newsletter detection patterns
@@ -472,15 +472,29 @@ class AIRefinementEngine:
         self.openai_key = get_ai_api_key("openai", db)
         self.anthropic_key = get_ai_api_key("anthropic", db)
         self.gemini_key = get_ai_api_key("gemini", db)
-        self.grok_key = get_ai_api_key("grok", db)
-        self.perplexity_key = get_ai_api_key("perplexity", db)
+
+        # Bedrock uses IAM credentials, not API keys
+        self.bedrock_enabled = is_bedrock_enabled(db) and bedrock_available()
+        self.bedrock_region = get_bedrock_region(db)
+        self._bedrock_provider: BedrockProvider | None = None
+
         self.openai_model = get_ai_model("openai", db)
         self.anthropic_model = get_ai_model("anthropic", db)
-        self.grok_model = get_ai_model("grok", db)
-        self.perplexity_model = get_ai_model("perplexity", db)
+        self.gemini_model = get_ai_model("gemini", db)
+        self.bedrock_model = get_ai_model("bedrock", db)
 
         # Build project context from configuration
         self.project_context = self._build_project_context()
+
+    @property
+    def bedrock_provider(self) -> BedrockProvider | None:
+        """Lazy-load Bedrock provider"""
+        if self._bedrock_provider is None and self.bedrock_enabled:
+            try:
+                self._bedrock_provider = BedrockProvider(region=self.bedrock_region)
+            except Exception as e:
+                logger.warning(f"Failed to initialize Bedrock provider: {e}")
+        return self._bedrock_provider
 
     def _build_project_context(
         self,
@@ -562,7 +576,7 @@ class AIRefinementEngine:
         return context
 
     async def _call_llm(self, prompt: str, system_prompt: str = "") -> str:
-        """Call the best available LLM"""
+        """Call the best available LLM (4 providers)"""
         # Prefer Anthropic for analysis tasks
         if self.anthropic_key:
             return await self._call_anthropic(prompt, system_prompt)
@@ -573,11 +587,8 @@ class AIRefinementEngine:
         if self.gemini_key:
             return await self._call_gemini(prompt, system_prompt)
 
-        if self.grok_key:
-            return await self._call_grok(prompt, system_prompt)
-
-        if self.perplexity_key:
-            return await self._call_perplexity(prompt, system_prompt)
+        if self.bedrock_enabled:
+            return await self._call_bedrock(prompt, system_prompt)
 
         raise HTTPException(
             500, "No AI providers configured. Please add API keys in Admin Settings."
@@ -648,49 +659,19 @@ class AIRefinementEngine:
             getattr(response, "text", "")
         )  # pyright: ignore[reportUnknownArgumentType]
 
-    async def _call_grok(self, prompt: str, system_prompt: str = "") -> str:
-        """Call xAI Grok API (OpenAI-compatible endpoint)"""
-        import openai
+    async def _call_bedrock(self, prompt: str, system_prompt: str = "") -> str:
+        """Call Amazon Bedrock via BedrockProvider"""
+        if not self.bedrock_provider:
+            raise RuntimeError("Bedrock provider not available")
 
-        # Grok uses OpenAI-compatible API
-        client = openai.AsyncOpenAI(
-            api_key=self.grok_key, base_url="https://api.x.ai/v1"
-        )
-
-        messages: list[dict[str, str]] = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-
-        response = await client.chat.completions.create(
-            model=self.grok_model or LATEST_MODEL_DEFAULTS["grok"],
-            messages=messages,  # pyright: ignore[reportArgumentType]
+        response = await self.bedrock_provider.invoke(
+            model_id=self.bedrock_model or LATEST_MODEL_DEFAULTS["bedrock"],
+            prompt=prompt,
             max_tokens=4000,
             temperature=0.2,
+            system_prompt=system_prompt if system_prompt else None,
         )
-        return response.choices[0].message.content or ""
-
-    async def _call_perplexity(self, prompt: str, system_prompt: str = "") -> str:
-        """Call Perplexity API (OpenAI-compatible endpoint)"""
-        import openai
-
-        # Perplexity uses OpenAI-compatible API
-        client = openai.AsyncOpenAI(
-            api_key=self.perplexity_key, base_url="https://api.perplexity.ai"
-        )
-
-        messages: list[dict[str, str]] = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-
-        response = await client.chat.completions.create(
-            model=self.perplexity_model or LATEST_MODEL_DEFAULTS["perplexity"],
-            messages=messages,  # pyright: ignore[reportArgumentType]
-            max_tokens=4000,
-            temperature=0.2,
-        )
-        return response.choices[0].message.content or ""
+        return response
 
     async def analyze_for_other_projects(
         self, emails: list[EmailMessage]

@@ -4,12 +4,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>User Management - VeriCase Admin</title>
-    <!-- Local Library -->
+    <title>VeriCase - User Management</title>
+    <!-- Font Awesome -->
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
+    <!-- VeriCase Design System -->
+    <link rel="stylesheet" href="brand-styles.css" />
+    <link rel="stylesheet" href="design-system.css" />
+    <script src="vericase-ui.js"></script>
+    <script src="nav-shell.js"></script>
     <style>
       * {
         margin: 0;
@@ -17,41 +22,16 @@
         box-sizing: border-box;
       }
       body {
-        font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
-          Cantarell, sans-serif;
-        background: #f7fafc;
+        font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+        background: var(--bg-primary, #f7fafc);
         min-height: 100vh;
       }
 
-      /* Header */
-      .header {
-        background: white;
-        border-bottom: 1px solid #e2e8f0;
-        padding: 16px 24px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      }
-      .header h1 {
-        font-size: 24px;
-        color: #2d3748;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-      .header-actions {
-        display: flex;
-        gap: 16px;
-        align-items: center;
-      }
-
-      /* Container */
+      /* Container - adjusted for nav shell sidebar */
       .container {
         max-width: 1400px;
         margin: 0 auto;
-        padding: 32px 24px;
+        padding: 24px;
       }
 
       /* Stats Cards */
@@ -364,25 +344,8 @@
       }
     </style>
   </head>
-  <body>
-    <!-- Header -->
-    <header class="header">
-      <h1>
-        <img
-          src="assets/LOGOTOBEUSED.png"
-          alt="VeriCase"
-          style="height: 28px; margin-right: 12px; vertical-align: middle"
-        /><i class="fas fa-users-cog"></i> User Management
-      </h1>
-      <div class="header-actions">
-        <span id="currentUser" style="color: #718096; font-size: 14px"></span>
-        <a href="dashboard.html" class="btn btn-secondary btn-sm">
-          <i class="fas fa-arrow-left"></i> Back to Dashboard
-        </a>
-      </div>
-    </header>
-
-    <!-- Container -->
+  <body class="preload">
+    <!-- Container - nav shell injected by JavaScript -->
     <div class="container">
       <!-- Stats -->
       <div class="stats-grid">
@@ -480,6 +443,23 @@
     </div>
 
     <script>
+      // Inject navigation shell
+      document.addEventListener("DOMContentLoaded", () => {
+        VericaseShell.inject({
+          title: "User Management",
+          headerActions: '<span id="currentUser" style="color: var(--text-muted); font-size: 14px;"></span>',
+        });
+
+        // Remove preload class after shell is injected
+        requestAnimationFrame(() => {
+          document.body.classList.remove("preload");
+        });
+
+        // Initialize page
+        loadCurrentUser();
+        loadUsers();
+      });
+
       const apiUrl = window.location.origin;
       const token = localStorage.getItem("token");
       let users = [];
@@ -773,10 +753,6 @@
           closeModal();
         }
       });
-
-      // Initialize
-      loadCurrentUser();
-      loadUsers();
     </script>
   </body>
 </html>

@@ -2,7 +2,7 @@
 """
 AI Evidence Assistant - Multi-Model Deep Research
 Helps users understand their evidence, build chronologies, and develop narratives
-Uses GPT-5.1, Gemini 3 Pro, Claude Opus 4.5, and Grok 4.1 for comprehensive analysis
+Uses GPT-5.1, Gemini 3 Pro, Claude Opus 4.5, and Amazon Bedrock for comprehensive analysis
 """
 import logging
 import asyncio
@@ -18,13 +18,23 @@ from sqlalchemy import or_
 from .models import User, EmailMessage, Project, Case
 from .db import get_db
 from .security import current_user
-from .ai_settings import AISettings, get_ai_api_key, get_ai_model
+from .ai_settings import (
+    AISettings,
+    get_ai_api_key,
+    get_ai_model,
+    is_bedrock_enabled,
+    get_bedrock_region,
+    is_fallback_enabled,
+    is_fallback_logging_enabled,
+    get_effective_provider,
+    get_function_config,
+)
 from .ai_models import (
     AIModelService,
     TaskComplexity,
     log_model_selection,
-    query_perplexity_local,
 )
+from .ai_providers import BedrockProvider, bedrock_available
 
 logger = logging.getLogger(__name__)
 
@@ -91,20 +101,34 @@ class AIEvidenceOrchestrator:
 
     def __init__(self, db: Session | None = None):
         # Load API keys from database settings (with env var fallback)
+        # Supports 4 providers: OpenAI, Anthropic, Gemini, Amazon Bedrock
         self.db = db
         self.openai_key = get_ai_api_key("openai", db) or ""
         self.anthropic_key = get_ai_api_key("anthropic", db) or ""
         self.google_key = get_ai_api_key("gemini", db) or ""
-        self.grok_key = get_ai_api_key("grok", db) or ""
-        self.perplexity_key = get_ai_api_key("perplexity", db) or ""
+
+        # Bedrock uses IAM credentials, not API keys
+        self.bedrock_enabled = is_bedrock_enabled(db) and bedrock_available()
+        self.bedrock_region = get_bedrock_region(db)
+        self._bedrock_provider: BedrockProvider | None = None
 
         # Load model selections from database
         self.openai_model = get_ai_model("openai", db)
         self.anthropic_model = get_ai_model("anthropic", db)
         self.gemini_model = get_ai_model("gemini", db)
-        self.grok_model = get_ai_model("grok", db)
+        self.bedrock_model = get_ai_model("bedrock", db)
 
         self.model_service = AIModelService()
+
+    @property
+    def bedrock_provider(self) -> BedrockProvider | None:
+        """Lazy-load Bedrock provider"""
+        if self._bedrock_provider is None and self.bedrock_enabled:
+            try:
+                self._bedrock_provider = BedrockProvider(region=self.bedrock_region)
+            except Exception as e:
+                logger.warning(f"Failed to initialize Bedrock provider: {e}")
+        return self._bedrock_provider
 
     def refresh_settings(self, db: Session) -> None:
         """Reload settings from database"""
@@ -112,12 +136,13 @@ class AIEvidenceOrchestrator:
         self.openai_key = get_ai_api_key("openai", db) or ""
         self.anthropic_key = get_ai_api_key("anthropic", db) or ""
         self.google_key = get_ai_api_key("gemini", db) or ""
-        self.grok_key = get_ai_api_key("grok", db) or ""
-        self.perplexity_key = get_ai_api_key("perplexity", db) or ""
+        self.bedrock_enabled = is_bedrock_enabled(db) and bedrock_available()
+        self.bedrock_region = get_bedrock_region(db)
+        self._bedrock_provider = None  # Reset to reload
         self.openai_model = get_ai_model("openai", db)
         self.anthropic_model = get_ai_model("anthropic", db)
         self.gemini_model = get_ai_model("gemini", db)
-        self.grok_model = get_ai_model("grok", db)
+        self.bedrock_model = get_ai_model("bedrock", db)
 
     async def quick_search(
         self, query: str, emails: list[EmailMessage]
@@ -161,10 +186,8 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
                     response_text = await self._query_gpt_turbo(prompt, model_name)
                 elif provider == "anthropic" and self.anthropic_key:
                     response_text = await self._query_claude_sonnet(prompt, model_name)
-                elif provider == "perplexity":
-                    response_text = await query_perplexity_local(prompt, context)
-                    if not response_text:
-                        raise RuntimeError("Perplexity returned no content")
+                elif provider == "bedrock" and self.bedrock_enabled:
+                    response_text = await self._query_bedrock(prompt, model_name)
                 else:
                     continue
 
@@ -247,9 +270,9 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
                         query, context, emails, model_name, display_name
                     )
                 )
-            elif provider == "grok" and self.grok_key:
+            elif provider == "bedrock" and self.bedrock_enabled:
                 tasks.append(
-                    self._grok_identify_gaps(
+                    self._bedrock_identify_gaps(
                         query, context, emails, model_name, display_name
                     )
                 )
@@ -312,9 +335,9 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
                 ],
                 "models": {
                     "GPT-5 Pro": "Chronological sequencing and event extraction",
-                    "Gemini 2.5 Pro": "Pattern recognition across timeline",
-                    "Claude Opus 4.1": "Narrative construction and causation",
-                    "Grok 4": "Gap identification and missing evidence",
+                    "Gemini 3.0 Pro": "Pattern recognition across timeline",
+                    "Claude Opus 4.5": "Narrative construction and causation",
+                    "Amazon Nova Pro": "Gap identification and missing evidence",
                 },
             },
             "delay_analysis": {
@@ -326,9 +349,9 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
                 ],
                 "models": {
                     "GPT-5 Pro": "Delay event identification and quantification",
-                    "Gemini 2.5 Pro": "Causation analysis and responsibility",
-                    "Claude Opus 4.1": "Legal implications and entitlement",
-                    "Grok 4": "Risk assessment and strategic insights",
+                    "Gemini 3.0 Pro": "Causation analysis and responsibility",
+                    "Claude Opus 4.5": "Legal implications and entitlement",
+                    "Amazon Nova Pro": "Risk assessment and strategic insights",
                 },
             },
             "narrative": {
@@ -340,9 +363,9 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
                 ],
                 "models": {
                     "GPT-5 Pro": "Narrative structure and flow",
-                    "Gemini 2.5 Pro": "Evidence mapping and connections",
-                    "Claude Opus 4.1": "Legal narrative and argumentation",
-                    "Grok 4": "Alternative perspectives and weaknesses",
+                    "Gemini 3.0 Pro": "Evidence mapping and connections",
+                    "Claude Opus 4.5": "Legal narrative and argumentation",
+                    "Amazon Nova Pro": "Alternative perspectives and weaknesses",
                 },
             },
             "document_retrieval": {
@@ -354,9 +377,9 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
                 ],
                 "models": {
                     "GPT-5 Pro": "Semantic search and relevance ranking",
-                    "Gemini 2.5 Pro": "Context understanding and extraction",
-                    "Claude Opus 4.1": "Legal relevance assessment",
-                    "Grok 4": "Hidden connections and insights",
+                    "Gemini 3.0 Pro": "Context understanding and extraction",
+                    "Claude Opus 4.5": "Legal relevance assessment",
+                    "Amazon Nova Pro": "Hidden connections and insights",
                 },
             },
             "general_analysis": {
@@ -368,9 +391,9 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
                 ],
                 "models": {
                     "GPT-5 Pro": "Comprehensive evidence review",
-                    "Gemini 2.5 Pro": "Pattern and trend analysis",
-                    "Claude Opus 4.1": "Legal reasoning and implications",
-                    "Grok 4": "Strategic recommendations",
+                    "Gemini 3.0 Pro": "Pattern and trend analysis",
+                    "Claude Opus 4.5": "Legal reasoning and implications",
+                    "Amazon Nova Pro": "Strategic recommendations",
                 },
             },
         }
@@ -453,7 +476,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
 
             client = openai.AsyncOpenAI(api_key=self.openai_key)
             # Use configured model or fallback
-            actual_model: str = model_name or self.openai_model or "gpt-5.1-2025-11-13"
+            actual_model: str = model_name or self.openai_model or "gpt-4o"
             response = await client.chat.completions.create(
                 model=actual_model,
                 messages=[{"role": "user", "content": prompt}],
@@ -519,7 +542,7 @@ Provide a structured chronology with dates, events, and responsible parties."""
 
             response = await client.chat.completions.create(
                 model=model_override
-                or "gpt-5.1-2025-11-13",  # GPT-5.1 with reasoning effort: high
+                or "o1",  # OpenAI o1 reasoning model
                 messages=[{"role": "user", "content": prompt}],
             )
 
@@ -684,23 +707,34 @@ Build a narrative that explains what happened and why it matters."""
                 key_findings=[],
             )
 
-    async def _grok_identify_gaps(
+    async def _query_bedrock(self, prompt: str, model_name: str | None = None) -> str:
+        """Query Amazon Bedrock for quick responses"""
+        if not self.bedrock_provider:
+            raise RuntimeError("Bedrock provider not available")
+
+        actual_model = model_name or self.bedrock_model or "amazon.nova-pro-v1:0"
+        response = await self.bedrock_provider.invoke(
+            model_id=actual_model,
+            prompt=prompt,
+            max_tokens=1500,
+            temperature=0.7,
+        )
+        return response
+
+    async def _bedrock_identify_gaps(
         self,
         query: str,
         context: str,
         emails: list[EmailMessage],
         model_override: str | None = None,
-        friendly_name: str = "Grok 4 Heavy",
+        friendly_name: str = "Amazon Nova Pro",
     ) -> ModelResponse:
-        """Grok 4: Identify gaps and missing evidence"""
+        """Amazon Bedrock: Identify gaps and missing evidence using Nova or Claude"""
         start_time = datetime.now(timezone.utc)
 
         try:
-            import openai
-
-            client = openai.AsyncOpenAI(
-                api_key=self.grok_key, base_url="https://api.x.ai/v1"
-            )
+            if not self.bedrock_provider:
+                raise RuntimeError("Bedrock provider not available")
 
             prompt = f"""You are analyzing construction dispute evidence with a critical eye.
 
@@ -718,37 +752,32 @@ Focus on:
 
 Provide a critical analysis identifying gaps and suggesting what's needed."""
 
-            response = await client.chat.completions.create(
-                model=model_override or "grok-4-1-fast-reasoning",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are Grok 4.1, providing critical analysis of legal evidence with chain-of-thought reasoning.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
+            actual_model = model_override or self.bedrock_model or "amazon.nova-pro-v1:0"
+            response_text = await self.bedrock_provider.invoke(
+                model_id=actual_model,
+                prompt=prompt,
                 max_tokens=3000,
+                temperature=0.7,
+                system_prompt="You are an expert legal analyst providing critical analysis of evidence with thorough reasoning.",
             )
 
             processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
             log_model_selection(
                 "deep_research",
                 friendly_name,
-                f"Grok:{model_override or 'grok-4-1-fast-reasoning'}",
+                f"Bedrock:{actual_model}",
             )
 
             return ModelResponse(
                 model=friendly_name,
                 task="Gap Analysis & Critical Review",
-                response=response.choices[0].message.content,
+                response=response_text,
                 confidence=0.90,
                 processing_time=processing_time,
-                key_findings=self._extract_key_findings(
-                    response.choices[0].message.content
-                ),
+                key_findings=self._extract_key_findings(response_text),
             )
         except Exception as e:
-            logger.error(f"Grok gap analysis error: {e}")
+            logger.error(f"Bedrock gap analysis error: {e}")
             return ModelResponse(
                 model=friendly_name,
                 task="Gap Analysis",
@@ -945,52 +974,49 @@ async def _get_relevant_emails(
 async def get_models_status(
     user: User = Depends(current_user), db: Session = Depends(get_db)
 ):
-    """Check which AI models are configured"""
+    """Check which AI models are configured (4 providers: OpenAI, Anthropic, Gemini, Bedrock)"""
     # Refresh settings from database
     orchestrator = get_orchestrator(db)
 
     return {
         "models": {
-            "gpt5_pro": {
+            "openai": {
                 "available": bool(orchestrator.openai_key),
                 "name": "OpenAI GPT",
                 "model": orchestrator.openai_model,
                 "task": "Chronology & Event Analysis",
             },
-            "gemini_2_5": {
+            "gemini": {
                 "available": bool(orchestrator.google_key),
                 "name": "Google Gemini",
                 "model": orchestrator.gemini_model,
                 "task": "Pattern Recognition",
             },
-            "claude_opus": {
+            "anthropic": {
                 "available": bool(orchestrator.anthropic_key),
                 "name": "Anthropic Claude",
                 "model": orchestrator.anthropic_model,
                 "task": "Narrative Construction",
             },
-            "grok_4": {
-                "available": bool(orchestrator.grok_key),
-                "name": "xAI Grok",
-                "model": orchestrator.grok_model,
-                "task": "Gap Analysis",
-            },
-            "perplexity": {
-                "available": bool(orchestrator.perplexity_key),
-                "name": "Perplexity",
-                "task": "Evidence-Focused Queries",
+            "bedrock": {
+                "available": orchestrator.bedrock_enabled,
+                "name": "Amazon Bedrock",
+                "model": orchestrator.bedrock_model,
+                "region": orchestrator.bedrock_region,
+                "task": "Gap Analysis & Enterprise AI",
             },
         },
         "quick_search_available": bool(
             orchestrator.google_key
             or orchestrator.openai_key
             or orchestrator.anthropic_key
+            or orchestrator.bedrock_enabled
         ),
         "deep_research_available": bool(
             orchestrator.openai_key
             or orchestrator.google_key
             or orchestrator.anthropic_key
-            or orchestrator.grok_key
+            or orchestrator.bedrock_enabled
         ),
     }
 
@@ -999,7 +1025,7 @@ async def get_models_status(
 async def test_ai_provider(
     provider: str, user: User = Depends(current_user), db: Session = Depends(get_db)
 ):
-    """Test connection to a specific AI provider"""
+    """Test connection to a specific AI provider (OpenAI, Anthropic, Gemini, Bedrock)"""
     import time
 
     orchestrator = get_orchestrator(db)
@@ -1026,33 +1052,27 @@ async def test_ai_provider(
             response = await orchestrator._query_gemini_flash(test_prompt)
             model = orchestrator.gemini_model
 
-        elif provider == "grok":
-            if not orchestrator.grok_key:
-                return {"success": False, "error": "Grok API key not configured"}
-            # Test Grok
-            import openai
-
-            client = openai.AsyncOpenAI(
-                api_key=orchestrator.grok_key, base_url="https://api.x.ai/v1"
-            )
-            result = await client.chat.completions.create(
-                model=orchestrator.grok_model or "grok-4-1-fast-reasoning",
-                messages=[{"role": "user", "content": test_prompt}],
-                max_tokens=10,
-            )
-            response = result.choices[0].message.content
-            model = orchestrator.grok_model
-
-        elif provider == "perplexity":
-            if not orchestrator.perplexity_key:
-                return {"success": False, "error": "Perplexity API key not configured"}
-            response = await query_perplexity_local(test_prompt, "Test context")
-            if not response:
-                return {"success": False, "error": "Perplexity returned no response"}
-            model = "sonar-pro"
+        elif provider == "bedrock":
+            if not orchestrator.bedrock_enabled:
+                return {"success": False, "error": "Amazon Bedrock not enabled"}
+            if not orchestrator.bedrock_provider:
+                return {"success": False, "error": "Bedrock provider initialization failed"}
+            # Test Bedrock connection
+            test_result = await orchestrator.bedrock_provider.test_connection()
+            if test_result.get("success"):
+                return {
+                    "success": True,
+                    "provider": "bedrock",
+                    "model": test_result.get("model", orchestrator.bedrock_model),
+                    "region": orchestrator.bedrock_region,
+                    "response_time": int((time.time() - start_time) * 1000),
+                    "response_preview": test_result.get("response", "OK")[:100],
+                }
+            else:
+                return {"success": False, "error": test_result.get("error", "Bedrock test failed")}
 
         else:
-            return {"success": False, "error": f"Unknown provider: {provider}"}
+            return {"success": False, "error": f"Unknown provider: {provider}. Supported: openai, anthropic, gemini, bedrock"}
 
         elapsed = int((time.time() - start_time) * 1000)
 
@@ -1067,3 +1087,121 @@ async def test_ai_provider(
     except Exception as e:
         logger.error(f"AI provider test failed for {provider}: {e}")
         return {"success": False, "provider": provider, "error": str(e)}
+
+
+@router.get("/health")
+async def ai_health_check(
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Check health of all configured AI providers.
+
+    Returns status, latency, and any errors for each provider.
+    Use this to verify providers are working before running analysis.
+    """
+    import time
+
+    orchestrator = get_orchestrator(db)
+    results: dict[str, dict[str, Any]] = {}
+
+    # Define test functions for each provider
+    async def test_openai() -> dict[str, Any]:
+        if not orchestrator.openai_key:
+            return {"healthy": False, "error": "Not configured"}
+        start = time.time()
+        try:
+            _ = await orchestrator._query_gpt_turbo("Reply OK")  # noqa: SLF001
+            return {
+                "healthy": True,
+                "latency_ms": int((time.time() - start) * 1000),
+                "model": orchestrator.openai_model,
+            }
+        except Exception as e:
+            return {"healthy": False, "error": str(e)}
+
+    async def test_anthropic() -> dict[str, Any]:
+        if not orchestrator.anthropic_key:
+            return {"healthy": False, "error": "Not configured"}
+        start = time.time()
+        try:
+            _ = await orchestrator._query_claude_sonnet("Reply OK")  # noqa: SLF001
+            return {
+                "healthy": True,
+                "latency_ms": int((time.time() - start) * 1000),
+                "model": orchestrator.anthropic_model,
+            }
+        except Exception as e:
+            return {"healthy": False, "error": str(e)}
+
+    async def test_gemini() -> dict[str, Any]:
+        if not orchestrator.google_key:
+            return {"healthy": False, "error": "Not configured"}
+        start = time.time()
+        try:
+            _ = await orchestrator._query_gemini_flash("Reply OK")  # noqa: SLF001
+            return {
+                "healthy": True,
+                "latency_ms": int((time.time() - start) * 1000),
+                "model": orchestrator.gemini_model,
+            }
+        except Exception as e:
+            return {"healthy": False, "error": str(e)}
+
+    async def test_bedrock() -> dict[str, Any]:
+        if not orchestrator.bedrock_enabled:
+            return {"healthy": False, "error": "Not enabled"}
+        if not orchestrator.bedrock_provider:
+            return {"healthy": False, "error": "Provider initialization failed"}
+        start = time.time()
+        try:
+            result = await orchestrator.bedrock_provider.test_connection()
+            if result.get("success"):
+                return {
+                    "healthy": True,
+                    "latency_ms": int((time.time() - start) * 1000),
+                    "model": orchestrator.bedrock_model,
+                    "region": orchestrator.bedrock_region,
+                }
+            else:
+                return {"healthy": False, "error": result.get("error", "Test failed")}
+        except Exception as e:
+            return {"healthy": False, "error": str(e)}
+
+    # Run health checks in parallel
+    checks = await asyncio.gather(
+        test_openai(),
+        test_anthropic(),
+        test_gemini(),
+        test_bedrock(),
+        return_exceptions=True,
+    )
+
+    provider_names = ["openai", "anthropic", "gemini", "bedrock"]
+    for name, check in zip(provider_names, checks):
+        if isinstance(check, BaseException):
+            results[name] = {"healthy": False, "error": str(check)}
+        else:
+            results[name] = check
+
+    # Calculate overall health
+    healthy_count = sum(1 for r in results.values() if r.get("healthy"))
+    total_configured = sum(
+        1 for r in results.values() if r.get("error") != "Not configured" and r.get("error") != "Not enabled"
+    )
+
+    # Get fallback and routing settings
+    fallback_enabled = is_fallback_enabled(db)
+    function_config = get_function_config("quick_search", db)
+
+    return {
+        "overall": "healthy" if healthy_count > 0 else "unhealthy",
+        "providers_healthy": healthy_count,
+        "providers_configured": total_configured,
+        "providers_total": 4,
+        "fallback_ready": healthy_count >= 2 and fallback_enabled,
+        "fallback_enabled": fallback_enabled,
+        "default_provider": function_config.get("provider", "gemini"),
+        "providers": results,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }

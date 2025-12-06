@@ -3,13 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VeriCase - User Approvals (Admin)</title>
-    <!-- Local Library -->
+    <title>VeriCase - User Approvals</title>
+    <!-- Font Awesome -->
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
+    <!-- VeriCase Design System -->
     <link rel="stylesheet" href="brand-styles.css" />
+    <link rel="stylesheet" href="design-system.css" />
+    <script src="vericase-ui.js"></script>
+    <script src="nav-shell.js"></script>
     <style>
       body {
         background: var(--bg-primary);
@@ -21,35 +25,11 @@
         background-size: 30px 30px;
       }
 
-      .header {
-        background: white;
-        border-bottom: 2px solid var(--gray-200);
-        padding: 1rem 2rem;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-      }
-
-      .header-content {
-        max-width: 1400px;
-        margin: 0 auto;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-
-      .logo-section {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-      }
-
-      .logo {
-        height: 32px;
-      }
-
+      /* Container - adjusted for nav shell */
       .container {
         max-width: 1400px;
-        margin: 2rem auto;
-        padding: 0 2rem;
+        margin: 0 auto;
+        padding: 24px;
       }
 
       .page-title {
@@ -187,26 +167,8 @@
       }
     </style>
   </head>
-  <body>
-    <div class="header">
-      <div class="header-content">
-        <div class="logo-section">
-          <img src="assets/LOGOTOBEUSED.png" alt="VeriCase" class="logo" />
-          <h1 style="font-size: 1.25rem; color: var(--vericase-navy)">
-            Admin Panel
-          </h1>
-        </div>
-        <div>
-          <button
-            class="btn btn-secondary"
-            onclick="window.location.href = 'dashboard.html'"
-          >
-            <i class="fas fa-home"></i> Dashboard
-          </button>
-        </div>
-      </div>
-    </div>
-
+  <body class="preload">
+    <!-- Nav shell injected by JavaScript -->
     <div class="container">
       <h1 class="page-title">User Approvals</h1>
       <p class="page-subtitle">Review and approve new user registrations</p>
@@ -459,7 +421,21 @@
       }
 
       // Load on page load
-      document.addEventListener("DOMContentLoaded", loadPendingUsers);
+      document.addEventListener("DOMContentLoaded", () => {
+        // Inject navigation shell
+        VericaseShell.inject({
+          title: "User Approvals",
+          headerActions: "",
+        });
+
+        // Remove preload class
+        requestAnimationFrame(() => {
+          document.body.classList.remove("preload");
+        });
+
+        // Load data
+        loadPendingUsers();
+      });
     </script>
   </body>
 </html>
