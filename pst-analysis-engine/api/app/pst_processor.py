@@ -1225,6 +1225,11 @@ class UltimatePSTProcessor:
                         )
                         file_ext = raw_ext[:255] if raw_ext else None
 
+                        # Check if this is a duplicate in the EvidenceItem context
+                        # (attachment_hashes tracks Documents, evidence_item_hashes tracks EvidenceItems)
+                        evidence_duplicate_of_id = self.evidence_item_hashes.get(file_hash)
+                        evidence_is_duplicate = evidence_duplicate_of_id is not None
+
                         evidence_item = EvidenceItem(
                             filename=safe_filename,
                             original_path=f"PST:{pst_file_record.filename if pst_file_record else 'unknown'}/{safe_filename}",
@@ -1239,12 +1244,8 @@ class UltimatePSTProcessor:
                             source_email_id=email_message.id,
                             case_id=case_id,
                             project_id=project_id,
-                            is_duplicate=is_duplicate,
-                            duplicate_of_id=(
-                                self.evidence_item_hashes.get(file_hash)
-                                if is_duplicate
-                                else None
-                            ),
+                            is_duplicate=evidence_is_duplicate,
+                            duplicate_of_id=evidence_duplicate_of_id,
                             processing_status="pending",
                             auto_tags=["email-attachment", "from-pst"],
                         )
