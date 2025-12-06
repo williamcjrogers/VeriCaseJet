@@ -205,6 +205,7 @@ docker-compose exec worker pytest
 - Developer Guide: `docs/guides/START_HERE.md`
 - Deployment Guides: `docs/deployment/`
 - Architecture Overview: `docs/VERICASE_ARCHITECTURE.md`
+- **🆕 Amazon Bedrock Setup:** `BEDROCK_QUICK_START.md` | `BEDROCK_SETUP.md`
 
 ---
 

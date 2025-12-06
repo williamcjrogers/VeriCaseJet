@@ -1118,6 +1118,12 @@
       <button class="btn" onclick="toggleDetailPanel()">
         <i class="fas fa-sidebar"></i> Details
       </button>
+      <button class="btn" onclick="saveGridConfiguration()" title="Save current layout and filters">
+        <i class="fas fa-save"></i> Save Layout
+      </button>
+      <button class="btn" onclick="resetGridConfiguration()" title="Reset to default layout">
+        <i class="fas fa-undo"></i> Reset
+      </button>
     </div>
   </div>
 
@@ -1519,6 +1525,7 @@
         field: "email_date",
         width: 180,
         sort: "desc",
+        pinned: "left",
         wrapText: true,
         autoHeight: true,
         cellStyle: {
@@ -3583,6 +3590,84 @@
       columnApi = params.columnApi;
       // Signal that grid is ready (resolves the gridReadyPromise)
       if (resolveGridReady) resolveGridReady();
+
+      // Load saved configuration after grid is ready
+      loadGridConfiguration();
+    }
+
+    // Grid configuration persistence
+    const GRID_CONFIG_KEY = 'vericase_correspondence_config';
+
+    function saveGridConfiguration() {
+      if (!gridApi) {
+        console.warn('Grid not ready');
+        return;
+      }
+      try {
+        const config = {
+          columnState: gridApi.getColumnState(),
+          filterModel: gridApi.getFilterModel(),
+          savedAt: new Date().toISOString()
+        };
+        localStorage.setItem(GRID_CONFIG_KEY, JSON.stringify(config));
+        if (window.VericaseUI) {
+          VericaseUI.Toast.success('Layout saved successfully');
+        } else {
+          alert('Layout saved successfully');
+        }
+        console.log('[Correspondence] Grid configuration saved');
+      } catch (e) {
+        console.error('Failed to save grid configuration:', e);
+        if (window.VericaseUI) {
+          VericaseUI.Toast.error('Failed to save layout');
+        }
+      }
+    }
+
+    function loadGridConfiguration() {
+      if (!gridApi) return;
+      try {
+        const saved = localStorage.getItem(GRID_CONFIG_KEY);
+        if (!saved) return;
+
+        const config = JSON.parse(saved);
+
+        // Apply column state (order, width, visibility, pinned)
+        if (config.columnState) {
+          gridApi.applyColumnState({ state: config.columnState, applyOrder: true });
+        }
+
+        // Apply filter model
+        if (config.filterModel && Object.keys(config.filterModel).length > 0) {
+          gridApi.setFilterModel(config.filterModel);
+        }
+
+        console.log('[Correspondence] Grid configuration loaded from', config.savedAt);
+      } catch (e) {
+        console.error('Failed to load grid configuration:', e);
+      }
+    }
+
+    function resetGridConfiguration() {
+      try {
+        localStorage.removeItem(GRID_CONFIG_KEY);
+
+        if (gridApi) {
+          // Reset column state to defaults
+          gridApi.resetColumnState();
+          // Clear all filters
+          gridApi.setFilterModel(null);
+        }
+
+        if (window.VericaseUI) {
+          VericaseUI.Toast.success('Layout reset to defaults');
+        } else {
+          alert('Layout reset to defaults');
+        }
+        console.log('[Correspondence] Grid configuration reset');
+      } catch (e) {
+        console.error('Failed to reset grid configuration:', e);
+      }
     }
 
     function onFirstDataRendered(params) {
