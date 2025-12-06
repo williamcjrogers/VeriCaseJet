@@ -58,34 +58,31 @@ async def list_providers(
     providers = []
 
     for provider_name, config in AI_MODELS_2025.items():
-        # Check if API key is configured
-        api_key_setting = None
+        # Check if API key is configured (4 providers: openai, anthropic, google, bedrock)
+        api_key_configured = False
         if provider_name == "openai":
             api_key_setting = (
                 db.query(AppSetting).filter(AppSetting.key == "openai_api_key").first()
             )
+            api_key_configured = bool(api_key_setting and api_key_setting.value)
         elif provider_name == "anthropic":
             api_key_setting = (
                 db.query(AppSetting)
                 .filter(AppSetting.key == "anthropic_api_key")
                 .first()
             )
+            api_key_configured = bool(api_key_setting and api_key_setting.value)
         elif provider_name == "google":
             api_key_setting = (
                 db.query(AppSetting).filter(AppSetting.key == "gemini_api_key").first()
             )
-        elif provider_name == "xai":
-            api_key_setting = (
-                db.query(AppSetting).filter(AppSetting.key == "grok_api_key").first()
+            api_key_configured = bool(api_key_setting and api_key_setting.value)
+        elif provider_name == "bedrock":
+            # Bedrock uses IAM credentials, check bedrock_enabled setting
+            bedrock_setting = (
+                db.query(AppSetting).filter(AppSetting.key == "bedrock_enabled").first()
             )
-        elif provider_name == "perplexity":
-            api_key_setting = (
-                db.query(AppSetting)
-                .filter(AppSetting.key == "perplexity_api_key")
-                .first()
-            )
-
-        api_key_configured = bool(api_key_setting and api_key_setting.value)
+            api_key_configured = bool(bedrock_setting and bedrock_setting.value == "true")
 
         # Convert models to ModelInfo
         models = []
@@ -271,8 +268,8 @@ async def get_model_recommendations(
     """Get model recommendations for specific use cases"""
     recommendations = {
         "legal_analysis": {
-            "primary": ["claude-opus-4.5", "gpt-5.1", "gemini-3.0-deep-think"],
-            "budget": ["claude-sonnet-4.5", "grok-4.1-thinking"],
+            "primary": ["claude-opus-4.5", "gpt-5.1", "gemini-3.0-pro"],
+            "budget": ["claude-sonnet-4.5", "amazon-nova-pro"],
             "reasoning": "These models excel at complex legal reasoning and document analysis",
         },
         "document_review": {
@@ -281,9 +278,9 @@ async def get_model_recommendations(
             "reasoning": "Fast, accurate models for processing large volumes of documents",
         },
         "legal_research": {
-            "primary": ["sonar-reasoning-pro", "sonar-pro", "gemini-3.0-deep-think"],
-            "budget": ["sonar", "grok-4.1-thinking"],
-            "reasoning": "Models with web access for finding current legal precedents and cases",
+            "primary": ["claude-opus-4.5", "gpt-5.1", "gemini-3.0-pro"],
+            "budget": ["amazon-nova-pro", "gemini-3.0-flash"],
+            "reasoning": "Models for finding patterns and analyzing legal precedents",
         },
         "contract_analysis": {
             "primary": ["claude-opus-4.5", "gpt-5.1", "o3"],
@@ -291,13 +288,13 @@ async def get_model_recommendations(
             "reasoning": "Specialized reasoning models for complex contract interpretation",
         },
         "automation": {
-            "primary": ["gpt-5.1-codex-max", "claude-sonnet-4.5"],
-            "budget": ["phi-4-reasoning", "gemini-3.0-flash"],
+            "primary": ["gpt-5.1", "claude-sonnet-4.5"],
+            "budget": ["amazon-nova-lite", "gemini-3.0-flash"],
             "reasoning": "Coding-optimized models for building legal automation tools",
         },
         "cost_effective": {
-            "primary": ["phi-4-reasoning", "phi-4-reasoning-plus", "claude-haiku-4.5"],
-            "budget": ["phi-4-mini", "gemini-3.0-flash"],
+            "primary": ["amazon-nova-pro", "amazon-nova-lite", "claude-haiku-4.5"],
+            "budget": ["amazon-nova-micro", "gemini-3.0-flash"],
             "reasoning": "High-quality models with lower costs for budget-conscious deployments",
         },
     }
@@ -340,20 +337,16 @@ async def get_models_status(
             setting = (
                 db.query(AppSetting).filter(AppSetting.key == "gemini_api_key").first()
             )
-        elif provider == "xai":
+            api_key_configured = bool(setting and setting.value)
+        elif provider == "bedrock":
+            # Bedrock uses IAM credentials, check bedrock_enabled setting
             setting = (
-                db.query(AppSetting).filter(AppSetting.key == "grok_api_key").first()
+                db.query(AppSetting).filter(AppSetting.key == "bedrock_enabled").first()
             )
-        elif provider == "perplexity":
-            setting = (
-                db.query(AppSetting)
-                .filter(AppSetting.key == "perplexity_api_key")
-                .first()
-            )
+            api_key_configured = bool(setting and setting.value == "true")
         else:
             setting = None
-
-        api_key_configured = bool(setting and setting.value)
+            api_key_configured = False
 
         # Get default model
         default_model = get_default_model(provider)
@@ -362,8 +355,7 @@ async def get_models_status(
             "api_key_configured": api_key_configured,
             "default_model": default_model,
             "models_available": len(get_models_by_provider(provider)),
-            "ready": api_key_configured
-            or provider == "microsoft",  # Microsoft models are self-hosted
+            "ready": api_key_configured,
         }
 
     total_ready = sum(1 for s in status.values() if s["ready"])

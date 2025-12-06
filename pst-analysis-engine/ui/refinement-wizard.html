@@ -3,20 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VeriCase - Evidence Refinement Wizard</title>
+    <title>VeriCase - Evidence Refinement</title>
+    <!-- Font Awesome -->
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
+    <!-- VeriCase Design System -->
+    <link rel="stylesheet" href="brand-styles.css" />
+    <link rel="stylesheet" href="design-system.css" />
+    <script src="vericase-ui.js"></script>
+    <script src="nav-shell.js"></script>
     <style>
-      :root {
-        --vericase-teal: #17b5a3;
-        --vericase-teal-dark: #129b8b;
-        --vericase-blue: #2b7fbf;
-        --vericase-navy: #1f2937;
-        --bg-primary: #e8eef2;
-      }
-
       * {
         margin: 0;
         padding: 0;
@@ -24,9 +22,7 @@
       }
 
       body {
-        font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter",
-          "SF Pro Display", "Roboto", sans-serif;
+        font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
         background: var(--bg-primary);
         background-image: radial-gradient(
           circle,
@@ -39,48 +35,31 @@
         -webkit-font-smoothing: antialiased;
       }
 
-      .header {
-        background: white;
-        border-bottom: 1px solid #e2e8f0;
-        padding: 1rem 2rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      }
-
-      .header-content {
-        max-width: 1400px;
-        margin: 0 auto;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-
-      .logo {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: #667eea;
-      }
-
-      .project-info {
+      /* Project info shown in header actions */
+      .project-info-header {
         display: flex;
         align-items: center;
         gap: 1rem;
-        color: #4a5568;
+        color: var(--text-muted);
+        font-size: 0.875rem;
       }
 
+      .project-info-header i {
+        color: var(--vericase-teal);
+      }
+
+      /* Container - adjusted for nav shell */
       .container {
         max-width: 1400px;
-        margin: 2rem auto;
-        padding: 0 2rem;
+        margin: 0 auto;
+        padding: 24px;
       }
 
       .wizard-container {
         display: grid;
         grid-template-columns: 300px 1fr;
         gap: 2rem;
-        height: calc(100vh - 180px);
+        height: calc(100vh - 160px);
       }
 
       /* Progress Sidebar */
@@ -464,31 +443,8 @@
       }
     </style>
   </head>
-  <body>
-    <div class="header">
-      <div class="header-content">
-        <div class="logo">
-          <img
-            src="assets/LOGOTOBEUSED.png"
-            alt="VeriCase"
-            style="height: 32px; margin-right: 12px; vertical-align: middle"
-          />
-          <i class="fas fa-microscope"></i>
-          VeriCase Evidence Refinement
-        </div>
-        <div class="project-info">
-          <span
-            ><i class="fas fa-project-diagram"></i>
-            <span id="projectName">Loading...</span></span
-          >
-          <span
-            ><i class="fas fa-envelope"></i>
-            <span id="emailCount">0</span> emails analyzed</span
-          >
-        </div>
-      </div>
-    </div>
-
+  <body class="preload">
+    <!-- Nav shell injected by JavaScript -->
     <div class="container">
       <div class="wizard-container">
         <!-- Progress Sidebar -->
@@ -573,18 +529,37 @@
 
       // Initialize
       document.addEventListener("DOMContentLoaded", () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        let projectId = urlParams.get("projectId");
-        if (!projectId || projectId === "null" || projectId === "undefined") {
-          projectId =
-            localStorage.getItem("currentProjectId") ||
-            localStorage.getItem("projectId");
-        }
+        // Inject navigation shell
+        VericaseShell.inject({
+          title: "Evidence Refinement",
+          headerActions: `
+            <div class="project-info-header">
+              <span><i class="fas fa-project-diagram"></i> <span id="projectName">Loading...</span></span>
+              <span><i class="fas fa-envelope"></i> <span id="emailCount">0</span> emails</span>
+            </div>
+          `,
+        });
+
+        // Remove preload class
+        requestAnimationFrame(() => {
+          document.body.classList.remove("preload");
+        });
+
+        // Get project ID
+        const projectId = VericaseShell.getProjectId();
+
         if (!projectId) {
-          alert("No project selected. Redirecting to dashboard...");
-          window.location.href = "dashboard.html";
+          // Show project selector modal - this page requires a project
+          VericaseShell.showProjectSelector({
+            required: true,
+            onSelect: (id) => {
+              // Reload page with selected project
+              window.location.href = `refinement-wizard.html?projectId=${id}`;
+            }
+          });
           return;
         }
+
         // Load project info and discovery data
         loadDiscoveryData(projectId);
       });

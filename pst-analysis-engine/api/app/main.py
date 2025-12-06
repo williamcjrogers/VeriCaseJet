@@ -121,7 +121,6 @@ try:
     from .aws_services import get_aws_services  # AWS Services Manager
 except ImportError:
     get_aws_services = None
-from .phi_routes import router as phi_router  # Phi-4 AI model
 from .ai_models_api import router as ai_models_router  # 2025 AI Models API
 
 logger = logging.getLogger(__name__)
@@ -334,7 +333,6 @@ app.include_router(deep_research_router)  # Deep Research Agent
 app.include_router(claims_router)  # Contentious Matters and Heads of Claim
 app.include_router(dashboard_router)  # Master Dashboard API
 app.include_router(aws_router)  # AWS AI Services (Bedrock, Textract, Comprehend, etc.)
-app.include_router(phi_router)  # Phi-4 AI model
 app.include_router(ai_models_router)  # 2025 AI Models API
 
 # Import and include unified router
@@ -520,19 +518,20 @@ def _populate_ai_settings_from_env(force_update: bool = False):
                 "description": "Google API key for Gemini models",
                 "is_api_key": True,
             },
-            "grok_api_key": {
-                "env_var": "GROK_API_KEY",
-                "config_attr": "GROK_API_KEY",
-                "description": "xAI API key for Grok models",
-                "is_api_key": True,
+            # Bedrock settings (uses IAM credentials, not API keys)
+            "bedrock_enabled": {
+                "env_var": "BEDROCK_ENABLED",
+                "config_attr": "BEDROCK_ENABLED",
+                "description": "Enable Amazon Bedrock AI provider",
+                "default": "false",
             },
-            "perplexity_api_key": {
-                "env_var": "PERPLEXITY_API_KEY",
-                "config_attr": "PERPLEXITY_API_KEY",
-                "description": "Perplexity API key for Sonar models",
-                "is_api_key": True,
+            "bedrock_region": {
+                "env_var": "BEDROCK_REGION",
+                "config_attr": "BEDROCK_REGION",
+                "description": "AWS region for Bedrock",
+                "default": "us-east-1",
             },
-            # Default models - Updated 2025
+            # Default models - Updated 2025 (4 providers)
             "openai_model": {
                 "default": "gpt-5.1",
                 "description": "Default OpenAI model",
@@ -545,10 +544,9 @@ def _populate_ai_settings_from_env(force_update: bool = False):
                 "default": "gemini-3.0-pro",
                 "description": "Default Gemini model",
             },
-            "grok_model": {"default": "grok-4.1", "description": "Default Grok model"},
-            "perplexity_model": {
-                "default": "sonar-pro",
-                "description": "Default Perplexity model",
+            "bedrock_model": {
+                "default": "amazon.nova-pro-v1:0",
+                "description": "Default Bedrock model",
             },
             # Default provider
             "ai_default_provider": {
@@ -710,7 +708,7 @@ def startup():
     logger.info("Startup complete")
 
 
-# AI Status endpoint
+# AI Status endpoint (4 providers: OpenAI, Anthropic, Gemini, Bedrock)
 @app.get("/api/ai/status")
 def get_ai_status(user=Depends(current_user)):
     """Check which AI services are available"""
@@ -718,8 +716,7 @@ def get_ai_status(user=Depends(current_user)):
         "openai": bool(settings.OPENAI_API_KEY),
         "anthropic": bool(settings.CLAUDE_API_KEY),
         "gemini": bool(settings.GEMINI_API_KEY),
-        "grok": bool(getattr(settings, "GROK_API_KEY", None)),
-        "perplexity": bool(getattr(settings, "PERPLEXITY_API_KEY", None)),
+        "bedrock": bool(getattr(settings, "BEDROCK_ENABLED", False)),
         "any_available": False,
     }
     status["any_available"] = any(
@@ -727,8 +724,7 @@ def get_ai_status(user=Depends(current_user)):
             status["openai"],
             status["anthropic"],
             status["gemini"],
-            status["grok"],
-            status["perplexity"],
+            status["bedrock"],
         ]
     )
     return status

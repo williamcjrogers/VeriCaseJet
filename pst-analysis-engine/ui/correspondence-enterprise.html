@@ -1520,8 +1520,8 @@
           const date = new Date(params.value);
           return `
                         <div style="display: flex; flex-direction: column;">
-                            <span style="font-weight: 500;">${date.toLocaleDateString()}</span>
-                            <span style="font-size: 0.75rem; color: var(--text-muted);">${date.toLocaleTimeString()}</span>
+                            <span style="font-weight: 500;">${date.toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}</span>
+                            <span style="font-size: 0.75rem; color: var(--text-muted);">${date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                     `;
         },
@@ -2449,15 +2449,16 @@
       {
         headerName: "Date/Time",
         field: "email_date",
-        width: 160,
+        width: 120,
         sort: "desc",
+        wrapText: true,
         cellRenderer: (params) => {
           if (!params.value) return "-";
           const date = new Date(params.value);
           return `
                         <div style="display: flex; flex-direction: column;">
-                            <span style="font-weight: 600;">${date.toLocaleDateString()}</span>
-                            <span style="font-size: 0.75rem; color: var(--text-muted);">${date.toLocaleTimeString()}</span>
+                            <span style="font-weight: 600;">${date.toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}</span>
+                            <span style="font-size: 0.75rem; color: var(--text-muted);">${date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                     `;
         },
@@ -2466,13 +2467,11 @@
       {
         headerName: "From",
         field: "email_from",
-        width: 160,
-        wrapText: false,
-        autoHeight: false,
+        width: 140,
+        wrapText: true,
         cellStyle: {
-          overflow: "hidden",
-          "text-overflow": "ellipsis",
-          "white-space": "nowrap",
+          "white-space": "normal",
+          "word-wrap": "break-word",
         },
         cellRenderer: (params) =>
           params.value
@@ -2483,13 +2482,11 @@
       {
         headerName: "To",
         field: "email_to",
-        width: 160,
-        wrapText: false,
-        autoHeight: false,
+        width: 140,
+        wrapText: true,
         cellStyle: {
-          overflow: "hidden",
-          "text-overflow": "ellipsis",
-          "white-space": "nowrap",
+          "white-space": "normal",
+          "word-wrap": "break-word",
         },
         valueGetter: (params) => {
           if (!params.data) return "-";
@@ -2528,14 +2525,36 @@
         filter: "agSetColumnFilter",
       },
       {
+        headerName: "Thread",
+        field: "thread_id",
+        width: 90,
+        cellRenderer: (params) => {
+          if (!params.value) {
+            return `<span style="color: var(--text-muted); font-size: 0.85rem;">Single</span>`;
+          }
+          return `<div style="display: flex; align-items: center; gap: 4px; color: var(--vericase-blue);">
+            <i class="fas fa-comments" style="font-size: 0.85rem;"></i>
+            <span style="font-weight: 600; font-size: 0.85rem;">Thread</span>
+          </div>`;
+        },
+        filter: "agSetColumnFilter",
+        filterParams: {
+          values: ['Thread', 'Single'],
+          valueFormatter: (params) => params.value || 'Single'
+        },
+      },
+      {
         headerName: "Subject",
         field: "email_subject",
-        flex: 1,
-        minWidth: 220,
+        width: 200,
+        wrapText: true,
+        cellStyle: {
+          "white-space": "normal",
+          "word-wrap": "break-word",
+        },
         cellRenderer: (params) => {
           if (!params.value) return "-";
-          const threadId = params.data?.thread_id || "N/A";
-          return `<div style="display:flex;flex-direction:column;gap:4px;"><span style="font-weight:700;color:var(--vericase-navy);">${String(params.value)}</span><span style="font-size:0.8rem;color:var(--text-muted);">Thread: ${threadId}</span></div>`;
+          return `<span style="font-weight:600;color:var(--vericase-navy);">${String(params.value)}</span>`;
         },
         filter: "agTextColumnFilter",
       },
@@ -2544,9 +2563,8 @@
         field: "email_body",
         flex: 3,
         minWidth: 400,
-        autoHeight: true,
         wrapText: true,
-        cellStyle: { "white-space": "normal", "line-height": "1.4" },
+        cellStyle: { "white-space": "normal", "line-height": "1.4", "overflow": "hidden" },
         valueGetter: (params) => {
           // Return both clean text (for preview) and HTML (for full view)
           const htmlBody = params.data.body_html;
@@ -2584,10 +2602,17 @@
 
             let cleaned = text;
 
-            // Remove HTML/XML tags first
+            // Remove external email warning containers (including HTML) BEFORE removing tags
+            cleaned = cleaned.replace(/<div[^>]*external[^>]*>.*?<\/div>/gi, '');
+            cleaned = cleaned.replace(/<p[^>]*external[^>]*>.*?<\/p>/gi, '');
+            cleaned = cleaned.replace(/<table[^>]*external[^>]*>.*?<\/table>/gi, '');
+            cleaned = cleaned.replace(/<span[^>]*external[^>]*>.*?<\/span>/gi, '');
+
+            // Remove HTML/XML tags
             cleaned = cleaned.replace(/<[^>]*>/g, " ");
 
-            // Remove EXTERNAL EMAIL warnings - be specific, not greedy
+            // Remove EXTERNAL EMAIL text warnings - be specific, not greedy
+            cleaned = cleaned.replace(/EXTERNAL EMAIL:?\s*/gi, "");
             cleaned = cleaned.replace(
               /EXTERNAL EMAIL:?\s*&nbsp;?\s*Don't click links or open attachments[^.]*\.\s*/gi,
               "",
@@ -2607,6 +2632,39 @@
             );
             cleaned = cleaned.replace(/\[EXTERNAL\]:?\s*/gi, "");
 
+            // Remove common email footer patterns
+            // Legal disclaimers - typically start at bottom of email
+            cleaned = cleaned.replace(/The information contained in this (?:message|email|communication)[^]*?(?=\n\n[A-Z]|$)/gi, '');
+            cleaned = cleaned.replace(/This (?:message|email|communication) (?:is|contains)[^]*?confidential[^]*?(?=\n\n[A-Z]|$)/gi, '');
+            cleaned = cleaned.replace(/CONFIDENTIALITY NOTICE[:\s][^]*?(?=\n\n[A-Z]|$)/gi, '');
+            cleaned = cleaned.replace(/DISCLAIMER[:\s][^]*?(?=\n\n[A-Z]|$)/gi, '');
+
+            // Company registration and legal entity info
+            cleaned = cleaned.replace(/(?:Ltd|Limited|LLC|Inc|Pty)\.?\s+is\s+a\s+company\s+registered[^]*?(?=\n\n[A-Z]|$)/gi, '');
+            cleaned = cleaned.replace(/Company\s+(?:Registration\s+)?(?:No|Number)\.?\s*:?\s*\d+[^]*?(?=\n\n[A-Z]|$)/gi, '');
+            cleaned = cleaned.replace(/Registered\s+(?:Office|Address)[:\s][^]*?(?=\n\n[A-Z]|$)/gi, '');
+
+            // Social media and web links
+            cleaned = cleaned.replace(/(?:Follow|Find|Connect with)\s+us\s+on[:\s][^]*?(?:Instagram|LinkedIn|Twitter|Facebook)[^]*?(?=\n\n[A-Z]|$)/gi, '');
+            cleaned = cleaned.replace(/(?:Instagram|LinkedIn|Twitter|Facebook|Web)[:\s]*(?:www\.)?\S+/gi, '');
+            cleaned = cleaned.replace(/(?:^|\s)www\.\S+\.(?:com|co\.uk|org|net)(?:\s|$)/gi, ' ');
+
+            // Contact information footers
+            cleaned = cleaned.replace(/(?:Tel|Telephone|Phone|Mobile|Fax)[:\s]*[\d\s\+\(\)\-]+/gi, '');
+            cleaned = cleaned.replace(/(?:E-?mail|Email)[:\s]*\S+@\S+/gi, '');
+
+            // Unsubscribe and email client links
+            cleaned = cleaned.replace(/(?:Click here to|To)\s+unsubscribe[^]*?(?=\n\n[A-Z]|$)/gi, '');
+            cleaned = cleaned.replace(/View this email in (?:your )?browser[^]*?(?=\n\n|$)/gi, '');
+
+            // Office addresses - match UK postcodes and common patterns
+            cleaned = cleaned.replace(/(?:Office|Address)[:\s][^]*?(?:UK|United Kingdom|England|Wales|Scotland)[^]*?[A-Z]{1,2}\d{1,2}\s*\d[A-Z]{2}[^]*?(?=\n\n[A-Z]|$)/gi, '');
+
+            // Common signature block separators
+            cleaned = cleaned.replace(/_{3,}/g, ''); // Underscores
+            cleaned = cleaned.replace(/-{3,}/g, ''); // Dashes
+            cleaned = cleaned.replace(/={3,}/g, ''); // Equal signs
+
             // Remove HTML entities
             cleaned = cleaned.replace(/&nbsp;/g, " ");
             cleaned = cleaned.replace(/&[a-z]+;/gi, " ");
@@ -2614,9 +2672,11 @@
             // Remove cid references
             cleaned = cleaned.replace(/\[cid:[^\]]+\]/g, "");
 
-            // Clean up whitespace
-            cleaned = cleaned.replace(/[\r\n]+/g, " ");
-            cleaned = cleaned.replace(/\s+/g, " ").trim();
+            // Clean up whitespace (remove extra spaces and normalize line breaks)
+            cleaned = cleaned.replace(/[\r\n]+/g, "\n");
+            cleaned = cleaned.replace(/ +/g, " ");
+            cleaned = cleaned.replace(/\n\s*\n\s*\n+/g, "\n\n"); // Max 2 consecutive newlines
+            cleaned = cleaned.trim();
 
             // If empty after cleaning, show placeholder
             if (!cleaned || cleaned.length < 3) {
@@ -2629,6 +2689,13 @@
           const cleanHtmlForFullView = (html) => {
             if (!html) return null;
             let cleaned = html;
+
+            // Remove external email warning containers (BEFORE removing dangerous content)
+            cleaned = cleaned.replace(/<div[^>]*external[^>]*>.*?<\/div>/gi, '');
+            cleaned = cleaned.replace(/<p[^>]*external[^>]*>.*?<\/p>/gi, '');
+            cleaned = cleaned.replace(/<table[^>]*external[^>]*>.*?<\/table>/gi, '');
+            cleaned = cleaned.replace(/<span[^>]*external[^>]*>.*?<\/span>/gi, '');
+
             // Remove dangerous content
             cleaned = cleaned.replace(
               /<script[^>]*>[\s\S]*?<\/script>/gi,
@@ -2639,6 +2706,7 @@
             cleaned = cleaned.replace(/<img[^>]+src=["']cid:[^"']+["'][^>]*>/gi, "");
 
             // Remove EXTERNAL EMAIL warning text patterns
+            cleaned = cleaned.replace(/EXTERNAL EMAIL:?\s*/gi, "");
             cleaned = cleaned.replace(
               /EXTERNAL EMAIL:?\s*&nbsp;?\s*Don't click links or open attachments[^<]*/gi,
               "",
@@ -2652,6 +2720,39 @@
               /This message originated from outside[^<]*/gi,
               "",
             );
+
+            // Remove common email footer patterns (HTML context)
+            // Legal disclaimers
+            cleaned = cleaned.replace(/The information contained in this (?:message|email|communication)[^]*?(?=<\/(?:p|div)|$)/gi, '');
+            cleaned = cleaned.replace(/This (?:message|email|communication) (?:is|contains)[^]*?confidential[^]*?(?=<\/(?:p|div)|$)/gi, '');
+            cleaned = cleaned.replace(/CONFIDENTIALITY NOTICE[:\s][^]*?(?=<\/(?:p|div)|$)/gi, '');
+            cleaned = cleaned.replace(/DISCLAIMER[:\s][^]*?(?=<\/(?:p|div)|$)/gi, '');
+
+            // Company registration and legal entity info
+            cleaned = cleaned.replace(/(?:Ltd|Limited|LLC|Inc|Pty)\.?\s+is\s+a\s+company\s+registered[^]*?(?=<\/(?:p|div)|$)/gi, '');
+            cleaned = cleaned.replace(/Company\s+(?:Registration\s+)?(?:No|Number)\.?\s*:?\s*\d+[^]*?(?=<\/(?:p|div)|$)/gi, '');
+            cleaned = cleaned.replace(/Registered\s+(?:Office|Address)[:\s][^]*?(?=<\/(?:p|div)|$)/gi, '');
+
+            // Social media and web links
+            cleaned = cleaned.replace(/(?:Follow|Find|Connect with)\s+us\s+on[:\s][^]*?(?:Instagram|LinkedIn|Twitter|Facebook)[^]*?(?=<\/(?:p|div)|$)/gi, '');
+            cleaned = cleaned.replace(/(?:Instagram|LinkedIn|Twitter|Facebook|Web)[:\s]*(?:www\.)?\S+/gi, '');
+            cleaned = cleaned.replace(/(?:^|\s)www\.\S+\.(?:com|co\.uk|org|net)(?:\s|$)/gi, ' ');
+
+            // Contact information footers
+            cleaned = cleaned.replace(/(?:Tel|Telephone|Phone|Mobile|Fax)[:\s]*[\d\s\+\(\)\-]+/gi, '');
+            cleaned = cleaned.replace(/(?:E-?mail|Email)[:\s]*\S+@\S+/gi, '');
+
+            // Unsubscribe and email client links
+            cleaned = cleaned.replace(/(?:Click here to|To)\s+unsubscribe[^]*?(?=<\/(?:p|div)|$)/gi, '');
+            cleaned = cleaned.replace(/View this email in (?:your )?browser[^]*?(?=<|$)/gi, '');
+
+            // Office addresses - match UK postcodes
+            cleaned = cleaned.replace(/(?:Office|Address)[:\s][^]*?(?:UK|United Kingdom|England|Wales|Scotland)[^]*?[A-Z]{1,2}\d{1,2}\s*\d[A-Z]{2}[^]*?(?=<\/(?:p|div)|$)/gi, '');
+
+            // Common signature block separators
+            cleaned = cleaned.replace(/_{3,}/g, '');
+            cleaned = cleaned.replace(/-{3,}/g, '');
+            cleaned = cleaned.replace(/={3,}/g, '');
 
             // Remove reply headers
             cleaned = cleaned.replace(
@@ -2697,61 +2798,44 @@
             return cleaned;
           };
 
+          // Helper to safely escape HTML
+          const escapeHtml = (text) => {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+          };
+
+          // Get clean plain text
+          const cleanText = getCleanPreview(textContent);
+
           if (!isExpanded) {
-            // PREVIEW MODE - clean text, no signatures
-            const cleanPreview = getCleanPreview(textContent);
-            const preview = cleanPreview.substring(0, 200);
-            const hasMore = cleanPreview.length > 200 || htmlContent;
+            // PREVIEW MODE: Show first 300 chars of plain text
+            const preview = cleanText.substring(0, 300);
+            const needsExpand = cleanText.length > 300;
 
             return `
-                            <div style="padding: 8px;">
-                                <div style="color: #374151; font-size: 0.85rem; line-height: 1.5;">
-                                    ${preview.replace(/</g, "&lt;").replace(/>/g, "&gt;")}${hasMore ? "..." : ""}
-                                </div>
-                                ${hasMore
-                ? `
-                                    <div style="margin-top: 8px;">
-                                        <span onclick="toggleEmailContent(${quotedRowId})" 
-                                              style="display: inline-flex; align-items: center; gap: 4px;
-                                                     padding: 4px 10px; font-size: 0.75rem; font-weight: 500;
-                                                     background: #3b82f6; color: white; border-radius: 12px; cursor: pointer;">
-                                            <i class="fas fa-expand-alt"></i> View Full
-                                        </span>
-                                    </div>
-                                `
-                : ""
-              }
-                            </div>`;
+              <div style="white-space: pre-wrap; font-size: 0.9rem; line-height: 1.6; color: #374151;">
+                ${escapeHtml(preview)}${needsExpand ? '...' : ''}
+              </div>
+              ${needsExpand ? `<button onclick="expandRow('${rowId}')"
+                 style="margin-top: 8px; padding: 4px 12px; background: var(--vericase-blue);
+                 color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">
+                 View Full Message
+              </button>` : ''}
+            `;
           } else {
-            // EXPANDED MODE - full HTML with signatures and formatting
-            let displayContent;
-            if (htmlContent) {
-              displayContent = cleanHtmlForFullView(htmlContent);
-            } else if (textContent && textContent !== "No content") {
-              displayContent = textContent
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/\n/g, "<br>");
-            } else {
-              displayContent =
-                '<span style="color: #9ca3af; font-style: italic;">No message content available</span>';
-            }
-
+            // EXPANDED MODE: Show full plain text message with paragraph breaks
             return `
-                            <div style="padding: 12px;">
-                                <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; 
-                                            font-size: 0.9rem; line-height: 1.6; color: #1f2937;">
-                                    ${displayContent}
-                                </div>
-                                <div style="margin-top: 8px;">
-                                    <span onclick="toggleEmailContent(${quotedRowId})" 
-                                          style="display: inline-flex; align-items: center; gap: 4px;
-                                                 padding: 4px 10px; font-size: 0.75rem; font-weight: 500;
-                                                 background: #6b7280; color: white; border-radius: 12px; cursor: pointer;">
-                                        <i class="fas fa-compress-alt"></i> Collapse
-                                    </span>
-                                </div>
-                            </div>`;
+              <div style="white-space: pre-wrap; font-size: 0.9rem; line-height: 1.6;
+                          max-height: 600px; overflow-y: auto; color: #374151;">
+                ${escapeHtml(cleanText)}
+              </div>
+              <button onclick="collapseRow('${rowId}')"
+                 style="margin-top: 8px; padding: 4px 12px; background: var(--text-muted);
+                 color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">
+                 Collapse
+              </button>
+            `;
           }
         },
         filter: "agTextColumnFilter",
@@ -3165,14 +3249,8 @@
 
     const gridOptions = {
       columnDefs: columnDefs,
-      // Use auto-height for rows to expand to content
-      getRowHeight: (params) => {
-        // Auto-height when showing full content, fixed height for preview
-        if (showFullContent) {
-          return null; // null = auto-height
-        }
-        return 80; // Preview mode fixed height
-      },
+      // Increased row height for better email readability
+      rowHeight: 220,
       headerHeight: 48,
       floatingFiltersHeight: 38,
       defaultColDef: {
@@ -3196,14 +3274,15 @@
         // Auto-size to content
         flex: 1,
         minWidth: 100,
-        // Enable text wrapping and auto-height for full content
+        // Enable text wrapping (but not autoHeight - not compatible with server-side model)
         wrapText: true,
-        autoHeight: true,
-        cellStyle: { 
-          "white-space": "normal", 
-          "line-height": "1.5",
+        cellStyle: {
+          "white-space": "pre-wrap",
+          "line-height": "1.6",
           "padding-top": "8px",
-          "padding-bottom": "8px"
+          "padding-bottom": "8px",
+          "overflow": "auto",
+          "word-wrap": "break-word"
         },
       },
 
@@ -3511,7 +3590,7 @@
       if (dates.length > 0) {
         const minDate = new Date(Math.min(...dates));
         const maxDate = new Date(Math.max(...dates));
-        dateRange = `${minDate.toLocaleDateString()} - ${maxDate.toLocaleDateString()}`;
+        dateRange = `${minDate.toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })} - ${maxDate.toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}`;
       }
 
       document.getElementById("totalEmails").textContent =
@@ -5429,7 +5508,7 @@
                                 </h2>
                                 <p style="margin: 0; color: #64748b;">
                                     Activity: <strong>${analysis.activity_name}</strong> | 
-                                    Email Date: <strong>${emailDate.toLocaleDateString()}</strong>
+                                    Email Date: <strong>${emailDate.toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}</strong>
                                 </p>
                             </div>
                             <button onclick="this.closest('div[style*=fixed]').remove()"
@@ -5477,7 +5556,7 @@
                                               background: linear-gradient(90deg, #3b82f6, #2563eb);"></div>
                                 </div>
                                 <p style="margin: 12px 0 0 0; color: #64748b; font-size: 14px;">
-                                    Planned progress at ${emailDate.toLocaleDateString()}
+                                    Planned progress at ${emailDate.toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}
                                 </p>
                             </div>
                             
@@ -5494,7 +5573,7 @@
                                               background: linear-gradient(90deg, ${isDelayed ? "#dc2626, #991b1b" : "#059669, #047857"});"></div>
                                 </div>
                                 <p style="margin: 12px 0 0 0; color: #64748b; font-size: 14px;">
-                                    Actual progress at ${emailDate.toLocaleDateString()}
+                                    Actual progress at ${emailDate.toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}
                                 </p>
                             </div>
                         </div>
@@ -5508,8 +5587,8 @@
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                                     <span style="font-size: 12px; color: #64748b;">Baseline</span>
                                     <span style="font-size: 12px; color: #64748b;">
-                                        ${new Date(analysis.baseline_start).toLocaleDateString()} - 
-                                        ${new Date(analysis.baseline_end).toLocaleDateString()}
+                                        ${new Date(analysis.baseline_start).toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })} -
+                                        ${new Date(analysis.baseline_end).toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}
                                     </span>
                                 </div>
                                 <div style="background: #dbeafe; height: 24px; border-radius: 6px; position: relative;">
@@ -5523,8 +5602,8 @@
                                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                                     <span style="font-size: 12px; color: #64748b;">As-Built</span>
                                     <span style="font-size: 12px; color: #64748b;">
-                                        ${new Date(analysis.actual_start).toLocaleDateString()} - 
-                                        ${new Date(analysis.actual_end).toLocaleDateString()}
+                                        ${new Date(analysis.actual_start).toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })} -
+                                        ${new Date(analysis.actual_end).toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}
                                     </span>
                                 </div>
                                 <div style="background: ${isDelayed ? "#fee2e2" : "#d1fae5"}; height: 24px; border-radius: 6px; position: relative;">
@@ -6194,7 +6273,7 @@
                                 <div style="padding: 0.5rem; background: white; border-radius: 6px; border: 1px solid #E5E7EB;">
                                     <div style="font-weight: 600; color: var(--vericase-navy);">${s.subject}</div>
                                     <div style="color: var(--text-muted); font-size: 0.75rem;">
-                                        ${s.sender} • ${new Date(s.date).toLocaleDateString()}
+                                        ${s.sender} • ${new Date(s.date).toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}
                                     </div>
                                 </div>
                             `,
@@ -6324,7 +6403,7 @@
                         <div class="selected-preview-subject">${email.subject || "No subject"}</div>
                         <div class="selected-preview-meta">
                             <span><strong>From:</strong> ${email.sender_email || email.email_from || "Unknown"}</span>
-                            <span><strong>Date:</strong> ${email.date_sent ? new Date(email.date_sent).toLocaleDateString() : "Unknown"}</span>
+                            <span><strong>Date:</strong> ${email.date_sent ? new Date(email.date_sent).toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' }) : "Unknown"}</span>
                             ${email.has_attachments ? '<span><i class="fas fa-paperclip"></i> Has attachments</span>' : ""}
                         </div>
                     </div>
@@ -6371,9 +6450,9 @@
         .sort((a, b) => a - b);
 
       if (dates.length === 0) return "Unknown";
-      if (dates.length === 1) return dates[0].toLocaleDateString();
+      if (dates.length === 1) return dates[0].toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' });
 
-      return `${dates[0].toLocaleDateString()} - ${dates[dates.length - 1].toLocaleDateString()}`;
+      return `${dates[0].toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })} - ${dates[dates.length - 1].toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' })}`;
     }
 
     /**

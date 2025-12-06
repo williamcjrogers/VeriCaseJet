@@ -242,16 +242,21 @@
       navHtml += `</div>`;
     });
 
-    // Add project context indicator if project is selected
+    // Add project context indicator - always show, clickable to switch projects
     const projectId = getProjectId();
     const projectContext = projectId
       ? `
-            <div class="project-context">
-                <div class="project-context-label">Current Project</div>
+            <div class="project-context" onclick="VericaseShell.showProjectSelector()" style="cursor: pointer;" title="Click to switch project">
+                <div class="project-context-label">Current Project <i class="fas fa-exchange-alt" style="float:right;opacity:0.5;font-size:0.75rem;"></i></div>
                 <div class="project-context-name" id="currentProjectName">Loading...</div>
             </div>
         `
-      : "";
+      : `
+            <div class="project-context no-project" onclick="VericaseShell.showProjectSelector()" style="cursor: pointer;" title="Click to select project">
+                <div class="project-context-label">No Project Selected</div>
+                <div class="project-context-name" style="font-size:0.75rem;opacity:0.7;">Click to select</div>
+            </div>
+        `;
 
     return `
             <aside class="app-sidebar" id="appSidebar">
@@ -342,11 +347,148 @@
     }
   }
 
+  // ==========================================
+  // Project Selector Modal
+  // ==========================================
+  let projectSelectorOptions = {};
+  let projectsCache = null;
+
+  function renderProjectSelectorModal() {
+    return `
+      <div class="project-selector-modal" id="projectSelectorModal">
+        <div class="project-selector-content">
+          <div class="project-selector-header">
+            <h3><i class="fas fa-project-diagram"></i> Select a Project</h3>
+            <button class="close-btn" onclick="VericaseShell.closeProjectSelector()" id="projectSelectorCloseBtn">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="project-selector-body">
+            <select id="globalProjectSelect" class="form-input">
+              <option value="">-- Select a project --</option>
+            </select>
+            <p class="project-selector-hint">Select a project to continue working with project-specific features.</p>
+          </div>
+          <div class="project-selector-actions">
+            <button class="btn btn-secondary" onclick="VericaseShell.closeProjectSelector()" id="projectSelectorCancelBtn">Cancel</button>
+            <button class="btn btn-vericase" onclick="VericaseShell.confirmProjectSelection()" id="projectSelectorConfirmBtn">
+              <i class="fas fa-check"></i> Continue
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  async function fetchProjects() {
+    if (projectsCache) return projectsCache;
+
+    try {
+      const apiUrl = window.location.origin;
+      const token = localStorage.getItem("token");
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+      const response = await fetch(`${apiUrl}/api/projects`, { headers });
+      if (response.ok) {
+        projectsCache = await response.json();
+        return projectsCache;
+      }
+    } catch (error) {
+      console.error("[VericaseShell] Failed to fetch projects:", error);
+    }
+    return [];
+  }
+
+  async function showProjectSelector(options = {}) {
+    projectSelectorOptions = options;
+
+    // Ensure modal exists in DOM
+    let modal = document.getElementById("projectSelectorModal");
+    if (!modal) {
+      const modalContainer = document.createElement("div");
+      modalContainer.innerHTML = renderProjectSelectorModal();
+      document.body.appendChild(modalContainer.firstElementChild);
+      modal = document.getElementById("projectSelectorModal");
+    }
+
+    // Hide cancel button if required
+    const cancelBtn = document.getElementById("projectSelectorCancelBtn");
+    const closeBtn = document.getElementById("projectSelectorCloseBtn");
+    if (options.required) {
+      if (cancelBtn) cancelBtn.style.display = "none";
+      if (closeBtn) closeBtn.style.display = "none";
+    } else {
+      if (cancelBtn) cancelBtn.style.display = "";
+      if (closeBtn) closeBtn.style.display = "";
+    }
+
+    // Populate dropdown
+    const select = document.getElementById("globalProjectSelect");
+    if (select) {
+      select.innerHTML = '<option value="">Loading projects...</option>';
+
+      const projects = await fetchProjects();
+      const currentProjectId = getProjectId();
+
+      select.innerHTML = '<option value="">-- Select a project --</option>';
+      projects.forEach((project) => {
+        const selected = project.id === currentProjectId ? "selected" : "";
+        select.innerHTML += `<option value="${project.id}" ${selected}>${project.project_name || project.name || "Unnamed Project"} ${project.project_code ? `(${project.project_code})` : ""}</option>`;
+      });
+    }
+
+    // Show modal
+    modal.classList.add("active");
+  }
+
+  function closeProjectSelector() {
+    const modal = document.getElementById("projectSelectorModal");
+    if (modal && !projectSelectorOptions.required) {
+      modal.classList.remove("active");
+    }
+  }
+
+  function confirmProjectSelection() {
+    const select = document.getElementById("globalProjectSelect");
+    const selectedId = select?.value;
+
+    if (!selectedId) {
+      if (window.VericaseUI?.Toast) {
+        window.VericaseUI.Toast.warning("Please select a project");
+      } else {
+        alert("Please select a project");
+      }
+      return;
+    }
+
+    // Store in localStorage
+    localStorage.setItem("vericase_current_project", selectedId);
+
+    // Close modal
+    const modal = document.getElementById("projectSelectorModal");
+    if (modal) {
+      modal.classList.remove("active");
+    }
+
+    // Call callback if provided
+    if (projectSelectorOptions.onSelect) {
+      projectSelectorOptions.onSelect(selectedId);
+    } else {
+      // Default behavior: reload page with projectId in URL
+      const url = new URL(window.location.href);
+      url.searchParams.set("projectId", selectedId);
+      window.location.href = url.toString();
+    }
+  }
+
   // Export
   window.VericaseShell = {
     inject: injectShell,
     NAV_ITEMS,
     buildNavUrl,
     getProjectId,
+    showProjectSelector,
+    closeProjectSelector,
+    confirmProjectSelection,
   };
 })();

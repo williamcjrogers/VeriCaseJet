@@ -2,8 +2,11 @@ from __future__ import annotations
 
 """
 AI Settings Manager - Loads AI configuration from database with fallback to environment variables
+Supports: OpenAI, Anthropic, Gemini, and Amazon Bedrock providers
 """
+import json
 import logging
+from typing import Any
 from sqlalchemy.orm import Session
 
 from .config import settings as env_settings
@@ -12,10 +15,20 @@ from .models import AppSetting
 logger = logging.getLogger(__name__)
 
 
+# Supported providers (consolidated from 6 to 4)
+SUPPORTED_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock"]
+
+
 class AISettings:
     """
     Manages AI provider settings, loading from database with env var fallbacks.
     Settings are cached but can be refreshed on demand.
+
+    Supported Providers:
+    - OpenAI (direct API)
+    - Anthropic (direct API)
+    - Gemini (direct API)
+    - Amazon Bedrock (IAM-based)
     """
 
     _cache: dict[str, str] = {}
@@ -24,10 +37,39 @@ class AISettings:
     # Default models for each provider
     DEFAULT_MODELS: dict[str, str] = {
         "openai": "gpt-4o",
-        "anthropic": "claude-sonnet-4-20250514",
-        "gemini": "gemini-2.0-flash",
-        "grok": "grok-2-1212",
-        "perplexity": "sonar-pro",
+        "anthropic": "claude-sonnet-4-5-20250929",
+        "gemini": "gemini-2.5-flash",
+        "bedrock": "anthropic.claude-sonnet-4-5-20250929-v1:0",
+    }
+
+    # Default function configurations (cost-aware defaults)
+    DEFAULT_FUNCTION_CONFIGS: dict[str, dict[str, Any]] = {
+        "quick_search": {
+            "provider": "gemini",
+            "model": "gemini-2.5-flash",  # Budget tier
+            "thinking_enabled": False,
+            "max_duration_seconds": 30,
+        },
+        "deep_analysis": {
+            "provider": "anthropic",
+            "model": "claude-sonnet-4-5-20250929",  # Balanced tier (was Opus)
+            "thinking_enabled": True,
+            "thinking_budget_tokens": 5000,  # Reduced for cost efficiency
+            "max_duration_seconds": 300,
+            "orchestration": {
+                "enabled": False,
+                "mode": "parallel",
+                "models": [],
+            },
+        },
+    }
+
+    # Bedrock model mapping for Claude routing
+    CLAUDE_TO_BEDROCK_MAP: dict[str, str] = {
+        "claude-opus-4-5-20251101": "anthropic.claude-opus-4-5-20251101-v1:0",
+        "claude-sonnet-4-5-20250929": "anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "claude-haiku-4-5-20251001": "anthropic.claude-haiku-4-5-20251001-v1:0",
+        "claude-opus-4-1-20250805": "anthropic.claude-4-opus-4-1-20250805-v1:0",
     }
 
     @classmethod
@@ -42,8 +84,7 @@ class AISettings:
                     AppSetting.key.like("openai_%")
                     | AppSetting.key.like("anthropic_%")
                     | AppSetting.key.like("gemini_%")
-                    | AppSetting.key.like("grok_%")
-                    | AppSetting.key.like("perplexity_%")
+                    | AppSetting.key.like("bedrock_%")
                     | AppSetting.key.like("ai_%")
                 )
                 .all()
@@ -86,8 +127,8 @@ class AISettings:
             "openai_api_key": "OPENAI_API_KEY",
             "anthropic_api_key": "CLAUDE_API_KEY",
             "gemini_api_key": "GEMINI_API_KEY",
-            "grok_api_key": "GROK_API_KEY",
-            "perplexity_api_key": "PERPLEXITY_API_KEY",
+            "bedrock_enabled": "BEDROCK_ENABLED",
+            "bedrock_region": "AWS_REGION",
         }
 
         env_var = env_map.get(key)
@@ -126,6 +167,10 @@ class AISettings:
         cls, db: Session | None = None
     ) -> dict[str, dict[str, str | bool]]:
         """Get status of all AI providers"""
+        # Check Bedrock availability
+        bedrock_enabled = cls.get("bedrock_enabled", db) == "true"
+        bedrock_region = cls.get("bedrock_region", db) or "us-east-1"
+
         providers = {
             "openai": {
                 "name": "OpenAI (GPT)",
@@ -145,20 +190,150 @@ class AISettings:
                 "model": cls.get_model("gemini", db),
                 "task": "Pattern Recognition",
             },
-            "grok": {
-                "name": "xAI (Grok)",
-                "available": bool(cls.get_api_key("grok", db)),
-                "model": cls.get_model("grok", db),
-                "task": "Gap Analysis",
-            },
-            "perplexity": {
-                "name": "Perplexity",
-                "available": bool(cls.get_api_key("perplexity", db)),
-                "model": cls.get_model("perplexity", db),
-                "task": "Evidence-Focused Queries",
+            "bedrock": {
+                "name": "Amazon Bedrock",
+                "available": bedrock_enabled,
+                "model": cls.get_model("bedrock", db),
+                "region": bedrock_region,
+                "task": "Enterprise AI (Claude, Nova, Titan, Llama)",
             },
         }
         return providers
+
+    @classmethod
+    def get_function_config(
+        cls, function_name: str, db: Session | None = None
+    ) -> dict[str, Any]:
+        """
+        Get configuration for a specific AI function (quick_search, deep_analysis)
+
+        Args:
+            function_name: Name of the function (quick_search, deep_analysis)
+            db: Database session
+
+        Returns:
+            Function configuration dict
+        """
+        key = f"ai_function_{function_name}"
+
+        # Try to get from database/cache
+        config_json = cls.get(key, db)
+        if config_json:
+            try:
+                return json.loads(config_json)
+            except json.JSONDecodeError:
+                logger.warning(f"Invalid JSON for {key}, using defaults")
+
+        # Return default config
+        return cls.DEFAULT_FUNCTION_CONFIGS.get(
+            function_name, cls.DEFAULT_FUNCTION_CONFIGS["quick_search"]
+        )
+
+    @classmethod
+    def set_function_config(
+        cls, function_name: str, config: dict[str, Any], db: Session
+    ) -> bool:
+        """
+        Save configuration for a specific AI function
+
+        Args:
+            function_name: Name of the function
+            config: Configuration dict
+            db: Database session
+
+        Returns:
+            True if saved successfully
+        """
+        key = f"ai_function_{function_name}"
+        try:
+            config_json = json.dumps(config)
+
+            # Update or create setting
+            setting = db.query(AppSetting).filter(AppSetting.key == key).first()
+            if setting:
+                setting.value = config_json
+            else:
+                setting = AppSetting(key=key, value=config_json)
+                db.add(setting)
+
+            db.commit()
+
+            # Update cache
+            cls._cache[key] = config_json
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to save function config {function_name}: {e}")
+            db.rollback()
+            return False
+
+    @classmethod
+    def is_bedrock_enabled(cls, db: Session | None = None) -> bool:
+        """Check if Amazon Bedrock is enabled"""
+        return cls.get("bedrock_enabled", db) == "true"
+
+    @classmethod
+    def get_bedrock_region(cls, db: Session | None = None) -> str:
+        """Get configured Bedrock region"""
+        return cls.get("bedrock_region", db) or "us-east-1"
+
+    @classmethod
+    def is_bedrock_route_claude(cls, db: Session | None = None) -> bool:
+        """Check if Claude requests should be routed through Bedrock"""
+        return cls.get("bedrock_route_claude", db) == "true"
+
+    @classmethod
+    def is_fallback_enabled(cls, db: Session | None = None) -> bool:
+        """Check if AI fallback is enabled"""
+        value = cls.get("ai_fallback_enabled", db)
+        # Default to True if not set
+        return value != "false"
+
+    @classmethod
+    def is_fallback_logging_enabled(cls, db: Session | None = None) -> bool:
+        """Check if fallback logging is enabled"""
+        value = cls.get("ai_fallback_log_attempts", db)
+        # Default to True if not set
+        return value != "false"
+
+    @classmethod
+    def get_effective_provider(
+        cls,
+        requested_provider: str,
+        model: str,
+        db: Session | None = None,
+    ) -> tuple[str, str]:
+        """
+        Get the effective provider and model after applying routing rules.
+
+        If bedrock_route_claude is enabled and the requested provider is Anthropic,
+        the request will be routed through Bedrock instead.
+
+        Args:
+            requested_provider: The originally requested provider
+            model: The originally requested model
+            db: Database session
+
+        Returns:
+            Tuple of (effective_provider, effective_model)
+        """
+        # Check if Bedrock routing is enabled for Claude
+        if cls.is_bedrock_route_claude(db) and requested_provider == "anthropic":
+            # Check if Bedrock is actually available
+            if cls.is_bedrock_enabled(db):
+                # Try to map the model to Bedrock equivalent
+                bedrock_model = cls.CLAUDE_TO_BEDROCK_MAP.get(model)
+                if bedrock_model:
+                    logger.debug(
+                        f"Routing {requested_provider}/{model} -> bedrock/{bedrock_model}"
+                    )
+                    return "bedrock", bedrock_model
+                else:
+                    logger.warning(
+                        f"No Bedrock mapping for model {model}, using direct Anthropic API"
+                    )
+
+        return requested_provider, model
 
 
 # Convenience functions for direct import
@@ -174,3 +349,42 @@ def get_ai_providers_status(
     db: Session | None = None,
 ) -> dict[str, dict[str, str | bool]]:
     return AISettings.get_all_configured_providers(db)
+
+
+def get_function_config(function_name: str, db: Session | None = None) -> dict[str, Any]:
+    """Get configuration for an AI function (quick_search, deep_analysis)"""
+    return AISettings.get_function_config(function_name, db)
+
+
+def is_bedrock_enabled(db: Session | None = None) -> bool:
+    """Check if Amazon Bedrock is enabled"""
+    return AISettings.is_bedrock_enabled(db)
+
+
+def get_bedrock_region(db: Session | None = None) -> str:
+    """Get configured Bedrock region"""
+    return AISettings.get_bedrock_region(db)
+
+
+def is_bedrock_route_claude(db: Session | None = None) -> bool:
+    """Check if Claude requests should be routed through Bedrock"""
+    return AISettings.is_bedrock_route_claude(db)
+
+
+def is_fallback_enabled(db: Session | None = None) -> bool:
+    """Check if AI fallback is enabled"""
+    return AISettings.is_fallback_enabled(db)
+
+
+def is_fallback_logging_enabled(db: Session | None = None) -> bool:
+    """Check if fallback logging is enabled"""
+    return AISettings.is_fallback_logging_enabled(db)
+
+
+def get_effective_provider(
+    requested_provider: str,
+    model: str,
+    db: Session | None = None,
+) -> tuple[str, str]:
+    """Get effective provider after applying routing rules (Bedrock-first, etc.)"""
+    return AISettings.get_effective_provider(requested_provider, model, db)

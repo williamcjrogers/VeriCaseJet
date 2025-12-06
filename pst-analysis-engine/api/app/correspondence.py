@@ -14,7 +14,7 @@ from typing import Annotated, Any
 
 from boto3.s3.transfer import TransferConfig
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from pydantic.fields import Field
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -2035,10 +2035,10 @@ async def get_attachment_ocr_text(
 
 
 class ProjectCreateRequest(BaseModel):
-    """Create project from wizard"""
+    """Create project from wizard - requires valid name/code"""
 
-    project_name: str | None = None
-    project_code: str | None = None
+    project_name: str
+    project_code: str
     start_date: datetime | None = None
     completion_date: datetime | None = None
     contract_type: str | None = None
@@ -2053,6 +2053,22 @@ class ProjectCreateRequest(BaseModel):
     project_terms: str | None = None
     exclude_keywords: str | None = None
 
+    @field_validator("project_name", "project_code")
+    @classmethod
+    def _not_blank(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("Field is required")
+        if len(v.strip()) > 100:
+            raise ValueError("Field must be <= 100 characters")
+        return v.strip()
+
+    @field_validator("project_code")
+    @classmethod
+    def _code_format(cls, v: str) -> str:
+        if not _re_module.fullmatch(r"[A-Za-z0-9._-]+", v.strip()):
+            raise ValueError("Project code can only contain letters, numbers, dot, underscore, or dash")
+        return v.strip()
+
 
 class ProjectUpdateRequest(BaseModel):
     """Update project details"""
@@ -2062,10 +2078,10 @@ class ProjectUpdateRequest(BaseModel):
 
 
 class CaseCreateRequest(BaseModel):
-    """Create case from wizard"""
+    """Create case from wizard - requires valid name/number"""
 
-    case_name: str | None = None
-    case_id_custom: str | None = None
+    case_name: str
+    case_id_custom: str
     resolution_route: str | None = None
     claimant: str | None = None
     defendant: str | None = None
@@ -2076,6 +2092,22 @@ class CaseCreateRequest(BaseModel):
     legal_team: list[dict[str, Any]] = Field(default_factory=list)
     heads_of_claim: list[dict[str, Any]] = Field(default_factory=list)
     deadlines: list[dict[str, Any]] = Field(default_factory=list)
+
+    @field_validator("case_name", "case_id_custom")
+    @classmethod
+    def _case_required(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("Field is required")
+        if len(v.strip()) > 100:
+            raise ValueError("Field must be <= 100 characters")
+        return v.strip()
+
+    @field_validator("case_id_custom")
+    @classmethod
+    def _case_number_format(cls, v: str) -> str:
+        if not _re_module.fullmatch(r"[A-Za-z0-9._-]+", v.strip()):
+            raise ValueError("Case number can only contain letters, numbers, dot, underscore, or dash")
+        return v.strip()
 
 
 # ========================================
@@ -2486,12 +2518,17 @@ async def create_project(
         db.refresh(default_user)
 
     project_id = uuid.uuid4()  # Fixed: Use UUID object, not string
+    project_name = request.project_name
+    project_code = request.project_code
 
-    # Generate default values if not provided
-    project_name = (
-        request.project_name or f"Project {datetime.now().strftime('%Y%m%d-%H%M')}"
+    # Enforce uniqueness for project code before insert
+    existing_code = (
+        db.query(Project).filter(Project.project_code == project_code).first()
     )
-    project_code = request.project_code or f"PROJ-{uuid.uuid4().hex[:8].upper()}"
+    if existing_code:
+        raise HTTPException(
+            status_code=409, detail="Project code already exists. Choose another."
+        )
 
     project = Project(
         id=project_id,
@@ -2679,14 +2716,21 @@ async def create_case(
         db.flush()
 
     case_uuid = uuid.uuid4()
-    case_number = request.case_id_custom or f"CASE-{uuid.uuid4().hex[:10].upper()}"
+    case_number = request.case_id_custom
     status_value = request.case_status or "active"
+
+    # Enforce uniqueness for case number before insert
+    existing_case = db.query(Case).filter(Case.case_number == case_number).first()
+    if existing_case:
+        raise HTTPException(
+            status_code=409, detail="Case number already exists. Choose another."
+        )
 
     case = Case(
         id=case_uuid,
         case_number=case_number,
         case_id_custom=request.case_id_custom,
-        name=request.case_name or f"Case {datetime.now().strftime('%Y%m%d-%H%M')}",
+        name=request.case_name,
         description=None,
         project_name=request.case_name,
         resolution_route=request.resolution_route,

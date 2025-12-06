@@ -287,12 +287,14 @@ class Settings(BaseSettings):
     JWT_ISSUER: str = "vericase-docs"
     JWT_EXPIRE_MIN: int = 7200
 
-    # AI Model API Keys
+    # AI Model API Keys (4 providers: OpenAI, Anthropic, Gemini, Bedrock)
     GEMINI_API_KEY: str = ""
     CLAUDE_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
-    GROK_API_KEY: str = ""
-    PERPLEXITY_API_KEY: str = ""
+
+    # Amazon Bedrock settings (uses IAM credentials from AWS_ACCESS_KEY_ID or IRSA)
+    BEDROCK_ENABLED: bool = False
+    BEDROCK_REGION: str = "us-east-1"
 
     # AI Feature Flags
     ENABLE_AI_AUTO_CLASSIFY: bool = True

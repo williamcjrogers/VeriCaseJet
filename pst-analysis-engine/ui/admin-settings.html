@@ -571,19 +571,17 @@
           </div>
         </div>
 
-        <!-- Perplexity Configuration -->
+        <!-- Amazon Bedrock Configuration -->
         <div class="setting-item">
           <div class="setting-header">
             <div>
               <div class="setting-label">
-                <i class="fas fa-search" style="color: #7c3aed"></i> Perplexity
+                <i class="fas fa-cloud" style="color: #ff9900"></i> Amazon Bedrock
               </div>
               <div class="setting-description">
-                Used for evidence-focused local queries (no web search). Get
-                your API key from
-                <a href="https://www.perplexity.ai/settings/api" target="_blank"
-                  >perplexity.ai/settings/api</a
-                >
+                Enterprise AI via AWS Bedrock. Uses IAM credentials (no API key needed).
+                Supports Claude, Nova, Titan, Llama, and Mistral models.
+                <a href="https://aws.amazon.com/bedrock/" target="_blank">Learn more</a>
               </div>
             </div>
           </div>
@@ -592,24 +590,24 @@
             style="flex-direction: column; align-items: stretch; gap: 0.75rem"
           >
             <div style="display: flex; gap: 1rem; align-items: center">
-              <input
-                type="password"
-                id="perplexity-api-key"
+              <label style="color: var(--text-secondary); min-width: 80px">Enable:</label>
+              <select
+                id="bedrock-enabled"
                 class="setting-input"
-                style="max-width: 400px; flex: 1"
-                placeholder="pplx-..."
-              />
+                style="max-width: 150px"
+              >
+                <option value="false">Disabled</option>
+                <option value="true">Enabled</option>
+              </select>
               <button
                 class="btn-save"
-                onclick="
-                  saveSetting('perplexity_api_key', 'perplexity-api-key')
-                "
+                onclick="saveSetting('bedrock_enabled', 'bedrock-enabled')"
               >
-                Save Key
+                Save
               </button>
               <button
                 class="btn-test"
-                onclick="testAIProvider('perplexity')"
+                onclick="testAIProvider('bedrock')"
                 style="
                   background: var(--gray-200);
                   color: var(--text-primary);
@@ -623,108 +621,57 @@
               </button>
             </div>
             <div style="display: flex; gap: 1rem; align-items: center">
-              <label style="color: var(--text-secondary); min-width: 80px"
-                >Model:</label
-              >
+              <label style="color: var(--text-secondary); min-width: 80px">Region:</label>
               <select
-                id="perplexity-model"
+                id="bedrock-region"
                 class="setting-input"
-                style="max-width: 300px"
+                style="max-width: 200px"
               >
-                <option value="sonar-pro">Sonar Pro (Advanced)</option>
-                <option value="sonar">Sonar (Default)</option>
-                <option value="sonar-reasoning-pro">
-                  Sonar Reasoning Pro (Deep Research)
-                </option>
+                <option value="us-east-1">US East (N. Virginia)</option>
+                <option value="us-west-2">US West (Oregon)</option>
+                <option value="eu-west-1">Europe (Ireland)</option>
+                <option value="eu-west-2">Europe (London)</option>
+                <option value="ap-northeast-1">Asia Pacific (Tokyo)</option>
               </select>
               <button
                 class="btn-save"
-                onclick="saveSetting('perplexity_model', 'perplexity-model')"
+                onclick="saveSetting('bedrock_region', 'bedrock-region')"
+              >
+                Save
+              </button>
+            </div>
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <label style="color: var(--text-secondary); min-width: 80px">Model:</label>
+              <select
+                id="bedrock-model"
+                class="setting-input"
+                style="max-width: 300px"
+              >
+                <option value="amazon.nova-pro-v1:0">Amazon Nova Pro</option>
+                <option value="amazon.nova-lite-v1:0">Amazon Nova Lite</option>
+                <option value="amazon.nova-micro-v1:0">Amazon Nova Micro</option>
+                <option value="anthropic.claude-opus-4-5-20251101-v1:0">Claude Opus 4.5 (Bedrock)</option>
+                <option value="anthropic.claude-sonnet-4-5-20250929-v1:0">Claude Sonnet 4.5 (Bedrock)</option>
+                <option value="meta.llama3-3-70b-instruct-v1:0">Llama 3.3 70B</option>
+                <option value="mistral.mistral-large-2407-v1:0">Mistral Large</option>
+              </select>
+              <button
+                class="btn-save"
+                onclick="saveSetting('bedrock_model', 'bedrock-model')"
               >
                 Save
               </button>
             </div>
           </div>
-          <div class="success-message" id="success-perplexity-api-key">
+          <div class="success-message" id="success-bedrock-enabled">
             Setting saved!
           </div>
-          <div class="success-message" id="success-perplexity-model">
+          <div class="success-message" id="success-bedrock-region">
+            Setting saved!
+          </div>
+          <div class="success-message" id="success-bedrock-model">
             Model saved!
           </div>
-        </div>
-
-        <!-- Phi-4 (Self-Hosted) Configuration -->
-        <div class="setting-item">
-          <div class="setting-header">
-            <div>
-              <div class="setting-label">
-                <i class="fas fa-server" style="color: #0078d4"></i> Microsoft
-                Phi-4 (Self-Hosted)
-              </div>
-              <div class="setting-description">
-                Self-hosted Phi-4 model running on EC2. No API key required -
-                uses direct connection.
-              </div>
-            </div>
-          </div>
-          <div
-            class="setting-control"
-            style="flex-direction: column; align-items: stretch; gap: 0.75rem"
-          >
-            <div style="display: flex; gap: 1rem; align-items: center">
-              <input
-                type="text"
-                id="phi-endpoint"
-                class="setting-input"
-                style="max-width: 400px; flex: 1"
-                placeholder="http://your-ec2-ip:11434"
-                value="http://your-ec2-ip:11434"
-              />
-              <button
-                class="btn-save"
-                onclick="saveSetting('phi_endpoint', 'phi-endpoint')"
-              >
-                Save Endpoint
-              </button>
-              <button
-                class="btn-test"
-                onclick="testAIProvider('phi')"
-                style="
-                  background: var(--gray-200);
-                  color: var(--text-primary);
-                  border: none;
-                  padding: 0.75rem 1rem;
-                  border-radius: var(--radius-md);
-                  cursor: pointer;
-                "
-              >
-                <i class="fas fa-vial"></i> Test
-              </button>
-            </div>
-            <div style="display: flex; gap: 1rem; align-items: center">
-              <label style="color: var(--text-secondary); min-width: 80px"
-                >Model:</label
-              >
-              <select
-                id="phi-model"
-                class="setting-input"
-                style="max-width: 300px"
-              >
-                <option value="phi4">Phi-4 (14B)</option>
-                <option value="phi4:latest">Phi-4 Latest</option>
-              </select>
-              <button
-                class="btn-save"
-                onclick="saveSetting('phi_model', 'phi-model')"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-          <div class="success-message" id="success-phi-endpoint">
-            Setting saved!
-          </div>
-          <div class="success-message" id="success-phi-model">Model saved!</div>
         </div>
 
         <!-- AI Feature Toggles -->
@@ -759,7 +706,7 @@
                 <option value="openai">OpenAI (GPT)</option>
                 <option value="anthropic">Anthropic (Claude)</option>
                 <option value="gemini">Google (Gemini)</option>
-                <option value="phi">Microsoft Phi-4</option>
+                <option value="bedrock">Amazon Bedrock</option>
               </select>
               <button
                 class="btn-save"
@@ -789,11 +736,61 @@
                 Save
               </button>
             </div>
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <label style="color: var(--text-secondary); min-width: 200px"
+                >Enable Fallback:</label
+              >
+              <select
+                id="ai-fallback-enabled"
+                class="setting-input"
+                style="max-width: 200px"
+              >
+                <option value="true">Enabled (Recommended)</option>
+                <option value="false">Disabled</option>
+              </select>
+              <button
+                class="btn-save"
+                onclick="saveSetting('ai_fallback_enabled', 'ai-fallback-enabled')"
+              >
+                Save
+              </button>
+              <span style="color: var(--text-secondary); font-size: 0.85rem">
+                <i class="fas fa-info-circle"></i> Auto-retry with other providers on failure
+              </span>
+            </div>
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <label style="color: var(--text-secondary); min-width: 200px"
+                >Route Claude via Bedrock:</label
+              >
+              <select
+                id="bedrock-route-claude"
+                class="setting-input"
+                style="max-width: 200px"
+              >
+                <option value="false">Disabled (Direct API)</option>
+                <option value="true">Enabled (Via Bedrock)</option>
+              </select>
+              <button
+                class="btn-save"
+                onclick="saveSetting('bedrock_route_claude', 'bedrock-route-claude')"
+              >
+                Save
+              </button>
+              <span style="color: var(--text-secondary); font-size: 0.85rem">
+                <i class="fas fa-shield-alt"></i> Recommended for SOC2/HIPAA
+              </span>
+            </div>
           </div>
           <div class="success-message" id="success-ai-default-provider">
             Setting saved!
           </div>
           <div class="success-message" id="success-ai-web-search">
+            Setting saved!
+          </div>
+          <div class="success-message" id="success-ai-fallback-enabled">
+            Setting saved!
+          </div>
+          <div class="success-message" id="success-bedrock-route-claude">
             Setting saved!
           </div>
         </div>
@@ -850,14 +847,9 @@
               <span>Google</span>
               <span class="status-text">Not configured</span>
             </div>
-            <div class="status-card" id="status-perplexity">
+            <div class="status-card" id="status-bedrock">
               <i class="fas fa-circle" style="color: var(--gray-300)"></i>
-              <span>Perplexity</span>
-              <span class="status-text">Not configured</span>
-            </div>
-            <div class="status-card" id="status-phi">
-              <i class="fas fa-circle" style="color: var(--gray-300)"></i>
-              <span>Phi-4</span>
+              <span>Bedrock</span>
               <span class="status-text">Not configured</span>
             </div>
           </div>
@@ -873,7 +865,7 @@
         window.location.href = "login.html";
       }
 
-      // Setting descriptions for AI keys
+      // Setting descriptions for AI keys (4 providers: OpenAI, Anthropic, Gemini, Bedrock)
       const settingDescriptions = {
         textract_page_threshold:
           "PDFs with more pages than this threshold will use Tika instead of AWS Textract",
@@ -884,12 +876,13 @@
         anthropic_model: "Anthropic model to use for narrative construction",
         gemini_api_key: "Google AI API key for Gemini models",
         gemini_model: "Gemini model to use for pattern recognition",
-        perplexity_api_key: "Perplexity API key for local queries",
-        perplexity_model: "Perplexity model to use for search queries",
-        phi_endpoint: "Phi-4 endpoint URL for self-hosted model",
-        phi_model: "Phi-4 model variant to use",
+        bedrock_enabled: "Enable Amazon Bedrock for enterprise AI",
+        bedrock_region: "AWS region for Bedrock",
+        bedrock_model: "Bedrock model to use for analysis",
         ai_default_provider: "Default AI provider for quick searches",
         ai_web_search_enabled: "Enable web search in AI queries",
+        ai_fallback_enabled: "Enable automatic fallback to other providers on failure",
+        bedrock_route_claude: "Route all Claude requests through AWS Bedrock (SOC2/HIPAA)",
       };
 
       // Load current settings on page load
@@ -919,7 +912,7 @@
             const key = setting.key;
             const value = setting.value;
 
-            // Map setting keys to input IDs
+            // Map setting keys to input IDs (4 providers: OpenAI, Anthropic, Gemini, Bedrock)
             const inputIdMap = {
               textract_page_threshold: "textract-page-threshold",
               textract_max_pages: "textract-max-pages",
@@ -929,12 +922,13 @@
               anthropic_model: "anthropic-model",
               gemini_api_key: "gemini-api-key",
               gemini_model: "gemini-model",
-              perplexity_api_key: "perplexity-api-key",
-              perplexity_model: "perplexity-model",
-              phi_endpoint: "phi-endpoint",
-              phi_model: "phi-model",
+              bedrock_enabled: "bedrock-enabled",
+              bedrock_region: "bedrock-region",
+              bedrock_model: "bedrock-model",
               ai_default_provider: "ai-default-provider",
               ai_web_search_enabled: "ai-web-search",
+              ai_fallback_enabled: "ai-fallback-enabled",
+              bedrock_route_claude: "bedrock-route-claude",
             };
 
             const inputId = inputIdMap[key];
@@ -950,17 +944,6 @@
               }
             }
           });
-
-          // Ensure Phi defaults are pre-populated when unset
-          const defaultPhiEndpoint = "http://your-ec2-ip:11434";
-          const phiEndpointInput = document.getElementById("phi-endpoint");
-          if (phiEndpointInput && !phiEndpointInput.value) {
-            phiEndpointInput.value = defaultPhiEndpoint;
-          }
-          const phiModelSelect = document.getElementById("phi-model");
-          if (phiModelSelect && !phiModelSelect.value) {
-            phiModelSelect.value = "phi4";
-          }
 
           // Update status indicators
           checkAllProviders();
@@ -1088,33 +1071,33 @@
 
           const status = await response.json();
 
-          // Update each provider status
+          // Update each provider status (4 providers: OpenAI, Anthropic, Gemini, Bedrock)
           if (status.models) {
             updateProviderStatus(
               "openai",
-              status.models.gpt5_pro?.available,
-              status.models.gpt5_pro?.available
+              status.models.openai?.available,
+              status.models.openai?.available
                 ? "Configured"
                 : "Not configured",
             );
             updateProviderStatus(
               "anthropic",
-              status.models.claude_opus?.available,
-              status.models.claude_opus?.available
+              status.models.anthropic?.available,
+              status.models.anthropic?.available
                 ? "Configured"
                 : "Not configured",
             );
             updateProviderStatus(
               "gemini",
-              status.models.gemini_2_5?.available,
-              status.models.gemini_2_5?.available
+              status.models.gemini?.available,
+              status.models.gemini?.available
                 ? "Configured"
                 : "Not configured",
             );
             updateProviderStatus(
-              "phi",
-              status.models.phi4?.available,
-              status.models.phi4?.available ? "Configured" : "Not configured",
+              "bedrock",
+              status.models.bedrock?.available,
+              status.models.bedrock?.available ? "Enabled" : "Not enabled",
             );
           }
         } catch (error) {

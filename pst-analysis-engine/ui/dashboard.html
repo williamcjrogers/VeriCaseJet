@@ -1292,6 +1292,7 @@
 
       async function openAIRefinement() {
         const profileId =
+          localStorage.getItem("vericase_current_project") ||
           localStorage.getItem("currentProjectId") ||
           localStorage.getItem("currentCaseId");
         const profileType = localStorage.getItem("profileType") || "project";
@@ -1403,7 +1404,8 @@
       if (!profileId) {
         const storedId =
           profileType === "project"
-            ? localStorage.getItem("currentProjectId") ||
+            ? localStorage.getItem("vericase_current_project") ||
+              localStorage.getItem("currentProjectId") ||
               localStorage.getItem("projectId")
             : localStorage.getItem("currentCaseId") ||
               localStorage.getItem("caseId");
@@ -1453,6 +1455,7 @@
             const firstProject = projects[0];
             profileId = firstProject.id;
             localStorage.setItem("currentProjectId", profileId);
+            localStorage.setItem("vericase_current_project", profileId); // Standardized key for nav-shell
             localStorage.setItem("profileType", "project");
             selector.value = profileId;
             onProjectSelected(profileId);
@@ -1477,6 +1480,7 @@
         // Update localStorage and global variable
         profileId = projectId;
         localStorage.setItem("currentProjectId", projectId);
+        localStorage.setItem("vericase_current_project", projectId); // Standardized key for nav-shell
         localStorage.setItem("profileType", "project");
 
         // Update profile name in header

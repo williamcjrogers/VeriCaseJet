@@ -917,6 +917,140 @@
   pointer-events: auto;
 }
 
+/* ============================================
+   PROJECT SELECTOR MODAL
+   ============================================ */
+
+.project-selector-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal, 1000);
+  backdrop-filter: blur(4px);
+}
+
+.project-selector-modal.active {
+  display: flex;
+}
+
+.project-selector-content {
+  background: var(--bg-primary, white);
+  border-radius: var(--radius-xl, 16px);
+  width: 420px;
+  max-width: 90vw;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  animation: modalSlideIn 0.3s var(--ease-out-expo, ease-out);
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.project-selector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-5, 20px) var(--space-6, 24px);
+  border-bottom: 1px solid var(--gray-200, #e5e7eb);
+}
+
+.project-selector-header h3 {
+  margin: 0;
+  font-size: var(--text-lg, 1.125rem);
+  font-weight: 600;
+  color: var(--text-primary, #1f2937);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 12px);
+}
+
+.project-selector-header h3 i {
+  color: var(--vericase-teal, #0f9d9a);
+}
+
+.project-selector-header .close-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  color: var(--text-muted, #6b7280);
+  transition: all var(--duration-fast, 0.15s);
+}
+
+.project-selector-header .close-btn:hover {
+  background: var(--gray-100, #f3f4f6);
+  color: var(--text-primary, #1f2937);
+}
+
+.project-selector-body {
+  padding: var(--space-6, 24px);
+}
+
+.project-selector-body select {
+  width: 100%;
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  border: 2px solid var(--gray-200, #e5e7eb);
+  border-radius: var(--radius-lg, 12px);
+  font-size: var(--text-base, 1rem);
+  background: white;
+  cursor: pointer;
+  transition: border-color var(--duration-fast, 0.15s);
+}
+
+.project-selector-body select:focus {
+  outline: none;
+  border-color: var(--vericase-teal, #0f9d9a);
+  box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.1);
+}
+
+.project-selector-hint {
+  margin: var(--space-3, 12px) 0 0;
+  font-size: var(--text-sm, 0.875rem);
+  color: var(--text-muted, #6b7280);
+}
+
+.project-selector-actions {
+  display: flex;
+  gap: var(--space-3, 12px);
+  padding: var(--space-5, 20px) var(--space-6, 24px);
+  border-top: 1px solid var(--gray-200, #e5e7eb);
+  background: var(--gray-50, #f9fafb);
+  border-radius: 0 0 var(--radius-xl, 16px) var(--radius-xl, 16px);
+}
+
+.project-selector-actions .btn {
+  flex: 1;
+}
+
+/* No project selected state in sidebar */
+.project-context.no-project {
+  background: rgba(255, 255, 255, 0.08);
+  border-left-color: var(--gray-500, #6b7280);
+}
+
+.project-context.no-project:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.project-context:hover {
+  background: rgba(15, 157, 154, 0.18);
+}
+
 /* Preload class to prevent transitions on page load */
 .preload * {
   transition: none !important;
