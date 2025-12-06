@@ -26,6 +26,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, TypedDict
 from uuid import UUID
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pypff  # type: ignore  # pypff is installed in Docker container
 
@@ -98,6 +99,10 @@ class UltimatePSTProcessor:
         self.total_count = 0
         self.attachment_hashes: dict[str, Any] = {}  # For Document deduplication
         self.evidence_item_hashes: dict[str, Any] = {}  # For EvidenceItem deduplication
+        
+        # Parallel upload executor
+        self.upload_executor = ThreadPoolExecutor(max_workers=20)
+        self.upload_futures = []
 
         # Initialize semantic processing for deep research acceleration
         self.semantic_service: Any = None
@@ -280,6 +285,18 @@ class UltimatePSTProcessor:
                     unique_threads.add(str(email_msg.thread_id))
             stats["threads_identified"] = len(unique_threads)
 
+            # Wait for any pending S3 uploads
+            if self.upload_futures:
+                logger.info(f"Waiting for {len(self.upload_futures)} attachment uploads to complete...")
+                for future in as_completed(self.upload_futures):
+                    try:
+                        future.result()
+                    except Exception as e:
+                        logger.error(f"Async upload failed: {e}")
+                        stats["errors"].append(f"Async upload failed: {e}")
+                logger.info("All attachment uploads completed")
+                self.upload_futures = []  # Clear for next run
+
             # Calculate stats
             stats["unique_attachments"] = len(self.attachment_hashes)
             stats["processing_time"] = (
@@ -388,7 +405,7 @@ class UltimatePSTProcessor:
         logger.info("Processing folder: %s (%d messages)", current_path, num_messages)
 
         # Process messages in this folder
-        COMMIT_BATCH_SIZE = 100  # Commit every N messages for performance (increased for speed)
+        COMMIT_BATCH_SIZE = 1000  # Commit every N messages for performance (increased for speed)
 
         for i in range(num_messages):
             try:
@@ -1129,9 +1146,10 @@ class UltimatePSTProcessor:
                         att_doc_id,
                     )
                 else:
-                    # Upload to S3
+                    # Upload to S3 (Parallelized)
                     try:
-                        self.s3.put_object(
+                        future = self.upload_executor.submit(
+                            self.s3.put_object,
                             Bucket=settings.S3_BUCKET,
                             Key=s3_key,
                             Body=attachment_data,
@@ -1142,11 +1160,12 @@ class UltimatePSTProcessor:
                                 "case_id": str(case_id) if case_id else "",
                             },
                         )
+                        self.upload_futures.append(future)
                     except Exception as e:
                         logger.error(
-                            f"Failed to upload attachment {filename} to S3: {e}"
+                            f"Failed to queue attachment upload {filename}: {e}"
                         )
-                        stats["errors"].append(f"Attachment upload failed: {filename}")
+                        stats["errors"].append(f"Attachment upload queue failed: {filename}")
                         continue
 
                     # Create Document record for attachment
@@ -1440,6 +1459,28 @@ class UltimatePSTProcessor:
             if email_message:
                 message_id_to_email[message_id] = email_message
 
+        # === NEW OPTIMIZATION: Pre-index fallback fields ===
+        # Map conversation_index -> thread_id
+        conv_index_map = {}
+        # Map normalized_subject -> thread_id
+        subject_map = {}
+
+        # Build lookup maps
+        for thread_info in self.threads_map.values():
+            email = thread_info.get("email_message")
+            if not email:
+                continue
+
+            if email.conversation_index and hasattr(email, "thread_id") and email.thread_id:
+                conv_index_map[email.conversation_index] = email.thread_id
+            
+            subject = thread_info.get("subject", "")
+            if subject:
+                norm_subj = re.sub(r"^(re|fw|fwd):\s*", "", subject.lower().strip())
+                if hasattr(email, "thread_id") and email.thread_id:
+                    subject_map[norm_subj] = email.thread_id
+        # ===================================================
+
         # Second pass: assign thread IDs using fallback logic
         for message_id, thread_info in self.threads_map.items():
             email_message: EmailMessage | None = thread_info.get("email_message")
@@ -1477,22 +1518,11 @@ class UltimatePSTProcessor:
                             thread_id = parent_email.thread_id
                             break
 
-            # Try conversation index (Outlook threading)
+            # Try conversation index (Outlook threading) - NOW O(1)
             if not thread_id and conversation_index:
-                # Look for other emails with same conversation index
-                for _, other_info in self.threads_map.items():
-                    other_email = other_info.get("email_message")
-                    if (
-                        other_email
-                        and other_email != email_message
-                        and other_email.conversation_index == conversation_index
-                        and hasattr(other_email, "thread_id")
-                        and other_email.thread_id
-                    ):
-                        thread_id = other_email.thread_id
-                        break
+                thread_id = conv_index_map.get(conversation_index)
 
-            # Last resort: subject-based grouping (normalized subject)
+            # Last resort: subject-based grouping (normalized subject) - NOW O(1)
             if not thread_id:
                 subject = thread_info.get("subject", "")
                 if subject:
@@ -1500,29 +1530,20 @@ class UltimatePSTProcessor:
                     normalized_subject = re.sub(
                         r"^(re|fw|fwd):\s*", "", subject.lower().strip()
                     )
-                    # Look for other emails with same normalized subject
-                    for _, other_info in self.threads_map.items():
-                        other_email = other_info.get("email_message")
-                        other_subject = other_info.get("subject", "")
-                        if (
-                            other_email
-                            and other_email != email_message
-                            and other_subject
-                        ):
-                            other_normalized = re.sub(
-                                r"^(re|fw|fwd):\s*", "", other_subject.lower().strip()
-                            )
-                            if (
-                                normalized_subject == other_normalized
-                                and hasattr(other_email, "thread_id")
-                                and other_email.thread_id
-                            ):
-                                thread_id = other_email.thread_id
-                                break
+                    thread_id = subject_map.get(normalized_subject)
 
             # Create new thread if none found
             if not thread_id:
                 thread_id = f"thread_{len(thread_groups) + 1}_{uuid.uuid4().hex[:8]}"
+            
+            # Update indexes for subsequent lookups in this pass
+            if conversation_index and not conv_index_map.get(conversation_index):
+                conv_index_map[conversation_index] = thread_id
+            
+            if subject:
+                 normalized_subject = re.sub(r"^(re|fw|fwd):\s*", "", subject.lower().strip())
+                 if not subject_map.get(normalized_subject):
+                     subject_map[normalized_subject] = thread_id
 
             # Assign thread_id to email
             email_message.thread_id = thread_id
