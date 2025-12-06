@@ -1253,7 +1253,7 @@ class UltimatePSTProcessor:
                         self.db.flush()
                         evidence_item_id = evidence_item.id
                         # Store for EvidenceItem deduplication (only if not a duplicate)
-                        if not is_duplicate:
+                        if not evidence_is_duplicate:
                             self.evidence_item_hashes[file_hash] = evidence_item_id
                         logger.debug(
                             f"Created EvidenceItem {evidence_item_id} for attachment: {safe_filename}"
