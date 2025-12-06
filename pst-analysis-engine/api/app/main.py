@@ -533,19 +533,19 @@ def _populate_ai_settings_from_env(force_update: bool = False):
             },
             # Default models - Updated 2025 (4 providers)
             "openai_model": {
-                "default": "gpt-5.1",
+                "default": "gpt-4o",
                 "description": "Default OpenAI model",
             },
             "anthropic_model": {
-                "default": "claude-sonnet-4.5",
+                "default": "claude-4.5-sonnet",
                 "description": "Default Anthropic model",
             },
             "gemini_model": {
-                "default": "gemini-3.0-pro",
+                "default": "gemini-2.0-flash",
                 "description": "Default Gemini model",
             },
             "bedrock_model": {
-                "default": "amazon.nova-pro-v1:0",
+                "default": "anthropic.claude-4.5-sonnet-v1:0",
                 "description": "Default Bedrock model",
             },
             # Default provider

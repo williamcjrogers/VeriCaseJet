@@ -107,15 +107,15 @@ class AIModelService:
         # ============ ANTHROPIC (Claude) - Direct API ============
         "claude-sonnet-4": {
             "provider": "anthropic",
-            "model": "claude-sonnet-4-5-20250929",
+            "model": "claude-4.5-sonnet",
         },
         "claude-opus-4-extended": {
             "provider": "anthropic",
-            "model": "claude-opus-4-5-20251101",  # Opus 4.5 with extended thinking
+            "model": "claude-4.5-opus",  # Opus 4.5 with extended thinking
         },
         "claude-haiku-4": {
             "provider": "anthropic",
-            "model": "claude-haiku-4-5-20251001",
+            "model": "claude-4.5-haiku",
         },
         # ============ OPENAI (GPT) ============
         "gpt-4o": {
@@ -128,7 +128,7 @@ class AIModelService:
         },
         "o1-reasoning": {
             "provider": "openai",
-            "model": "o1",  # OpenAI o1 reasoning model
+            "model": "o3",  # OpenAI o3 reasoning model
         },
         "o3-reasoning": {
             "provider": "openai",
@@ -141,40 +141,40 @@ class AIModelService:
         # ============ GOOGLE (Gemini) ============
         "gemini-2-flash": {
             "provider": "google",
-            "model": "gemini-2.5-flash",
+            "model": "gemini-2.0-flash",
         },
         "gemini-3-pro": {
             "provider": "google",
-            "model": "gemini-3-pro-preview",  # Flagship multimodal, 1M+ context
+            "model": "gemini-3.0-pro",  # Flagship multimodal, 1M+ context
         },
         "gemini-2-5-pro": {
             "provider": "google",
-            "model": "gemini-2.5-pro",
+            "model": "gemini-2.0-pro",
         },
         # ============ AMAZON BEDROCK ============
         "bedrock-claude-opus": {
             "provider": "bedrock",
-            "model": "anthropic.claude-opus-4-5-20251101-v1:0",
+            "model": "anthropic.claude-4.5-opus-v1:0",
         },
         "bedrock-claude-sonnet": {
             "provider": "bedrock",
-            "model": "anthropic.claude-sonnet-4-5-20250929-v1:0",
+            "model": "anthropic.claude-4.5-sonnet-v1:0",
         },
         "bedrock-nova-pro": {
             "provider": "bedrock",
-            "model": "amazon.nova-pro-v1:0",
+            "model": "amazon.titan-text-premier-v1",
         },
         "bedrock-nova-lite": {
             "provider": "bedrock",
-            "model": "amazon.nova-lite-v1:0",
+            "model": "amazon.titan-text-lite-v1",
         },
         "bedrock-nova-micro": {
             "provider": "bedrock",
-            "model": "amazon.nova-micro-v1:0",
+            "model": "amazon.titan-text-lite-v1",
         },
         "bedrock-llama-70b": {
             "provider": "bedrock",
-            "model": "meta.llama3-3-70b-instruct-v1:0",
+            "model": "meta.llama3-70b-instruct-v1:0",
         },
         "bedrock-mistral-large": {
             "provider": "bedrock",
