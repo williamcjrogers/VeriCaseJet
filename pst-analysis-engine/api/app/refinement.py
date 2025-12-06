@@ -169,7 +169,7 @@ def discover_other_projects(
     current_project_lower = current_project.lower()
 
     for email in emails:
-        text_to_search = "{email.subject or ''} {email.body_text or ''}"
+        text_to_search = f"{email.subject or ''} {email.body_text or ''}"
 
         for pattern in PROJECT_PATTERNS:
             matches = re.findall(pattern, text_to_search, re.IGNORECASE)

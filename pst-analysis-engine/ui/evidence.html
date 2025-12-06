@@ -1060,6 +1060,39 @@
       ? window.VeriCaseConfig.apiUrl
       : window.location.origin;
 
+    // Load AG Grid configuration from admin settings
+    async function loadGridConfig() {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return {}; // Return empty config if not logged in
+
+        const response = await fetch(`${apiUrl}/api/admin/settings`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) return {}; // Return empty config if fetch fails
+
+        const settings = await response.json();
+        const config = {};
+
+        settings.forEach(s => {
+          if (s.key.startsWith('ag_grid_')) {
+            const settingKey = s.key.replace('ag_grid_', '');
+            config[settingKey] = s.value;
+          }
+        });
+
+        console.log('[Grid Config] Loaded admin settings:', config);
+        return config;
+      } catch (error) {
+        console.error('[Grid Config] Error loading settings:', error);
+        return {}; // Return empty config on error
+      }
+    }
+
+    // Store admin config globally for grid initialization
+    let adminGridConfig = {};
+
     let gridApi = null;
     let selectedEvidence = null;
     let currentPreviewData = null;
@@ -1262,7 +1295,10 @@
     // GRID SETUP
     // ============================================
 
-    function initGrid() {
+    async function initGrid() {
+      // Load admin grid configuration
+      adminGridConfig = await loadGridConfig();
+
       // Safe data accessor - prevents errors when data is missing
       const safeGet = (data, key, fallback = "") => {
         if (!data) return fallback;
@@ -1437,7 +1473,8 @@
         suppressRowClickSelection: false,
         rowSelection: "single",
         animateRows: true,
-        rowHeight: 56,
+        // Apply row height from admin settings (default 56 for evidence grid)
+        rowHeight: adminGridConfig.default_row_height ? parseInt(adminGridConfig.default_row_height) : 56,
         headerHeight: 44,
         // Safe row click handler
         onRowClicked: (params) => {
@@ -1456,6 +1493,12 @@
       };
 
       const gridDiv = document.getElementById("evidenceGrid");
+
+      // Apply theme from admin settings
+      const theme = adminGridConfig.theme || 'quartz';
+      gridDiv.className = `ag-theme-${theme}`;
+      console.log('[Grid Config] Applied theme:', theme);
+
       // Use createGrid API (v31+) instead of deprecated new Grid()
       gridApi = agGrid.createGrid(gridDiv, gridOptions);
       gridApi.setGridOption("rowData", []); // initialize with empty set to render headers
@@ -1463,7 +1506,7 @@
       // Show overlay immediately so user sees a loading state
       gridApi.showLoadingOverlay();
 
-      console.log("[Evidence] Grid initialized");
+      console.log("[Evidence] Grid initialized with admin config:", adminGridConfig);
     }
 
     // ============================================
@@ -1583,7 +1626,7 @@
             if (!gridApi || !gridDiv) {
               document.querySelector(".grid-wrapper").innerHTML =
                 '<div id="evidenceGrid" class="ag-theme-alpine ag-theme-vericase" style="height: 100%;"></div>';
-              initGrid();
+              await initGrid();
             }
 
             updateCategoryCounts();
@@ -2333,7 +2376,7 @@
     // EVENT LISTENERS
     // ============================================
 
-    document.addEventListener("DOMContentLoaded", () => {
+    document.addEventListener("DOMContentLoaded", async () => {
       // Inject navigation shell
       VericaseShell.inject({
         title: "Evidence Repository",
@@ -2343,8 +2386,8 @@
       // Get project context
       projectId = VericaseShell.getProjectId();
 
-      // Initialize grid
-      initGrid();
+      // Initialize grid with admin config
+      await initGrid();
 
       // Load data after grid is ready
       loadAllData();

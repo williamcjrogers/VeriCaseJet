@@ -855,6 +855,140 @@
           </div>
         </div>
       </div>
+
+      <!-- AG Grid & Data Display Settings -->
+      <div class="settings-card" style="margin-top: 1.5rem">
+        <div class="setting-item">
+          <div class="setting-header">
+            <div>
+              <div class="setting-label">
+                <i class="fas fa-table" style="color: var(--vericase-blue)"></i> Grid & Data Display Configuration
+              </div>
+              <div class="setting-description">
+                Configure default settings for data grids (evidence, correspondence, contentious matters)
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 1.5rem; margin-top: 1rem">
+            <!-- Row Height -->
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <label style="color: var(--text-secondary); min-width: 150px">Default Row Height:</label>
+              <input
+                type="number"
+                id="ag_grid_default_row_height"
+                class="setting-input"
+                min="50"
+                max="500"
+                step="10"
+                placeholder="220"
+                style="max-width: 150px"
+              />
+              <span style="color: var(--text-muted); font-size: 0.875rem">pixels</span>
+              <button
+                class="btn-save"
+                onclick="saveSetting('ag_grid_default_row_height', 'ag_grid_default_row_height')"
+              >
+                Save
+              </button>
+            </div>
+
+            <!-- Grid Theme -->
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <label style="color: var(--text-secondary); min-width: 150px">Grid Theme:</label>
+              <select
+                id="ag_grid_theme"
+                class="setting-input"
+                style="max-width: 200px"
+              >
+                <option value="quartz">Quartz (Modern)</option>
+                <option value="alpine">Alpine (Clean)</option>
+                <option value="balham">Balham (Professional)</option>
+                <option value="material">Material (Google)</option>
+              </select>
+              <button
+                class="btn-save"
+                onclick="saveSetting('ag_grid_theme', 'ag_grid_theme')"
+              >
+                Save
+              </button>
+            </div>
+
+            <!-- Pagination Page Size -->
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <label style="color: var(--text-secondary); min-width: 150px">Rows Per Page:</label>
+              <select
+                id="ag_grid_pagination_page_size"
+                class="setting-input"
+                style="max-width: 150px"
+              >
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+                <option value="500">500</option>
+              </select>
+              <button
+                class="btn-save"
+                onclick="saveSetting('ag_grid_pagination_page_size', 'ag_grid_pagination_page_size')"
+              >
+                Save
+              </button>
+            </div>
+
+            <!-- Excel Export -->
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <label style="color: var(--text-secondary); min-width: 150px">
+                <input
+                  type="checkbox"
+                  id="ag_grid_enable_excel_export"
+                  style="margin-right: 0.5rem"
+                />
+                Enable Excel Export
+              </label>
+              <button
+                class="btn-save"
+                onclick="saveGridCheckbox('ag_grid_enable_excel_export')"
+              >
+                Save
+              </button>
+            </div>
+
+            <!-- CSV Export -->
+            <div style="display: flex; gap: 1rem; align-items: center">
+              <label style="color: var(--text-secondary); min-width: 150px">
+                <input
+                  type="checkbox"
+                  id="ag_grid_enable_csv_export"
+                  style="margin-right: 0.5rem"
+                />
+                Enable CSV Export
+              </label>
+              <button
+                class="btn-save"
+                onclick="saveGridCheckbox('ag_grid_enable_csv_export')"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+
+          <div class="success-message" id="success-ag_grid_default_row_height">
+            Setting saved!
+          </div>
+          <div class="success-message" id="success-ag_grid_theme">
+            Setting saved!
+          </div>
+          <div class="success-message" id="success-ag_grid_pagination_page_size">
+            Setting saved!
+          </div>
+          <div class="success-message" id="success-ag_grid_enable_excel_export">
+            Setting saved!
+          </div>
+          <div class="success-message" id="success-ag_grid_enable_csv_export">
+            Setting saved!
+          </div>
+        </div>
+      </div>
     </div>
 
     <script>
@@ -883,6 +1017,12 @@
         ai_web_search_enabled: "Enable web search in AI queries",
         ai_fallback_enabled: "Enable automatic fallback to other providers on failure",
         bedrock_route_claude: "Route all Claude requests through AWS Bedrock (SOC2/HIPAA)",
+        // AG Grid configuration settings
+        ag_grid_default_row_height: "Default row height for AG Grid tables (in pixels)",
+        ag_grid_theme: "AG Grid theme for all tables",
+        ag_grid_pagination_page_size: "Default number of rows per page",
+        ag_grid_enable_excel_export: "Enable Excel export functionality",
+        ag_grid_enable_csv_export: "Enable CSV export functionality",
       };
 
       // Load current settings on page load
@@ -929,6 +1069,12 @@
               ai_web_search_enabled: "ai-web-search",
               ai_fallback_enabled: "ai-fallback-enabled",
               bedrock_route_claude: "bedrock-route-claude",
+              // AG Grid configuration settings
+              ag_grid_default_row_height: "ag_grid_default_row_height",
+              ag_grid_theme: "ag_grid_theme",
+              ag_grid_pagination_page_size: "ag_grid_pagination_page_size",
+              ag_grid_enable_excel_export: "ag_grid_enable_excel_export",
+              ag_grid_enable_csv_export: "ag_grid_enable_csv_export",
             };
 
             const inputId = inputIdMap[key];
@@ -938,6 +1084,9 @@
                 // For API keys, show masked value if exists
                 if (key.includes("api_key") && value) {
                   input.placeholder = "••••••••" + value.slice(-4);
+                } else if (input.type === 'checkbox') {
+                  // Handle checkboxes
+                  input.checked = value === 'true';
                 } else {
                   input.value = value;
                 }
@@ -1010,6 +1159,52 @@
           // Refresh status after saving
           if (key.includes("api_key")) {
             setTimeout(checkAllProviders, 500);
+          }
+        } catch (error) {
+          console.error("Error saving setting:", error);
+          alert("Failed to save setting. Please try again.");
+        }
+      }
+
+      async function saveGridCheckbox(key) {
+        const input = document.getElementById(key);
+        const value = input.checked.toString();
+
+        const successMsg = document.getElementById(`success-${key}`);
+
+        try {
+          const response = await fetch(
+            `${API_BASE}/api/admin/settings/${key}`,
+            {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                value: value,
+                description: settingDescriptions[key] || key,
+              }),
+            },
+          );
+
+          if (response.status === 403) {
+            alert("Admin access required");
+            return;
+          }
+
+          if (!response.ok) {
+            console.error("Error saving setting: Failed to save setting");
+            alert("Failed to save setting");
+            return;
+          }
+
+          // Show success message
+          if (successMsg) {
+            successMsg.classList.add("show");
+            setTimeout(() => {
+              successMsg.classList.remove("show");
+            }, 3000);
           }
         } catch (error) {
           console.error("Error saving setting:", error);
