@@ -87,12 +87,35 @@ apprunner.yaml
 .env.fixed
 .env.*
 !.env.example
+!.env.template
 
 # AWS IAM policies (may contain account IDs)
 *-trust-policy.json
 
-# Certificates
+# Certificates and keys
 certs/
+*.pem
+*.key
+*.cert
+
+# Generated images
+*.ai
+Gemini_Generated_Image_*
+
+# One-off query scripts
+query_*.py
+
+# Windows artifacts
+NUL
+
+# VSCode heap profiles
+*.heapsnapshot
+*.heapprofile
+
+# Test data files
+test_response.json
+email_test.json
+emails_list.json
 
 # Report files
 *_report.txt
