@@ -84,6 +84,12 @@ apprunner.yaml
 # Environment files with secrets
 .env.production
 .env.aws
+.env.fixed
+.env.*
+!.env.example
+
+# AWS IAM policies (may contain account IDs)
+*-trust-policy.json
 
 # Certificates
 certs/
