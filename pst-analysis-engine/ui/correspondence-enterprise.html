@@ -3957,10 +3957,8 @@
         console.log('[Grid Config] Applied theme:', theme);
 
         gridApi = agGrid.createGrid(gridDiv, gridOptions);
-        
-        // Register server-side datasource (required in AG Grid v31+)
-        const datasource = createServerSideDatasource();
-        gridApi.setServerSideDatasource(datasource);
+        // Note: Server-side datasource is registered in onGridReady callback
+        // to prevent race conditions with gridReadyPromise
         
         // Mark as initialized to prevent double init
         gridDiv.dataset.gridInitialized = "true";
@@ -4023,6 +4021,14 @@
     function onGridReady(params) {
       gridApi = params.api;
       columnApi = params.columnApi;
+      
+      // Register server-side datasource BEFORE marking grid as ready
+      // This prevents race conditions where code waits for gridReadyPromise
+      // but datasource isn't configured yet
+      const datasource = createServerSideDatasource();
+      gridApi.setServerSideDatasource(datasource);
+      console.log("[Grid] Server-side datasource registered");
+      
       // Signal that grid is ready (resolves the gridReadyPromise)
       if (resolveGridReady) resolveGridReady();
 
