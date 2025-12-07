@@ -154,12 +154,18 @@
 
       .welcome-banner h2 {
         font-size: 28px;
+        font-family: var(--font-serif);
+        color: #fff;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        text-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
         margin-bottom: 10px;
       }
 
       .welcome-banner p {
         font-size: 16px;
         opacity: 0.95;
+        color: rgba(255, 255, 255, 0.92);
         line-height: 1.6;
       }
 
@@ -600,7 +606,7 @@
     <div class="dashboard-container">
       <!-- Welcome Banner -->
       <div class="welcome-banner" id="welcomeBanner">
-        <h2 id="welcomeTitle">Welcome to Your Dispute Intelligence Platform</h2>
+        <h2 id="welcomeTitle">Welcome to Evidence Uploads</h2>
         <p id="welcomeMessage">
           VeriCase transforms fragmented evidence into dispute-winning insights.
           Start by uploading your evidence or exploring the features below.
@@ -1545,7 +1551,7 @@
         } else {
           // Show welcome message for users without a profile
           document.getElementById("welcomeTitle").textContent =
-            "Welcome to VeriCase";
+            "Welcome to Evidence Uploads";
           document.getElementById("welcomeMessage").innerHTML =
             "Select a project above or create a new one to get started.";
           document.getElementById("profileName").textContent = "Dashboard";
@@ -1732,7 +1738,7 @@
         const profileName = data.projectName || data.caseName || "Untitled";
         document.getElementById("profileName").textContent = profileName;
         document.getElementById("welcomeTitle").textContent =
-          `Welcome to ${profileName}`;
+          "Welcome to Evidence Uploads";
 
         // Update type badge
         document.getElementById("profileType").textContent =

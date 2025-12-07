@@ -8,9 +8,9 @@ from datetime import datetime, timezone, timedelta
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import desc, func, or_
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from .db import get_db
@@ -29,6 +29,30 @@ from .cache import get_cached, set_cached
 
 logger = logging.getLogger(__name__)
 
+import json
+import time
+
+def debug_log(hypothesis_id: str, message: str, data: dict[str, Any] | None = None, line_num: int | None = None) -> None:
+    log_path = r"c:\Users\William\Documents\Projects\VeriCase Analysis\.cursor\debug.log"
+    entry_id = f"log_{int(time.time()*1000)}_{int(time.time()) % 10000}"
+    timestamp = int(time.time()*1000)
+    location = f"dashboard_api.py:{line_num or 'unknown'}"
+    entry: dict[str, Any] = {
+        "id": entry_id,
+        "timestamp": timestamp,
+        "location": location,
+        "message": message,
+        "data": data or {},
+        "sessionId": "debug-session",
+        "runId": "run1",
+        "hypothesisId": hypothesis_id
+    }
+    try:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, default=str) + "\n")
+    except:
+        pass
+
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 DbDep = Annotated[Session, Depends(get_db)]
 
@@ -41,14 +65,16 @@ CACHE_TTL_SECONDS = 30  # Cache dashboard data for 30 seconds
 def _get_cached(key: str) -> dict[str, Any] | None:
     """Get value from Redis cache"""
     result = get_cached(f"dashboard:{key}")
+    debug_log("C", "dashboard cache get", {"key": key, "type": str(type(result)), "is_none": result is None, "is_truthy": bool(result)}, 43)
     if result:
         logger.debug(f"Dashboard cache HIT: {key}")
-    return result  # pyright: ignore[reportReturnType]
+    return result
 
 
 def _set_cached(key: str, value: dict[str, Any]) -> None:
     """Store value in Redis cache"""
-    set_cached(f"dashboard:{key}", value, ttl_seconds=CACHE_TTL_SECONDS)
+    success = set_cached(f"dashboard:{key}", value, ttl_seconds=CACHE_TTL_SECONDS)
+    debug_log("B", "dashboard cache set", {"key": key, "success": success}, 51)
 
 
 # ============================================================================
@@ -141,14 +167,19 @@ def get_user_cases(db: Session, user: User) -> list[Case]:
         return db.query(Case).order_by(desc(Case.created_at)).all()
     else:
         # Users see cases they own or are assigned to
-        case_ids_from_assignments = (
-            db.query(CaseUser.case_id).filter(CaseUser.user_id == user.id).subquery()
-        )
-
+        # region agent log A
+        assigned_count = db.query(func.count(CaseUser.case_id)).filter(CaseUser.user_id == user.id).scalar() or 0
+        debug_log("A", "assigned case count", {"user_id": str(user.id), "count": assigned_count}, 145)
+        # endregion
         return (
             db.query(Case)
             .filter(
-                or_(Case.owner_id == user.id, Case.id.in_(case_ids_from_assignments))
+                or_(
+                    Case.owner_id == user.id,
+                    Case.id.in_(
+                        select(CaseUser.case_id).where(CaseUser.user_id == user.id)
+                    )
+                )
             )
             .order_by(desc(Case.created_at))
             .all()
@@ -283,152 +314,157 @@ def get_user_role_on_case(db: Session, user: User, case_id: UUID) -> str:
 
 @router.get("/overview", response_model=DashboardOverviewResponse)
 async def get_dashboard_overview(
-    db: DbDep, user: User = Depends(current_user)
+    db: DbDep,
+    user: Annotated[User, Depends(current_user)]
 ) -> DashboardOverviewResponse:
     """
     Get complete dashboard overview for the current user.
     Returns aggregated projects, cases, statistics, and recent activity.
     """
-    # Gather projects and cases
-    projects = get_user_projects(db, user)
-    cases = get_user_cases(db, user)
+    try:
+        debug_log("E", "get_dashboard_overview entered", {"user_id": str(user.id), "role": user.role.value}, 292)
+        # Gather projects and cases
+        projects = get_user_projects(db, user)
+        cases = get_user_cases(db, user)
 
-    # Batch fetch all stats in just 6 queries total (instead of 3 * (projects + cases))
-    project_ids = [p.id for p in projects]
-    case_ids = [c.id for c in cases]
+        # Batch fetch all stats in just 6 queries total (instead of 3 * (projects + cases))
+        project_ids = [p.id for p in projects]
+        case_ids = [c.id for c in cases]
 
-    project_stats = get_all_project_stats_batch(db, project_ids)
-    case_stats = get_all_case_stats_batch(db, case_ids)
+        project_stats = get_all_project_stats_batch(db, project_ids)
+        case_stats = get_all_case_stats_batch(db, case_ids)
 
-    # Build unified work items list
-    work_items: list[WorkItemSummary] = []
-    total_emails = 0
-    total_evidence = 0
+        # Build unified work items list
+        work_items: list[WorkItemSummary] = []
+        total_emails = 0
+        total_evidence = 0
 
-    # Add projects to work items (using batch-loaded stats)
-    for project in projects:
-        stats = project_stats.get(
-            project.id, {"email_count": 0, "evidence_count": 0, "pst_count": 0}
-        )
-        total_emails += stats["email_count"]
-        total_evidence += stats["evidence_count"]
-
-        work_items.append(
-            WorkItemSummary(
-                id=str(project.id),
-                type="project",
-                name=project.project_name,
-                description=None,
-                status="active",
-                created_at=project.created_at,
-                updated_at=project.updated_at,
-                project_code=project.project_code,
-                contract_type=project.contract_type,
-                email_count=stats["email_count"],
-                evidence_count=stats["evidence_count"],
-                pst_count=stats["pst_count"],
-                user_role="admin" if user.role == UserRole.ADMIN else "owner",
-                is_owner=(project.owner_user_id == user.id),
+        # Add projects to work items (using batch-loaded stats)
+        for project in projects:
+            stats = project_stats.get(
+                project.id, {"email_count": 0, "evidence_count": 0, "pst_count": 0}
             )
-        )
+            total_emails += stats["email_count"]
+            total_evidence += stats["evidence_count"]
 
-    # Add cases to work items (using batch-loaded stats)
-    for case in cases:
-        stats = case_stats.get(
-            case.id, {"email_count": 0, "evidence_count": 0, "pst_count": 0}
-        )
-        total_emails += stats["email_count"]
-        total_evidence += stats["evidence_count"]
-
-        user_role = get_user_role_on_case(db, user, case.id)
-
-        work_items.append(
-            WorkItemSummary(
-                id=str(case.id),
-                type="case",
-                name=case.name,
-                description=case.description,
-                status=case.status or "active",
-                created_at=case.created_at,
-                updated_at=case.updated_at,
-                case_number=case.case_number,
-                contract_type=case.contract_type,
-                email_count=stats["email_count"],
-                evidence_count=stats["evidence_count"],
-                pst_count=stats["pst_count"],
-                user_role=user_role,
-                is_owner=(case.owner_id == user.id),
-            )
-        )
-
-    # Sort work items by updated_at descending (most recent first)
-    work_items.sort(
-        key=lambda x: x.updated_at
-        or x.created_at
-        or datetime.min.replace(tzinfo=timezone.utc),
-        reverse=True,
-    )
-
-    # Build stats
-    stats = DashboardStats(
-        total_projects=len(projects),
-        total_cases=len(cases),
-        total_emails=total_emails,
-        total_evidence=total_evidence,
-        items_needing_attention=sum(1 for w in work_items if w.pst_count == 0),
-        recent_activity_count=len(
-            [
-                w
-                for w in work_items
-                if w.updated_at
-                and (
-                    w.updated_at.replace(tzinfo=timezone.utc)
-                    if w.updated_at.tzinfo is None
-                    else w.updated_at
+            work_items.append(
+                WorkItemSummary(
+                    id=str(project.id),
+                    type="project",
+                    name=project.project_name,
+                    description=None,
+                    status="active",
+                    created_at=project.created_at,
+                    updated_at=project.updated_at,
+                    project_code=project.project_code,
+                    contract_type=project.contract_type,
+                    email_count=stats["email_count"],
+                    evidence_count=stats["evidence_count"],
+                    pst_count=stats["pst_count"],
+                    user_role="admin" if user.role == UserRole.ADMIN else "owner",
+                    is_owner=(project.owner_user_id == user.id),
                 )
-                > datetime.now(timezone.utc) - timedelta(days=7)
-            ]
-        ),
-    )
+            )
 
-    # Build permissions based on user role
-    permissions = {
-        "can_create_project": user.role in [UserRole.ADMIN, UserRole.EDITOR],
-        "can_create_case": user.role in [UserRole.ADMIN, UserRole.EDITOR],
-        "can_manage_users": user.role == UserRole.ADMIN,
-        "can_access_admin": user.role == UserRole.ADMIN,
-        "can_delete_items": user.role == UserRole.ADMIN,
-    }
+        # Add cases to work items (using batch-loaded stats)
+        for case in cases:
+            stats = case_stats.get(
+                case.id, {"email_count": 0, "evidence_count": 0, "pst_count": 0}
+            )
+            total_emails += stats["email_count"]
+            total_evidence += stats["evidence_count"]
 
-    # Recent activity (simplified - just return recent work items)
-    recent_activity = [
-        {
-            "type": "updated",
-            "item_type": w.type,
-            "item_id": w.id,
-            "item_name": w.name,
-            "timestamp": (
-                (w.updated_at or w.created_at).isoformat()
-                if (w.updated_at or w.created_at)
-                else None
+            user_role = get_user_role_on_case(db, user, case.id)
+
+            work_items.append(
+                WorkItemSummary(
+                    id=str(case.id),
+                    type="case",
+                    name=case.name,
+                    description=case.description,
+                    status=case.status or "active",
+                    created_at=case.created_at,
+                    updated_at=case.updated_at,
+                    case_number=case.case_number,
+                    contract_type=case.contract_type,
+                    email_count=stats["email_count"],
+                    evidence_count=stats["evidence_count"],
+                    pst_count=stats["pst_count"],
+                    user_role=user_role,
+                    is_owner=(case.owner_id == user.id),
+                )
+            )
+
+        # Sort work items by updated_at descending (most recent first)
+        work_items.sort(
+            key=lambda x: x.updated_at
+            or x.created_at
+            or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
+        )
+
+        # Build stats
+        stats = DashboardStats(
+            total_projects=len(projects),
+            total_cases=len(cases),
+            total_emails=total_emails,
+            total_evidence=total_evidence,
+            items_needing_attention=sum(1 for w in work_items if w.pst_count == 0),
+            recent_activity_count=len(
+                [
+                    w
+                    for w in work_items
+                    if w.updated_at
+                    and (
+                        w.updated_at.replace(tzinfo=timezone.utc)
+                        if w.updated_at.tzinfo is None
+                        else w.updated_at
+                    )
+                    > datetime.now(timezone.utc) - timedelta(days=7)
+                ]
             ),
-        }
-        for w in work_items[:10]
-        if w.updated_at or w.created_at
-    ]
+        )
 
-    return DashboardOverviewResponse(
-        user={
-            "id": str(user.id),
-            "email": user.email,
-            "display_name": user.display_name or user.email.split("@")[0],
-            "role": user.role.value,
-        },
-        stats=stats,
-        work_items=work_items,
-        recent_activity=recent_activity,
-        permissions=permissions,
-    )
+        # Build permissions based on user role
+        permissions = {
+            "can_create_project": user.role in [UserRole.ADMIN, UserRole.EDITOR],
+            "can_create_case": user.role in [UserRole.ADMIN, UserRole.EDITOR],
+            "can_manage_users": user.role == UserRole.ADMIN,
+            "can_access_admin": user.role == UserRole.ADMIN,
+            "can_delete_items": user.role == UserRole.ADMIN,
+        }
+
+        # Recent activity (simplified - just return recent work items)
+        recent_activity: list[dict[str, Any]] = []
+        for w in work_items[:10]:
+            if w.updated_at or w.created_at:
+                ts_val = w.updated_at or w.created_at
+                # region agent log D
+                debug_log("D", "timestamp formatting", {"item_id": w.id, "ts_none": ts_val is None, "ts_type": str(type(ts_val)) if ts_val else None}, 412)
+                # endregion
+                recent_activity.append({
+                    "type": "updated",
+                    "item_type": w.type,
+                    "item_id": w.id,
+                    "item_name": w.name,
+                    "timestamp": ts_val.isoformat() if ts_val else None,
+                })
+
+        return DashboardOverviewResponse(
+            user={
+                "id": str(user.id),
+                "email": user.email,
+                "display_name": user.display_name or user.email.split("@")[0],
+                "role": user.role.value,
+            },
+            stats=stats,
+            work_items=work_items,
+            recent_activity=recent_activity,
+            permissions=permissions,
+        )
+    except Exception as e:
+        logger.exception("Dashboard overview failed")
+        raise HTTPException(status_code=500, detail=f"Dashboard load error: {str(e)}")
 
 
 @router.get("/overview/public")
@@ -440,117 +476,122 @@ async def get_dashboard_overview_public(db: DbDep) -> dict[str, Any]:
     """
     # Check cache first
     cached = _get_cached("dashboard_public")
+    debug_log("E", "get_dashboard_overview_public entered", {"cache_hit": cached is not None}, 446)
     if cached is not None:
         return cached
 
-    # Get all projects and cases without user filtering
-    projects = db.query(Project).order_by(desc(Project.created_at)).limit(50).all()
-    cases = db.query(Case).order_by(desc(Case.created_at)).limit(50).all()
+    try:
+        # Get all projects and cases without user filtering
+        projects = db.query(Project).order_by(desc(Project.created_at)).limit(50).all()
+        cases = db.query(Case).order_by(desc(Case.created_at)).limit(50).all()
 
-    # Batch fetch all stats (6 queries total instead of 3 * (projects + cases))
-    project_ids = [p.id for p in projects]
-    case_ids = [c.id for c in cases]
-    project_stats = get_all_project_stats_batch(db, project_ids)
-    case_stats = get_all_case_stats_batch(db, case_ids)
+        # Batch fetch all stats (6 queries total instead of 3 * (projects + cases))
+        project_ids = [p.id for p in projects]
+        case_ids = [c.id for c in cases]
+        project_stats = get_all_project_stats_batch(db, project_ids)
+        case_stats = get_all_case_stats_batch(db, case_ids)
 
-    work_items: list[dict[str, Any]] = []
-    total_emails = 0
-    total_evidence = 0
+        work_items: list[dict[str, Any]] = []
+        total_emails = 0
+        total_evidence = 0
 
-    # Add projects (using batch-loaded stats)
-    for project in projects:
-        stats = project_stats.get(
-            project.id, {"email_count": 0, "evidence_count": 0, "pst_count": 0}
+        # Add projects (using batch-loaded stats)
+        for project in projects:
+            stats = project_stats.get(
+                project.id, {"email_count": 0, "evidence_count": 0, "pst_count": 0}
+            )
+            total_emails += stats["email_count"]
+            total_evidence += stats["evidence_count"]
+
+            work_items.append(
+                {
+                    "id": str(project.id),
+                    "type": "project",
+                    "name": project.project_name,
+                    "description": None,
+                    "status": "active",
+                    "created_at": (
+                        project.created_at.isoformat() if project.created_at else None
+                    ),
+                    "updated_at": (
+                        project.updated_at.isoformat() if project.updated_at else None
+                    ),
+                    "project_code": project.project_code,
+                    "contract_type": project.contract_type,
+                    "email_count": stats["email_count"],
+                    "evidence_count": stats["evidence_count"],
+                    "pst_count": stats["pst_count"],
+                    "user_role": "editor",
+                    "is_owner": False,
+                }
+            )
+
+        # Add cases (using batch-loaded stats)
+        for case in cases:
+            stats = case_stats.get(
+                case.id, {"email_count": 0, "evidence_count": 0, "pst_count": 0}
+            )
+            total_emails += stats["email_count"]
+            total_evidence += stats["evidence_count"]
+
+            work_items.append(
+                {
+                    "id": str(case.id),
+                    "type": "case",
+                    "name": case.name,
+                    "description": case.description,
+                    "status": case.status or "active",
+                    "created_at": case.created_at.isoformat() if case.created_at else None,
+                    "updated_at": case.updated_at.isoformat() if case.updated_at else None,
+                    "case_number": case.case_number,
+                    "contract_type": case.contract_type,
+                    "email_count": stats["email_count"],
+                    "evidence_count": stats["evidence_count"],
+                    "pst_count": stats["pst_count"],
+                    "user_role": "editor",
+                    "is_owner": False,
+                }
+            )
+
+        # Sort by most recent
+        work_items.sort(
+            key=lambda x: x.get("updated_at") or x.get("created_at") or "", reverse=True
         )
-        total_emails += stats["email_count"]
-        total_evidence += stats["evidence_count"]
 
-        work_items.append(
-            {
-                "id": str(project.id),
-                "type": "project",
-                "name": project.project_name,
-                "description": None,
-                "status": "active",
-                "created_at": (
-                    project.created_at.isoformat() if project.created_at else None
+        result: dict[str, Any] = {
+            "user": {
+                "id": "anonymous",
+                "email": "user@vericase.com",
+                "display_name": "User",
+                "role": "EDITOR",
+            },
+            "stats": {
+                "total_projects": len(projects),
+                "total_cases": len(cases),
+                "total_emails": total_emails,
+                "total_evidence": total_evidence,
+                "items_needing_attention": sum(
+                    1 for w in work_items if w.get("pst_count", 0) == 0
                 ),
-                "updated_at": (
-                    project.updated_at.isoformat() if project.updated_at else None
-                ),
-                "project_code": project.project_code,
-                "contract_type": project.contract_type,
-                "email_count": stats["email_count"],
-                "evidence_count": stats["evidence_count"],
-                "pst_count": stats["pst_count"],
-                "user_role": "editor",
-                "is_owner": False,
-            }
-        )
+                "recent_activity_count": len(work_items),
+            },
+            "work_items": work_items,
+            "recent_activity": [],
+            "permissions": {
+                "can_create_project": True,
+                "can_create_case": True,
+                "can_manage_users": False,
+                "can_access_admin": False,
+                "can_delete_items": False,
+            },
+        }
 
-    # Add cases (using batch-loaded stats)
-    for case in cases:
-        stats = case_stats.get(
-            case.id, {"email_count": 0, "evidence_count": 0, "pst_count": 0}
-        )
-        total_emails += stats["email_count"]
-        total_evidence += stats["evidence_count"]
-
-        work_items.append(
-            {
-                "id": str(case.id),
-                "type": "case",
-                "name": case.name,
-                "description": case.description,
-                "status": case.status or "active",
-                "created_at": case.created_at.isoformat() if case.created_at else None,
-                "updated_at": case.updated_at.isoformat() if case.updated_at else None,
-                "case_number": case.case_number,
-                "contract_type": case.contract_type,
-                "email_count": stats["email_count"],
-                "evidence_count": stats["evidence_count"],
-                "pst_count": stats["pst_count"],
-                "user_role": "editor",
-                "is_owner": False,
-            }
-        )
-
-    # Sort by most recent
-    work_items.sort(
-        key=lambda x: x.get("updated_at") or x.get("created_at") or "", reverse=True
-    )
-
-    result: dict[str, Any] = {
-        "user": {
-            "id": "anonymous",
-            "email": "user@vericase.com",
-            "display_name": "User",
-            "role": "EDITOR",
-        },
-        "stats": {
-            "total_projects": len(projects),
-            "total_cases": len(cases),
-            "total_emails": total_emails,
-            "total_evidence": total_evidence,
-            "items_needing_attention": sum(
-                1 for w in work_items if w.get("pst_count", 0) == 0
-            ),
-            "recent_activity_count": len(work_items),
-        },
-        "work_items": work_items,
-        "recent_activity": [],
-        "permissions": {
-            "can_create_project": True,
-            "can_create_case": True,
-            "can_manage_users": False,
-            "can_access_admin": False,
-            "can_delete_items": False,
-        },
-    }
-
-    # Cache the result
-    _set_cached("dashboard_public", result)
-    return result
+        # Cache the result
+        _set_cached("dashboard_public", result)
+        return result
+    except Exception as e:
+        logger.exception("Dashboard public overview failed")
+        raise HTTPException(status_code=500, detail=f"Dashboard public error: {str(e)}")
 
 
 @router.get("/quick-stats")
@@ -562,8 +603,9 @@ async def get_quick_stats(db: DbDep) -> dict[str, int]:
     """
     # Check cache first
     cached = _get_cached("quick_stats")
+    debug_log("C", "quick_stats cache check", {"hit": cached is not None}, 572)
     if cached is not None:
-        return cached  # pyright: ignore[reportReturnType]
+        return cached
 
     project_count = db.query(func.count(Project.id)).scalar() or 0
     case_count = db.query(func.count(Case.id)).scalar() or 0

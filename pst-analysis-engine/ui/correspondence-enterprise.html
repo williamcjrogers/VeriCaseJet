@@ -3812,7 +3812,7 @@
 
       // === SERVER-SIDE ROW MODEL (handles 100k+ rows) ===
       rowModelType: "serverSide",
-      // serverSideDatasource: createServerSideDatasource(), // Set via API after grid creation
+      // serverSideDatasource: createServerSideDatasource(), // Set via API after grid creation via setGridOption
 
       // Server-side configuration
       cacheBlockSize: 100, // Load 100 rows at a time
@@ -4026,7 +4026,7 @@
       // This prevents race conditions where code waits for gridReadyPromise
       // but datasource isn't configured yet
       const datasource = createServerSideDatasource();
-      gridApi.setServerSideDatasource(datasource);
+      gridApi.setGridOption("serverSideDatasource", datasource);
       console.log("[Grid] Server-side datasource registered");
       
       // Signal that grid is ready (resolves the gridReadyPromise)
