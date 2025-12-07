@@ -1091,15 +1091,19 @@ def complete_upload(
         # For PST files, pass placeholder case_id so worker recognizes it as project upload
         case_id = "00000000-0000-0000-0000-000000000000"
         company_id = body.get("company_id", "")
-
+        # region agent log H11 pst task trigger
+        agent_log("H11", "Queuing forensic PST processing task", {"doc_id": str(doc.id), "case_id": case_id, "company_id": company_id})
+        # endregion agent log H11 pst task trigger
+        # Use forensic processor task
+        from .pst_forensic_processor import process_pst_forensic
         celery_app.send_task(
-            "worker_app.worker.process_pst_file",
-            args=[str(doc.id), case_id, company_id],
+            "app.process_pst_forensic",  # Assuming task name; adjust if registered differently
+            args=[str(doc.id), settings.S3_BUCKET, doc.s3_key, case_id]
         )
         return {
             "id": str(doc.id),
-            "status": "PROCESSING_PST",
-            "message": "PST file queued for extraction",
+            "status": "PROCESSING_PST_FORENSIC",
+            "message": "Forensic PST file queued for extraction and analysis",
         }
     else:
         # Queue OCR and AI classification for other files
