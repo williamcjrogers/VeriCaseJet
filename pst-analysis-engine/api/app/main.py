@@ -1088,17 +1088,19 @@ def complete_upload(
 
     # Check if PST file - trigger PST processor instead of OCR
     if filename.lower().endswith(".pst"):
-        # For PST files, pass placeholder case_id so worker recognizes it as project upload
-        case_id = "00000000-0000-0000-0000-000000000000"
+        # Extract case/project from body if provided
+        case_id = body.get("case_id") or "00000000-0000-0000-0000-000000000000"
+        project_id = body.get("project_id")
         company_id = body.get("company_id", "")
         # region agent log H11 pst task trigger
-        agent_log("H11", "Queuing forensic PST processing task", {"doc_id": str(doc.id), "case_id": case_id, "company_id": company_id})
+        agent_log("H11", "Queuing forensic PST processing task", {"doc_id": str(doc.id), "case_id": case_id, "project_id": project_id, "company_id": company_id})
         # endregion agent log H11 pst task trigger
-        # Use forensic processor task
-        from .pst_forensic_processor import process_pst_forensic
+        # Queue forensic task with optional case/project
         celery_app.send_task(
-            "app.process_pst_forensic",  # Assuming task name; adjust if registered differently
-            args=[str(doc.id), settings.S3_BUCKET, doc.s3_key, case_id]
+            "app.process_pst_forensic",
+            args=[str(doc.id), settings.S3_BUCKET, doc.s3_key],
+            kwargs={"case_id": case_id, "project_id": project_id},
+            queue=settings.CELERY_QUEUE  # Route to worker's queue
         )
         return {
             "id": str(doc.id),
