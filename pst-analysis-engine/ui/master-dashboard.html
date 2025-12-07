@@ -368,6 +368,7 @@
 
     .modal-overlay.active .modal {
       transform: translateY(0);
+      opacity: 1;
     }
 
     .modal-header {
@@ -802,7 +803,7 @@
           if (publicResponse.ok) {
             dashboardData = await publicResponse.json();
           } else {
-            throw new Error("API Failed: " + response.status);
+            throw new Error("API Failed: " + publicResponse.status);
           }
         }
 
