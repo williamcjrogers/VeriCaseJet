@@ -22,6 +22,8 @@ from .models import PSTFile, EmailMessage, EmailAttachment, Stakeholder, Keyword
 from .storage import put_object, download_file_streaming
 from .config import settings
 from .search import index_email_in_opensearch
+from .tasks import celery_app  # Import Celery app for task registration
+
 import json
 import time
 logger = logging.getLogger(__name__)
@@ -876,13 +878,51 @@ class ForensicPSTProcessor:
 
 
 # Helper function for Celery tasks
-async def process_pst_forensic(
-    pst_file_id: str, s3_bucket: str, s3_key: str, db: Session
+@celery_app.task(bind=True, name="app.process_pst_forensic")
+def process_pst_forensic(
+    self,
+    pst_file_id: str, 
+    s3_bucket: str, 
+    s3_key: str, 
+    case_id: str = None,
+    project_id: str = None
 ) -> dict[str, Any]:
     """
-    Wrapper function for Celery task
+    Sync Celery task wrapper for forensic PST processing
+    Uses sync call for worker compatibility
     """
-    processor = ForensicPSTProcessor(db)
-    return await asyncio.to_thread(
-        processor.process_pst_file, pst_file_id, s3_bucket, s3_key
-    )
+    # region agent log H11 task start early
+    agent_log("H11", "Forensic PST task started - sync entry", {"pst_file_id": pst_file_id})
+    # endregion agent log H11 task start early
+    from pst_analysis_engine.api.app.db import engine, SessionLocal  # Absolute import
+    db = SessionLocal(bind=engine)
+    try:
+        # region agent log H19 session created
+        agent_log("H19", "DB session created in task", {"pst_file_id": pst_file_id})
+        # endregion agent log H19 session created
+        processor = ForensicPSTProcessor(db)
+        # Update PST record with case/project if provided
+        pst_file = db.query(PSTFile).filter_by(id=pst_file_id).first()
+        if not pst_file:
+            raise ValueError(f"PST file {pst_file_id} not found")
+        if case_id:
+            pst_file.case_id = case_id
+        if project_id:
+            pst_file.project_id = project_id
+        db.commit()
+        result = processor.process_pst_file(pst_file_id, s3_bucket, s3_key)  # Sync call
+        # region agent log H11 task success
+        agent_log("H11", "Forensic PST task completed successfully", {"pst_file_id": pst_file_id, "stats": result})
+        # endregion agent log H11 task success
+        return result
+    except Exception as e:
+        # region agent log H11 task error
+        agent_log("H11", "Forensic PST task failed", {"pst_file_id": pst_file_id, "error": str(e)})
+        # endregion agent log H11 task error
+        logger.error(f"Forensic PST task failed for {pst_file_id}: {e}", exc_info=True)
+        if self.request.retries < 3:
+            raise self.retry(countdown=60)
+        else:
+            raise
+    finally:
+        db.close()
