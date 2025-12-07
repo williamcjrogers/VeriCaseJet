@@ -23,6 +23,7 @@ import logging
 import re
 import tempfile
 import uuid
+import time
 from datetime import datetime, timezone
 from typing import Any, TypedDict
 from uuid import UUID
@@ -76,6 +77,42 @@ except ImportError:
     pass
 
 logger = logging.getLogger(__name__)
+
+# region agent log helper
+def agent_log(hypothesis_id: str, message: str, data: dict | None = None, run_id: str = "run1") -> None:
+    log_path = r"c:\Users\William\Documents\Projects\VeriCase Analysis\.cursor\debug.log"
+    payload = {
+        "id": f"log_{int(time.time()*1000)}_{hash(message) % 10000}",
+        "timestamp": int(time.time()*1000),
+        "location": "pst_processor.py",
+        "message": message,
+        "data": data or {},
+        "sessionId": "debug-session",
+        "runId": run_id,
+        "hypothesisId": hypothesis_id,
+    }
+    line = json.dumps(payload, ensure_ascii=False) + "\n"
+    # Try local file first
+    try:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(line)
+            return
+    except Exception:
+        pass
+    # Fallback to ingest endpoint so the server writes to the log file
+    try:
+        import urllib.request
+
+        req = urllib.request.Request(
+            "http://127.0.0.1:7242/ingest/a36b627f-6fe2-4392-af4c-6145b197bf06",
+            data=line.encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=2)
+    except Exception:
+        pass
+# endregion agent log helper
 
 
 class UltimatePSTProcessor:
@@ -131,6 +168,19 @@ class UltimatePSTProcessor:
         logger.info(
             f"Starting PST processing for document_id={document_id}, case_id={case_id}, project_id={project_id}"
         )
+        # region agent log H10 start
+        agent_log(
+            "H10",
+            "Ultimate processor start",
+            {
+                "document_id": str(document_id),
+                "case_id": str(case_id) if case_id else None,
+                "project_id": str(project_id) if project_id else None,
+                "pst_s3_key": pst_s3_key,
+            },
+            run_id="pre-fix",
+        )
+        # endregion agent log H10 start
 
         stats: ProcessingStats = {
             "total_emails": 0,
@@ -236,6 +286,15 @@ class UltimatePSTProcessor:
                     Bucket=settings.S3_BUCKET, Key=pst_s3_key, Fileobj=tmp
                 )
                 pst_path = tmp.name
+                # region agent log H11 download
+                size_bytes = os.path.getsize(pst_path) if os.path.exists(pst_path) else None
+                agent_log(
+                    "H11",
+                    "PST downloaded to temp",
+                    {"path": pst_path, "size_bytes": size_bytes, "bucket": settings.S3_BUCKET, "key": pst_s3_key},
+                    run_id="pre-fix",
+                )
+                # endregion agent log H11 download
             except Exception as e:
                 logger.error(f"Failed to download PST: {e}")
                 if document is not None:
@@ -258,11 +317,27 @@ class UltimatePSTProcessor:
             pst_file.open(pst_path)
 
             logger.info("PST opened successfully, processing folders...")
+            # region agent log H12 open
+            agent_log(
+                "H12",
+                "PST opened with pypff",
+                {"path": pst_path},
+                run_id="pre-fix",
+            )
+            # endregion agent log H12 open
 
             # Get root folder and count total messages first
             root: Any = pst_file.get_root_folder()
             self.total_count = self._count_messages(root)
             logger.info(f"Found {self.total_count} total messages to process")
+            # region agent log H12 count
+            agent_log(
+                "H12",
+                "Total messages counted",
+                {"total_count": self.total_count},
+                run_id="pre-fix",
+            )
+            # endregion agent log H12 count
 
             # Process all folders recursively
             self._process_folder(
@@ -272,6 +347,19 @@ class UltimatePSTProcessor:
             # Build thread relationships after all emails are extracted (CRITICAL - USP FEATURE!)
             logger.info("Building email thread relationships...")
             self._build_thread_relationships(case_id, project_id)
+            # region agent log H13 threads
+            agent_log(
+                "H13",
+                "Threads built",
+                {
+                    "case_id": str(case_id) if case_id else None,
+                    "project_id": str(project_id) if project_id else None,
+                    "threads_map_size": len(self.threads_map),
+                    "total_emails": stats.get("total_emails"),
+                },
+                run_id="pre-fix",
+            )
+            # endregion agent log H13 threads
 
             # Count unique threads from the built thread_groups
             unique_threads: set[str] = set()
