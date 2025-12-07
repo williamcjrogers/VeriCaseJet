@@ -1488,9 +1488,8 @@ async def get_emails_server_side(
         filter_op = filter_data.get("type", "contains")
         filter_value = filter_data.get("filter", "")
 
-        # Map column IDs to model attributes (includes both backend and frontend field names)
+        # Map column IDs to model attributes
         column_map = {
-            # Backend field names
             "subject": EmailMessage.subject,
             "sender_name": EmailMessage.sender_name,
             "sender_email": EmailMessage.sender_email,
@@ -1500,11 +1499,6 @@ async def get_emails_server_side(
             "baseline_activity": EmailMessage.as_planned_activity,
             "as_built_activity": EmailMessage.as_built_activity,
             "delay_days": EmailMessage.delay_days,
-            # Frontend field name aliases (AG Grid sends these)
-            "email_subject": EmailMessage.subject,
-            "email_from": EmailMessage.sender_email,
-            "email_date": EmailMessage.date_sent,
-            "email_body": EmailMessage.body_text,
         }
 
         col = column_map.get(col_id)
@@ -1550,7 +1544,6 @@ async def get_emails_server_side(
             sort_dir = sort.get("sort", "desc")
 
             column_map = {
-                # Backend field names
                 "subject": EmailMessage.subject,
                 "sender_name": EmailMessage.sender_name,
                 "sender_email": EmailMessage.sender_email,
@@ -1559,11 +1552,6 @@ async def get_emails_server_side(
                 "baseline_activity": EmailMessage.as_planned_activity,
                 "as_built_activity": EmailMessage.as_built_activity,
                 "delay_days": EmailMessage.delay_days,
-                # Frontend field name aliases (AG Grid sends these)
-                "email_subject": EmailMessage.subject,
-                "email_from": EmailMessage.sender_email,
-                "email_date": EmailMessage.date_sent,
-                "email_body": EmailMessage.body_text,
             }
 
             col = column_map.get(col_id, EmailMessage.date_sent)
@@ -1677,8 +1665,6 @@ async def get_emails_server_side(
                     else None
                 ),
                 "notes": getattr(e, "notes", None),
-                # Programme fields
-                "is_critical_path": getattr(e, "is_critical_path", False),
                 # Body content for Message column - prefer clean text over raw
                 "email_body": e.body_text_clean or e.body_text or "",
                 "body_text": e.body_text or "",
