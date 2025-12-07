@@ -1960,7 +1960,6 @@
         sort: "desc",
         pinned: "left",
         wrapText: true,
-        autoHeight: true,
         cellStyle: {
           "vertical-align": "top",
           "text-align": "center",
@@ -1992,7 +1991,6 @@
         field: "email_from",
         width: 200,
         wrapText: true,
-        autoHeight: true,
         cellStyle: {
           "white-space": "normal",
           "line-height": "1.4",
@@ -2009,7 +2007,6 @@
         field: "email_to",
         width: 220,
         wrapText: true,
-        autoHeight: true,
         cellStyle: {
           "white-space": "normal",
           "line-height": "1.4",
@@ -2033,7 +2030,6 @@
         field: "email_cc",
         width: 200,
         wrapText: true,
-        autoHeight: true,
         cellStyle: {
           "white-space": "normal",
           "line-height": "1.4",
@@ -2057,7 +2053,6 @@
         field: "attachments",
         width: 250,
         wrapText: true,
-        autoHeight: true,
         cellStyle: {
           "white-space": "normal",
           "line-height": "1.4",
@@ -2255,7 +2250,6 @@
         field: "email_body",
         flex: 4,
         minWidth: 600,
-        autoHeight: true,
         wrapText: true,
         valueGetter: (params) => {
           // Return HTML content if available, otherwise fall back to text
@@ -2727,7 +2721,6 @@
         field: "keywords",
         width: 200,
         wrapText: true,
-        autoHeight: true,
         editable: true,
         cellStyle: {
           "white-space": "normal",
@@ -2903,7 +2896,6 @@
         width: 250,
         editable: true,
         wrapText: true,
-        autoHeight: true,
         cellStyle: {
           "white-space": "normal",
           "line-height": "1.4",
@@ -2941,7 +2933,6 @@
         width: 120,
         sort: "desc",
         wrapText: true,
-        autoHeight: true,
         cellStyle: {
           "vertical-align": "top",
           "text-align": "center",
@@ -2980,7 +2971,6 @@
         field: "email_to",
         width: 140,
         wrapText: true,
-        autoHeight: true,
         cellStyle: {
           "white-space": "normal",
           "word-wrap": "break-word",
@@ -3004,7 +2994,6 @@
         width: 140,
         hide: true, // Hidden by default - show via column chooser
         wrapText: true,
-        autoHeight: true,
         cellStyle: {
           "white-space": "normal",
           "word-wrap": "break-word",
@@ -3823,7 +3812,7 @@
 
       // === SERVER-SIDE ROW MODEL (handles 100k+ rows) ===
       rowModelType: "serverSide",
-      serverSideDatasource: createServerSideDatasource(),
+      // serverSideDatasource: createServerSideDatasource(), // Set via API after grid creation
 
       // Server-side configuration
       cacheBlockSize: 100, // Load 100 rows at a time
@@ -3925,8 +3914,8 @@
       }
     }
 
-    // Initialize Grid
-    document.addEventListener("DOMContentLoaded", async function () {
+    // Initialize Grid - Named function to control timing (avoid race condition with shell injection)
+    window.initEmailGrid = async function () {
       // Check if ag-Grid is loaded
       if (typeof agGrid === "undefined") {
         console.error("ag-Grid library failed to load");
@@ -3937,6 +3926,12 @@
       const gridDiv = document.querySelector("#emailGrid");
       if (!gridDiv) {
         console.error("Grid container not found");
+        return;
+      }
+
+      // Prevent double initialization
+      if (gridDiv.dataset.gridInitialized === "true") {
+        console.log("[Grid] Already initialized, skipping");
         return;
       }
 
@@ -3962,13 +3957,20 @@
         console.log('[Grid Config] Applied theme:', theme);
 
         gridApi = agGrid.createGrid(gridDiv, gridOptions);
+        
+        // Register server-side datasource (required in AG Grid v31+)
+        const datasource = createServerSideDatasource();
+        gridApi.setServerSideDatasource(datasource);
+        
+        // Mark as initialized to prevent double init
+        gridDiv.dataset.gridInitialized = "true";
+        
         console.log("[Grid] AG Grid initialized with server-side row model");
-        // Note: Server-side datasource automatically loads data on grid ready
       } catch (error) {
         console.error("Error initializing grid:", error);
         alert("Failed to initialize email grid. Please refresh the page.");
       }
-    });
+    };
 
     // ===========================
     // Global Configuration
@@ -8608,6 +8610,11 @@
           </button>
         `
       });
+      
+      // Initialize grid AFTER shell injection (fixes race condition)
+      if (window.initEmailGrid) {
+        window.initEmailGrid();
+      }
       
       // Update breadcrumb with project name
       updateBreadcrumb();
