@@ -41,6 +41,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/claims", tags=["claims"])
 
 
+def _parse_uuid(value: Optional[str], field: str) -> Optional[uuid.UUID]:
+    """Safely parse UUID strings and surface a 400 instead of 500 on bad input."""
+    if value in (None, ""):
+        return None
+    try:
+        return uuid.UUID(value)
+    except Exception:
+        raise HTTPException(400, f"Invalid {field} format. Expected UUID.")
+
+
 # =============================================================================
 # Pydantic Models
 # =============================================================================
@@ -228,9 +238,11 @@ async def list_contentious_matters(
     query = db.query(ContentiousMatter)
 
     if project_id:
-        query = query.filter(ContentiousMatter.project_id == uuid.UUID(project_id))
+        pid = _parse_uuid(project_id, "project_id")
+        query = query.filter(ContentiousMatter.project_id == pid)
     if case_id:
-        query = query.filter(ContentiousMatter.case_id == uuid.UUID(case_id))
+        cid = _parse_uuid(case_id, "case_id")
+        query = query.filter(ContentiousMatter.case_id == cid)
     if status:
         query = query.filter(ContentiousMatter.status == status)
 
@@ -297,8 +309,8 @@ async def create_contentious_matter(
     matter = ContentiousMatter(
         name=request.name,
         description=request.description,
-        project_id=uuid.UUID(request.project_id) if request.project_id else None,
-        case_id=uuid.UUID(request.case_id) if request.case_id else None,
+        project_id=_parse_uuid(request.project_id, "project_id"),
+        case_id=_parse_uuid(request.case_id, "case_id"),
         status=request.status,
         priority=request.priority,
         estimated_value=request.estimated_value,
@@ -319,9 +331,10 @@ async def get_contentious_matter(
     matter_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)
 ):
     """Get a contentious matter by ID"""
+    matter_uuid = _parse_uuid(matter_id, "matter_id")
     matter = (
         db.query(ContentiousMatter)
-        .filter(ContentiousMatter.id == uuid.UUID(matter_id))
+        .filter(ContentiousMatter.id == matter_uuid)
         .first()
     )
 
@@ -372,11 +385,9 @@ async def update_contentious_matter(
     user: User = Depends(current_user),
 ):
     """Update a contentious matter"""
-    matter = (
-        db.query(ContentiousMatter)
-        .filter(ContentiousMatter.id == uuid.UUID(matter_id))
-        .first()
-    )
+    matter = db.query(ContentiousMatter).filter(
+        ContentiousMatter.id == _parse_uuid(matter_id, "matter_id")
+    ).first()
 
     if not matter:
         raise HTTPException(404, "Contentious matter not found")
@@ -394,11 +405,9 @@ async def delete_contentious_matter(
     matter_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)
 ):
     """Delete a contentious matter"""
-    matter = (
-        db.query(ContentiousMatter)
-        .filter(ContentiousMatter.id == uuid.UUID(matter_id))
-        .first()
-    )
+    matter = db.query(ContentiousMatter).filter(
+        ContentiousMatter.id == _parse_uuid(matter_id, "matter_id")
+    ).first()
 
     if not matter:
         raise HTTPException(404, "Contentious matter not found")
@@ -429,13 +438,14 @@ async def list_heads_of_claim(
     query = db.query(HeadOfClaim)
 
     if project_id:
-        query = query.filter(HeadOfClaim.project_id == uuid.UUID(project_id))
+        pid = _parse_uuid(project_id, "project_id")
+        query = query.filter(HeadOfClaim.project_id == pid)
     if case_id:
-        query = query.filter(HeadOfClaim.case_id == uuid.UUID(case_id))
+        cid = _parse_uuid(case_id, "case_id")
+        query = query.filter(HeadOfClaim.case_id == cid)
     if contentious_matter_id:
-        query = query.filter(
-            HeadOfClaim.contentious_matter_id == uuid.UUID(contentious_matter_id)
-        )
+        cm_id = _parse_uuid(contentious_matter_id, "contentious_matter_id")
+        query = query.filter(HeadOfClaim.contentious_matter_id == cm_id)
     if status:
         query = query.filter(HeadOfClaim.status == status)
     if claim_type:
@@ -513,12 +523,10 @@ async def create_head_of_claim(
     claim = HeadOfClaim(
         name=request.name,
         description=request.description,
-        project_id=uuid.UUID(request.project_id) if request.project_id else None,
-        case_id=uuid.UUID(request.case_id) if request.case_id else None,
-        contentious_matter_id=(
-            uuid.UUID(request.contentious_matter_id)
-            if request.contentious_matter_id
-            else None
+        project_id=_parse_uuid(request.project_id, "project_id"),
+        case_id=_parse_uuid(request.case_id, "case_id"),
+        contentious_matter_id=_parse_uuid(
+            request.contentious_matter_id, "contentious_matter_id"
         ),
         reference_number=request.reference_number,
         claim_type=request.claim_type,
@@ -548,7 +556,9 @@ async def get_head_of_claim(
     claim_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)
 ):
     """Get a head of claim by ID"""
-    claim = db.query(HeadOfClaim).filter(HeadOfClaim.id == uuid.UUID(claim_id)).first()
+    claim = db.query(HeadOfClaim).filter(
+        HeadOfClaim.id == _parse_uuid(claim_id, "claim_id")
+    ).first()
 
     if not claim:
         raise HTTPException(404, "Head of claim not found")
@@ -606,7 +616,9 @@ async def update_head_of_claim(
     user: User = Depends(current_user),
 ):
     """Update a head of claim"""
-    claim = db.query(HeadOfClaim).filter(HeadOfClaim.id == uuid.UUID(claim_id)).first()
+    claim = db.query(HeadOfClaim).filter(
+        HeadOfClaim.id == _parse_uuid(claim_id, "claim_id")
+    ).first()
 
     if not claim:
         raise HTTPException(404, "Head of claim not found")
@@ -616,7 +628,9 @@ async def update_head_of_claim(
     # Handle contentious_matter_id conversion
     if "contentious_matter_id" in update_data:
         cm_id = update_data["contentious_matter_id"]
-        update_data["contentious_matter_id"] = uuid.UUID(cm_id) if cm_id else None
+        update_data["contentious_matter_id"] = (
+            _parse_uuid(cm_id, "contentious_matter_id") if cm_id else None
+        )
 
     for key, value in update_data.items():
         setattr(claim, key, value)
@@ -630,7 +644,9 @@ async def delete_head_of_claim(
     claim_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)
 ):
     """Delete a head of claim"""
-    claim = db.query(HeadOfClaim).filter(HeadOfClaim.id == uuid.UUID(claim_id)).first()
+    claim = db.query(HeadOfClaim).filter(
+        HeadOfClaim.id == _parse_uuid(claim_id, "claim_id")
+    ).first()
 
     if not claim:
         raise HTTPException(404, "Head of claim not found")
@@ -1141,12 +1157,12 @@ async def get_claims_stats(
     )
 
     if project_id:
-        pid = uuid.UUID(project_id)
+        pid = _parse_uuid(project_id, "project_id")
         matter_query = matter_query.filter(ContentiousMatter.project_id == pid)
         claim_query = claim_query.filter(HeadOfClaim.project_id == pid)
 
     if case_id:
-        cid = uuid.UUID(case_id)
+        cid = _parse_uuid(case_id, "case_id")
         matter_query = matter_query.filter(ContentiousMatter.case_id == cid)
         claim_query = claim_query.filter(HeadOfClaim.case_id == cid)
 
@@ -1157,11 +1173,9 @@ async def get_claims_stats(
     # Get claimed amounts
     amount_query = db.query(func.sum(HeadOfClaim.claimed_amount))
     if project_id:
-        amount_query = amount_query.filter(
-            HeadOfClaim.project_id == uuid.UUID(project_id)
-        )
+        amount_query = amount_query.filter(HeadOfClaim.project_id == pid)
     if case_id:
-        amount_query = amount_query.filter(HeadOfClaim.case_id == uuid.UUID(case_id))
+        amount_query = amount_query.filter(HeadOfClaim.case_id == cid)
 
     total_claimed = amount_query.scalar() or 0
 

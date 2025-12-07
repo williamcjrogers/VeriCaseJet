@@ -110,6 +110,30 @@
           icon: "fa-balance-scale",
           url: "contentious-matters.html",
         },
+        {
+          id: "timeline",
+          label: "Project Timeline",
+          icon: "fa-clock-rotate-left",
+          url: "project-timeline.html",
+        },
+        {
+          id: "programme",
+          label: "Programme",
+          icon: "fa-project-diagram",
+          url: "programme.html",
+        },
+        {
+          id: "chronology",
+          label: "Chronology",
+          icon: "fa-history",
+          url: "chronology.html",
+        },
+        {
+          id: "stakeholders",
+          label: "Stakeholders",
+          icon: "fa-users",
+          url: "stakeholders.html",
+        },
       ],
     },
     {
@@ -171,9 +195,12 @@
 
   function getProjectId() {
     const urlParams = new URLSearchParams(window.location.search);
+    const stored = (localStorage.getItem("vericase_current_project") || "").trim();
+    const normalizedStored =
+      stored && stored !== "undefined" && stored !== "null" ? stored : "";
     return (
       urlParams.get("projectId") ||
-      localStorage.getItem("vericase_current_project") ||
+      normalizedStored ||
       ""
     );
   }
@@ -262,7 +289,7 @@
             <aside class="app-sidebar" id="appSidebar">
                 <div class="sidebar-header">
                     <a href="master-dashboard.html" class="sidebar-logo">
-                        <img src="assets/Adobe Express 2025-12-06 13.11.37.png" alt="VeriCase" />
+                        <img src="assets/VeriCaseContrastLogo.png" alt="VeriCase" />
                     </a>
                 </div>
                 ${projectContext}

@@ -104,7 +104,7 @@ def agent_log(hypothesis_id: str, message: str, data: dict | None = None, run_id
         import urllib.request
 
         req = urllib.request.Request(
-            "http://127.0.0.1:7242/ingest/a36b627f-6fe2-4392-af4c-6145b197bf06",
+            "http://host.docker.internal:7242/ingest/a36b627f-6fe2-4392-af4c-6145b197bf06",
             data=line.encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
