@@ -989,11 +989,11 @@ async def list_evidence(
 @router.post("/items/server-side", response_model=ServerSideEvidenceResponse)
 async def get_evidence_server_side(
     request: ServerSideEvidenceRequest,
+    db: DbSession,
     project_id: str | None = Query(None),
     case_id: str | None = Query(None),
     collection_id: str | None = Query(None),
     include_email_info: bool = Query(False),
-    db: DbSession = Depends(get_db),
 ) -> ServerSideEvidenceResponse:
     """
     High-performance server-side endpoint for AG Grid.
