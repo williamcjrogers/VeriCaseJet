@@ -35,11 +35,12 @@ class AISettings:
     _cache_valid: bool = False
 
     # Default models for each provider
+    # Use actual API model IDs, not display names
     DEFAULT_MODELS: dict[str, str] = {
         "openai": "gpt-4o",
-        "anthropic": "claude-4.5-sonnet",
+        "anthropic": "claude-sonnet-4-5-20250514",  # Correct Anthropic model ID
         "gemini": "gemini-2.0-flash",
-        "bedrock": "anthropic.claude-4.5-sonnet-v1:0",
+        "bedrock": "amazon.nova-pro-v1:0",  # Amazon Nova Pro (cost-effective)
     }
 
     # Default function configurations (cost-aware defaults)
@@ -52,7 +53,7 @@ class AISettings:
         },
         "deep_analysis": {
             "provider": "anthropic",
-            "model": "claude-4.5-sonnet",  # Balanced tier (was Opus)
+            "model": "claude-sonnet-4-5-20250514",  # Correct Anthropic model ID
             "thinking_enabled": True,
             "thinking_budget_tokens": 5000,  # Reduced for cost efficiency
             "max_duration_seconds": 300,
