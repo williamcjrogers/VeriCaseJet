@@ -683,7 +683,7 @@ Focus on:
 Build a narrative that explains what happened and why it matters."""
 
             response = await client.messages.create(
-                model=model_override or "claude-sonnet-4-5-20250514",
+                model=model_override or "claude-sonnet-4-20250514",
                 max_tokens=4096,
                 messages=[{"role": "user", "content": prompt}],
             )
