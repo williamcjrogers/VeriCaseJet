@@ -56,37 +56,37 @@ class AIFallbackChain:
         "quick_search": [
             ("bedrock", "amazon.nova-micro-v1:0"),      # Primary: fastest, cheapest
             ("bedrock", "amazon.nova-lite-v1:0"),       # Fallback 1
-            ("anthropic", "claude-4.5-haiku"),          # External fallback
+            ("anthropic", "claude-3-5-haiku-20241022"),  # External fallback
         ],
         "deep_analysis": [
             ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),  # Primary: Claude via Bedrock
             ("bedrock", "amazon.nova-pro-v1:0"),        # Fallback 1: Nova Pro
-            ("anthropic", "claude-4.5-sonnet"),         # External fallback
+            ("anthropic", "claude-sonnet-4-5-20250514"),  # External fallback
         ],
         "narrative": [
             ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),  # Primary
             ("bedrock", "amazon.nova-pro-v1:0"),        # Fallback 1
-            ("anthropic", "claude-4.5-sonnet"),         # External fallback
+            ("anthropic", "claude-sonnet-4-5-20250514"),  # External fallback
         ],
         "pattern_recognition": [
             ("bedrock", "amazon.nova-pro-v1:0"),        # Primary
             ("bedrock", "amazon.nova-lite-v1:0"),       # Fallback 1
-            ("gemini", "gemini-2.0-pro"),               # External fallback
+            ("gemini", "gemini-2.0-flash"),             # External fallback
         ],
         "gap_analysis": [
             ("bedrock", "amazon.nova-pro-v1:0"),        # Primary
             ("bedrock", "amazon.nova-lite-v1:0"),       # Fallback 1
-            ("anthropic", "claude-4.5-sonnet"),         # External fallback
+            ("anthropic", "claude-sonnet-4-5-20250514"),  # External fallback
         ],
         "chat": [
             ("bedrock", "amazon.nova-pro-v1:0"),        # Primary for copilot
             ("bedrock", "amazon.nova-lite-v1:0"),       # Fallback 1
-            ("anthropic", "claude-4.5-sonnet"),         # External fallback
+            ("anthropic", "claude-sonnet-4-5-20250514"),  # External fallback
         ],
         "refinement": [
             ("bedrock", "amazon.nova-lite-v1:0"),       # Primary: cost-effective
             ("bedrock", "amazon.nova-micro-v1:0"),      # Fallback 1: fastest
-            ("anthropic", "claude-4.5-haiku"),          # External fallback
+            ("anthropic", "claude-3-5-haiku-20241022"),  # External fallback
         ],
     }
 

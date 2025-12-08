@@ -58,9 +58,9 @@ router = APIRouter(prefix="/api/deep-research", tags=["deep-research"])
 # Latest flagship model defaults for Deep Analysis (use most powerful models)
 # Supports 4 providers: OpenAI, Anthropic, Gemini, Amazon Bedrock
 LATEST_MODEL_DEFAULTS = {
-    "openai": "gpt-5.1-2025-11-13",  # GPT-5.1 Flagship with configurable reasoning
-    "anthropic": "claude-opus-4-5-20251101",  # Claude Opus 4.5 - smartest for complex tasks
-    "gemini": "gemini-3.0-pro",  # Gemini 3.0 Pro - 1M+ context multimodal
+    "openai": "gpt-4o",  # GPT-4o (available)
+    "anthropic": "claude-sonnet-4-5-20250514",  # Claude Sonnet 4.5 (correct ID)
+    "gemini": "gemini-2.0-flash",  # Gemini 2.0 Flash (available)
     "bedrock": "amazon.nova-pro-v1:0",  # Amazon Nova Pro - enterprise AI via Bedrock
 }
 

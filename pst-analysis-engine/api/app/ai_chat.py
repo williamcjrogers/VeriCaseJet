@@ -683,10 +683,9 @@ Focus on:
 Build a narrative that explains what happened and why it matters."""
 
             response = await client.messages.create(
-                model=model_override or "claude-opus-4-5-20251101",
+                model=model_override or "claude-sonnet-4-5-20250514",
                 max_tokens=4096,
                 messages=[{"role": "user", "content": prompt}],
-                extra_body={"thinking": {"type": "enabled", "budget_tokens": 10000}},
             )
 
             processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
