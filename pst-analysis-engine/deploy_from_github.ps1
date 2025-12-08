@@ -1,5 +1,5 @@
 # Deploy from GitHub Container Registry to EC2
-$EC2_IP = "18.130.216.34"
+$EC2_IP = "18.175.232.87"
 $KEY_PATH = "C:\Users\William\Documents\Projects\VeriCase Analysis\VeriCase-Safe.pem"
 
 Write-Host "Deploying from GitHub to EC2..." -ForegroundColor Green

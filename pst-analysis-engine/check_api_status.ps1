@@ -1,5 +1,5 @@
 # Check API status after PostgreSQL deployment
-$EC2_IP = "18.130.216.34"
+$EC2_IP = "18.175.232.87"
 $KEY_PATH = "C:\Users\William\Documents\Projects\VeriCase Analysis\VeriCase-Safe.pem"
 
 Write-Host "Checking API status on EC2..." -ForegroundColor Yellow

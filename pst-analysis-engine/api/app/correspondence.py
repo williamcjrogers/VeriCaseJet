@@ -24,17 +24,25 @@ from .config import settings
 from .models import (
     Case,
     Company,
+    ContentiousMatter,
     DocStatus,
     Document,
     EmailAttachment,
     EmailMessage,
+    EvidenceActivityLog,
     EvidenceCollection,
+    EvidenceCollectionItem,
+    EvidenceCorrespondenceLink,
     EvidenceItem,
+    EvidenceRelation,
     EvidenceSource,
+    HeadOfClaim,
+    ItemClaimLink,
     Keyword,
     Programme,
     Project,
     PSTFile,
+    RefinementSessionDB,
     Stakeholder,
     User,
 )
@@ -2669,12 +2677,75 @@ async def delete_project(
     project_name = project.project_name
 
     try:
-        # Delete associated email attachments first (child of email messages)
-        db.query(EmailAttachment).filter(
-            EmailAttachment.email_id.in_(
-                db.query(EmailMessage.id).filter(EmailMessage.project_id == p_uuid)
-            )
+        # Get IDs needed for cascading deletes
+        pst_file_ids = [pst.id for pst in db.query(PSTFile).filter(PSTFile.project_id == p_uuid).all()]
+        email_ids = [e.id for e in db.query(EmailMessage).filter(EmailMessage.project_id == p_uuid).all()]
+        evidence_item_ids = [e.id for e in db.query(EvidenceItem).filter(EvidenceItem.project_id == p_uuid).all()]
+        evidence_collection_ids = [e.id for e in db.query(EvidenceCollection).filter(EvidenceCollection.project_id == p_uuid).all()]
+
+        # Delete ItemClaimLinks for correspondence (email_messages) in this project
+        if email_ids:
+            db.query(ItemClaimLink).filter(
+                ItemClaimLink.item_type == 'correspondence',
+                ItemClaimLink.item_id.in_(email_ids)
+            ).delete(synchronize_session=False)
+
+        # Delete ItemClaimLinks for evidence items in this project
+        if evidence_item_ids:
+            db.query(ItemClaimLink).filter(
+                ItemClaimLink.item_type == 'evidence',
+                ItemClaimLink.item_id.in_(evidence_item_ids)
+            ).delete(synchronize_session=False)
+
+        # Delete EvidenceCorrespondenceLinks (references evidence_items and email_messages)
+        if evidence_item_ids:
+            db.query(EvidenceCorrespondenceLink).filter(
+                EvidenceCorrespondenceLink.evidence_item_id.in_(evidence_item_ids)
+            ).delete(synchronize_session=False)
+        if email_ids:
+            db.query(EvidenceCorrespondenceLink).filter(
+                EvidenceCorrespondenceLink.email_message_id.in_(email_ids)
+            ).delete(synchronize_session=False)
+
+        # Delete EvidenceRelations (references evidence_items)
+        if evidence_item_ids:
+            db.query(EvidenceRelation).filter(
+                EvidenceRelation.source_evidence_id.in_(evidence_item_ids)
+            ).delete(synchronize_session=False)
+            db.query(EvidenceRelation).filter(
+                EvidenceRelation.target_evidence_id.in_(evidence_item_ids)
+            ).delete(synchronize_session=False)
+
+        # Delete EvidenceCollectionItems (references evidence_collections and evidence_items)
+        if evidence_collection_ids:
+            db.query(EvidenceCollectionItem).filter(
+                EvidenceCollectionItem.collection_id.in_(evidence_collection_ids)
+            ).delete(synchronize_session=False)
+        if evidence_item_ids:
+            db.query(EvidenceCollectionItem).filter(
+                EvidenceCollectionItem.evidence_item_id.in_(evidence_item_ids)
+            ).delete(synchronize_session=False)
+
+        # Delete EvidenceActivityLog (references evidence_items and evidence_collections)
+        if evidence_item_ids:
+            db.query(EvidenceActivityLog).filter(
+                EvidenceActivityLog.evidence_item_id.in_(evidence_item_ids)
+            ).delete(synchronize_session=False)
+        if evidence_collection_ids:
+            db.query(EvidenceActivityLog).filter(
+                EvidenceActivityLog.collection_id.in_(evidence_collection_ids)
+            ).delete(synchronize_session=False)
+
+        # Delete RefinementSessions for this project
+        db.query(RefinementSessionDB).filter(
+            RefinementSessionDB.project_id == str(p_uuid)
         ).delete(synchronize_session=False)
+
+        # Delete associated email attachments first (child of email messages)
+        if pst_file_ids:
+            db.query(EmailAttachment).filter(
+                EmailAttachment.pst_file_id.in_(pst_file_ids)
+            ).delete(synchronize_session=False)
 
         # Delete associated email messages
         db.query(EmailMessage).filter(EmailMessage.project_id == p_uuid).delete(
@@ -2683,21 +2754,6 @@ async def delete_project(
 
         # Delete associated PST files records
         db.query(PSTFile).filter(PSTFile.project_id == p_uuid).delete(
-            synchronize_session=False
-        )
-
-        # Delete associated stakeholders
-        db.query(Stakeholder).filter(Stakeholder.project_id == p_uuid).delete(
-            synchronize_session=False
-        )
-
-        # Delete associated keywords
-        db.query(Keyword).filter(Keyword.project_id == p_uuid).delete(
-            synchronize_session=False
-        )
-
-        # Delete associated programmes
-        db.query(Programme).filter(Programme.project_id == p_uuid).delete(
             synchronize_session=False
         )
 
@@ -2713,6 +2769,31 @@ async def delete_project(
 
         # Delete associated evidence sources
         db.query(EvidenceSource).filter(EvidenceSource.project_id == p_uuid).delete(
+            synchronize_session=False
+        )
+
+        # Delete associated programmes
+        db.query(Programme).filter(Programme.project_id == p_uuid).delete(
+            synchronize_session=False
+        )
+
+        # Delete associated stakeholders
+        db.query(Stakeholder).filter(Stakeholder.project_id == p_uuid).delete(
+            synchronize_session=False
+        )
+
+        # Delete associated keywords
+        db.query(Keyword).filter(Keyword.project_id == p_uuid).delete(
+            synchronize_session=False
+        )
+
+        # Delete heads of claim
+        db.query(HeadOfClaim).filter(HeadOfClaim.project_id == p_uuid).delete(
+            synchronize_session=False
+        )
+
+        # Delete contentious matters
+        db.query(ContentiousMatter).filter(ContentiousMatter.project_id == p_uuid).delete(
             synchronize_session=False
         )
 

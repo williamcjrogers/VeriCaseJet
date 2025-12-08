@@ -1,5 +1,5 @@
 # Check if Secrets Manager is working on EC2
-$EC2_IP = "18.130.216.34"
+$EC2_IP = "18.175.232.87"
 $KEY_PATH = "VeriCase-Safe.pem"
 
 Write-Host "Checking Secrets Manager status on EC2..." -ForegroundColor Green
