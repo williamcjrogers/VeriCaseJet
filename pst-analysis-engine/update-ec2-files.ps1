@@ -1,5 +1,5 @@
 # Update EC2 with latest changes
-$EC2_IP = "18.130.216.34"
+$EC2_IP = "18.175.232.87"
 $KEY_PATH = "VeriCase-Safe.pem"
 
 Write-Host "Updating EC2 files..." -ForegroundColor Green

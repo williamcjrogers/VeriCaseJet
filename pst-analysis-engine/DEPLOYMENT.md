@@ -45,7 +45,7 @@ If you need to deploy manually:
 
 ```bash
 # SSH to EC2
-ssh -i "VeriCase-Safe.pem" ec2-user@18.130.216.34
+ssh -i "VeriCase-Safe.pem" ec2-user@18.175.232.87
 
 # Navigate to deployment directory
 cd ~/vericase
@@ -66,10 +66,10 @@ sudo docker logs vericase-worker-1 --tail 50
 
 ```bash
 # Copy migration file to EC2
-scp -i "VeriCase-Safe.pem" pst-analysis-engine/api/migrations/*.sql ec2-user@18.130.216.34:~/vericase/migrations/
+scp -i "VeriCase-Safe.pem" pst-analysis-engine/api/migrations/*.sql ec2-user@18.175.232.87:~/vericase/migrations/
 
 # SSH and run migration
-ssh -i "VeriCase-Safe.pem" ec2-user@18.130.216.34
+ssh -i "VeriCase-Safe.pem" ec2-user@18.175.232.87
 cd ~/vericase
 cat migrations/20251130_fix_file_type_column.sql | sudo docker exec -i vericase-db-1 psql -U vericase -d vericase
 ```
@@ -95,7 +95,7 @@ sudo docker-compose restart api
 
 ## EC2 Instance Details
 
-- **IP Address:** 18.130.216.34
+- **IP Address:** 18.175.232.87
 - **Region:** eu-west-2 (London)
 - **User:** ec2-user
 - **Deploy Path:** ~/vericase

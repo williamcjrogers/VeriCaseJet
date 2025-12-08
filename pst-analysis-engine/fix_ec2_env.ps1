@@ -1,5 +1,5 @@
 # Fix EC2 .env file via SSH
-$EC2_IP = "18.130.216.34"
+$EC2_IP = "18.175.232.87"
 $KEY_PATH = "C:\Users\William\Documents\Projects\VeriCase Analysis\VeriCase-Safe.pem"
 
 # Commands to run on EC2
