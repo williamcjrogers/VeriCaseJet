@@ -1,0 +1,97 @@
+# VeriCase Development Docker Compose
+# Usage: docker-compose up -d
+
+name: vericase
+
+services:
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    ports: ["9002:9000", "9003:9001"]
+    volumes: ["minio_data:/data"]
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: vericase
+      POSTGRES_PASSWORD: vericase
+      POSTGRES_DB: vericase
+    ports: ["54321:5432"]
+    volumes: ["pg_data:/var/lib/postgresql/data"]
+
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+
+  opensearch:
+    image: opensearchproject/opensearch:2.10.0
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+      - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    ports: ["9200:9200", "9600:9600"]
+    volumes: ["os_data:/usr/share/opensearch/data"]
+
+  tika:
+    image: apache/tika:latest
+    ports: ["9998:9998"]
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://vericase:vericase@postgres:5432/vericase
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - TIKA_URL=http://tika:9998
+    depends_on: [minio, postgres, redis, opensearch, tika]
+    ports: ["8010:8000"]
+    volumes:
+      - "./api/app:/code/app"
+      - "./ui:/code/ui"
+
+  worker:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://vericase:vericase@postgres:5432/vericase
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - TIKA_URL=http://tika:9998
+    depends_on: [minio, postgres, redis, opensearch, tika]
+    command: ["celery", "-A", "app.tasks", "worker", "--loglevel=INFO", "-Q", "vericase,pst_processing"]
+    volumes:
+      - "./worker_app:/code/worker_app"
+      - "./api/app:/code/app"
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8010
+    command: sh -c "npm install && npm run dev -- --host"
+    depends_on:
+      - api
+
+volumes:
+  pg_data:
+  os_data:
+  minio_data:

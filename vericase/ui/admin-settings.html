@@ -1,0 +1,1776 @@
+<!doctype html>
+<!--suppress HtmlFormInputWithoutLabel -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VeriCase - Admin Settings</title>
+    <!-- Local Library -->
+    <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
+    <link rel="stylesheet" href="assets/global.css" />
+    <link rel="stylesheet" href="brand-styles.css" />
+    <style>
+      body {
+        background: var(--bg-primary);
+        background-image: radial-gradient(
+          circle,
+          rgba(23, 181, 163, 0.05) 1px,
+          transparent 1px
+        );
+        background-size: 30px 30px;
+      }
+
+      .header {
+        background: white;
+        border-bottom: 2px solid var(--gray-200);
+        padding: 1rem 2rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      }
+
+      .header-content {
+        max-width: 1400px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .logo-section {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .logo {
+        height: 32px;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 2rem auto;
+        padding: 0 2rem;
+      }
+
+      .page-title {
+        color: var(--vericase-navy);
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .page-subtitle {
+        color: var(--text-secondary);
+        margin-bottom: 2rem;
+      }
+
+      /* Tab Navigation */
+      .tabs-nav {
+        display: flex;
+        gap: 0;
+        border-bottom: 2px solid var(--gray-200);
+        margin-bottom: 0;
+        background: white;
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+        overflow: hidden;
+      }
+
+      .tab-btn {
+        padding: 1rem 1.5rem;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        font-weight: 500;
+        color: var(--text-secondary);
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        border-bottom: 3px solid transparent;
+        margin-bottom: -2px;
+      }
+
+      .tab-btn:hover {
+        color: var(--vericase-teal);
+        background: var(--gray-50);
+      }
+
+      .tab-btn.active {
+        color: var(--vericase-teal);
+        border-bottom-color: var(--vericase-teal);
+        background: white;
+      }
+
+      .tab-btn i {
+        font-size: 1rem;
+      }
+
+      /* Tab Content */
+      .tab-content {
+        display: none;
+        background: white;
+        border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+        box-shadow: var(--shadow-lg);
+        border: 1px solid var(--gray-100);
+        border-top: none;
+      }
+
+      .tab-content.active {
+        display: block;
+      }
+
+      /* Settings Card Styles */
+      .settings-section {
+        padding: 2rem;
+        border-bottom: 1px solid var(--gray-100);
+      }
+
+      .settings-section:last-child {
+        border-bottom: none;
+      }
+
+      .section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--vericase-navy);
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .section-description {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .setting-row {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem 0;
+      }
+
+      .setting-row + .setting-row {
+        border-top: 1px solid var(--gray-50);
+      }
+
+      .setting-label {
+        min-width: 200px;
+        font-weight: 500;
+        color: var(--text-primary);
+      }
+
+      .setting-label small {
+        display: block;
+        font-weight: 400;
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+        margin-top: 0.25rem;
+      }
+
+      .setting-input {
+        padding: 0.625rem 0.875rem;
+        border: 2px solid var(--gray-200);
+        border-radius: var(--radius-md);
+        font-size: 0.95rem;
+        transition: all 0.2s;
+        min-width: 200px;
+      }
+
+      .setting-input:focus {
+        outline: none;
+        border-color: var(--vericase-teal);
+        box-shadow: 0 0 0 3px rgba(23, 181, 163, 0.1);
+      }
+
+      .setting-input[type="password"] {
+        font-family: monospace;
+      }
+
+      .setting-input.wide {
+        min-width: 350px;
+        flex: 1;
+        max-width: 400px;
+      }
+
+      /* Buttons */
+      .btn {
+        padding: 0.625rem 1.25rem;
+        border-radius: var(--radius-md);
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+      }
+
+      .btn-primary {
+        background: var(--vericase-teal);
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: var(--vericase-teal-dark);
+        transform: translateY(-1px);
+      }
+
+      .btn-primary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .btn-secondary {
+        background: var(--gray-200);
+        color: var(--text-primary);
+      }
+
+      .btn-secondary:hover {
+        background: var(--gray-300);
+      }
+
+      .btn-success {
+        background: var(--success);
+        color: white;
+      }
+
+      .btn-danger {
+        background: var(--error);
+        color: white;
+      }
+
+      /* Provider Cards */
+      .provider-card {
+        background: var(--gray-50);
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-lg);
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+      }
+
+      .provider-card:last-child {
+        margin-bottom: 0;
+      }
+
+      .provider-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+      }
+
+      .provider-title {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--vericase-navy);
+      }
+
+      .provider-title i {
+        font-size: 1.25rem;
+      }
+
+      .provider-description {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+      }
+
+      .provider-body {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .provider-row {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .provider-row label {
+        min-width: 100px;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+      }
+
+      /* Status Indicator */
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 500;
+      }
+
+      .status-badge.configured {
+        background: var(--success-light);
+        color: var(--success);
+      }
+
+      .status-badge.not-configured {
+        background: var(--gray-100);
+        color: var(--text-secondary);
+      }
+
+      .status-badge.error {
+        background: var(--error-light, #fee2e2);
+        color: var(--error);
+      }
+
+      .status-badge i {
+        font-size: 0.6rem;
+      }
+
+      /* Status Grid */
+      .status-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+      }
+
+      .status-card {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem;
+        background: var(--gray-50);
+        border-radius: var(--radius-md);
+        border: 1px solid var(--gray-200);
+      }
+
+      .status-card .provider-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+      }
+
+      .status-card .provider-info {
+        flex: 1;
+      }
+
+      .status-card .provider-name {
+        font-weight: 600;
+        color: var(--vericase-navy);
+      }
+
+      .status-card .provider-status {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+      }
+
+      .status-card.configured .status-dot {
+        color: var(--success);
+      }
+
+      .status-card.not-configured .status-dot {
+        color: var(--gray-300);
+      }
+
+      /* Function Config Cards */
+      .function-card {
+        background: var(--gray-50);
+        border: 1px solid var(--gray-200);
+        border-radius: var(--radius-lg);
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+      }
+
+      .function-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+
+      .function-title {
+        font-weight: 600;
+        color: var(--vericase-navy);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .function-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+      }
+
+      .function-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+      }
+
+      .function-field label {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+      }
+
+      /* Toast Messages */
+      .toast {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        padding: 1rem 1.5rem;
+        background: var(--vericase-navy);
+        color: white;
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-xl);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        transform: translateY(100px);
+        opacity: 0;
+        transition: all 0.3s ease;
+        z-index: 1000;
+      }
+
+      .toast.show {
+        transform: translateY(0);
+        opacity: 1;
+      }
+
+      .toast.success {
+        background: var(--success);
+      }
+
+      .toast.error {
+        background: var(--error);
+      }
+
+      /* Toggle Switch */
+      .toggle-switch {
+        position: relative;
+        width: 48px;
+        height: 26px;
+        background: var(--gray-300);
+        border-radius: 999px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .toggle-switch.active {
+        background: var(--vericase-teal);
+      }
+
+      .toggle-switch::after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 20px;
+        height: 20px;
+        background: white;
+        border-radius: 50%;
+        transition: all 0.2s;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .toggle-switch.active::after {
+        left: 25px;
+      }
+
+      /* Back Link */
+      .back-link {
+        color: var(--vericase-teal);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        font-weight: 500;
+      }
+
+      .back-link:hover {
+        text-decoration: underline;
+      }
+
+      /* Info Box */
+      .info-box {
+        background: var(--info-light, #e0f2fe);
+        border: 1px solid var(--info, #0ea5e9);
+        border-radius: var(--radius-md);
+        padding: 1rem;
+        margin-top: 1rem;
+        display: flex;
+        gap: 0.75rem;
+        font-size: 0.9rem;
+      }
+
+      .info-box i {
+        color: var(--info, #0ea5e9);
+        flex-shrink: 0;
+      }
+
+      /* Loading Spinner */
+      .spinner {
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--gray-200);
+        border-top-color: var(--vericase-teal);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Checkbox styling */
+      .checkbox-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        cursor: pointer;
+      }
+
+      .checkbox-row input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--vericase-teal);
+        cursor: pointer;
+      }
+
+      /* Help text */
+      .help-text {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+      }
+
+      /* Responsive */
+      @media (max-width: 768px) {
+        .tabs-nav {
+          flex-wrap: wrap;
+        }
+
+        .tab-btn {
+          flex: 1;
+          justify-content: center;
+          padding: 0.75rem;
+        }
+
+        .setting-row {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .setting-label {
+          min-width: auto;
+        }
+
+        .setting-input.wide {
+          min-width: 100%;
+          max-width: 100%;
+        }
+
+        .provider-row {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div class="header-content">
+        <div class="logo-section">
+          <img src="/assets/Logo-Vector.png" alt="VeriCase" class="logo" />
+          <span style="font-weight: 600; color: var(--vericase-navy)">Admin Settings</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Breadcrumbs for navigation clarity -->
+    <nav class="breadcrumbs">
+      <div class="container inner" aria-label="Breadcrumb">
+        <a href="dashboard.html">Home</a>
+        <span class="sep">/</span>
+        <span class="current">Admin Settings</span>
+      </div>
+    </nav>
+
+    <div class="container">
+      <a href="dashboard.html" class="back-link">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+      </a>
+
+      <h1 class="page-title">Admin Settings</h1>
+      <p class="page-subtitle">
+        Configure system-wide settings for VeriCase
+      </p>
+
+      <!-- Tab Navigation -->
+      <div class="tabs-nav">
+        <button class="tab-btn active" data-tab="general">
+          <i class="fas fa-cog"></i> General
+        </button>
+        <button class="tab-btn" data-tab="ai-providers">
+          <i class="fas fa-robot"></i> AI Providers
+        </button>
+        <button class="tab-btn" data-tab="ai-functions">
+          <i class="fas fa-brain"></i> AI Functions
+        </button>
+        <button class="tab-btn" data-tab="display">
+          <i class="fas fa-table"></i> Display
+        </button>
+        <button class="tab-btn" data-tab="status">
+          <i class="fas fa-heartbeat"></i> Status
+        </button>
+      </div>
+
+      <!-- General Settings Tab -->
+      <div class="tab-content active" id="tab-general">
+        <div class="settings-section">
+          <div class="section-title">
+            <i class="fas fa-file-pdf" style="color: var(--vericase-teal)"></i>
+            Document Processing
+          </div>
+          <p class="section-description">
+            Configure AWS Textract and Tika settings for document processing
+          </p>
+
+          <div class="setting-row">
+            <div class="setting-label">
+              Textract Page Threshold
+              <small>PDFs with more pages will use Tika instead</small>
+            </div>
+            <input
+              type="number"
+              id="textract_page_threshold"
+              class="setting-input"
+              min="1"
+              max="500"
+              value="100"
+            />
+            <span style="color: var(--text-secondary)">pages</span>
+            <button class="btn btn-primary" onclick="saveSetting('textract_page_threshold')">
+              Save
+            </button>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-label">
+              Textract Max Pages
+              <small>AWS limit: 500 pages maximum</small>
+            </div>
+            <input
+              type="number"
+              id="textract_max_pages"
+              class="setting-input"
+              min="1"
+              max="500"
+              value="500"
+            />
+            <span style="color: var(--text-secondary)">pages</span>
+            <button class="btn btn-primary" onclick="saveSetting('textract_max_pages')">
+              Save
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="section-title">
+            <i class="fas fa-sliders-h" style="color: var(--vericase-blue)"></i>
+            AI Behavior
+          </div>
+          <p class="section-description">
+            Configure default AI behavior and fallback options
+          </p>
+
+          <div class="setting-row">
+            <div class="setting-label">
+              Default AI Provider
+              <small>Used for quick searches and general queries</small>
+            </div>
+            <select id="ai_default_provider" class="setting-input">
+              <option value="openai">OpenAI (GPT)</option>
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="gemini">Google (Gemini)</option>
+              <option value="bedrock">Amazon Bedrock</option>
+            </select>
+            <button class="btn btn-primary" onclick="saveSetting('ai_default_provider')">
+              Save
+            </button>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-label">
+              Enable Web Search
+              <small>Allow AI to search the web for information</small>
+            </div>
+            <select id="ai_web_search_enabled" class="setting-input">
+              <option value="false">Disabled (Evidence Only)</option>
+              <option value="true">Enabled</option>
+            </select>
+            <button class="btn btn-primary" onclick="saveSetting('ai_web_search_enabled')">
+              Save
+            </button>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-label">
+              Enable Fallback
+              <small>Auto-retry with other providers on failure</small>
+            </div>
+            <select id="ai_fallback_enabled" class="setting-input">
+              <option value="true">Enabled (Recommended)</option>
+              <option value="false">Disabled</option>
+            </select>
+            <button class="btn btn-primary" onclick="saveSetting('ai_fallback_enabled')">
+              Save
+            </button>
+            <span class="help-text">
+              <i class="fas fa-info-circle"></i> Improves reliability
+            </span>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-label">
+              Route Claude via Bedrock
+              <small>Enterprise compliance (SOC2/HIPAA)</small>
+            </div>
+            <select id="bedrock_route_claude" class="setting-input">
+              <option value="false">Disabled (Direct API)</option>
+              <option value="true">Enabled (Via Bedrock)</option>
+            </select>
+            <button class="btn btn-primary" onclick="saveSetting('bedrock_route_claude')">
+              Save
+            </button>
+            <span class="help-text">
+              <i class="fas fa-shield-alt"></i> Recommended for compliance
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Providers Tab -->
+      <div class="tab-content" id="tab-ai-providers">
+        <div class="settings-section">
+          <div class="section-title">
+            <i class="fas fa-key" style="color: var(--vericase-teal)"></i>
+            API Keys & Models
+          </div>
+          <p class="section-description">
+            Configure API keys and select models for each AI provider
+          </p>
+
+          <!-- OpenAI -->
+          <div class="provider-card">
+            <div class="provider-header">
+              <div>
+                <div class="provider-title">
+                  <i class="fas fa-brain" style="color: #10a37f"></i>
+                  OpenAI (GPT)
+                </div>
+                <p class="provider-description">
+                  Used for chronology analysis and deep research.
+                  <a href="https://platform.openai.com/api-keys" target="_blank">Get API key</a>
+                </p>
+              </div>
+              <span class="status-badge not-configured" id="status-badge-openai">
+                <i class="fas fa-circle"></i> Not configured
+              </span>
+            </div>
+            <div class="provider-body">
+              <div class="provider-row">
+                <label>API Key:</label>
+                <input
+                  type="password"
+                  id="openai_api_key"
+                  class="setting-input wide"
+                  placeholder="sk-..."
+                />
+                <button class="btn btn-primary" onclick="saveSetting('openai_api_key')">
+                  Save Key
+                </button>
+                <button class="btn btn-secondary" onclick="testProvider('openai')">
+                  <i class="fas fa-vial"></i> Test
+                </button>
+              </div>
+              <div class="provider-row">
+                <label>Model:</label>
+                <select id="openai_model" class="setting-input wide">
+                  <!-- Populated dynamically -->
+                </select>
+                <button class="btn btn-primary" onclick="saveSetting('openai_model')">
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Anthropic -->
+          <div class="provider-card">
+            <div class="provider-header">
+              <div>
+                <div class="provider-title">
+                  <i class="fas fa-comment-dots" style="color: #d97706"></i>
+                  Anthropic (Claude)
+                </div>
+                <p class="provider-description">
+                  Used for narrative construction and legal reasoning.
+                  <a href="https://console.anthropic.com/settings/keys" target="_blank">Get API key</a>
+                </p>
+              </div>
+              <span class="status-badge not-configured" id="status-badge-anthropic">
+                <i class="fas fa-circle"></i> Not configured
+              </span>
+            </div>
+            <div class="provider-body">
+              <div class="provider-row">
+                <label>API Key:</label>
+                <input
+                  type="password"
+                  id="anthropic_api_key"
+                  class="setting-input wide"
+                  placeholder="sk-ant-..."
+                />
+                <button class="btn btn-primary" onclick="saveSetting('anthropic_api_key')">
+                  Save Key
+                </button>
+                <button class="btn btn-secondary" onclick="testProvider('anthropic')">
+                  <i class="fas fa-vial"></i> Test
+                </button>
+              </div>
+              <div class="provider-row">
+                <label>Model:</label>
+                <select id="anthropic_model" class="setting-input wide">
+                  <!-- Populated dynamically -->
+                </select>
+                <button class="btn btn-primary" onclick="saveSetting('anthropic_model')">
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Google Gemini -->
+          <div class="provider-card">
+            <div class="provider-header">
+              <div>
+                <div class="provider-title">
+                  <i class="fas fa-gem" style="color: #4285f4"></i>
+                  Google (Gemini)
+                </div>
+                <p class="provider-description">
+                  Used for pattern recognition and quick searches.
+                  <a href="https://aistudio.google.com/app/apikey" target="_blank">Get API key</a>
+                </p>
+              </div>
+              <span class="status-badge not-configured" id="status-badge-gemini">
+                <i class="fas fa-circle"></i> Not configured
+              </span>
+            </div>
+            <div class="provider-body">
+              <div class="provider-row">
+                <label>API Key:</label>
+                <input
+                  type="password"
+                  id="gemini_api_key"
+                  class="setting-input wide"
+                  placeholder="AIza..."
+                />
+                <button class="btn btn-primary" onclick="saveSetting('gemini_api_key')">
+                  Save Key
+                </button>
+                <button class="btn btn-secondary" onclick="testProvider('gemini')">
+                  <i class="fas fa-vial"></i> Test
+                </button>
+              </div>
+              <div class="provider-row">
+                <label>Model:</label>
+                <select id="gemini_model" class="setting-input wide">
+                  <!-- Populated dynamically -->
+                </select>
+                <button class="btn btn-primary" onclick="saveSetting('gemini_model')">
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Amazon Bedrock -->
+          <div class="provider-card">
+            <div class="provider-header">
+              <div>
+                <div class="provider-title">
+                  <i class="fab fa-aws" style="color: #ff9900"></i>
+                  Amazon Bedrock
+                </div>
+                <p class="provider-description">
+                  Enterprise AI via AWS. Uses IAM credentials (no API key needed).
+                  <a href="https://aws.amazon.com/bedrock/" target="_blank">Learn more</a>
+                </p>
+              </div>
+              <span class="status-badge not-configured" id="status-badge-bedrock">
+                <i class="fas fa-circle"></i> Not enabled
+              </span>
+            </div>
+            <div class="provider-body">
+              <div class="provider-row">
+                <label>Enable:</label>
+                <select id="bedrock_enabled" class="setting-input">
+                  <option value="false">Disabled</option>
+                  <option value="true">Enabled</option>
+                </select>
+                <button class="btn btn-primary" onclick="saveSetting('bedrock_enabled')">
+                  Save
+                </button>
+                <button class="btn btn-secondary" onclick="testProvider('bedrock')">
+                  <i class="fas fa-vial"></i> Test
+                </button>
+              </div>
+              <div class="provider-row">
+                <label>Region:</label>
+                <select id="bedrock_region" class="setting-input">
+                  <option value="us-east-1">US East (N. Virginia)</option>
+                  <option value="us-west-2">US West (Oregon)</option>
+                  <option value="eu-west-1">Europe (Ireland)</option>
+                  <option value="eu-west-2">Europe (London)</option>
+                  <option value="eu-central-1">Europe (Frankfurt)</option>
+                  <option value="ap-northeast-1">Asia Pacific (Tokyo)</option>
+                  <option value="ap-southeast-1">Asia Pacific (Singapore)</option>
+                  <option value="ap-southeast-2">Asia Pacific (Sydney)</option>
+                </select>
+                <button class="btn btn-primary" onclick="saveSetting('bedrock_region')">
+                  Save
+                </button>
+              </div>
+              <div class="provider-row">
+                <label>Model:</label>
+                <select id="bedrock_model" class="setting-input wide">
+                  <!-- Populated dynamically -->
+                </select>
+                <button class="btn btn-primary" onclick="saveSetting('bedrock_model')">
+                  Save
+                </button>
+              </div>
+            </div>
+            <div class="info-box">
+              <i class="fas fa-info-circle"></i>
+              <div>
+                <strong>Bedrock Models:</strong> Includes Amazon Nova, Claude via Bedrock, Llama, Mistral, and Cohere models.
+                Requires AWS IAM credentials configured on the server.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Functions Tab -->
+      <div class="tab-content" id="tab-ai-functions">
+        <div class="settings-section">
+          <div class="section-title">
+            <i class="fas fa-cogs" style="color: var(--vericase-teal)"></i>
+            Function Configuration
+          </div>
+          <p class="section-description">
+            Configure AI models and parameters for specific functions
+          </p>
+
+          <!-- Quick Search Function -->
+          <div class="function-card">
+            <div class="function-header">
+              <div class="function-title">
+                <i class="fas fa-search" style="color: var(--vericase-blue)"></i>
+                Quick Search
+              </div>
+              <button class="btn btn-primary" onclick="saveFunctionConfig('quick_search')">
+                <i class="fas fa-save"></i> Save Configuration
+              </button>
+            </div>
+            <p class="section-description" style="margin-bottom: 1rem">
+              Fast searches across evidence with quick AI analysis. Optimized for speed.
+            </p>
+            <div class="function-grid">
+              <div class="function-field">
+                <label>Provider</label>
+                <select id="fn_quick_search_provider" class="setting-input">
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="gemini" selected>Gemini</option>
+                  <option value="bedrock">Bedrock</option>
+                </select>
+              </div>
+              <div class="function-field">
+                <label>Model</label>
+                <select id="fn_quick_search_model" class="setting-input">
+                  <!-- Populated based on provider -->
+                </select>
+              </div>
+              <div class="function-field">
+                <label>Max Duration (seconds)</label>
+                <input
+                  type="number"
+                  id="fn_quick_search_duration"
+                  class="setting-input"
+                  min="5"
+                  max="120"
+                  value="30"
+                />
+              </div>
+              <div class="function-field">
+                <label>Extended Thinking</label>
+                <select id="fn_quick_search_thinking" class="setting-input">
+                  <option value="false" selected>Disabled</option>
+                  <option value="true">Enabled</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Deep Analysis Function -->
+          <div class="function-card">
+            <div class="function-header">
+              <div class="function-title">
+                <i class="fas fa-microscope" style="color: #8b5cf6"></i>
+                Deep Analysis
+              </div>
+              <button class="btn btn-primary" onclick="saveFunctionConfig('deep_analysis')">
+                <i class="fas fa-save"></i> Save Configuration
+              </button>
+            </div>
+            <p class="section-description" style="margin-bottom: 1rem">
+              Comprehensive analysis with extended reasoning. Used for legal research and complex queries.
+            </p>
+            <div class="function-grid">
+              <div class="function-field">
+                <label>Provider</label>
+                <select id="fn_deep_analysis_provider" class="setting-input">
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic" selected>Anthropic</option>
+                  <option value="gemini">Gemini</option>
+                  <option value="bedrock">Bedrock</option>
+                </select>
+              </div>
+              <div class="function-field">
+                <label>Model</label>
+                <select id="fn_deep_analysis_model" class="setting-input">
+                  <!-- Populated based on provider -->
+                </select>
+              </div>
+              <div class="function-field">
+                <label>Max Duration (seconds)</label>
+                <input
+                  type="number"
+                  id="fn_deep_analysis_duration"
+                  class="setting-input"
+                  min="30"
+                  max="600"
+                  value="300"
+                />
+              </div>
+              <div class="function-field">
+                <label>Extended Thinking</label>
+                <select id="fn_deep_analysis_thinking" class="setting-input">
+                  <option value="false">Disabled</option>
+                  <option value="true" selected>Enabled</option>
+                </select>
+              </div>
+              <div class="function-field">
+                <label>Thinking Budget (tokens)</label>
+                <input
+                  type="number"
+                  id="fn_deep_analysis_thinking_budget"
+                  class="setting-input"
+                  min="1000"
+                  max="50000"
+                  step="1000"
+                  value="5000"
+                />
+              </div>
+            </div>
+            <div class="info-box">
+              <i class="fas fa-lightbulb"></i>
+              <div>
+                <strong>Extended Thinking:</strong> When enabled, the AI spends more time reasoning before responding.
+                Higher thinking budget allows more complex reasoning but increases cost and latency.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Display Settings Tab -->
+      <div class="tab-content" id="tab-display">
+        <div class="settings-section">
+          <div class="section-title">
+            <i class="fas fa-table" style="color: var(--vericase-blue)"></i>
+            Grid & Table Configuration
+          </div>
+          <p class="section-description">
+            Configure default settings for data grids (evidence, correspondence, contentious matters)
+          </p>
+
+          <div class="setting-row">
+            <div class="setting-label">
+              Default Row Height
+              <small>Height of rows in data grids</small>
+            </div>
+            <input
+              type="number"
+              id="ag_grid_default_row_height"
+              class="setting-input"
+              min="30"
+              max="500"
+              step="10"
+              value="220"
+            />
+            <span style="color: var(--text-secondary)">pixels</span>
+            <button class="btn btn-primary" onclick="saveSetting('ag_grid_default_row_height')">
+              Save
+            </button>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-label">
+              Grid Theme
+              <small>Visual style for all data grids</small>
+            </div>
+            <select id="ag_grid_theme" class="setting-input">
+              <option value="quartz">Quartz (Modern)</option>
+              <option value="alpine">Alpine (Clean)</option>
+              <option value="balham">Balham (Professional)</option>
+              <option value="material">Material (Google)</option>
+            </select>
+            <button class="btn btn-primary" onclick="saveSetting('ag_grid_theme')">
+              Save
+            </button>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-label">
+              Rows Per Page
+              <small>Default pagination size</small>
+            </div>
+            <select id="ag_grid_pagination_page_size" class="setting-input">
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+              <option value="500">500</option>
+            </select>
+            <button class="btn btn-primary" onclick="saveSetting('ag_grid_pagination_page_size')">
+              Save
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="section-title">
+            <i class="fas fa-file-export" style="color: var(--success)"></i>
+            Export Options
+          </div>
+          <p class="section-description">
+            Enable or disable data export functionality
+          </p>
+
+          <div class="setting-row">
+            <div class="setting-label">
+              Excel Export
+              <small>Export data to .xlsx format</small>
+            </div>
+            <label class="checkbox-row">
+              <input type="checkbox" id="ag_grid_enable_excel_export" />
+              Enable Excel Export
+            </label>
+            <button class="btn btn-primary" onclick="saveCheckbox('ag_grid_enable_excel_export')">
+              Save
+            </button>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-label">
+              CSV Export
+              <small>Export data to .csv format</small>
+            </div>
+            <label class="checkbox-row">
+              <input type="checkbox" id="ag_grid_enable_csv_export" />
+              Enable CSV Export
+            </label>
+            <button class="btn btn-primary" onclick="saveCheckbox('ag_grid_enable_csv_export')">
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status Tab -->
+      <div class="tab-content" id="tab-status">
+        <div class="settings-section">
+          <div class="section-title">
+            <i class="fas fa-heartbeat" style="color: var(--success)"></i>
+            AI Provider Status
+            <button class="btn btn-secondary" onclick="refreshAllStatus()" style="margin-left: auto">
+              <i class="fas fa-sync"></i> Refresh All
+            </button>
+          </div>
+          <p class="section-description">
+            Real-time status of configured AI providers
+          </p>
+
+          <div class="status-grid" id="status-grid">
+            <div class="status-card not-configured" id="status-card-openai">
+              <div class="provider-icon" style="background: rgba(16, 163, 127, 0.1)">
+                <i class="fas fa-brain" style="color: #10a37f"></i>
+              </div>
+              <div class="provider-info">
+                <div class="provider-name">OpenAI</div>
+                <div class="provider-status" id="status-text-openai">Not configured</div>
+              </div>
+              <i class="fas fa-circle status-dot"></i>
+            </div>
+
+            <div class="status-card not-configured" id="status-card-anthropic">
+              <div class="provider-icon" style="background: rgba(217, 119, 6, 0.1)">
+                <i class="fas fa-comment-dots" style="color: #d97706"></i>
+              </div>
+              <div class="provider-info">
+                <div class="provider-name">Anthropic</div>
+                <div class="provider-status" id="status-text-anthropic">Not configured</div>
+              </div>
+              <i class="fas fa-circle status-dot"></i>
+            </div>
+
+            <div class="status-card not-configured" id="status-card-gemini">
+              <div class="provider-icon" style="background: rgba(66, 133, 244, 0.1)">
+                <i class="fas fa-gem" style="color: #4285f4"></i>
+              </div>
+              <div class="provider-info">
+                <div class="provider-name">Gemini</div>
+                <div class="provider-status" id="status-text-gemini">Not configured</div>
+              </div>
+              <i class="fas fa-circle status-dot"></i>
+            </div>
+
+            <div class="status-card not-configured" id="status-card-bedrock">
+              <div class="provider-icon" style="background: rgba(255, 153, 0, 0.1)">
+                <i class="fab fa-aws" style="color: #ff9900"></i>
+              </div>
+              <div class="provider-info">
+                <div class="provider-name">Bedrock</div>
+                <div class="provider-status" id="status-text-bedrock">Not enabled</div>
+              </div>
+              <i class="fas fa-circle status-dot"></i>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="section-title">
+            <i class="fas fa-info-circle" style="color: var(--vericase-blue)"></i>
+            System Information
+          </div>
+          <p class="section-description">
+            Current system configuration details
+          </p>
+
+          <div id="system-info" style="display: grid; gap: 0.5rem; font-size: 0.9rem">
+            <div><strong>Default Provider:</strong> <span id="info-default-provider">Loading...</span></div>
+            <div><strong>Fallback Enabled:</strong> <span id="info-fallback">Loading...</span></div>
+            <div><strong>Web Search:</strong> <span id="info-web-search">Loading...</span></div>
+            <div><strong>Bedrock Routing:</strong> <span id="info-bedrock-routing">Loading...</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+      <i class="fas fa-check-circle"></i>
+      <span id="toast-message">Setting saved successfully!</span>
+    </div>
+
+    <script>
+      const API_BASE = window.location.origin;
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        window.location.href = "login.html";
+      }
+
+      // All settings keys with descriptions
+      const settingDescriptions = {
+        textract_page_threshold: "PDFs with more pages than this threshold will use Tika instead of AWS Textract",
+        textract_max_pages: "Maximum number of pages Textract can process",
+        openai_api_key: "OpenAI API key for GPT models",
+        openai_model: "OpenAI model to use for analysis",
+        anthropic_api_key: "Anthropic API key for Claude models",
+        anthropic_model: "Anthropic model to use for narrative construction",
+        gemini_api_key: "Google AI API key for Gemini models",
+        gemini_model: "Gemini model to use for pattern recognition",
+        bedrock_enabled: "Enable Amazon Bedrock for enterprise AI",
+        bedrock_region: "AWS region for Bedrock",
+        bedrock_model: "Bedrock model to use for analysis",
+        ai_default_provider: "Default AI provider for quick searches",
+        ai_web_search_enabled: "Enable web search in AI queries",
+        ai_fallback_enabled: "Enable automatic fallback to other providers on failure",
+        bedrock_route_claude: "Route all Claude requests through AWS Bedrock (SOC2/HIPAA)",
+        ag_grid_default_row_height: "Default row height for AG Grid tables (in pixels)",
+        ag_grid_theme: "AG Grid theme for all tables",
+        ag_grid_pagination_page_size: "Default number of rows per page",
+        ag_grid_enable_excel_export: "Enable Excel export functionality",
+        ag_grid_enable_csv_export: "Enable CSV export functionality",
+      };
+
+      // Cache for AI models
+      let aiModels = {};
+
+      // ====== Tab Navigation ======
+      document.querySelectorAll(".tab-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          // Remove active from all
+          document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+          document.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"));
+
+          // Add active to clicked
+          btn.classList.add("active");
+          const tabId = btn.dataset.tab;
+          document.getElementById(`tab-${tabId}`).classList.add("active");
+        });
+      });
+
+      // ====== Toast Notification ======
+      function showToast(message, type = "success") {
+        const toast = document.getElementById("toast");
+        const toastMessage = document.getElementById("toast-message");
+        const icon = toast.querySelector("i");
+
+        toastMessage.textContent = message;
+        toast.className = `toast ${type}`;
+
+        if (type === "success") {
+          icon.className = "fas fa-check-circle";
+        } else if (type === "error") {
+          icon.className = "fas fa-exclamation-circle";
+        }
+
+        toast.classList.add("show");
+        setTimeout(() => toast.classList.remove("show"), 3000);
+      }
+
+      // ====== Load Settings ======
+      async function loadSettings() {
+        try {
+          const response = await fetch(`${API_BASE}/api/admin/settings`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (response.status === 403) {
+            alert("Admin access required");
+            window.location.href = "dashboard.html";
+            return;
+          }
+
+          if (!response.ok) {
+            console.error("Error loading settings");
+            return;
+          }
+
+          const settings = await response.json();
+
+          settings.forEach((setting) => {
+            const input = document.getElementById(setting.key);
+            if (input) {
+              if (setting.key.includes("api_key") && setting.value) {
+                input.placeholder = "••••••••" + setting.value.slice(-4);
+              } else if (input.type === "checkbox") {
+                input.checked = setting.value === "true";
+              } else {
+                input.value = setting.value;
+              }
+            }
+          });
+
+          // Update system info
+          updateSystemInfo(settings);
+
+          // Refresh status
+          refreshAllStatus();
+        } catch (error) {
+          console.error("Error loading settings:", error);
+        }
+      }
+
+      // ====== Save Setting ======
+      async function saveSetting(key) {
+        const input = document.getElementById(key);
+        const value = input.value;
+
+        try {
+          const response = await fetch(`${API_BASE}/api/admin/settings/${key}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              value: value,
+              description: settingDescriptions[key] || key,
+            }),
+          });
+
+          if (response.status === 403) {
+            showToast("Admin access required", "error");
+            return;
+          }
+
+          if (!response.ok) {
+            showToast("Failed to save setting", "error");
+            return;
+          }
+
+          showToast("Setting saved successfully!");
+
+          // For API keys, update placeholder
+          if (key.includes("api_key") && value) {
+            input.value = "";
+            input.placeholder = "••••••••" + value.slice(-4);
+          }
+
+          // Refresh status if it's a provider setting
+          if (key.includes("api_key") || key === "bedrock_enabled") {
+            setTimeout(refreshAllStatus, 500);
+          }
+        } catch (error) {
+          console.error("Error saving setting:", error);
+          showToast("Failed to save setting", "error");
+        }
+      }
+
+      // ====== Save Checkbox ======
+      async function saveCheckbox(key) {
+        const input = document.getElementById(key);
+        const value = input.checked.toString();
+
+        try {
+          const response = await fetch(`${API_BASE}/api/admin/settings/${key}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              value: value,
+              description: settingDescriptions[key] || key,
+            }),
+          });
+
+          if (!response.ok) {
+            showToast("Failed to save setting", "error");
+            return;
+          }
+
+          showToast("Setting saved successfully!");
+        } catch (error) {
+          console.error("Error saving setting:", error);
+          showToast("Failed to save setting", "error");
+        }
+      }
+
+      // ====== Test Provider ======
+      async function testProvider(provider) {
+        const btn = event.target.closest("button");
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+        btn.disabled = true;
+
+        try {
+          const response = await fetch(`${API_BASE}/api/ai-chat/models/test/${provider}`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          const result = await response.json();
+
+          if (response.ok && result.success) {
+            showToast(`${provider.toUpperCase()} connected! Model: ${result.model}`);
+            updateProviderStatus(provider, true, "Connected");
+          } else {
+            showToast(`${provider.toUpperCase()} failed: ${result.error || "Unknown error"}`, "error");
+            updateProviderStatus(provider, false, "Error");
+          }
+        } catch (error) {
+          showToast(`Failed to test ${provider}: ${error.message}`, "error");
+          updateProviderStatus(provider, false, "Error");
+        } finally {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+        }
+      }
+
+      // ====== Refresh All Status ======
+      async function refreshAllStatus() {
+        try {
+          const response = await fetch(`${API_BASE}/api/ai-chat/models/status`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (!response.ok) return;
+
+          const status = await response.json();
+
+          if (status.models) {
+            updateProviderStatus(
+              "openai",
+              status.models.openai?.available,
+              status.models.openai?.available ? "Configured" : "Not configured"
+            );
+            updateProviderStatus(
+              "anthropic",
+              status.models.anthropic?.available,
+              status.models.anthropic?.available ? "Configured" : "Not configured"
+            );
+            updateProviderStatus(
+              "gemini",
+              status.models.gemini?.available,
+              status.models.gemini?.available ? "Configured" : "Not configured"
+            );
+            updateProviderStatus(
+              "bedrock",
+              status.models.bedrock?.available,
+              status.models.bedrock?.available ? "Enabled" : "Not enabled"
+            );
+          }
+        } catch (error) {
+          console.error("Error checking provider status:", error);
+        }
+      }
+
+      // ====== Update Provider Status ======
+      function updateProviderStatus(provider, isConfigured, statusText) {
+        // Update status card
+        const statusCard = document.getElementById(`status-card-${provider}`);
+        const statusTextEl = document.getElementById(`status-text-${provider}`);
+
+        if (statusCard) {
+          statusCard.classList.remove("configured", "not-configured");
+          statusCard.classList.add(isConfigured ? "configured" : "not-configured");
+        }
+
+        if (statusTextEl) {
+          statusTextEl.textContent = statusText;
+        }
+
+        // Update badge in providers tab
+        const badge = document.getElementById(`status-badge-${provider}`);
+        if (badge) {
+          badge.className = `status-badge ${isConfigured ? "configured" : "not-configured"}`;
+          badge.innerHTML = `<i class="fas fa-circle"></i> ${statusText}`;
+        }
+      }
+
+      // ====== Update System Info ======
+      function updateSystemInfo(settings) {
+        const getValue = (key) => {
+          const s = settings.find((s) => s.key === key);
+          return s ? s.value : null;
+        };
+
+        const defaultProvider = getValue("ai_default_provider") || "gemini";
+        const fallback = getValue("ai_fallback_enabled") !== "false" ? "Yes" : "No";
+        const webSearch = getValue("ai_web_search_enabled") === "true" ? "Yes" : "No";
+        const bedrockRouting = getValue("bedrock_route_claude") === "true" ? "Yes" : "No";
+
+        document.getElementById("info-default-provider").textContent =
+          defaultProvider.charAt(0).toUpperCase() + defaultProvider.slice(1);
+        document.getElementById("info-fallback").textContent = fallback;
+        document.getElementById("info-web-search").textContent = webSearch;
+        document.getElementById("info-bedrock-routing").textContent = bedrockRouting;
+      }
+
+      // ====== Load AI Models ======
+      async function loadAIModels() {
+        try {
+          const response = await fetch(`${API_BASE}/api/admin/ai/models`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (!response.ok) {
+            console.error("Failed to load AI models");
+            return;
+          }
+
+          const data = await response.json();
+          aiModels = data.providers;
+
+          // Populate provider model dropdowns
+          populateModelDropdown("openai_model", aiModels.openai?.models || []);
+          populateModelDropdown("anthropic_model", aiModels.anthropic?.models || []);
+          populateModelDropdown("gemini_model", aiModels.gemini?.models || []);
+          populateModelDropdown("bedrock_model", aiModels.bedrock?.models || []);
+
+          // Setup function config model dropdowns
+          setupFunctionModelDropdowns();
+        } catch (error) {
+          console.error("Error loading AI models:", error);
+        }
+      }
+
+      // ====== Populate Model Dropdown ======
+      function populateModelDropdown(selectId, models) {
+        const select = document.getElementById(selectId);
+        if (!select || !models.length) return;
+
+        const currentValue = select.value;
+        select.innerHTML = "";
+
+        models.forEach((model) => {
+          const option = document.createElement("option");
+          option.value = model.id;
+          option.textContent = model.name || model.id;
+          if (model.type) {
+            option.textContent += ` (${model.type})`;
+          }
+          select.appendChild(option);
+        });
+
+        // Restore value if exists
+        if (currentValue) {
+          const exists = Array.from(select.options).some((opt) => opt.value === currentValue);
+          if (exists) {
+            select.value = currentValue;
+          }
+        }
+      }
+
+      // ====== Setup Function Model Dropdowns ======
+      function setupFunctionModelDropdowns() {
+        // Quick search provider change
+        document.getElementById("fn_quick_search_provider").addEventListener("change", (e) => {
+          const models = aiModels[e.target.value]?.models || [];
+          populateModelDropdown("fn_quick_search_model", models);
+        });
+
+        // Deep analysis provider change
+        document.getElementById("fn_deep_analysis_provider").addEventListener("change", (e) => {
+          const models = aiModels[e.target.value]?.models || [];
+          populateModelDropdown("fn_deep_analysis_model", models);
+        });
+
+        // Initialize with current provider selections
+        const qsProvider = document.getElementById("fn_quick_search_provider").value;
+        const daProvider = document.getElementById("fn_deep_analysis_provider").value;
+
+        populateModelDropdown("fn_quick_search_model", aiModels[qsProvider]?.models || []);
+        populateModelDropdown("fn_deep_analysis_model", aiModels[daProvider]?.models || []);
+      }
+
+      // ====== Load Function Configs ======
+      async function loadFunctionConfigs() {
+        try {
+          const response = await fetch(`${API_BASE}/api/admin/settings/ai/functions`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (!response.ok) return;
+
+          const data = await response.json();
+
+          // Populate quick_search
+          if (data.functions?.quick_search) {
+            const qs = data.functions.quick_search;
+            document.getElementById("fn_quick_search_provider").value = qs.provider || "gemini";
+            document.getElementById("fn_quick_search_duration").value = qs.max_duration_seconds || 30;
+            document.getElementById("fn_quick_search_thinking").value = qs.thinking_enabled ? "true" : "false";
+
+            // Trigger model dropdown update
+            const qsModels = aiModels[qs.provider]?.models || [];
+            populateModelDropdown("fn_quick_search_model", qsModels);
+            if (qs.model) {
+              document.getElementById("fn_quick_search_model").value = qs.model;
+            }
+          }
+
+          // Populate deep_analysis
+          if (data.functions?.deep_analysis) {
+            const da = data.functions.deep_analysis;
+            document.getElementById("fn_deep_analysis_provider").value = da.provider || "anthropic";
+            document.getElementById("fn_deep_analysis_duration").value = da.max_duration_seconds || 300;
+            document.getElementById("fn_deep_analysis_thinking").value = da.thinking_enabled ? "true" : "false";
+            document.getElementById("fn_deep_analysis_thinking_budget").value = da.thinking_budget_tokens || 5000;
+
+            // Trigger model dropdown update
+            const daModels = aiModels[da.provider]?.models || [];
+            populateModelDropdown("fn_deep_analysis_model", daModels);
+            if (da.model) {
+              document.getElementById("fn_deep_analysis_model").value = da.model;
+            }
+          }
+        } catch (error) {
+          console.error("Error loading function configs:", error);
+        }
+      }
+
+      // ====== Save Function Config ======
+      async function saveFunctionConfig(functionName) {
+        const prefix = `fn_${functionName}_`;
+
+        const config = {
+          provider: document.getElementById(`${prefix}provider`).value,
+          model: document.getElementById(`${prefix}model`).value,
+          max_duration_seconds: parseInt(document.getElementById(`${prefix}duration`).value, 10),
+          thinking_enabled: document.getElementById(`${prefix}thinking`).value === "true",
+        };
+
+        if (functionName === "deep_analysis") {
+          config.thinking_budget_tokens = parseInt(
+            document.getElementById(`${prefix}thinking_budget`).value,
+            10
+          );
+        }
+
+        try {
+          const response = await fetch(`${API_BASE}/api/admin/settings/ai/functions/${functionName}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(config),
+          });
+
+          if (!response.ok) {
+            showToast(`Failed to save ${functionName} config`, "error");
+            return;
+          }
+
+          showToast(`${functionName} configuration saved!`);
+        } catch (error) {
+          console.error("Error saving function config:", error);
+          showToast("Failed to save configuration", "error");
+        }
+      }
+
+      // ====== Initialize ======
+      async function init() {
+        await loadAIModels();
+        await loadSettings();
+        await loadFunctionConfigs();
+      }
+
+      init();
+    </script>
+  </body>
+</html>

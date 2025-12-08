@@ -1,0 +1,169 @@
+# VeriCase Production Docker Compose
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+
+name: vericase-prod
+
+services:
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      api:
+        condition: service_healthy
+
+  minio:
+    image: minio/minio:latest
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    ports: ["9000:9000", "9001:9001"]
+    volumes: ["minio_data:/data"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  postgres:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-vericase}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-vericase}
+      POSTGRES_DB: ${DB_NAME:-vericase}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports: ["5432:5432"]
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vericase"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes
+    ports: ["6379:6379"]
+    volumes: ["redis_data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  opensearch:
+    image: opensearchproject/opensearch:2.10.0
+    restart: always
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+      - OPENSEARCH_JAVA_OPTS=-Xms2g -Xmx2g
+      - bootstrap.memory_lock=true
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    ports: ["9200:9200"]
+    volumes: ["opensearch_data:/usr/share/opensearch/data"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  tika:
+    image: apache/tika:latest
+    restart: always
+    ports: ["9998:9998"]
+
+  api:
+    image: wcjrogers/vericase-api:latest
+    restart: always
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://${DB_USER:-vericase}:${DB_PASSWORD:-vericase}@postgres:5432/${DB_NAME:-vericase}
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=http://minio:9000
+      - OPENSEARCH_URL=http://opensearch:9200
+      - TIKA_URL=http://tika:9998
+    depends_on:
+      minio:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+      tika:
+        condition: service_started
+    ports: ["8010:8000"]
+    volumes: ["./ui:/code/ui:ro"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  worker:
+    image: wcjrogers/vericase-api:latest
+    restart: always
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://${DB_USER:-vericase}:${DB_PASSWORD:-vericase}@postgres:5432/${DB_NAME:-vericase}
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=http://minio:9000
+      - OPENSEARCH_URL=http://opensearch:9200
+      - TIKA_URL=http://tika:9998
+      - CELERY_QUEUE=vericase
+      - CELERY_PST_QUEUE=pst_processing
+    depends_on:
+      minio:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+    deploy:
+      replicas: 2
+    command: ["celery", "-A", "app.tasks", "worker", "--loglevel=INFO", "--concurrency=4", "-Q", "vericase,pst_processing"]
+
+  beat:
+    image: wcjrogers/vericase-api:latest
+    restart: always
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://${DB_USER:-vericase}:${DB_PASSWORD:-vericase}@postgres:5432/${DB_NAME:-vericase}
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: ["celery", "-A", "app.tasks", "beat", "--loglevel=INFO"]
+
+  flower:
+    image: wcjrogers/vericase-api:latest
+    restart: always
+    env_file: .env
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports: ["5555:5555"]
+    command: ["celery", "-A", "app.tasks", "flower", "--port=5555"]
+
+volumes:
+  minio_data:
+  postgres_data:
+  redis_data:
+  opensearch_data:

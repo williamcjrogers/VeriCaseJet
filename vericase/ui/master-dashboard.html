@@ -1,0 +1,1239 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VeriCase - Command Center</title>
+  <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
+  <link rel="stylesheet" href="brand-styles.css" />
+  <link rel="stylesheet" href="design-system.css" />
+  <script src="vericase-ui.js"></script>
+  <script src="nav-shell.js"></script>
+  <style>
+    /* === PAGE-SPECIFIC STYLES === */
+
+    /* Stats Bar - Floating Glass Cards */
+    .stats-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background: white;
+      border-radius: var(--radius-xl);
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--gray-200);
+      transition: all var(--transition-base);
+    }
+
+    .stat-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--vericase-teal-light);
+    }
+
+    .stat-icon-wrapper {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+    }
+
+    .stat-content {
+      flex: 1;
+    }
+
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1.2;
+      font-family: var(--font-mono);
+      /* Data font */
+    }
+
+    .stat-label {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Toolbar & Search */
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .search-container {
+      position: relative;
+      flex: 1;
+      max-width: 600px;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 12px 16px 12px 44px;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-lg);
+      font-size: 0.9375rem;
+      transition: all 0.2s;
+      background: white;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--vericase-teal);
+      box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.1);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+    }
+
+    /* Project Grid */
+    .work-items-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 24px;
+    }
+
+    .project-card {
+      background: white;
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      box-shadow: var(--shadow-card);
+      border: 1px solid var(--gray-200);
+      transition: all var(--transition-base);
+      cursor: pointer;
+      position: relative;
+      overflow: visible;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .project-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-xl);
+      border-color: var(--vericase-teal);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+
+    .project-icon {
+      width: 40px;
+      height: 40px;
+      background: rgba(26, 43, 60, 0.05);
+      /* Navy tint */
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--vericase-navy);
+      font-size: 1.25rem;
+    }
+
+    .status-badge {
+      padding: 4px 10px;
+      border-radius: 100px;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .status-active {
+      background: rgba(5, 150, 105, 0.1);
+      color: var(--success);
+    }
+
+    .status-archived {
+      background: var(--gray-100);
+      color: var(--text-muted);
+    }
+
+    .project-title {
+      font-family: var(--font-sans);
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .project-code {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .project-desc {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin-bottom: 20px;
+      flex: 1;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-metrics {
+      display: flex;
+      gap: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--gray-100);
+    }
+
+    .metric {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+    }
+
+    .metric i {
+      color: var(--vericase-teal);
+    }
+
+    .card-actions {
+      position: absolute;
+      top: 16px;
+      right: 50px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      display: flex;
+      gap: 4px;
+      z-index: 10;
+      background: rgba(255,255,255,0.95);
+      padding: 4px;
+      border-radius: 8px;
+      box-shadow: var(--shadow-md);
+    }
+
+    .project-card:hover .card-actions {
+      opacity: 1;
+    }
+
+    .action-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: white;
+      border: 1px solid var(--gray-200);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      transition: all 0.2s;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .action-btn:hover {
+      background: var(--vericase-teal);
+      color: white;
+      border-color: var(--vericase-teal);
+    }
+
+    .action-btn-danger:hover {
+      background: #dc2626;
+      color: white;
+      border-color: #dc2626;
+    }
+
+    /* Quick Links */
+    .quick-links-section {
+      margin-top: 40px;
+      padding-top: 32px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .section-title {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 1.25rem;
+      color: var(--text-primary);
+      margin-bottom: 20px;
+    }
+
+    .quick-links-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .quick-link-card {
+      background: white;
+      padding: 16px;
+      border-radius: 12px;
+      border: 1px solid var(--gray-200);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text-primary);
+      transition: all 0.2s;
+    }
+
+    .quick-link-card:hover {
+      border-color: var(--vericase-teal);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .quick-link-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: rgba(15, 157, 154, 0.1);
+      color: var(--vericase-teal);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Empty State */
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 60px;
+      background: white;
+      border-radius: var(--radius-xl);
+      border: 1px dashed var(--gray-300);
+    }
+
+    .empty-icon {
+      font-size: 3rem;
+      color: var(--gray-300);
+      margin-bottom: 16px;
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(26, 43, 60, 0.6);
+      /* Navy overlay */
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal {
+      background: white;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 500px;
+      box-shadow: var(--shadow-2xl);
+      transform: translateY(20px);
+      transition: transform 0.3s;
+    }
+
+    .modal-overlay.active .modal {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .modal-header {
+      padding: 24px;
+      border-bottom: 1px solid var(--gray-100);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h2 {
+      font-size: 1.25rem;
+      margin: 0;
+    }
+
+    .modal-body {
+      padding: 24px;
+    }
+
+    .modal-footer {
+      padding: 20px 24px;
+      border-top: 1px solid var(--gray-100);
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      background: var(--gray-50);
+      border-radius: 0 0 16px 16px;
+    }
+
+    /* Create Type Selector */
+    .type-selector {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .type-option {
+      padding: 16px;
+      border: 2px solid var(--gray-200);
+      border-radius: 12px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+    }
+
+    .type-option:hover {
+      border-color: var(--vericase-teal-light);
+    }
+
+    .type-option.selected {
+      border-color: var(--vericase-teal);
+      background: rgba(15, 157, 154, 0.05);
+    }
+
+    .type-option i {
+      font-size: 1.5rem;
+      margin-bottom: 8px;
+      display: block;
+      color: var(--vericase-navy);
+    }
+
+    .type-option.selected i {
+      color: var(--vericase-teal);
+    }
+
+    /* Card Menu Dropdown */
+    .card-menu-wrapper {
+      position: relative;
+    }
+
+    .card-menu-btn {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .card-menu-btn:hover {
+      background: var(--gray-100);
+      color: var(--text-primary);
+    }
+
+    .card-menu {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background: white;
+      border-radius: 8px;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--gray-200);
+      min-width: 150px;
+      z-index: 1000;
+      display: none;
+    }
+
+    .card-menu.active {
+      display: block;
+    }
+
+    .card-menu button {
+      width: 100%;
+      padding: 10px 16px;
+      border: none;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.875rem;
+      color: var(--text-primary);
+      transition: background 0.15s;
+    }
+
+    .card-menu button:hover {
+      background: var(--gray-50);
+    }
+
+    .card-menu button.danger {
+      color: #dc2626;
+    }
+
+    .card-menu button.danger:hover {
+      background: #fef2f2;
+    }
+
+    /* Delete Modal Styles */
+    .delete-warning {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+      color: #991b1b;
+    }
+
+    .delete-warning i {
+      margin-right: 8px;
+    }
+
+    .btn-danger {
+      background: #dc2626;
+      color: white;
+      border: none;
+    }
+
+    .btn-danger:hover {
+      background: #b91c1c;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Stats Overview -->
+  <div class="stats-container">
+    <div class="stat-card">
+      <div class="stat-icon-wrapper" style="
+            background: rgba(43, 127, 191, 0.1);
+            color: var(--vericase-blue);
+          ">
+        <i class="fas fa-project-diagram"></i>
+      </div>
+      <div class="stat-content">
+        <div class="stat-value" id="statProjects">-</div>
+        <div class="stat-label">Projects</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon-wrapper" style="
+            background: rgba(139, 115, 85, 0.1);
+            color: var(--vericase-gold);
+          ">
+        <i class="fas fa-briefcase"></i>
+      </div>
+      <div class="stat-content">
+        <div class="stat-value" id="statCases">-</div>
+        <div class="stat-label">Cases</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon-wrapper" style="
+            background: rgba(15, 157, 154, 0.1);
+            color: var(--vericase-teal);
+          ">
+        <i class="fas fa-envelope"></i>
+      </div>
+      <div class="stat-content">
+        <div class="stat-value" id="statEmails">-</div>
+        <div class="stat-label">Emails</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon-wrapper" style="background: rgba(26, 43, 60, 0.1); color: var(--vericase-navy)">
+        <i class="fas fa-file-alt"></i>
+      </div>
+      <div class="stat-content">
+        <div class="stat-value" id="statEvidence">-</div>
+        <div class="stat-label">Evidence</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Toolbar -->
+  <div class="toolbar">
+    <div class="search-container">
+      <i class="fas fa-search search-icon"></i>
+      <input type="text" id="searchInput" class="search-input"
+        placeholder="Search projects or ask 'Show me NEC4 contracts with delay notices'..." />
+    </div>
+    <div style="display: flex; gap: 12px">
+      <button class="btn btn-outline" onclick="loadDashboard()">
+        <i class="fas fa-sync-alt"></i> Refresh
+      </button>
+      <button class="btn btn-vericase" id="createNewBtn">
+        <i class="fas fa-plus"></i> New Project
+      </button>
+    </div>
+  </div>
+
+  <!-- Projects Grid -->
+  <div class="work-items-grid" id="workItemsGrid">
+    <!-- Loading State -->
+    <div class="skeleton-card project-card">
+      <div class="skeleton skeleton-title" style="width: 40px; height: 40px; margin-bottom: 16px"></div>
+      <div class="skeleton skeleton-text" style="width: 60%; height: 24px; margin-bottom: 8px"></div>
+      <div class="skeleton skeleton-text" style="width: 40%; height: 16px; margin-bottom: 16px"></div>
+      <div class="skeleton skeleton-text" style="width: 100%; height: 40px"></div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="quick-links-section">
+    <h3 class="section-title">Quick Actions</h3>
+    <div class="quick-links-grid">
+      <a href="pst-upload.html" class="quick-link-card">
+        <div class="quick-link-icon"><i class="fas fa-upload"></i></div>
+        <div>
+          <div style="font-weight: 600">Upload Data</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted)">
+            Process new PST files
+          </div>
+        </div>
+      </a>
+      <a href="deep-research.html" class="quick-link-card">
+        <div class="quick-link-icon"><i class="fas fa-microscope"></i></div>
+        <div>
+          <div style="font-weight: 600">Deep Research</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted)">
+            AI-powered investigation
+          </div>
+        </div>
+      </a>
+      <a href="evidence.html" class="quick-link-card">
+        <div class="quick-link-icon"><i class="fas fa-folder-open"></i></div>
+        <div>
+          <div style="font-weight: 600">Global Evidence</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted)">
+            Search all files
+          </div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Create Modal -->
+  <div class="modal-overlay" id="createModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Create New Workspace</h2>
+        <button class="modal-close" id="modalClose">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="type-selector">
+          <div class="type-option project-type selected" data-type="project">
+            <i class="fas fa-project-diagram"></i>
+            <span>Project</span>
+          </div>
+          <div class="type-option case-type" data-type="case">
+            <i class="fas fa-briefcase"></i>
+            <span>Case</span>
+          </div>
+        </div>
+
+        <form id="createForm">
+          <div class="form-group">
+            <label for="itemName" style="font-weight: 600; margin-bottom: 8px; display: block">Name *</label>
+            <input type="text" id="itemName" class="input" required placeholder="Enter name..." />
+          </div>
+
+          <div class="form-group" id="codeGroup">
+            <label for="itemCode" style="font-weight: 600; margin-bottom: 8px; display: block">Code *</label>
+            <input type="text" id="itemCode" class="input" placeholder="e.g., PRJ-2024-001" />
+          </div>
+
+          <div class="form-group">
+            <label for="itemDescription"
+              style="font-weight: 600; margin-bottom: 8px; display: block">Description</label>
+            <textarea id="itemDescription" class="input" rows="3" placeholder="Brief description..."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="contractType" style="font-weight: 600; margin-bottom: 8px; display: block">Contract Type</label>
+            <select id="contractType" class="input">
+              <option value="">Select contract type...</option>
+              <option value="JCT">JCT</option>
+              <option value="NEC">NEC</option>
+              <option value="FIDIC">FIDIC</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="cancelCreate">Cancel</button>
+        <button class="btn btn-vericase" id="confirmCreate">
+          <i class="fas fa-plus"></i> Create
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rename Modal -->
+  <div class="modal-overlay" id="renameModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Rename Project</h2>
+        <button class="modal-close" onclick="closeRenameModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="renameForm">
+          <input type="hidden" id="renameItemId" />
+          <input type="hidden" id="renameItemType" />
+          <div class="form-group">
+            <label for="renameItemName" style="font-weight: 600; margin-bottom: 8px; display: block">Name *</label>
+            <input type="text" id="renameItemName" class="input" required placeholder="Enter new name..." />
+          </div>
+          <div class="form-group">
+            <label for="renameItemCode" style="font-weight: 600; margin-bottom: 8px; display: block">Code</label>
+            <input type="text" id="renameItemCode" class="input" placeholder="Project code..." />
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeRenameModal()">Cancel</button>
+        <button class="btn btn-vericase" id="confirmRename">
+          <i class="fas fa-save"></i> Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal-overlay" id="deleteModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Delete Project</h2>
+        <button class="modal-close" onclick="closeDeleteModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="deleteItemId" />
+        <input type="hidden" id="deleteItemType" />
+        <div class="delete-warning">
+          <i class="fas fa-exclamation-triangle"></i>
+          <strong>Warning:</strong> This action cannot be undone!
+        </div>
+        <p>Are you sure you want to delete <strong id="deleteItemName"></strong>?</p>
+        <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 8px;">
+          This will permanently delete the project and all associated emails, attachments, and evidence.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeDeleteModal()">Cancel</button>
+        <button class="btn btn-danger" id="confirmDelete">
+          <i class="fas fa-trash"></i> Delete Project
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Initialize Shell
+    document.addEventListener("DOMContentLoaded", () => {
+      VericaseShell.inject({
+        title: "Command Center",
+        headerActions: `
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span style="font-size: 0.875rem; color: var(--text-secondary);" id="greetingText">Welcome back</span>
+                    </div>
+                `,
+      });
+
+      loadDashboard();
+      setupEventListeners();
+    });
+
+    // --- Logic ---
+    let dashboardData = null;
+    let searchQuery = "";
+    let selectedType = "project";
+
+    function getAuthHeaders() {
+      // Support both legacy "token" and newer "vericase_token" storage keys
+      const token =
+        localStorage.getItem("vericase_token") ||
+        localStorage.getItem("token");
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    }
+
+    async function loadDashboard() {
+      try {
+        // Fetch real dashboard data
+        const headers = getAuthHeaders();
+
+        const response = await fetch("/api/dashboard/overview", { headers });
+
+        if (response.ok) {
+          dashboardData = await response.json();
+        } else {
+          console.warn(
+            "Authenticated dashboard failed, trying public endpoint...",
+          );
+          const publicResponse = await fetch(
+            "/api/dashboard/overview/public",
+          );
+          if (publicResponse.ok) {
+            dashboardData = await publicResponse.json();
+          } else {
+            throw new Error("API Failed: " + publicResponse.status);
+          }
+        }
+
+        renderStats(dashboardData.stats);
+        renderWorkItems(dashboardData.work_items);
+        if (dashboardData.user && dashboardData.user.display_name) {
+          document.getElementById("greetingText").textContent =
+            `Welcome back, ${dashboardData.user.display_name}`;
+        }
+      } catch (error) {
+        console.error("Dashboard load failed", error);
+        document.getElementById("workItemsGrid").innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-triangle empty-icon"></i>
+                        <h3>Unable to load dashboard</h3>
+                        <button class="btn btn-vericase" onclick="loadDashboard()">Retry</button>
+                    </div>
+                `;
+      }
+    }
+
+    function renderStats(stats) {
+      document.getElementById("statProjects").textContent =
+        stats.total_projects;
+      document.getElementById("statCases").textContent = stats.total_cases;
+      document.getElementById("statEmails").textContent =
+        (stats.total_emails / 1000).toFixed(1) + "k";
+      document.getElementById("statEvidence").textContent =
+        (stats.total_evidence / 1000).toFixed(1) + "k";
+    }
+
+    function renderWorkItems(items) {
+      const grid = document.getElementById("workItemsGrid");
+      const filtered = items.filter(
+        (item) =>
+          item.name.toLowerCase().includes(searchQuery) ||
+          (item.description || "").toLowerCase().includes(searchQuery),
+      );
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div class="empty-state"><p>No items found.</p></div>`;
+        return;
+      }
+
+      grid.innerHTML = filtered
+        .map(
+          (item) => `
+                <div class="project-card" onclick="openItem('${item.id}', '${item.type}')">
+                    <div class="card-header">
+                        <div class="project-icon">
+                            <i class="fas ${item.type === "project" ? "fa-project-diagram" : "fa-briefcase"}"></i>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="status-badge status-active">${item.status}</span>
+                            <div class="card-menu-wrapper">
+                                <button class="card-menu-btn" title="More actions" onclick="event.stopPropagation(); toggleCardMenu('${item.id}')">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </button>
+                                <div class="card-menu" id="menu-${item.id}">
+                                    <button onclick="event.stopPropagation(); openRenameModal('${item.id}', '${escapeHtml(item.name)}', '${escapeHtml(item.project_code || item.case_number || "")}', '${item.type}')">
+                                        <i class="fas fa-edit"></i> Rename
+                                    </button>
+                                    <button class="danger" onclick="event.stopPropagation(); openDeleteModal('${item.id}', '${escapeHtml(item.name)}', '${item.type}')">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="project-title">${escapeHtml(item.name)}</div>
+                    <div class="project-code">${escapeHtml(item.project_code || item.case_number || "")}</div>
+                    <div class="project-desc">${escapeHtml(item.description || "")}</div>
+                    
+                    <div class="card-metrics">
+                        <div class="metric"><i class="fas fa-envelope"></i> ${formatCount(item.email_count)}</div>
+                        <div class="metric"><i class="fas fa-file-alt"></i> ${formatCount(item.evidence_count)}</div>
+                    </div>
+
+                    <div class="card-actions">
+                        <button class="action-btn" title="Evidence" onclick="event.stopPropagation(); goToEvidence('${item.id}')">
+                            <i class="fas fa-folder-open"></i>
+                        </button>
+                        <button class="action-btn" title="Correspondence" onclick="event.stopPropagation(); goToCorrespondence('${item.id}')">
+                            <i class="fas fa-envelope"></i>
+                        </button>
+                        <button class="action-btn" title="Edit Project" onclick="event.stopPropagation(); openRenameModal('${item.id}', '${escapeHtml(item.name)}', '${escapeHtml(item.project_code || item.case_number || "")}', '${item.type}')">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="action-btn action-btn-danger" title="Delete Project" onclick="event.stopPropagation(); openDeleteModal('${item.id}', '${escapeHtml(item.name)}', '${item.type}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `,
+        )
+        .join("");
+    }
+
+    function setupEventListeners() {
+      // Smart Search
+      let timeout;
+      document
+        .getElementById("searchInput")
+        .addEventListener("input", (e) => {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => {
+            searchQuery = e.target.value.toLowerCase();
+            // In a real app, if query looks like a question, trigger AI search
+            if (
+              searchQuery.includes("show me") ||
+              searchQuery.includes("find")
+            ) {
+              VericaseUI.Toast.info("AI Semantic Search active...");
+            }
+            renderWorkItems(dashboardData.work_items);
+          }, 300);
+        });
+
+      // Modal
+      document
+        .getElementById("createNewBtn")
+        .addEventListener("click", () => {
+          document.getElementById("createModal").classList.add("active");
+        });
+
+      document
+        .getElementById("modalClose")
+        .addEventListener("click", closeModal);
+      document
+        .getElementById("cancelCreate")
+        .addEventListener("click", closeModal);
+
+      // Type Selector
+      document.querySelectorAll(".type-option").forEach((opt) => {
+        opt.addEventListener("click", () => {
+          document
+            .querySelectorAll(".type-option")
+            .forEach((o) => o.classList.remove("selected"));
+          opt.classList.add("selected");
+          selectedType = opt.dataset.type;
+          updateFormLabels();
+        });
+      });
+
+      // Create Button Logic
+      document.getElementById("confirmCreate").addEventListener("click", async (e) => {
+        e.preventDefault();
+
+        const name = document.getElementById("itemName").value;
+        const code = document.getElementById("itemCode").value;
+        const description = document.getElementById("itemDescription").value;
+        const contractType = document.getElementById("contractType").value;
+
+        if (!name || !code) {
+          alert("Please fill in all required fields (Name and Code).");
+          return;
+        }
+
+        const btn = document.getElementById("confirmCreate");
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+        btn.disabled = true;
+
+        try {
+          const headers = {
+            "Content-Type": "application/json",
+            ...getAuthHeaders()
+          };
+
+          const endpoint = selectedType === "project" ? "/api/projects" : "/api/cases";
+          const payload = selectedType === "project"
+            ? {
+              project_name: name,
+              project_code: code,
+              description: description,
+              contract_type: contractType
+            }
+            : {
+              case_name: name,
+              case_number: code, // UI calls it "Code" but maps to case_number
+              description: description,
+              contract_type: contractType
+            };
+
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (response.ok) {
+            VericaseUI.Toast.success(`${selectedType === 'project' ? 'Project' : 'Case'} created successfully`);
+            closeModal();
+            // Clear form
+            document.getElementById("createForm").reset();
+            // Refresh dashboard
+            loadDashboard();
+          } else {
+            const errorText = await response.text();
+            try {
+              const errorJson = JSON.parse(errorText);
+              throw new Error(errorJson.detail || "Creation failed");
+            } catch {
+              throw new Error(errorText || "Creation failed");
+            }
+          }
+        } catch (error) {
+          console.error("Creation error:", error);
+          alert(`Error: ${error.message}`);
+        } finally {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+        }
+      });
+    }
+
+    function closeModal() {
+      document.getElementById("createModal").classList.remove("active");
+    }
+
+    function updateFormLabels() {
+      const label = document.querySelector('label[for="itemCode"]');
+      label.textContent =
+        selectedType === "project" ? "Project Code *" : "Case Number *";
+    }
+
+    // Navigation
+    function openItem(id, type) {
+      // Set context via Shell or localStorage
+      localStorage.setItem("vericase_current_project", id);
+      window.location.href = `dashboard.html?projectId=${id}`;
+    }
+
+    function goToEvidence(id) {
+      localStorage.setItem("vericase_current_project", id);
+      window.location.href = `evidence.html?projectId=${id}`;
+    }
+
+    function goToCorrespondence(id) {
+      localStorage.setItem("vericase_current_project", id);
+      window.location.href = `correspondence-enterprise.html?projectId=${id}`;
+    }
+
+    function goToSettings(id) {
+      localStorage.setItem("vericase_current_project", id);
+      window.location.href = `wizard.html?projectId=${id}&edit=true`;
+    }
+
+    // --- Project Management ---
+    let activeMenu = null;
+
+    function toggleCardMenu(itemId) {
+      const menu = document.getElementById(`menu-${itemId}`);
+      
+      // Close any other open menu
+      if (activeMenu && activeMenu !== menu) {
+        activeMenu.classList.remove('active');
+      }
+      
+      menu.classList.toggle('active');
+      activeMenu = menu.classList.contains('active') ? menu : null;
+    }
+
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+      if (activeMenu && !e.target.closest('.card-menu-wrapper')) {
+        activeMenu.classList.remove('active');
+        activeMenu = null;
+      }
+    });
+
+    function openRenameModal(id, name, code, type) {
+      document.getElementById('renameItemId').value = id;
+      document.getElementById('renameItemType').value = type;
+      document.getElementById('renameItemName').value = name;
+      document.getElementById('renameItemCode').value = code;
+      document.getElementById('renameModal').classList.add('active');
+      
+      // Close any open card menu
+      if (activeMenu) {
+        activeMenu.classList.remove('active');
+        activeMenu = null;
+      }
+    }
+
+    function closeRenameModal() {
+      document.getElementById('renameModal').classList.remove('active');
+    }
+
+    function openDeleteModal(id, name, type) {
+      document.getElementById('deleteItemId').value = id;
+      document.getElementById('deleteItemType').value = type;
+      document.getElementById('deleteItemName').textContent = name;
+      document.getElementById('deleteModal').classList.add('active');
+      
+      // Close any open card menu
+      if (activeMenu) {
+        activeMenu.classList.remove('active');
+        activeMenu = null;
+      }
+    }
+
+    function closeDeleteModal() {
+      document.getElementById('deleteModal').classList.remove('active');
+    }
+
+    // Rename handler
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('confirmRename').addEventListener('click', async () => {
+        const id = document.getElementById('renameItemId').value;
+        const type = document.getElementById('renameItemType').value;
+        const name = document.getElementById('renameItemName').value;
+        const code = document.getElementById('renameItemCode').value;
+
+        if (!name) {
+          alert('Please enter a name');
+          return;
+        }
+
+        const btn = document.getElementById('confirmRename');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        btn.disabled = true;
+
+        try {
+        const headers = {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        };
+
+          const endpoint = type === 'project' ? `/api/projects/${id}` : `/api/cases/${id}`;
+          const payload = type === 'project' 
+            ? { project_name: name, project_code: code }
+            : { name: name, case_number: code };
+
+          const response = await fetch(endpoint, {
+            method: 'PUT',
+            headers: headers,
+            body: JSON.stringify(payload)
+          });
+
+          if (response.ok) {
+            VericaseUI.Toast.success('Renamed successfully');
+            closeRenameModal();
+            loadDashboard();
+          } else {
+            const errorText = await response.text();
+            try {
+              const errorJson = JSON.parse(errorText);
+              throw new Error(errorJson.detail || 'Rename failed');
+            } catch {
+              throw new Error(errorText || 'Rename failed');
+            }
+          }
+        } catch (error) {
+          console.error('Rename error:', error);
+          alert(`Error: ${error.message}`);
+        } finally {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+        }
+      });
+
+      // Delete handler
+      document.getElementById('confirmDelete').addEventListener('click', async () => {
+        const id = document.getElementById('deleteItemId').value;
+        const type = document.getElementById('deleteItemType').value;
+
+        const btn = document.getElementById('confirmDelete');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+        btn.disabled = true;
+
+        try {
+        const headers = {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        };
+
+          const endpoint = type === 'project' ? `/api/projects/${id}` : `/api/cases/${id}`;
+
+          const response = await fetch(endpoint, {
+            method: 'DELETE',
+            headers: headers
+          });
+
+          if (response.ok) {
+            VericaseUI.Toast.success('Deleted successfully');
+            closeDeleteModal();
+            loadDashboard();
+          } else {
+            const errorText = await response.text();
+            try {
+              const errorJson = JSON.parse(errorText);
+              throw new Error(errorJson.detail || 'Delete failed');
+            } catch {
+              throw new Error(errorText || 'Delete failed');
+            }
+          }
+        } catch (error) {
+          console.error('Delete error:', error);
+          alert(`Error: ${error.message}`);
+        } finally {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // Utils
+    function escapeHtml(str) {
+      if (!str) return "";
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function formatCount(n) {
+      if (n > 1000) return (n / 1000).toFixed(1) + "k";
+      return n;
+    }
+  </script>
+</body>
+
+</html>
