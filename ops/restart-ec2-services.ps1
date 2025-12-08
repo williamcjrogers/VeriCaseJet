@@ -8,7 +8,7 @@ Write-Host "Restarting VeriCase services on EC2..." -ForegroundColor Cyan
 $commandId = aws ssm send-command `
     --instance-ids $instanceId `
     --document-name "AWS-RunShellScript" `
-    --parameters "commands=['cd /opt/vericase/pst-analysis-engine','docker-compose restart','docker ps']" `
+    --parameters "commands=['cd /opt/vericase','git pull','docker-compose -f pst-analysis-engine/docker-compose.yml restart','docker ps']" `
     --query "Command.CommandId" `
     --output text
 
