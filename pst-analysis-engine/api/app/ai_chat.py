@@ -509,7 +509,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
             client = anthropic.AsyncAnthropic(api_key=self.anthropic_key)
             # Use configured model or fallback
             actual_model: str = (
-                model_name or self.anthropic_model or "claude-4.5-sonnet"
+                model_name or self.anthropic_model or "claude-sonnet-4-20250514"
             )
             response = await client.messages.create(
                 model=actual_model,

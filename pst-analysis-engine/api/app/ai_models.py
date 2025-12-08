@@ -107,15 +107,15 @@ class AIModelService:
         # ============ ANTHROPIC (Claude) - Direct API ============
         "claude-sonnet-4": {
             "provider": "anthropic",
-            "model": "claude-4.5-sonnet",
+            "model": "claude-sonnet-4-20250514",
         },
         "claude-opus-4-extended": {
             "provider": "anthropic",
-            "model": "claude-4.5-opus",  # Opus 4.5 with extended thinking
+            "model": "claude-opus-4-20250514",
         },
         "claude-haiku-4": {
             "provider": "anthropic",
-            "model": "claude-4.5-haiku",
+            "model": "claude-3-5-haiku-20241022",
         },
         # ============ OPENAI (GPT) ============
         "gpt-4o": {
