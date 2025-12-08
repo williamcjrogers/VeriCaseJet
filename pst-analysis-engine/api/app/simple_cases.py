@@ -16,7 +16,10 @@ from pydantic import BaseModel, Field
 from .db import get_db
 from .models import (
     Case, Project, Stakeholder, Keyword, PSTFile, EmailMessage,
-    Programme, EvidenceSource, EvidenceCollection, EvidenceItem, EmailAttachment
+    Programme, EvidenceSource, EvidenceCollection, EvidenceItem, EmailAttachment,
+    EvidenceCorrespondenceLink, EvidenceRelation, EvidenceCollectionItem,
+    EvidenceActivityLog, ItemClaimLink, ContentiousMatter, HeadOfClaim,
+    RefinementSessionDB
 )
 
 logger = logging.getLogger(__name__)
@@ -358,8 +361,69 @@ def delete_project(project_id: str, db: DbDep) -> dict[str, str]:
 
         # Delete all related records in order (children first to respect FK constraints)
 
-        # Get PST file IDs for this project to delete email attachments
+        # Get IDs needed for cascading deletes
         pst_file_ids = [pst.id for pst in db.query(PSTFile).filter(PSTFile.project_id == project_uuid).all()]
+        email_ids = [e.id for e in db.query(EmailMessage).filter(EmailMessage.project_id == project_uuid).all()]
+        evidence_item_ids = [e.id for e in db.query(EvidenceItem).filter(EvidenceItem.project_id == project_uuid).all()]
+        evidence_collection_ids = [e.id for e in db.query(EvidenceCollection).filter(EvidenceCollection.project_id == project_uuid).all()]
+
+        # Delete ItemClaimLinks for correspondence (email_messages) in this project
+        if email_ids:
+            db.query(ItemClaimLink).filter(
+                ItemClaimLink.item_type == 'correspondence',
+                ItemClaimLink.item_id.in_(email_ids)
+            ).delete(synchronize_session=False)
+
+        # Delete ItemClaimLinks for evidence items in this project
+        if evidence_item_ids:
+            db.query(ItemClaimLink).filter(
+                ItemClaimLink.item_type == 'evidence',
+                ItemClaimLink.item_id.in_(evidence_item_ids)
+            ).delete(synchronize_session=False)
+
+        # Delete EvidenceCorrespondenceLinks (references evidence_items and email_messages)
+        if evidence_item_ids:
+            db.query(EvidenceCorrespondenceLink).filter(
+                EvidenceCorrespondenceLink.evidence_item_id.in_(evidence_item_ids)
+            ).delete(synchronize_session=False)
+        if email_ids:
+            db.query(EvidenceCorrespondenceLink).filter(
+                EvidenceCorrespondenceLink.email_message_id.in_(email_ids)
+            ).delete(synchronize_session=False)
+
+        # Delete EvidenceRelations (references evidence_items)
+        if evidence_item_ids:
+            db.query(EvidenceRelation).filter(
+                EvidenceRelation.source_evidence_id.in_(evidence_item_ids)
+            ).delete(synchronize_session=False)
+            db.query(EvidenceRelation).filter(
+                EvidenceRelation.target_evidence_id.in_(evidence_item_ids)
+            ).delete(synchronize_session=False)
+
+        # Delete EvidenceCollectionItems (references evidence_collections and evidence_items)
+        if evidence_collection_ids:
+            db.query(EvidenceCollectionItem).filter(
+                EvidenceCollectionItem.collection_id.in_(evidence_collection_ids)
+            ).delete(synchronize_session=False)
+        if evidence_item_ids:
+            db.query(EvidenceCollectionItem).filter(
+                EvidenceCollectionItem.evidence_item_id.in_(evidence_item_ids)
+            ).delete(synchronize_session=False)
+
+        # Delete EvidenceActivityLog (references evidence_items and evidence_collections)
+        if evidence_item_ids:
+            db.query(EvidenceActivityLog).filter(
+                EvidenceActivityLog.evidence_item_id.in_(evidence_item_ids)
+            ).delete(synchronize_session=False)
+        if evidence_collection_ids:
+            db.query(EvidenceActivityLog).filter(
+                EvidenceActivityLog.collection_id.in_(evidence_collection_ids)
+            ).delete(synchronize_session=False)
+
+        # Delete RefinementSessions for this project
+        db.query(RefinementSessionDB).filter(
+            RefinementSessionDB.project_id == str(project_uuid)
+        ).delete(synchronize_session=False)
 
         # Delete email attachments (references email_messages which references pst_files)
         if pst_file_ids:
@@ -389,7 +453,13 @@ def delete_project(project_id: str, db: DbDep) -> dict[str, str]:
         # Delete associated keywords
         db.query(Keyword).filter(Keyword.project_id == project_uuid).delete(synchronize_session=False)
 
-        # Delete the project (ContentIousMatter and HeadOfClaim have CASCADE)
+        # Delete heads of claim (has CASCADE but be explicit)
+        db.query(HeadOfClaim).filter(HeadOfClaim.project_id == project_uuid).delete(synchronize_session=False)
+
+        # Delete contentious matters (has CASCADE but be explicit)
+        db.query(ContentiousMatter).filter(ContentiousMatter.project_id == project_uuid).delete(synchronize_session=False)
+
+        # Delete the project
         db.delete(project)
         db.commit()
 
