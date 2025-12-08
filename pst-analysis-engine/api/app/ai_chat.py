@@ -412,30 +412,16 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
     def _build_evidence_context(
         self, emails: list[EmailMessage], detailed: bool = False
     ) -> str:
-        """Build evidence context from emails"""
+        """Build evidence context from emails with smart sampling"""
         if not emails:
             return "No evidence available."
 
+        # Smart sampling: if more than 200 emails, sample the most recent 200
+        if len(emails) > 200:
+            emails = sorted(emails, key=lambda e: e.date_sent or datetime.min, reverse=True)[:200]
+
         context_parts = []
-        total = len(emails)
-
-        # For very large projects, build a condensed sample but tell the model
-        # about the full corpus size so it can reason about representativeness.
-        if total > 500:
-            context_parts.append(
-                "Total emails in scope: "
-                f"{total}. The following is a condensed chronological sample of "
-                "the correspondence. Assume that similar patterns may exist in "
-                "the rest of the emails not shown explicitly."
-            )
-            # Evenly sample up to ~200 emails across the full timeline
-            step = max(1, total // 200)
-            sampled_emails = emails[::step]
-        else:
-            context_parts.append(f"Total emails in scope: {total}.")
-            sampled_emails = emails
-
-        for i, email in enumerate(sampled_emails, 1):
+        for i, email in enumerate(emails, 1):
             if detailed:
                 context_parts.append(
                     f"[Email {i}]\n"
@@ -990,11 +976,8 @@ async def _get_relevant_emails(
                     filters.append(EmailMessage.case_id.in_(case_ids))
                 query = query.filter(or_(*filters))
 
-        # Get all matching emails ordered by date so analysis can consider the
-        # full correspondence history. Downstream context building will handle
-        # smart condensation for very large datasets.
+        # Get all emails ordered by date (removed limit)
         emails = query.order_by(EmailMessage.date_sent.asc()).all()
-        logger.info("Loaded %s emails for AI evidence analysis", len(emails))
         return emails
 
     except Exception as e:

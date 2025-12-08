@@ -110,7 +110,7 @@
       },
       {
         id: "refine",
-        name: "AI Refinement",
+        name: "VeriCase Refinement",
         icon: "fa-magic",
         url: "ai-refinement-wizard.html",
       },
