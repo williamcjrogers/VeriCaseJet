@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VeriCase - Command Center</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
   <link rel="stylesheet" href="brand-styles.css" />
   <link rel="stylesheet" href="design-system.css" />
   <script src="vericase-ui.js"></script>
@@ -783,11 +783,18 @@
     let searchQuery = "";
     let selectedType = "project";
 
+    function getAuthHeaders() {
+      // Support both legacy "token" and newer "vericase_token" storage keys
+      const token =
+        localStorage.getItem("vericase_token") ||
+        localStorage.getItem("token");
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    }
+
     async function loadDashboard() {
       try {
         // Fetch real dashboard data
-        const token = localStorage.getItem("vericase_token");
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const headers = getAuthHeaders();
 
         const response = await fetch("/api/dashboard/overview", { headers });
 
@@ -969,10 +976,9 @@
         btn.disabled = true;
 
         try {
-          const token = localStorage.getItem("vericase_token");
           const headers = {
             "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
+            ...getAuthHeaders()
           };
 
           const endpoint = selectedType === "project" ? "/api/projects" : "/api/cases";
@@ -1004,8 +1010,13 @@
             // Refresh dashboard
             loadDashboard();
           } else {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || "Creation failed");
+            const errorText = await response.text();
+            try {
+              const errorJson = JSON.parse(errorText);
+              throw new Error(errorJson.detail || "Creation failed");
+            } catch {
+              throw new Error(errorText || "Creation failed");
+            }
           }
         } catch (error) {
           console.error("Creation error:", error);
@@ -1126,11 +1137,10 @@
         btn.disabled = true;
 
         try {
-          const token = localStorage.getItem('vericase_token');
-          const headers = {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          };
+        const headers = {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        };
 
           const endpoint = type === 'project' ? `/api/projects/${id}` : `/api/cases/${id}`;
           const payload = type === 'project' 
@@ -1148,8 +1158,13 @@
             closeRenameModal();
             loadDashboard();
           } else {
-            const error = await response.json();
-            throw new Error(error.detail || 'Rename failed');
+            const errorText = await response.text();
+            try {
+              const errorJson = JSON.parse(errorText);
+              throw new Error(errorJson.detail || 'Rename failed');
+            } catch {
+              throw new Error(errorText || 'Rename failed');
+            }
           }
         } catch (error) {
           console.error('Rename error:', error);
@@ -1171,11 +1186,10 @@
         btn.disabled = true;
 
         try {
-          const token = localStorage.getItem('vericase_token');
-          const headers = {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          };
+        const headers = {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        };
 
           const endpoint = type === 'project' ? `/api/projects/${id}` : `/api/cases/${id}`;
 
@@ -1189,8 +1203,13 @@
             closeDeleteModal();
             loadDashboard();
           } else {
-            const error = await response.json();
-            throw new Error(error.detail || 'Delete failed');
+            const errorText = await response.text();
+            try {
+              const errorJson = JSON.parse(errorText);
+              throw new Error(errorJson.detail || 'Delete failed');
+            } catch {
+              throw new Error(errorText || 'Delete failed');
+            }
           }
         } catch (error) {
           console.error('Delete error:', error);
