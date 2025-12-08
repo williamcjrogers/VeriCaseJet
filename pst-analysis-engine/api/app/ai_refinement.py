@@ -48,7 +48,7 @@ router = APIRouter(prefix="/api/ai-refinement", tags=["ai-refinement"])
 
 LATEST_MODEL_DEFAULTS = {
     "openai": "gpt-4o",  # GPT-4o (available)
-    "anthropic": "claude-sonnet-4-5-20250514",  # Claude Sonnet 4.5 (correct ID)
+    "anthropic": "claude-sonnet-4-20250514",  # Claude Sonnet 4 (correct ID)
     "gemini": "gemini-2.0-flash",  # Gemini 2.0 Flash (available)
     "bedrock": "amazon.nova-pro-v1:0",  # Amazon Nova Pro via Bedrock
 }

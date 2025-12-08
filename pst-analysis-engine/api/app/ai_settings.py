@@ -38,7 +38,7 @@ class AISettings:
     # Use actual API model IDs, not display names
     DEFAULT_MODELS: dict[str, str] = {
         "openai": "gpt-4o",
-        "anthropic": "claude-sonnet-4-5-20250514",  # Correct Anthropic model ID
+        "anthropic": "claude-sonnet-4-20250514",  # Correct Anthropic Claude Sonnet 4 model ID
         "gemini": "gemini-2.0-flash",
         "bedrock": "amazon.nova-pro-v1:0",  # Amazon Nova Pro (cost-effective)
     }
@@ -53,7 +53,7 @@ class AISettings:
         },
         "deep_analysis": {
             "provider": "anthropic",
-            "model": "claude-sonnet-4-5-20250514",  # Correct Anthropic model ID
+            "model": "claude-sonnet-4-20250514",  # Correct Anthropic model ID
             "thinking_enabled": True,
             "thinking_budget_tokens": 5000,  # Reduced for cost efficiency
             "max_duration_seconds": 300,
