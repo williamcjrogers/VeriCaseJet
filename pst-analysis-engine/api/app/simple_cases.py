@@ -14,7 +14,10 @@ from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, Field
 
 from .db import get_db
-from .models import Case, Project, Stakeholder, Keyword
+from .models import (
+    Case, Project, Stakeholder, Keyword, PSTFile, EmailMessage,
+    Programme, EvidenceSource, EvidenceCollection, EvidenceItem, EmailAttachment
+)
 
 logger = logging.getLogger(__name__)
 
@@ -346,18 +349,47 @@ def update_project(project_id: str, project_data: ProjectUpdate, db: DbDep) -> d
 def delete_project(project_id: str, db: DbDep) -> dict[str, str]:
     """Delete a project and all associated data"""
     try:
+        project_uuid = uuid.UUID(project_id)
+
         # Find the project
-        project = db.query(Project).filter(Project.id == uuid.UUID(project_id)).first()
+        project = db.query(Project).filter(Project.id == project_uuid).first()
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
 
+        # Delete all related records in order (children first to respect FK constraints)
+
+        # Get PST file IDs for this project to delete email attachments
+        pst_file_ids = [pst.id for pst in db.query(PSTFile).filter(PSTFile.project_id == project_uuid).all()]
+
+        # Delete email attachments (references email_messages which references pst_files)
+        if pst_file_ids:
+            db.query(EmailAttachment).filter(EmailAttachment.pst_file_id.in_(pst_file_ids)).delete(synchronize_session=False)
+
+        # Delete email messages
+        db.query(EmailMessage).filter(EmailMessage.project_id == project_uuid).delete(synchronize_session=False)
+
+        # Delete PST files
+        db.query(PSTFile).filter(PSTFile.project_id == project_uuid).delete(synchronize_session=False)
+
+        # Delete evidence items
+        db.query(EvidenceItem).filter(EvidenceItem.project_id == project_uuid).delete(synchronize_session=False)
+
+        # Delete evidence collections
+        db.query(EvidenceCollection).filter(EvidenceCollection.project_id == project_uuid).delete(synchronize_session=False)
+
+        # Delete evidence sources
+        db.query(EvidenceSource).filter(EvidenceSource.project_id == project_uuid).delete(synchronize_session=False)
+
+        # Delete programmes
+        db.query(Programme).filter(Programme.project_id == project_uuid).delete(synchronize_session=False)
+
         # Delete associated stakeholders
-        _ = db.query(Stakeholder).filter(Stakeholder.project_id == uuid.UUID(project_id)).delete()
+        db.query(Stakeholder).filter(Stakeholder.project_id == project_uuid).delete(synchronize_session=False)
 
         # Delete associated keywords
-        _ = db.query(Keyword).filter(Keyword.project_id == uuid.UUID(project_id)).delete()
+        db.query(Keyword).filter(Keyword.project_id == project_uuid).delete(synchronize_session=False)
 
-        # Delete the project
+        # Delete the project (ContentIousMatter and HeadOfClaim have CASCADE)
         db.delete(project)
         db.commit()
 
