@@ -310,27 +310,6 @@ def log_activity(
     db.add(activity)
 
 
-def get_default_user(db: Session) -> User:
-    """Get or create default admin user"""
-    user = db.query(User).filter(User.email == "admin@vericase.com").first()
-    if not user:
-        from .security import hash_password
-        from .models import UserRole
-
-        user = User(
-            email="admin@vericase.com",
-            password_hash=hash_password("VeriCase1234?!"),
-            role=UserRole.ADMIN,
-            is_active=True,
-            email_verified=True,
-            display_name="Administrator",
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-    return user
-
-
 # ============================================================================
 # UPLOAD ENDPOINTS
 # ============================================================================
@@ -374,12 +353,13 @@ async def init_evidence_upload(
 async def complete_evidence_upload(
     request: EvidenceItemCreate,
     db: DbSession,
+    user: CurrentUser,
 ):
     """
     Complete evidence upload after file is uploaded to S3
     Creates the evidence item record
+    Requires authentication.
     """
-    user = get_default_user(db)
     s3_bucket = settings.S3_BUCKET or settings.MINIO_BUCKET
 
     # Check for duplicates by hash
@@ -450,6 +430,7 @@ async def complete_evidence_upload(
 async def direct_upload_evidence(
     file: Annotated[UploadFile, File(...)],
     db: DbSession,
+    user: CurrentUser,
     case_id: Annotated[str | None, Form()] = None,
     project_id: Annotated[str | None, Form()] = None,
     collection_id: Annotated[str | None, Form()] = None,
@@ -459,8 +440,8 @@ async def direct_upload_evidence(
     """
     Direct file upload (streams file to S3)
     For smaller files - convenience endpoint
+    Requires authentication.
     """
-    user = get_default_user(db)
 
     if not file.filename:
         raise HTTPException(400, "Missing filename")
@@ -851,8 +832,9 @@ async def list_evidence(
 async def get_evidence_detail(
     evidence_id: str,
     db: DbSession,
+    user: CurrentUser,
 ):
-    """Get full evidence item details"""
+    """Get full evidence item details. Requires authentication."""
     try:
         evidence_uuid = uuid.UUID(evidence_id)
     except ValueError:
@@ -954,7 +936,6 @@ async def get_evidence_detail(
     )
 
     # Log view activity
-    user = get_default_user(db)
     log_activity(db, "view", user.id, evidence_item_id=item.id)
     db.commit()
 
@@ -1005,8 +986,10 @@ async def get_evidence_detail(
 
 
 @router.patch("/items/{evidence_id}")
-async def update_evidence(evidence_id: str, updates: EvidenceItemUpdate, db: DbSession):
-    """Update evidence item metadata"""
+async def update_evidence(
+    evidence_id: str, updates: EvidenceItemUpdate, db: DbSession, user: CurrentUser
+):
+    """Update evidence item metadata. Requires authentication."""
     try:
         evidence_uuid = uuid.UUID(evidence_id)
     except ValueError:
@@ -1025,7 +1008,6 @@ async def update_evidence(evidence_id: str, updates: EvidenceItemUpdate, db: DbS
         setattr(item, field, typed_value)
 
     # Log activity
-    user = get_default_user(db)
     log_activity(
         db,
         "update",
@@ -1041,8 +1023,8 @@ async def update_evidence(evidence_id: str, updates: EvidenceItemUpdate, db: DbS
 
 
 @router.delete("/items/{evidence_id}")
-async def delete_evidence(evidence_id: str, db: DbSession):
-    """Delete evidence item"""
+async def delete_evidence(evidence_id: str, db: DbSession, user: CurrentUser):
+    """Delete evidence item. Requires authentication."""
     try:
         evidence_uuid = uuid.UUID(evidence_id)
     except ValueError:
@@ -1053,7 +1035,6 @@ async def delete_evidence(evidence_id: str, db: DbSession):
         raise HTTPException(404, "Evidence item not found")
 
     # Log activity before deletion
-    user = get_default_user(db)
     log_activity(
         db,
         "delete",
@@ -1077,8 +1058,10 @@ async def delete_evidence(evidence_id: str, db: DbSession):
 
 
 @router.post("/items/{evidence_id}/assign")
-async def assign_evidence(evidence_id: str, assignment: AssignRequest, db: DbSession):
-    """Assign evidence to a case and/or project"""
+async def assign_evidence(
+    evidence_id: str, assignment: AssignRequest, db: DbSession, user: CurrentUser
+):
+    """Assign evidence to a case and/or project. Requires authentication."""
     try:
         evidence_uuid = uuid.UUID(evidence_id)
     except ValueError:
@@ -1107,7 +1090,6 @@ async def assign_evidence(evidence_id: str, assignment: AssignRequest, db: DbSes
         item.project_id = project.id
 
     # Log activity
-    user = get_default_user(db)
     log_activity(
         db,
         "assign",
@@ -1217,9 +1199,9 @@ async def get_evidence_correspondence(
 
 @router.post("/items/{evidence_id}/link-email")
 async def link_evidence_to_email(
-    evidence_id: str, link_request: CorrespondenceLinkCreate, db: DbSession
+    evidence_id: str, link_request: CorrespondenceLinkCreate, db: DbSession, user: CurrentUser
 ):
-    """Manually link evidence to an email or external correspondence"""
+    """Manually link evidence to an email or external correspondence. Requires authentication."""
     try:
         evidence_uuid = uuid.UUID(evidence_id)
     except ValueError:
@@ -1254,8 +1236,6 @@ async def link_evidence_to_email(
         )
         if existing:
             raise HTTPException(409, "Link already exists")
-
-    user = get_default_user(db)
 
     # Create link
     link = EvidenceCorrespondenceLink(
@@ -1377,10 +1357,8 @@ async def list_collections(
 
 
 @router.post("/collections")
-async def create_collection(collection: CollectionCreate, db: DbSession):
-    """Create a new collection"""
-    user = get_default_user(db)
-
+async def create_collection(collection: CollectionCreate, db: DbSession, user: CurrentUser):
+    """Create a new collection. Requires authentication."""
     # Build path
     path = f"/{collection.name}"
     depth = 0
@@ -1488,8 +1466,10 @@ async def delete_collection(collection_id: str, db: DbSession):
 
 
 @router.post("/collections/{collection_id}/items/{evidence_id}")
-async def add_to_collection(collection_id: str, evidence_id: str, db: DbSession):
-    """Add evidence item to collection"""
+async def add_to_collection(
+    collection_id: str, evidence_id: str, db: DbSession, user: CurrentUser
+):
+    """Add evidence item to collection. Requires authentication."""
     try:
         collection_uuid = uuid.UUID(collection_id)
         evidence_uuid = uuid.UUID(evidence_id)
@@ -1522,8 +1502,6 @@ async def add_to_collection(collection_id: str, evidence_id: str, db: DbSession)
     )
     if existing:
         raise HTTPException(409, "Item already in collection")
-
-    user = get_default_user(db)
 
     # Add to collection
     collection_item = EvidenceCollectionItem(
