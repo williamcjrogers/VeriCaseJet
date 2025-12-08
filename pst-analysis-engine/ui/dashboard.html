@@ -42,6 +42,16 @@
         margin-left: 260px;
       }
 
+      /* Hide the original top-bar when shell is active */
+      .app-shell .top-bar {
+        display: none;
+      }
+
+      /* Adjust dashboard container when shell is active */
+      .app-shell .dashboard-container {
+        padding-top: 0;
+      }
+
       .top-bar {
         background: white;
         color: var(--vericase-navy);
@@ -168,6 +178,13 @@
         opacity: 0.95;
         color: rgba(255, 255, 255, 0.92);
         line-height: 1.6;
+      }
+
+      .welcome-banner .meta,
+      .welcome-banner .meta-item,
+      .welcome-banner .meta-item span,
+      .welcome-banner .meta-item i {
+        color: white !important;
       }
 
       .welcome-banner .meta {
@@ -760,6 +777,30 @@
           <p>Visualize project chronology and key events</p>
         </div>
 
+        <div class="action-card" onclick="viewProgramme()">
+          <div class="icon" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);">
+            <i class="fas fa-project-diagram"></i>
+          </div>
+          <h3>Programme</h3>
+          <p>Manage project schedule, milestones and planned activities</p>
+        </div>
+
+        <div class="action-card" onclick="viewDelays()">
+          <div class="icon" style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);">
+            <i class="fas fa-clock"></i>
+          </div>
+          <h3>Delays</h3>
+          <p>Track and analyze project delays and their causes</p>
+        </div>
+
+        <div class="action-card" onclick="viewChronology()">
+          <div class="icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);">
+            <i class="fas fa-history"></i>
+          </div>
+          <h3>Chronology</h3>
+          <p>Build and view detailed event chronologies from evidence</p>
+        </div>
+
         <div
           class="action-card"
           onclick="openAIRefinement()"
@@ -1207,11 +1248,43 @@
       }
 
       function manageStakeholders() {
-        alert("Stakeholder management coming soon!");
+        const url = new URL('stakeholders.html', window.location.href);
+        if (profileId) {
+          url.searchParams.set('projectId', profileId);
+        }
+        window.location.href = url.toString();
       }
 
       function viewTimeline() {
-        alert("Timeline view coming soon!");
+        const url = new URL('project-timeline.html', window.location.href);
+        if (profileId) {
+          url.searchParams.set('projectId', profileId);
+        }
+        window.location.href = url.toString();
+      }
+
+      function viewProgramme() {
+        const url = new URL('programme.html', window.location.href);
+        if (profileId) {
+          url.searchParams.set('projectId', profileId);
+        }
+        window.location.href = url.toString();
+      }
+
+      function viewDelays() {
+        const url = new URL('delays.html', window.location.href);
+        if (profileId) {
+          url.searchParams.set('projectId', profileId);
+        }
+        window.location.href = url.toString();
+      }
+
+      function viewChronology() {
+        const url = new URL('chronology.html', window.location.href);
+        if (profileId) {
+          url.searchParams.set('projectId', profileId);
+        }
+        window.location.href = url.toString();
       }
 
       // Lazy-loaded settings modal (deferred DOM creation for faster initial page load)
@@ -1539,6 +1612,17 @@
 
       // Initialize dashboard
       document.addEventListener("DOMContentLoaded", () => {
+        // Inject the navigation shell with sidebar
+        if (window.VericaseShell && typeof window.VericaseShell.inject === 'function') {
+          window.VericaseShell.inject({
+            title: 'Project Dashboard',
+            breadcrumbs: [
+              { label: 'Home', url: 'master-dashboard.html', icon: 'fa-home' },
+              { label: 'Project Dashboard' }
+            ]
+          });
+        }
+
         // Always load projects list first
         loadProjects();
 

@@ -1,5 +1,5 @@
 # Check EC2 Docker status and open security group
-$EC2_IP = "18.130.216.34"
+$EC2_IP = "18.175.232.87"
 $KEY_PATH = "C:\Users\William\Documents\Projects\VeriCase Analysis\VeriCase-Safe.pem"
 
 Write-Host "Checking EC2 Docker containers..." -ForegroundColor Yellow

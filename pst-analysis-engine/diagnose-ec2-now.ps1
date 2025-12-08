@@ -1,5 +1,5 @@
 # Quick EC2 Diagnosis
-$EC2_IP = "18.130.216.34"
+$EC2_IP = "18.175.232.87"
 $KEY = "C:\Users\William\Documents\Projects\VeriCase Analysis\VeriCase-Safe.pem"
 
 Write-Host "=== EC2 Docker Status ===" -ForegroundColor Cyan
