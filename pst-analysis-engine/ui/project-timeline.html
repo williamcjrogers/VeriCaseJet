@@ -958,36 +958,30 @@
   <body>
     <div class="bg-pattern"></div>
 
+    <!-- Shell Injection -->
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        VericaseShell.inject({
+          title: 'Project Timeline',
+          headerActions: `
+            <div class="view-controls" style="margin-right: 1rem;">
+              <div class="view-toggle">
+                <button class="view-toggle-btn active" data-view="timeline" title="Visual Timeline">
+                  <i class="fas fa-project-diagram"></i>
+                  <span>Timeline</span>
+                </button>
+                <button class="view-toggle-btn" data-view="chronology" title="Chronology List">
+                  <i class="fas fa-list-ul"></i>
+                  <span>Chronology</span>
+                </button>
+              </div>
+            </div>
+          `
+        });
+      });
+    </script>
+
     <div class="container">
-      <!-- Page Header -->
-      <div class="page-header">
-        <div class="page-title-section">
-          <div class="page-badge">
-            <i class="fas fa-clock-rotate-left"></i>
-            <span>Project Timeline</span>
-          </div>
-          <h1 class="page-title">
-            Project <span class="accent">Timeline</span>
-          </h1>
-          <p class="page-subtitle">
-            Unified view of all project events, delays, correspondence, and milestones
-          </p>
-        </div>
-
-        <div class="view-controls">
-          <div class="view-toggle">
-            <button class="view-toggle-btn active" data-view="timeline" title="Visual Timeline">
-              <i class="fas fa-project-diagram"></i>
-              <span>Timeline</span>
-            </button>
-            <button class="view-toggle-btn" data-view="chronology" title="Chronology List">
-              <i class="fas fa-list-ul"></i>
-              <span>Chronology</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
       <!-- Stats Bar -->
       <div class="stats-bar" id="statsBar">
         <div class="stat-card">

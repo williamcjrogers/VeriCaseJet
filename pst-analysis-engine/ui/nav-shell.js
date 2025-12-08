@@ -153,13 +153,13 @@
         },
         {
           id: "refinement",
-          label: "AI Refinement",
-          icon: "fa-robot",
+          label: "VeriCase Refine",
+          icon: "fa-wand-magic-sparkles",
           url: "ai-refinement-wizard.html",
         },
         {
           id: "research",
-          label: "Deep Research",
+          label: "Deep Analysis",
           icon: "fa-microscope",
           url: "deep-research.html",
           badge: "NEW",
