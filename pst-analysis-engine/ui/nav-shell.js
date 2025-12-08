@@ -289,7 +289,7 @@
             <aside class="app-sidebar" id="appSidebar">
                 <div class="sidebar-header">
                     <a href="master-dashboard.html" class="sidebar-logo">
-                        <img src="/assets/VeriCaseContrastLogo.png" alt="VeriCase" />
+                        <img src="/assets/Logo-Vector.png" alt="VeriCase" />
                     </a>
                 </div>
                 ${projectContext}
