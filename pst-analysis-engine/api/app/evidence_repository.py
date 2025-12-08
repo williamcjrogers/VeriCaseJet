@@ -126,9 +126,11 @@ class EvidenceItemSummary(BaseModel):
 
     id: str
     filename: str
+    author: str | None = None
     file_type: str | None = None
     mime_type: str | None = None
     file_size: int | None = None
+    page_count: int | None = None
     evidence_type: str | None = None
     document_category: str | None = None
     document_date: date | None = None
@@ -158,6 +160,7 @@ class EvidenceItemDetail(BaseModel):
 
     id: str
     filename: str
+    author: str | None = None
     original_path: str | None = None
     file_type: str | None = None
     mime_type: str | None = None
@@ -167,7 +170,6 @@ class EvidenceItemDetail(BaseModel):
     document_category: str | None = None
     document_date: date | None = None
     title: str | None = None
-    author: str | None = None
     description: str | None = None
     page_count: int | None = None
     extracted_text: str | None = None
@@ -203,6 +205,23 @@ class EvidenceListResponse(BaseModel):
     items: list[EvidenceItemSummary]
     page: int
     page_size: int
+
+
+class ServerSideEvidenceRequest(BaseModel):
+    """AG Grid server-side request contract"""
+
+    startRow: int = 0
+    endRow: int = 100
+    sortModel: list[dict[str, Any]] = []
+    filterModel: dict[str, Any] = {}
+
+
+class ServerSideEvidenceResponse(BaseModel):
+    """AG Grid server-side response"""
+
+    rows: list[dict[str, Any]]
+    lastRow: int
+    stats: dict[str, Any] = {}
 
 
 class CollectionCreate(BaseModel):
@@ -308,6 +327,126 @@ def log_activity(
         ip_address=ip_address,
     )
     db.add(activity)
+
+
+def _column_map() -> dict[str, Any]:
+    """Map AG Grid column IDs to SQLAlchemy columns."""
+    return {
+        "filename": EvidenceItem.filename,
+        "title": EvidenceItem.title,
+        "document_date": EvidenceItem.document_date,
+        "processing_status": EvidenceItem.processing_status,
+        "evidence_type": EvidenceItem.evidence_type,
+        "file_type": EvidenceItem.file_type,
+        "file_size": EvidenceItem.file_size,
+        "is_starred": EvidenceItem.is_starred,
+        "created_at": EvidenceItem.created_at,
+        "author": EvidenceItem.author,
+        "page_count": EvidenceItem.page_count,
+    }
+
+
+def _apply_ag_filters(query: Any, filter_model: dict[str, Any]) -> Any:
+    """Translate AG Grid filter model to SQLAlchemy filters."""
+    if not filter_model:
+        return query
+
+    col_map = _column_map()
+
+    for col_id, f in filter_model.items():
+        column = col_map.get(col_id)
+
+        # Special flags that are not direct columns
+        if col_id == "unassigned" and f:
+            query = query.filter(
+                and_(EvidenceItem.case_id.is_(None), EvidenceItem.project_id.is_(None))
+            )
+            continue
+        if col_id == "is_image":
+            if f is True:
+                query = query.filter(EvidenceItem.mime_type.ilike("image/%"))
+            elif f is False:
+                query = query.filter(~EvidenceItem.mime_type.ilike("image/%"))
+            continue
+        if col_id == "is_starred" and f:
+            query = query.filter(EvidenceItem.is_starred.is_(True))
+            continue
+
+        if column is None:
+            continue
+
+        filter_type = f.get("filterType")
+        f_type = f.get("type")
+
+        if filter_type == "text":
+            value = f.get("filter")
+            if value is None:
+                continue
+            like_val = f"%{value}%"
+            if f_type == "equals":
+                query = query.filter(column == value)
+            elif f_type == "startsWith":
+                query = query.filter(column.ilike(f"{value}%"))
+            else:  # contains default
+                query = query.filter(column.ilike(like_val))
+
+        elif filter_type == "set":
+            values = f.get("values") or []
+            if values:
+                query = query.filter(column.in_(values))
+
+        elif filter_type == "number":
+            val = f.get("filter")
+            if val is None:
+                continue
+            if f_type == "lessThan":
+                query = query.filter(column < val)
+            elif f_type == "greaterThan":
+                query = query.filter(column > val)
+            elif f_type == "equals":
+                query = query.filter(column == val)
+            elif f_type == "inRange":
+                to_val = f.get("filterTo")
+                if to_val is not None:
+                    query = query.filter(and_(column >= val, column <= to_val))
+
+        elif filter_type == "date":
+            date_from = f.get("dateFrom")
+            date_to = f.get("dateTo")
+            if f_type == "inRange" and date_from and date_to:
+                query = query.filter(
+                    and_(
+                        column >= datetime.fromisoformat(date_from).date(),
+                        column <= datetime.fromisoformat(date_to).date(),
+                    )
+                )
+            elif date_from:
+                query = query.filter(column >= datetime.fromisoformat(date_from).date())
+            elif date_to:
+                query = query.filter(column <= datetime.fromisoformat(date_to).date())
+
+    return query
+
+
+def _apply_ag_sorting(query: Any, sort_model: list[dict[str, Any]]) -> Any:
+    """Apply AG Grid sorting model to query."""
+    if not sort_model:
+        return query.order_by(desc(EvidenceItem.created_at))
+
+    col_map = _column_map()
+    orders = []
+    for sort in sort_model:
+        col_id = sort.get("colId")
+        sort_dir = sort.get("sort", "asc")
+        column = col_map.get(col_id)
+        if not column:
+            continue
+        orders.append(desc(column) if sort_dir == "desc" else column)
+
+    if not orders:
+        return query.order_by(desc(EvidenceItem.created_at))
+
+    return query.order_by(*orders)
 
 
 def get_default_user(db: Session) -> User:
@@ -845,6 +984,286 @@ async def list_evidence(
     return EvidenceListResponse(
         total=total + email_total, items=summaries, page=page, page_size=page_size
     )
+
+
+@router.post("/items/server-side", response_model=ServerSideEvidenceResponse)
+async def get_evidence_server_side(
+    request: ServerSideEvidenceRequest,
+    project_id: str | None = Query(None),
+    case_id: str | None = Query(None),
+    collection_id: str | None = Query(None),
+    include_email_info: bool = Query(False),
+    db: DbSession = Depends(get_db),
+) -> ServerSideEvidenceResponse:
+    """
+    High-performance server-side endpoint for AG Grid.
+    - Only loads rows needed for display (startRow/endRow)
+    - No presigned URLs are generated here
+    - Supports server-side filtering and sorting
+    """
+    base_query = db.query(EvidenceItem)
+
+    # Context filters
+    if project_id:
+        base_query = base_query.filter(EvidenceItem.project_id == uuid.UUID(project_id))
+    if case_id:
+        base_query = base_query.filter(EvidenceItem.case_id == uuid.UUID(case_id))
+    if collection_id:
+        base_query = base_query.join(
+            EvidenceCollectionItem,
+            EvidenceCollectionItem.evidence_item_id == EvidenceItem.id,
+        ).filter(EvidenceCollectionItem.collection_id == uuid.UUID(collection_id))
+
+    # Apply AG Grid filter model
+    filtered_query = _apply_ag_filters(base_query, request.filterModel)
+
+    # Total before pagination (without emails)
+    total = filtered_query.count()
+
+    # Apply sorting
+    sorted_query = _apply_ag_sorting(filtered_query, request.sortModel)
+
+    # Pagination via startRow/endRow
+    block_size = max(request.endRow - request.startRow, 0) or 100
+    page_query = sorted_query.offset(request.startRow).limit(block_size)
+    items = page_query.all()
+
+    # Correspondence counts
+    item_ids = [item.id for item in items]
+    correspondence_counts: dict[str, int] = {}
+    if item_ids:
+        counts = (
+            db.query(
+                EvidenceCorrespondenceLink.evidence_item_id,
+                func.count(EvidenceCorrespondenceLink.id),
+            )
+            .filter(EvidenceCorrespondenceLink.evidence_item_id.in_(item_ids))
+            .group_by(EvidenceCorrespondenceLink.evidence_item_id)
+            .all()
+        )
+        for count_row in counts:
+            row_id: object = count_row[0]
+            row_count: object = count_row[1]
+            if row_id is not None:
+                count_val: int = 0
+                if isinstance(row_count, int):
+                    count_val = row_count
+                elif row_count is not None:
+                    count_val = int(str(row_count))
+                correspondence_counts[str(row_id)] = count_val
+
+    # Build rows (no presigned URLs here)
+    rows: list[dict[str, Any]] = []
+    for item in items:
+        corr_count = correspondence_counts.get(str(item.id), 0)
+        rows.append(
+            {
+                "id": str(item.id),
+                "filename": item.filename,
+                "title": item.title,
+                "mime_type": item.mime_type,
+                "file_type": item.file_type,
+                "file_size": item.file_size,
+                "evidence_type": item.evidence_type,
+                "document_category": item.document_category,
+                "document_date": (
+                    item.document_date
+                    if isinstance(item.document_date, date)
+                    else (item.document_date.date() if item.document_date else None)
+                ),
+                "processing_status": item.processing_status or "pending",
+                "is_starred": item.is_starred or False,
+                "is_reviewed": item.is_reviewed or False,
+                "has_correspondence": corr_count > 0,
+                "correspondence_count": corr_count,
+                "correspondence_link_count": corr_count,
+                "auto_tags": item.auto_tags or [],
+                "manual_tags": item.manual_tags or [],
+                "extracted_parties": item.extracted_parties or [],
+                "extracted_amounts": item.extracted_amounts or [],
+                "author": item.author,
+                "page_count": item.page_count,
+                "case_id": str(item.case_id) if item.case_id else None,
+                "project_id": str(item.project_id) if item.project_id else None,
+                "source_type": item.source_type,
+                "source_email_id": str(item.source_email_id)
+                if item.source_email_id
+                else None,
+                "created_at": item.created_at or datetime.now(),
+            }
+        )
+
+    # Stats for first load (lightweight)
+    stats = {}
+    if request.startRow == 0:
+        stats["total"] = total
+        by_status_raw = (
+            db.query(EvidenceItem.processing_status, func.count(EvidenceItem.id))
+            .group_by(EvidenceItem.processing_status)
+            .all()
+        )
+        stats["by_status"] = {
+            str(row[0]): int(row[1]) for row in by_status_raw if row[0] is not None
+        }
+
+    return ServerSideEvidenceResponse(rows=rows, lastRow=total, stats=stats)
+
+
+@router.get("/items/{evidence_id}/download-url")
+async def get_evidence_download_url(evidence_id: str, db: DbSession) -> dict[str, Any]:
+    """Generate presigned download URL on demand (single item)."""
+    try:
+        evidence_uuid = uuid.UUID(evidence_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid evidence ID format")
+
+    item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
+    if not item:
+        raise HTTPException(404, "Evidence item not found")
+
+    try:
+        url = presign_get(
+            item.s3_key,
+            expires=3600,
+            bucket=item.s3_bucket,
+            response_disposition=f'attachment; filename="{item.filename}"',
+        )
+    except Exception as e:
+        logger.error(f"Failed to generate download URL for {evidence_id}: {e}")
+        raise HTTPException(500, "Unable to generate download URL")
+
+    return {"evidence_id": evidence_id, "download_url": url}
+
+
+@router.get("/items/{evidence_id}/full")
+async def get_evidence_full(
+    evidence_id: str,
+    db: DbSession,
+) -> dict[str, Any]:
+    """
+    Combined detail + preview + download URL in one call.
+    Avoids multiple round-trips from the UI detail panel.
+    """
+    try:
+        evidence_uuid = uuid.UUID(evidence_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid evidence ID format")
+
+    item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
+    if not item:
+        raise HTTPException(404, "Evidence item not found")
+
+    # Build download URL
+    download_url = None
+    try:
+        download_url = presign_get(
+            item.s3_key,
+            expires=3600,
+            bucket=item.s3_bucket,
+            response_disposition=f'attachment; filename="{item.filename}"',
+        )
+    except Exception as e:
+        logger.warning(f"Could not create download URL: {e}")
+
+    # Lightweight preview (no text extraction here)
+    preview_type = "unsupported"
+    preview_url = None
+    preview_content: str | dict[str, Any] | None = None
+    page_count = None
+    dimensions = None
+    mime_type = item.mime_type or "application/octet-stream"
+
+    try:
+        preview_url = presign_get(item.s3_key, expires=3600)
+    except Exception as e:
+        logger.warning(f"Could not generate preview URL: {e}")
+
+    if mime_type.startswith("image/"):
+        preview_type = "image"
+        if item.extracted_metadata:
+            dimensions = {
+                "width": item.extracted_metadata.get("width"),
+                "height": item.extracted_metadata.get("height"),
+            }
+    elif mime_type == "application/pdf":
+        preview_type = "pdf"
+        page_count = item.page_count or (item.extracted_metadata or {}).get("page_count")
+    elif mime_type.startswith("text/") or item.filename.lower().endswith(
+        (".txt", ".csv", ".json", ".xml", ".html", ".md", ".log")
+    ):
+        preview_type = "text"
+        preview_content = "Text preview available via /text-content"
+    elif mime_type.startswith("audio/"):
+        preview_type = "audio"
+    elif mime_type.startswith("video/"):
+        preview_type = "video"
+    elif mime_type in [
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ]:
+        preview_type = "office"
+        if item.extracted_metadata:
+            preview_content = item.extracted_metadata.get("text_preview")
+            page_count = item.extracted_metadata.get("page_count") or item.extracted_metadata.get(
+                "slide_count"
+            )
+
+    detail = {
+        "id": str(item.id),
+        "filename": item.filename,
+        "title": item.title,
+        "author": item.author,
+        "file_type": item.file_type,
+        "mime_type": item.mime_type,
+        "file_size": item.file_size,
+        "file_hash": item.file_hash,
+        "evidence_type": item.evidence_type,
+        "document_category": item.document_category,
+        "document_date": (
+            item.document_date
+            if isinstance(item.document_date, date)
+            else (item.document_date.date() if item.document_date else None)
+        ),
+        "processing_status": item.processing_status or "pending",
+        "page_count": item.page_count,
+        "auto_tags": item.auto_tags or [],
+        "manual_tags": item.manual_tags or [],
+        "extracted_parties": _safe_dict_list(item.extracted_parties),
+        "extracted_dates": _safe_dict_list(item.extracted_dates),
+        "extracted_amounts": _safe_dict_list(item.extracted_amounts),
+        "extracted_references": _safe_dict_list(item.extracted_references),
+        "source_type": item.source_type,
+        "source_email_id": str(item.source_email_id) if item.source_email_id else None,
+        "case_id": str(item.case_id) if item.case_id else None,
+        "project_id": str(item.project_id) if item.project_id else None,
+        "collection_id": str(item.collection_id) if item.collection_id else None,
+        "is_starred": item.is_starred or False,
+        "is_privileged": item.is_privileged or False,
+        "is_confidential": item.is_confidential or False,
+        "is_reviewed": item.is_reviewed or False,
+        "notes": item.notes,
+        "created_at": item.created_at or datetime.now(),
+        "updated_at": item.updated_at,
+    }
+
+    preview_payload = {
+        "preview_type": preview_type,
+        "preview_url": preview_url,
+        "preview_content": preview_content,
+        "page_count": page_count,
+        "dimensions": dimensions,
+        "download_url": download_url,
+        "filename": item.filename,
+        "mime_type": mime_type,
+    }
+
+    metadata = item.extracted_metadata or {}
+
+    return {"detail": detail, "preview": preview_payload, "metadata": metadata, "download_url": download_url}
 
 
 @router.get("/items/{evidence_id}", response_model=EvidenceItemDetail)

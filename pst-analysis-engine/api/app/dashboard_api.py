@@ -5,7 +5,7 @@ Provides aggregated overview of user's projects, cases, and activity
 
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Annotated, Any
+from typing import Annotated, Any, Dict as TypingDict
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -32,12 +32,25 @@ logger = logging.getLogger(__name__)
 import json
 import time
 
-def debug_log(hypothesis_id: str, message: str, data: dict[str, Any] | None = None, line_num: int | None = None) -> None:
+logger = logging.getLogger(__name__)
+
+def debug_log(hypothesis_id: str, message: str, data: TypingDict[str, Any] | None = None, line_num: int | None = None) -> None:
     log_path = r"c:\Users\William\Documents\Projects\VeriCase Analysis\.cursor\debug.log"
-    entry_id = f"log_{int(time.time()*1000)}_{int(time.time()) % 10000}"
-    timestamp = int(time.time()*1000)
+    # region agent log self-test
+    try:
+        _ = int(time.time()*1000)
+        test_entry = {"id": "self_test", "message": f"debug_log called for {hypothesis_id}", "data": {}, "timestamp": _}
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(test_entry, default=str) + "\n")
+    except Exception as e:
+        print(f"DEBUG LOG SELF-TEST FAIL: {e} - cannot write to {log_path}")
+    # endregion
+
+    _ = int(time.time()*1000)
+    entry_id = f"log_{_}_{int(time.time()) % 10000}"
+    timestamp = _
     location = f"dashboard_api.py:{line_num or 'unknown'}"
-    entry: dict[str, Any] = {
+    entry: TypingDict[str, Any] = {
         "id": entry_id,
         "timestamp": timestamp,
         "location": location,
@@ -50,8 +63,13 @@ def debug_log(hypothesis_id: str, message: str, data: dict[str, Any] | None = No
     try:
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, default=str) + "\n")
-    except:
-        pass
+    except Exception as e:
+        print(f"DEBUG LOG WRITE FAIL for {hypothesis_id}: {e}")
+
+# Module level log to confirm import
+debug_log("F", "Module dashboard_api.py loaded successfully", {}, 30)
+
+print("DEBUG: dashboard_api.py module imported and debug_log available")
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 DbDep = Annotated[Session, Depends(get_db)]

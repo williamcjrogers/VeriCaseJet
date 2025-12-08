@@ -28,7 +28,11 @@ from .models import (
     Document,
     EmailAttachment,
     EmailMessage,
+    EvidenceCollection,
+    EvidenceItem,
+    EvidenceSource,
     Keyword,
+    Programme,
     Project,
     PSTFile,
     Stakeholder,
@@ -2664,22 +2668,71 @@ async def delete_project(
 
     project_name = project.project_name
 
-    # Delete associated PST files records
-    db.query(PSTFile).filter(PSTFile.project_id == p_uuid).delete()
+    try:
+        # Delete associated email attachments first (child of email messages)
+        db.query(EmailAttachment).filter(
+            EmailAttachment.email_id.in_(
+                db.query(EmailMessage.id).filter(EmailMessage.project_id == p_uuid)
+            )
+        ).delete(synchronize_session=False)
 
-    # Delete associated email messages
-    db.query(EmailMessage).filter(EmailMessage.project_id == p_uuid).delete()
+        # Delete associated email messages
+        db.query(EmailMessage).filter(EmailMessage.project_id == p_uuid).delete(
+            synchronize_session=False
+        )
 
-    # Delete the project itself
-    db.delete(project)
-    db.commit()
+        # Delete associated PST files records
+        db.query(PSTFile).filter(PSTFile.project_id == p_uuid).delete(
+            synchronize_session=False
+        )
 
-    return {
-        "id": project_id,
-        "name": project_name,
-        "status": "deleted",
-        "message": f"Project '{project_name}' and all associated data have been deleted",
-    }
+        # Delete associated stakeholders
+        db.query(Stakeholder).filter(Stakeholder.project_id == p_uuid).delete(
+            synchronize_session=False
+        )
+
+        # Delete associated keywords
+        db.query(Keyword).filter(Keyword.project_id == p_uuid).delete(
+            synchronize_session=False
+        )
+
+        # Delete associated programmes
+        db.query(Programme).filter(Programme.project_id == p_uuid).delete(
+            synchronize_session=False
+        )
+
+        # Delete associated evidence items
+        db.query(EvidenceItem).filter(EvidenceItem.project_id == p_uuid).delete(
+            synchronize_session=False
+        )
+
+        # Delete associated evidence collections
+        db.query(EvidenceCollection).filter(
+            EvidenceCollection.project_id == p_uuid
+        ).delete(synchronize_session=False)
+
+        # Delete associated evidence sources
+        db.query(EvidenceSource).filter(EvidenceSource.project_id == p_uuid).delete(
+            synchronize_session=False
+        )
+
+        # Delete the project itself
+        db.delete(project)
+        db.commit()
+
+        return {
+            "id": project_id,
+            "name": project_name,
+            "status": "deleted",
+            "message": f"Project '{project_name}' and all associated data have been deleted",
+        }
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Failed to delete project {project_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete project: {str(e)}"
+        )
 
 
 @wizard_router.post("/cases", status_code=201)

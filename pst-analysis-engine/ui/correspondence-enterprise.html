@@ -4021,7 +4021,12 @@
     function onGridReady(params) {
       gridApi = params.api;
       columnApi = params.columnApi;
-      
+
+      // Backwards-compatible shim: route deprecated API to the supported one so callers
+      // (including any legacy helpers) no longer trigger AG Grid's deprecation warning.
+      gridApi.setServerSideDatasource = (datasource) =>
+        gridApi.setGridOption("serverSideDatasource", datasource);
+
       // Register server-side datasource BEFORE marking grid as ready
       // This prevents race conditions where code waits for gridReadyPromise
       // but datasource isn't configured yet

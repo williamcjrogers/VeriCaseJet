@@ -111,6 +111,20 @@ spec:
             # CORS and API Configuration
             - name: CORS_ORIGINS
               value: "*"
+            # Admin Account
+            - name: ADMIN_EMAIL
+              value: "admin@vericase.com"
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vericase-secrets
+                  key: ADMIN_PASSWORD
+            # AG Grid License
+            - name: AG_GRID_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vericase-secrets
+                  key: AG_GRID_LICENSE_KEY
             # Secrets from Kubernetes Secret
             - name: DATABASE_URL
               valueFrom:
@@ -219,6 +233,20 @@ spec:
               value: "vericase/ai-api-keys"
             - name: AWS_SECRET_NAME
               value: "vericase/production"
+            # Admin Account
+            - name: ADMIN_EMAIL
+              value: "admin@vericase.com"
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vericase-secrets
+                  key: ADMIN_PASSWORD
+            # AG Grid License
+            - name: AG_GRID_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vericase-secrets
+                  key: AG_GRID_LICENSE_KEY
             # Secrets from Kubernetes Secret
             - name: DATABASE_URL
               valueFrom:
