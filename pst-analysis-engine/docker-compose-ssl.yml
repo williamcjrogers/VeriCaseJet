@@ -1,0 +1,92 @@
+name: pst-analysis-engine
+
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - /etc/nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    ports: ["9002:9000","9003:9001"]
+    volumes: ["minio_data:/data"]
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: vericase
+      POSTGRES_PASSWORD: vericase
+      POSTGRES_DB: vericase
+    ports: ["54321:5432"]
+    volumes: ["pg_data:/var/lib/postgresql/data"]
+
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+
+  opensearch:
+    image: opensearchproject/opensearch:2.10.0
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+      - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile:  { soft: 65536, hard: 65536 }
+    ports: ["9200:9200","9600:9600"]
+    volumes: ["os_data:/usr/share/opensearch/data"]
+
+  tika:
+    image: apache/tika:latest
+    ports: ["9998:9998"]
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://vericase:vericase@postgres:5432/vericase
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - TIKA_URL=http://tika:9998
+    depends_on: [minio, postgres, redis, opensearch, tika]
+    expose: ["8000"]
+    volumes: 
+      - "./api/app:/code/app"
+      - "./ui:/code/ui"
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://vericase:vericase@postgres:5432/vericase
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+      - TIKA_URL=http://tika:9998
+    depends_on: [minio, postgres, redis, opensearch, tika]
+    volumes:
+      - "./worker_app:/code/worker_app"
+      - "./api/app:/code/app"
+
+volumes:
+  pg_data:
+  os_data:
+  minio_data:
