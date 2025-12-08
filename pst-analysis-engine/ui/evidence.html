@@ -1099,9 +1099,8 @@
     let projectId = null;
     let caseId = null;
     let currentCategory = "documents";
-    let allEvidenceItems = [];
-    let loadEvidencePromise = null;
     let loadAllDataPromise = null; // Prevent infinite loops
+    let serverSideFilterModel = {};
 
     // Evidence type configuration
     const typeConfig = {
@@ -1308,6 +1307,10 @@
       };
 
       const gridOptions = {
+        rowModelType: "serverSide",
+        serverSideStoreType: "partial",
+        cacheBlockSize: 100,
+        paginationPageSize: 100,
         columnDefs: [
           {
             field: "thumbnail",
@@ -1340,11 +1343,21 @@
               const filename = safeGet(params.data, "filename", "Unknown");
               const title = safeGet(params.data, "title", "");
               const fileSize = safeGet(params.data, "file_size", 0);
+              const author = safeGet(params.data, "author", "");
+              const pageCount = safeGet(params.data, "page_count", null);
+              const docDate = safeGet(params.data, "document_date", null);
               const typeInfo = getFileTypeInfo(mimeType, filename);
+              const metaParts = [
+                typeInfo.label,
+                formatFileSize(fileSize),
+                pageCount ? `${pageCount} pages` : null,
+                author ? author : null,
+                docDate ? formatDate(docDate) : null,
+              ].filter(Boolean);
               return `
                                 <div class="file-info">
                                     <span class="file-name">${escapeHtml(title || filename)}</span>
-                                    <span class="file-meta">${typeInfo.label} • ${formatFileSize(fileSize)}</span>
+                                    <span class="file-meta">${metaParts.join(" • ")}</span>
                                 </div>
                             `;
             },
@@ -1501,10 +1514,8 @@
 
       // Use createGrid API (v31+) instead of deprecated new Grid()
       gridApi = agGrid.createGrid(gridDiv, gridOptions);
-      gridApi.setGridOption("rowData", []); // initialize with empty set to render headers
-
-      // Show overlay immediately so user sees a loading state
-      gridApi.showLoadingOverlay();
+      gridApi.setGridOption("serverSideDatasource", createServerSideDatasource());
+      gridApi.showLoadingOverlay(); // Show overlay immediately so user sees a loading state
 
       console.log("[Evidence] Grid initialized with admin config:", adminGridConfig);
     }
@@ -1532,6 +1543,12 @@
         console.warn("[Evidence] Prefetch cache read failed:", e);
       }
       return null;
+    }
+
+    function refreshGridData() {
+      if (!gridApi) return;
+      gridApi.showLoadingOverlay();
+      gridApi.refreshServerSideStore({ purge: true });
     }
 
     async function loadAllData() {
@@ -1563,11 +1580,11 @@
             // Clear used cache
             sessionStorage.removeItem("vericase_evidence_prefetch");
 
-            // Still need to load evidence items (not prefetched)
-            await loadEvidence();
+            refreshGridData();
           } else {
             // Normal loading - fetch everything
-            await Promise.all([loadEvidence(), loadCollections(), loadStats()]);
+            await Promise.all([loadCollections(), loadStats()]);
+            refreshGridData();
           }
         } finally {
           loadAllDataPromise = null;
@@ -1577,213 +1594,156 @@
       return loadAllDataPromise;
     }
 
-    async function loadEvidence() {
-      // Deduplicate overlapping calls (filter changes/collections/upload)
-      if (loadEvidencePromise) {
-        return loadEvidencePromise;
-      }
-
-      loadEvidencePromise = (async () => {
-        try {
-          if (gridApi) {
-            gridApi.showLoadingOverlay();
-          }
-
-          const params = new URLSearchParams();
-          params.append("page", "1");
-          params.append("page_size", "10000"); // Load ALL evidence items
-          params.append("include_email_info", "true");
-
-          // Include project_id if we have one
-          if (projectId) params.append("project_id", projectId);
-
-          const activeCollection = document.querySelector(
-            ".collection-item.active",
-          );
-          const collectionId = activeCollection?.dataset.id;
-          if (collectionId) params.append("collection_id", collectionId);
-
-          console.log(
-            "[Evidence] Fetching from:",
-            `${apiUrl}/api/evidence/items?${params.toString()}`,
-          );
-          const response = await fetch(
-            `${apiUrl}/api/evidence/items?${params.toString()}`,
-          );
-
-          console.log(
-            "[Evidence] Response status:",
-            response.status,
-            response.statusText,
-          );
-
-          if (response.ok) {
-            const data = await response.json();
-            allEvidenceItems = data.items || [];
-
-            // Ensure grid exists before applying filters (in case it failed to init earlier)
-            const gridDiv = document.getElementById("evidenceGrid");
-            if (!gridApi || !gridDiv) {
-              document.querySelector(".grid-wrapper").innerHTML =
-                '<div id="evidenceGrid" class="ag-theme-alpine ag-theme-vericase" style="height: 100%;"></div>';
-              await initGrid();
-            }
-
-            updateCategoryCounts();
-            applyFilters();
-
-            VericaseUI.Toast.success(
-              `Loaded ${allEvidenceItems.length} evidence items`,
-            );
-          } else {
-            const errorText = await response.text();
-            console.error("[Evidence] API Error:", response.status, errorText);
-            throw new Error(
-              `Failed to load evidence: ${response.status} - ${errorText}`,
-            );
-          }
-        } catch (error) {
-          console.error("Error loading evidence:", error);
-          VericaseUI.Toast.error("Failed to load evidence");
-          allEvidenceItems = [];
-          if (gridApi) gridApi.setGridOption("rowData", []);
-        } finally {
-          if (gridApi) {
-            gridApi.hideOverlay();
-          }
-          loadEvidencePromise = null;
-        }
-      })();
-
-      return loadEvidencePromise;
-    }
-
-    function updateCategoryCounts() {
-      let docCount = 0;
-      let imgCount = 0;
-
-      // Defensive check - ensure allEvidenceItems is an array
-      if (!allEvidenceItems || !Array.isArray(allEvidenceItems)) {
-        console.warn(
-          "[Evidence] allEvidenceItems is invalid, resetting to empty array",
-        );
-        allEvidenceItems = [];
-      }
-
-      allEvidenceItems.forEach((item) => {
-        if (isImageFile(item.mime_type, item.filename)) {
-          imgCount++;
-        } else {
-          docCount++;
-        }
-      });
-
-      document.getElementById("docCount").textContent =
-        docCount.toLocaleString();
-      document.getElementById("imgCount").textContent =
-        imgCount.toLocaleString();
-      document.getElementById("allCount").textContent =
-        allEvidenceItems.length.toLocaleString();
-    }
-
     function applyFilters() {
       if (!gridApi) return;
 
-      // Defensive check - ensure allEvidenceItems is an array
-      if (!allEvidenceItems || !Array.isArray(allEvidenceItems)) {
-        allEvidenceItems = [];
+      const filterModel = {};
+
+      // Category filter -> is_image flag
+      if (currentCategory === "images") {
+        filterModel["is_image"] = true;
+      } else if (currentCategory === "documents") {
+        filterModel["is_image"] = false;
       }
 
-      let filtered = [...allEvidenceItems];
-
-      // Category filter
-      if (currentCategory === "documents") {
-        filtered = filtered.filter(
-          (item) => !isImageFile(item.mime_type, item.filename),
-        );
-      } else if (currentCategory === "images") {
-        filtered = filtered.filter((item) =>
-          isImageFile(item.mime_type, item.filename),
-        );
-      }
-
-      // Search filter
+      // Search filter -> filename contains
       const search = document
         .getElementById("searchInput")
         .value.toLowerCase()
         .trim();
       if (search) {
-        filtered = filtered.filter((item) => {
-          const filename = (item.filename || "").toLowerCase();
-          const title = (item.title || "").toLowerCase();
-          const subject = (item.source_email_subject || "").toLowerCase();
-          const from = (item.source_email_from || "").toLowerCase();
-          return (
-            filename.includes(search) ||
-            title.includes(search) ||
-            subject.includes(search) ||
-            from.includes(search)
-          );
-        });
+        filterModel["filename"] = {
+          filterType: "text",
+          type: "contains",
+          filter: search,
+        };
       }
 
       // File type filter
       const fileType = document.getElementById("fileTypeFilter").value;
       if (fileType) {
-        filtered = filtered.filter((item) => {
-          const typeInfo = getFileTypeInfo(item.mime_type, item.filename);
-          const label = typeInfo.label.toLowerCase();
-          switch (fileType) {
-            case "pdf":
-              return label === "pdf";
-            case "word":
-              return label === "word";
-            case "excel":
-              return (
-                label === "excel" || item.mime_type?.includes("spreadsheet")
-              );
-            case "powerpoint":
-              return label === "ppt";
-            case "text":
-              return label === "text" || item.mime_type?.startsWith("text/");
-            case "image":
-              return isImageFile(item.mime_type, item.filename);
-            case "other":
-              return ![
-                "pdf",
-                "word",
-                "excel",
-                "ppt",
-                "text",
-                "image",
-              ].includes(label.toLowerCase());
-            default:
-              return true;
-          }
-        });
+        const setValues = [];
+        switch (fileType) {
+          case "pdf":
+            setValues.push("pdf");
+            break;
+          case "word":
+            setValues.push("doc", "docx", "word");
+            break;
+          case "excel":
+            setValues.push("xls", "xlsx", "csv", "spreadsheet");
+            break;
+          case "powerpoint":
+            setValues.push("ppt", "pptx", "presentation");
+            break;
+          case "text":
+            setValues.push("txt", "log", "md", "text");
+            break;
+          case "image":
+            filterModel["is_image"] = true;
+            break;
+          case "other":
+            // handled by server as no-op; rely on backend defaults
+            break;
+        }
+        if (setValues.length > 0) {
+          filterModel["file_type"] = {
+            filterType: "set",
+            values: setValues,
+          };
+        }
       }
 
       // Status filter
       const status = document.getElementById("statusFilter").value;
       if (status) {
-        filtered = filtered.filter(
-          (item) => item.processing_status === status,
-        );
+        filterModel["processing_status"] = {
+          filterType: "set",
+          values: [status],
+        };
       }
 
       // Unassigned filter
       if (document.getElementById("unassignedFilter").checked) {
-        filtered = filtered.filter(
-          (item) => !item.case_id && !item.project_id,
-        );
+        filterModel["unassigned"] = true;
       }
 
       // Starred filter
       if (document.getElementById("starredFilter").checked) {
-        filtered = filtered.filter((item) => item.is_starred);
+        filterModel["is_starred"] = true;
       }
 
-      gridApi.setGridOption("rowData", filtered);
+      serverSideFilterModel = filterModel;
+      refreshGridData();
+    }
+
+    function createServerSideDatasource() {
+      return {
+        getRows: async (params) => {
+          try {
+            const activeCollection = document.querySelector(".collection-item.active");
+            const collectionId = activeCollection?.dataset.id;
+
+            const query = new URLSearchParams();
+            if (projectId) query.append("project_id", projectId);
+            if (caseId) query.append("case_id", caseId);
+            if (collectionId) query.append("collection_id", collectionId);
+            query.append("include_email_info", "false");
+
+            const body = {
+              startRow: params.request.startRow ?? 0,
+              endRow:
+                params.request.endRow ??
+                (params.request.startRow ?? 0) + (adminGridConfig.cacheBlockSize || 100),
+              sortModel: params.request.sortModel || [],
+              filterModel: {
+                ...serverSideFilterModel,
+                ...(params.request.filterModel || {}),
+              },
+            };
+
+            const response = await fetch(
+              `${apiUrl}/api/evidence/items/server-side?${query.toString()}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+              },
+            );
+
+            if (response.ok) {
+              const data = await response.json();
+              params.success({
+                rowData: data.rows || [],
+                rowCount: data.lastRow ?? (data.rows ? data.rows.length : 0),
+              });
+              if (data.stats) {
+                renderStats(data.stats);
+                if (data.stats.total !== undefined) {
+                  document.getElementById("docCount").textContent =
+                    data.stats.total.toLocaleString();
+                  document.getElementById("allCount").textContent =
+                    data.stats.total.toLocaleString();
+                  document.getElementById("imgCount").textContent =
+                    (data.stats.by_type?.image || 0).toLocaleString?.() ||
+                    (data.stats.by_type?.image || 0);
+                }
+              }
+              if (gridApi) gridApi.hideOverlay();
+            } else {
+              const text = await response.text();
+              console.error("[Evidence] Server-side load failed:", text);
+              params.fail();
+              VericaseUI.Toast.error("Failed to load evidence");
+              if (gridApi) gridApi.showNoRowsOverlay();
+            }
+          } catch (error) {
+            console.error("[Evidence] Server-side load error:", error);
+            params.fail();
+            VericaseUI.Toast.error("Failed to load evidence");
+          }
+        },
+      };
     }
 
     // Render collections data (can be called with fetched or prefetched data)
@@ -1843,6 +1803,13 @@
       document.getElementById("recentCount").textContent = (
         stats.recent_uploads || 0
       ).toLocaleString();
+      // Update category counters using stats if available
+      const totalVal = stats.total || 0;
+      document.getElementById("docCount").textContent = totalVal.toLocaleString();
+      document.getElementById("allCount").textContent = totalVal.toLocaleString();
+      const imgVal =
+        (stats.by_type && (stats.by_type.image || stats.by_type.photo || 0)) || 0;
+      document.getElementById("imgCount").textContent = imgVal.toLocaleString();
     }
 
     async function loadStats() {
@@ -1876,23 +1843,20 @@
             `;
 
       try {
-        const [detailRes, previewRes, metadataRes] = await Promise.all([
-          fetch(`${apiUrl}/api/evidence/items/${evidence.id}`),
-          fetch(`${apiUrl}/api/evidence/items/${evidence.id}/preview`),
-          fetch(`${apiUrl}/api/evidence/items/${evidence.id}/metadata`),
-        ]);
-
-        if (detailRes.ok) {
-          const detail = await detailRes.json();
-          const preview = previewRes.ok ? await previewRes.json() : null;
-          const metadata = metadataRes.ok ? await metadataRes.json() : null;
-
-          selectedEvidence = detail;
-          currentPreviewData = preview;
-
-          renderPreview(preview, detail);
-          renderMetadata(detail, metadata?.metadata);
+        const fullRes = await fetch(`${apiUrl}/api/evidence/items/${evidence.id}/full`);
+        if (!fullRes.ok) {
+          throw new Error(`Failed to load evidence full detail: ${fullRes.status}`);
         }
+        const full = await fullRes.json();
+        const detail = full.detail || {};
+        const preview = full.preview || null;
+        const metadata = full.metadata || null;
+
+        selectedEvidence = detail;
+        currentPreviewData = preview;
+
+        renderPreview(preview, detail);
+        renderMetadata(detail, metadata);
       } catch (error) {
         console.error("Error loading detail:", error);
         VericaseUI.Toast.error("Failed to load evidence details");
@@ -2210,12 +2174,7 @@
 
         if (response.ok) {
           const result = await response.json();
-          // Update local data
-          const item = allEvidenceItems.find((i) => i.id === evidenceId);
-          if (item) {
-            item.is_starred = result.is_starred;
-            applyFilters();
-          }
+          refreshGridData();
           VericaseUI.Toast.success(
             result.is_starred ? "Added to starred" : "Removed from starred",
           );
@@ -2359,7 +2318,7 @@
           `Successfully uploaded ${successCount} file(s)`,
         );
 
-        loadEvidence();
+        refreshGridData();
         loadStats();
       } catch (error) {
         console.error("Upload error:", error);
@@ -2412,7 +2371,7 @@
           list.querySelectorAll(".collection-item")
             .forEach((i) => i.classList.remove("active"));
           item.classList.add("active");
-          loadEvidence();
+          refreshGridData();
         }
       });
 

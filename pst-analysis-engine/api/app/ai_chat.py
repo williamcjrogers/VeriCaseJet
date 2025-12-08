@@ -417,7 +417,25 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
             return "No evidence available."
 
         context_parts = []
-        for i, email in enumerate(emails[:100], 1):  # Limit to 100 emails
+        total = len(emails)
+
+        # For very large projects, build a condensed sample but tell the model
+        # about the full corpus size so it can reason about representativeness.
+        if total > 500:
+            context_parts.append(
+                "Total emails in scope: "
+                f"{total}. The following is a condensed chronological sample of "
+                "the correspondence. Assume that similar patterns may exist in "
+                "the rest of the emails not shown explicitly."
+            )
+            # Evenly sample up to ~200 emails across the full timeline
+            step = max(1, total // 200)
+            sampled_emails = emails[::step]
+        else:
+            context_parts.append(f"Total emails in scope: {total}.")
+            sampled_emails = emails
+
+        for i, email in enumerate(sampled_emails, 1):
             if detailed:
                 context_parts.append(
                     f"[Email {i}]\n"
@@ -972,8 +990,11 @@ async def _get_relevant_emails(
                     filters.append(EmailMessage.case_id.in_(case_ids))
                 query = query.filter(or_(*filters))
 
-        # Get emails ordered by date
-        emails = query.order_by(EmailMessage.date_sent.asc()).limit(200).all()
+        # Get all matching emails ordered by date so analysis can consider the
+        # full correspondence history. Downstream context building will handle
+        # smart condensation for very large datasets.
+        emails = query.order_by(EmailMessage.date_sent.asc()).all()
+        logger.info("Loaded %s emails for AI evidence analysis", len(emails))
         return emails
 
     except Exception as e:
