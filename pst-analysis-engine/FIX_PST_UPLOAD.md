@@ -18,7 +18,7 @@ The `Bobby.Kher@UnitedLiving.co.uk.001.pst` file failed because:
 
 ```bash
 # Connect to EC2
-ssh -i ~/.ssh/vericase-key.pem ec2-user@18.130.216.34
+ssh -i ~/.ssh/vericase-key.pem ec2-user@18.175.232.87
 
 # Run the migration
 docker exec -i $(docker ps -qf "name=db") psql -U vericase -d vericase << 'EOF'
@@ -57,7 +57,7 @@ docker-compose -f docker-compose-s3.yml up -d --force-recreate api worker
 After the migration and redeploy, reprocess the failed PST:
 
 ```bash
-curl -X POST "http://18.130.216.34:8010/api/correspondence/pst/PST_FILE_ID/process"
+curl -X POST "http://18.175.232.87:8010/api/correspondence/pst/PST_FILE_ID/process"
 ```
 
 Or simply re-upload the file through the UI.
@@ -66,6 +66,6 @@ Or simply re-upload the file through the UI.
 
 ```bash
 # Check PST status
-curl -s "http://18.130.216.34:8010/api/correspondence/pst/files" | jq '.items[0]'
+curl -s "http://18.175.232.87:8010/api/correspondence/pst/files" | jq '.items[0]'
 ```
 

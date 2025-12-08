@@ -9,7 +9,7 @@
 
 ### EC2 Instance
 - **Instance ID:** i-0ade6dff1811bdbcb
-- **Public IP:** 18.130.216.34
+- **Public IP:** 18.175.232.87
 - **Security Group:** sg-07499f7ed552da94d (launch-wizard-1)
 - **State:** Running
 
@@ -33,9 +33,9 @@ vericase-db-1     Up    5432/tcp
 
 ## 🌐 Access URLs
 
-- **API Endpoint:** http://18.130.216.34:8010
-- **Login Page:** http://18.130.216.34:8010/login.html
-- **Health Check:** http://18.130.216.34:8010/health
+- **API Endpoint:** http://18.175.232.87:8010
+- **Login Page:** http://18.175.232.87:8010/login.html
+- **Health Check:** http://18.175.232.87:8010/health
 
 ---
 
@@ -43,22 +43,22 @@ vericase-db-1     Up    5432/tcp
 
 ### SSH Access
 ```bash
-ssh -i "VeriCase-Safe.pem" ec2-user@18.130.216.34
+ssh -i "VeriCase-Safe.pem" ec2-user@18.175.232.87
 ```
 
 ### Check Docker Status
 ```bash
-ssh -i "VeriCase-Safe.pem" ec2-user@18.130.216.34 "sudo docker ps"
+ssh -i "VeriCase-Safe.pem" ec2-user@18.175.232.87 "sudo docker ps"
 ```
 
 ### View API Logs
 ```bash
-ssh -i "VeriCase-Safe.pem" ec2-user@18.130.216.34 "sudo docker logs vericase-api-1 --tail 50"
+ssh -i "VeriCase-Safe.pem" ec2-user@18.175.232.87 "sudo docker logs vericase-api-1 --tail 50"
 ```
 
 ### Restart Services
 ```bash
-ssh -i "VeriCase-Safe.pem" ec2-user@18.130.216.34 "cd ~/vericase && sudo docker-compose restart"
+ssh -i "VeriCase-Safe.pem" ec2-user@18.175.232.87 "cd ~/vericase && sudo docker-compose restart"
 ```
 
 ---
@@ -85,7 +85,7 @@ ssh -i "VeriCase-Safe.pem" ec2-user@18.130.216.34 "cd ~/vericase && sudo docker-
 You have **TWO** deployment options:
 
 ### 1. EC2 Direct (Current)
-- **URL:** http://18.130.216.34:8010
+- **URL:** http://18.175.232.87:8010
 - **Method:** Docker Compose on EC2
 - **Status:** ✅ Working
 
@@ -107,7 +107,7 @@ Run this to verify EC2 status:
 
 Expected output:
 ```
-✓ API is live at: http://18.130.216.34:8010
+✓ API is live at: http://18.175.232.87:8010
 ✓ Security group configured correctly
 ```
 

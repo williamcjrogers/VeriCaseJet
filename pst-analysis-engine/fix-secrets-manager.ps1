@@ -1,5 +1,5 @@
 # Fix EC2 to use Secrets Manager for AI keys
-$EC2_IP = "18.130.216.34"
+$EC2_IP = "18.175.232.87"
 $KEY_PATH = "VeriCase-Safe.pem"
 
 Write-Host "Configuring EC2 to use Secrets Manager..." -ForegroundColor Green

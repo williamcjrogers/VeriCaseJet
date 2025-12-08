@@ -4,7 +4,7 @@
 
 ```bash
 # SSH into EC2
-ssh -i ~/.ssh/vericase.pem ec2-user@18.130.216.34
+ssh -i ~/.ssh/vericase.pem ec2-user@18.175.232.87
 
 # Navigate to project
 cd ~/vericase
@@ -26,7 +26,7 @@ docker-compose logs -f api
 ## One-Line Deploy
 
 ```bash
-ssh -i ~/.ssh/vericase.pem ec2-user@18.130.216.34 "cd ~/vericase && git pull && docker-compose pull && docker-compose down && docker-compose up -d && docker-compose ps"
+ssh -i ~/.ssh/vericase.pem ec2-user@18.175.232.87 "cd ~/vericase && git pull && docker-compose pull && docker-compose down && docker-compose up -d && docker-compose ps"
 ```
 
 ## Automated Deploy Script
@@ -35,7 +35,7 @@ Save as `deploy.sh`:
 
 ```bash
 #!/bin/bash
-ssh -i ~/.ssh/vericase.pem ec2-user@18.130.216.34 << 'ENDSSH'
+ssh -i ~/.ssh/vericase.pem ec2-user@18.175.232.87 << 'ENDSSH'
 cd ~/vericase
 echo "📥 Pulling latest code..."
 git pull origin main
@@ -63,7 +63,7 @@ After running `deploy-aws-ai-services.ps1`, you have:
 
 ```bash
 # SSH into EC2
-ssh -i ~/.ssh/vericase.pem ec2-user@18.130.216.34
+ssh -i ~/.ssh/vericase.pem ec2-user@18.175.232.87
 
 # Update .env with AWS config
 cd ~/vericase
@@ -89,7 +89,7 @@ docker-compose restart
 
 ```bash
 # API health
-curl http://18.130.216.34:8010/health
+curl http://18.175.232.87:8010/health
 
 # Check logs
 docker-compose logs -f api

@@ -1,5 +1,5 @@
 # Setup automatic deployment from GitHub
-$EC2_IP = "18.130.216.34"
+$EC2_IP = "18.175.232.87"
 $KEY_PATH = "C:\Users\William\Documents\Projects\VeriCase Analysis\VeriCase-Safe.pem"
 
 Write-Host "Setting up auto-deploy webhook on EC2..." -ForegroundColor Yellow
@@ -83,15 +83,15 @@ sudo firewall-cmd --permanent --add-port=9000/tcp 2>/dev/null || true
 sudo firewall-cmd --reload 2>/dev/null || true
 
 echo "Webhook listener installed and running on port 9000"
-echo "Configure Docker Hub webhook: http://18.130.216.34:9000/deploy"
+echo "Configure Docker Hub webhook: http://18.175.232.87:9000/deploy"
 '@
 
 ssh -i $KEY_PATH ec2-user@$EC2_IP $setupScript
 
 Write-Host "`nAuto-deploy setup complete!" -ForegroundColor Green
 Write-Host "Add this webhook URL to Docker Hub:" -ForegroundColor Cyan
-Write-Host "http://18.130.216.34:9000/deploy" -ForegroundColor Yellow
+Write-Host "http://18.175.232.87:9000/deploy" -ForegroundColor Yellow
 Write-Host "`nSteps to configure Docker Hub webhook:" -ForegroundColor Cyan
 Write-Host "1. Go to https://hub.docker.com/repository/docker/wcjrogers/vericase-api/webhooks"
-Write-Host "2. Add webhook URL: http://18.130.216.34:9000/deploy"
+Write-Host "2. Add webhook URL: http://18.175.232.87:9000/deploy"
 Write-Host "3. Every push will auto-deploy to EC2"

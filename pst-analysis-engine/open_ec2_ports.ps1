@@ -17,7 +17,7 @@ if ($sgId) {
     
     Write-Host "`nPorts opened! Testing connection..." -ForegroundColor Green
     Start-Sleep -Seconds 2
-    curl http://18.130.216.34:8010/health
+    curl http://18.175.232.87:8010/health
 } else {
     Write-Host "ERROR: Could not find security group. Please open ports manually in AWS Console." -ForegroundColor Red
 }
