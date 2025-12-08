@@ -541,7 +541,7 @@ def _populate_ai_settings_from_env(force_update: bool = False):
                 "description": "Default OpenAI model",
             },
             "anthropic_model": {
-                "default": "claude-4.5-sonnet",
+                "default": "claude-sonnet-4-20250514",
                 "description": "Default Anthropic model",
             },
             "gemini_model": {
@@ -549,7 +549,7 @@ def _populate_ai_settings_from_env(force_update: bool = False):
                 "description": "Default Gemini model",
             },
             "bedrock_model": {
-                "default": "anthropic.claude-4.5-sonnet-v1:0",
+                "default": "amazon.nova-pro-v1:0",
                 "description": "Default Bedrock model",
             },
             # Default provider
