@@ -1,5 +1,13 @@
 # VeriCase .gitignore
 
+# Node modules (never commit these)
+node_modules/
+**/node_modules/
+
+# Vite cache
+.vite/
+**/.vite/
+
 # Environment files with secrets
 # apprunner.yaml  # Commented out - needed for App Runner
 apprunner.local.yaml
