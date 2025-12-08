@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VeriCase - Project Wizard</title>
+    <link
+      rel="stylesheet"
+      href="./assets/fontawesome/css/all.min.css"
+    />
+    <link rel="stylesheet" href="assets/global.css" />
+    <link rel="stylesheet" href="brand-styles.css" />
+    <link rel="stylesheet" href="design-system.css" />
+    <script src="vericase-ui.js"></script>
+    <script src="nav-shell.js"></script>
+    <script src="wizard-logic.js"></script>
+
+    <style>
+      body {
+        background: var(--bg-primary);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+      }
+
+      .wizard-card {
+        background: white;
+        width: 100%;
+        max-width: 900px;
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-2xl);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        min-height: 600px;
+      }
+
+      .wizard-header {
+        background: var(--vericase-navy);
+        padding: 32px;
+        color: white;
+        text-align: center;
+        position: relative;
+      }
+
+      .wizard-title {
+        font-family: var(--font-serif);
+        font-size: 2rem;
+        margin-bottom: 8px;
+      }
+
+      .wizard-subtitle {
+        opacity: 0.8;
+        font-size: 1rem;
+      }
+
+      .close-btn {
+        position: absolute;
+        top: 24px;
+        right: 24px;
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        color: white;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+      }
+
+      .close-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      /* Progress Steps */
+      .steps-container {
+        background: var(--bg-secondary);
+        padding: 16px 32px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: center;
+        gap: 40px;
+      }
+
+      .step-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        opacity: 0.5;
+        transition: all 0.3s;
+      }
+
+      .step-item.active {
+        opacity: 1;
+        color: var(--vericase-teal-dark);
+        font-weight: 600;
+      }
+
+      .step-item.completed {
+        opacity: 1;
+        color: var(--success);
+      }
+
+      .step-circle {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--gray-300);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.875rem;
+        font-weight: 600;
+      }
+
+      .step-item.active .step-circle {
+        background: var(--vericase-teal);
+        box-shadow: 0 0 0 4px rgba(15, 157, 154, 0.1);
+      }
+
+      .step-item.completed .step-circle {
+        background: var(--success);
+      }
+
+      /* Main Content */
+      .wizard-body {
+        padding: 40px;
+        flex: 1;
+        overflow-y: auto;
+      }
+
+      .wizard-step {
+        display: none;
+        animation: fadeIn 0.4s ease-out;
+      }
+
+      .wizard-step.active {
+        display: block;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Form Styling */
+      .input-group {
+        margin-bottom: 24px;
+      }
+
+      .input-label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: var(--vericase-navy);
+        font-size: 0.9375rem;
+      }
+
+      .helper-text {
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+        margin-top: 6px;
+      }
+
+      /* AI Paste Area */
+      .ai-paste-area {
+        background: linear-gradient(
+          180deg,
+          rgba(250, 249, 246, 1) 0%,
+          rgba(255, 255, 255, 1) 100%
+        );
+        border: 1px dashed var(--vericase-gold);
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 32px;
+        text-align: center;
+        transition: all 0.2s;
+      }
+
+      .ai-paste-area:focus-within {
+        border-color: var(--vericase-teal);
+        border-style: solid;
+        box-shadow: 0 0 0 4px rgba(15, 157, 154, 0.1);
+      }
+
+      .ai-textarea {
+        width: 100%;
+        border: none;
+        background: transparent;
+        resize: none;
+        font-family: var(--font-sans);
+        font-size: 1rem;
+        min-height: 120px;
+        outline: none;
+      }
+
+      .ai-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(139, 115, 85, 0.1);
+        color: var(--vericase-gold);
+        padding: 4px 12px;
+        border-radius: 100px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        margin-bottom: 16px;
+      }
+
+      /* Footer */
+      .wizard-footer {
+        padding: 24px 40px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        background: var(--bg-primary);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wizard-card">
+      <div class="wizard-header">
+        <button
+          class="close-btn"
+          onclick="window.location.href = 'master-dashboard.html'"
+        >
+          <i class="fas fa-times"></i>
+        </button>
+        <h1 class="wizard-title">Configure Workspace</h1>
+        <div class="wizard-subtitle">
+          Set up your project with intelligent defaults
+        </div>
+      </div>
+
+      <div class="steps-container">
+        <div class="step-item active" id="indicator-1">
+          <div class="step-circle">1</div>
+          <span>Identify</span>
+        </div>
+        <div class="step-item" id="indicator-2">
+          <div class="step-circle">2</div>
+          <span>Details</span>
+        </div>
+        <div class="step-item" id="indicator-3">
+          <div class="step-circle">3</div>
+          <span>Stakeholders</span>
+        </div>
+        <div class="step-item" id="indicator-4">
+          <div class="step-circle">4</div>
+          <span>Review</span>
+        </div>
+      </div>
+
+      <div class="wizard-body">
+        <!-- STEP 1: AI Entry -->
+        <div id="step-1" class="wizard-step active">
+          <div class="text-center" style="margin-bottom: 32px">
+            <h2
+              style="
+                font-size: 1.5rem;
+                color: var(--vericase-navy);
+                margin-bottom: 12px;
+              "
+            >
+              Let's get started
+            </h2>
+            <p style="color: var(--text-secondary)">
+              You can manually enter details or paste a contract header to
+              auto-fill.
+            </p>
+          </div>
+
+          <div class="ai-paste-area">
+            <div class="ai-badge"><i class="fas fa-magic"></i> AI Assist</div>
+            <textarea
+              id="aiPasteInput"
+              class="ai-textarea"
+              placeholder="Paste text here to auto-configure...
+e.g. 
+'Project: Northern Line Extension
+Contract: NEC4 Option A
+Client: Transport for London
+Contractor: Ferrovial Laing O'Rourke'"
+            ></textarea>
+          </div>
+
+          <div style="text-align: center">
+            <button
+              class="btn btn-vericase"
+              id="btnAutoFill"
+              onclick="runAutoFill()"
+            >
+              <i class="fas fa-bolt"></i> Auto-Extract Details
+            </button>
+            <div style="margin-top: 16px">
+              <button class="btn btn-ghost" onclick="nextStep()">
+                Skip to Manual Entry
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 2: Project Details -->
+        <div id="step-2" class="wizard-step">
+          <h2 style="margin-bottom: 24px">Project Details</h2>
+          <div class="input-group">
+            <label class="input-label">Project Name</label>
+            <input
+              type="text"
+              id="inputProjectName"
+              class="input"
+              placeholder="e.g. Riverside Development"
+            />
+          </div>
+          <div class="input-group">
+            <label class="input-label">Project Code</label>
+            <input
+              type="text"
+              id="inputProjectCode"
+              class="input"
+              placeholder="e.g. PROJ-001"
+            />
+          </div>
+          <div class="input-group">
+            <label class="input-label">Contract Type</label>
+            <select id="inputContract" class="input">
+              <option value="">Select...</option>
+              <option value="NEC4">NEC4</option>
+              <option value="JCT">JCT Design & Build</option>
+              <option value="FIDIC">FIDIC Yellow Book</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- STEP 3: Stakeholders -->
+        <div id="step-3" class="wizard-step">
+          <h2 style="margin-bottom: 24px">Key Stakeholders</h2>
+          <p class="helper-text" style="margin-bottom: 24px">
+            We identified these parties. Confirm or edit them.
+          </p>
+
+          <div id="stakeholderList">
+            <!-- Dynamic content -->
+            <div class="input-group">
+              <label class="input-label">Employer / Client</label>
+              <input type="text" id="inputClient" class="input" />
+            </div>
+            <div class="input-group">
+              <label class="input-label">Main Contractor</label>
+              <input type="text" id="inputContractor" class="input" />
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 4: Review -->
+        <div id="step-4" class="wizard-step">
+          <div class="text-center" style="padding: 40px 0">
+            <div
+              style="
+                width: 80px;
+                height: 80px;
+                background: rgba(5, 150, 105, 0.1);
+                color: var(--success);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 2rem;
+                margin: 0 auto 24px;
+              "
+            >
+              <i class="fas fa-check"></i>
+            </div>
+            <h2>Ready to Create</h2>
+            <p
+              style="
+                color: var(--text-secondary);
+                max-width: 400px;
+                margin: 0 auto;
+              "
+            >
+              We have configured the project workspace. You can now upload
+              evidence and start analysis.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="wizard-footer">
+        <button
+          class="btn btn-outline"
+          id="btnBack"
+          onclick="prevStep()"
+          style="display: none"
+        >
+          Back
+        </button>
+        <div style="flex: 1"></div>
+        <button
+          class="btn btn-vericase"
+          id="btnNext"
+          onclick="nextStep()"
+          style="display: none"
+        >
+          Next Step
+        </button>
+        <button
+          class="btn btn-primary"
+          id="btnFinish"
+          onclick="finishWizard()"
+          style="display: none"
+        >
+          Create Project
+        </button>
+      </div>
+    </div>
+
+    <script>
+      let currentStep = 1;
+      const totalSteps = 4;
+
+      function updateUI() {
+        // Steps visibility
+        document
+          .querySelectorAll(".wizard-step")
+          .forEach((el) => el.classList.remove("active"));
+        document.getElementById(`step-${currentStep}`).classList.add("active");
+
+        // Indicators
+        for (let i = 1; i <= totalSteps; i++) {
+          const el = document.getElementById(`indicator-${i}`);
+          if (i < currentStep) el.className = "step-item completed";
+          else if (i === currentStep) el.className = "step-item active";
+          else el.className = "step-item";
+        }
+
+        // Buttons
+        const btnBack = document.getElementById("btnBack");
+        const btnNext = document.getElementById("btnNext");
+        const btnFinish = document.getElementById("btnFinish");
+
+        btnBack.style.display = currentStep > 1 ? "block" : "none";
+
+        if (currentStep === 1) {
+          btnNext.style.display = "none"; // Handle via custom buttons in step 1
+          btnFinish.style.display = "none";
+        } else if (currentStep === totalSteps) {
+          btnNext.style.display = "none";
+          btnFinish.style.display = "block";
+        } else {
+          btnNext.style.display = "block";
+          btnFinish.style.display = "none";
+        }
+      }
+
+      function nextStep() {
+        if (currentStep < totalSteps) {
+          currentStep++;
+          updateUI();
+        }
+      }
+
+      function prevStep() {
+        if (currentStep > 1) {
+          currentStep--;
+          updateUI();
+        }
+      }
+
+      async function runAutoFill() {
+        const text = document.getElementById("aiPasteInput").value;
+        if (!text.trim()) {
+          VericaseUI.Toast.error("Please paste some text first.");
+          return;
+        }
+
+        const btn = document.getElementById("btnAutoFill");
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
+
+        // Simulate AI Processing
+        await new Promise((r) => setTimeout(r, 1500));
+
+        // Mock Extraction Logic
+        document.getElementById("inputProjectName").value =
+          "Northern Line Extension";
+        document.getElementById("inputProjectCode").value = "NLE-2024-Q3";
+        document.getElementById("inputContract").value = "NEC4";
+        document.getElementById("inputClient").value = "Transport for London";
+        document.getElementById("inputContractor").value =
+          "Ferrovial Laing O'Rourke";
+
+        VericaseUI.Toast.success("Details extracted!");
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-bolt"></i> Auto-Extract Details';
+
+        nextStep(); // Move to review
+      }
+
+      function finishWizard() {
+        VericaseUI.Toast.success("Project created successfully!");
+        setTimeout(() => {
+          window.location.href = "master-dashboard.html";
+        }, 1000);
+      }
+
+      // Init
+      updateUI();
+    </script>
+  </body>
+</html>

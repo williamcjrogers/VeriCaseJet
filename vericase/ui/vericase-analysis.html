@@ -1,0 +1,1886 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VeriCase Analysis | VeriCase</title>
+    <link
+      rel="stylesheet"
+      href="./assets/fontawesome/css/all.min.css"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- VeriCase Design System -->
+    <link rel="stylesheet" href="brand-styles.css" />
+    <link rel="stylesheet" href="design-system.css" />
+    <script src="vericase-ui.js"></script>
+    <script src="nav-shell.js"></script>
+    <style>
+      :root {
+        /* VeriCase Brand Colors - Mapped to brand-styles.css */
+        --vc-teal: var(--vericase-teal);
+        --vc-teal-dark: var(--vericase-teal-dark);
+        --vc-teal-light: var(--vericase-teal-light);
+        --vc-navy: var(--vericase-navy);
+        --vc-navy-dark: var(--vericase-navy-light);
+        /* Using light navy as dark variant or define new if needed */
+        --vc-cream: var(--bg-primary);
+        --vc-cream-dark: var(--bg-secondary);
+        --vc-gold: #8b7355;
+        /* Keep gold as accent */
+        --vc-gold-light: #a68b5b;
+
+        /* Semantic Colors */
+        --bg-primary: var(--vc-cream);
+        --bg-secondary: #ffffff;
+        --bg-tertiary: var(--vc-cream-dark);
+        --bg-card: #ffffff;
+        --bg-header: var(--vc-navy);
+
+        --text-primary: var(--vc-navy);
+        --text-secondary: #4a5568;
+        --text-muted: #718096;
+        --text-inverse: #ffffff;
+
+        --accent-primary: var(--vc-teal);
+        --accent-secondary: var(--vc-gold);
+        --accent-success: #059669;
+        --accent-warning: #d97706;
+        --accent-danger: #dc2626;
+
+        --border-color: #e2e8f0;
+        --border-subtle: rgba(26, 43, 60, 0.08);
+
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+        --shadow-md:
+          0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+        --shadow-lg:
+          0 10px 15px -3px rgba(0, 0, 0, 0.08),
+          0 4px 6px -2px rgba(0, 0, 0, 0.04);
+        --shadow-card:
+          0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family:
+          "DM Sans",
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+
+      /* Subtle background pattern */
+      .bg-pattern {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+        background:
+          linear-gradient(135deg, rgba(15, 157, 154, 0.03) 0%, transparent 50%),
+          linear-gradient(225deg, rgba(139, 115, 85, 0.03) 0%, transparent 50%);
+        pointer-events: none;
+      }
+
+      /* Header */
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.875rem 2rem;
+        background: var(--bg-header);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-family: "DM Sans", sans-serif;
+        font-weight: 700;
+        font-size: 1.5rem;
+        text-decoration: none;
+      }
+
+      .logo img {
+        height: 36px;
+        width: auto;
+      }
+
+      .logo-veri {
+        color: var(--vc-teal-light);
+      }
+
+      .logo-case {
+        color: var(--text-inverse);
+      }
+
+      .tagline {
+        font-family: "Cormorant Garamond", Georgia, serif;
+        font-style: italic;
+        font-size: 1rem;
+        color: rgba(255, 255, 255, 0.7);
+        letter-spacing: 0.02em;
+      }
+
+      .nav-links {
+        display: flex;
+        gap: 2rem;
+        align-items: center;
+      }
+
+      .nav-link {
+        color: rgba(255, 255, 255, 0.8);
+        text-decoration: none;
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: color 0.2s;
+        letter-spacing: 0.01em;
+      }
+
+      .nav-link:hover {
+        color: var(--text-inverse);
+      }
+
+      .nav-cta {
+        padding: 0.5rem 1.25rem;
+        background: var(--vc-teal);
+        border-radius: 6px;
+        color: white;
+        font-weight: 600;
+      }
+
+      .nav-cta:hover {
+        background: var(--vc-teal-light);
+      }
+
+      /* Main container */
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2.5rem;
+      }
+
+      /* Hero section */
+      .hero {
+        text-align: center;
+        padding: 2.5rem 0 1.5rem;
+        max-width: 720px;
+      }
+
+      .hero-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: rgba(15, 157, 154, 0.08);
+        border: 1px solid rgba(15, 157, 154, 0.2);
+        border-radius: 100px;
+        font-size: 0.6875rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--vc-teal-dark);
+        margin-bottom: 1.5rem;
+      }
+
+      .hero-badge i {
+        font-size: 0.75rem;
+      }
+
+      .hero-title {
+        font-family: "DM Sans", sans-serif;
+        font-size: 2.75rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: var(--vc-navy);
+        letter-spacing: -0.02em;
+      }
+
+      .hero-title-accent {
+        font-family: "Cormorant Garamond", Georgia, serif;
+        font-style: italic;
+        font-weight: 500;
+        color: var(--vc-gold);
+      }
+
+      .hero-subtitle {
+        font-size: 1.125rem;
+        color: var(--text-secondary);
+        max-width: 680px;
+        margin: 1rem auto 0;
+        line-height: 1.7;
+      }
+
+      /* Research form */
+      .research-form {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: var(--shadow-card);
+        max-width: 720px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .form-group {
+        margin-bottom: 1.5rem;
+      }
+
+      .form-label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+      }
+
+      .form-input {
+        width: 100%;
+        padding: 0.875rem 1rem;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-family: inherit;
+        font-size: 0.9375rem;
+        transition:
+          border-color 0.2s,
+          box-shadow 0.2s;
+      }
+
+      .form-input::placeholder {
+        color: var(--text-muted);
+      }
+
+      .form-input:focus {
+        outline: none;
+        border-color: var(--accent-primary);
+        box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.12);
+      }
+
+      .form-textarea {
+        min-height: 140px;
+        resize: vertical;
+        line-height: 1.6;
+      }
+
+      .form-hint {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 0.5rem;
+      }
+
+      .focus-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+      }
+
+      .focus-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.5rem 0.875rem;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 100px;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .focus-tag:hover {
+        border-color: var(--accent-primary);
+        color: var(--accent-primary);
+        background: rgba(15, 157, 154, 0.04);
+      }
+
+      .focus-tag.active {
+        background: rgba(15, 157, 154, 0.1);
+        border-color: var(--accent-primary);
+        color: var(--accent-primary);
+      }
+
+      .focus-tag i {
+        font-size: 0.75rem;
+        opacity: 0.8;
+      }
+
+      .btn-start {
+        width: 100%;
+        padding: 1rem 2rem;
+        background: var(--vc-teal);
+        border: none;
+        border-radius: 8px;
+        color: white;
+        font-family: inherit;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        letter-spacing: 0.01em;
+      }
+
+      .btn-start:hover {
+        background: var(--vc-teal-dark);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(15, 157, 154, 0.25);
+      }
+
+      .btn-start:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      /* Research session panel */
+      .session-panel {
+        display: none;
+      }
+
+      .session-panel.active {
+        display: block;
+      }
+
+      /* Status card */
+      .status-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow-card);
+        max-width: 720px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .status-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+
+      .status-title {
+        font-size: 1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--text-primary);
+      }
+
+      .status-title i {
+        color: var(--vc-teal);
+      }
+
+      .status-badge {
+        padding: 0.25rem 0.875rem;
+        border-radius: 100px;
+        font-size: 0.6875rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .status-badge.pending {
+        background: rgba(107, 114, 128, 0.1);
+        color: var(--text-muted);
+      }
+
+      .status-badge.planning {
+        background: rgba(15, 157, 154, 0.1);
+        color: var(--vc-teal);
+      }
+
+      .status-badge.awaiting_approval {
+        background: rgba(217, 119, 6, 0.1);
+        color: var(--accent-warning);
+      }
+
+      .status-badge.researching {
+        background: rgba(139, 115, 85, 0.1);
+        color: var(--vc-gold);
+      }
+
+      .status-badge.synthesizing {
+        background: rgba(5, 150, 105, 0.1);
+        color: var(--accent-success);
+      }
+
+      .status-badge.completed {
+        background: rgba(5, 150, 105, 0.1);
+        color: var(--accent-success);
+      }
+
+      .status-badge.failed {
+        background: rgba(220, 38, 38, 0.1);
+        color: var(--accent-danger);
+      }
+
+      /* Progress bar */
+      .progress-container {
+        margin-top: 1rem;
+      }
+
+      .progress-bar {
+        height: 6px;
+        background: var(--bg-tertiary);
+        border-radius: 3px;
+        overflow: hidden;
+      }
+
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          var(--vc-teal),
+          var(--vc-teal-light)
+        );
+        border-radius: 3px;
+        transition: width 0.5s ease;
+      }
+
+      .progress-text {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      /* Plan review */
+      .plan-review {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow-card);
+        max-width: 720px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .plan-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1.5rem;
+      }
+
+      .plan-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: var(--text-primary);
+      }
+
+      .plan-problem {
+        color: var(--text-secondary);
+        font-size: 0.9375rem;
+        line-height: 1.6;
+      }
+
+      .plan-angles {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin: 1rem 0;
+      }
+
+      .angle-tag {
+        padding: 0.375rem 0.875rem;
+        background: rgba(139, 115, 85, 0.08);
+        border: 1px solid rgba(139, 115, 85, 0.2);
+        border-radius: 100px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--vc-gold);
+      }
+
+      /* Question DAG visualization */
+      .questions-dag {
+        margin-top: 1.5rem;
+      }
+
+      .dag-title {
+        font-size: 0.9375rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .dag-title i {
+        color: var(--vc-teal);
+      }
+
+      .question-node {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 1rem;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        margin-bottom: 0.75rem;
+        position: relative;
+      }
+
+      .question-node::before {
+        content: "";
+        position: absolute;
+        left: 28px;
+        top: 100%;
+        width: 2px;
+        height: 12px;
+        background: var(--border-color);
+      }
+
+      .question-node:last-child::before {
+        display: none;
+      }
+
+      .question-status {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 0.875rem;
+      }
+
+      .question-status.pending {
+        background: var(--bg-tertiary);
+        border: 2px solid var(--border-color);
+        color: var(--text-muted);
+      }
+
+      .question-status.in-progress {
+        background: rgba(15, 157, 154, 0.1);
+        border: 2px solid var(--vc-teal);
+        color: var(--vc-teal);
+        animation: pulse 2s infinite;
+      }
+
+      .question-status.completed {
+        background: rgba(5, 150, 105, 0.1);
+        border: 2px solid var(--accent-success);
+        color: var(--accent-success);
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      .question-content {
+        flex: 1;
+      }
+
+      .question-text {
+        font-size: 0.9375rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+      }
+
+      .question-rationale {
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+        line-height: 1.5;
+      }
+
+      .question-deps {
+        display: flex;
+        gap: 0.375rem;
+        margin-top: 0.5rem;
+        align-items: center;
+      }
+
+      .dep-badge {
+        padding: 0.125rem 0.5rem;
+        background: var(--bg-tertiary);
+        border-radius: 4px;
+        font-size: 0.6875rem;
+        color: var(--text-muted);
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      /* Plan actions */
+      .plan-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border-color);
+      }
+
+      .btn-approve {
+        flex: 1;
+        padding: 0.875rem 1.5rem;
+        background: var(--vc-teal);
+        border: none;
+        border-radius: 8px;
+        color: white;
+        font-family: inherit;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+      }
+
+      .btn-approve:hover {
+        background: var(--vc-teal-dark);
+        transform: translateY(-1px);
+      }
+
+      .btn-modify {
+        flex: 1;
+        padding: 0.875rem 1.5rem;
+        background: transparent;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-secondary);
+        font-family: inherit;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+      }
+
+      .btn-modify:hover {
+        border-color: var(--accent-warning);
+        color: var(--accent-warning);
+        background: rgba(217, 119, 6, 0.04);
+      }
+
+      /* Modification modal */
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(26, 43, 60, 0.6);
+        backdrop-filter: blur(4px);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal-overlay.active {
+        display: flex;
+      }
+
+      .modal {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 2rem;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: var(--shadow-lg);
+      }
+
+      .modal-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        color: var(--text-primary);
+      }
+
+      .modal-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+      }
+
+      /* Report display */
+      .report-container {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 2rem;
+        box-shadow: var(--shadow-card);
+        max-width: 720px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .report-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 2rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .report-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: var(--text-primary);
+      }
+
+      .report-meta {
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+      }
+
+      .report-actions {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .btn-icon {
+        width: 38px;
+        height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .btn-icon:hover {
+        border-color: var(--accent-primary);
+        color: var(--accent-primary);
+        background: rgba(15, 157, 154, 0.04);
+      }
+
+      .report-themes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 2rem;
+      }
+
+      .theme-tag {
+        padding: 0.375rem 0.875rem;
+        background: rgba(15, 157, 154, 0.08);
+        border: 1px solid rgba(15, 157, 154, 0.2);
+        border-radius: 100px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--vc-teal);
+      }
+
+      .report-content {
+        font-size: 0.9375rem;
+        line-height: 1.8;
+        color: var(--text-secondary);
+      }
+
+      .report-content h1 {
+        font-size: 1.5rem;
+        color: var(--text-primary);
+        margin: 2rem 0 1rem;
+        font-weight: 600;
+      }
+
+      .report-content h2 {
+        font-size: 1.25rem;
+        color: var(--text-primary);
+        margin: 1.5rem 0 0.75rem;
+        font-weight: 600;
+      }
+
+      .report-content h3 {
+        font-size: 1.0625rem;
+        color: var(--text-primary);
+        margin: 1rem 0 0.5rem;
+        font-weight: 600;
+      }
+
+      .report-content p {
+        margin-bottom: 1rem;
+      }
+
+      .report-content ul,
+      .report-content ol {
+        margin: 1rem 0;
+        padding-left: 1.5rem;
+      }
+
+      .report-content li {
+        margin-bottom: 0.5rem;
+      }
+
+      .report-content hr {
+        border: none;
+        border-top: 1px solid var(--border-color);
+        margin: 2rem 0;
+      }
+
+      /* History sidebar */
+      .history-panel {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow-card);
+      }
+
+      .history-title {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--text-primary);
+      }
+
+      .history-title i {
+        color: var(--vc-teal);
+      }
+
+      .history-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: var(--bg-primary);
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+      }
+
+      .history-item:hover {
+        background: var(--bg-tertiary);
+        border-color: var(--border-color);
+      }
+
+      .history-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(15, 157, 154, 0.08);
+        color: var(--vc-teal);
+        flex-shrink: 0;
+      }
+
+      .history-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .history-topic {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .history-date {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 0.125rem;
+      }
+
+      /* Loading spinner */
+      .spinner {
+        width: 20px;
+        height: 20px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top-color: currentColor;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Layout grid */
+      .layout-grid {
+        display: grid;
+        grid-template-columns: 1fr 280px;
+        gap: 2.5rem;
+        align-items: start;
+      }
+
+      .main-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .main-content > * {
+        width: 100%;
+      }
+
+      @media (max-width: 1024px) {
+        .layout-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* Markdown rendering */
+      .markdown-body {
+        font-size: 0.9375rem;
+        line-height: 1.8;
+      }
+
+      .markdown-body h1 {
+        font-size: 1.75rem;
+        margin: 2rem 0 1rem;
+        color: var(--text-primary);
+        font-weight: 600;
+      }
+
+      .markdown-body h2 {
+        font-size: 1.375rem;
+        margin: 1.5rem 0 0.75rem;
+        color: var(--text-primary);
+        font-weight: 600;
+      }
+
+      .markdown-body h3 {
+        font-size: 1.125rem;
+        margin: 1rem 0 0.5rem;
+        color: var(--text-primary);
+        font-weight: 600;
+      }
+
+      .markdown-body p {
+        margin-bottom: 1rem;
+      }
+
+      .markdown-body ul,
+      .markdown-body ol {
+        margin: 1rem 0;
+        padding-left: 1.5rem;
+      }
+
+      .markdown-body li {
+        margin-bottom: 0.5rem;
+      }
+
+      .markdown-body strong {
+        color: var(--text-primary);
+        font-weight: 600;
+      }
+
+      .markdown-body em {
+        font-family: "Cormorant Garamond", Georgia, serif;
+        font-style: italic;
+        color: var(--vc-gold);
+      }
+
+      .markdown-body code {
+        background: var(--bg-tertiary);
+        padding: 0.125rem 0.5rem;
+        border-radius: 4px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.8125rem;
+        color: var(--vc-teal-dark);
+      }
+
+      .markdown-body blockquote {
+        border-left: 3px solid var(--vc-teal);
+        padding-left: 1rem;
+        margin: 1rem 0;
+        color: var(--text-secondary);
+        font-style: italic;
+      }
+
+      .markdown-body hr {
+        border: none;
+        border-top: 1px solid var(--border-color);
+        margin: 2rem 0;
+      }
+
+      /* Focus tag icons adjustments */
+      .focus-tag i {
+        width: 14px;
+        text-align: center;
+      }
+
+      /* Footer */
+      .footer-tagline {
+        text-align: center;
+        padding: 2rem;
+        font-family: "Cormorant Garamond", Georgia, serif;
+        font-style: italic;
+        font-size: 1rem;
+        color: var(--text-muted);
+        border-top: 1px solid var(--border-color);
+        margin-top: 3rem;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="bg-pattern"></div>
+
+    <header class="header">
+      <div style="display: flex; align-items: center; gap: 2rem">
+        <a href="dashboard.html" class="logo">
+          <img src="/assets/Logo-Vector.png" alt="VeriCase" />
+        </a>
+        <span class="tagline">"Records, Records, VeriCase"</span>
+      </div>
+      <nav class="nav-links">
+        <a href="dashboard.html" class="nav-link">Platform</a>
+        <a href="correspondence-enterprise.html" class="nav-link"
+          >Correspondence</a
+        >
+        <a href="evidence.html" class="nav-link">Evidence</a>
+        <a href="ai-assistant.html" class="nav-link">VeriCase Assistant</a>
+        <p>Deep analysis of your evidence repository</p>
+      </nav>
+    </header>
+
+    <main class="container">
+      <div class="layout-grid">
+        <div class="main-content">
+          <section class="hero">
+            <div class="hero-badge">
+              <i class="fas fa-brain"></i>
+              The Evidence Intelligence Platform
+            </div>
+            <h1 class="hero-title">
+              VeriCase <span class="hero-title-accent">Analysis</span>
+            </h1>
+            <p class="hero-subtitle">
+              Go beyond simple Q&A. Our multi-agent system creates strategic
+              research plans, investigates in parallel, and synthesizes
+              comprehensive reports from your evidence.
+            </p>
+          </section>
+          <!-- Research Form -->
+          <section id="researchForm" class="research-form">
+            <div class="form-group">
+              <label class="form-label" for="topicInput">Research Topic</label>
+              <textarea
+                id="topicInput"
+                class="form-input form-textarea"
+                placeholder="Describe what you want to investigate. Be specific about the scope, time period, and key questions you need answered.
+
+Example: Investigate the delay claims on the Northern Rail Extension project between March 2022 and September 2023. Focus on contractor communications, variation orders, and programme impacts."
+              ></textarea>
+              <p class="form-hint">
+                The more context you provide, the better the research plan will
+                be.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Focus Areas (optional)</label>
+              <div class="focus-tags" id="focusTags">
+                <span class="focus-tag" data-focus="chronology">
+                  <i class="fas fa-clock"></i> Chronology
+                </span>
+                <span class="focus-tag" data-focus="causation">
+                  <i class="fas fa-link"></i> Causation
+                </span>
+                <span class="focus-tag" data-focus="liability">
+                  <i class="fas fa-gavel"></i> Liability
+                </span>
+                <span class="focus-tag" data-focus="quantum">
+                  <i class="fas fa-calculator"></i> Quantum
+                </span>
+                <span class="focus-tag" data-focus="communications">
+                  <i class="fas fa-envelope"></i> Communications
+                </span>
+                <span class="focus-tag" data-focus="variations">
+                  <i class="fas fa-exchange-alt"></i> Variations
+                </span>
+                <span class="focus-tag" data-focus="programme">
+                  <i class="fas fa-calendar-alt"></i> Programme
+                </span>
+                <span class="focus-tag" data-focus="witnesses">
+                  <i class="fas fa-users"></i> Key Witnesses
+                </span>
+              </div>
+            </div>
+
+            <button id="btnStartResearch" class="btn-start">
+              <i class="fas fa-rocket"></i>
+              Start Analysis
+            </button>
+          </section>
+
+          <!-- Session Panel -->
+          <section id="sessionPanel" class="session-panel">
+            <!-- Status Card -->
+            <div class="status-card">
+              <div class="status-header">
+                <span class="status-title">
+                  <i class="fas fa-flask"></i>
+                  Research Session
+                </span>
+                <span id="statusBadge" class="status-badge pending"
+                  >Pending</span
+                >
+              </div>
+              <p
+                id="statusMessage"
+                style="font-size: 0.9375rem; color: var(--text-secondary)"
+              >
+                Initializing research session...
+              </p>
+              <div class="progress-container">
+                <div class="progress-bar">
+                  <div
+                    id="progressFill"
+                    class="progress-fill"
+                    style="width: 0"
+                  ></div>
+                </div>
+                <div class="progress-text">
+                  <span id="progressText">0 / 0 questions</span>
+                  <span id="timeElapsed">0s elapsed</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Plan Review -->
+            <div id="planReview" class="plan-review" style="display: none">
+              <div class="plan-header">
+                <div>
+                  <h3 class="plan-title">Research Plan</h3>
+                  <p id="planProblem" class="plan-problem"></p>
+                </div>
+              </div>
+
+              <div id="planAngles" class="plan-angles"></div>
+
+              <div class="questions-dag">
+                <h4 class="dag-title">
+                  <i class="fas fa-project-diagram"></i>
+                  Research Questions (DAG)
+                </h4>
+                <div id="questionsContainer"></div>
+              </div>
+
+              <div class="plan-actions">
+                <button id="btnApprove" class="btn-approve">
+                  <i class="fas fa-check"></i>
+                  Approve & Start Research
+                </button>
+                <button id="btnModify" class="btn-modify">
+                  <i class="fas fa-edit"></i>
+                  Request Changes
+                </button>
+              </div>
+            </div>
+
+            <!-- Report Container -->
+            <div
+              id="reportContainer"
+              class="report-container"
+              style="display: none"
+            >
+              <div class="report-header">
+                <div>
+                  <h2 class="report-title">Research Report</h2>
+                  <p class="report-meta">
+                    <span id="reportMeta"></span>
+                  </p>
+                </div>
+                <div class="report-actions">
+                  <button
+                    class="btn-icon"
+                    onclick="copyReport()"
+                    title="Copy to clipboard"
+                  >
+                    <i class="fas fa-copy"></i>
+                  </button>
+                  <button
+                    class="btn-icon"
+                    onclick="downloadReport()"
+                    title="Download as PDF"
+                  >
+                    <i class="fas fa-download"></i>
+                  </button>
+                  <button
+                    class="btn-icon"
+                    onclick="startNewResearch()"
+                    title="New Research"
+                  >
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div id="reportThemes" class="report-themes"></div>
+
+              <div
+                id="reportContent"
+                class="report-content markdown-body"
+              ></div>
+            </div>
+          </section>
+        </div>
+
+        <!-- History Sidebar -->
+        <aside>
+          <div class="history-panel">
+            <h3 class="history-title">
+              <i class="fas fa-history"></i>
+              Recent Research
+            </h3>
+            <div id="historyList">
+              <p style="font-size: 0.875rem; color: var(--text-muted)">
+                No previous research sessions.
+              </p>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <footer class="footer-tagline">
+        "Transform Complex Evidence Into Compelling Legal Arguments"
+      </footer>
+    </main>
+
+    <!-- Modification Modal -->
+    <div id="modifyModal" class="modal-overlay">
+      <div class="modal">
+        <h3 class="modal-title">Request Plan Changes</h3>
+        <label
+          for="modifyInput"
+          style="
+            font-size: 0.9375rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            display: block;
+          "
+        >
+          Describe what changes you'd like to the research plan. The AI will
+          regenerate the plan based on your feedback.
+        </label>
+        <textarea
+          id="modifyInput"
+          class="form-input form-textarea"
+          placeholder="E.g., Focus more on the contractual obligations. Include more questions about the delay notification process."
+        ></textarea>
+        <div class="modal-actions">
+          <button class="btn-modify" onclick="closeModifyModal()">
+            Cancel
+          </button>
+          <button class="btn-approve" onclick="submitModification()">
+            <i class="fas fa-sync"></i>
+            Regenerate Plan
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="security.js"></script>
+    <script>
+      // State
+      let currentSessionId = null;
+      let selectedFocusAreas = [];
+      let pollInterval = null;
+      let startTime = null;
+      let currentProjectId = null;
+
+      // Get project ID from URL params
+      const urlParams = new URLSearchParams(window.location.search);
+      currentProjectId =
+        urlParams.get("projectId") || urlParams.get("project_id");
+
+      // DOM Elements
+      const topicInput = document.getElementById("topicInput");
+      const btnStartResearch = document.getElementById("btnStartResearch");
+      const researchForm = document.getElementById("researchForm");
+      const sessionPanel = document.getElementById("sessionPanel");
+      const statusBadge = document.getElementById("statusBadge");
+      const statusMessage = document.getElementById("statusMessage");
+      const progressFill = document.getElementById("progressFill");
+      const progressText = document.getElementById("progressText");
+      const timeElapsed = document.getElementById("timeElapsed");
+      const planReview = document.getElementById("planReview");
+      const reportContainer = document.getElementById("reportContainer");
+
+      // Initialize
+      document.addEventListener("DOMContentLoaded", async () => {
+        loadHistory();
+        setupFocusTags();
+        await loadProjectSelector();
+
+        // If project ID in URL, pre-select it
+        if (currentProjectId) {
+          const projectSelect = document.getElementById("projectSelect");
+          if (projectSelect) {
+            projectSelect.value = currentProjectId;
+          }
+        }
+      });
+
+      // Load projects for selector
+      async function loadProjectSelector() {
+        try {
+          const response = await secureApiFetch("/api/projects");
+          if (!response.ok) return;
+
+          const data = await response.json();
+          const projects = data.projects || data || [];
+
+          // Create project selector if it doesn't exist
+          let projectSelect = document.getElementById("projectSelect");
+          if (!projectSelect) {
+            // Insert project selector before the topic input
+            const formGroup = document.createElement("div");
+            formGroup.className = "form-group";
+            formGroup.style.marginBottom = "1.5rem";
+            formGroup.innerHTML = `
+                        <label class="form-label">Select Project</label>
+                        <select id="projectSelect" class="form-input" style="cursor: pointer;">
+                            <option value="">-- Select a project --</option>
+                            ${projects.map((p) => `<option value="${p.id}">${p.project_name || p.name || "Unnamed Project"}</option>`).join("")}
+                        </select>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">
+                            Deep research will analyze emails and documents from this project.
+                        </p>
+                    `;
+
+            const topicGroup = topicInput.closest(".form-group");
+            if (topicGroup) {
+              topicGroup.parentNode.insertBefore(formGroup, topicGroup);
+            }
+
+            projectSelect = document.getElementById("projectSelect");
+          }
+
+          // Update on change
+          projectSelect.addEventListener("change", (e) => {
+            currentProjectId = e.target.value || null;
+          });
+        } catch (error) {
+          console.error("Error loading projects:", error);
+        }
+      }
+
+      // Focus tag selection
+      function setupFocusTags() {
+        document.querySelectorAll(".focus-tag").forEach((tag) => {
+          tag.addEventListener("click", () => {
+            tag.classList.toggle("active");
+            const focus = tag.dataset.focus;
+            if (tag.classList.contains("active")) {
+              selectedFocusAreas.push(focus);
+            } else {
+              selectedFocusAreas = selectedFocusAreas.filter(
+                (f) => f !== focus,
+              );
+            }
+          });
+        });
+      }
+
+      // Start research
+      btnStartResearch.addEventListener("click", async () => {
+        const topic = topicInput.value.trim();
+        if (!topic) {
+          alert("Please enter a research topic");
+          return;
+        }
+
+        btnStartResearch.disabled = true;
+        btnStartResearch.innerHTML =
+          '<span class="spinner"></span> Starting...';
+
+        // Validate project selection
+        if (!currentProjectId) {
+          alert("Please select a project first");
+          btnStartResearch.disabled = false;
+          btnStartResearch.innerHTML =
+            '<i class="fas fa-rocket"></i> Start Analysis';
+          return;
+        }
+
+        try {
+          const response = await secureApiFetch(`/api/deep-research/start`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              topic: topic,
+              project_id: currentProjectId,
+              focus_areas: selectedFocusAreas,
+            }),
+          });
+
+          if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || "Failed to start research");
+          }
+
+          const data = await response.json();
+          currentSessionId = data.session_id;
+          startTime = Date.now();
+
+          // Switch to session view
+          researchForm.style.display = "none";
+          sessionPanel.classList.add("active");
+
+          // Start polling
+          startPolling();
+        } catch (error) {
+          console.error("Error starting research:", error);
+          alert("Failed to start research: " + error.message);
+        } finally {
+          btnStartResearch.disabled = false;
+          btnStartResearch.innerHTML =
+            '<i class="fas fa-rocket"></i> Start Analysis';
+        }
+      });
+
+      // Poll for status with exponential backoff
+      let pollDelay = 2000; // Start at 2 seconds
+      const MAX_POLL_DELAY = 10000; // Max 10 seconds between polls
+
+      function startPolling() {
+        pollDelay = 2000; // Reset delay on new poll session
+        scheduleNextPoll();
+      }
+
+      function scheduleNextPoll() {
+        pollInterval = setTimeout(async () => {
+          const wasActive = await updateStatus();
+          // If still actively processing, increase delay with exponential backoff
+          if (wasActive) {
+            pollDelay = Math.min(pollDelay * 1.5, MAX_POLL_DELAY);
+            scheduleNextPoll();
+          }
+        }, pollDelay);
+      }
+
+      function stopPolling() {
+        if (pollInterval) {
+          clearTimeout(pollInterval);
+          pollInterval = null;
+        }
+      }
+
+      async function updateStatus() {
+        if (!currentSessionId) return false;
+
+        try {
+          const response = await secureApiFetch(
+            `/api/deep-research/status/${currentSessionId}`,
+          );
+          if (!response.ok) throw new Error("Failed to get status");
+
+          const data = await response.json();
+          updateUI(data);
+
+          // Return false (stop polling) if completed, failed, or cancelled
+          if (["completed", "failed", "cancelled"].includes(data.status)) {
+            stopPolling();
+            return false;
+          }
+          return true; // Still active, continue polling
+        } catch (error) {
+          console.error("Error polling status:", error);
+          return true; // Keep trying on error
+        }
+      }
+
+      function updateUI(data) {
+        // Update status badge
+        statusBadge.textContent = data.status.replace("_", " ");
+        statusBadge.className = `status-badge ${data.status}`;
+
+        // Update time elapsed
+        if (startTime) {
+          const elapsed = Math.round((Date.now() - startTime) / 1000);
+          timeElapsed.textContent = `${elapsed}s elapsed`;
+        }
+
+        // Update based on status
+        switch (data.status) {
+          case "pending":
+            statusMessage.textContent = "Initializing research session...";
+            break;
+
+          case "planning":
+            statusMessage.textContent =
+              "AI is analyzing your topic and creating a research strategy...";
+            progressFill.style.width = "15%";
+            break;
+
+          case "awaiting_approval":
+            statusMessage.textContent = "Research plan ready for your review.";
+            progressFill.style.width = "25%";
+            showPlanReview(data.plan);
+            break;
+
+          case "researching":
+            const completed = data.progress.completed_questions || 0;
+            const total = data.progress.total_questions || 1;
+            const pct = 25 + (completed / total) * 50;
+            progressFill.style.width = `${pct}%`;
+            progressText.textContent = `${completed} / ${total} questions`;
+            statusMessage.textContent = `Investigating research questions in parallel...`;
+            updateQuestionProgress(data.plan);
+            break;
+
+          case "synthesizing":
+            statusMessage.textContent =
+              "Synthesizing findings into comprehensive report...";
+            progressFill.style.width = "85%";
+            break;
+
+          case "completed":
+            statusMessage.textContent = "Research complete!";
+            progressFill.style.width = "100%";
+            showReport(data);
+            loadHistory();
+            break;
+
+          case "failed":
+            statusMessage.textContent = `Error: ${data.error_message || "Unknown error"}`;
+            statusMessage.style.color = "var(--accent-danger)";
+            break;
+        }
+      }
+
+      function showPlanReview(plan) {
+        if (!plan) return;
+
+        planReview.style.display = "block";
+        reportContainer.style.display = "none";
+
+        document.getElementById("planProblem").textContent =
+          plan.problem_statement;
+
+        // Show angles
+        const anglesContainer = document.getElementById("planAngles");
+        anglesContainer.innerHTML = plan.key_angles
+          .map((angle) => `<span class="angle-tag">${angle}</span>`)
+          .join("");
+
+        // Show questions
+        const questionsContainer =
+          document.getElementById("questionsContainer");
+        questionsContainer.innerHTML = plan.questions
+          .map(
+            (q) => `
+                <div class="question-node">
+                    <div class="question-status ${q.status}">
+                        ${
+                          q.status === "completed"
+                            ? '<i class="fas fa-check"></i>'
+                            : q.status === "in-progress"
+                              ? '<i class="fas fa-spinner fa-spin"></i>'
+                              : '<span style="font-size: 0.75rem;">${q.id}</span>'
+                        }
+                    </div>
+                    <div class="question-content">
+                        <div class="question-text">${q.question}</div>
+                        <div class="question-rationale">${q.rationale}</div>
+                        ${
+                          q.dependencies.length > 0
+                            ? `
+                            <div class="question-deps">
+                                <span style="font-size: 0.6875rem; color: var(--text-muted);">Depends on:</span>
+                                ${q.dependencies.map((d) => `<span class="dep-badge">${d}</span>`).join("")}
+                            </div>
+                        `
+                            : ""
+                        }
+                    </div>
+                </div>
+            `,
+          )
+          .join("");
+      }
+
+      function updateQuestionProgress(plan) {
+        if (!plan) return;
+        // Update question status indicators
+        plan.questions.forEach((q) => {
+          const node = document.querySelector(`[data-question-id="${q.id}"]`);
+          if (node) {
+            const statusEl = node.querySelector(".question-status");
+            statusEl.className = `question-status ${q.status}`;
+          }
+        });
+      }
+
+      function showReport(data) {
+        planReview.style.display = "none";
+        reportContainer.style.display = "block";
+
+        // Meta
+        document.getElementById("reportMeta").textContent =
+          `Generated in ${data.processing_time_seconds.toFixed(1)}s`;
+
+        // Themes
+        const themesContainer = document.getElementById("reportThemes");
+        themesContainer.innerHTML = data.key_themes
+          .map((theme) => `<span class="theme-tag">${theme}</span>`)
+          .join("");
+
+        // Content (simple markdown rendering)
+        const content = data.final_report || "No report generated.";
+        document.getElementById("reportContent").innerHTML =
+          renderMarkdown(content);
+      }
+
+      function renderMarkdown(text) {
+        // Simple markdown to HTML conversion
+        return text
+          .replace(/^### (.*$)/gim, "<h3>$1</h3>")
+          .replace(/^## (.*$)/gim, "<h2>$1</h2>")
+          .replace(/^# (.*$)/gim, "<h1>$1</h1>")
+          .replace(/^\* (.*$)/gim, "<li>$1</li>")
+          .replace(/^\- (.*$)/gim, "<li>$1</li>")
+          .replace(/\*\*(.*)\*\*/gim, "<strong>$1</strong>")
+          .replace(/\*(.*)\*/gim, "<em>$1</em>")
+          .replace(/\n---\n/g, "<hr>")
+          .replace(/\n\n/g, "</p><p>")
+          .replace(/^(.*)$/gim, function (match) {
+            if (match.startsWith("<")) return match;
+            return match;
+          });
+      }
+
+      // Plan actions
+      document
+        .getElementById("btnApprove")
+        .addEventListener("click", async (e) => {
+          const button = e.target;
+          if (button.disabled) return; // Prevent double-click
+          button.disabled = true;
+
+          try {
+            const response = await secureApiFetch(
+              `/api/deep-research/approve-plan`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  session_id: currentSessionId,
+                  approved: true,
+                }),
+              },
+            );
+
+            if (!response.ok) {
+              const detail = await response.text();
+              throw new Error(
+                `Failed to approve plan (${response.status}): ${detail || "unknown error"}`,
+              );
+            }
+
+            // Hide plan review, keep status visible
+            planReview.style.display = "none";
+          } catch (error) {
+            console.error("Error approving plan:", error);
+            alert("Failed to approve plan: " + error.message);
+            button.disabled = false; // Re-enable button on error
+          }
+        });
+
+      document.getElementById("btnModify").addEventListener("click", () => {
+        document.getElementById("modifyModal").classList.add("active");
+      });
+
+      function closeModifyModal() {
+        document.getElementById("modifyModal").classList.remove("active");
+      }
+
+      async function submitModification() {
+        const modifications = document
+          .getElementById("modifyInput")
+          .value.trim();
+        if (!modifications) {
+          alert("Please describe the changes you want");
+          return;
+        }
+
+        try {
+          const response = await secureApiFetch(
+            `/api/deep-research/approve-plan`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                session_id: currentSessionId,
+                approved: false,
+                modifications: modifications,
+              }),
+            },
+          );
+
+          if (!response.ok) {
+            const detail = await response.text();
+            throw new Error(
+              `Failed to submit modifications (${response.status}): ${detail || "unknown error"}`,
+            );
+          }
+
+          closeModifyModal();
+          planReview.style.display = "none";
+        } catch (error) {
+          console.error("Error submitting modifications:", error);
+          alert("Failed to submit modifications: " + error.message);
+        }
+      }
+
+      // Report actions
+      function copyReport() {
+        const content = document.getElementById("reportContent").innerText;
+        navigator.clipboard.writeText(content);
+        alert("Report copied to clipboard");
+      }
+
+      function downloadReport() {
+        const content = document.getElementById("reportContent").innerText;
+        const blob = new Blob([content], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `research-report-${currentSessionId}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      function startNewResearch() {
+        stopPolling();
+        currentSessionId = null;
+        startTime = null;
+        selectedFocusAreas = [];
+
+        // Reset UI
+        researchForm.style.display = "block";
+        sessionPanel.classList.remove("active");
+        planReview.style.display = "none";
+        reportContainer.style.display = "none";
+        topicInput.value = "";
+        progressFill.style.width = "0%";
+        progressText.textContent = "0 / 0 questions";
+
+        document
+          .querySelectorAll(".focus-tag")
+          .forEach((tag) => tag.classList.remove("active"));
+      }
+
+      // History
+      async function loadHistory() {
+        try {
+          const response = await secureApiFetch(`/api/deep-research/sessions`);
+          if (!response.ok) return;
+
+          const data = await response.json();
+          const historyList = document.getElementById("historyList");
+
+          if (data.sessions.length === 0) {
+            historyList.innerHTML =
+              '<p style="font-size: 0.875rem; color: var(--text-muted);">No previous research sessions.</p>';
+            return;
+          }
+
+          historyList.innerHTML = data.sessions
+            .map(
+              (session) => `
+                    <div class="history-item" onclick="loadSession('${session.id}')">
+                        <div class="history-icon">
+                            <i class="fas fa-${session.has_report ? "file-alt" : "flask"}"></i>
+                        </div>
+                        <div class="history-content">
+                            <div class="history-topic">${session.topic}</div>
+                            <div class="history-date">${new Date(session.created_at).toLocaleDateString()}</div>
+                        </div>
+                    </div>
+                `,
+            )
+            .join("");
+        } catch (error) {
+          console.error("Error loading history:", error);
+        }
+      }
+
+      async function loadSession(sessionId) {
+        currentSessionId = sessionId;
+        startTime = Date.now();
+
+        researchForm.style.display = "none";
+        sessionPanel.classList.add("active");
+
+        await updateStatus();
+
+        // Only poll if not completed
+        const response = await secureApiFetch(
+          `/api/deep-research/status/${sessionId}`,
+        );
+        const data = await response.json();
+        if (!["completed", "failed", "cancelled"].includes(data.status)) {
+          startPolling();
+        }
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,960 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Copilot Hub - VeriCase Docs</title>
+  <link rel="icon" type="image/png" href="/assets/Logo-Vector.png" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .copilot-container {
+      display: flex;
+      height: 100vh;
+      max-width: 1600px;
+      margin: 0 auto;
+      background: #fff;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      background: #f8f9fa;
+      border-right: 1px solid #e0e0e0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .sidebar-header h2 {
+      font-size: 20px;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .ai-model-selector {
+      position: relative;
+    }
+
+    .ai-model-selector select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      background: #fff;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .new-chat-btn {
+      width: calc(100% - 40px);
+      padding: 12px;
+      margin: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .new-chat-btn:hover {
+      transform: translateY(-2px);
+    }
+
+    .chat-history {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+    }
+
+    .chat-history-item {
+      padding: 12px;
+      margin-bottom: 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .chat-history-item:hover {
+      background: #e8eaf6;
+    }
+
+    .chat-history-item.active {
+      background: #e8eaf6;
+      border-left: 3px solid #667eea;
+    }
+
+    .chat-history-item-title {
+      font-weight: 600;
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 4px;
+    }
+
+    .chat-history-item-preview {
+      font-size: 12px;
+      color: #666;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Main Chat Area */
+    .chat-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chat-header {
+      padding: 20px;
+      border-bottom: 1px solid #e0e0e0;
+      background: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .chat-header h1 {
+      font-size: 24px;
+      color: #333;
+    }
+
+    .ai-badges {
+      display: flex;
+      gap: 8px;
+    }
+
+    .ai-badge {
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .ai-badge.gemini {
+      background: #e3f2fd;
+      color: #1976d2;
+    }
+
+    .ai-badge.claude {
+      background: #fce4ec;
+      color: #c2185b;
+    }
+
+    .ai-badge.gpt {
+      background: #e8f5e9;
+      color: #388e3c;
+    }
+
+    .ai-badge.perplexity {
+      background: #f3e5f5;
+      color: #7b1fa2;
+    }
+
+    .ai-badge:hover {
+      transform: scale(1.05);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .ai-badge.active {
+      box-shadow: 0 0 0 2px currentColor;
+    }
+
+    /* Messages */
+    .messages-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      background: #fafafa;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      text-align: center;
+    }
+
+    .empty-state-icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+    }
+
+    .empty-state h2 {
+      font-size: 28px;
+      color: #333;
+      margin-bottom: 12px;
+    }
+
+    .empty-state p {
+      font-size: 16px;
+      color: #666;
+      margin-bottom: 30px;
+      max-width: 500px;
+    }
+
+    .suggestion-cards {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      max-width: 800px;
+      margin-top: 20px;
+    }
+
+    .suggestion-card {
+      padding: 20px;
+      background: white;
+      border-radius: 12px;
+      border: 1px solid #e0e0e0;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .suggestion-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      border-color: #667eea;
+    }
+
+    .suggestion-card-icon {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .suggestion-card-title {
+      font-weight: 600;
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 4px;
+    }
+
+    .suggestion-card-desc {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .message {
+      margin-bottom: 20px;
+      display: flex;
+      gap: 12px;
+      animation: fadeIn 0.3s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .message.user .message-avatar {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .message.assistant .message-avatar {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .message-content {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 12px;
+      line-height: 1.6;
+    }
+
+    .message.user .message-content {
+      background: #e8eaf6;
+      max-width: 70%;
+    }
+
+    .message.assistant .message-content {
+      background: white;
+      border: 1px solid #e0e0e0;
+    }
+
+    .message-content code {
+      background: #f5f5f5;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: "Courier New", monospace;
+      font-size: 13px;
+    }
+
+    .message-content pre {
+      background: #f5f5f5;
+      padding: 12px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 8px 0;
+    }
+
+    .message-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .message-action-btn {
+      padding: 4px 8px;
+      background: transparent;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .message-action-btn:hover {
+      background: #f0f0f0;
+    }
+
+    .typing-indicator {
+      display: flex;
+      gap: 4px;
+      padding: 12px 16px;
+    }
+
+    .typing-dot {
+      width: 8px;
+      height: 8px;
+      background: #999;
+      border-radius: 50%;
+      animation: typing 1.4s infinite;
+    }
+
+    .typing-dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .typing-dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes typing {
+
+      0%,
+      60%,
+      100% {
+        transform: translateY(0);
+      }
+
+      30% {
+        transform: translateY(-10px);
+      }
+    }
+
+    /* Input Area */
+    .input-area {
+      padding: 20px;
+      background: #fff;
+      border-top: 1px solid #e0e0e0;
+    }
+
+    .input-wrapper {
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .input-box {
+      flex: 1;
+      position: relative;
+    }
+
+    #messageInput {
+      width: 100%;
+      min-height: 52px;
+      max-height: 200px;
+      padding: 14px 50px 14px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      font-size: 15px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    #messageInput:focus {
+      border-color: #667eea;
+    }
+
+    .input-actions {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .input-action-btn {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .input-action-btn:hover {
+      background: #f0f0f0;
+    }
+
+    #sendBtn {
+      width: 52px;
+      height: 52px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #sendBtn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    #sendBtn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .loading {
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.5;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Header with Navigation -->
+  <header style="
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 2rem;
+        border-bottom: 1px solid #e0e0e0;
+        background: #fff;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      ">
+    <div style="
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          cursor: pointer;
+        " onclick="window.location.href = 'wizard.html'">
+      <img src="/assets/Logo-Vector.png" alt="VeriCase" style="height: 42px" />
+      <div style="display: flex; flex-direction: column">
+        <strong style="font-size: 1.1rem">VeriCase Docs</strong>
+        <span style="color: #666; font-size: 0.85rem">Copilot Hub</span>
+      </div>
+    </div>
+    <div style="display: flex; gap: 1rem; align-items: center">
+      <button onclick="window.location.href = 'dashboard.html'" style="
+            padding: 0.5rem 1rem;
+            border: 1px solid #e0e0e0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+          ">
+        ← Back to Dashboard
+      </button>
+      <span id="user-email" style="color: #666; font-size: 0.85rem"></span>
+    </div>
+  </header>
+
+  <div class="copilot-container" style="height: calc(100vh - 74px)">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h2>Copilot Hub</h2>
+        <div class="ai-model-selector">
+          <label for="aiModelSelect"></label><select id="aiModelSelect">
+            <option value="gemini">Gemini Flash 2.0</option>
+            <option value="claude">Claude Sonnet 4</option>
+            <option value="gpt">GPT-4 Turbo</option>
+            <option value="perplexity">Perplexity Sonar</option>
+            <option value="multi">Multi-AI Consensus</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="new-chat-btn" id="newChatBtn">+ New Chat</button>
+
+      <div class="chat-history" id="chatHistory">
+        <!-- Chat history items will be added here -->
+      </div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="chat-main">
+      <div class="chat-header">
+        <h1>Chat with AI</h1>
+        <div class="ai-badges">
+          <div class="ai-badge gemini active">Gemini</div>
+          <div class="ai-badge claude">Claude</div>
+          <div class="ai-badge gpt">GPT-4</div>
+          <div class="ai-badge perplexity">Perplexity</div>
+        </div>
+      </div>
+
+      <div class="messages-container" id="messagesContainer">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-state-icon">
+            <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="40" cy="40" r="35" stroke="url(#gradient1)" stroke-width="2" fill="none" opacity="0.3" />
+              <circle cx="40" cy="40" r="28" stroke="url(#gradient1)" stroke-width="2" fill="none" opacity="0.5" />
+              <circle cx="40" cy="40" r="20" fill="url(#gradient1)" opacity="0.2" />
+              <path d="M40 25 L45 35 L55 35 L47 42 L50 52 L40 45 L30 52 L33 42 L25 35 L35 35 Z"
+                fill="url(#gradient1)" />
+              <defs>
+                <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color: #667eea; stop-opacity: 1" />
+                  <stop offset="100%" style="stop-color: #764ba2; stop-opacity: 1" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <h2>Welcome to Copilot Hub</h2>
+          <p>
+            Your intelligent AI assistant powered by 5 leading AI models. Ask
+            questions about your documents, get insights, or chat about
+            anything.
+          </p>
+
+          <div class="suggestion-cards">
+            <div class="suggestion-card" data-prompt="Summarize all my recent documents">
+              <div class="suggestion-card-icon">📄</div>
+              <div class="suggestion-card-title">Summarize Documents</div>
+              <div class="suggestion-card-desc">
+                Get a quick overview of recent uploads
+              </div>
+            </div>
+            <div class="suggestion-card" data-prompt="Find all contracts from last month">
+              <div class="suggestion-card-icon">🔍</div>
+              <div class="suggestion-card-title">Search Documents</div>
+              <div class="suggestion-card-desc">
+                Find specific files by content
+              </div>
+            </div>
+            <div class="suggestion-card" data-prompt="What are the trends in my datasets?">
+              <div class="suggestion-card-icon">📊</div>
+              <div class="suggestion-card-title">Analyze Trends</div>
+              <div class="suggestion-card-desc">
+                Discover patterns in your data
+              </div>
+            </div>
+            <div class="suggestion-card" data-prompt="Check for sensitive information in my files">
+              <div class="suggestion-card-icon">🔒</div>
+              <div class="suggestion-card-title">Security Check</div>
+              <div class="suggestion-card-desc">
+                Scan for PII and compliance issues
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-area">
+        <div class="input-wrapper">
+          <div class="input-box">
+            <textarea id="messageInput" placeholder="Ask anything about your documents..." rows="1"></textarea>
+            <div class="input-actions">
+              <button class="input-action-btn" title="Attach file">📎</button>
+            </div>
+          </div>
+          <button id="sendBtn" disabled>➤</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    let currentModel = "gemini";
+    let currentChat = [];
+    let chatHistory = JSON.parse(
+      localStorage.getItem("copilot_chats") || "[]",
+    );
+
+    // Elements
+    const messageInput = document.getElementById("messageInput");
+    const sendBtn = document.getElementById("sendBtn");
+    const messagesContainer = document.getElementById("messagesContainer");
+    const emptyState = document.getElementById("emptyState");
+    const aiModelSelect = document.getElementById("aiModelSelect");
+    const newChatBtn = document.getElementById("newChatBtn");
+    const chatHistoryEl = document.getElementById("chatHistory");
+
+    // Check authentication on load
+    const token = localStorage.getItem("jwt");
+    if (!token) {
+      alert("Please log in first!");
+      window.location.href = "wizard.html";
+    }
+
+    // Initialize
+    renderChatHistory();
+
+    // Auto-resize textarea
+    messageInput.addEventListener("input", function () {
+      this.style.height = "auto";
+      this.style.height = Math.min(this.scrollHeight, 200) + "px";
+      sendBtn.disabled = !this.value.trim();
+    });
+
+    // Send message on Enter (Shift+Enter for new line)
+    messageInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    // Send button click
+    sendBtn.addEventListener("click", sendMessage);
+
+    // New chat button
+    newChatBtn.addEventListener("click", () => {
+      currentChat = [];
+      messagesContainer.innerHTML = "";
+      emptyState.style.display = "flex";
+      messageInput.value = "";
+      messageInput.focus();
+    });
+
+    // AI model selector
+    aiModelSelect.addEventListener("change", (e) => {
+      currentModel = e.target.value;
+      updateAIBadges();
+    });
+
+    // Suggestion cards
+    document.querySelectorAll(".suggestion-card").forEach((card) => {
+      card.addEventListener("click", () => {
+        messageInput.value = card.dataset.prompt;
+        messageInput.dispatchEvent(new Event("input"));
+        messageInput.focus();
+      });
+    });
+
+    // AI badge clicks
+    document.querySelectorAll(".ai-badge").forEach((badge) => {
+      badge.addEventListener("click", () => {
+        const model = badge.classList[1]; // gemini, claude, etc.
+        aiModelSelect.value = model;
+        currentModel = model;
+        updateAIBadges();
+      });
+    });
+
+    function updateAIBadges() {
+      document.querySelectorAll(".ai-badge").forEach((badge) => {
+        badge.classList.remove("active");
+      });
+      document
+        .querySelector(`.ai-badge.${currentModel}`)
+        ?.classList.add("active");
+    }
+
+    async function sendMessage() {
+      const message = messageInput.value.trim();
+      if (!message) return;
+
+      // Hide empty state
+      emptyState.style.display = "none";
+
+      // Add user message
+      addMessage("user", message);
+      currentChat.push({ role: "user", content: message });
+
+      // Clear input
+      messageInput.value = "";
+      messageInput.style.height = "auto";
+      sendBtn.disabled = true;
+
+      // Show typing indicator
+      const typingId = addTypingIndicator();
+
+      const handleError = (error) => {
+        removeTypingIndicator(typingId);
+        console.error("AI Error:", error);
+
+        // Show detailed error message
+        let errorMsg =
+          "❌ Error: " + (error.message || "Unknown error occurred");
+
+        // Check if token expired
+        if (error.message && error.message.includes("401")) {
+          errorMsg =
+            '❌ Your session has expired. Please <a href="wizard.html" style="color: #667eea; text-decoration: underline;">log in again</a>.';
+        }
+
+        addMessage("assistant", errorMsg);
+      };
+
+      try {
+        // Call AI API
+        const response = await fetch(`${API_BASE}/ai/orchestrator/query`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("jwt")}`,
+          },
+          body: JSON.stringify({
+            query: message,
+            model: currentModel,
+            context: currentChat,
+          }),
+        });
+
+        // Check response status
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("API Error Response:", errorText);
+          handleError(
+            new Error(`API returned ${response.status}: ${errorText}`),
+          );
+          return;
+        }
+
+        const data = await response.json();
+        console.log("API Response:", data);
+
+        // Remove typing indicator
+        removeTypingIndicator(typingId);
+
+        if (data.answer) {
+          addMessage("assistant", data.answer);
+          currentChat.push({ role: "assistant", content: data.answer });
+
+          // Save to history
+          saveChatToHistory(message, data.answer);
+        } else {
+          handleError(
+            new Error("No answer field in response: " + JSON.stringify(data)),
+          );
+        }
+      } catch (error) {
+        handleError(error);
+      }
+
+      // Scroll to bottom
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function addMessage(role, content) {
+      const messageDiv = document.createElement("div");
+      messageDiv.className = `message ${role}`;
+
+      const avatar = document.createElement("div");
+      avatar.className = "message-avatar";
+      if (role === "user") {
+        avatar.textContent = "U";
+      } else {
+        avatar.innerHTML =
+          '<span style="font-size: 18px; font-weight: 700; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">AI</span>';
+      }
+
+      const contentDiv = document.createElement("div");
+      contentDiv.className = "message-content";
+
+      // Parse markdown-like formatting
+      contentDiv.innerHTML = formatMessage(content);
+
+      messageDiv.appendChild(avatar);
+      messageDiv.appendChild(contentDiv);
+
+      if (role === "assistant") {
+        const actions = document.createElement("div");
+        actions.className = "message-actions";
+        actions.innerHTML = `
+                    <button class="message-action-btn" onclick="copyMessage(this)">📋 Copy</button>
+                    <button class="message-action-btn" onclick="regenerateResponse()">🔄 Regenerate</button>
+                `;
+        contentDiv.appendChild(actions);
+      }
+
+      messagesContainer.appendChild(messageDiv);
+    }
+
+    function addTypingIndicator() {
+      const id = "typing-" + Date.now();
+      const messageDiv = document.createElement("div");
+      messageDiv.id = id;
+      messageDiv.className = "message assistant";
+
+      const avatar = document.createElement("div");
+      avatar.className = "message-avatar";
+      avatar.innerHTML =
+        '<span style="font-size: 18px; font-weight: 700; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">AI</span>';
+
+      const typingDiv = document.createElement("div");
+      typingDiv.className = "typing-indicator";
+      typingDiv.innerHTML =
+        '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+
+      messageDiv.appendChild(avatar);
+      messageDiv.appendChild(typingDiv);
+      messagesContainer.appendChild(messageDiv);
+
+      return id;
+    }
+
+    function removeTypingIndicator(id) {
+      const element = document.getElementById(id);
+      if (element) {
+        element.remove();
+      }
+    }
+
+    function formatMessage(content) {
+      // Basic markdown formatting
+      content = content.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+      content = content.replace(/\*(.*?)\*/g, "<em>$1</em>");
+      content = content.replace(/`(.*?)`/g, "<code>$1</code>");
+      content = content.replace(/\n/g, "<br>");
+      return content;
+    }
+
+    function copyMessage(button) {
+      const messageContent = button.closest(".message-content").textContent;
+      navigator.clipboard.writeText(messageContent);
+      button.textContent = "✓ Copied!";
+      setTimeout(() => {
+        button.textContent = "📋 Copy";
+      }, 2000);
+    }
+
+    function regenerateResponse() {
+      if (currentChat.length >= 2) {
+        // Remove last assistant message
+        currentChat.pop();
+        messagesContainer.lastChild.remove();
+
+        // Resend last user message
+        const lastUserMessage = currentChat[currentChat.length - 1].content;
+        sendMessage();
+      }
+    }
+
+    function saveChatToHistory(userMsg, assistantMsg) {
+      const chat = {
+        id: Date.now(),
+        title: userMsg.substring(0, 50) + (userMsg.length > 50 ? "..." : ""),
+        preview: assistantMsg.substring(0, 100),
+        timestamp: new Date().toISOString(),
+        messages: [...currentChat],
+      };
+
+      chatHistory.unshift(chat);
+      if (chatHistory.length > 50) {
+        chatHistory = chatHistory.slice(0, 50);
+      }
+
+      localStorage.setItem("copilot_chats", JSON.stringify(chatHistory));
+      renderChatHistory();
+    }
+
+    function renderChatHistory() {
+      chatHistoryEl.innerHTML = "";
+
+      chatHistory.forEach((chat) => {
+        const item = document.createElement("div");
+        item.className = "chat-history-item";
+        item.innerHTML = `
+                    <div class="chat-history-item-title">${chat.title}</div>
+                    <div class="chat-history-item-preview">${chat.preview}</div>
+                `;
+
+        item.addEventListener("click", () => {
+          currentChat = chat.messages;
+          messagesContainer.innerHTML = "";
+          emptyState.style.display = "none";
+
+          currentChat.forEach((msg) => {
+            addMessage(msg.role, msg.content);
+          });
+
+          document
+            .querySelectorAll(".chat-history-item")
+            .forEach((i) => i.classList.remove("active"));
+          item.classList.add("active");
+        });
+
+        chatHistoryEl.appendChild(item);
+      });
+    }
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,19 @@
+default_settings:
+  input_directory: "/path/to/input"
+  output_directory: "/path/to/output"
+  log_level: "INFO"
+  email_processing:
+    enable_attachments: true
+    enable_metadata_extraction: true
+  database:
+    type: "sqlite"
+    connection_string: "sqlite:///path/to/database.db"
+  migration:
+    enable_exchange: false
+    enable_imap: false
+  analysis:
+    enable_content_analysis: true
+    metrics:
+      - "word_count"
+      - "attachment_count"
+      - "metadata_count"

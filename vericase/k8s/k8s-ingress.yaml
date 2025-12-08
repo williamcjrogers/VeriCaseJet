@@ -1,0 +1,69 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vericase-ingress
+  namespace: vericase
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:eu-west-2:526015377510:certificate/fa1c323e-4062-4480-9234-b0c7476a23d0
+spec:
+  rules:
+  # Default rule - accepts any host (for direct ALB access)
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: vericase-api
+            port:
+              number: 80
+  - host: veri-case.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: vericase-api
+            port:
+              number: 80
+  - host: www.veri-case.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: vericase-api
+            port:
+              number: 80
+  - host: api.veri-case.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: vericase-api
+            port:
+              number: 80
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: wcjrogers@gmail.com
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - http01:
+        ingress:
+          class: alb
