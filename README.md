@@ -1,34 +1,66 @@
-# VeriCase Analysis
+# VeriCase
 
-**Enterprise PST analysis platform for legal disputes.**
+**Enterprise PST/email analysis platform for legal disputes.**
 
-## 🚀 Getting Started
-
-The main application resides in the `pst-analysis-engine/` directory.
+## Quick Start
 
 ```bash
-cd pst-analysis-engine
-# Then follow the instructions in that directory's README.md
+cd vericase
+docker-compose up -d
 ```
 
-## 📁 Repository Structure
+Open http://localhost:8010/ui/dashboard.html
 
-- `pst-analysis-engine/`: Main application (START HERE)
-- `docs/`: Consolidated documentation (guides, architecture)
-- `ops/`: Operational scripts (deployment, utilities)
-- `README.md`: This file
+## Repository Structure
 
-## 📚 Documentation
+```
+vericase/
+├── api/                 # FastAPI backend
+│   ├── app/             # Application code
+│   ├── migrations/      # Database migrations
+│   └── Dockerfile
+├── ui/                  # Production static UI (HTML/CSS/JS)
+├── frontend/            # React dev UI (local development only)
+├── worker_app/          # Celery background workers
+├── ops/                 # Operations scripts
+├── k8s/                 # Kubernetes deployment configs
+├── docs/                # All documentation
+├── docker-compose.yml   # Local development
+└── docker-compose.prod.yml  # Production deployment
+```
 
-All documentation now lives under `pst-analysis-engine/docs/`. Key entry points:
+## Documentation
 
-- Setup guide: `pst-analysis-engine/docs/guides/EASY_SETUP.md`
-- Developer guide: `pst-analysis-engine/docs/guides/START_HERE.md`
-- Deployment: `pst-analysis-engine/docs/deployment/`
-- Architecture: `pst-analysis-engine/docs/VERICASE_ARCHITECTURE.md`
+- [Deployment Guide](.github/DEPLOYMENT.md)
+- [Local Development](vericase/docs/deployment/LOCAL_DEVELOPMENT.md)
+- [AWS Setup](vericase/docs/aws/AWS_SETUP_GUIDE.md)
+- [Project Brief](vericase/docs/PROJECT_VERICASE_BRIEF.md)
+
+## Deployment
+
+Automatic deployment via GitHub Actions on push to `main`.
+
+### Manual Deployment
+
+```bash
+# Local
+cd vericase && docker-compose up -d
+
+# Production (EKS)
+kubectl apply -f vericase/k8s/k8s-deployment.yaml -n vericase
+```
+
+## AWS Infrastructure
+
+| Resource | Value |
+|----------|-------|
+| Region | eu-west-2 |
+| EKS Cluster | vericase-cluster |
+| EC2 (Backup) | 18.175.232.87 |
+| S3 Bucket | vericase-docs |
 
 ## Status
 
-- **Version:** 0.3.9  
-- **State:** Active development  
-- **Last Updated:** November 23, 2025
+- **Version:** 1.0.0
+- **State:** Production
+- **Last Updated:** December 2025

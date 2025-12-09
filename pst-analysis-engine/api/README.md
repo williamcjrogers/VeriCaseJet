@@ -1,2 +1,0 @@
-# VeriCase API
-# Trigger build

@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'pst-analysis-engine/**'
+      - 'vericase/**'
       - '.github/workflows/docker-publish-multi.yml'
   workflow_dispatch:
 
@@ -54,8 +54,8 @@ jobs:
       - name: Build and push to both registries
         uses: docker/build-push-action@v5
         with:
-          context: ./pst-analysis-engine
-          file: ./pst-analysis-engine/api/Dockerfile
+          context: ./vericase
+          file: ./vericase/api/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

@@ -86,5 +86,5 @@ NUL
 archive/
 
 # Data clearing scripts (local only, do not deploy)
-pst-analysis-engine/clear_*.py
-pst-analysis-engine/CLEAR_DATA_INSTRUCTIONS.md
+vericase/clear_*.py
+vericase/CLEAR_DATA_INSTRUCTIONS.md
