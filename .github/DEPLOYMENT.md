@@ -1,6 +1,6 @@
 # VeriCase Deployment Guide
 
-## 🚀 Automated Deployments
+## Automated Deployments
 
 VeriCase uses GitHub Actions for automated builds and deployments.
 
@@ -23,13 +23,13 @@ Images are automatically published to **two registries** for redundancy:
 #### 2. Deploy to EKS
 **File**: `.github/workflows/deploy-eks.yml`
 
-- **Trigger**: Push to `main` affecting `pst-analysis-engine/` files
-- **What it does**: Builds image → Pushes to Docker Hub → Deploys to AWS EKS
+- **Trigger**: Push to `main` affecting `vericase/` files
+- **What it does**: Builds image -> Pushes to Docker Hub -> Deploys to AWS EKS
 - **Deployments**: Automatically updates `vericase-cluster` in `eu-west-2`
 
-## 🔧 Required GitHub Secrets
+## Required GitHub Secrets
 
-Set these in your repository settings (`Settings` → `Secrets and variables` → `Actions`):
+Set these in your repository settings (`Settings` -> `Secrets and variables` -> `Actions`):
 
 ### Docker Hub
 - `DOCKERHUB_USERNAME` - Your Docker Hub username
@@ -42,13 +42,13 @@ Set these in your repository settings (`Settings` → `Secrets and variables` �
 ### GitHub Container Registry
 - `GITHUB_TOKEN` - Automatically provided by GitHub Actions (no setup needed)
 
-## 📦 Manual Deployment
+## Manual Deployment
 
 ### Building Locally
 
 ```bash
 # Build the Docker image
-cd pst-analysis-engine
+cd vericase
 docker build -f api/Dockerfile -t vericase-api:local .
 
 # Test locally
@@ -68,31 +68,12 @@ docker tag vericase-api:local wcjrogers/vericase-api:latest
 docker push wcjrogers/vericase-api:latest
 ```
 
-### Pushing to GitHub Container Registry
-
-```bash
-# Login to GHCR
-echo $GITHUB_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
-
-# Tag the image
-docker tag vericase-api:local ghcr.io/williamcjrogers/vericase-api:latest
-
-# Push
-docker push ghcr.io/williamcjrogers/vericase-api:latest
-```
-
-## 🎯 Deployment Environments
+## Deployment Environments
 
 ### Local Development
 ```bash
-cd pst-analysis-engine
+cd vericase
 docker-compose up -d
-```
-
-### Quick Testing (Hub Images)
-```bash
-cd pst-analysis-engine
-docker-compose -f docker-compose.hub.yml up -d
 ```
 
 ### Production (AWS EKS)
@@ -100,11 +81,11 @@ Automatic via GitHub Actions on push to `main`
 
 Or manually:
 ```bash
-kubectl apply -f pst-analysis-engine/k8s-deployment.yaml -n vericase
-kubectl apply -f pst-analysis-engine/k8s-ingress.yaml -n vericase
+kubectl apply -f vericase/k8s/k8s-deployment.yaml -n vericase
+kubectl apply -f vericase/k8s/k8s-ingress.yaml -n vericase
 ```
 
-## 🔄 Updating Running Containers
+## Updating Running Containers
 
 ### Pull Latest Images
 
@@ -119,8 +100,8 @@ docker pull ghcr.io/williamcjrogers/vericase-api:latest
 ### Restart with New Images
 
 ```bash
-cd pst-analysis-engine
-docker-compose -f docker-compose.hub.yml up -d --force-recreate api worker
+cd vericase
+docker-compose up -d --force-recreate api worker
 ```
 
 ### On EKS
@@ -130,13 +111,13 @@ kubectl rollout restart deployment/vericase-api -n vericase
 kubectl rollout restart deployment/vericase-worker -n vericase
 ```
 
-## 📊 Monitoring Deployments
+## Monitoring Deployments
 
 - **GitHub Actions**: Check workflow status in the `Actions` tab
 - **Docker Hub**: https://hub.docker.com/r/wcjrogers/vericase-api
 - **GHCR**: https://github.com/williamcjrogers?tab=packages
 
-## 🆘 Troubleshooting
+## Troubleshooting
 
 ### Images Not Pulling
 
@@ -161,10 +142,11 @@ kubectl describe pod -n vericase <pod-name>
 
 Use the diagnostic script:
 ```powershell
+cd vericase
 .\ops\diagnose-ssl.ps1
 ```
 
-## 🏷️ Image Tags
+## Image Tags
 
 Images are tagged with:
 - `latest` - Most recent main branch build
@@ -175,11 +157,3 @@ Example:
 ```bash
 docker pull wcjrogers/vericase-api:20241205-143022
 ```
-
-## 📝 Best Practices
-
-1. **Always test locally** before pushing to `main`
-2. **Use Docker Hub for production** (more reliable)
-3. **Use GHCR as backup** registry
-4. **Monitor GitHub Actions** for failed builds
-5. **Tag releases** for easy rollbacks

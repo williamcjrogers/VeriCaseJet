@@ -53,47 +53,65 @@ LATEST_MODEL_DEFAULTS = {
     "bedrock": "amazon.nova-pro-v1:0",  # Amazon Nova Pro via Bedrock
 }
 
-# Spam/Newsletter detection patterns - CONSERVATIVE to avoid false positives
-# Only flag clear marketing/bulk mail, NOT normal business correspondence
+# Spam/Newsletter detection patterns - tiered by confidence
 SPAM_INDICATORS = {
-    # HIGH CONFIDENCE - Clear marketing/newsletter indicators only (+3 points each)
+    # HIGH CONFIDENCE - Safe to auto-flag as spam (+3 points each)
     "high_confidence_words": [
-        "unsubscribe from this",
-        "click here to unsubscribe",
-        "view in browser",
-        "view this email in your browser",
-        "email preferences",
-        "manage your subscription",
+        "unsubscribe",
+        "newsletter",
+        "webinar",
         "% off",
-        "discount code",
-        "limited time offer",
+        "discount",
+        "exhibition",
+        "conference",
+        "summit",
+        "open house",
+        "early bird",
+        "book now",
+        "free pass",
+        "secure yours",
+        "view in browser",
+        "email preferences",
+        "manage subscription",
+        "promotional",
+        "marketing",
+        "opt-out",
     ],
-    # MEDIUM CONFIDENCE - Likely bulk mail but review suggested (+1 point each)
-    # NOTE: Removed "out of office", "automatic reply", "survey", "feedback"
-    # as these are NORMAL business emails, not spam
+    # MEDIUM CONFIDENCE - Flag but suggest review (+1 point each)
     "medium_confidence_words": [
-        "weekly digest",
-        "daily digest",
-        "monthly newsletter",
+        "out of office",
+        "automatic reply",
+        "away from",
+        "on holiday",
+        "annual leave",
+        "survey",
+        "feedback",
+        "your opinion",
     ],
-    # Marketing/automation domains - only clear bulk mail services (+3 points)
+    # Marketing/automation domains (+3 points)
     "spam_domains": [
-        "sendgrid.net",
-        "constantcontact.com",
-        "mailchimp.com",
-        "hubspot.com",
-        "marketo.com",
-        "pardot.com",
-        "mailgun.org",
-        "eventbrite.com",
-        "surveymonkey.com",
+        "sendgrid",
+        "constantcontact",
+        "hubspot",
+        "marketo",
+        "salesforce",
+        "pardot",
+        "mailgun",
+        "linkedin.com",
+        "facebook.com",
+        "twitter.com",
+        "indeed.com",
+        "glassdoor",
+        "eventbrite",
+        "surveymonkey",
     ],
-    # Social notification patterns - only clear automated notifications (+3 points)
+    # LinkedIn/social notification patterns (+3 points)
     "automated_subjects": [
         "person is noticing",
         "person noticed",
-        "people viewed your profile",
-        "your weekly linkedin",
+        "people viewed",
+        "weekly digest",
+        "daily digest",
     ],
 }
 
@@ -118,20 +136,155 @@ UK_PROJECT_NAME_PATTERNS = [
     r"\b([A-Z]{3,5})\b(?=\s+(?:project|scheme|site|development)|\s*[-–]\s*)",
 ]
 
-# Known UK construction project names - EMPTY to avoid false positives
-# The system will detect other projects dynamically using patterns and AI
-# rather than hardcoding project names which causes false matches
-KNOWN_UK_PROJECT_NAMES: list[str] = []
+# Known UK construction project names to look for (NOT the current project being analyzed)
+KNOWN_UK_PROJECT_NAMES = [
+    # Wates/Construction projects - used to detect OTHER project references
+    "Silbury Boulevard",
+    "Westminster Works",
+    "Blackfriars Road",
+    "Outwood Wharf",
+    "Holloway Head",
+    "Lisson Arches",
+    "Kennaway Estate",
+    "Camberwell Road",
+    "Dumballs Road",
+    "Saxton Lane",
+    "Old Farm Place",
+    "Gilders Yard",
+    "Trent Lane",
+    "St Peters",
+    "St Peters Hospital",
+    "Walstead Park",
+    "Sydenham Road",
+    "Jervis Court",
+    "Honeypot Lane",
+    "Points Cross",
+    "Hunslet Road",
+    "Wyndham Road",
+    "Thamesview House",
+    "Becontree Avenue",
+    "Black Dog Way",
+    "Heathtown Regeneration",
+    "Thurrock",
+    "Oldbury Road",
+    "Middlewood Plaza",
+    "Glamis Estate",
+    "Pillgwenlly",
+    "Romorantin",
+    "Broxtowe",
+    "Walton on the Naze",
+    "Patmore Estate",
+    "William Paton Gardens",
+    "Vandome Close",
+    "Grange Walk",
+    "Park Place Manchester",
+    # Common abbreviations
+    "BFR",
+    "LSA",
+    "OFP",
+    "MKC",
+    "HFN",
+]
 
-# Known project codes - EMPTY to avoid false positives
-# Hardcoded codes cause false matches. The system detects project codes
-# dynamically using patterns and cross-references with the actual project config.
-KNOWN_PROJECT_CODES: dict[str, str] = {}
+# Known project codes to detect (maps code -> project name)
+KNOWN_PROJECT_CODES: dict[str, str] = {
+    "1328": "Silbury Boulevard",
+    "8001": "Westminster Works",
+    "26461": "Blackfriars Road",
+    "2208": "Blackfriars Road",
+    "8002": "Holloway Head",
+    "1222": "Lisson Arches",
+    "20197": "Kennaway Estate",
+    "20041": "Old Farm Place",
+    "02720": "St Peters Hospital",
+    "21-New-011": "Walstead Park",
+    "02346": "Sydenham Road",
+    "02775": "Becontree Avenue",
+    "1319": "Black Dog Way",
+    "18924": "Heathtown Regeneration",
+    "20065": "Points Cross",
+    "10142": "Honeypot Lane",
+}
 
-# Project stakeholders - EMPTY to avoid false positives
-# Hardcoded stakeholder names cause false "other project" detections.
-# Use the project configuration (Stakeholders table) to identify relevant parties.
-PROJECT_STAKEHOLDERS: dict[str, list[str]] = {}
+# Key stakeholders/keywords by project (for enhanced detection)
+PROJECT_STAKEHOLDERS: dict[str, list[str]] = {
+    "Silbury Boulevard": [
+        "Emtec",
+        "Grainger",
+        "BB7",
+        "HLP",
+        "EA",
+        "Patrick Parsons",
+        "PP",
+        "MKBC",
+        "KONE",
+        "Arcadis",
+        "JTL",
+        "Fenestre Retrofit",
+        "Triangle",
+        "Etex Group",
+        "SAGE",
+        "Eden-Environ",
+        "Avantauk",
+    ],
+    "Westminster Works": [
+        "GNA",
+        "Patrick Parsons",
+        "PP",
+        "BB7",
+        "Curtin's",
+        "CWA",
+        "Wilcowan",
+        "Green Piling",
+        "NRA Roofing",
+        "Bridges Pound",
+        "CW Dowd",
+        "ATAL",
+        "HSR",
+    ],
+    "Blackfriars Road": [
+        "Artel",
+        "Drainline",
+        "MSM Surfacing",
+        "PO",
+        "Ufford St",
+        "London Raised Floors",
+        "Daisy FM",
+        "Jack Tucker",
+        "Paul Moss",
+    ],
+    "Holloway Head": [
+        "HFN",
+        "Midshires",
+        "NT Killingley",
+        "PGE",
+        "Emtec",
+        "Ilec Imec",
+        "McNally & Thompson",
+        "PR Morson",
+        "Regal",
+        "Steane",
+        "Baker Flooring",
+        "Contract Flooring",
+        "John Abbott",
+        "KTB",
+        "Foundation Piling",
+        "Green Piling",
+        "Van Elle",
+        "J&P Carpentry",
+        "Nationwide Interiors",
+        "SBS Joinery",
+        "D.E.S.",
+        "HSG",
+        "Creagh",
+    ],
+    "Lisson Arches": ["Conway", "Aurora"],
+    "Camberwell Road": ["MSM", "SCVS"],
+    "Dumballs Road": ["Anchorworks"],
+    "Saxton Lane": ["Wren", "BNP", "F+G"],
+    "Grange Walk": ["AECOM", "SCMS"],
+    "Thamesview House": ["Thamesview"],
+}
 
 
 # =============================================================================
@@ -1267,25 +1420,293 @@ Only include references that appear to be OTHER projects (is_other_project: true
         total_emails: int,
     ) -> list[RefinementQuestion]:
         """
-        Generate intelligent questions in a LOGICAL order:
-        1. Date range - scope the analysis period
-        2. Relevant parties - identify who matters (skip if project config exists)
-        3. Other projects - filter out unrelated project emails
-        4. Spam/newsletters - remove marketing content
-        5. Duplicates - clean up duplicated emails
+        Generate a set of intelligent questions based on the analysis.
         """
         questions: list[RefinementQuestion] = []
 
-        # Check if project already has stakeholder configuration
-        has_stakeholder_config = bool(self.project_context.get("stakeholders"))
+        # Question 1: Duplicate emails (highest priority - affects counts)
+        if detected_duplicates:
+            total_dup_count = sum(
+                item.email_count - 1 for item in detected_duplicates
+            )  # Count duplicates, not originals
+            questions.append(
+                RefinementQuestion(
+                    id=f"q_{uuid.uuid4().hex[:8]}",
+                    question_text=f"I found {total_dup_count} duplicate emails across {len(detected_duplicates)} groups. Should I remove these duplicates?",
+                    question_type="multi_select",
+                    context="Duplicate emails have identical content but may have been sent multiple times or forwarded. Removing duplicates helps focus your analysis on unique correspondence.",
+                    options=[
+                        {
+                            "value": "remove_all",
+                            "label": f"Remove all {total_dup_count} duplicate emails (keep originals)",
+                        },
+                        {
+                            "value": "select_individual",
+                            "label": "Let me review and select which duplicates to remove",
+                        },
+                        {
+                            "value": "keep_all",
+                            "label": "Keep all emails including duplicates",
+                        },
+                    ],
+                    detected_items=detected_duplicates,
+                    priority=1,
+                    stage=RefinementStage.INITIAL_ANALYSIS,
+                )
+            )
 
-        # STEP 1: Date range - Define the analysis scope first
+        # Question 2: Project cross-references
+        if detected_projects:
+            questions.append(
+                RefinementQuestion(
+                    id=f"q_{uuid.uuid4().hex[:8]}",
+                    question_text=f"I found references to {len(detected_projects)} other projects in the emails. These appear to be separate from '{self.project.project_name}'. Should I exclude emails that primarily relate to these other projects?",
+                    question_type="multi_select",
+                    context=f"Your project is '{self.project.project_name}' (code: {self.project.project_code}). The AI detected what appear to be references to other, unrelated projects. Excluding these will help focus your analysis on relevant correspondence only.",
+                    options=[
+                        {
+                            "value": "exclude_all",
+                            "label": "Exclude all emails mentioning other projects",
+                        },
+                        {
+                            "value": "select_individual",
+                            "label": "Let me review and select which to exclude",
+                        },
+                        {
+                            "value": "keep_all",
+                            "label": "Keep all emails (these might be related)",
+                        },
+                    ],
+                    detected_items=detected_projects,
+                    priority=1,
+                    stage=RefinementStage.PROJECT_CROSS_REF,
+                )
+            )
+
+        # Question 2: Spam and newsletters
+        if detected_spam:
+            total_spam_count = sum(item.email_count for item in detected_spam)
+            questions.append(
+                RefinementQuestion(
+                    id=f"q_{uuid.uuid4().hex[:8]}",
+                    question_text=f"I identified {total_spam_count} emails that appear to be spam, newsletters, or automated messages from {len(detected_spam)} sources. Should I exclude these?",
+                    question_type="multi_select",
+                    context="These emails contain unsubscribe links, marketing language, or come from automated systems. They're unlikely to be relevant to your construction dispute analysis.",
+                    options=[
+                        {
+                            "value": "exclude_all",
+                            "label": f"Exclude all {total_spam_count} spam/newsletter emails",
+                        },
+                        {
+                            "value": "select_individual",
+                            "label": "Let me review each source",
+                        },
+                        {
+                            "value": "keep_all",
+                            "label": "Keep all (I need to review these manually)",
+                        },
+                    ],
+                    detected_items=detected_spam,
+                    priority=2,
+                    stage=RefinementStage.SPAM_DETECTION,
+                )
+            )
+
+        # Question 3: Unknown domains
+        if detected_domains:
+            questions.append(
+                RefinementQuestion(
+                    id=f"q_{uuid.uuid4().hex[:8]}",
+                    question_text=f"I found emails from {len(detected_domains)} domains that aren't in your project configuration. Can you tell me which of these are relevant parties?",
+                    question_type="multi_select",
+                    context="Understanding who the key parties are helps filter out irrelevant correspondence. Mark domains that should be INCLUDED in your analysis.",
+                    options=[
+                        {
+                            "value": "add_to_project",
+                            "label": "Add selected domains to project stakeholders",
+                        },
+                        {
+                            "value": "exclude_selected",
+                            "label": "Exclude emails from unselected domains",
+                        },
+                        {
+                            "value": "review_later",
+                            "label": "Skip for now, I'll review later",
+                        },
+                    ],
+                    detected_items=detected_domains,
+                    priority=3,
+                    stage=RefinementStage.DOMAIN_QUESTIONS,
+                )
+            )
+
+        # Question 4: High-volume unknown senders
+        high_volume_unknown = [p for p in detected_people if p.email_count >= 10]
+        if high_volume_unknown:
+            questions.append(
+                RefinementQuestion(
+                    id=f"q_{uuid.uuid4().hex[:8]}",
+                    question_text=f"These {len(high_volume_unknown)} people sent many emails but aren't in your stakeholder list. Who are they?",
+                    question_type="categorize",
+                    context="Identifying who these people are helps understand the correspondence structure. You can categorize them by their role.",
+                    options=[
+                        {"value": "client", "label": "Client/Employer"},
+                        {"value": "contractor", "label": "Main Contractor"},
+                        {"value": "subcontractor", "label": "Subcontractor"},
+                        {"value": "consultant", "label": "Consultant/Professional"},
+                        {"value": "exclude", "label": "Not relevant - exclude"},
+                        {"value": "unknown", "label": "I don't know"},
+                    ],
+                    detected_items=high_volume_unknown,
+                    priority=4,
+                    stage=RefinementStage.PEOPLE_VALIDATION,
+                )
+            )
+
+        # Question 5: Council/Local Authority identification
+        council_candidates = [
+            p
+            for p in detected_people
+            if any(
+                term in (p.metadata.get("domain", "") or "").lower()
+                for term in [
+                    "council",
+                    "gov.uk",
+                    "local",
+                    "borough",
+                    "city",
+                    "county",
+                    "district",
+                ]
+            )
+        ]
+        if not council_candidates:
+            # Also check domains for council patterns
+            council_domain_candidates = [
+                d
+                for d in detected_domains
+                if any(
+                    term in d.name.lower()
+                    for term in [
+                        "council",
+                        "gov.uk",
+                        "local",
+                        "borough",
+                        "city",
+                        "county",
+                        "district",
+                    ]
+                )
+            ]
+            if council_domain_candidates:
+                questions.append(
+                    RefinementQuestion(
+                        id=f"q_{uuid.uuid4().hex[:8]}",
+                        question_text="Who is the council or local authority for this project?",
+                        question_type="multi_select",
+                        context="Identifying the local authority helps categorize planning-related correspondence, building control communications, and statutory requirements.",
+                        options=[
+                            {
+                                "value": "select_council",
+                                "label": "Select from detected authorities below",
+                            },
+                            {
+                                "value": "not_applicable",
+                                "label": "No council involvement in this project",
+                            },
+                            {
+                                "value": "enter_manually",
+                                "label": "Enter council name manually",
+                            },
+                        ],
+                        detected_items=council_domain_candidates,
+                        priority=5,
+                        stage=RefinementStage.PEOPLE_VALIDATION,
+                    )
+                )
+
+        # Question 6: Client/Employer identification
+        questions.append(
+            RefinementQuestion(
+                id=f"q_{uuid.uuid4().hex[:8]}",
+                question_text="Who is your client or employer for this project?",
+                question_type="categorize",
+                context="Identifying the client/employer helps distinguish between internal communications and external correspondence, and properly categorize instructions and variations.",
+                options=[
+                    {
+                        "value": "select_from_list",
+                        "label": "Select from high-volume senders below",
+                    },
+                    {
+                        "value": "enter_details",
+                        "label": "Enter client details manually",
+                    },
+                ],
+                detected_items=[
+                    p for p in detected_people[:10]
+                ],  # Top 10 senders as candidates
+                priority=5,
+                stage=RefinementStage.PEOPLE_VALIDATION,
+            )
+        )
+
+        # Question 7: Contractor identification
+        contractor_candidates = [
+            p
+            for p in detected_people
+            if any(
+                term in (p.name or "").lower()
+                or term in (p.metadata.get("domain", "") or "").lower()
+                for term in [
+                    "construction",
+                    "build",
+                    "civil",
+                    "contract",
+                    "engineering",
+                    "ltd",
+                    "plc",
+                    "limited",
+                ]
+            )
+        ]
+        if contractor_candidates or len(detected_people) > 5:
+            questions.append(
+                RefinementQuestion(
+                    id=f"q_{uuid.uuid4().hex[:8]}",
+                    question_text="Which of these contractors, subcontractors, or suppliers are relevant to this job?",
+                    question_type="multi_select",
+                    context="Identifying relevant contractors helps filter out unrelated correspondence and properly categorize supply chain communications.",
+                    options=[
+                        {
+                            "value": "include_selected",
+                            "label": "Include only selected contractors",
+                        },
+                        {
+                            "value": "include_all",
+                            "label": "Include all contractors shown",
+                        },
+                        {
+                            "value": "exclude_none_relevant",
+                            "label": "None of these are relevant to this project",
+                        },
+                    ],
+                    detected_items=(
+                        contractor_candidates
+                        if contractor_candidates
+                        else detected_people[:15]
+                    ),
+                    priority=6,
+                    stage=RefinementStage.PEOPLE_VALIDATION,
+                )
+            )
+
+        # Question 8: Date range validation
         questions.append(
             RefinementQuestion(
                 id=f"q_{uuid.uuid4().hex[:8]}",
                 question_text="What date range should I focus on for this analysis?",
                 question_type="date_range",
-                context=f"You have {total_emails} emails. Narrowing the date range can help focus on the relevant period.",
+                context=f"You have {total_emails} emails. Narrowing the date range can help focus on the most relevant period of the dispute.",
                 options=[
                     {"value": "all", "label": "Analyze all dates"},
                     {"value": "custom", "label": "Set custom date range"},
@@ -1293,113 +1714,10 @@ Only include references that appear to be OTHER projects (is_other_project: true
                     {"value": "last_2_years", "label": "Last 2 years"},
                 ],
                 detected_items=[],
-                priority=1,
-                stage=RefinementStage.INITIAL_ANALYSIS,
+                priority=7,
+                stage=RefinementStage.DOMAIN_QUESTIONS,
             )
         )
-
-        # STEP 2: Identify relevant parties (skip redundant questions if config exists)
-        if not has_stakeholder_config:
-            # Ask about high-volume senders to understand who the key parties are
-            high_volume_unknown = [p for p in detected_people if p.email_count >= 10]
-            if high_volume_unknown:
-                questions.append(
-                    RefinementQuestion(
-                        id=f"q_{uuid.uuid4().hex[:8]}",
-                        question_text=f"These {len(high_volume_unknown)} people sent many emails. Who are the key parties?",
-                        question_type="categorize",
-                        context="Identifying key parties helps understand the correspondence. Categorize by role.",
-                        options=[
-                            {"value": "client", "label": "Client/Employer"},
-                            {"value": "contractor", "label": "Main Contractor"},
-                            {"value": "subcontractor", "label": "Subcontractor"},
-                            {"value": "consultant", "label": "Consultant/Professional"},
-                            {"value": "exclude", "label": "Not relevant - exclude"},
-                            {"value": "keep", "label": "Keep but don't categorize"},
-                        ],
-                        detected_items=high_volume_unknown,
-                        priority=2,
-                        stage=RefinementStage.PEOPLE_VALIDATION,
-                    )
-                )
-
-            # Ask about unknown domains
-            if detected_domains:
-                questions.append(
-                    RefinementQuestion(
-                        id=f"q_{uuid.uuid4().hex[:8]}",
-                        question_text=f"I found emails from {len(detected_domains)} domains not in your config. Which are relevant?",
-                        question_type="multi_select",
-                        context="Select the domains that should be INCLUDED in your analysis.",
-                        options=[
-                            {"value": "include_selected", "label": "Include only selected domains"},
-                            {"value": "include_all", "label": "Include all domains shown"},
-                            {"value": "review_later", "label": "Skip for now"},
-                        ],
-                        detected_items=detected_domains,
-                        priority=2,
-                        stage=RefinementStage.DOMAIN_QUESTIONS,
-                    )
-                )
-
-        # STEP 3: Filter out other projects
-        if detected_projects:
-            questions.append(
-                RefinementQuestion(
-                    id=f"q_{uuid.uuid4().hex[:8]}",
-                    question_text=f"I found references to {len(detected_projects)} other projects. Exclude emails about these?",
-                    question_type="multi_select",
-                    context=f"Your project is '{self.project.project_name}'. These appear to be different projects.",
-                    options=[
-                        {"value": "exclude_all", "label": "Exclude all other project emails"},
-                        {"value": "select_individual", "label": "Let me select which to exclude"},
-                        {"value": "keep_all", "label": "Keep all (might be related)"},
-                    ],
-                    detected_items=detected_projects,
-                    priority=3,
-                    stage=RefinementStage.PROJECT_CROSS_REF,
-                )
-            )
-
-        # STEP 4: Remove spam/newsletters
-        if detected_spam:
-            total_spam_count = sum(item.email_count for item in detected_spam)
-            questions.append(
-                RefinementQuestion(
-                    id=f"q_{uuid.uuid4().hex[:8]}",
-                    question_text=f"I identified {total_spam_count} likely spam/newsletter emails. Remove these?",
-                    question_type="multi_select",
-                    context="These contain marketing language, unsubscribe links, or come from bulk mail services.",
-                    options=[
-                        {"value": "exclude_all", "label": f"Remove all {total_spam_count} spam emails"},
-                        {"value": "select_individual", "label": "Let me review each source"},
-                        {"value": "keep_all", "label": "Keep all"},
-                    ],
-                    detected_items=detected_spam,
-                    priority=4,
-                    stage=RefinementStage.SPAM_DETECTION,
-                )
-            )
-
-        # STEP 5: Remove duplicates
-        if detected_duplicates:
-            total_dup_count = sum(item.email_count - 1 for item in detected_duplicates)
-            questions.append(
-                RefinementQuestion(
-                    id=f"q_{uuid.uuid4().hex[:8]}",
-                    question_text=f"I found {total_dup_count} duplicate emails. Remove these?",
-                    question_type="multi_select",
-                    context="Duplicate emails have identical content. Removing keeps one copy of each.",
-                    options=[
-                        {"value": "remove_all", "label": f"Remove all {total_dup_count} duplicates (keep originals)"},
-                        {"value": "select_individual", "label": "Let me review the duplicate groups"},
-                        {"value": "keep_all", "label": "Keep all including duplicates"},
-                    ],
-                    detected_items=detected_duplicates,
-                    priority=5,
-                    stage=RefinementStage.FINAL_REVIEW,
-                )
-            )
 
         return questions
 
