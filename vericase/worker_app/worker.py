@@ -532,23 +532,18 @@ def process_pst_file(
         _update_pst_status(doc_id, "failed", error_msg=str(e))
         raise
 
-# Import forensic processor to register its Celery task
-# Path adjustment for worker context
+# Import forensic processor to register its Celery task (optional)
+# Path is /code/app in Docker container
 import sys
-sys.path.insert(0, "/code")  # Assuming /code is the root in Docker/EC2
-from api.app.pst_forensic_processor import process_pst_forensic
+sys.path.insert(0, "/code")
 
-# region agent log H17 worker import
-# Console fallback: print to worker logs if agent_log fails
-print("Forensic PST task module imported in worker - ready for execution")
-# endregion agent log H17 worker import
+try:
+    from app.pst_forensic_processor import process_pst_forensic
+    print("Forensic PST task module imported in worker - ready for execution")
+except ImportError as e:
+    print(f"Forensic PST processor not available: {e}")
+    process_pst_forensic = None
 
-@celery_app.task(name="worker_app.worker.process_pst_forensic", queue=settings.CELERY_QUEUE)
-def process_pst_forensic_fallback(doc_id: str, case_id: str = None, project_id: str = None):
-    """Fallback task if direct call fails - delegates to the registered task"""
-    # This ensures execution even if name mismatch
-    from api.app.pst_forensic_processor import process_pst_forensic
-    return process_pst_forensic.delay(doc_id, settings.S3_BUCKET, s3_key_from_db(doc_id), case_id=case_id, project_id=project_id).get()
 
 def s3_key_from_db(doc_id: str) -> str:
     """Helper to get s3_key from pst_files for fallback"""

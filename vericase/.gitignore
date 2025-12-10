@@ -81,6 +81,9 @@ node_modules/
 .aws/
 apprunner.yaml
 
+# Claude Code local context (contains AWS infra details)
+.claude/
+
 # Environment files with secrets
 .env.production
 .env.aws
@@ -104,6 +107,9 @@ Gemini_Generated_Image_*
 
 # One-off query scripts
 query_*.py
+
+# Local scripts (may contain credentials)
+scripts/
 
 # Windows artifacts
 NUL

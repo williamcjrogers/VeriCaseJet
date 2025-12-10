@@ -1120,6 +1120,74 @@ def complete_upload(
         return {"id": str(doc.id), "status": "QUEUED", "ai_enabled": True}
 
 
+@app.post("/api/admin/trigger-pst")
+def admin_trigger_pst(
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """
+    Admin endpoint to trigger PST processing for files already in S3.
+    This is useful for re-processing or processing files uploaded outside the normal flow.
+
+    Body:
+        s3_key: str - The S3 key of the PST file
+        project_id: str - The project ID to associate emails with
+    """
+    # Check if user is admin (simple check - email ends with @vericase.com)
+    if not user.email.endswith("@vericase.com"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    s3_key = body.get("s3_key")
+    project_id = body.get("project_id")
+
+    if not s3_key or not project_id:
+        raise HTTPException(status_code=400, detail="s3_key and project_id required")
+
+    filename = s3_key.split("/")[-1]
+    if not filename.lower().endswith(".pst"):
+        raise HTTPException(status_code=400, detail="Only PST files supported")
+
+    # Check if PST file already exists in pst_files table
+    from app.models import PstFile
+    existing = db.query(PstFile).filter(PstFile.s3_key == s3_key).first()
+
+    if existing:
+        # Reset status to pending and re-trigger
+        existing.processing_status = "pending"
+        existing.error_message = None
+        existing.total_emails = 0
+        existing.processed_emails = 0
+        db.commit()
+        pst_file_id = str(existing.id)
+    else:
+        # Create new pst_files record
+        pst_record = PstFile(
+            project_id=uuid.UUID(project_id),
+            filename=filename,
+            s3_key=s3_key,
+            s3_bucket=settings.S3_BUCKET,
+            processing_status="pending",
+        )
+        db.add(pst_record)
+        db.commit()
+        pst_file_id = str(pst_record.id)
+
+    # Queue the forensic processing task
+    celery_app.send_task(
+        "app.process_pst_forensic",
+        args=[pst_file_id, settings.S3_BUCKET, s3_key],
+        kwargs={"project_id": project_id},
+        queue=settings.CELERY_QUEUE,
+    )
+
+    return {
+        "pst_file_id": pst_file_id,
+        "status": "QUEUED",
+        "message": f"PST processing queued for {filename}",
+    }
+
+
 @app.post("/uploads/multipart/start")
 def multipart_start_ep(
     body: dict = Body(...),
