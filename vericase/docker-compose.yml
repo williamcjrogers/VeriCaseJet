@@ -50,15 +50,20 @@ services:
     environment:
       - DATABASE_URL=postgresql+psycopg2://vericase:vericase@postgres:5432/vericase
       - REDIS_URL=redis://redis:6379/0
-      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-}
       - OPENSEARCH_HOST=opensearch
       - OPENSEARCH_PORT=9200
       - TIKA_URL=http://tika:9998
+      - USE_AWS_SERVICES=${USE_AWS_SERVICES:-false}
+      - AWS_REGION=${AWS_REGION:-eu-west-2}
+      - S3_BUCKET=${S3_BUCKET:-vericase-docs}
+      - MINIO_BUCKET=${MINIO_BUCKET:-vericase-docs}
     depends_on: [minio, postgres, redis, opensearch, tika]
     ports: ["8010:8000"]
     volumes:
       - "./api/app:/code/app"
       - "./ui:/code/ui"
+      - "C:/Users/William/.aws:/root/.aws:ro"
 
   worker:
     build:
@@ -68,15 +73,20 @@ services:
     environment:
       - DATABASE_URL=postgresql+psycopg2://vericase:vericase@postgres:5432/vericase
       - REDIS_URL=redis://redis:6379/0
-      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-}
       - OPENSEARCH_HOST=opensearch
       - OPENSEARCH_PORT=9200
       - TIKA_URL=http://tika:9998
+      - USE_AWS_SERVICES=${USE_AWS_SERVICES:-false}
+      - AWS_REGION=${AWS_REGION:-eu-west-2}
+      - S3_BUCKET=${S3_BUCKET:-vericase-docs}
+      - MINIO_BUCKET=${MINIO_BUCKET:-vericase-docs}
     depends_on: [minio, postgres, redis, opensearch, tika]
-    command: ["celery", "-A", "app.tasks", "worker", "--loglevel=INFO", "-Q", "vericase,pst_processing"]
+    command: ["celery", "-A", "worker_app.worker", "worker", "--loglevel=INFO", "-Q", "celery,vericase,pst_processing"]
     volumes:
       - "./worker_app:/code/worker_app"
       - "./api/app:/code/app"
+      - "C:/Users/William/.aws:/root/.aws:ro"
 
   frontend:
     image: node:20-alpine

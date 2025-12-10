@@ -45,6 +45,10 @@
       z-index: 100;
     }
 
+    .app-shell .top-bar {
+      display: none;
+    }
+
     .top-bar h1 {
       font-size: 20px;
       display: flex;
@@ -766,7 +770,7 @@
 <body>
   <div class="top-bar">
     <h1>
-      <img src="/assets/Logo-Vector.png" alt="VeriCase" />
+      <img src="assets/Logo-Vector.png" alt="VeriCase" />
       <i class="fas fa-cloud-upload-alt" style="color: var(--vericase-teal)"></i>
       Evidence Upload <span style="font-size: 12px; opacity: 0.7; margin-left: 10px;">v1.1</span>
     </h1>
@@ -909,6 +913,17 @@
       ? window.VeriCaseConfig.apiUrl
       : window.location.origin;
     console.log("Upload using API URL:", apiUrl);
+
+    // Inject shared navigation shell so this page matches the rest of the app
+    if (window.VericaseShell && typeof window.VericaseShell.inject === "function") {
+      window.VericaseShell.inject({
+        title: "Evidence Upload",
+        breadcrumbs: [
+          { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+          { label: "Evidence Upload" },
+        ],
+      });
+    }
 
     // Retry helper for network issues
     async function fetchWithRetry(url, options, retries = 3) {
@@ -1121,7 +1136,7 @@
                     </div>
                     <div class="file-progress">
                         <div class="progress-bar">
-                            <div class="progress-fill ${item.status === "complete" ? "complete" : ""} ${item.status === "error" ? "error" : ""}" 
+                            <div class="progress-fill ${item.status === "complete" ? "complete" : ""} ${item.status === "error" ? "error" : ""}"
                                  style="width: ${item.progress}%"></div>
                         </div>
                         <div class="progress-text">${item.progress}%</div>
