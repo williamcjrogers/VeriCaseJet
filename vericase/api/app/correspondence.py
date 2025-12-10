@@ -1001,6 +1001,13 @@ async def list_emails(
                 ~EmailMessage.meta.op("->")("spam").op("->>")("is_hidden").cast(Boolean).is_(True),
             )
         )
+        # Also exclude Outlook activity items (IPM.Activity) which are not real emails
+        query = query.filter(
+            or_(
+                EmailMessage.subject.is_(None),
+                ~EmailMessage.subject.like("IPM.%"),
+            )
+        )
 
     # Get total count
     total = query.count()
