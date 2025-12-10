@@ -322,29 +322,13 @@ async def upload_pst_file(
     case_id: Annotated[str | None, Form()] = None,
     project_id: Annotated[str | None, Form()] = None,
     db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+    user: User = Depends(current_user),
 ):
     """
     Direct server-side upload for PST files.
     Uploads to S3 and creates PSTFile record.
+    Requires authentication.
     """
-    # Get default admin user
-    default_user = db.query(User).filter(User.email == "admin@vericase.com").first()
-    if not default_user:
-        from .security import hash_password
-        from .models import UserRole
-
-        default_user = User(
-            email="admin@vericase.com",
-            password_hash=hash_password("VeriCase1234?!"),
-            role=UserRole.ADMIN,
-            is_active=True,
-            email_verified=True,
-            display_name="Administrator",
-        )
-        db.add(default_user)
-        db.commit()
-        db.refresh(default_user)
-
     # Verify case or project exists
     if not case_id and not project_id:
         raise HTTPException(400, "Either case_id or project_id must be provided")
@@ -475,7 +459,7 @@ async def upload_pst_file(
         s3_key=s3_key,
         file_size_bytes=file_size or None,
         processing_status="pending",
-        uploaded_by=default_user.id,
+        uploaded_by=user.id,
     )
 
     db.add(pst_file)
@@ -508,30 +492,13 @@ async def upload_pst_file(
 async def init_pst_upload(
     request: PSTUploadInitRequest,
     db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+    user: User = Depends(current_user),
 ):
     """
     Initialize PST file upload
     Returns presigned S3 URL for direct browser upload
+    Requires authentication.
     """
-
-    # Get default admin user
-    default_user = db.query(User).filter(User.email == "admin@vericase.com").first()
-    if not default_user:
-        from .security import hash_password
-        from .models import UserRole
-
-        default_user = User(
-            email="admin@vericase.com",
-            password_hash=hash_password("VeriCase1234?!"),
-            role=UserRole.ADMIN,
-            is_active=True,
-            email_verified=True,
-            display_name="Administrator",
-        )
-        db.add(default_user)
-        db.commit()
-        db.refresh(default_user)
-
     # Verify case or project exists
     if not request.case_id and not request.project_id:
         raise HTTPException(400, "Either case_id or project_id must be provided")
@@ -562,7 +529,7 @@ async def init_pst_upload(
         s3_key=s3_key,
         file_size_bytes=request.file_size,
         processing_status="pending",
-        uploaded_by=default_user.id,
+        uploaded_by=user.id,
     )
 
     db.add(pst_file)
@@ -597,29 +564,13 @@ SERVER_STREAMING_CHUNK_SIZE = 10 * 1024 * 1024  # 10MB
 async def init_pst_multipart_upload(
     request: PSTMultipartInitRequest,
     db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+    user: User = Depends(current_user),
 ):
     """
     Initialize multipart PST file upload for large files (>100MB).
     Returns upload_id and s3_key for subsequent part uploads.
+    Requires authentication.
     """
-    # Get default admin user
-    default_user = db.query(User).filter(User.email == "admin@vericase.com").first()
-    if not default_user:
-        from .security import hash_password
-        from .models import UserRole
-
-        default_user = User(
-            email="admin@vericase.com",
-            password_hash=hash_password("VeriCase1234?!"),
-            role=UserRole.ADMIN,
-            is_active=True,
-            email_verified=True,
-            display_name="Administrator",
-        )
-        db.add(default_user)
-        db.commit()
-        db.refresh(default_user)
-
     # Verify case or project exists
     if not request.case_id and not request.project_id:
         raise HTTPException(400, "Either case_id or project_id must be provided")
@@ -653,7 +604,7 @@ async def init_pst_multipart_upload(
         s3_key=s3_key,
         file_size_bytes=request.file_size,
         processing_status="uploading",
-        uploaded_by=default_user.id,
+        uploaded_by=user.id,
     )
 
     db.add(pst_file)
@@ -2450,30 +2401,14 @@ async def update_project_stakeholders_bulk(
 @wizard_router.post("/projects/default")
 async def get_or_create_default_project(
     db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+    user: User = Depends(current_user),
 ):
     """
     Get or create the default project.
     This endpoint ALWAYS returns a valid project - creates one if needed.
     Used by the frontend to ensure there's always a valid context for uploads.
+    Requires authentication.
     """
-    # Get default admin user
-    default_user = db.query(User).filter(User.email == "admin@vericase.com").first()
-    if not default_user:
-        from .security import hash_password
-        from .models import UserRole
-
-        default_user = User(
-            email="admin@vericase.com",
-            password_hash=hash_password("VeriCase1234?!"),
-            role=UserRole.ADMIN,
-            is_active=True,
-            email_verified=True,
-            display_name="Administrator",
-        )
-        db.add(default_user)
-        db.commit()
-        db.refresh(default_user)
-
     # Look for existing default project
     default_project = (
         db.query(Project).filter(Project.project_code == "DEFAULT").first()
@@ -2489,7 +2424,7 @@ async def get_or_create_default_project(
             start_date=datetime(2010, 1, 1),
             completion_date=today,
             analysis_type="retrospective",
-            owner_user_id=default_user.id,
+            owner_user_id=user.id,
             meta={"is_default": True},
         )
         db.add(default_project)
@@ -2520,28 +2455,9 @@ async def get_or_create_default_project(
 async def create_project(
     request: ProjectCreateRequest,
     db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+    user: User = Depends(current_user),
 ):
-    """Create new project"""
-
-    # Get default admin user for project ownership
-    default_user = db.query(User).filter(User.email == "admin@vericase.com").first()
-    if not default_user:
-        # Create admin user if doesn't exist
-        from .security import hash_password
-        from .models import UserRole
-
-        default_user = User(
-            email="admin@vericase.com",
-            password_hash=hash_password("VeriCase1234?!"),
-            role=UserRole.ADMIN,
-            is_active=True,
-            email_verified=True,
-            display_name="Administrator",
-        )
-        db.add(default_user)
-        db.commit()
-        db.refresh(default_user)
-
+    """Create new project. Requires authentication."""
     project_id = uuid.uuid4()  # Fixed: Use UUID object, not string
     project_name = request.project_name
     project_code = request.project_code
@@ -2569,7 +2485,7 @@ async def create_project(
         exclude_people=request.exclude_people,
         project_terms=request.project_terms,
         exclude_keywords=request.exclude_keywords,
-        owner_user_id=default_user.id,
+        owner_user_id=user.id,
     )
 
     db.add(project)
@@ -2833,28 +2749,9 @@ async def delete_project(
 async def create_case(
     request: CaseCreateRequest,
     db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+    user: User = Depends(current_user),
 ):
-    """Create new case"""
-
-    # Get default admin user for case ownership
-    default_user = db.query(User).filter(User.email == "admin@vericase.com").first()
-    if not default_user:
-        # Create admin user if doesn't exist
-        from .security import hash_password
-        from .models import UserRole
-
-        default_user = User(
-            email="admin@vericase.com",
-            password_hash=hash_password("VeriCase1234?!"),
-            role=UserRole.ADMIN,
-            is_active=True,
-            email_verified=True,
-            display_name="Administrator",
-        )
-        db.add(default_user)
-        db.commit()
-        db.refresh(default_user)
-
+    """Create new case. Requires authentication."""
     # Create default company for open access
     company = db.query(Company).filter(Company.name == "Default Company").first()
     if not company:
@@ -2890,7 +2787,7 @@ async def create_case(
         legal_team=request.legal_team or [],
         heads_of_claim=request.heads_of_claim or [],
         deadlines=request.deadlines or [],
-        owner_id=default_user.id,
+        owner_id=user.id,
         company_id=company.id,
     )
     db.add(case)
@@ -2999,26 +2896,9 @@ async def _upload_file_to_storage(
     # Use S3_BUCKET for AWS compatibility
     bucket = settings.S3_BUCKET or settings.MINIO_BUCKET
 
-    import logging
-
-    logger = logging.getLogger(__name__)
-    logger.info(f"[UPLOAD DEBUG] Starting upload to bucket={bucket}, key={s3_key}")
-    logger.info(f"[UPLOAD DEBUG] MINIO_ACCESS_KEY={settings.MINIO_ACCESS_KEY}")
-    logger.info(f"[UPLOAD DEBUG] MINIO_ENDPOINT={settings.MINIO_ENDPOINT}")
-    logger.info(f"[UPLOAD DEBUG] USE_AWS_SERVICES={settings.USE_AWS_SERVICES}")
-
     s3_client = s3()
     if not s3_client:
         raise HTTPException(status_code=500, detail="S3 client not available")
-
-    # Test connection first
-    try:
-        buckets = s3_client.list_buckets()
-        logger.info(
-            f"[UPLOAD DEBUG] list_buckets succeeded: {[b['Name'] for b in buckets.get('Buckets', [])]}"
-        )
-    except Exception as e:
-        logger.error(f"[UPLOAD DEBUG] list_buckets failed: {type(e).__name__}: {e}")
 
     try:
         await asyncio.to_thread(
@@ -3083,32 +2963,16 @@ async def upload_evidence(
     profileType: str = Form("project"),  # type: ignore[reportCallInDefaultInitializer]
     file: UploadFile = File(...),  # type: ignore[reportCallInDefaultInitializer]
     db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
-    user: User = Depends(current_user),  # Use Admin Bypass from security.py
+    user: User = Depends(current_user),
 ):
     """
     Simplified upload endpoint for wizard dashboard.
     Streams file directly to S3/MinIO and queues processing tasks.
     If no profileId is provided, uses/creates a default project automatically.
+    Requires authentication.
     """
     try:
-        # --- SIMPLIFICATION: Robust Fallback for Single User ---
-        # If IDs are missing or invalid, fallback to defaults instead of failing.
-        
-        # 1. Handle User
-        if not user:
-            # Fallback to default admin user
-            logger.warning("No user provided, falling back to default admin")
-            stmt = select(User).where(User.email == "admin@vericase.com")
-            result = db.execute(stmt)
-            default_user = result.scalar_one_or_none()
-            if not default_user:
-                 # Should be seeded by startup, but just in case
-                 logger.error("Default admin user not found!")
-                 raise HTTPException(status_code=500, detail="System configuration error: Default user missing")
-        else:
-            default_user = user
-
-        # 2. Handle Profile ID (Project/Case)
+        # Handle Profile ID (Project/Case)
         target_profile_id = profileId
         
         # If missing or invalid UUID, fallback to default project
@@ -3142,7 +3006,7 @@ async def upload_evidence(
             if not db.execute(stmt).scalar_one_or_none():
                  # Create it if missing (safety net)
                  logger.warning("Default project missing in DB, creating on fly")
-                 default_project = _get_or_create_default_project(db, default_user)
+                 default_project = _get_or_create_default_project(db, user)
                  target_profile_id = str(default_project.id)
             else:
                  target_profile_id = default_project_id
@@ -3151,8 +3015,8 @@ async def upload_evidence(
         # Use the resolved ID
         profileId = target_profile_id
         profile_uuid = uuid.UUID(profileId)
-        
-        logger.info(f"Upload context resolved: User={default_user.id}, Profile={profileId} ({profileType})")
+
+        logger.info(f"Upload context resolved: User={user.id}, Profile={profileId} ({profileType})")
         # -------------------------------------------------------
 
 
@@ -3182,11 +3046,11 @@ async def upload_evidence(
             bucket=bucket,
             s3_key=s3_key,
             status=DocStatus.NEW,
-            owner_user_id=default_user.id,
+            owner_user_id=user.id,
             meta={
                 "profile_type": profileType,
                 "profile_id": profileId,
-                "uploaded_by": str(default_user.id),
+                "uploaded_by": str(user.id),
             },
         )
         db.add(document)
@@ -3204,7 +3068,7 @@ async def upload_evidence(
                 s3_key=s3_key,
                 file_size_bytes=size,
                 processing_status="pending",
-                uploaded_by=default_user.id,
+                uploaded_by=user.id,
             )
             db.add(pst_file)
             db.commit()
@@ -3238,7 +3102,7 @@ async def upload_evidence_bulk(
     profileType: str = Form("project"),  # type: ignore[reportCallInDefaultInitializer]
     files: list[UploadFile] = File(...),  # type: ignore[reportCallInDefaultInitializer]
     db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
-    user: User = Depends(current_user),  # Use Admin Bypass from security.py
+    user: User = Depends(current_user),
 ):
     """
     Bulk upload endpoint for multiple email files (.eml, .msg).

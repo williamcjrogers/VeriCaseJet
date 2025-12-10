@@ -145,9 +145,16 @@ def verify_csrf_token(
     request: Request,
     creds: HTTPAuthorizationCredentials = Depends(bearer),
 ) -> None:
+    """
+    Verify CSRF token for state-changing requests.
+    Requires valid authentication credentials.
+    """
     if not creds:
-        # TEMPORARY: Allow requests without auth header while login is disabled
-        return
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     csrf_header = request.headers.get("X-CSRF-Token")
 
