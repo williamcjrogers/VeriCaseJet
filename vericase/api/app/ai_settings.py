@@ -50,6 +50,11 @@ class AISettings:
             "model": "gemini-2.0-flash",  # Budget tier
             "thinking_enabled": False,
             "max_duration_seconds": 30,
+            "fallback_chain": [
+                ("bedrock", "amazon.nova-micro-v1:0"),
+                ("bedrock", "amazon.nova-lite-v1:0"),
+                ("gemini", "gemini-2.0-flash"),
+            ],
         },
         "deep_analysis": {
             "provider": "anthropic",
@@ -62,6 +67,92 @@ class AISettings:
                 "mode": "parallel",
                 "models": [],
             },
+            "fallback_chain": [
+                ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
+                ("anthropic", "claude-sonnet-4-20250514"),
+                ("openai", "gpt-4o"),
+            ],
+        },
+        "synthesis": {
+            "provider": "openai",
+            "model": "gpt-4o",
+            "max_duration_seconds": 180,
+            "fallback_chain": [
+                ("openai", "gpt-4o"),
+                ("anthropic", "claude-sonnet-4-20250514"),
+                ("bedrock", "amazon.nova-pro-v1:0"),
+            ],
+        },
+        "validation": {
+            "provider": "anthropic",
+            "model": "claude-sonnet-4-20250514",
+            "max_duration_seconds": 120,
+            "fallback_chain": [
+                ("anthropic", "claude-sonnet-4-20250514"),
+                ("gemini", "gemini-2.0-flash"),
+                ("openai", "gpt-4o"),
+            ],
+        },
+        "causation_analysis": {
+            "provider": "anthropic",
+            "model": "claude-sonnet-4-20250514",
+            "max_duration_seconds": 180,
+            "description": "Delay causation analysis - Claude excels at analytical reasoning",
+            "fallback_chain": [
+                ("anthropic", "claude-sonnet-4-20250514"),
+                ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
+                ("openai", "gpt-4o"),
+            ],
+        },
+        "timeline": {
+            "provider": "bedrock",
+            "model": "amazon.nova-lite-v1:0",
+            "max_duration_seconds": 120,
+            "description": "Timeline generation - cost-effective for structured output",
+            "fallback_chain": [
+                ("bedrock", "amazon.nova-lite-v1:0"),
+                ("openai", "gpt-4o"),
+                ("gemini", "gemini-2.0-flash"),
+            ],
+        },
+        "reranking": {
+            "provider": "bedrock",
+            "model": "amazon.nova-micro-v1:0",
+            "max_duration_seconds": 30,
+            "description": "Fast reranking for search results",
+            "fallback_chain": [
+                ("bedrock", "amazon.nova-micro-v1:0"),
+                ("gemini", "gemini-2.0-flash"),
+            ],
+        },
+    }
+
+    # Orchestration settings per agent role
+    DEFAULT_AGENT_CONFIGS: dict[str, dict[str, Any]] = {
+        "planner": {
+            "primary_provider": "anthropic",
+            "primary_model": "claude-sonnet-4-20250514",
+            "description": "Research planning - Claude for long-context planning",
+        },
+        "researcher": {
+            "primary_provider": "openai",
+            "primary_model": "gpt-4o",
+            "description": "Evidence investigation - GPT-4 for comprehension",
+        },
+        "synthesizer": {
+            "primary_provider": "openai",
+            "primary_model": "gpt-4o",
+            "description": "Report synthesis - GPT-4 for coherent writing",
+        },
+        "validator": {
+            "primary_provider": "anthropic",
+            "primary_model": "claude-sonnet-4-20250514",
+            "description": "Validation - Claude for analytical checking",
+        },
+        "reranker": {
+            "primary_provider": "bedrock",
+            "primary_model": "amazon.nova-micro-v1:0",
+            "description": "Reranking - fast and cost-effective",
         },
     }
 
@@ -280,6 +371,199 @@ class AISettings:
             return False
 
     @classmethod
+    def get_agent_config(
+        cls, agent_name: str, db: Session | None = None
+    ) -> dict[str, Any]:
+        """
+        Get configuration for a specific agent (planner, researcher, etc.)
+
+        Args:
+            agent_name: Name of the agent (planner, researcher, synthesizer, validator, reranker)
+            db: Database session
+
+        Returns:
+            Agent configuration dict
+        """
+        key = f"ai_agent_{agent_name}"
+
+        # Try to get from database/cache
+        config_json = cls.get(key, db)
+        if config_json:
+            try:
+                return json.loads(config_json)
+            except json.JSONDecodeError:
+                logger.warning(f"Invalid JSON for {key}, using defaults")
+
+        # Return default config
+        return cls.DEFAULT_AGENT_CONFIGS.get(
+            agent_name, cls.DEFAULT_AGENT_CONFIGS.get("researcher", {})
+        )
+
+    @classmethod
+    def set_agent_config(
+        cls, agent_name: str, config: dict[str, Any], db: Session
+    ) -> bool:
+        """
+        Save configuration for a specific agent
+
+        Args:
+            agent_name: Name of the agent
+            config: Configuration dict
+            db: Database session
+
+        Returns:
+            True if saved successfully
+        """
+        key = f"ai_agent_{agent_name}"
+        try:
+            config_json = json.dumps(config)
+
+            setting = db.query(AppSetting).filter(AppSetting.key == key).first()
+            if setting:
+                setting.value = config_json
+            else:
+                setting = AppSetting(key=key, value=config_json)
+                db.add(setting)
+
+            db.commit()
+            cls._cache[key] = config_json
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to save agent config {agent_name}: {e}")
+            db.rollback()
+            return False
+
+    @classmethod
+    def get_orchestration_settings(cls, db: Session | None = None) -> dict[str, Any]:
+        """
+        Get global orchestration settings
+
+        Returns:
+            Orchestration configuration including:
+            - routing_strategy: performance|cost|latency|balanced
+            - max_latency_ms: Maximum acceptable latency
+            - min_quality_score: Minimum quality threshold
+            - prefer_bedrock: Whether to prefer Bedrock models
+            - enable_validation: Whether to run validation phase
+            - enable_multi_model: Whether to enable multi-model execution
+        """
+        key = "ai_orchestration_settings"
+        config_json = cls.get(key, db)
+
+        defaults = {
+            "routing_strategy": "balanced",
+            "max_latency_ms": 5000,
+            "min_quality_score": 0.6,
+            "prefer_bedrock": True,
+            "enable_validation": True,
+            "enable_multi_model": False,
+            "cost_budget_per_session": None,  # No limit by default
+            "latency_weight": 0.3,
+            "quality_weight": 0.5,
+            "cost_weight": 0.2,
+        }
+
+        if config_json:
+            try:
+                saved = json.loads(config_json)
+                defaults.update(saved)
+            except json.JSONDecodeError:
+                pass
+
+        return defaults
+
+    @classmethod
+    def set_orchestration_settings(
+        cls, settings: dict[str, Any], db: Session
+    ) -> bool:
+        """Save global orchestration settings"""
+        key = "ai_orchestration_settings"
+        try:
+            config_json = json.dumps(settings)
+
+            setting = db.query(AppSetting).filter(AppSetting.key == key).first()
+            if setting:
+                setting.value = config_json
+            else:
+                setting = AppSetting(key=key, value=config_json)
+                db.add(setting)
+
+            db.commit()
+            cls._cache[key] = config_json
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to save orchestration settings: {e}")
+            db.rollback()
+            return False
+
+    @classmethod
+    def get_pinned_model(
+        cls, function_name: str, db: Session | None = None
+    ) -> tuple[str, str] | None:
+        """
+        Get admin-pinned model for a function if set
+
+        Returns:
+            Tuple of (provider, model_id) or None if not pinned
+        """
+        key = f"ai_pinned_model_{function_name}"
+        value = cls.get(key, db)
+
+        if value and ":" in value:
+            provider, model_id = value.split(":", 1)
+            return (provider, model_id)
+
+        return None
+
+    @classmethod
+    def set_pinned_model(
+        cls, function_name: str, provider: str, model_id: str, db: Session
+    ) -> bool:
+        """Pin a specific model for a function"""
+        key = f"ai_pinned_model_{function_name}"
+        value = f"{provider}:{model_id}"
+
+        try:
+            setting = db.query(AppSetting).filter(AppSetting.key == key).first()
+            if setting:
+                setting.value = value
+            else:
+                setting = AppSetting(key=key, value=value)
+                db.add(setting)
+
+            db.commit()
+            cls._cache[key] = value
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to pin model for {function_name}: {e}")
+            db.rollback()
+            return False
+
+    @classmethod
+    def clear_pinned_model(cls, function_name: str, db: Session) -> bool:
+        """Remove pinned model for a function"""
+        key = f"ai_pinned_model_{function_name}"
+
+        try:
+            setting = db.query(AppSetting).filter(AppSetting.key == key).first()
+            if setting:
+                db.delete(setting)
+                db.commit()
+
+            if key in cls._cache:
+                del cls._cache[key]
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to clear pinned model for {function_name}: {e}")
+            db.rollback()
+            return False
+
+    @classmethod
     def is_bedrock_enabled(cls, db: Session | None = None) -> bool:
         """Check if Amazon Bedrock is enabled"""
         return cls.get("bedrock_enabled", db) == "true"
@@ -400,3 +684,18 @@ def get_effective_provider(
 ) -> tuple[str, str]:
     """Get effective provider after applying routing rules (Bedrock-first, etc.)"""
     return AISettings.get_effective_provider(requested_provider, model, db)
+
+
+def get_agent_config(agent_name: str, db: Session | None = None) -> dict[str, Any]:
+    """Get configuration for an AI agent (planner, researcher, etc.)"""
+    return AISettings.get_agent_config(agent_name, db)
+
+
+def get_orchestration_settings(db: Session | None = None) -> dict[str, Any]:
+    """Get global orchestration settings"""
+    return AISettings.get_orchestration_settings(db)
+
+
+def get_pinned_model(function_name: str, db: Session | None = None) -> tuple[str, str] | None:
+    """Get admin-pinned model for a function"""
+    return AISettings.get_pinned_model(function_name, db)

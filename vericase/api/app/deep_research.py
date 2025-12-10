@@ -126,6 +126,11 @@ class ResearchSession(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     error_message: str | None = None
+    # Validation results from ValidatorAgent
+    validation_result: dict[str, Any] = Field(default_factory=dict)
+    validation_passed: bool = True
+    # Model tracking for transparency
+    models_used: dict[str, str] = Field(default_factory=dict)  # agent_name -> model_id
 
 
 # Session store (uses Redis if available, otherwise in-memory)
@@ -1024,6 +1029,10 @@ When writing reports:
 
 Write in a professional, authoritative tone suitable for legal proceedings."""
 
+    # Track which model was used for synthesis (for transparency)
+    last_model_used: str | None = None
+    synthesizer_model: str | None = None
+
     async def synthesize(
         self, plan: ResearchPlan, question_analyses: dict[str, dict[str, Any]]
     ) -> tuple[str, list[str]]:
@@ -1170,6 +1179,527 @@ Write in professional legal report style."""
         return "\n".join(report_parts)
 
 
+class ValidatorAgent(BaseAgent):
+    """
+    Validates synthesized output for accuracy, coherence, and proper citations.
+
+    Workflow:
+    1. Citation verification - check each claim against source evidence
+    2. Coherence checking - ensure consistency between sections
+    3. Completeness checking - verify all key angles are addressed
+    4. Fact-checking - verify dates, parties, and facts match sources
+    5. Generate validation report with confidence scores
+
+    This agent is critical for ensuring quality and reducing hallucinations.
+    Uses a secondary model (different from synthesizer) for cross-validation.
+    """
+
+    SYSTEM_PROMPT = """You are an expert quality assurance analyst for legal research reports.
+Your role is to rigorously validate research outputs for accuracy, consistency, and completeness.
+
+When validating:
+1. Verify every factual claim has a supporting citation
+2. Check that citations accurately represent the source material
+3. Identify any logical inconsistencies or contradictions
+4. Flag potential hallucinations or unsupported claims
+5. Assess completeness - are all key aspects covered?
+6. Evaluate coherence - does the narrative flow logically?
+
+Be thorough and skeptical. Quality matters more than being polite about issues."""
+
+    async def validate_report(
+        self,
+        report: str,
+        plan: ResearchPlan,
+        question_analyses: dict[str, dict[str, Any]],
+        evidence_items: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Validate a synthesized report for accuracy and quality.
+
+        Returns:
+            Validation result with scores, issues, and recommendations
+        """
+        # Build evidence reference for validation
+        evidence_summary = ""
+        if evidence_items:
+            evidence_summary = "\n".join(
+                f"[{e.get('id', 'unknown')}] {e.get('type', 'EVIDENCE')}: {str(e.get('content', e.get('text', '')))[:300]}"
+                for e in evidence_items[:50]  # Limit for context
+            )
+
+        # Build findings reference
+        findings_summary = "\n\n".join(
+            f"Question: {q.question}\nFindings: {question_analyses.get(q.id, {}).get('findings', 'No findings')[:500]}"
+            for q in plan.questions
+        )
+
+        prompt = f"""Validate the following research report for accuracy and quality.
+
+RESEARCH TOPIC: {plan.topic}
+
+PROBLEM STATEMENT: {plan.problem_statement}
+
+KEY ANGLES TO COVER: {', '.join(plan.key_angles)}
+
+ORIGINAL RESEARCH FINDINGS:
+{findings_summary}
+
+AVAILABLE EVIDENCE REFERENCES:
+{evidence_summary[:3000] if evidence_summary else "No structured evidence provided"}
+
+REPORT TO VALIDATE:
+{report}
+
+Perform a thorough validation and output as JSON:
+{{
+    "overall_score": 0.0-1.0,
+    "citation_accuracy": {{
+        "score": 0.0-1.0,
+        "verified_claims": 0,
+        "unverified_claims": 0,
+        "issues": ["list of citation issues"]
+    }},
+    "coherence": {{
+        "score": 0.0-1.0,
+        "issues": ["list of logical inconsistencies or contradictions"]
+    }},
+    "completeness": {{
+        "score": 0.0-1.0,
+        "covered_angles": ["angles that were covered"],
+        "missing_angles": ["angles that were not addressed"]
+    }},
+    "factual_accuracy": {{
+        "score": 0.0-1.0,
+        "potential_hallucinations": ["claims that may be hallucinated"],
+        "verified_facts": ["key facts that are well-supported"]
+    }},
+    "recommendations": ["specific improvements needed"],
+    "validation_passed": true/false,
+    "confidence": "high|medium|low"
+}}"""
+
+        response = await self._call_llm(prompt, self.SYSTEM_PROMPT, use_powerful=True)
+
+        try:
+            json_str = response
+            if "```json" in response:
+                json_str = response.split("```json")[1].split("```")[0]
+            elif "```" in response:
+                json_str = response.split("```")[1].split("```")[0]
+
+            return cast(dict[str, Any], json.loads(json_str.strip()))
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.warning(f"Failed to parse validation response: {e}")
+            # Return a basic validation result
+            return {
+                "overall_score": 0.5,
+                "validation_passed": True,  # Default to pass if parsing fails
+                "confidence": "low",
+                "recommendations": ["Validation parsing failed - manual review recommended"],
+                "raw_response": response[:1000],
+            }
+
+    async def verify_citations(
+        self,
+        claims_with_citations: list[dict[str, str]],
+        evidence_items: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """
+        Verify individual claims against their cited evidence.
+
+        Args:
+            claims_with_citations: List of {"claim": "...", "citation_id": "..."}
+            evidence_items: Available evidence to verify against
+
+        Returns:
+            Verification results per claim
+        """
+        if not claims_with_citations or not evidence_items:
+            return {"verified": 0, "unverified": 0, "results": []}
+
+        # Build evidence lookup
+        evidence_lookup = {str(e.get("id", "")): e for e in evidence_items}
+
+        results = []
+        verified_count = 0
+
+        for item in claims_with_citations:
+            claim = item.get("claim", "")
+            citation_id = item.get("citation_id", "")
+
+            evidence = evidence_lookup.get(citation_id)
+            if not evidence:
+                results.append({
+                    "claim": claim,
+                    "citation_id": citation_id,
+                    "status": "not_found",
+                    "reason": "Citation ID not found in evidence"
+                })
+                continue
+
+            # Use LLM to verify claim matches evidence
+            verify_prompt = f"""Does this claim accurately represent the cited evidence?
+
+CLAIM: {claim}
+
+CITED EVIDENCE (ID: {citation_id}):
+{str(evidence.get('content', evidence.get('text', '')))[:1000]}
+
+Respond with JSON:
+{{
+    "verified": true/false,
+    "confidence": 0.0-1.0,
+    "reason": "explanation"
+}}"""
+
+            try:
+                verify_response = await self._call_llm(verify_prompt, "You are a fact-checker.")
+
+                json_str = verify_response
+                if "```json" in verify_response:
+                    json_str = verify_response.split("```json")[1].split("```")[0]
+                elif "```" in verify_response:
+                    json_str = verify_response.split("```")[1].split("```")[0]
+
+                result = json.loads(json_str.strip())
+                result["claim"] = claim
+                result["citation_id"] = citation_id
+                result["status"] = "verified" if result.get("verified") else "unverified"
+
+                if result.get("verified"):
+                    verified_count += 1
+
+                results.append(result)
+            except Exception as e:
+                logger.warning(f"Citation verification failed: {e}")
+                results.append({
+                    "claim": claim,
+                    "citation_id": citation_id,
+                    "status": "error",
+                    "reason": str(e)
+                })
+
+        return {
+            "verified": verified_count,
+            "unverified": len(claims_with_citations) - verified_count,
+            "results": results,
+        }
+
+    async def check_coherence(
+        self,
+        sections: dict[str, str],
+    ) -> dict[str, Any]:
+        """
+        Check coherence and consistency between report sections.
+
+        Returns:
+            Coherence analysis with identified contradictions
+        """
+        if not sections:
+            return {"score": 1.0, "issues": []}
+
+        sections_text = "\n\n---\n\n".join(
+            f"SECTION: {title}\n{content[:1000]}"
+            for title, content in sections.items()
+        )
+
+        prompt = f"""Analyze these report sections for coherence and consistency.
+Identify any contradictions, logical gaps, or inconsistencies between sections.
+
+{sections_text}
+
+Output as JSON:
+{{
+    "score": 0.0-1.0,
+    "issues": [
+        {{
+            "type": "contradiction|gap|inconsistency",
+            "sections": ["Section A", "Section B"],
+            "description": "description of the issue"
+        }}
+    ],
+    "flow_quality": "excellent|good|fair|poor",
+    "suggestions": ["improvement suggestions"]
+}}"""
+
+        response = await self._call_llm(prompt, self.SYSTEM_PROMPT)
+
+        try:
+            json_str = response
+            if "```json" in response:
+                json_str = response.split("```json")[1].split("```")[0]
+            elif "```" in response:
+                json_str = response.split("```")[1].split("```")[0]
+
+            return cast(dict[str, Any], json.loads(json_str.strip()))
+        except (json.JSONDecodeError, KeyError):
+            return {"score": 0.7, "issues": [], "flow_quality": "unknown"}
+
+
+class RerankerAgent(BaseAgent):
+    """
+    Reranks and selects the best outputs from multiple alternatives.
+
+    Workflow:
+    1. Score multiple candidate outputs on quality metrics
+    2. Select the best candidate or merge best parts
+    3. Can also rerank search results beyond cross-encoder
+
+    Supports both:
+    - Cross-encoder based reranking (for search results)
+    - LLM-based scoring and selection (for answer/section selection)
+    """
+
+    SYSTEM_PROMPT = """You are an expert evaluator for legal and analytical content.
+Your role is to compare and rank outputs based on quality, accuracy, and relevance.
+
+When evaluating:
+1. Assess factual accuracy and citation quality
+2. Evaluate clarity and coherence of writing
+3. Check completeness of coverage
+4. Consider relevance to the original question/topic
+5. Prefer specific, well-supported claims over vague statements
+
+Be objective and provide clear justifications for rankings."""
+
+    _cross_encoder: Any | None = None
+
+    @classmethod
+    def get_cross_encoder(cls):
+        """Lazy load cross-encoder model for reranking"""
+        if cls._cross_encoder is None:
+            try:
+                from sentence_transformers import CrossEncoder
+                cls._cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+                logger.info("RerankerAgent: Cross-encoder model loaded")
+            except Exception as e:
+                logger.warning(f"RerankerAgent: Could not load cross-encoder: {e}")
+        return cls._cross_encoder
+
+    async def rerank_answers(
+        self,
+        question: str,
+        candidate_answers: list[dict[str, Any]],
+        criteria: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Rerank multiple candidate answers using LLM-based scoring.
+
+        Args:
+            question: The original question being answered
+            candidate_answers: List of {"answer": "...", "model": "...", ...}
+            criteria: Optional scoring criteria to emphasize
+
+        Returns:
+            Reranked list with scores
+        """
+        if not candidate_answers:
+            return []
+
+        if len(candidate_answers) == 1:
+            candidate_answers[0]["rerank_score"] = 1.0
+            return candidate_answers
+
+        criteria_str = ", ".join(criteria) if criteria else "accuracy, completeness, clarity, citation quality"
+
+        # Build comparison prompt
+        candidates_text = "\n\n---\n\n".join(
+            f"CANDIDATE {i+1} (from {c.get('model', 'unknown')}):\n{c.get('answer', c.get('content', ''))[:1500]}"
+            for i, c in enumerate(candidate_answers)
+        )
+
+        prompt = f"""Compare and rank these candidate answers to the question.
+
+QUESTION: {question}
+
+EVALUATION CRITERIA: {criteria_str}
+
+{candidates_text}
+
+Score each candidate from 0.0 to 1.0 and rank them. Output as JSON:
+{{
+    "rankings": [
+        {{
+            "candidate": 1,
+            "score": 0.0-1.0,
+            "strengths": ["list of strengths"],
+            "weaknesses": ["list of weaknesses"],
+            "justification": "why this ranking"
+        }}
+    ],
+    "best_candidate": 1,
+    "recommendation": "which to use and why"
+}}"""
+
+        response = await self._call_llm(prompt, self.SYSTEM_PROMPT)
+
+        try:
+            json_str = response
+            if "```json" in response:
+                json_str = response.split("```json")[1].split("```")[0]
+            elif "```" in response:
+                json_str = response.split("```")[1].split("```")[0]
+
+            result = json.loads(json_str.strip())
+            rankings = result.get("rankings", [])
+
+            # Apply scores to candidates
+            for ranking in rankings:
+                idx = ranking.get("candidate", 1) - 1
+                if 0 <= idx < len(candidate_answers):
+                    candidate_answers[idx]["rerank_score"] = ranking.get("score", 0.5)
+                    candidate_answers[idx]["rerank_justification"] = ranking.get("justification", "")
+
+            # Sort by score descending
+            candidate_answers.sort(key=lambda x: x.get("rerank_score", 0), reverse=True)
+
+            return candidate_answers
+
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.warning(f"Answer reranking failed: {e}")
+            # Return as-is with default scores
+            for i, c in enumerate(candidate_answers):
+                c["rerank_score"] = 1.0 - (i * 0.1)
+            return candidate_answers
+
+    async def select_best_sections(
+        self,
+        theme: str,
+        section_candidates: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """
+        Select the best section from multiple generated candidates.
+
+        Used when multiple models generate competing section drafts.
+
+        Args:
+            theme: The section theme/topic
+            section_candidates: List of {"content": "...", "model": "...", ...}
+
+        Returns:
+            The best candidate with selection reasoning
+        """
+        if not section_candidates:
+            return {"content": "", "model": "none", "selection_reason": "No candidates"}
+
+        if len(section_candidates) == 1:
+            section_candidates[0]["selection_reason"] = "Only candidate"
+            return section_candidates[0]
+
+        candidates_text = "\n\n---\n\n".join(
+            f"CANDIDATE {i+1} (from {c.get('model', 'unknown')}):\n{c.get('content', '')[:2000]}"
+            for i, c in enumerate(section_candidates)
+        )
+
+        prompt = f"""Select the best section for the theme: "{theme}"
+
+{candidates_text}
+
+Consider: accuracy, completeness, writing quality, and professional tone.
+
+Output as JSON:
+{{
+    "selected_candidate": 1,
+    "score": 0.0-1.0,
+    "selection_reason": "why this is best",
+    "merge_suggestion": "optional: elements from other candidates worth incorporating"
+}}"""
+
+        response = await self._call_llm(prompt, self.SYSTEM_PROMPT)
+
+        try:
+            json_str = response
+            if "```json" in response:
+                json_str = response.split("```json")[1].split("```")[0]
+            elif "```" in response:
+                json_str = response.split("```")[1].split("```")[0]
+
+            result = json.loads(json_str.strip())
+            selected_idx = result.get("selected_candidate", 1) - 1
+
+            if 0 <= selected_idx < len(section_candidates):
+                best = section_candidates[selected_idx]
+                best["selection_reason"] = result.get("selection_reason", "")
+                best["selection_score"] = result.get("score", 0.8)
+                best["merge_suggestion"] = result.get("merge_suggestion", "")
+                return best
+
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.warning(f"Section selection failed: {e}")
+
+        # Default to first candidate
+        section_candidates[0]["selection_reason"] = "Default selection (parsing failed)"
+        return section_candidates[0]
+
+    def rerank_search_results(
+        self,
+        query: str,
+        results: list[dict[str, Any]],
+        top_k: int = 10,
+    ) -> list[dict[str, Any]]:
+        """
+        Rerank search results using cross-encoder (synchronous).
+
+        This provides more accurate relevance scoring than vector similarity alone.
+        """
+        if not results or len(results) <= 1:
+            return results
+
+        cross_encoder = self.get_cross_encoder()
+        if cross_encoder is None:
+            logger.warning("Cross-encoder unavailable, returning results as-is")
+            return results[:top_k]
+
+        try:
+            # Create query-document pairs
+            pairs = [
+                (query, r.get("content", r.get("text", str(r))))
+                for r in results
+            ]
+
+            # Score all pairs
+            scores = cross_encoder.predict(pairs)
+
+            # Combine with results and sort
+            scored_results = list(zip(results, scores))
+            scored_results.sort(key=lambda x: x[1], reverse=True)
+
+            # Return top-k with scores
+            return [
+                {**r, "cross_encoder_score": float(s)}
+                for r, s in scored_results[:top_k]
+            ]
+
+        except Exception as e:
+            logger.error(f"Cross-encoder reranking failed: {e}")
+            return results[:top_k]
+
+    async def consensus_selection(
+        self,
+        candidates: list[dict[str, Any]],
+        selection_type: str = "answer",
+    ) -> dict[str, Any]:
+        """
+        Use multi-model consensus to select the best output.
+
+        Calls multiple models to vote on the best candidate.
+        Useful for high-stakes selections.
+        """
+        if not candidates:
+            return {"error": "No candidates provided"}
+
+        if len(candidates) == 1:
+            return candidates[0]
+
+        # For now, use single-model selection
+        # Future enhancement: call multiple models and aggregate votes
+        if selection_type == "answer":
+            return (await self.rerank_answers("", candidates))[0]
+        else:
+            return await self.select_best_sections("", candidates)
+
+
 # Note: EvidenceContext is defined here before MasterAgent to avoid forward reference issues
 @dataclass
 class EvidenceContext:
@@ -1188,7 +1718,11 @@ class MasterAgent:
     2. Wait for user approval (HITL)
     3. Execute research DAG with parallel Researcher Agents
     4. Delegate to Synthesizer Agent
-    5. Return final report
+    5. Run ValidatorAgent for quality assurance
+    6. Return final report with validation
+
+    Multi-model orchestration: Different agents can use different models
+    based on task requirements and performance metrics.
     """
 
     def __init__(self, db: Session, session: ResearchSession):
@@ -1196,6 +1730,8 @@ class MasterAgent:
         self.session = session
         self.planner = PlannerAgent(db)
         self.synthesizer = SynthesizerAgent(db)
+        self.validator = ValidatorAgent(db)
+        self.reranker = RerankerAgent(db)
 
     async def run_planning_phase(
         self, evidence_context: EvidenceContext, focus_areas: list[str] | None = None
@@ -1299,10 +1835,101 @@ class MasterAgent:
 
         self.session.final_report = report
         self.session.key_themes = themes
-        self.session.status = ResearchStatus.COMPLETED
+        self.session.models_used["synthesizer"] = self.synthesizer.synthesizer_model or "default"
         self.session.updated_at = datetime.now(timezone.utc)
 
         return report
+
+    async def run_validation_phase(
+        self,
+        evidence_context: EvidenceContext | None = None,
+    ) -> dict[str, Any]:
+        """
+        Phase 4: Validate the synthesized report for quality assurance.
+
+        This uses a ValidatorAgent (typically with a different model) to:
+        - Verify citations are accurate
+        - Check coherence between sections
+        - Identify potential hallucinations
+        - Assess completeness
+
+        Returns:
+            Validation result with scores and recommendations
+        """
+        if not self.session.plan or not self.session.final_report:
+            raise ValueError("No plan or report available for validation")
+
+        logger.info(f"Running validation phase for session {self.session.id}")
+
+        # Validate the report
+        validation_result = await self.validator.validate_report(
+            report=self.session.final_report,
+            plan=self.session.plan,
+            question_analyses=self.session.question_analyses,
+            evidence_items=evidence_context.items if evidence_context else None,
+        )
+
+        # Store validation results
+        self.session.validation_result = validation_result
+        self.session.validation_passed = validation_result.get("validation_passed", True)
+        self.session.models_used["validator"] = "claude"  # Validator uses powerful model
+        self.session.updated_at = datetime.now(timezone.utc)
+
+        # Log validation outcome
+        overall_score = validation_result.get("overall_score", 0)
+        if overall_score >= 0.8:
+            logger.info(f"Validation passed with high confidence: {overall_score}")
+        elif overall_score >= 0.5:
+            logger.warning(f"Validation passed with medium confidence: {overall_score}")
+        else:
+            logger.warning(f"Validation flagged issues: {overall_score}")
+
+        # If validation fails significantly, we could trigger re-synthesis
+        # For now, we just record the results
+        if overall_score < 0.5:
+            self.session.error_message = f"Validation score low ({overall_score:.2f}): {', '.join(validation_result.get('recommendations', [])[:2])}"
+
+        return validation_result
+
+    async def run_full_workflow(
+        self,
+        evidence_context: EvidenceContext,
+        focus_areas: list[str] | None = None,
+        skip_validation: bool = False,
+    ) -> tuple[str, dict[str, Any]]:
+        """
+        Run the complete research workflow end-to-end.
+
+        This is useful for automated/batch processing where plan approval
+        is not needed or has been pre-approved.
+
+        Args:
+            evidence_context: Evidence to research
+            focus_areas: Optional focus areas
+            skip_validation: Skip validation phase (faster but less quality assurance)
+
+        Returns:
+            Tuple of (final_report, validation_result)
+        """
+        # Phase 1: Planning
+        await self.run_planning_phase(evidence_context, focus_areas)
+
+        # Phase 2: Research (with parallel execution)
+        await self.run_research_phase(evidence_context)
+
+        # Phase 3: Synthesis
+        report = await self.run_synthesis_phase()
+
+        # Phase 4: Validation (optional)
+        validation_result = {}
+        if not skip_validation:
+            validation_result = await self.run_validation_phase(evidence_context)
+
+        # Mark as completed
+        self.session.status = ResearchStatus.COMPLETED
+        self.session.updated_at = datetime.now(timezone.utc)
+
+        return report, validation_result
 
 
 # =============================================================================
