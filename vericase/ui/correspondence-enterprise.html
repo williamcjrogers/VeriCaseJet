@@ -307,13 +307,13 @@
       background: var(--bg-tertiary);
     }
 
-    /* Statistics Bar - Card Style (matching timeline) */
+    /* Statistics Bar - Clean Card Style (matching timeline) */
     .stats-bar {
-      background: var(--bg-tertiary);
-      padding: 0.75rem 1.5rem;
+      background: var(--bg-primary);
+      padding: 1rem 1.5rem;
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: 1rem;
       overflow-x: auto;
       border-bottom: 1px solid var(--border);
     }
@@ -321,17 +321,17 @@
     .stat-item {
       display: flex;
       flex-direction: column;
-      gap: 0.125rem;
-      min-width: max-content;
+      gap: 0.25rem;
+      min-width: 120px;
       background: var(--bg-card);
-      padding: 0.5rem 0.875rem;
-      border-radius: 8px;
+      padding: 0.875rem 1.25rem;
+      border-radius: 10px;
       border: 1px solid var(--border);
-      box-shadow: var(--shadow-sm);
+      box-shadow: var(--shadow-card);
     }
 
     .stat-label {
-      font-size: 0.625rem;
+      font-size: 0.6875rem;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -339,7 +339,7 @@
     }
 
     .stat-value {
-      font-size: 1rem;
+      font-size: 1.25rem;
       font-weight: 700;
       color: var(--vc-navy);
     }
@@ -1672,18 +1672,6 @@
     </div>
 
     <div class="toolbar-right">
-      <!-- AI Tools - Primary CTA -->
-      <button class="btn toolbar-ai-btn" onclick="toggleAIChat()" title="AI Assistant">
-        <i class="fas fa-brain"></i>
-        <span class="btn-label-desktop">AI</span>
-      </button>
-
-      <button class="btn btn-ai-wizard" onclick="openRefinementWizard()" title="AI Refinement">
-        <i class="fas fa-wand-magic-sparkles"></i>
-      </button>
-
-      <span class="toolbar-separator"></span>
-
       <!-- View Controls -->
       <button class="btn btn-icon" onclick="toggleDetailPanel()" title="Toggle Details">
         <i class="fas fa-columns"></i>
@@ -2009,23 +1997,6 @@
         </div>
 
         <!-- AI Suggestions Section -->
-        <div class="context-section" id="suggestionsSection">
-          <div class="context-section-header" onclick="toggleContextSection('suggestions')">
-            <span><i class="fas fa-lightbulb"></i> AI Suggestions</span>
-            <i class="fas fa-chevron-down"></i>
-          </div>
-          <div class="context-section-body" id="suggestionsBody">
-            <div id="aiSuggestionsList">
-              <div class="context-empty-state">
-                <i class="fas fa-robot"></i>
-                <p>
-                  Select emails to get AI suggestions for category and linking
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <!-- Bulk Actions Section -->
         <div class="context-section" id="bulkActionsSection">
           <div class="context-section-header" onclick="toggleContextSection('bulkActions')">
@@ -8754,12 +8725,12 @@
           </div>
         `,
         headerActions: `
-          <button class="btn" onclick="window.location.href='deep-research.html'" title="Open Deep Research" style="
-            background: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%);
+          <button class="btn" onclick="window.location.href='deep-research.html'" title="Open Deep Analysis" style="
+            background: linear-gradient(135deg, #0f9d9a 0%, #0a7d7a 100%);
             color: white;
             border: none;
           ">
-            <i class="fas fa-atom"></i> Deep Research
+            <i class="fas fa-microscope"></i> Deep Analysis
           </button>
           <div class="header-action-divider"></div>
           <button class="btn" onclick="exportToExcel()" title="Export to Excel">
@@ -8814,9 +8785,6 @@
     const commands = [
       { id: 'search', label: 'Search emails', icon: 'fa-search', action: () => document.getElementById('quickFilter')?.focus(), category: 'Navigation' },
       { id: 'filter', label: 'Open advanced filter', icon: 'fa-filter', action: toggleAdvancedFilter, category: 'Navigation' },
-      { id: 'ai', label: 'Open AI Assistant', icon: 'fa-brain', action: toggleAIChat, category: 'AI Tools' },
-      { id: 'research', label: 'Go to Deep Research', icon: 'fa-atom', action: () => window.location.href = 'deep-research.html', category: 'AI Tools' },
-      { id: 'refinement', label: 'Open AI Refinement Wizard', icon: 'fa-wand-magic-sparkles', action: openRefinementWizard, category: 'AI Tools' },
       { id: 'export', label: 'Export to Excel', icon: 'fa-file-excel', action: exportToExcel, category: 'Actions' },
       { id: 'print', label: 'Print emails', icon: 'fa-print', action: printEmails, category: 'Actions' },
       { id: 'refresh', label: 'Refresh data', icon: 'fa-sync-alt', action: refreshData, category: 'Actions' },

@@ -102,6 +102,18 @@ def index_project_emails_semantic(self, project_id: str, batch_size: int = 50) -
                     # Index this email
                     body_text = email.body_text_clean or email.body_text or ""
 
+                    # Extract attachment info for multi-vector indexing
+                    attachment_names: list[str] = []
+                    attachment_types: list[str] = []
+                    if hasattr(email, 'attachments') and email.attachments:
+                        for att in email.attachments:
+                            if hasattr(att, 'filename') and att.filename:
+                                attachment_names.append(att.filename)
+                                # Extract file extension
+                                if '.' in att.filename:
+                                    ext = att.filename.rsplit('.', 1)[-1].lower()
+                                    attachment_types.append(ext)
+
                     semantic_service.process_email(
                         email_id=str(email.id),
                         subject=email.subject or "",
@@ -110,6 +122,9 @@ def index_project_emails_semantic(self, project_id: str, batch_size: int = 50) -
                         recipients=email.recipients_to or [],
                         case_id=str(email.case_id) if email.case_id else None,
                         project_id=str(email.project_id) if email.project_id else None,
+                        sent_date=email.sent_date if hasattr(email, 'sent_date') else None,
+                        attachment_names=attachment_names,
+                        attachment_types=attachment_types,
                     )
 
                     stats["indexed"] += 1
@@ -226,6 +241,18 @@ def index_case_emails_semantic(self, case_id: str, batch_size: int = 50) -> dict
                     # Index this email
                     body_text = email.body_text_clean or email.body_text or ""
 
+                    # Extract attachment info for multi-vector indexing
+                    attachment_names: list[str] = []
+                    attachment_types: list[str] = []
+                    if hasattr(email, 'attachments') and email.attachments:
+                        for att in email.attachments:
+                            if hasattr(att, 'filename') and att.filename:
+                                attachment_names.append(att.filename)
+                                # Extract file extension
+                                if '.' in att.filename:
+                                    ext = att.filename.rsplit('.', 1)[-1].lower()
+                                    attachment_types.append(ext)
+
                     semantic_service.process_email(
                         email_id=str(email.id),
                         subject=email.subject or "",
@@ -234,6 +261,9 @@ def index_case_emails_semantic(self, case_id: str, batch_size: int = 50) -> dict
                         recipients=email.recipients_to or [],
                         case_id=str(email.case_id) if email.case_id else None,
                         project_id=str(email.project_id) if email.project_id else None,
+                        sent_date=email.sent_date if hasattr(email, 'sent_date') else None,
+                        attachment_names=attachment_names,
+                        attachment_types=attachment_types,
                     )
 
                     stats["indexed"] += 1
