@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "azad-vericase": {
+      "command": "python",
+      "args": ["-m", "src.server"],
+      "cwd": "${workspaceFolder}/mcp-server",
+      "env": {
+        "VERICASE_API_URL": "http://localhost:8010",
+        "VERICASE_JWT_TOKEN": "${VERICASE_JWT_TOKEN}",
+        "ENABLE_AI_TOOLS": "true",
+        "ENABLE_PST_TOOLS": "true",
+        "LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
