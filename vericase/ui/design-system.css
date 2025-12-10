@@ -39,7 +39,7 @@
 
 /* Sidebar Header */
 .sidebar-header {
-  padding: var(--space-5) var(--space-5);
+  padding: var(--space-6) var(--space-5);
   border-bottom: 1px solid var(--border-inverted);
 }
 
@@ -68,9 +68,10 @@
 }
 
 .sidebar-logo img {
-  height: 56px;
+  height: 80px;
   width: auto;
-  max-width: 200px;
+  max-width: 220px;
+  object-fit: contain;
 }
 
 /* Project Context */
