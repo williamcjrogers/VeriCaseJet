@@ -32,9 +32,31 @@ logger = logging.getLogger(__name__)
 # Configuration
 # =============================================================================
 
-# Embedding model - MiniLM is fast and good for semantic search
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"  # 384 dimensions, ~23M params
-EMBEDDING_DIMENSION = 384
+# Embedding provider: "bedrock" (recommended) or "sentence-transformers" (fallback)
+EMBEDDING_PROVIDER = getattr(settings, "EMBEDDING_PROVIDER", "bedrock")
+
+# Bedrock embedding models (Cohere Embed English v3 - 1024 dimensions)
+BEDROCK_EMBEDDING_MODEL = getattr(
+    settings, "BEDROCK_EMBEDDING_MODEL", "cohere.embed-english-v3"
+)
+BEDROCK_EMBEDDING_DIMENSION = 1024  # Cohere v3 output dimension
+BEDROCK_REGION = getattr(settings, "BEDROCK_REGION", "us-east-1")
+
+# Fallback: sentence-transformers (384 dimensions)
+SENTENCE_TRANSFORMER_MODEL = "all-MiniLM-L6-v2"  # 384 dimensions, ~23M params
+SENTENCE_TRANSFORMER_DIMENSION = 384
+
+# Active embedding dimension (depends on provider)
+EMBEDDING_MODEL = (
+    BEDROCK_EMBEDDING_MODEL
+    if EMBEDDING_PROVIDER == "bedrock"
+    else SENTENCE_TRANSFORMER_MODEL
+)
+EMBEDDING_DIMENSION = (
+    BEDROCK_EMBEDDING_DIMENSION
+    if EMBEDDING_PROVIDER == "bedrock"
+    else SENTENCE_TRANSFORMER_DIMENSION
+)
 
 # Cross-encoder for reranking (already used in deep_research.py)
 CROSS_ENCODER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
@@ -98,6 +120,161 @@ class EntityExtraction:
 
 
 # =============================================================================
+# Bedrock Embedding Client
+# =============================================================================
+
+
+class BedrockEmbeddingClient:
+    """
+    Amazon Bedrock embedding client using Cohere Embed English v3.
+
+    Supports:
+    - cohere.embed-english-v3: 1024 dimensions, best quality
+    - amazon.titan-embed-text-v1: 1536 dimensions, alternative
+    """
+
+    def __init__(self, region: str = BEDROCK_REGION, model_id: str = BEDROCK_EMBEDDING_MODEL):
+        self.region = region
+        self.model_id = model_id
+        self._client: Any = None
+
+    @property
+    def client(self) -> Any:
+        if self._client is None:
+            import boto3
+
+            self._client = boto3.client(
+                "bedrock-runtime",
+                region_name=self.region,
+            )
+            logger.info(f"Initialized Bedrock client in {self.region}")
+        return self._client
+
+    def embed_text(self, text: str, input_type: str = "search_document") -> list[float]:
+        """
+        Generate embedding for a single text using Bedrock.
+
+        Args:
+            text: Text to embed
+            input_type: "search_document" for indexing, "search_query" for queries
+
+        Returns:
+            List of floats (embedding vector)
+        """
+        import json
+
+        if not text or not text.strip():
+            return [0.0] * BEDROCK_EMBEDDING_DIMENSION
+
+        # Cohere Embed v3 request format
+        if "cohere" in self.model_id:
+            request_body = {
+                "texts": [text[:2048]],  # Cohere max input is 2048 tokens
+                "input_type": input_type,
+                "truncate": "END",
+            }
+        # Titan Embed request format
+        elif "titan" in self.model_id:
+            request_body = {
+                "inputText": text[:8000],  # Titan supports longer input
+            }
+        else:
+            raise ValueError(f"Unsupported embedding model: {self.model_id}")
+
+        try:
+            response = self.client.invoke_model(
+                modelId=self.model_id,
+                body=json.dumps(request_body),
+                contentType="application/json",
+                accept="application/json",
+            )
+
+            response_body = json.loads(response["body"].read())
+
+            # Extract embedding based on model type
+            if "cohere" in self.model_id:
+                return response_body["embeddings"][0]
+            elif "titan" in self.model_id:
+                return response_body["embedding"]
+            else:
+                return response_body.get("embedding", response_body.get("embeddings", [[]])[0])
+
+        except Exception as e:
+            logger.error(f"Bedrock embedding failed: {e}")
+            raise
+
+    def embed_texts(
+        self, texts: list[str], input_type: str = "search_document", batch_size: int = 96
+    ) -> list[list[float]]:
+        """
+        Generate embeddings for multiple texts using Bedrock.
+
+        Cohere supports batch requests of up to 96 texts.
+        """
+        import json
+
+        if not texts:
+            return []
+
+        # Filter empty texts but track indices
+        valid_texts: list[tuple[int, str]] = [
+            (i, t[:2048]) for i, t in enumerate(texts) if t and t.strip()
+        ]
+
+        if not valid_texts:
+            return [[0.0] * BEDROCK_EMBEDDING_DIMENSION] * len(texts)
+
+        # Initialize result with zeros
+        result: list[list[float]] = [[0.0] * BEDROCK_EMBEDDING_DIMENSION] * len(texts)
+
+        # Process in batches
+        for batch_start in range(0, len(valid_texts), batch_size):
+            batch = valid_texts[batch_start : batch_start + batch_size]
+            batch_texts = [t for _, t in batch]
+
+            if "cohere" in self.model_id:
+                request_body = {
+                    "texts": batch_texts,
+                    "input_type": input_type,
+                    "truncate": "END",
+                }
+
+                try:
+                    response = self.client.invoke_model(
+                        modelId=self.model_id,
+                        body=json.dumps(request_body),
+                        contentType="application/json",
+                        accept="application/json",
+                    )
+
+                    response_body = json.loads(response["body"].read())
+                    embeddings = response_body["embeddings"]
+
+                    # Map embeddings back to original indices
+                    for (orig_idx, _), embedding in zip(batch, embeddings):
+                        result[orig_idx] = embedding
+
+                except Exception as e:
+                    logger.error(f"Bedrock batch embedding failed: {e}")
+                    # Fall back to individual requests
+                    for orig_idx, text in batch:
+                        try:
+                            result[orig_idx] = self.embed_text(text, input_type)
+                        except Exception:
+                            pass  # Keep zeros for failed embeddings
+
+            else:
+                # Titan doesn't support batch - process individually
+                for orig_idx, text in batch:
+                    try:
+                        result[orig_idx] = self.embed_text(text, input_type)
+                    except Exception:
+                        pass
+
+        return result
+
+
+# =============================================================================
 # Singleton Model Loaders (Lazy Loading)
 # =============================================================================
 
@@ -106,20 +283,33 @@ class ModelRegistry:
     """Centralized model loading with lazy initialization"""
 
     _embedding_model: Any = None
+    _bedrock_client: BedrockEmbeddingClient | None = None
     _cross_encoder: Any = None
     _ner_model: Any = None
     _tokenizer: Any = None
 
     @classmethod
+    def get_bedrock_client(cls) -> BedrockEmbeddingClient:
+        """Get or create Bedrock embedding client"""
+        if cls._bedrock_client is None:
+            logger.info(f"Initializing Bedrock embedding client: {BEDROCK_EMBEDDING_MODEL}")
+            cls._bedrock_client = BedrockEmbeddingClient(
+                region=BEDROCK_REGION,
+                model_id=BEDROCK_EMBEDDING_MODEL,
+            )
+            logger.info("Bedrock client initialized successfully")
+        return cls._bedrock_client
+
+    @classmethod
     def get_embedding_model(cls) -> Any:
-        """Load sentence-transformer embedding model"""
+        """Load sentence-transformer embedding model (fallback)"""
         if cls._embedding_model is None:
             try:
                 from sentence_transformers import SentenceTransformer
 
-                logger.info(f"Loading embedding model: {EMBEDDING_MODEL}")
-                cls._embedding_model = SentenceTransformer(EMBEDDING_MODEL)
-                logger.info("Embedding model loaded successfully")
+                logger.info(f"Loading sentence-transformer model: {SENTENCE_TRANSFORMER_MODEL}")
+                cls._embedding_model = SentenceTransformer(SENTENCE_TRANSFORMER_MODEL)
+                logger.info("Sentence-transformer model loaded successfully")
             except ImportError:
                 logger.error(
                     "sentence-transformers not installed. Run: pip install sentence-transformers"
@@ -545,37 +735,108 @@ class SemanticChunker:
 
 
 class EmbeddingService:
-    """Generate dense vector embeddings for text"""
+    """
+    Generate dense vector embeddings for text.
 
-    def __init__(self):
+    Supports two providers:
+    - "bedrock": Amazon Bedrock with Cohere Embed English v3 (1024 dims, recommended)
+    - "sentence-transformers": Local all-MiniLM-L6-v2 (384 dims, fallback)
+
+    Provider is selected via EMBEDDING_PROVIDER setting.
+    """
+
+    def __init__(self, provider: str | None = None):
+        self._provider = provider or EMBEDDING_PROVIDER
         self._model = None
+        self._bedrock_client: BedrockEmbeddingClient | None = None
+        logger.info(f"EmbeddingService initialized with provider: {self._provider}")
+
+    @property
+    def dimension(self) -> int:
+        """Return the embedding dimension for the current provider"""
+        if self._provider == "bedrock":
+            return BEDROCK_EMBEDDING_DIMENSION
+        return SENTENCE_TRANSFORMER_DIMENSION
+
+    @property
+    def bedrock_client(self) -> BedrockEmbeddingClient:
+        if self._bedrock_client is None:
+            self._bedrock_client = ModelRegistry.get_bedrock_client()
+        return self._bedrock_client
 
     @property
     def model(self) -> Any:
+        """Get sentence-transformer model (fallback only)"""
         if self._model is None:
             self._model = ModelRegistry.get_embedding_model()
         return self._model
 
-    def embed_text(self, text: str) -> list[float]:
-        """Generate embedding for a single text"""
+    def embed_text(self, text: str, input_type: str = "search_document") -> list[float]:
+        """
+        Generate embedding for a single text.
+
+        Args:
+            text: Text to embed
+            input_type: For Bedrock - "search_document" for indexing, "search_query" for queries
+
+        Returns:
+            List of floats (embedding vector)
+        """
         if not text or not text.strip():
-            return [0.0] * EMBEDDING_DIMENSION
+            return [0.0] * self.dimension
 
-        embedding = self.model.encode(text, convert_to_numpy=True)
-        return embedding.tolist()
+        if self._provider == "bedrock":
+            try:
+                return self.bedrock_client.embed_text(text, input_type)
+            except Exception as e:
+                logger.warning(f"Bedrock embedding failed, falling back to sentence-transformers: {e}")
+                # Fall back to sentence-transformers
+                embedding = self.model.encode(text, convert_to_numpy=True)
+                return embedding.tolist()
+        else:
+            embedding = self.model.encode(text, convert_to_numpy=True)
+            return embedding.tolist()
 
-    def embed_texts(self, texts: list[str], batch_size: int = 32) -> list[list[float]]:
-        """Generate embeddings for multiple texts (batched for efficiency)"""
+    def embed_query(self, query: str) -> list[float]:
+        """
+        Generate embedding for a search query.
+
+        Uses input_type="search_query" for Bedrock (optimized for queries).
+        """
+        return self.embed_text(query, input_type="search_query")
+
+    def embed_texts(
+        self, texts: list[str], batch_size: int = 32, input_type: str = "search_document"
+    ) -> list[list[float]]:
+        """
+        Generate embeddings for multiple texts (batched for efficiency).
+
+        Args:
+            texts: List of texts to embed
+            batch_size: Batch size (96 for Bedrock Cohere, 32 for sentence-transformers)
+            input_type: For Bedrock - "search_document" for indexing
+
+        Returns:
+            List of embedding vectors
+        """
         if not texts:
             return []
 
-        # Filter empty texts but track indices
+        if self._provider == "bedrock":
+            try:
+                # Bedrock Cohere supports batches of 96
+                return self.bedrock_client.embed_texts(texts, input_type, batch_size=96)
+            except Exception as e:
+                logger.warning(f"Bedrock batch embedding failed, falling back: {e}")
+                # Fall through to sentence-transformers
+
+        # Sentence-transformers fallback
         valid_texts: list[tuple[int, str]] = [
             (i, t) for i, t in enumerate(texts) if t and t.strip()
         ]
 
         if not valid_texts:
-            return [[0.0] * EMBEDDING_DIMENSION] * len(texts)
+            return [[0.0] * SENTENCE_TRANSFORMER_DIMENSION] * len(texts)
 
         # Batch encode
         valid_embeddings = self.model.encode(
@@ -586,7 +847,7 @@ class EmbeddingService:
         )
 
         # Reconstruct full list with zeros for empty texts
-        result: list[list[float]] = [[0.0] * EMBEDDING_DIMENSION] * len(texts)
+        result: list[list[float]] = [[0.0] * SENTENCE_TRANSFORMER_DIMENSION] * len(texts)
         for (orig_idx, _), embedding in zip(valid_texts, valid_embeddings):
             result[orig_idx] = embedding.tolist()
 
@@ -601,6 +862,8 @@ class EmbeddingService:
 
         for chunk, embedding in zip(chunks, embeddings):
             chunk.embedding = embedding
+            # Update metadata with actual model used
+            chunk.metadata["embedding_model"] = EMBEDDING_MODEL
 
         return chunks
 
@@ -683,6 +946,10 @@ class EntityExtractor:
 class VectorIndexService:
     """Manage OpenSearch k-NN vector index"""
 
+    # Use versioned index name to handle dimension changes
+    # When switching from 384 to 1024 dimensions, existing data must be re-indexed
+    VECTOR_INDEX_V2 = "vericase_vectors_v2"  # 1024 dimensions (Bedrock)
+
     def __init__(self, opensearch_client: Any = None):
         self._client = opensearch_client
 
@@ -709,11 +976,24 @@ class VectorIndexService:
                 raise
         return self._client
 
+    def get_index_name(self) -> str:
+        """
+        Get the appropriate index name based on embedding dimension.
+
+        v1 (vericase_vectors): 384 dimensions (sentence-transformers)
+        v2 (vericase_vectors_v2): 1024 dimensions (Bedrock Cohere)
+        """
+        if EMBEDDING_PROVIDER == "bedrock":
+            return self.VECTOR_INDEX_V2
+        return VECTOR_INDEX_NAME
+
     def ensure_index(self) -> bool:
         """Create the vector index if it doesn't exist"""
+        index_name = self.get_index_name()
+
         try:
-            if self.client.indices.exists(index=VECTOR_INDEX_NAME):
-                logger.info(f"Vector index {VECTOR_INDEX_NAME} already exists")
+            if self.client.indices.exists(index=index_name):
+                logger.info(f"Vector index {index_name} already exists (dim={EMBEDDING_DIMENSION})")
                 return True
 
             # Create index with k-NN settings
@@ -753,6 +1033,9 @@ class VectorIndexService:
                         "section_type": {"type": "keyword"},
                         "chunk_index": {"type": "integer"},
                         "total_chunks": {"type": "integer"},
+                        # Embedding metadata
+                        "embedding_model": {"type": "keyword"},
+                        "embedding_provider": {"type": "keyword"},
                         # Entities (for filtering)
                         "entities_persons": {"type": "keyword"},
                         "entities_organizations": {"type": "keyword"},
@@ -766,8 +1049,11 @@ class VectorIndexService:
                 },
             }
 
-            self.client.indices.create(VECTOR_INDEX_NAME, body=index_body)
-            logger.info(f"Created vector index: {VECTOR_INDEX_NAME}")
+            self.client.indices.create(index_name, body=index_body)
+            logger.info(
+                f"Created vector index: {index_name} "
+                f"(provider={EMBEDDING_PROVIDER}, dim={EMBEDDING_DIMENSION})"
+            )
             return True
 
         except Exception as e:
@@ -786,6 +1072,7 @@ class VectorIndexService:
             logger.warning("Chunk has no embedding, skipping")
             return None
 
+        index_name = self.get_index_name()
         doc_id = f"{chunk.metadata.get('source_type', 'unknown')}_{chunk.metadata.get('source_id', 'unknown')}_{chunk.chunk_hash}"
 
         doc = {
@@ -798,6 +1085,8 @@ class VectorIndexService:
             "section_type": chunk.metadata.get("section_type"),
             "chunk_index": chunk.metadata.get("chunk_index"),
             "total_chunks": chunk.metadata.get("total_chunks"),
+            "embedding_model": chunk.metadata.get("embedding_model", EMBEDDING_MODEL),
+            "embedding_provider": EMBEDDING_PROVIDER,
             "case_id": case_id,
             "project_id": project_id,
             "indexed_at": datetime.now(timezone.utc).isoformat(),
@@ -811,7 +1100,7 @@ class VectorIndexService:
 
         try:
             self.client.index(
-                index=VECTOR_INDEX_NAME,
+                index=index_name,
                 body=doc,
                 id=doc_id,
                 refresh=False,  # Don't refresh on every insert
@@ -834,6 +1123,7 @@ class VectorIndexService:
 
         from opensearchpy.helpers import bulk
 
+        index_name = self.get_index_name()
         actions = []
         for i, chunk in enumerate(chunks):
             if not chunk.embedding:
@@ -842,7 +1132,7 @@ class VectorIndexService:
             doc_id = f"{chunk.metadata.get('source_type', 'unknown')}_{chunk.metadata.get('source_id', 'unknown')}_{chunk.chunk_hash}"
 
             doc = {
-                "_index": VECTOR_INDEX_NAME,
+                "_index": index_name,
                 "_id": doc_id,
                 "embedding": chunk.embedding,
                 "text": chunk.text,
@@ -853,6 +1143,8 @@ class VectorIndexService:
                 "section_type": chunk.metadata.get("section_type"),
                 "chunk_index": chunk.metadata.get("chunk_index"),
                 "total_chunks": chunk.metadata.get("total_chunks"),
+                "embedding_model": chunk.metadata.get("embedding_model", EMBEDDING_MODEL),
+                "embedding_provider": EMBEDDING_PROVIDER,
                 "case_id": case_id,
                 "project_id": project_id,
                 "indexed_at": datetime.now(timezone.utc).isoformat(),
@@ -894,6 +1186,8 @@ class VectorIndexService:
         This is the fast initial retrieval step before cross-encoder reranking.
         Returns top-k candidates in ~10-50ms even with millions of vectors.
         """
+        index_name = self.get_index_name()
+
         # Build filter
         filter_clauses = []
         if case_id:
@@ -918,7 +1212,7 @@ class VectorIndexService:
             }
 
         try:
-            response = self.client.search(index=VECTOR_INDEX_NAME, body=query)
+            response = self.client.search(index=index_name, body=query)
 
             results = []
             for hit in response["hits"]["hits"]:
@@ -933,6 +1227,7 @@ class VectorIndexService:
                         "source_id": source.get("source_id"),
                         "section_type": source.get("section_type"),
                         "chunk_index": source.get("chunk_index"),
+                        "embedding_model": source.get("embedding_model"),
                         "entities_persons": source.get("entities_persons", []),
                         "entities_organizations": source.get(
                             "entities_organizations", []
@@ -948,8 +1243,9 @@ class VectorIndexService:
 
     def refresh_index(self) -> None:
         """Force refresh the index (call after bulk operations)"""
+        index_name = self.get_index_name()
         try:
-            self.client.indices.refresh(index=VECTOR_INDEX_NAME)
+            self.client.indices.refresh(index=index_name)
         except Exception as e:
             logger.warning(f"Index refresh failed: {e}")
 

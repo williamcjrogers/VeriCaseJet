@@ -296,6 +296,11 @@ class Settings(BaseSettings):
     BEDROCK_ENABLED: bool = False
     BEDROCK_REGION: str = "us-east-1"
 
+    # Embedding settings
+    # Provider: "bedrock" (Cohere Embed v3, 1024 dims) or "sentence-transformers" (fallback)
+    EMBEDDING_PROVIDER: str = "bedrock"
+    BEDROCK_EMBEDDING_MODEL: str = "cohere.embed-english-v3"
+
     # AI Feature Flags
     ENABLE_AI_AUTO_CLASSIFY: bool = True
     ENABLE_AI_DATASET_INSIGHTS: bool = True

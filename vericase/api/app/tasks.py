@@ -275,3 +275,154 @@ def index_case_emails_semantic(self, case_id: str, batch_size: int = 50) -> dict
         }
     finally:
         db.close()
+
+
+@celery_app.task(bind=True, name="apply_spam_filter_batch")
+def apply_spam_filter_batch(
+    self, project_id: str | None = None, case_id: str | None = None, batch_size: int = 100
+) -> dict[str, Any]:
+    """
+    Background task to apply spam filter to all emails in a project or case.
+
+    Classifies emails and stores results in the `meta` JSON column.
+    Runs after PST processing completes or can be triggered manually.
+
+    Args:
+        project_id: UUID of the project (optional)
+        case_id: UUID of the case (optional)
+        batch_size: Number of emails to process per batch
+
+    Returns:
+        Dict with filtering statistics
+    """
+    from .db import SessionLocal
+    from .models import EmailMessage
+    from .spam_filter import get_spam_classifier
+    from sqlalchemy import func
+    import uuid
+
+    entity_type = "project" if project_id else "case"
+    entity_id = project_id or case_id
+
+    if not entity_id:
+        return {"status": "failed", "error": "Must provide project_id or case_id"}
+
+    logger.info(f"Starting spam filter for {entity_type} {entity_id}")
+
+    db = SessionLocal()
+    classifier = get_spam_classifier()
+
+    stats = {
+        "total_emails": 0,
+        "processed": 0,
+        "spam_detected": 0,
+        "hidden": 0,
+        "errors": 0,
+        "by_category": {},
+    }
+
+    try:
+        # Build query based on entity type
+        if project_id:
+            base_filter = EmailMessage.project_id == uuid.UUID(project_id)
+        else:
+            base_filter = EmailMessage.case_id == uuid.UUID(case_id)
+
+        # Get total count
+        total_count = (
+            db.query(func.count(EmailMessage.id))
+            .filter(base_filter)
+            .scalar()
+        ) or 0
+
+        stats["total_emails"] = total_count
+        logger.info(f"Found {total_count} emails to classify")
+
+        # Process in batches
+        offset = 0
+        while offset < total_count:
+            emails = (
+                db.query(EmailMessage)
+                .filter(base_filter)
+                .order_by(EmailMessage.id)
+                .offset(offset)
+                .limit(batch_size)
+                .all()
+            )
+
+            if not emails:
+                break
+
+            for email in emails:
+                try:
+                    # Classify this email
+                    result = classifier.classify(
+                        subject=email.subject,
+                        sender=email.sender_email,
+                        body=email.body_text,
+                    )
+
+                    # Update meta JSON with spam info
+                    meta = email.meta or {}
+                    meta["spam"] = {
+                        "is_spam": result["is_spam"],
+                        "score": result["score"],
+                        "category": result["category"],
+                        "is_hidden": result["is_hidden"],
+                    }
+                    email.meta = meta
+
+                    stats["processed"] += 1
+
+                    if result["is_spam"]:
+                        stats["spam_detected"] += 1
+                        category = result["category"] or "unknown"
+                        stats["by_category"][category] = (
+                            stats["by_category"].get(category, 0) + 1
+                        )
+
+                        if result["is_hidden"]:
+                            stats["hidden"] += 1
+
+                except Exception as e:
+                    logger.warning(f"Failed to classify email {email.id}: {e}")
+                    stats["errors"] += 1
+
+            # Commit batch
+            db.commit()
+
+            offset += batch_size
+
+            # Update task progress
+            progress = int((offset / total_count) * 100)
+            self.update_state(
+                state='PROGRESS',
+                meta={
+                    'current': offset,
+                    'total': total_count,
+                    'percent': progress,
+                    'spam_detected': stats["spam_detected"],
+                    'hidden': stats["hidden"],
+                }
+            )
+
+        logger.info(
+            f"Spam filter complete for {entity_type} {entity_id}: "
+            f"{stats['spam_detected']} spam detected, {stats['hidden']} hidden"
+        )
+
+        return {
+            "status": "completed",
+            "stats": stats,
+        }
+
+    except Exception as e:
+        logger.exception(f"Spam filter failed for {entity_type} {entity_id}: {e}")
+        db.rollback()
+        return {
+            "status": "failed",
+            "error": str(e),
+            "stats": stats,
+        }
+    finally:
+        db.close()
