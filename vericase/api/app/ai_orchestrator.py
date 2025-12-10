@@ -2,21 +2,623 @@
 """
 Multi-AI Orchestration System - Dataset Insights & Timeline Analysis
 Leverages multiple AI models for comprehensive document analytics
+
+Extended with MultiModelTask for cross-model collaboration where
+a single task can be executed by multiple models in parallel,
+with result aggregation and selection.
 """
+import asyncio
 import logging
+import time
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Awaitable
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from .models import User, Document
 from .db import get_db
 from .security import current_user
+from .ai_settings import get_ai_api_key, get_ai_model, is_bedrock_enabled, get_bedrock_region
 
 router = APIRouter(prefix="/ai/orchestrator", tags=["ai-orchestrator"])
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Multi-Model Task Execution
+# =============================================================================
+
+
+@dataclass
+class ModelResult:
+    """Result from a single model execution."""
+    provider: str
+    model_id: str
+    response: str
+    latency_ms: int
+    tokens_used: int = 0
+    success: bool = True
+    error: str | None = None
+    quality_score: float = 0.0  # Assigned after evaluation
+
+
+@dataclass
+class MultiModelResult:
+    """Aggregated result from multi-model execution."""
+    best_result: ModelResult | None = None
+    all_results: list[ModelResult] = field(default_factory=list)
+    consensus_response: str | None = None
+    selection_method: str = "first_success"  # first_success, voting, quality_score
+    total_time_ms: int = 0
+    models_attempted: int = 0
+    models_succeeded: int = 0
+
+
+class MultiModelTask:
+    """
+    Execute a single task across multiple AI models in parallel.
+
+    Supports:
+    - Parallel execution across providers (OpenAI, Anthropic, Gemini, Bedrock)
+    - Result aggregation with voting or quality scoring
+    - Automatic fallback if primary models fail
+    - Performance tracking per model
+
+    Usage:
+        task = MultiModelTask(db)
+        result = await task.execute(
+            prompt="Analyze this document",
+            system_prompt="You are an analyst",
+            models=[
+                ("openai", "gpt-4o"),
+                ("anthropic", "claude-sonnet-4-20250514"),
+                ("gemini", "gemini-2.0-flash"),
+            ],
+            selection_method="quality_score",
+        )
+    """
+
+    def __init__(self, db: Session):
+        self.db = db
+        self.openai_key = get_ai_api_key("openai", db)
+        self.anthropic_key = get_ai_api_key("anthropic", db)
+        self.gemini_key = get_ai_api_key("gemini", db)
+        self.bedrock_enabled = is_bedrock_enabled(db)
+        self.bedrock_region = get_bedrock_region(db)
+
+    async def execute(
+        self,
+        prompt: str,
+        system_prompt: str = "",
+        models: list[tuple[str, str]] | None = None,
+        selection_method: str = "quality_score",
+        timeout_seconds: float = 30.0,
+        require_all: bool = False,
+    ) -> MultiModelResult:
+        """
+        Execute a prompt across multiple models in parallel.
+
+        Args:
+            prompt: The main prompt to execute
+            system_prompt: Optional system prompt
+            models: List of (provider, model_id) tuples. If None, uses defaults.
+            selection_method: How to select best result:
+                - "first_success": First model to return valid response
+                - "fastest": Fastest successful response
+                - "quality_score": Score responses and pick best
+                - "voting": Use consensus if responses agree
+            timeout_seconds: Timeout for each model call
+            require_all: Wait for all models to complete (vs return early)
+
+        Returns:
+            MultiModelResult with best response and all model outputs
+        """
+        start_time = time.time()
+
+        # Default models if none specified
+        if models is None:
+            models = self._get_default_models()
+
+        # Filter to available models only
+        available_models = [
+            (provider, model_id)
+            for provider, model_id in models
+            if self._is_model_available(provider)
+        ]
+
+        if not available_models:
+            logger.error("No AI models available for multi-model execution")
+            return MultiModelResult(
+                selection_method=selection_method,
+                total_time_ms=int((time.time() - start_time) * 1000),
+            )
+
+        # Execute all models in parallel
+        tasks = [
+            self._call_model(provider, model_id, prompt, system_prompt, timeout_seconds)
+            for provider, model_id in available_models
+        ]
+
+        # Gather results (allow individual failures)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Process results
+        model_results: list[ModelResult] = []
+        for i, result in enumerate(results):
+            provider, model_id = available_models[i]
+            if isinstance(result, Exception):
+                model_results.append(ModelResult(
+                    provider=provider,
+                    model_id=model_id,
+                    response="",
+                    latency_ms=0,
+                    success=False,
+                    error=str(result),
+                ))
+            else:
+                model_results.append(result)
+
+        # Select best result based on method
+        best_result = self._select_best_result(model_results, selection_method, prompt)
+
+        total_time = int((time.time() - start_time) * 1000)
+        successful = [r for r in model_results if r.success]
+
+        return MultiModelResult(
+            best_result=best_result,
+            all_results=model_results,
+            consensus_response=self._get_consensus(model_results) if selection_method == "voting" else None,
+            selection_method=selection_method,
+            total_time_ms=total_time,
+            models_attempted=len(model_results),
+            models_succeeded=len(successful),
+        )
+
+    def _get_default_models(self) -> list[tuple[str, str]]:
+        """Get default model lineup based on availability."""
+        models = []
+        if self.openai_key:
+            models.append(("openai", get_ai_model("openai", self.db)))
+        if self.anthropic_key:
+            models.append(("anthropic", get_ai_model("anthropic", self.db)))
+        if self.gemini_key:
+            models.append(("gemini", get_ai_model("gemini", self.db)))
+        if self.bedrock_enabled:
+            models.append(("bedrock", get_ai_model("bedrock", self.db)))
+        return models
+
+    def _is_model_available(self, provider: str) -> bool:
+        """Check if a provider is available."""
+        if provider == "openai":
+            return bool(self.openai_key)
+        elif provider == "anthropic":
+            return bool(self.anthropic_key)
+        elif provider == "gemini":
+            return bool(self.gemini_key)
+        elif provider == "bedrock":
+            return self.bedrock_enabled
+        return False
+
+    async def _call_model(
+        self,
+        provider: str,
+        model_id: str,
+        prompt: str,
+        system_prompt: str,
+        timeout: float,
+    ) -> ModelResult:
+        """Call a specific model and return result."""
+        start_time = time.time()
+
+        try:
+            if provider == "openai":
+                response = await asyncio.wait_for(
+                    self._call_openai(model_id, prompt, system_prompt),
+                    timeout=timeout,
+                )
+            elif provider == "anthropic":
+                response = await asyncio.wait_for(
+                    self._call_anthropic(model_id, prompt, system_prompt),
+                    timeout=timeout,
+                )
+            elif provider == "gemini":
+                response = await asyncio.wait_for(
+                    self._call_gemini(model_id, prompt, system_prompt),
+                    timeout=timeout,
+                )
+            elif provider == "bedrock":
+                response = await asyncio.wait_for(
+                    self._call_bedrock(model_id, prompt, system_prompt),
+                    timeout=timeout,
+                )
+            else:
+                raise ValueError(f"Unknown provider: {provider}")
+
+            latency = int((time.time() - start_time) * 1000)
+            return ModelResult(
+                provider=provider,
+                model_id=model_id,
+                response=response,
+                latency_ms=latency,
+                success=True,
+            )
+
+        except asyncio.TimeoutError:
+            latency = int((time.time() - start_time) * 1000)
+            return ModelResult(
+                provider=provider,
+                model_id=model_id,
+                response="",
+                latency_ms=latency,
+                success=False,
+                error="Timeout",
+            )
+        except Exception as e:
+            latency = int((time.time() - start_time) * 1000)
+            return ModelResult(
+                provider=provider,
+                model_id=model_id,
+                response="",
+                latency_ms=latency,
+                success=False,
+                error=str(e),
+            )
+
+    async def _call_openai(self, model_id: str, prompt: str, system_prompt: str) -> str:
+        """Call OpenAI API."""
+        import openai
+        client = openai.AsyncOpenAI(api_key=self.openai_key)
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        response = await client.chat.completions.create(
+            model=model_id,
+            messages=messages,
+            max_tokens=4000,
+            temperature=0.3,
+        )
+        return response.choices[0].message.content or ""
+
+    async def _call_anthropic(self, model_id: str, prompt: str, system_prompt: str) -> str:
+        """Call Anthropic API."""
+        import anthropic
+        client = anthropic.AsyncAnthropic(api_key=self.anthropic_key)
+
+        response = await client.messages.create(
+            model=model_id,
+            max_tokens=4000,
+            system=system_prompt if system_prompt else "You are a helpful assistant.",
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        text = ""
+        for block in response.content:
+            if hasattr(block, "text"):
+                text += block.text
+        return text
+
+    async def _call_gemini(self, model_id: str, prompt: str, system_prompt: str) -> str:
+        """Call Gemini API."""
+        import google.generativeai as genai
+        genai.configure(api_key=self.gemini_key)
+
+        model = genai.GenerativeModel(model_id)
+        full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
+
+        response = await asyncio.to_thread(model.generate_content, full_prompt)
+        return getattr(response, "text", "")
+
+    async def _call_bedrock(self, model_id: str, prompt: str, system_prompt: str) -> str:
+        """Call AWS Bedrock."""
+        from .ai_providers import BedrockProvider
+
+        provider = BedrockProvider(region=self.bedrock_region)
+        response = await provider.invoke(
+            model_id=model_id,
+            prompt=prompt,
+            max_tokens=4000,
+            temperature=0.3,
+            system_prompt=system_prompt if system_prompt else None,
+        )
+        return response
+
+    def _select_best_result(
+        self,
+        results: list[ModelResult],
+        method: str,
+        original_prompt: str,
+    ) -> ModelResult | None:
+        """Select the best result based on the specified method."""
+        successful = [r for r in results if r.success and r.response.strip()]
+
+        if not successful:
+            return None
+
+        if method == "first_success":
+            return successful[0]
+
+        elif method == "fastest":
+            return min(successful, key=lambda r: r.latency_ms)
+
+        elif method == "quality_score":
+            # Simple quality heuristics
+            for result in successful:
+                result.quality_score = self._compute_quality_score(result.response)
+            return max(successful, key=lambda r: r.quality_score)
+
+        elif method == "voting":
+            # For now, return the longest response as proxy for consensus
+            return max(successful, key=lambda r: len(r.response))
+
+        return successful[0]
+
+    def _compute_quality_score(self, response: str) -> float:
+        """
+        Compute a simple quality score for a response.
+
+        Heuristics:
+        - Length (longer responses typically have more detail)
+        - Structure (presence of headers, lists, sections)
+        - Completeness (JSON parseable if expected)
+        """
+        if not response:
+            return 0.0
+
+        score = 0.0
+
+        # Length score (up to 0.4)
+        length = len(response)
+        if length > 100:
+            score += min(0.4, length / 5000)
+
+        # Structure score (up to 0.3)
+        structure_markers = ["##", "1.", "-", "•", ":", "\n\n"]
+        structure_count = sum(1 for marker in structure_markers if marker in response)
+        score += min(0.3, structure_count * 0.05)
+
+        # Completeness score (up to 0.3)
+        # Check if response seems complete
+        if response.strip().endswith((".", "}", "]", "!", "?")):
+            score += 0.15
+        if len(response) > 200:
+            score += 0.15
+
+        return min(1.0, score)
+
+    def _get_consensus(self, results: list[ModelResult]) -> str | None:
+        """
+        Get consensus response if models agree.
+
+        Simple implementation: if responses are similar, return the longest.
+        """
+        successful = [r for r in results if r.success and r.response.strip()]
+
+        if len(successful) < 2:
+            return successful[0].response if successful else None
+
+        # Simple similarity check using first 200 chars
+        first_200 = [r.response[:200].lower() for r in successful]
+        if len(set(first_200)) == 1:
+            # All responses start similarly - likely agreement
+            return max(successful, key=lambda r: len(r.response)).response
+
+        return None
+
+
+class CrossModelCollaborator:
+    """
+    Enable collaboration between models where one model's output
+    feeds into another's input for improved results.
+
+    Patterns:
+    - Draft & Refine: Model A drafts, Model B refines
+    - Plan & Execute: Model A plans, Model B executes
+    - Generate & Validate: Model A generates, Model B validates
+    - Parallel Compete: Both generate, best is selected
+    """
+
+    def __init__(self, db: Session):
+        self.db = db
+        self.multi_model = MultiModelTask(db)
+
+    async def draft_and_refine(
+        self,
+        prompt: str,
+        system_prompt: str = "",
+        draft_model: tuple[str, str] | None = None,
+        refine_model: tuple[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Two-stage generation: first model drafts, second refines.
+
+        Useful for:
+        - Complex analysis needing multiple perspectives
+        - Documents requiring both speed and quality
+        - Cases where Claude excels at planning, GPT at writing
+        """
+        # Defaults
+        if draft_model is None:
+            draft_model = ("anthropic", get_ai_model("anthropic", self.db))
+        if refine_model is None:
+            refine_model = ("openai", get_ai_model("openai", self.db))
+
+        # Stage 1: Draft
+        draft_result = await self.multi_model.execute(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            models=[draft_model],
+            selection_method="first_success",
+        )
+
+        if not draft_result.best_result or not draft_result.best_result.response:
+            return {
+                "success": False,
+                "error": "Draft generation failed",
+                "draft": None,
+                "refined": None,
+            }
+
+        draft = draft_result.best_result.response
+
+        # Stage 2: Refine
+        refine_prompt = f"""Review and improve the following draft response.
+Maintain the core content and insights, but:
+1. Improve clarity and flow
+2. Strengthen weak arguments
+3. Add specificity where vague
+4. Ensure citations are properly integrated
+5. Polish the professional tone
+
+ORIGINAL PROMPT: {prompt}
+
+DRAFT TO REFINE:
+{draft}
+
+Provide an improved version:"""
+
+        refine_result = await self.multi_model.execute(
+            prompt=refine_prompt,
+            system_prompt="You are an expert editor improving draft content.",
+            models=[refine_model],
+            selection_method="first_success",
+        )
+
+        refined = refine_result.best_result.response if refine_result.best_result else draft
+
+        return {
+            "success": True,
+            "draft": draft,
+            "refined": refined,
+            "draft_model": draft_model,
+            "refine_model": refine_model,
+            "total_time_ms": draft_result.total_time_ms + refine_result.total_time_ms,
+        }
+
+    async def generate_and_validate(
+        self,
+        prompt: str,
+        system_prompt: str = "",
+        generate_model: tuple[str, str] | None = None,
+        validate_model: tuple[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Generate content, then validate with a different model.
+
+        Returns both the content and validation feedback.
+        Useful for ensuring accuracy in critical outputs.
+        """
+        # Defaults
+        if generate_model is None:
+            generate_model = ("openai", get_ai_model("openai", self.db))
+        if validate_model is None:
+            validate_model = ("anthropic", get_ai_model("anthropic", self.db))
+
+        # Stage 1: Generate
+        gen_result = await self.multi_model.execute(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            models=[generate_model],
+            selection_method="first_success",
+        )
+
+        if not gen_result.best_result or not gen_result.best_result.response:
+            return {
+                "success": False,
+                "error": "Generation failed",
+                "content": None,
+                "validation": None,
+            }
+
+        content = gen_result.best_result.response
+
+        # Stage 2: Validate
+        validate_prompt = f"""Review the following content for accuracy and quality.
+Check for:
+1. Factual accuracy
+2. Logical consistency
+3. Completeness
+4. Citation quality (if applicable)
+5. Any potential issues or hallucinations
+
+ORIGINAL PROMPT: {prompt}
+
+CONTENT TO VALIDATE:
+{content}
+
+Provide validation feedback as JSON:
+{{
+    "is_valid": true/false,
+    "confidence": 0.0-1.0,
+    "issues": ["list of any issues found"],
+    "suggestions": ["improvements if needed"],
+    "overall_quality": "excellent/good/fair/poor"
+}}"""
+
+        val_result = await self.multi_model.execute(
+            prompt=validate_prompt,
+            system_prompt="You are a rigorous fact-checker and quality reviewer.",
+            models=[validate_model],
+            selection_method="first_success",
+        )
+
+        validation = val_result.best_result.response if val_result.best_result else None
+
+        return {
+            "success": True,
+            "content": content,
+            "validation": validation,
+            "generate_model": generate_model,
+            "validate_model": validate_model,
+            "total_time_ms": gen_result.total_time_ms + val_result.total_time_ms,
+        }
+
+    async def parallel_compete(
+        self,
+        prompt: str,
+        system_prompt: str = "",
+        models: list[tuple[str, str]] | None = None,
+        evaluation_criteria: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Run multiple models in parallel and select the best output.
+
+        All models generate independently, then results are compared
+        and the best is selected based on quality scoring.
+        """
+        result = await self.multi_model.execute(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            models=models,
+            selection_method="quality_score",
+        )
+
+        return {
+            "success": result.models_succeeded > 0,
+            "best_response": result.best_result.response if result.best_result else None,
+            "best_model": (
+                f"{result.best_result.provider}/{result.best_result.model_id}"
+                if result.best_result else None
+            ),
+            "best_score": result.best_result.quality_score if result.best_result else 0,
+            "all_results": [
+                {
+                    "provider": r.provider,
+                    "model": r.model_id,
+                    "success": r.success,
+                    "latency_ms": r.latency_ms,
+                    "quality_score": r.quality_score,
+                    "response_length": len(r.response) if r.success else 0,
+                }
+                for r in result.all_results
+            ],
+            "total_time_ms": result.total_time_ms,
+        }
 
 
 def _ensure_timezone(value: datetime | None) -> datetime:
