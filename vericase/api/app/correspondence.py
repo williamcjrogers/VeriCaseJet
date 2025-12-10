@@ -16,7 +16,7 @@ from boto3.s3.transfer import TransferConfig
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, field_validator
 from pydantic.fields import Field
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import Boolean, and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -984,6 +984,9 @@ async def list_emails(
     ] = None,
     date_from: Annotated[datetime | None, Query(description="Date range start")] = None,
     date_to: Annotated[datetime | None, Query(description="Date range end")] = None,
+    include_hidden: Annotated[
+        bool, Query(description="Include spam/hidden emails (default: False)")
+    ] = False,
     db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
 ):
     """
@@ -1037,6 +1040,16 @@ async def list_emails(
 
     if date_to:
         query = query.filter(EmailMessage.date_sent <= date_to)
+
+    # Filter hidden/spam emails unless explicitly requested
+    if not include_hidden:
+        # Filter out emails where meta->'spam'->>'is_hidden' = 'true'
+        query = query.filter(
+            or_(
+                EmailMessage.meta.is_(None),
+                ~EmailMessage.meta.op("->")("spam").op("->>")("is_hidden").cast(Boolean).is_(True),
+            )
+        )
 
     # Get total count
     total = query.count()
@@ -4023,3 +4036,101 @@ async def get_task_status(task_id: str):
     except Exception as e:
         logger.exception(f"Failed to get task status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/spam-filter/{project_id}")
+async def trigger_spam_filter(
+    project_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Trigger spam filter batch job for a project.
+    
+    This classifies all emails in the project and marks spam/hidden in the meta column.
+    Returns task ID for progress tracking.
+    """
+    from .tasks import apply_spam_filter_batch
+    
+    # Verify project exists
+    project = db.query(Project).filter_by(id=project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+    
+    # Count emails
+    email_count = db.query(func.count(EmailMessage.id)).filter(
+        EmailMessage.project_id == project_id
+    ).scalar() or 0
+    
+    if email_count == 0:
+        return {
+            "status": "skipped",
+            "message": "No emails to classify",
+            "email_count": 0
+        }
+    
+    # Trigger background task
+    task = apply_spam_filter_batch.delay(project_id=project_id)
+    
+    return {
+        "status": "started",
+        "task_id": task.id,
+        "email_count": email_count,
+        "message": f"Spam filter started for {email_count} emails"
+    }
+
+
+@router.get("/spam-stats/{project_id}")
+async def get_spam_stats(
+    project_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Get spam filter statistics for a project.
+    
+    Returns counts of spam emails by category and hidden count.
+    """
+    from sqlalchemy import text
+    
+    # Verify project exists
+    project = db.query(Project).filter_by(id=project_id).first()
+    if not project:
+        raise HTTPException(404, "Project not found")
+    
+    # Get total email count
+    total_count = db.query(func.count(EmailMessage.id)).filter(
+        EmailMessage.project_id == project_id
+    ).scalar() or 0
+    
+    # Get spam counts by category using raw SQL for JSONB querying
+    spam_query = text("""
+        SELECT 
+            metadata->'spam'->>'category' as category,
+            COUNT(*) as count,
+            SUM(CASE WHEN (metadata->'spam'->>'is_hidden')::boolean THEN 1 ELSE 0 END) as hidden_count
+        FROM email_messages
+        WHERE project_id = :project_id
+          AND metadata->'spam'->>'is_spam' = 'true'
+        GROUP BY metadata->'spam'->>'category'
+    """)
+    
+    result = db.execute(spam_query, {"project_id": project_id})
+    by_category = {}
+    total_spam = 0
+    total_hidden = 0
+    
+    for row in result:
+        category = row[0] or "unknown"
+        count = row[1]
+        hidden = row[2]
+        by_category[category] = {"count": count, "hidden": hidden}
+        total_spam += count
+        total_hidden += hidden
+    
+    return {
+        "project_id": project_id,
+        "total_emails": total_count,
+        "total_spam": total_spam,
+        "total_hidden": total_hidden,
+        "by_category": by_category,
+        "spam_percentage": round((total_spam / total_count * 100) if total_count > 0 else 0, 2)
+    }
