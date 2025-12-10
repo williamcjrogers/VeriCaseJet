@@ -12,23 +12,42 @@
     <link rel="stylesheet" href="design-system.css" />
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <style>
       :root {
-        --vericase-teal: #0f9d9a;
-        --vericase-teal-dark: #0a7d7a;
-        --vericase-blue: #2b7fbf;
-        --vericase-navy: #0f172a;
-        --bg-primary: #f8fafc;
+        /* VeriCase Warm Palette - matching Timeline */
+        --vc-teal: #0f9d9a;
+        --vc-teal-dark: #0a7b79;
+        --vc-teal-light: #14b8b4;
+        --vc-navy: #0f172a;
+        --vc-gold: #8b7355;
+        --vc-gold-light: #a68b5b;
+
+        /* Warm backgrounds */
+        --bg-primary: #f8f6f3;
         --bg-secondary: #ffffff;
+        --bg-tertiary: #f1efe9;
         --bg-card: #ffffff;
+
+        /* Text */
         --text-primary: #0f172a;
-        --text-secondary: #64748b;
-        --gray-100: #f1f5f9;
-        --gray-200: #e2e8f0;
-        --accent-green: #10b981;
-        --accent-amber: #f59e0b;
-        --accent-red: #ef4444;
-        --accent-purple: #8b5cf6;
+        --text-secondary: #4a5568;
+        --text-muted: #718096;
+
+        /* Status */
+        --accent-green: #059669;
+        --accent-amber: #d97706;
+        --accent-red: #dc2626;
+        --accent-purple: #7c3aed;
+
+        /* Borders & shadows */
+        --border-color: #e2e8f0;
+        --border-subtle: rgba(26, 43, 60, 0.08);
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+        --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
       }
 
       * {
@@ -38,17 +57,27 @@
       }
 
       body {
-        font-family:
-          "Segoe UI",
-          -apple-system,
-          BlinkMacSystemFont,
-          Roboto,
-          sans-serif;
+        font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
         background: var(--bg-primary);
         color: var(--text-primary);
         min-height: 100vh;
         line-height: 1.6;
         -webkit-font-smoothing: antialiased;
+      }
+
+      /* Subtle warm background pattern */
+      body::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+        background:
+          linear-gradient(135deg, rgba(15, 157, 154, 0.03) 0%, transparent 50%),
+          linear-gradient(225deg, rgba(139, 115, 85, 0.03) 0%, transparent 50%);
+        pointer-events: none;
       }
 
       .header {
