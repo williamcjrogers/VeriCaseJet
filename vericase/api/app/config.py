@@ -301,6 +301,9 @@ class Settings(BaseSettings):
     EMBEDDING_PROVIDER: str = "bedrock"
     BEDROCK_EMBEDDING_MODEL: str = "cohere.embed-english-v3"
 
+    # Multi-vector semantic search (4 vectors: content, participant, temporal, attachment)
+    MULTI_VECTOR_ENABLED: bool = True
+
     # AI Feature Flags
     ENABLE_AI_AUTO_CLASSIFY: bool = True
     ENABLE_AI_DATASET_INSIGHTS: bool = True
