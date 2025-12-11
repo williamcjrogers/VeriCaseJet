@@ -3626,21 +3626,9 @@
         cellRenderer: (params) => {
           if (!params.value)
             return '<span style="color: var(--text-muted);">—</span>';
-          const roleColors = {
-            "Main Contractor": { bg: "#dbeafe", color: "#1e40af" },
-            Client: { bg: "#fef3c7", color: "#92400e" },
-            Subcontractor: { bg: "#dcfce7", color: "#166534" },
-            Consultant: { bg: "#f3e8ff", color: "#7c3aed" },
-            Architect: { bg: "#ffe4e6", color: "#be123c" },
-            Engineer: { bg: "#e0e7ff", color: "#3730a3" },
-            Supplier: { bg: "#fef9c3", color: "#854d0e" },
-            "Project Manager": { bg: "#cffafe", color: "#0e7490" },
-          };
-          const cfg = roleColors[params.value] || {
-            bg: "#f3f4f6",
-            color: "#374151",
-          };
-          return `<span style="padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; 
+          // Use dynamic colors from cached roles, fallback to defaults
+          const cfg = getRoleColor(params.value);
+          return `<span style="padding: 4px 10px; border-radius: 12px; font-size: 0.75rem;
                                        font-weight: 600; background: ${cfg.bg}; color: ${cfg.color};">
                                 ${params.value}
                             </span>`;
@@ -4148,17 +4136,24 @@
       }
     }
 
-    function onGridReady(params) {
+    async function onGridReady(params) {
       gridApi = params.api;
       columnApi = params.columnApi;
-      
+
+      // Load stakeholder roles for dynamic role colors
+      const projectId = resolveEntityId();
+      if (projectId && projectId !== "null") {
+        await loadStakeholderRoles(projectId);
+        console.log("[Grid] Stakeholder roles loaded:", STAKEHOLDER_ROLES.length);
+      }
+
       // Register server-side datasource BEFORE marking grid as ready
       // This prevents race conditions where code waits for gridReadyPromise
       // but datasource isn't configured yet
       const datasource = createServerSideDatasource();
       gridApi.setGridOption("serverSideDatasource", datasource);
       console.log("[Grid] Server-side datasource registered");
-      
+
       // Signal that grid is ready (resolves the gridReadyPromise)
       if (resolveGridReady) resolveGridReady();
 
@@ -4780,11 +4775,11 @@
       }
     }
 
-    // Stakeholder role options
-    const STAKEHOLDER_ROLES = [
+    // Stakeholder role options - loaded dynamically from API, with fallback defaults
+    let STAKEHOLDER_ROLES = [
       "Client",
       "Main Contractor",
-      "Subcontractor", 
+      "Subcontractor",
       "Architect",
       "Structural Engineer",
       "M&E Consultant",
@@ -4799,6 +4794,43 @@
       "Other"
     ];
 
+    // Cache for loaded roles with their colors
+    let cachedStakeholderRoles = [];
+
+    async function loadStakeholderRoles(projectId) {
+      try {
+        const response = await fetch(`${API_BASE}/api/unified/${projectId}/stakeholder-roles`);
+        if (response.ok) {
+          const roles = await response.json();
+          cachedStakeholderRoles = roles;
+          STAKEHOLDER_ROLES = roles.map(r => r.name);
+          return roles;
+        }
+      } catch (error) {
+        console.warn("Failed to load stakeholder roles, using defaults:", error);
+      }
+      return null;
+    }
+
+    function getRoleColor(roleName) {
+      const role = cachedStakeholderRoles.find(r => r.name === roleName);
+      if (role) {
+        return { bg: role.color_bg, color: role.color_text };
+      }
+      // Fallback colors
+      const defaultColors = {
+        "Main Contractor": { bg: "#dbeafe", color: "#1e40af" },
+        "Client": { bg: "#fef3c7", color: "#92400e" },
+        "Subcontractor": { bg: "#dcfce7", color: "#166534" },
+        "Consultant": { bg: "#f3e8ff", color: "#7c3aed" },
+        "Architect": { bg: "#ffe4e6", color: "#be123c" },
+        "Engineer": { bg: "#e0e7ff", color: "#3730a3" },
+        "Supplier": { bg: "#fef9c3", color: "#854d0e" },
+        "Project Manager": { bg: "#cffafe", color: "#0e7490" },
+      };
+      return defaultColors[roleName] || { bg: "#f3f4f6", color: "#374151" };
+    }
+
     async function showStakeholderFilter() {
       try {
         const projectId = resolveEntityId();
@@ -4806,16 +4838,19 @@
           showNotification("No project selected", "error");
           return;
         }
-        
+
+        // Load stakeholder roles first
+        await loadStakeholderRoles(projectId);
+
         // Fetch unique domains from correspondence
         const response = await fetch(
           `${API_BASE}/api/wizard/projects/${projectId}/domains`,
         );
-        
+
         if (!response.ok) {
           throw new Error("Failed to fetch domains");
         }
-        
+
         const data = await response.json();
         const domains = data.domains || [];
 
@@ -4902,9 +4937,15 @@
           </div>
           
           <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid var(--gray-200, #e5e7eb);">
-            <div style="color: var(--text-muted, #6b7280); font-size: 12px;">
-              <i class="fas fa-info-circle" style="margin-right: 4px;"></i>
-              Roles are used to tag emails and filter correspondence
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="color: var(--text-muted, #6b7280); font-size: 12px;">
+                <i class="fas fa-info-circle" style="margin-right: 4px;"></i>
+                Roles are used to tag emails and filter correspondence
+              </div>
+              <button onclick="showAddRoleDialog()" style="padding: 6px 12px; background: var(--gray-50, #f9fafb); color: var(--vericase-teal, #0d9488); border: 1px dashed var(--vericase-teal, #0d9488); border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500;">
+                <i class="fas fa-plus" style="margin-right: 4px;"></i>
+                Add Custom Role
+              </button>
             </div>
             <div style="display: flex; gap: 10px;">
               <button onclick="closeStakeholderModal()" style="padding: 10px 20px; background: var(--gray-100, #e5e7eb); color: var(--text-primary, #374151); border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">
@@ -4946,6 +4987,158 @@
       if (window.stakeholderBackdrop) {
         window.stakeholderBackdrop.remove();
         window.stakeholderBackdrop = null;
+      }
+    }
+
+    function showAddRoleDialog() {
+      const dialog = document.createElement("div");
+      dialog.id = "addRoleDialog";
+      dialog.style.cssText = `
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        background: white; padding: 24px; border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3); z-index: 1100;
+        min-width: 400px;
+      `;
+
+      dialog.innerHTML = `
+        <h3 style="margin: 0 0 20px 0; color: var(--vericase-navy, #1a365d); font-size: 18px;">
+          <i class="fas fa-plus-circle" style="margin-right: 8px; color: var(--vericase-teal, #0d9488);"></i>
+          Add Custom Role
+        </h3>
+
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-primary, #374151); font-size: 13px;">Role Name *</label>
+          <input type="text" id="newRoleName" placeholder="e.g., Site Manager"
+            style="width: 100%; padding: 10px 12px; border: 1px solid var(--gray-200, #e5e7eb); border-radius: 6px; font-size: 14px;">
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-primary, #374151); font-size: 13px;">Description (optional)</label>
+          <input type="text" id="newRoleDescription" placeholder="Brief description of this role"
+            style="width: 100%; padding: 10px 12px; border: 1px solid var(--gray-200, #e5e7eb); border-radius: 6px; font-size: 14px;">
+        </div>
+
+        <div style="display: flex; gap: 16px; margin-bottom: 20px;">
+          <div style="flex: 1;">
+            <label style="display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-primary, #374151); font-size: 13px;">Background Color</label>
+            <input type="color" id="newRoleColorBg" value="#f3f4f6"
+              style="width: 100%; height: 40px; border: 1px solid var(--gray-200, #e5e7eb); border-radius: 6px; cursor: pointer;">
+          </div>
+          <div style="flex: 1;">
+            <label style="display: block; margin-bottom: 6px; font-weight: 500; color: var(--text-primary, #374151); font-size: 13px;">Text Color</label>
+            <input type="color" id="newRoleColorText" value="#374151"
+              style="width: 100%; height: 40px; border: 1px solid var(--gray-200, #e5e7eb); border-radius: 6px; cursor: pointer;">
+          </div>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; margin-bottom: 8px; font-weight: 500; color: var(--text-primary, #374151); font-size: 13px;">Preview</label>
+          <div id="rolePreview" style="padding: 6px 14px; border-radius: 12px; display: inline-block; font-size: 13px; font-weight: 600; background: #f3f4f6; color: #374151;">
+            Role Name
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; padding-top: 16px; border-top: 1px solid var(--gray-200, #e5e7eb);">
+          <button onclick="closeAddRoleDialog()" style="padding: 10px 20px; background: var(--gray-100, #e5e7eb); color: var(--text-primary, #374151); border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">
+            Cancel
+          </button>
+          <button onclick="saveNewRole()" style="padding: 10px 24px; background: var(--vericase-teal, #0d9488); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">
+            <i class="fas fa-check" style="margin-right: 6px;"></i>
+            Add Role
+          </button>
+        </div>
+      `;
+
+      // Add backdrop
+      const backdrop = document.createElement("div");
+      backdrop.id = "addRoleBackdrop";
+      backdrop.style.cssText = "position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 1050;";
+      backdrop.onclick = closeAddRoleDialog;
+
+      document.body.appendChild(backdrop);
+      document.body.appendChild(dialog);
+
+      // Live preview updates
+      const nameInput = document.getElementById("newRoleName");
+      const bgInput = document.getElementById("newRoleColorBg");
+      const textInput = document.getElementById("newRoleColorText");
+      const preview = document.getElementById("rolePreview");
+
+      function updatePreview() {
+        preview.textContent = nameInput.value || "Role Name";
+        preview.style.background = bgInput.value;
+        preview.style.color = textInput.value;
+      }
+
+      nameInput.addEventListener("input", updatePreview);
+      bgInput.addEventListener("input", updatePreview);
+      textInput.addEventListener("input", updatePreview);
+
+      nameInput.focus();
+    }
+
+    function closeAddRoleDialog() {
+      const dialog = document.getElementById("addRoleDialog");
+      const backdrop = document.getElementById("addRoleBackdrop");
+      if (dialog) dialog.remove();
+      if (backdrop) backdrop.remove();
+    }
+
+    async function saveNewRole() {
+      const projectId = resolveEntityId();
+      if (!projectId || projectId === "null") {
+        showNotification("No project selected", "error");
+        return;
+      }
+
+      const name = document.getElementById("newRoleName").value.trim();
+      const description = document.getElementById("newRoleDescription").value.trim();
+      const colorBg = document.getElementById("newRoleColorBg").value;
+      const colorText = document.getElementById("newRoleColorText").value;
+
+      if (!name) {
+        showNotification("Please enter a role name", "warning");
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/api/unified/${projectId}/stakeholder-roles`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name,
+            description: description || null,
+            color_bg: colorBg,
+            color_text: colorText,
+            display_order: STAKEHOLDER_ROLES.length
+          })
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.detail || "Failed to create role");
+        }
+
+        const newRole = await response.json();
+
+        // Add to cached roles
+        cachedStakeholderRoles.push(newRole);
+        STAKEHOLDER_ROLES.push(newRole.name);
+
+        // Refresh the role dropdowns in the stakeholder modal
+        document.querySelectorAll(".stakeholder-role-select").forEach(select => {
+          const option = document.createElement("option");
+          option.value = newRole.name;
+          option.textContent = newRole.name;
+          select.appendChild(option);
+        });
+
+        closeAddRoleDialog();
+        showNotification(`Role "${name}" created successfully`, "success");
+
+      } catch (error) {
+        console.error("Error creating role:", error);
+        showNotification(error.message || "Failed to create role", "error");
       }
     }
 

@@ -4,6 +4,7 @@ Handles long-running operations like semantic indexing, OCR, etc.
 """
 
 import logging
+import sys
 from typing import Any
 from celery import Celery
 from .config import settings
@@ -13,6 +14,31 @@ logger = logging.getLogger(__name__)
 celery_app = Celery(
     "vericase-docs", broker=settings.REDIS_URL, backend=settings.REDIS_URL
 )
+
+
+def _running_under_celery_cli() -> bool:
+    argv = " ".join(sys.argv).lower()
+    return "celery" in argv and any(cmd in argv for cmd in (" worker", " beat", " flower"))
+
+
+# Optional OpenTelemetry tracing (disabled by default)
+if _running_under_celery_cli():
+    try:
+        from .tracing import (
+            setup_tracing,
+            instrument_celery,
+            instrument_requests,
+            instrument_sqlalchemy,
+        )
+
+        if setup_tracing("vericase-worker"):
+            instrument_celery()
+            instrument_requests()
+            from .db import engine
+
+            instrument_sqlalchemy(engine)
+    except Exception:
+        pass
 
 # Configure Celery
 celery_app.conf.update(

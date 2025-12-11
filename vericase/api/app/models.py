@@ -1102,6 +1102,58 @@ class Stakeholder(Base):
     )
 
 
+class StakeholderRole(Base):
+    """Custom stakeholder roles/categories for a project or case.
+
+    Allows users to define their own party role categories beyond defaults.
+    Each role has a name, display color, and optional description.
+    """
+
+    __tablename__ = "stakeholder_roles"
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True
+    )
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True
+    )
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Display styling
+    color_bg: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, default="#f3f4f6"
+    )  # Background color (hex)
+    color_text: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, default="#374151"
+    )  # Text color (hex)
+
+    # Ordering for display
+    display_order: Mapped[int] = mapped_column(Integer, default=0)
+
+    # System vs user-defined
+    is_system: Mapped[bool] = mapped_column(
+        Boolean, default=False
+    )  # True for default roles that can't be deleted
+
+    project: Mapped[Project | None] = relationship("Project")
+    case: Mapped[Case | None] = relationship("Case")
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("idx_stakeholder_role_project", "project_id"),
+        Index("idx_stakeholder_role_case", "case_id"),
+    )
+
+
 class Keyword(Base):
     """Keywords for auto-tagging emails"""
 

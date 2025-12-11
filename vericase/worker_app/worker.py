@@ -1,5 +1,6 @@
 import io
 import os
+import sys
 import tempfile
 from celery import Celery
 import boto3
@@ -13,6 +14,24 @@ import logging
 from .config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _running_under_celery_cli() -> bool:
+    argv = " ".join(sys.argv).lower()
+    return "celery" in argv and any(cmd in argv for cmd in (" worker", " beat", " flower"))
+
+
+_TRACING_ON = False
+if _running_under_celery_cli():
+    try:
+        from app.tracing import setup_tracing, instrument_celery, instrument_requests
+
+        _TRACING_ON = setup_tracing("vericase-worker")
+        if _TRACING_ON:
+            instrument_celery()
+            instrument_requests()
+    except Exception:
+        _TRACING_ON = False
 
 celery_app = Celery(
     "vericase-docs", broker=settings.REDIS_URL, backend=settings.REDIS_URL
@@ -50,6 +69,13 @@ else:
     )
 
 engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
+if _TRACING_ON:
+    try:
+        from app.tracing import instrument_sqlalchemy
+
+        instrument_sqlalchemy(engine)
+    except Exception:
+        pass
 
 
 def _get_setting_from_db(key: str, default_value: str) -> str:
@@ -144,7 +170,7 @@ def _fetch_pst_file(pst_id: str):
             conn.execute(
                 text(
                     """
-            SELECT id::text, filename, s3_bucket as bucket, s3_key, case_id::text, project_id::text, 
+            SELECT id::text, filename, s3_bucket as bucket, s3_key, case_id::text, project_id::text,
                    file_size_bytes as file_size, processing_status, uploaded_by::text
             FROM pst_files WHERE id::text=:i
         """
@@ -172,7 +198,7 @@ def _update_pst_status(
             conn.execute(
                 text(
                     """
-                UPDATE pst_files SET processing_status=:s, error_message=:e, 
+                UPDATE pst_files SET processing_status=:s, error_message=:e,
                 processing_completed_at=CURRENT_TIMESTAMP WHERE id::text=:i
             """
                 ),
@@ -197,7 +223,7 @@ def _update_pst_status(
             conn.execute(
                 text(
                     """
-                UPDATE pst_files SET processing_status=:s, processing_started_at=CURRENT_TIMESTAMP 
+                UPDATE pst_files SET processing_status=:s, processing_started_at=CURRENT_TIMESTAMP
                 WHERE id::text=:i
             """
                 ),
