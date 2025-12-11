@@ -59,7 +59,7 @@
       addLog(
         "uncaught_error",
         [event.message],
-        event.error ? event.error.stack : null,
+        event.error ? event.error.stack : null
       );
     });
 
@@ -195,14 +195,12 @@
 
   function getProjectId() {
     const urlParams = new URLSearchParams(window.location.search);
-    const stored = (localStorage.getItem("vericase_current_project") || "").trim();
+    const stored = (
+      localStorage.getItem("vericase_current_project") || ""
+    ).trim();
     const normalizedStored =
       stored && stored !== "undefined" && stored !== "null" ? stored : "";
-    return (
-      urlParams.get("projectId") ||
-      normalizedStored ||
-      ""
-    );
+    return urlParams.get("projectId") || normalizedStored || "";
   }
 
   function getUserRole() {
@@ -258,10 +256,16 @@
         const isActive = currentPage.includes(item.url.replace(".html", ""));
         const itemDisabled = needsProject && !hasProject ? "disabled" : "";
         navHtml += `
-                    <a href="${buildNavUrl(item.url)}" class="nav-item ${isActive ? "active" : ""} ${itemDisabled}" data-nav="${item.id}">
+                    <a href="${buildNavUrl(item.url)}" class="nav-item ${
+          isActive ? "active" : ""
+        } ${itemDisabled}" data-nav="${item.id}">
                         <i class="fas ${item.icon}"></i>
                         <span>${item.label}</span>
-                        ${item.badge ? `<span class="nav-badge">${item.badge}</span>` : ""}
+                        ${
+                          item.badge
+                            ? `<span class="nav-badge">${item.badge}</span>`
+                            : ""
+                        }
                     </a>
                 `;
       });
@@ -307,18 +311,22 @@
   }
 
   function renderHeader(title = "", actions = "", breadcrumbs = null) {
-    const breadcrumbHtml = breadcrumbs ? renderBreadcrumbs(breadcrumbs) : '';
+    const breadcrumbHtml = breadcrumbs ? renderBreadcrumbs(breadcrumbs) : "";
     return `
             <header class="app-header">
                 <button class="btn btn-icon btn-ghost" id="sidebarToggle" style="display: none;">
                     <i class="fas fa-bars"></i>
                 </button>
-                ${breadcrumbHtml ? `
+                ${
+                  breadcrumbHtml
+                    ? `
                 <div class="app-header-breadcrumb">
                     ${breadcrumbHtml}
                 </div>
                 <div class="app-header-divider"></div>
-                ` : ''}
+                `
+                    : ""
+                }
                 <h1 class="app-header-title">${title}</h1>
                 <div class="app-header-actions">
                     ${actions}
@@ -328,21 +336,25 @@
   }
 
   function renderBreadcrumbs(breadcrumbs) {
-    if (!breadcrumbs || breadcrumbs.length === 0) return '';
-    
-    return breadcrumbs.map((crumb, index) => {
-      const isLast = index === breadcrumbs.length - 1;
-      const icon = crumb.icon ? `<i class="fas ${crumb.icon}"></i> ` : '';
-      
-      if (isLast) {
-        return `<span class="breadcrumb-current">${icon}${crumb.label}</span>`;
-      }
-      
-      return `
-        <a href="${crumb.url || '#'}" class="breadcrumb-link">${icon}${crumb.label}</a>
+    if (!breadcrumbs || breadcrumbs.length === 0) return "";
+
+    return breadcrumbs
+      .map((crumb, index) => {
+        const isLast = index === breadcrumbs.length - 1;
+        const icon = crumb.icon ? `<i class="fas ${crumb.icon}"></i> ` : "";
+
+        if (isLast) {
+          return `<span class="breadcrumb-current">${icon}${crumb.label}</span>`;
+        }
+
+        return `
+        <a href="${crumb.url || "#"}" class="breadcrumb-link">${icon}${
+          crumb.label
+        }</a>
         <span class="separator"><i class="fas fa-chevron-right"></i></span>
       `;
-    }).join('');
+      })
+      .join("");
   }
 
   // Load and display the current project name in the sidebar
@@ -437,8 +449,20 @@
     const toggle = document.getElementById("sidebarToggle");
 
     function handleMediaChange(e) {
-      if (toggle) {
-        toggle.style.display = e.matches ? "flex" : "none";
+      if (!toggle || !sidebar) return;
+      // Keep toggle visible on all breakpoints; adjust behavior per viewport
+      toggle.style.display = "flex";
+
+      if (e.matches) {
+        // Mobile: use slide-in drawer and clear desktop state
+        sidebar.classList.remove("collapsed");
+        toggle.setAttribute("aria-label", "Open navigation");
+        toggle.setAttribute("title", "Open navigation");
+      } else {
+        // Desktop: ensure mobile drawer class is removed
+        sidebar.classList.remove("mobile-open");
+        toggle.setAttribute("aria-label", "Hide sidebar");
+        toggle.setAttribute("title", "Hide sidebar");
       }
     }
 
@@ -447,7 +471,27 @@
 
     if (toggle && sidebar) {
       toggle.addEventListener("click", () => {
-        sidebar.classList.toggle("mobile-open");
+        if (mediaQuery.matches) {
+          const open = sidebar.classList.toggle("mobile-open");
+          toggle.setAttribute(
+            "aria-label",
+            open ? "Close navigation" : "Open navigation"
+          );
+          toggle.setAttribute(
+            "title",
+            open ? "Close navigation" : "Open navigation"
+          );
+        } else {
+          const collapsed = sidebar.classList.toggle("collapsed");
+          toggle.setAttribute(
+            "aria-label",
+            collapsed ? "Show sidebar" : "Hide sidebar"
+          );
+          toggle.setAttribute(
+            "title",
+            collapsed ? "Show sidebar" : "Hide sidebar"
+          );
+        }
       });
     }
   }
@@ -538,7 +582,9 @@
       select.innerHTML = '<option value="">-- Select a project --</option>';
       projects.forEach((project) => {
         const selected = project.id === currentProjectId ? "selected" : "";
-        select.innerHTML += `<option value="${project.id}" ${selected}>${project.project_name || project.name || "Unnamed Project"} ${project.project_code ? `(${project.project_code})` : ""}</option>`;
+        select.innerHTML += `<option value="${project.id}" ${selected}>${
+          project.project_name || project.name || "Unnamed Project"
+        } ${project.project_code ? `(${project.project_code})` : ""}</option>`;
       });
     }
 
