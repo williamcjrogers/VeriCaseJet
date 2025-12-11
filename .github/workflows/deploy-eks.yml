@@ -78,6 +78,7 @@ jobs:
           aws eks update-kubeconfig --name $EKS_CLUSTER --region $AWS_REGION
           kubectl apply -f vericase/k8s/k8s-deployment.yaml -n vericase
           kubectl apply -f vericase/k8s/k8s-ingress.yaml -n vericase
+          kubectl apply -f vericase/k8s/tika-deployment.yaml -n vericase
           # Record the commit SHA on the deployments for observability
           kubectl set env deployment/vericase-api VERICASE_COMMIT_SHA=${GITHUB_SHA} -n vericase
           kubectl set env deployment/vericase-worker VERICASE_COMMIT_SHA=${GITHUB_SHA} -n vericase
