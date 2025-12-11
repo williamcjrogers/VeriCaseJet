@@ -29,11 +29,11 @@ docker-compose up -d --build
 
 ### 3. Access
 
-| Service      | URL                                      | Credentials             |
-|--------------|------------------------------------------|-------------------------|
-| **Dashboard**| http://localhost:8010/ui/dashboard.html  | Defined in `.env`       |
-| **API Docs** | http://localhost:8010/docs               | Public                  |
-| **MinIO**    | http://localhost:9001                    | `minioadmin` / `minioadmin` |
+| Service       | URL                                     | Credentials                 |
+| ------------- | --------------------------------------- | --------------------------- |
+| **Dashboard** | http://localhost:8010/ui/dashboard.html | Defined in `.env`           |
+| **API Docs**  | http://localhost:8010/docs              | Public                      |
+| **MinIO**     | http://localhost:9001                   | `minioadmin` / `minioadmin` |
 
 ---
 
@@ -60,22 +60,42 @@ vericase/
 ## Operational Commands
 
 ### View Logs
+
 ```bash
 docker-compose logs -f          # All logs
 docker-compose logs -f worker   # Specific service
 ```
 
 ### Reset Database (Destructive)
+
 ```bash
 docker-compose down -v
 docker-compose up -d
 ```
 
 ### Shell Access
+
 ```bash
 docker-compose exec api bash
 docker-compose exec postgres psql -U vericase -d vericase
 ```
+
+---
+
+## Tracing (optional)
+
+Tracing is **off by default**. To enable OpenTelemetry tracing for both the API and worker:
+
+- Set in `vericase/.env`:
+  - `OTEL_TRACING_ENABLED=true`
+  - `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318` (OTLP/HTTP)
+  - Optional: `OTEL_SERVICE_NAME=vericase-api` (override per-container if desired)
+
+If you use **AI Toolkit** tracing, start its local collector from VS Code Command Palette:
+
+- `ai-mlstudio.tracing.open`
+
+If `OTEL_EXPORTER_OTLP_ENDPOINT` is not set, spans fall back to console output.
 
 ---
 
@@ -116,12 +136,12 @@ The initial Alembic revision (`0001_vericase_baseline`) is a no-op baseline used
 
 All scripts are in `ops/`:
 
-| Script | Purpose |
-|--------|---------|
-| `deploy.sh` / `deploy.ps1` | Deploy to local/EC2/EKS |
-| `diagnose.sh` / `diagnose.ps1` | Run diagnostics |
-| `setup-aws.sh` | Configure AWS services |
-| `reset-db.sh` | Reset database |
+| Script                         | Purpose                 |
+| ------------------------------ | ----------------------- |
+| `deploy.sh` / `deploy.ps1`     | Deploy to local/EC2/EKS |
+| `diagnose.sh` / `diagnose.ps1` | Run diagnostics         |
+| `setup-aws.sh`                 | Configure AWS services  |
+| `reset-db.sh`                  | Reset database          |
 
 ---
 

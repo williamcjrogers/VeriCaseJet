@@ -44,6 +44,7 @@ from .models import (
     PSTFile,
     RefinementSessionDB,
     Stakeholder,
+    StakeholderRole,
     User,
 )
 from .security import current_user, get_db
@@ -1549,6 +1550,35 @@ async def get_emails_server_side(
     # Apply pagination
     emails = query.offset(start_row).limit(page_size).all()
 
+    # Pre-load all stakeholders for this project/case for efficient lookup
+    stakeholders_by_name: dict[str, dict] = {}
+    if project_id:
+        stakeholders = (
+            db.query(Stakeholder)
+            .filter(Stakeholder.project_id == uuid.UUID(project_id))
+            .all()
+        )
+        for s in stakeholders:
+            stakeholders_by_name[s.name] = {
+                "id": str(s.id),
+                "name": s.name,
+                "role": s.role,
+                "organization": s.organization,
+                "email": s.email,
+            }
+    elif case_id:
+        stakeholders = (
+            db.query(Stakeholder).filter(Stakeholder.case_id == uuid.UUID(case_id)).all()
+        )
+        for s in stakeholders:
+            stakeholders_by_name[s.name] = {
+                "id": str(s.id),
+                "name": s.name,
+                "role": s.role,
+                "organization": s.organization,
+                "email": s.email,
+            }
+
     # Convert to dicts with attachment info for grid display
     rows = []
     for e in emails:
@@ -1606,6 +1636,19 @@ async def get_emails_server_side(
         # if e.has_attachments and not attachment_list:
         #    logger.debug(f"Email {e.id} has_attachments=True but attachment_list is empty")
 
+        # Build matched_stakeholders_details from matched_stakeholders names
+        matched_stakeholders = e.matched_stakeholders or []
+        matched_stakeholders_details = []
+        stakeholder_role = None
+
+        for stakeholder_name in matched_stakeholders:
+            if stakeholder_name in stakeholders_by_name:
+                details = stakeholders_by_name[stakeholder_name]
+                matched_stakeholders_details.append(details)
+                # Use first matched stakeholder's role as the primary role
+                if stakeholder_role is None:
+                    stakeholder_role = details.get("role")
+
         rows.append(
             {
                 "id": str(e.id),
@@ -1654,6 +1697,10 @@ async def get_emails_server_side(
                 "body_text_clean": e.body_text_clean or "",
                 "body_html": getattr(e, "body_html", None),
                 "content": e.body_text_clean or e.body_text or "",
+                # Stakeholder data for Party Role column
+                "matched_stakeholders": matched_stakeholders,
+                "matched_stakeholders_details": matched_stakeholders_details,
+                "stakeholder_role": stakeholder_role,
             }
         )
 
@@ -3738,6 +3785,307 @@ async def get_unified_keywords(
         {"id": str(k.id), "name": k.keyword_name, "variations": k.variations}
         for k in keywords
     ]
+
+
+# ============================================================================
+# Stakeholder Role Management
+# ============================================================================
+
+
+class StakeholderRoleCreate(BaseModel):
+    """Request to create a new stakeholder role"""
+
+    name: str
+    description: str | None = None
+    color_bg: str = "#f3f4f6"
+    color_text: str = "#374151"
+    display_order: int = 0
+
+
+class StakeholderRoleUpdate(BaseModel):
+    """Request to update a stakeholder role"""
+
+    name: str | None = None
+    description: str | None = None
+    color_bg: str | None = None
+    color_text: str | None = None
+    display_order: int | None = None
+
+
+class StakeholderRoleResponse(BaseModel):
+    """Response for a stakeholder role"""
+
+    id: str
+    name: str
+    description: str | None
+    color_bg: str
+    color_text: str
+    display_order: int
+    is_system: bool
+
+
+@unified_router.get("/{entity_id}/stakeholder-roles")
+async def get_stakeholder_roles(
+    entity_id: str,
+    db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+) -> list[StakeholderRoleResponse]:
+    """Get stakeholder roles for a project or case.
+
+    Returns project/case-specific roles first, then falls back to system defaults.
+    """
+    try:
+        entity_uuid = uuid.UUID(entity_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid entity ID format")
+
+    # Try to get project-specific roles first
+    roles = (
+        db.query(StakeholderRole)
+        .filter(StakeholderRole.project_id == entity_uuid)
+        .order_by(StakeholderRole.display_order, StakeholderRole.name)
+        .all()
+    )
+
+    # If no project roles, try case-specific roles
+    if not roles:
+        roles = (
+            db.query(StakeholderRole)
+            .filter(StakeholderRole.case_id == entity_uuid)
+            .order_by(StakeholderRole.display_order, StakeholderRole.name)
+            .all()
+        )
+
+    # If still no roles, get system defaults (where project_id and case_id are both null)
+    if not roles:
+        roles = (
+            db.query(StakeholderRole)
+            .filter(
+                StakeholderRole.project_id.is_(None),
+                StakeholderRole.case_id.is_(None),
+                StakeholderRole.is_system.is_(True),
+            )
+            .order_by(StakeholderRole.display_order, StakeholderRole.name)
+            .all()
+        )
+
+    return [
+        StakeholderRoleResponse(
+            id=str(r.id),
+            name=r.name,
+            description=r.description,
+            color_bg=r.color_bg or "#f3f4f6",
+            color_text=r.color_text or "#374151",
+            display_order=r.display_order,
+            is_system=r.is_system,
+        )
+        for r in roles
+    ]
+
+
+@unified_router.post("/{entity_id}/stakeholder-roles")
+async def create_stakeholder_role(
+    entity_id: str,
+    role_data: StakeholderRoleCreate,
+    db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+) -> StakeholderRoleResponse:
+    """Create a new stakeholder role for a project or case."""
+    try:
+        entity_uuid = uuid.UUID(entity_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid entity ID format")
+
+    # Check if this is a project or case
+    project = db.query(Project).filter(Project.id == entity_uuid).first()
+    case = db.query(Case).filter(Case.id == entity_uuid).first() if not project else None
+
+    if not project and not case:
+        raise HTTPException(status_code=404, detail="Project or case not found")
+
+    # Check for duplicate name
+    existing = (
+        db.query(StakeholderRole)
+        .filter(
+            StakeholderRole.name == role_data.name,
+            (StakeholderRole.project_id == entity_uuid)
+            | (StakeholderRole.case_id == entity_uuid),
+        )
+        .first()
+    )
+    if existing:
+        raise HTTPException(
+            status_code=400, detail=f"Role '{role_data.name}' already exists"
+        )
+
+    new_role = StakeholderRole(
+        project_id=entity_uuid if project else None,
+        case_id=entity_uuid if case else None,
+        name=role_data.name,
+        description=role_data.description,
+        color_bg=role_data.color_bg,
+        color_text=role_data.color_text,
+        display_order=role_data.display_order,
+        is_system=False,
+    )
+
+    db.add(new_role)
+    db.commit()
+    db.refresh(new_role)
+
+    return StakeholderRoleResponse(
+        id=str(new_role.id),
+        name=new_role.name,
+        description=new_role.description,
+        color_bg=new_role.color_bg or "#f3f4f6",
+        color_text=new_role.color_text or "#374151",
+        display_order=new_role.display_order,
+        is_system=new_role.is_system,
+    )
+
+
+@unified_router.put("/{entity_id}/stakeholder-roles/{role_id}")
+async def update_stakeholder_role(
+    entity_id: str,
+    role_id: str,
+    role_data: StakeholderRoleUpdate,
+    db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+) -> StakeholderRoleResponse:
+    """Update a stakeholder role."""
+    try:
+        role_uuid = uuid.UUID(role_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid role ID format")
+
+    role = db.query(StakeholderRole).filter(StakeholderRole.id == role_uuid).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+
+    # Prevent editing system roles (name only - colors can be customized)
+    if role.is_system and role_data.name and role_data.name != role.name:
+        raise HTTPException(
+            status_code=400, detail="Cannot rename system roles"
+        )
+
+    # Update fields if provided
+    if role_data.name is not None:
+        role.name = role_data.name
+    if role_data.description is not None:
+        role.description = role_data.description
+    if role_data.color_bg is not None:
+        role.color_bg = role_data.color_bg
+    if role_data.color_text is not None:
+        role.color_text = role_data.color_text
+    if role_data.display_order is not None:
+        role.display_order = role_data.display_order
+
+    db.commit()
+    db.refresh(role)
+
+    return StakeholderRoleResponse(
+        id=str(role.id),
+        name=role.name,
+        description=role.description,
+        color_bg=role.color_bg or "#f3f4f6",
+        color_text=role.color_text or "#374151",
+        display_order=role.display_order,
+        is_system=role.is_system,
+    )
+
+
+@unified_router.delete("/{entity_id}/stakeholder-roles/{role_id}")
+async def delete_stakeholder_role(
+    entity_id: str,
+    role_id: str,
+    db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+):
+    """Delete a stakeholder role. System roles cannot be deleted."""
+    try:
+        role_uuid = uuid.UUID(role_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid role ID format")
+
+    role = db.query(StakeholderRole).filter(StakeholderRole.id == role_uuid).first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+
+    if role.is_system:
+        raise HTTPException(status_code=400, detail="Cannot delete system roles")
+
+    db.delete(role)
+    db.commit()
+
+    return {"success": True, "message": f"Role '{role.name}' deleted"}
+
+
+@unified_router.post("/{entity_id}/stakeholder-roles/initialize")
+async def initialize_project_roles(
+    entity_id: str,
+    db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+):
+    """Copy system default roles to a project for customization.
+
+    This allows projects to customize roles without affecting the global defaults.
+    """
+    try:
+        entity_uuid = uuid.UUID(entity_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid entity ID format")
+
+    # Check if this is a project or case
+    project = db.query(Project).filter(Project.id == entity_uuid).first()
+    case = db.query(Case).filter(Case.id == entity_uuid).first() if not project else None
+
+    if not project and not case:
+        raise HTTPException(status_code=404, detail="Project or case not found")
+
+    # Check if already has custom roles
+    existing = (
+        db.query(StakeholderRole)
+        .filter(
+            (StakeholderRole.project_id == entity_uuid)
+            | (StakeholderRole.case_id == entity_uuid)
+        )
+        .first()
+    )
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail="Project already has custom roles. Use create/update endpoints instead.",
+        )
+
+    # Get system defaults
+    system_roles = (
+        db.query(StakeholderRole)
+        .filter(
+            StakeholderRole.project_id.is_(None),
+            StakeholderRole.case_id.is_(None),
+            StakeholderRole.is_system.is_(True),
+        )
+        .all()
+    )
+
+    # Copy to project/case
+    new_roles = []
+    for sr in system_roles:
+        new_role = StakeholderRole(
+            project_id=entity_uuid if project else None,
+            case_id=entity_uuid if case else None,
+            name=sr.name,
+            description=sr.description,
+            color_bg=sr.color_bg,
+            color_text=sr.color_text,
+            display_order=sr.display_order,
+            is_system=False,  # Project-specific copies are not system roles
+        )
+        db.add(new_role)
+        new_roles.append(new_role)
+
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Initialized {len(new_roles)} roles for customization",
+        "count": len(new_roles),
+    }
 
 
 # ============================================================================

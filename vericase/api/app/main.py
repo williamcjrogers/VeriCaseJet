@@ -202,33 +202,50 @@ app = FastAPI(
     title="VeriCase Docs API", version="0.3.9"
 )  # Updated 2025-11-12 added AWS Secrets Manager for AI keys
 
+# Optional OpenTelemetry tracing (disabled by default)
+try:
+    from .tracing import (
+        setup_tracing,
+        instrument_fastapi,
+        instrument_requests,
+        instrument_sqlalchemy,
+    )
+
+    if setup_tracing("vericase-api"):
+        instrument_fastapi(app)
+        instrument_requests()
+        instrument_sqlalchemy(engine)
+except Exception:
+    # Tracing should never block API startup.
+    pass
+
 # Custom HTTPS Redirect Middleware that excludes health checks
 # Standard HTTPSRedirectMiddleware breaks Kubernetes liveness/readiness probes
 class HTTPSRedirectExcludeHealthMiddleware(BaseHTTPMiddleware):
     """HTTPS redirect that excludes health check endpoints for Kubernetes probes"""
-    
+
     # Paths that should NOT be redirected (used by K8s probes internally over HTTP)
     EXCLUDED_PATHS = {"/health", "/healthz", "/ready", "/readyz", "/livez"}
-    
+
     async def dispatch(self, request, call_next):
         # Skip redirect for health endpoints (K8s probes use HTTP internally)
         if request.url.path in self.EXCLUDED_PATHS:
             return await call_next(request)
-        
+
         # Check X-Forwarded-Proto header (set by ALB)
         forwarded_proto = request.headers.get("x-forwarded-proto", "")
-        
+
         # If already HTTPS or behind ALB with HTTPS, don't redirect
         if forwarded_proto == "https" or request.url.scheme == "https":
             return await call_next(request)
-        
+
         # Only redirect external requests (not internal K8s traffic)
         # ALB sets X-Forwarded-For, K8s probes don't
         if "x-forwarded-for" in request.headers:
             # External request via ALB - redirect to HTTPS
             https_url = request.url.replace(scheme="https")
             return StarletteRedirect(url=str(https_url), status_code=307)
-        
+
         # Internal request (K8s probe or pod-to-pod) - allow HTTP
         return await call_next(request)
 
@@ -243,7 +260,7 @@ if os.getenv("AWS_EXECUTION_ENV") or os.getenv("USE_AWS_SERVICES") == "true":
     print("[STARTUP] HTTPS Redirect Middleware enabled (health checks excluded)")
     # Trust headers from AWS Load Balancer
     # Note: Uvicorn proxy_headers=True handles X-Forwarded-Proto, but this ensures redirect
-    
+
     # Restrict Host header if domain is known (optional, good for security)
     # app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*.elb.amazonaws.com", "vericase.yourdomain.com", "localhost"])
 else:
@@ -635,7 +652,7 @@ def startup():
         # Run schema migrations for BigInt support
         with engine.connect() as conn:
                 logger.info("Running schema migrations for Large File support...")
-                
+
                 # 1. Documents
                 try:
                     conn.execute(text("ALTER TABLE documents ALTER COLUMN size TYPE BIGINT"))
@@ -688,7 +705,7 @@ def startup():
                             VALUES ('dca0d854-1655-4498-97f3-399b47a4d65f', 'Default Case', 'DEFAULT-001', 'Auto-generated default case', :owner_id, NOW(), NOW())
                             ON CONFLICT (id) DO NOTHING;
                         """), {"owner_id": admin_id})
-                        
+
                         # Default Project (linked to Default Case, with owner)
                         conn.execute(text("""
                             INSERT INTO projects (id, project_name, description, owner_user_id, created_at, updated_at)
@@ -710,7 +727,7 @@ def startup():
                 except Exception as e:
                     logger.warning(f"Migration skipped for evidence_sources: {e}")
                     conn.rollback()
-                    
+
                 logger.info("Schema migration attempts completed")
 
     except Exception as e:
