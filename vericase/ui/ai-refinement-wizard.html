@@ -871,6 +871,10 @@
               <span class="stat-value danger" id="statSpam">0</span>
             </div>
             <div class="stat-row">
+              <span class="stat-label">Duplicates found</span>
+              <span class="stat-value warning" id="statDuplicates">0</span>
+            </div>
+            <div class="stat-row">
               <span class="stat-label">Unknown domains</span>
               <span class="stat-value" id="statDomains">0</span>
             </div>
@@ -888,6 +892,10 @@
             <div class="step" id="step-spam">
               <div class="step-icon"><i class="fas fa-shield-halved"></i></div>
               <span class="step-text">Spam Detection</span>
+            </div>
+            <div class="step" id="step-duplicates">
+              <div class="step-icon"><i class="fas fa-copy"></i></div>
+              <span class="step-text">Duplicate Removal</span>
             </div>
             <div class="step" id="step-domains">
               <div class="step-icon"><i class="fas fa-globe"></i></div>
@@ -1016,6 +1024,8 @@
           summary.other_projects_found || 0;
         document.getElementById("statSpam").textContent =
           summary.spam_sources_found || 0;
+        document.getElementById("statDuplicates").textContent =
+          summary.duplicates_found || 0;
         document.getElementById("statDomains").textContent =
           summary.unknown_domains || 0;
       }
@@ -1056,6 +1066,7 @@
         const stageMap = {
           project_cross_reference: "step-projects",
           spam_detection: "step-spam",
+          final_review: "step-duplicates",
           domain_questions: "step-domains",
           people_validation: "step-people",
         };
@@ -1298,6 +1309,7 @@
           const stageMap = {
             project_cross_reference: "step-projects",
             spam_detection: "step-spam",
+            final_review: "step-duplicates",
             domain_questions: "step-domains",
             people_validation: "step-people",
           };
@@ -1389,6 +1401,10 @@
                                 <li>
                                     <span>Spam sources detected</span>
                                     <span class="summary-value">${analysisResults?.spam_sources_found || 0}</span>
+                                </li>
+                                <li>
+                                    <span>Duplicates found</span>
+                                    <span class="summary-value">${analysisResults?.duplicates_found || 0}</span>
                                 </li>
                                 <li>
                                     <span>Unknown domains</span>

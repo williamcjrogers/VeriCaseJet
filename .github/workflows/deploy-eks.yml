@@ -55,8 +55,12 @@ jobs:
           aws eks update-kubeconfig --name $EKS_CLUSTER --region $AWS_REGION
           kubectl apply -f vericase/k8s/k8s-deployment.yaml -n vericase
           kubectl apply -f vericase/k8s/k8s-ingress.yaml -n vericase
-          kubectl rollout restart deployment/vericase-api -n vericase
-          kubectl rollout restart deployment/vericase-worker -n vericase
+          # Record the commit SHA on the deployments for observability
+          kubectl set env deployment/vericase-api VERICASE_COMMIT_SHA=${GITHUB_SHA} -n vericase
+          kubectl set env deployment/vericase-worker VERICASE_COMMIT_SHA=${GITHUB_SHA} -n vericase
+          # Update deployments to use the commit-specific image tag
+          kubectl set image deployment/vericase-api vericase-api=${DOCKER_IMAGE}:${GITHUB_SHA} -n vericase
+          kubectl set image deployment/vericase-worker vericase-worker=${DOCKER_IMAGE}:${GITHUB_SHA} -n vericase
           kubectl rollout status deployment/vericase-api -n vericase --timeout=10m || true
           kubectl rollout status deployment/vericase-worker -n vericase --timeout=10m || true
           kubectl get pods -n vericase
