@@ -93,8 +93,8 @@ deploy_local() {
     wait_healthy "postgres"
     wait_healthy "redis"
 
-    log_info "Running migrations..."
-    docker-compose -f docker-compose.prod.yml run --rm api python -m app.apply_migrations
+    log_info "Running migrations (Alembic)..."
+    docker-compose -f docker-compose.prod.yml run --rm api alembic upgrade head
 
     log_info "Starting application..."
     docker-compose -f docker-compose.prod.yml up -d api worker

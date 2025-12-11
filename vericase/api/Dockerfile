@@ -46,7 +46,8 @@ COPY worker_app /code/worker_app
 # Copy UI files
 COPY ui /code/ui
 
-# Copy migration scripts
+# Copy Alembic configuration and legacy migration scripts
+COPY api/alembic.ini /code/alembic.ini
 COPY api/migrations /code/migrations
 COPY api/apply_migrations.py /code/apply_migrations.py
 

@@ -55,9 +55,9 @@ reset_local() {
     echo "[4/4] Waiting for database..."
     sleep 10
 
-    echo "[5/5] Running migrations..."
-    docker-compose -f docker-compose.prod.yml run --rm api python -m app.apply_migrations 2>/dev/null || \
-    docker-compose run --rm api python -m app.apply_migrations
+    echo "[5/5] Running migrations (Alembic)..."
+    docker-compose -f docker-compose.prod.yml run --rm api alembic upgrade head 2>/dev/null || \
+    docker-compose run --rm api alembic upgrade head
 
     echo ""
     echo -e "${GREEN}Database reset complete!${NC}"
@@ -91,8 +91,8 @@ reset_ec2() {
         sudo docker-compose up -d postgres
         sleep 10
 
-        echo "[4/4] Running migrations..."
-        sudo docker-compose run --rm api python -m app.apply_migrations
+        echo "[4/4] Running migrations (Alembic)..."
+        sudo docker-compose run --rm api alembic upgrade head
 
         echo ""
         echo "Starting all services..."
