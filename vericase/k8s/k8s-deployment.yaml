@@ -321,3 +321,27 @@ spec:
         target:
           type: Utilization
           averageUtilization: 70
+---
+# Pod Disruption Budget for API (maintain 2 pods during node maintenance)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vericase-api-pdb
+  namespace: vericase
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: vericase-api
+---
+# Pod Disruption Budget for Workers (maintain 1 pod during node maintenance)
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vericase-worker-pdb
+  namespace: vericase
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: vericase-worker
