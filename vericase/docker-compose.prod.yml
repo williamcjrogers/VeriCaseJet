@@ -1,4 +1,9 @@
-# VeriCase Production Docker Compose
+# VeriCase Production Docker Compose (LEGACY)
+#
+# NOTE: This file is for legacy EC2/single-server deployments.
+# The canonical production target is now EKS (see vericase/k8s/).
+# For new deployments, use the Kubernetes manifests instead.
+#
 # Usage: docker-compose -f docker-compose.prod.yml up -d
 
 name: vericase-prod

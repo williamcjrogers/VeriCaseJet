@@ -11,12 +11,16 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     env:
       AWS_REGION: eu-west-2
       EKS_CLUSTER: vericase-cluster
       DOCKER_IMAGE: wcjrogers/vericase-api
-      # Default Docker Hub username; can be overridden via repo/org variable DOCKER_USER
-      DOCKER_USER: ${{ vars.DOCKER_USER || 'vericase' }}
+      GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/vericase-api
+      DOCKER_USER: ${{ vars.DOCKER_USER || 'wcjrogers' }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -30,16 +34,35 @@ jobs:
           username: ${{ env.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PAT }}
 
-      - name: Build and push to Docker Hub
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.DOCKER_IMAGE }}
+            ${{ env.GHCR_IMAGE }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=
+            type=raw,value={{date 'YYYYMMDD-HHmmss'}}
+
+      - name: Build and push to registries
         uses: docker/build-push-action@v5
         with:
           builder: ${{ steps.buildx.outputs.name }}
           context: ./vericase
           file: ./vericase/api/Dockerfile
           push: true
-          tags: |
-            ${{ env.DOCKER_IMAGE }}:latest
-            ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
 
       - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v4
@@ -63,3 +86,13 @@ jobs:
           kubectl rollout status deployment/vericase-worker -n vericase --timeout=10m || true
           kubectl get pods -n vericase
           echo "Deployment triggered - pods may still be starting"
+
+      - name: Summary
+        run: |
+          echo "## Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Images published to:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker Hub: \`${{ env.DOCKER_IMAGE }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- GHCR: \`${{ env.GHCR_IMAGE }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed to:** \`${{ env.EKS_CLUSTER }}\` (eu-west-2)" >> $GITHUB_STEP_SUMMARY
