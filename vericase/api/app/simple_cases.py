@@ -425,9 +425,9 @@ def delete_project(project_id: str, db: DbDep) -> dict[str, str]:
             RefinementSessionDB.project_id == str(project_uuid)
         ).delete(synchronize_session=False)
 
-        # Delete email attachments (references email_messages which references pst_files)
-        if pst_file_ids:
-            db.query(EmailAttachment).filter(EmailAttachment.pst_file_id.in_(pst_file_ids)).delete(synchronize_session=False)
+        # Delete email attachments (references email_messages)
+        if email_ids:
+            db.query(EmailAttachment).filter(EmailAttachment.email_message_id.in_(email_ids)).delete(synchronize_session=False)
 
         # Delete email messages
         db.query(EmailMessage).filter(EmailMessage.project_id == project_uuid).delete(synchronize_session=False)
@@ -454,10 +454,17 @@ def delete_project(project_id: str, db: DbDep) -> dict[str, str]:
         db.query(Keyword).filter(Keyword.project_id == project_uuid).delete(synchronize_session=False)
 
         # Delete heads of claim (has CASCADE but be explicit)
-        db.query(HeadOfClaim).filter(HeadOfClaim.project_id == project_uuid).delete(synchronize_session=False)
+        # Note: project_id column may not exist in older schemas, so wrap in try/except
+        try:
+            db.query(HeadOfClaim).filter(HeadOfClaim.project_id == project_uuid).delete(synchronize_session=False)
+        except Exception:
+            pass  # Column may not exist yet
 
         # Delete contentious matters (has CASCADE but be explicit)
-        db.query(ContentiousMatter).filter(ContentiousMatter.project_id == project_uuid).delete(synchronize_session=False)
+        try:
+            db.query(ContentiousMatter).filter(ContentiousMatter.project_id == project_uuid).delete(synchronize_session=False)
+        except Exception:
+            pass  # Column may not exist yet
 
         # Delete the project
         db.delete(project)
