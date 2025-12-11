@@ -6,8 +6,23 @@ echo "=== VeriCase Startup ==="
 # Wait for Postgres (simple check or just rely on depends_on + retry)
 # In production, we might want a proper wait-for-it script, but for now:
 
-echo "Running migrations..."
-python /code/apply_migrations.py
+echo "Running migrations (Alembic preferred)..."
+
+# Prefer Alembic-managed migrations; fall back to legacy script if needed
+set +e
+alembic upgrade head
+status=$?
+set -e
+
+if [ "$status" -ne 0 ]; then
+  echo "Alembic migrations failed with exit code $status, falling back to legacy apply_migrations.py"
+  if [ -f "/code/apply_migrations.py" ]; then
+    python /code/apply_migrations.py
+  else
+    echo "Legacy migration script /code/apply_migrations.py not found; cannot run migrations."
+    exit 1
+  fi
+fi
 
 echo "Creating/resetting admin user..."
 python -m app.reset_admin || echo "Warning: Could not reset admin user"

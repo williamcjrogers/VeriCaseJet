@@ -406,18 +406,26 @@ class UltimatePSTProcessor:
                 pst_file_record.processing_completed_at = datetime.now(timezone.utc)
             self.db.commit()
 
-            # Trigger background semantic indexing after successful completion
+            # Trigger background tasks after successful completion
             try:
-                from .tasks import index_project_emails_semantic, index_case_emails_semantic
+                from .tasks import (
+                    index_project_emails_semantic,
+                    index_case_emails_semantic,
+                    apply_spam_filter_batch,
+                )
 
                 if project_id:
                     logger.info(f"Queueing semantic indexing for project {project_id}")
                     index_project_emails_semantic.delay(str(project_id))
+                    logger.info(f"Queueing spam filter for project {project_id}")
+                    apply_spam_filter_batch.delay(project_id=str(project_id))
                 elif case_id:
                     logger.info(f"Queueing semantic indexing for case {case_id}")
                     index_case_emails_semantic.delay(str(case_id))
+                    logger.info(f"Queueing spam filter for case {case_id}")
+                    apply_spam_filter_batch.delay(case_id=str(case_id))
             except Exception as task_error:
-                logger.warning(f"Failed to queue semantic indexing task: {task_error}")
+                logger.warning(f"Failed to queue post-processing tasks: {task_error}")
 
             pst_file.close()
 

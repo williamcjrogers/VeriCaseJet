@@ -79,6 +79,20 @@ docker-compose exec postgres psql -U vericase -d vericase
 
 ---
 
+## Database Migrations
+
+VeriCase uses **Alembic** to manage database schema changes.
+
+- Containers run `alembic upgrade head` on startup (with a legacy fallback to `/code/apply_migrations.py` if Alembic is unavailable).
+- For manual migrations in Docker Compose, run:
+  ```bash
+  docker-compose -f docker-compose.prod.yml run --rm api alembic upgrade head
+  ```
+
+The initial Alembic revision (`0001_vericase_baseline`) is a no-op baseline used to mark the current schema.
+
+---
+
 ## Architecture & Data Flow
 
 1. **Upload:** Browser requests presigned URL → uploads PST to MinIO

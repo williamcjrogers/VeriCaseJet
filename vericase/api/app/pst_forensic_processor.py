@@ -203,6 +203,27 @@ class ForensicPSTProcessor:
 
             logger.info("✓ PST processing complete: %s", stats)
 
+            # Trigger background tasks after successful completion
+            try:
+                from .tasks import (
+                    index_project_emails_semantic,
+                    index_case_emails_semantic,
+                    apply_spam_filter_batch,
+                )
+
+                if self.project_id:
+                    logger.info(f"Queueing semantic indexing for project {self.project_id}")
+                    index_project_emails_semantic.delay(str(self.project_id))
+                    logger.info(f"Queueing spam filter for project {self.project_id}")
+                    apply_spam_filter_batch.delay(project_id=str(self.project_id))
+                elif self.case_id:
+                    logger.info(f"Queueing semantic indexing for case {self.case_id}")
+                    index_case_emails_semantic.delay(str(self.case_id))
+                    logger.info(f"Queueing spam filter for case {self.case_id}")
+                    apply_spam_filter_batch.delay(case_id=str(self.case_id))
+            except Exception as task_error:
+                logger.warning(f"Failed to queue post-processing tasks: {task_error}")
+
         except Exception as e:
             logger.error(f"Error processing PST: {e}", exc_info=True)
             pst_file.processing_status = "failed"
