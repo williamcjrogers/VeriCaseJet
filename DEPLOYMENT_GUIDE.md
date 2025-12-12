@@ -2,9 +2,9 @@
 
 ## Quick Reference
 
-| Environment | Command | Config |
-|-------------|---------|--------|
-| **Local Dev** | `cd vericase && docker-compose up -d` | `docker-compose.yml` |
+| Environment    | Command                               | Config                   |
+| -------------- | ------------------------------------- | ------------------------ |
+| **Local Dev**  | `cd vericase && docker-compose up -d` | `docker-compose.yml`     |
 | **Production** | `git push origin main` (auto-deploys) | EKS via `deploy-eks.yml` |
 
 ## Detailed Documentation
@@ -19,19 +19,18 @@ See **[vericase/docs/deployment/DEPLOYMENT.md](vericase/docs/deployment/DEPLOYME
 
 ## Required GitHub Secrets
 
-| Secret | Description |
-|--------|-------------|
-| `DOCKER_PAT` | Docker Hub personal access token |
-| `AWS_ACCESS_KEY_ID` | AWS IAM access key |
-| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key |
+| Secret                  | Description                      |
+| ----------------------- | -------------------------------- |
+| `DOCKER_PAT`            | Docker Hub personal access token |
+| `AWS_ACCESS_KEY_ID`     | AWS IAM access key               |
+| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key               |
 
 ## Access Points (Local)
 
-| Service | URL |
-|---------|-----|
-| API | http://localhost:8010 |
+| Service  | URL                        |
+| -------- | -------------------------- |
+| API      | http://localhost:8010      |
 | API Docs | http://localhost:8010/docs |
-| Frontend | http://localhost:5173 |
 
 ## Production (EKS)
 

@@ -915,8 +915,10 @@ def process_pst_forensic(
     # region agent log H11 task start early
     agent_log("H11", "Forensic PST task started - sync entry", {"pst_file_id": pst_file_id})
     # endregion agent log H11 task start early
-    from pst_analysis_engine.api.app.db import engine, SessionLocal  # Absolute import
-    db = SessionLocal(bind=engine)
+    from .db import SessionLocal
+    import uuid
+
+    db = SessionLocal()
     try:
         # region agent log H19 session created
         agent_log("H19", "DB session created in task", {"pst_file_id": pst_file_id})
@@ -927,9 +929,9 @@ def process_pst_forensic(
         if not pst_file:
             raise ValueError(f"PST file {pst_file_id} not found")
         if case_id:
-            pst_file.case_id = case_id
+            pst_file.case_id = uuid.UUID(case_id)
         if project_id:
-            pst_file.project_id = project_id
+            pst_file.project_id = uuid.UUID(project_id)
         db.commit()
         result = processor.process_pst_file(pst_file_id, s3_bucket, s3_key)  # Sync call
         # region agent log H11 task success
