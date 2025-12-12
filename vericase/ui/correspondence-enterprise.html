@@ -2376,7 +2376,7 @@
         },
       },
       {
-        headerName: "Message",
+        headerName: "Email Body",
         field: "email_body",
         flex: 4,
         minWidth: 600,
@@ -3062,12 +3062,10 @@
         field: "email_date",
         width: 120,
         sort: "desc",
-        wrapText: true,
         cellStyle: {
-          "vertical-align": "top",
+          "vertical-align": "middle",
           "text-align": "center",
-          "padding-top": "8px",
-          "padding-bottom": "8px",
+          "overflow": "hidden",
         },
         cellRenderer: (params) => {
           if (!params.value) return "-";
@@ -3105,17 +3103,10 @@
           "white-space": "normal",
           "word-wrap": "break-word",
         },
-        valueGetter: (params) => {
-          if (!params.data) return "-";
-          // Use recipients_to (includes email) if available, fallback to email_to
-          const val = params.data.recipients_to || params.data.email_to;
-          if (Array.isArray(val)) return val.join(", ") || "-";
-          return val || "-";
-        },
-        cellRenderer: (params) => {
-          if (!params.value || params.value === "-") return "-";
-          return `<span style="font-weight: 500;">${String(params.value)}</span>`;
-        },
+        cellRenderer: (params) =>
+          params.value
+            ? `<span style="font-weight: 500;">${params.value}</span>`
+            : "-",
         filter: "agSetColumnFilter",
       },
       {
@@ -3128,17 +3119,10 @@
           "white-space": "normal",
           "word-wrap": "break-word",
         },
-        valueGetter: (params) => {
-          if (!params.data) return "-";
-          // Use recipients_cc (includes email) if available, fallback to email_cc
-          const val = params.data.recipients_cc || params.data.email_cc;
-          if (Array.isArray(val)) return val.join(", ") || "-";
-          return val || "-";
-        },
-        cellRenderer: (params) => {
-          if (!params.value || params.value === "-") return "-";
-          return `<span style="font-weight: 500;">${String(params.value)}</span>`;
-        },
+        cellRenderer: (params) =>
+          params.value
+            ? `<span style="font-weight: 500;">${params.value}</span>`
+            : "-",
         filter: "agSetColumnFilter",
       },
       {
@@ -3176,12 +3160,12 @@
         filter: "agTextColumnFilter",
       },
       {
-        headerName: "Message",
+        headerName: "Email Body",
         field: "email_body",
         flex: 3,
         minWidth: 400,
         wrapText: true,
-        cellStyle: { "white-space": "normal", "line-height": "1.4", "overflow": "hidden" },
+        cellStyle: { "white-space": "normal", "line-height": "1.4", "overflow": "hidden", "vertical-align": "top", "text-align": "left", "padding": "4px 8px" },
         valueGetter: (params) => {
           // Return both clean text (for preview) and HTML (for full view)
           const htmlBody = params.data.body_html;
@@ -3459,29 +3443,10 @@
             const preview = cleanText.substring(0, 300);
             const needsExpand = cleanText.length > 300;
 
-            return `
-              <div style="white-space: pre-wrap; font-size: 0.9rem; line-height: 1.6; color: #374151;">
-                ${escapeHtml(preview)}${needsExpand ? '...' : ''}
-              </div>
-              ${needsExpand ? `<button onclick="expandRow('${rowId}')"
-                 style="margin-top: 8px; padding: 4px 12px; background: var(--vericase-blue);
-                 color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">
-                 View Full Message
-              </button>` : ''}
-            `;
+            return `<div style="white-space: pre-wrap; font-size: 0.9rem; line-height: 1.6; color: #374151;">${escapeHtml(preview)}${needsExpand ? '...' : ''}</div>${needsExpand ? `<button onclick="expandRow('${rowId}')" style="margin-top: 8px; padding: 4px 12px; background: var(--vericase-blue); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">View Full Message</button>` : ''}`;
           } else {
             // EXPANDED MODE: Show full plain text message with paragraph breaks
-            return `
-              <div style="white-space: pre-wrap; font-size: 0.9rem; line-height: 1.6;
-                          max-height: 600px; overflow-y: auto; color: #374151;">
-                ${escapeHtml(cleanText)}
-              </div>
-              <button onclick="collapseRow('${rowId}')"
-                 style="margin-top: 8px; padding: 4px 12px; background: var(--text-muted);
-                 color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">
-                 Collapse
-              </button>
-            `;
+            return `<div style="white-space: pre-wrap; font-size: 0.9rem; line-height: 1.6; max-height: 600px; overflow-y: auto; color: #374151;">${escapeHtml(cleanText)}</div><button onclick="collapseRow('${rowId}')" style="margin-top: 8px; padding: 4px 12px; background: var(--text-muted); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">Collapse</button>`;
           }
         },
         filter: "agTextColumnFilter",
@@ -3639,6 +3604,12 @@
         headerName: "Claim Status",
         field: "claim_status",
         width: 140,
+        cellStyle: {
+          "display": "flex",
+          "align-items": "center",
+          "justify-content": "center",
+          "background": "#f8fafc",
+        },
         cellRenderer: (params) => {
           const status = params.data.claim_status || "none";
           const statusConfig = {
@@ -3671,6 +3642,12 @@
         headerName: "Linked To",
         field: "linked_to",
         width: 200,
+        cellStyle: {
+          "display": "flex",
+          "align-items": "center",
+          "justify-content": "center",
+          "background": "#f8fafc",
+        },
         valueGetter: (params) => {
           // This would need to be populated by API with linked matter/claim names
           return (
@@ -3883,10 +3860,10 @@
 
     const gridOptions = {
       columnDefs: columnDefs,
-      // Increased row height for better email readability
-      rowHeight: 220,
-      headerHeight: 48,
-      floatingFiltersHeight: 38,
+      // Fixed row height - use modal for full content (SSRM doesn't support dynamic height changes)
+      rowHeight: 100,
+      headerHeight: 36,
+      floatingFiltersHeight: 28,
       defaultColDef: {
         sortable: true,
         filter: true,
@@ -3911,12 +3888,12 @@
         // Enable text wrapping (but not autoHeight - not compatible with server-side model)
         wrapText: true,
         cellStyle: {
-          "white-space": "pre-wrap",
-          "line-height": "1.6",
-          "padding-top": "8px",
-          "padding-bottom": "8px",
-          "overflow": "auto",
-          "word-wrap": "break-word"
+          "white-space": "nowrap",
+          "line-height": "1.3",
+          "padding-top": "4px",
+          "padding-bottom": "4px",
+          "overflow": "hidden",
+          "text-overflow": "ellipsis"
         },
       },
 
@@ -4284,8 +4261,9 @@
       const rowNode = gridApi.getRowNode(rowId);
       if (rowNode && rowNode.data) {
         rowNode.data.expanded = !rowNode.data.expanded;
+        // Reset row heights to apply new height for expanded/collapsed state
+        gridApi.resetRowHeights();
         // Refresh the specific cell
-        const columnDef = gridApi.getColumnDef("email_body");
         gridApi.refreshCells({
           rowNodes: [rowNode],
           columns: ["email_body"],
