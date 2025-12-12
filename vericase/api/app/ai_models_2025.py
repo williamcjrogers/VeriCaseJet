@@ -1,6 +1,6 @@
 """
 2025 AI Model Configurations for VeriCase
-Consolidated to 4 providers: OpenAI, Anthropic, Gemini, Amazon Bedrock
+Providers: OpenAI, Anthropic, Gemini, Amazon Bedrock, xAI, Perplexity
 """
 
 from typing import Any
@@ -12,6 +12,53 @@ AI_MODELS_2025: dict[str, dict[str, Any]] = {
         "icon": "fa-brain",
         "color": "#10a37f",
         "models": [
+            # GPT-5.2 Models (December 2025)
+            {
+                "id": "gpt-5.2-instant",
+                "name": "GPT-5.2 Instant",
+                "description": "Speed-optimized GPT-5.2 model",
+                "type": "fast",
+                "capabilities": ["chat", "analysis", "multimodal"],
+                "context_window": 400000,
+                "cost_tier": "standard",
+            },
+            {
+                "id": "gpt-5.2-thinking",
+                "name": "GPT-5.2 Thinking",
+                "description": "Reasoning-optimized GPT-5.2 model",
+                "type": "reasoning",
+                "capabilities": ["chat", "reasoning", "analysis", "code", "multimodal"],
+                "context_window": 400000,
+                "cost_tier": "standard",
+            },
+            {
+                "id": "gpt-5.2-pro",
+                "name": "GPT-5.2 Pro",
+                "description": "Highest quality GPT-5.2 model for critical decisions",
+                "type": "flagship",
+                "capabilities": ["chat", "reasoning", "analysis", "code", "multimodal"],
+                "context_window": 400000,
+                "cost_tier": "premium",
+            },
+            # GPT-5 Models (August 2025)
+            {
+                "id": "gpt-5.1",
+                "name": "GPT-5.1 Flagship",
+                "description": "Unified GPT-5 flagship model",
+                "type": "flagship",
+                "capabilities": ["chat", "reasoning", "analysis", "code", "multimodal"],
+                "context_window": 200000,
+                "cost_tier": "standard",
+            },
+            {
+                "id": "gpt-5-mini",
+                "name": "GPT-5 Mini",
+                "description": "Cost-optimized GPT-5 mini model",
+                "type": "mini",
+                "capabilities": ["chat", "analysis"],
+                "context_window": 128000,
+                "cost_tier": "budget",
+            },
             # GPT-4o Models (current flagship)
             {
                 "id": "gpt-4o",
@@ -87,6 +134,25 @@ AI_MODELS_2025: dict[str, dict[str, Any]] = {
         "icon": "fa-comment-dots",
         "color": "#d97706",
         "models": [
+            # Claude 4.5 Series (November 2025)
+            {
+                "id": "claude-opus-4.5",
+                "name": "Claude Opus 4.5 (Flagship)",
+                "description": "Highest-end Claude 4.5 Opus model",
+                "type": "flagship",
+                "capabilities": ["chat", "reasoning", "analysis", "code", "research"],
+                "context_window": 200000,
+                "cost_tier": "premium",
+            },
+            {
+                "id": "claude-sonnet-4.5",
+                "name": "Claude Sonnet 4.5 (Workhorse)",
+                "description": "Efficient hybrid reasoning Claude 4.5 Sonnet model",
+                "type": "workhorse",
+                "capabilities": ["chat", "reasoning", "analysis", "code"],
+                "context_window": 200000,
+                "cost_tier": "standard",
+            },
             # Claude 4 Series (Latest - actual API model IDs)
             {
                 "id": "claude-opus-4-20250514",
@@ -133,6 +199,43 @@ AI_MODELS_2025: dict[str, dict[str, Any]] = {
         "icon": "fa-gem",
         "color": "#4285f4",
         "models": [
+            # Gemini 3 / 2.5 Series (2025)
+            {
+                "id": "gemini-3-pro-preview",
+                "name": "Gemini 3 Pro Preview",
+                "description": "Most advanced Gemini model (preview)",
+                "type": "flagship",
+                "capabilities": ["chat", "reasoning", "analysis", "multimodal", "code"],
+                "context_window": 1048576,
+                "cost_tier": "standard",
+            },
+            {
+                "id": "gemini-2.5-pro",
+                "name": "Gemini 2.5 Pro",
+                "description": "Advanced reasoning Gemini 2.5 Pro model",
+                "type": "workhorse",
+                "capabilities": ["chat", "reasoning", "analysis", "multimodal", "code"],
+                "context_window": 1048576,
+                "cost_tier": "standard",
+            },
+            {
+                "id": "gemini-2.5-flash",
+                "name": "Gemini 2.5 Flash",
+                "description": "Balanced speed/capability Gemini 2.5 Flash model",
+                "type": "fast",
+                "capabilities": ["chat", "analysis", "multimodal"],
+                "context_window": 1048576,
+                "cost_tier": "standard",
+            },
+            {
+                "id": "gemini-2.5-flash-lite",
+                "name": "Gemini 2.5 Flash Lite",
+                "description": "Ultra-fast, cost-efficient Gemini 2.5 Flash Lite model",
+                "type": "fast",
+                "capabilities": ["chat", "analysis"],
+                "context_window": 1048576,
+                "cost_tier": "budget",
+            },
             # Gemini 2.0 Series (current)
             {
                 "id": "gemini-2.0-flash",
@@ -306,6 +409,139 @@ AI_MODELS_2025: dict[str, dict[str, Any]] = {
         ],
         "default": "amazon.nova-pro-v1:0",
     },
+    "xai": {
+        "provider_name": "xAI",
+        "icon": "fa-bolt",
+        "color": "#000000",
+        "models": [
+            {
+                "id": "grok-4.1-fast",
+                "name": "Grok 4.1 Fast",
+                "description": "Agentic tool calling, 2M context",
+                "type": "flagship",
+                "capabilities": ["chat", "analysis", "reasoning", "code"],
+                "context_window": 2000000,
+                "cost_tier": "budget",
+            },
+            {
+                "id": "grok-4.1-fast-reason",
+                "name": "Grok 4.1 Fast Reason",
+                "description": "Reasoning-optimized Grok 4.1 Fast",
+                "type": "reasoning",
+                "capabilities": ["chat", "analysis", "reasoning", "code"],
+                "context_window": 2000000,
+                "cost_tier": "budget",
+            },
+            {
+                "id": "grok-4.1-fast-non-reason",
+                "name": "Grok 4.1 Fast Non-Reason",
+                "description": "Ultra-rapid Grok 4.1 Fast variant",
+                "type": "fast",
+                "capabilities": ["chat", "analysis"],
+                "context_window": 2000000,
+                "cost_tier": "budget",
+            },
+            {
+                "id": "grok-4",
+                "name": "Grok 4",
+                "description": "Standard Grok 4 model",
+                "type": "workhorse",
+                "capabilities": ["chat", "analysis", "reasoning"],
+                "context_window": 256000,
+                "cost_tier": "standard",
+            },
+            {
+                "id": "grok-4-heavy",
+                "name": "Grok 4 Heavy",
+                "description": "Premium Grok 4 Heavy model",
+                "type": "flagship",
+                "capabilities": ["chat", "analysis", "reasoning"],
+                "context_window": 256000,
+                "cost_tier": "premium",
+            },
+            {
+                "id": "grok-3",
+                "name": "Grok 3",
+                "description": "Mid-tier Grok model",
+                "type": "workhorse",
+                "capabilities": ["chat", "analysis", "reasoning"],
+                "context_window": 128000,
+                "cost_tier": "standard",
+            },
+            {
+                "id": "grok-3-mini",
+                "name": "Grok 3 Mini",
+                "description": "Budget-friendly Grok mini model",
+                "type": "mini",
+                "capabilities": ["chat", "analysis"],
+                "context_window": 128000,
+                "cost_tier": "budget",
+            },
+            {
+                "id": "grok-2-image-1212",
+                "name": "Grok 2 Image",
+                "description": "Text-to-image generation model",
+                "type": "workhorse",
+                "capabilities": ["image"],
+                "context_window": 0,
+                "cost_tier": "standard",
+            },
+        ],
+        "default": "grok-4.1-fast",
+    },
+    "perplexity": {
+        "provider_name": "Perplexity",
+        "icon": "fa-search",
+        "color": "#222222",
+        "models": [
+            {
+                "id": "sonar",
+                "name": "Sonar",
+                "description": "Fast real-time search model",
+                "type": "fast",
+                "capabilities": ["chat", "search", "analysis"],
+                "context_window": 128000,
+                "cost_tier": "standard",
+            },
+            {
+                "id": "sonar-pro",
+                "name": "Sonar Pro",
+                "description": "Deep multi-search analysis model",
+                "type": "workhorse",
+                "capabilities": ["chat", "search", "analysis"],
+                "context_window": 200000,
+                "cost_tier": "premium",
+            },
+            {
+                "id": "sonar-reasoning",
+                "name": "Sonar Reasoning",
+                "description": "Chain-of-thought search model",
+                "type": "reasoning",
+                "capabilities": ["chat", "search", "analysis", "reasoning"],
+                "context_window": 128000,
+                "cost_tier": "standard",
+            },
+            {
+                "id": "sonar-reasoning-pro",
+                "name": "Sonar Reasoning Pro",
+                "description": "Reasoning-optimized Sonar Pro model",
+                "type": "reasoning",
+                "capabilities": ["chat", "search", "analysis", "reasoning"],
+                "context_window": 200000,
+                "cost_tier": "premium",
+            },
+            {
+                "id": "sonar-deep-research",
+                "name": "Sonar Deep Research",
+                "description": "Multi-step deep research workflows",
+                "type": "reasoning",
+                "capabilities": ["chat", "search", "analysis", "reasoning", "research"],
+                "context_window": 200000,
+                "cost_tier": "premium",
+            },
+        ],
+        "default": "sonar",
+    },
 }
 
 # Model categories for UI organization
@@ -327,7 +563,7 @@ COST_TIERS = {
 }
 
 # Supported providers (for validation)
-SUPPORTED_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock"]
+SUPPORTED_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock", "xai", "perplexity"]
 
 
 def get_all_models() -> list[dict[str, Any]]:
@@ -431,22 +667,47 @@ FRIENDLY_MODEL_ALIASES: dict[str, tuple[str, str]] = {
     "claude-sonnet-4": ("anthropic", "claude-sonnet-4-20250514"),
     "claude-opus-4-extended": ("anthropic", "claude-opus-4-20250514"),
     "claude-haiku-4": ("anthropic", "claude-3-5-haiku-20241022"),
+    "claude-opus-4.5": ("anthropic", "claude-opus-4.5"),
+    "claude-sonnet-4.5": ("anthropic", "claude-sonnet-4.5"),
     # OpenAI
     "gpt-4o": ("openai", "gpt-4o"),
     "gpt-4o-mini": ("openai", "gpt-4o-mini"),
+    "gpt-5.2-instant": ("openai", "gpt-5.2-instant"),
+    "gpt-5.2-thinking": ("openai", "gpt-5.2-thinking"),
+    "gpt-5.2-pro": ("openai", "gpt-5.2-pro"),
     "gpt-5": ("openai", "gpt-5.1"),
+    "gpt-5-mini": ("openai", "gpt-5-mini"),
     "o1-reasoning": ("openai", "o1"),
     "o3-reasoning": ("openai", "o1"),
     # Gemini
     "gemini-2-flash": ("gemini", "gemini-2.0-flash"),
     "gemini-3-pro": ("gemini", "gemini-1.5-pro"),
     "gemini-2-5-pro": ("gemini", "gemini-1.5-pro"),
+    "gemini-3-pro-preview": ("gemini", "gemini-3-pro-preview"),
+    "gemini-2.5-pro": ("gemini", "gemini-2.5-pro"),
+    "gemini-2.5-flash": ("gemini", "gemini-2.5-flash"),
+    "gemini-2.5-flash-lite": ("gemini", "gemini-2.5-flash-lite"),
     # Bedrock
     "bedrock-nova-pro": ("bedrock", "amazon.nova-pro-v1:0"),
     "bedrock-nova-lite": ("bedrock", "amazon.nova-lite-v1:0"),
     "bedrock-nova-micro": ("bedrock", "amazon.nova-micro-v1:0"),
     "bedrock-claude-sonnet": ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
     "bedrock-claude-opus": ("bedrock", "anthropic.claude-opus-4-5-20251101-v1:0"),
+    # xAI Grok
+    "grok-4.1-fast": ("xai", "grok-4.1-fast"),
+    "grok-4.1-fast-reason": ("xai", "grok-4.1-fast-reason"),
+    "grok-4.1-fast-non-reason": ("xai", "grok-4.1-fast-non-reason"),
+    "grok-4": ("xai", "grok-4"),
+    "grok-4-heavy": ("xai", "grok-4-heavy"),
+    "grok-3": ("xai", "grok-3"),
+    "grok-3-mini": ("xai", "grok-3-mini"),
+    "grok-2-image-1212": ("xai", "grok-2-image-1212"),
+    # Perplexity Sonar
+    "sonar": ("perplexity", "sonar"),
+    "sonar-pro": ("perplexity", "sonar-pro"),
+    "sonar-reasoning": ("perplexity", "sonar-reasoning"),
+    "sonar-reasoning-pro": ("perplexity", "sonar-reasoning-pro"),
+    "sonar-deep-research": ("perplexity", "sonar-deep-research"),
 }
 
 

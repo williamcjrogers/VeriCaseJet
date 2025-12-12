@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """
 AI Settings Manager - Loads AI configuration from database with fallback to environment variables
-Supports: OpenAI, Anthropic, Gemini, and Amazon Bedrock providers
+Supports: OpenAI, Anthropic, Gemini, Amazon Bedrock, xAI, and Perplexity providers
 """
 import json
 import logging
@@ -15,8 +15,8 @@ from .models import AppSetting
 logger = logging.getLogger(__name__)
 
 
-# Supported providers (consolidated from 6 to 4)
-SUPPORTED_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock"]
+# Supported providers
+SUPPORTED_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock", "xai", "perplexity"]
 
 
 class AISettings:
@@ -41,6 +41,8 @@ class AISettings:
         "anthropic": "claude-sonnet-4-20250514",  # Correct Anthropic Claude Sonnet 4 model ID
         "gemini": "gemini-2.0-flash",
         "bedrock": "amazon.nova-pro-v1:0",  # Amazon Nova Pro (cost-effective)
+        "xai": "grok-4.1-fast",
+        "perplexity": "sonar",
     }
 
     # Default function configurations (cost-aware defaults)

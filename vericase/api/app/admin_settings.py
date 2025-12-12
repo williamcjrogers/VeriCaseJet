@@ -3,7 +3,8 @@ from __future__ import annotations
 """
 Admin settings management endpoints
 Allows admins to modify application settings like Textract page threshold
-Includes AI provider configuration for 4 providers: OpenAI, Anthropic, Gemini, Bedrock
+Includes AI provider configuration for runtime-supported providers (OpenAI, Anthropic, Gemini, Bedrock).
+Additional providers may exist in the model registry but are not yet wired for execution.
 """
 import logging
 from typing import Annotated, Any
@@ -53,6 +54,8 @@ def _require_admin(user: Annotated[User, Depends(current_user)]) -> User:
 
 
 AdminDep = Annotated[User, Depends(_require_admin)]
+
+RUNTIME_SUPPORTED_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock"]
 
 
 @router.get("", response_model=list[SettingResponse])
@@ -183,7 +186,7 @@ def get_ai_providers(
     admin: AdminDep,
 ) -> dict[str, Any]:
     """
-    Get status of all AI providers (OpenAI, Anthropic, Gemini, Bedrock)
+    Get status of all runtime AI providers.
     """
     providers = get_ai_providers_status(db)
 
@@ -193,7 +196,7 @@ def get_ai_providers(
 
     return {
         "providers": providers,
-        "supported_providers": ["openai", "anthropic", "gemini", "bedrock"],
+        "supported_providers": RUNTIME_SUPPORTED_PROVIDERS,
     }
 
 
@@ -206,10 +209,10 @@ def get_provider_models(
     """
     Get available models for a specific provider
     """
-    if provider not in ["openai", "anthropic", "gemini", "bedrock"]:
+    if provider not in RUNTIME_SUPPORTED_PROVIDERS:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid provider: {provider}. Supported: openai, anthropic, gemini, bedrock"
+            detail=f"Invalid provider: {provider}. Supported: {', '.join(RUNTIME_SUPPORTED_PROVIDERS)}"
         )
 
     provider_info = get_provider_info(provider)
@@ -233,7 +236,7 @@ def get_all_ai_models(
     """
     return {
         "providers": AI_MODELS_2025,
-        "supported_providers": ["openai", "anthropic", "gemini", "bedrock"],
+        "supported_providers": RUNTIME_SUPPORTED_PROVIDERS,
     }
 
 
@@ -296,10 +299,10 @@ def update_ai_function_config(
         )
 
     # Validate provider
-    if config.provider not in ["openai", "anthropic", "gemini", "bedrock"]:
+    if config.provider not in RUNTIME_SUPPORTED_PROVIDERS:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid provider: {config.provider}"
+            detail=f"Invalid provider: {config.provider}. Supported: {', '.join(RUNTIME_SUPPORTED_PROVIDERS)}"
         )
 
     # Build config dict

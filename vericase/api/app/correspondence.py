@@ -890,6 +890,7 @@ async def list_pst_files(
 async def get_email_count(
     case_id: Annotated[str | None, Query(description="Case ID")] = None,
     project_id: Annotated[str | None, Query(description="Project ID")] = None,
+    include_excluded: Annotated[bool, Query(description="Include AI-excluded emails")] = False,
     db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
 ):
     """
@@ -898,22 +899,23 @@ async def get_email_count(
     """
     from sqlalchemy import func
 
+    query = db.query(func.count(EmailMessage.id))
+
     if case_id:
-        count = (
-            db.query(func.count(EmailMessage.id))
-            .filter(EmailMessage.case_id == case_id)
-            .scalar()
-            or 0
-        )
+        query = query.filter(EmailMessage.case_id == case_id)
     elif project_id:
-        count = (
-            db.query(func.count(EmailMessage.id))
-            .filter(EmailMessage.project_id == project_id)
-            .scalar()
-            or 0
+        query = query.filter(EmailMessage.project_id == project_id)
+
+    # Filter out AI-excluded emails unless explicitly requested
+    if not include_excluded:
+        query = query.filter(
+            or_(
+                EmailMessage.meta.is_(None),
+                ~EmailMessage.meta.op("->>")("ai_excluded").cast(Boolean).is_(True),
+            )
         )
-    else:
-        count = db.query(func.count(EmailMessage.id)).scalar() or 0
+
+    count = query.scalar() or 0
 
     return {"count": count}
 
@@ -1000,6 +1002,13 @@ async def list_emails(
             or_(
                 EmailMessage.meta.is_(None),
                 ~EmailMessage.meta.op("->")("spam").op("->>")("is_hidden").cast(Boolean).is_(True),
+            )
+        )
+        # Filter out AI-excluded emails (meta->>'ai_excluded' = 'true')
+        query = query.filter(
+            or_(
+                EmailMessage.meta.is_(None),
+                ~EmailMessage.meta.op("->>")("ai_excluded").cast(Boolean).is_(True),
             )
         )
         # Also exclude Outlook activity items (IPM.Activity) which are not real emails
@@ -1465,6 +1474,14 @@ async def get_emails_server_side(
         )
     else:
         query = db.query(EmailMessage)
+
+    # Filter out AI-excluded emails by default
+    query = query.filter(
+        or_(
+            EmailMessage.meta.is_(None),
+            ~EmailMessage.meta.op("->>")("ai_excluded").cast(Boolean).is_(True),
+        )
+    )
 
     # Apply AG Grid filters
     for col_id, filter_data in request.filterModel.items():
