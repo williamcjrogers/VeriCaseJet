@@ -123,6 +123,12 @@
           url: "programme.html",
         },
         {
+          id: "delays",
+          label: "Delay Analysis",
+          icon: "fa-hourglass-half",
+          url: "delays.html",
+        },
+        {
           id: "chronology",
           label: "Chronology",
           icon: "fa-history",
