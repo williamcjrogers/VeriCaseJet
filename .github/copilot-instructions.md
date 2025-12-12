@@ -8,7 +8,6 @@
 - Core services: FastAPI API (`vericase/api/`), Celery worker (`vericase/worker_app/`), Postgres, Redis, MinIO (S3-compatible), OpenSearch, and Apache Tika.
 - UI has two forms:
   - Production static UI: `vericase/ui/` (served via the API container; mounted in compose).
-  - Dev React UI: `vericase/frontend/` (Vite dev server; optional in compose).
 
 ## Local dev (recommended)
 

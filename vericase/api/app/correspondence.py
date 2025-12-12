@@ -469,12 +469,13 @@ async def upload_pst_file(
     logger.info(f"Uploaded PST file via server: {pst_file_id}")
 
     # Trigger processing immediately
-    # Enqueue Celery task for PST processing
+    # Enqueue Celery task for forensic PST processing
     task_id = None
     try:
         task = celery_app.send_task(
-            "worker_app.worker.process_pst_file",
-            args=[pst_file_id],
+            "app.process_pst_forensic",
+            args=[pst_file_id, s3_bucket, s3_key],
+            kwargs={"case_id": case_id, "project_id": project_id},
             queue=settings.CELERY_PST_QUEUE,
         )
         task_id = task.id
