@@ -23,8 +23,13 @@ class TestAIModelResolution(unittest.TestCase):
         cases = {
             "claude-sonnet-4": ("anthropic", "claude-sonnet-4-20250514"),
             "gpt-4o": ("openai", "gpt-4o"),
+            "gpt-5.2-thinking": ("openai", "gpt-5.2-thinking"),
+            "claude-opus-4.5": ("anthropic", "claude-opus-4.5"),
             "gemini-2-flash": ("gemini", "gemini-2.0-flash"),
+            "gemini-2.5-flash-lite": ("gemini", "gemini-2.5-flash-lite"),
             "bedrock-nova-pro": ("bedrock", "amazon.nova-pro-v1:0"),
+            "grok-4.1-fast": ("xai", "grok-4.1-fast"),
+            "sonar-pro": ("perplexity", "sonar-pro"),
         }
         for friendly, expected in cases.items():
             resolved = AIModelService.resolve_model(friendly)

@@ -120,6 +120,14 @@ class AIModelService:
             "provider": "anthropic",
             "model": "claude-3-5-haiku-20241022",
         },
+        "claude-opus-4.5": {
+            "provider": "anthropic",
+            "model": "claude-opus-4.5",
+        },
+        "claude-sonnet-4.5": {
+            "provider": "anthropic",
+            "model": "claude-sonnet-4.5",
+        },
         # ============ OPENAI (GPT) ============
         "gpt-4o": {
             "provider": "openai",
@@ -141,6 +149,22 @@ class AIModelService:
             "provider": "openai",
             "model": "gpt-5.1",  # GPT-5.1 flagship
         },
+        "gpt-5.2-instant": {
+            "provider": "openai",
+            "model": "gpt-5.2-instant",
+        },
+        "gpt-5.2-thinking": {
+            "provider": "openai",
+            "model": "gpt-5.2-thinking",
+        },
+        "gpt-5.2-pro": {
+            "provider": "openai",
+            "model": "gpt-5.2-pro",
+        },
+        "gpt-5-mini": {
+            "provider": "openai",
+            "model": "gpt-5-mini",
+        },
         # ============ GOOGLE (Gemini) ============
         "gemini-2-flash": {
             "provider": "gemini",
@@ -153,6 +177,22 @@ class AIModelService:
         "gemini-2-5-pro": {
             "provider": "gemini",
             "model": "gemini-1.5-pro",
+        },
+        "gemini-3-pro-preview": {
+            "provider": "gemini",
+            "model": "gemini-3-pro-preview",
+        },
+        "gemini-2.5-pro": {
+            "provider": "gemini",
+            "model": "gemini-2.5-pro",
+        },
+        "gemini-2.5-flash": {
+            "provider": "gemini",
+            "model": "gemini-2.5-flash",
+        },
+        "gemini-2.5-flash-lite": {
+            "provider": "gemini",
+            "model": "gemini-2.5-flash-lite",
         },
         # ============ AMAZON BEDROCK ============
         "bedrock-claude-opus": {
@@ -183,6 +223,30 @@ class AIModelService:
             "provider": "bedrock",
             "model": "mistral.mistral-large-2407-v1:0",
         },
+        # ============ xAI (Grok) ============
+        "grok-4.1-fast": {"provider": "xai", "model": "grok-4.1-fast"},
+        "grok-4.1-fast-reason": {"provider": "xai", "model": "grok-4.1-fast-reason"},
+        "grok-4.1-fast-non-reason": {
+            "provider": "xai",
+            "model": "grok-4.1-fast-non-reason",
+        },
+        "grok-4": {"provider": "xai", "model": "grok-4"},
+        "grok-4-heavy": {"provider": "xai", "model": "grok-4-heavy"},
+        "grok-3": {"provider": "xai", "model": "grok-3"},
+        "grok-3-mini": {"provider": "xai", "model": "grok-3-mini"},
+        "grok-2-image-1212": {"provider": "xai", "model": "grok-2-image-1212"},
+        # ============ PERPLEXITY (Sonar) ============
+        "sonar": {"provider": "perplexity", "model": "sonar"},
+        "sonar-pro": {"provider": "perplexity", "model": "sonar-pro"},
+        "sonar-reasoning": {"provider": "perplexity", "model": "sonar-reasoning"},
+        "sonar-reasoning-pro": {
+            "provider": "perplexity",
+            "model": "sonar-reasoning-pro",
+        },
+        "sonar-deep-research": {
+            "provider": "perplexity",
+            "model": "sonar-deep-research",
+        },
     }
 
     MODEL_LABELS: dict[str, str] = {
@@ -190,16 +254,26 @@ class AIModelService:
         "claude-sonnet-4": "Claude 4.5 Sonnet",
         "claude-opus-4-extended": "Claude 4.5 Opus (Extended Thinking)",
         "claude-haiku-4": "Claude 4.5 Haiku",
+        "claude-opus-4.5": "Claude 4.5 Opus",
+        "claude-sonnet-4.5": "Claude 4.5 Sonnet",
         # OpenAI
         "gpt-4o": "GPT-4o",
         "gpt-4o-mini": "GPT-4o Mini",
         "o1-reasoning": "OpenAI o1 (Reasoning)",
         "o3-reasoning": "OpenAI o3 (Reasoning)",
         "gpt-5": "GPT-5.1 Flagship",
+        "gpt-5.2-instant": "GPT-5.2 Instant",
+        "gpt-5.2-thinking": "GPT-5.2 Thinking",
+        "gpt-5.2-pro": "GPT-5.2 Pro",
+        "gpt-5-mini": "GPT-5 Mini",
         # Gemini
         "gemini-2-flash": "Gemini 2.5 Flash",
         "gemini-3-pro": "Gemini 3.0 Pro",
         "gemini-2-5-pro": "Gemini 2.5 Pro",
+        "gemini-3-pro-preview": "Gemini 3 Pro Preview",
+        "gemini-2.5-pro": "Gemini 2.5 Pro",
+        "gemini-2.5-flash": "Gemini 2.5 Flash",
+        "gemini-2.5-flash-lite": "Gemini 2.5 Flash Lite",
         # Bedrock
         "bedrock-claude-opus": "Claude Opus 4.5 (Bedrock)",
         "bedrock-claude-sonnet": "Claude Sonnet 4.5 (Bedrock)",
@@ -208,6 +282,21 @@ class AIModelService:
         "bedrock-nova-micro": "Amazon Nova Micro",
         "bedrock-llama-70b": "Llama 3.3 70B (Bedrock)",
         "bedrock-mistral-large": "Mistral Large (Bedrock)",
+        # xAI Grok
+        "grok-4.1-fast": "Grok 4.1 Fast",
+        "grok-4.1-fast-reason": "Grok 4.1 Fast Reason",
+        "grok-4.1-fast-non-reason": "Grok 4.1 Fast Non-Reason",
+        "grok-4": "Grok 4",
+        "grok-4-heavy": "Grok 4 Heavy",
+        "grok-3": "Grok 3",
+        "grok-3-mini": "Grok 3 Mini",
+        "grok-2-image-1212": "Grok 2 Image",
+        # Perplexity Sonar
+        "sonar": "Sonar",
+        "sonar-pro": "Sonar Pro",
+        "sonar-reasoning": "Sonar Reasoning",
+        "sonar-reasoning-pro": "Sonar Reasoning Pro",
+        "sonar-deep-research": "Sonar Deep Research",
     }
 
     @classmethod

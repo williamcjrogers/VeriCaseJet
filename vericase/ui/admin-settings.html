@@ -1433,7 +1433,20 @@
       // ====== Save Setting ======
       async function saveSetting(key) {
         const input = document.getElementById(key);
-        const value = input.value;
+        const rawValue = input.value;
+        const trimmedValue = rawValue.trim();
+
+        // Prevent accidental clearing of API keys.
+        if (key.includes("api_key") && trimmedValue === "") {
+          const confirmClear = window.confirm(
+            "This will clear the stored API key. Continue?"
+          );
+          if (!confirmClear) {
+            return;
+          }
+        }
+
+        const valueToSend = key.includes("api_key") ? trimmedValue : rawValue;
 
         try {
           const response = await fetch(`${API_BASE}/api/admin/settings/${key}`, {
@@ -1443,7 +1456,7 @@
               Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
-              value: value,
+              value: valueToSend,
               description: settingDescriptions[key] || key,
             }),
           });
@@ -1460,10 +1473,12 @@
 
           showToast("Setting saved successfully!");
 
-          // For API keys, update placeholder
-          if (key.includes("api_key") && value) {
+          // For API keys, clear field and update placeholder
+          if (key.includes("api_key")) {
             input.value = "";
-            input.placeholder = "••••••••" + value.slice(-4);
+            input.placeholder = valueToSend
+              ? "••••••••" + valueToSend.slice(-4)
+              : "Not configured";
           }
 
           // Refresh status if it's a provider setting
@@ -1620,7 +1635,7 @@
       // ====== Load AI Models ======
       async function loadAIModels() {
         try {
-          const response = await fetch(`${API_BASE}/api/admin/ai/models`, {
+          const response = await fetch(`${API_BASE}/api/admin/settings/ai/models`, {
             headers: { Authorization: `Bearer ${token}` },
           });
 

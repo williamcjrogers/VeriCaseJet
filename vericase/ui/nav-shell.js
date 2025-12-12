@@ -202,7 +202,9 @@
   function getProjectId() {
     const urlParams = new URLSearchParams(window.location.search);
     const stored = (
-      localStorage.getItem("vericase_current_project") || ""
+      localStorage.getItem("vericase_current_project") ||
+      localStorage.getItem("currentProjectId") ||
+      ""
     ).trim();
     const normalizedStored =
       stored && stored !== "undefined" && stored !== "null" ? stored : "";
@@ -368,22 +370,40 @@
     const projectId = getProjectId();
     const nameElement = document.getElementById("currentProjectName");
 
-    if (!projectId || !nameElement) return;
+    if (!nameElement) return;
+
+    const cachedName =
+      localStorage.getItem("currentProjectName") ||
+      localStorage.getItem("vericase_current_project_name") ||
+      "";
+
+    // If we don't have an ID (or API fails later), still show the last-known name.
+    if (!projectId) {
+      if (cachedName) nameElement.textContent = cachedName;
+      return;
+    }
 
     try {
       // Try to get from cache first
       if (projectsCache && projectsCache.length > 0) {
-        const project = projectsCache.find((p) => p.id === projectId);
+        const project = projectsCache.find(
+          (p) => String(p.id) === String(projectId)
+        );
         if (project) {
           nameElement.textContent =
             project.project_name || project.name || "Unnamed Project";
+          localStorage.setItem(
+            "currentProjectName",
+            project.project_name || project.name || "Unnamed Project"
+          );
           return;
         }
       }
 
       // Fetch project details from API
       const apiUrl = window.location.origin;
-      const token = localStorage.getItem("token");
+      const token =
+        localStorage.getItem("token") || localStorage.getItem("jwt");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
       const response = await fetch(`${apiUrl}/api/projects/${projectId}`, {
@@ -394,20 +414,38 @@
         const project = await response.json();
         nameElement.textContent =
           project.project_name || project.name || "Unnamed Project";
+        localStorage.setItem(
+          "currentProjectName",
+          project.project_name || project.name || "Unnamed Project"
+        );
+        localStorage.setItem(
+          "vericase_current_project_name",
+          project.project_name || project.name || "Unnamed Project"
+        );
       } else {
         // Fallback: try to load all projects and find this one
         const projects = await fetchProjects();
-        const project = projects.find((p) => p.id === projectId);
+        const project = projects.find(
+          (p) => String(p.id) === String(projectId)
+        );
         if (project) {
           nameElement.textContent =
             project.project_name || project.name || "Unnamed Project";
+          localStorage.setItem(
+            "currentProjectName",
+            project.project_name || project.name || "Unnamed Project"
+          );
+          localStorage.setItem(
+            "vericase_current_project_name",
+            project.project_name || project.name || "Unnamed Project"
+          );
         } else {
-          nameElement.textContent = "Unknown Project";
+          nameElement.textContent = cachedName || "Unnamed Project";
         }
       }
     } catch (error) {
       console.error("[VericaseShell] Failed to load project name:", error);
-      nameElement.textContent = "Project";
+      nameElement.textContent = cachedName || "Project";
     }
   }
 
@@ -540,7 +578,8 @@
 
     try {
       const apiUrl = window.location.origin;
-      const token = localStorage.getItem("token");
+      const token =
+        localStorage.getItem("token") || localStorage.getItem("jwt");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
       const response = await fetch(`${apiUrl}/api/projects`, { headers });
@@ -587,7 +626,8 @@
 
       select.innerHTML = '<option value="">-- Select a project --</option>';
       projects.forEach((project) => {
-        const selected = project.id === currentProjectId ? "selected" : "";
+        const selected =
+          String(project.id) === String(currentProjectId) ? "selected" : "";
         select.innerHTML += `<option value="${project.id}" ${selected}>${
           project.project_name || project.name || "Unnamed Project"
         } ${project.project_code ? `(${project.project_code})` : ""}</option>`;
@@ -620,6 +660,22 @@
 
     // Store in localStorage
     localStorage.setItem("vericase_current_project", selectedId);
+    localStorage.setItem("currentProjectId", selectedId);
+
+    // Best-effort store of current project name for other pages
+    try {
+      const selectedText = select?.options?.[select.selectedIndex]?.textContent;
+      if (selectedText) {
+        // Strip a trailing "(CODE)" if present in the display option text.
+        const normalized = selectedText
+          .trim()
+          .replace(/\s*\(([A-Z0-9_-]{1,20})\)\s*$/, "");
+        localStorage.setItem("currentProjectName", normalized);
+        localStorage.setItem("vericase_current_project_name", normalized);
+      }
+    } catch {
+      // ignore
+    }
 
     // Close modal
     const modal = document.getElementById("projectSelectorModal");
