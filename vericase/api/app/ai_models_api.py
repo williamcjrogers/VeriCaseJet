@@ -58,7 +58,7 @@ async def list_providers(
     providers = []
 
     for provider_name, config in AI_MODELS_2025.items():
-        # Check if API key is configured (4 providers: openai, anthropic, google, bedrock)
+        # Check if API key is configured (4 providers: openai, anthropic, gemini, bedrock)
         api_key_configured = False
         if provider_name == "openai":
             api_key_setting = (
@@ -72,7 +72,7 @@ async def list_providers(
                 .first()
             )
             api_key_configured = bool(api_key_setting and api_key_setting.value)
-        elif provider_name == "google":
+        elif provider_name == "gemini":
             api_key_setting = (
                 db.query(AppSetting).filter(AppSetting.key == "gemini_api_key").first()
             )
@@ -269,32 +269,32 @@ async def get_model_recommendations(
     recommendations = {
         "legal_analysis": {
             "primary": ["claude-4.5-opus", "gpt-5.1", "gemini-3.0-pro"],
-            "budget": ["claude-4.5-sonnet", "amazon.titan-text-premier-v1"],
+            "budget": ["claude-4.5-sonnet", "amazon.nova-pro-v1:0"],
             "reasoning": "These models excel at complex legal reasoning and document analysis",
         },
         "document_review": {
-            "primary": ["claude-4.5-sonnet", "gpt-5.1", "gemini-3.0-pro"],
-            "budget": ["claude-4.5-haiku", "gemini-3.0-flash"],
+            "primary": ["claude-4.5-sonnet", "gpt-5.1", "gemini-1.5-pro"],
+            "budget": ["claude-4.5-haiku", "gemini-2.0-flash-lite"],
             "reasoning": "Fast, accurate models for processing large volumes of documents",
         },
         "legal_research": {
             "primary": ["claude-4.5-opus", "gpt-5.1", "gemini-3.0-pro"],
-            "budget": ["amazon.titan-text-premier-v1", "gemini-3.0-flash"],
+            "budget": ["amazon.nova-pro-v1:0", "gemini-2.0-flash-lite"],
             "reasoning": "Models for finding patterns and analyzing legal precedents",
         },
         "contract_analysis": {
-            "primary": ["claude-4.5-opus", "gpt-5.1", "o3"],
-            "budget": ["claude-4.5-sonnet", "o4-mini"],
+            "primary": ["claude-4.5-opus", "gpt-5.1", "o1"],
+            "budget": ["claude-4.5-sonnet", "o1-mini"],
             "reasoning": "Specialized reasoning models for complex contract interpretation",
         },
         "automation": {
             "primary": ["gpt-5.1", "claude-4.5-sonnet"],
-            "budget": ["amazon.titan-text-lite-v1", "gemini-3.0-flash"],
+            "budget": ["amazon.nova-lite-v1:0", "gemini-2.0-flash-lite"],
             "reasoning": "Coding-optimized models for building legal automation tools",
         },
         "cost_effective": {
-            "primary": ["amazon.titan-text-premier-v1", "amazon.titan-text-lite-v1", "claude-4.5-haiku"],
-            "budget": ["gemini-2.0-flash-lite", "gemini-3.0-flash"],
+            "primary": ["amazon.nova-pro-v1:0", "amazon.nova-lite-v1:0", "claude-4.5-haiku"],
+            "budget": ["gemini-2.0-flash-lite", "amazon.nova-micro-v1:0"],
             "reasoning": "High-quality models with lower costs for budget-conscious deployments",
         },
     }
@@ -333,7 +333,7 @@ async def get_models_status(
                 .filter(AppSetting.key == "anthropic_api_key")
                 .first()
             )
-        elif provider == "google":
+        elif provider == "gemini":
             setting = (
                 db.query(AppSetting).filter(AppSetting.key == "gemini_api_key").first()
             )

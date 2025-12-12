@@ -1683,6 +1683,10 @@ async def get_emails_server_side(
                 "thread_id": (
                     str(e.thread_id) if getattr(e, "thread_id", None) else None
                 ),
+                "thread_group_id": getattr(e, "thread_group_id", None),
+                "thread_path": getattr(e, "thread_path", None),
+                "thread_position": getattr(e, "thread_position", None),
+                "is_inclusive": getattr(e, "is_inclusive", None),
                 "conversation_index": getattr(e, "conversation_index", None),
                 "categories": getattr(e, "categories", []) or [],
                 "linked_activity_id": (
@@ -3028,7 +3032,7 @@ async def upload_evidence(
     try:
         # Handle Profile ID (Project/Case)
         target_profile_id = profileId
-        
+
         # If missing or invalid UUID, fallback to default project
         use_default = False
         if not target_profile_id or target_profile_id == "null" or target_profile_id == "undefined":
@@ -3050,7 +3054,7 @@ async def upload_evidence(
             except ValueError:
                 logger.warning(f"Invalid UUID {target_profile_id}, falling back")
                 use_default = True
-        
+
         if use_default:
             logger.info("Using default project fallback")
             # Use known default project UUID
@@ -4208,7 +4212,7 @@ async def trigger_semantic_indexing_case(
 async def get_task_status(task_id: str):
     """
     Check the status of a background task (e.g., semantic indexing).
-    
+
     Returns:
         - status: PENDING, PROGRESS, SUCCESS, FAILURE
         - result: Task result if completed
@@ -4216,9 +4220,9 @@ async def get_task_status(task_id: str):
     """
     try:
         from celery.result import AsyncResult
-        
+
         task = AsyncResult(task_id, app=celery_app)
-        
+
         if task.state == 'PENDING':
             response = {
                 'status': task.state,
@@ -4249,9 +4253,9 @@ async def get_task_status(task_id: str):
                 'status': task.state,
                 'info': str(task.info)
             }
-        
+
         return response
-        
+
     except Exception as e:
         logger.exception(f"Failed to get task status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -4264,32 +4268,32 @@ async def trigger_spam_filter(
 ):
     """
     Trigger spam filter batch job for a project.
-    
+
     This classifies all emails in the project and marks spam/hidden in the meta column.
     Returns task ID for progress tracking.
     """
     from .tasks import apply_spam_filter_batch
-    
+
     # Verify project exists
     project = db.query(Project).filter_by(id=project_id).first()
     if not project:
         raise HTTPException(404, "Project not found")
-    
+
     # Count emails
     email_count = db.query(func.count(EmailMessage.id)).filter(
         EmailMessage.project_id == project_id
     ).scalar() or 0
-    
+
     if email_count == 0:
         return {
             "status": "skipped",
             "message": "No emails to classify",
             "email_count": 0
         }
-    
+
     # Trigger background task
     task = apply_spam_filter_batch.delay(project_id=project_id)
-    
+
     return {
         "status": "started",
         "task_id": task.id,
@@ -4305,24 +4309,24 @@ async def get_spam_stats(
 ):
     """
     Get spam filter statistics for a project.
-    
+
     Returns counts of spam emails by category and hidden count.
     """
     from sqlalchemy import text
-    
+
     # Verify project exists
     project = db.query(Project).filter_by(id=project_id).first()
     if not project:
         raise HTTPException(404, "Project not found")
-    
+
     # Get total email count
     total_count = db.query(func.count(EmailMessage.id)).filter(
         EmailMessage.project_id == project_id
     ).scalar() or 0
-    
+
     # Get spam counts by category using raw SQL for JSONB querying
     spam_query = text("""
-        SELECT 
+        SELECT
             metadata->'spam'->>'category' as category,
             COUNT(*) as count,
             SUM(CASE WHEN (metadata->'spam'->>'is_hidden')::boolean THEN 1 ELSE 0 END) as hidden_count
@@ -4331,12 +4335,12 @@ async def get_spam_stats(
           AND metadata->'spam'->>'is_spam' = 'true'
         GROUP BY metadata->'spam'->>'category'
     """)
-    
+
     result = db.execute(spam_query, {"project_id": project_id})
     by_category = {}
     total_spam = 0
     total_hidden = 0
-    
+
     for row in result:
         category = row[0] or "unknown"
         count = row[1]
@@ -4344,7 +4348,7 @@ async def get_spam_stats(
         by_category[category] = {"count": count, "hidden": hidden}
         total_spam += count
         total_hidden += hidden
-    
+
     return {
         "project_id": project_id,
         "total_emails": total_count,

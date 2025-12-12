@@ -13,6 +13,10 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Awaitable
 
+from sqlalchemy.orm import Session
+
+from .ai_settings import AISettings
+
 logger = logging.getLogger(__name__)
 
 
@@ -95,6 +99,7 @@ class AIFallbackChain:
         enabled: bool = True,
         log_attempts: bool = True,
         max_attempts: int | None = None,
+        db: Session | None = None,
     ):
         """
         Initialize the fallback chain.
@@ -107,9 +112,28 @@ class AIFallbackChain:
         self.enabled = enabled
         self.log_attempts = log_attempts
         self.max_attempts = max_attempts
+        self.db = db
 
-    def get_chain(self, function_name: str) -> list[tuple[str, str]]:
-        """Get the fallback chain for a function, with default fallback."""
+    def get_chain(
+        self,
+        function_name: str,
+        db: Session | None = None,
+    ) -> list[tuple[str, str]]:
+        """Get fallback chain from AISettings with legacy fallback."""
+        effective_db = db or self.db
+        try:
+            config = AISettings.get_function_config(function_name, effective_db)
+            raw_chain = config.get("fallback_chain")
+            if isinstance(raw_chain, list):
+                parsed: list[tuple[str, str]] = []
+                for item in raw_chain:
+                    if isinstance(item, (list, tuple)) and len(item) == 2:
+                        parsed.append((str(item[0]), str(item[1])))
+                if parsed:
+                    return parsed
+        except Exception as exc:
+            logger.debug("Failed to load fallback chain for %s: %s", function_name, exc)
+
         return self.FALLBACK_CHAINS.get(
             function_name,
             self.FALLBACK_CHAINS.get("quick_search", []),

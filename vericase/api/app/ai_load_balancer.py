@@ -600,7 +600,7 @@ class LoadBalancer:
     DEFAULT_RATE_LIMITS = {
         "openai": 60,
         "anthropic": 60,
-        "google": 60,
+        "gemini": 60,
         "bedrock": 100,  # Bedrock typically has higher limits
     }
 
@@ -614,7 +614,7 @@ class LoadBalancer:
         # Initialize circuit breakers
         self.circuit_breakers: dict[str, CircuitBreaker] = {}
         if enable_circuit_breakers:
-            for provider in ["openai", "anthropic", "google", "bedrock"]:
+            for provider in ["openai", "anthropic", "gemini", "bedrock"]:
                 self.circuit_breakers[provider] = CircuitBreaker(
                     name=provider,
                     failure_threshold=5,

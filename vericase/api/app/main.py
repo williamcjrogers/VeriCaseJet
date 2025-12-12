@@ -108,6 +108,7 @@ from .ai_refinement import (
 )  # Enhanced AI refinement with intelligent questioning
 from .auth_enhanced import router as auth_enhanced_router  # Enhanced authentication
 from .evidence_repository import router as evidence_router  # Evidence repository
+from .ocr_feedback import router as ocr_feedback_router  # OCR feedback
 from .deep_research import router as deep_research_router  # Deep Research Agent
 from .claims_module import (
     router as claims_router,
@@ -355,6 +356,7 @@ app.include_router(
 )  # Enhanced AI refinement with intelligent questioning
 app.include_router(auth_enhanced_router)  # Enhanced authentication endpoints
 app.include_router(evidence_router)  # Evidence repository
+app.include_router(ocr_feedback_router)  # OCR feedback
 app.include_router(deep_research_router)  # Deep Research Agent
 app.include_router(claims_router)  # Contentious Matters and Heads of Claim
 app.include_router(dashboard_router)  # Master Dashboard API

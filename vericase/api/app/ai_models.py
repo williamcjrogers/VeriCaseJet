@@ -10,6 +10,7 @@ from enum import Enum
 from typing import TypedDict
 
 from .config import settings
+from .ai_models_2025 import resolve_friendly_model
 
 logger = logging.getLogger(__name__)
 
@@ -128,11 +129,11 @@ class AIModelService:
         },
         "o1-reasoning": {
             "provider": "openai",
-            "model": "o3",  # OpenAI o3 reasoning model
+            "model": "o1",
         },
         "o3-reasoning": {
             "provider": "openai",
-            "model": "o3",  # OpenAI o3 reasoning model
+            "model": "o1",
         },
         "gpt-5": {
             "provider": "openai",
@@ -140,37 +141,37 @@ class AIModelService:
         },
         # ============ GOOGLE (Gemini) ============
         "gemini-2-flash": {
-            "provider": "google",
+            "provider": "gemini",
             "model": "gemini-2.0-flash",
         },
         "gemini-3-pro": {
-            "provider": "google",
-            "model": "gemini-3.0-pro",  # Flagship multimodal, 1M+ context
+            "provider": "gemini",
+            "model": "gemini-1.5-pro",
         },
         "gemini-2-5-pro": {
-            "provider": "google",
-            "model": "gemini-2.0-pro",
+            "provider": "gemini",
+            "model": "gemini-1.5-pro",
         },
         # ============ AMAZON BEDROCK ============
         "bedrock-claude-opus": {
             "provider": "bedrock",
-            "model": "anthropic.claude-4.5-opus-v1:0",
+            "model": "anthropic.claude-opus-4-5-20251101-v1:0",
         },
         "bedrock-claude-sonnet": {
             "provider": "bedrock",
-            "model": "anthropic.claude-4.5-sonnet-v1:0",
+            "model": "anthropic.claude-sonnet-4-5-20250929-v1:0",
         },
         "bedrock-nova-pro": {
             "provider": "bedrock",
-            "model": "amazon.titan-text-premier-v1",
+            "model": "amazon.nova-pro-v1:0",
         },
         "bedrock-nova-lite": {
             "provider": "bedrock",
-            "model": "amazon.titan-text-lite-v1",
+            "model": "amazon.nova-lite-v1:0",
         },
         "bedrock-nova-micro": {
             "provider": "bedrock",
-            "model": "amazon.titan-text-lite-v1",
+            "model": "amazon.nova-micro-v1:0",
         },
         "bedrock-llama-70b": {
             "provider": "bedrock",
@@ -246,6 +247,9 @@ class AIModelService:
 
     @classmethod
     def resolve_model(cls, friendly_name: str) -> dict[str, str] | None:
+        resolved = resolve_friendly_model(friendly_name)
+        if resolved:
+            return resolved
         return cls.MODEL_API_MAP.get(friendly_name)
 
     @classmethod

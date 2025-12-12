@@ -190,6 +190,11 @@ class Settings(BaseSettings):
     CELERY_PST_QUEUE: str = "celery"
     TIKA_URL: str = "http://tika:9998"
 
+    # PST ingestion performance
+    # When true (default), pre-traverse the PST to count total messages for progress %
+    # tracking. Disable to avoid the extra full pass on very large PSTs.
+    PST_PRECOUNT_MESSAGES: bool = True
+
     # AWS Textract settings
     USE_TEXTRACT: bool = True  # Use Textract as primary, Tika as fallback
     TEXTRACT_MAX_FILE_SIZE_MB: int = 500  # Textract limit: 500MB total

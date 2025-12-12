@@ -21,6 +21,8 @@ from datetime import datetime, timezone, timedelta
 from typing import Any
 from collections import deque
 
+from .ai_pricing import estimate_cost_usd
+
 logger = logging.getLogger(__name__)
 
 # Try to import Redis for persistent metrics
@@ -143,24 +145,10 @@ class ModelMetrics:
 
     def _estimate_cost(self) -> float:
         """Estimate cost in USD based on token usage and model pricing."""
-        # Approximate pricing per 1M tokens (input + output averaged)
-        pricing = {
-            "gpt-4o": 5.0,
-            "gpt-4o-mini": 0.15,
-            "gpt-4": 30.0,
-            "gpt-3.5-turbo": 0.5,
-            "claude-sonnet-4-20250514": 3.0,
-            "claude-opus-4-20250514": 15.0,
-            "claude-3-5-haiku-20241022": 0.25,
-            "gemini-2.0-flash": 0.35,
-            "gemini-1.5-pro": 1.25,
-            "amazon.nova-pro-v1:0": 0.8,
-            "amazon.nova-lite-v1:0": 0.06,
-            "amazon.nova-micro-v1:0": 0.035,
-        }
-
-        rate = pricing.get(self.model_id, 1.0)  # Default $1 per 1M tokens
-        return (self.total_tokens / 1_000_000) * rate
+        return estimate_cost_usd(
+            model_id=self.model_id,
+            tokens_total=self.total_tokens,
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""

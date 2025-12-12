@@ -22,6 +22,7 @@ from .models import User, Document
 from .db import get_db
 from .security import current_user
 from .ai_settings import get_ai_api_key, get_ai_model, is_bedrock_enabled, get_bedrock_region
+from .ai_runtime import complete_chat
 
 router = APIRouter(prefix="/ai/orchestrator", tags=["ai-orchestrator"])
 logger = logging.getLogger(__name__)
@@ -214,28 +215,28 @@ class MultiModelTask:
         start_time = time.time()
 
         try:
+            api_key = None
             if provider == "openai":
-                response = await asyncio.wait_for(
-                    self._call_openai(model_id, prompt, system_prompt),
-                    timeout=timeout,
-                )
+                api_key = self.openai_key
             elif provider == "anthropic":
-                response = await asyncio.wait_for(
-                    self._call_anthropic(model_id, prompt, system_prompt),
-                    timeout=timeout,
-                )
+                api_key = self.anthropic_key
             elif provider == "gemini":
-                response = await asyncio.wait_for(
-                    self._call_gemini(model_id, prompt, system_prompt),
-                    timeout=timeout,
-                )
-            elif provider == "bedrock":
-                response = await asyncio.wait_for(
-                    self._call_bedrock(model_id, prompt, system_prompt),
-                    timeout=timeout,
-                )
-            else:
-                raise ValueError(f"Unknown provider: {provider}")
+                api_key = self.gemini_key
+
+            response = await asyncio.wait_for(
+                complete_chat(
+                    provider=provider,
+                    model_id=model_id,
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                    db=self.db,
+                    api_key=api_key,
+                    bedrock_region=self.bedrock_region,
+                    max_tokens=4000,
+                    temperature=0.3,
+                ),
+                timeout=timeout,
+            )
 
             latency = int((time.time() - start_time) * 1000)
             return ModelResult(
@@ -266,67 +267,6 @@ class MultiModelTask:
                 success=False,
                 error=str(e),
             )
-
-    async def _call_openai(self, model_id: str, prompt: str, system_prompt: str) -> str:
-        """Call OpenAI API."""
-        import openai
-        client = openai.AsyncOpenAI(api_key=self.openai_key)
-
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-
-        response = await client.chat.completions.create(
-            model=model_id,
-            messages=messages,
-            max_tokens=4000,
-            temperature=0.3,
-        )
-        return response.choices[0].message.content or ""
-
-    async def _call_anthropic(self, model_id: str, prompt: str, system_prompt: str) -> str:
-        """Call Anthropic API."""
-        import anthropic
-        client = anthropic.AsyncAnthropic(api_key=self.anthropic_key)
-
-        response = await client.messages.create(
-            model=model_id,
-            max_tokens=4000,
-            system=system_prompt if system_prompt else "You are a helpful assistant.",
-            messages=[{"role": "user", "content": prompt}],
-        )
-
-        text = ""
-        for block in response.content:
-            if hasattr(block, "text"):
-                text += block.text
-        return text
-
-    async def _call_gemini(self, model_id: str, prompt: str, system_prompt: str) -> str:
-        """Call Gemini API."""
-        import google.generativeai as genai
-        genai.configure(api_key=self.gemini_key)
-
-        model = genai.GenerativeModel(model_id)
-        full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-
-        response = await asyncio.to_thread(model.generate_content, full_prompt)
-        return getattr(response, "text", "")
-
-    async def _call_bedrock(self, model_id: str, prompt: str, system_prompt: str) -> str:
-        """Call AWS Bedrock."""
-        from .ai_providers import BedrockProvider
-
-        provider = BedrockProvider(region=self.bedrock_region)
-        response = await provider.invoke(
-            model_id=model_id,
-            prompt=prompt,
-            max_tokens=4000,
-            temperature=0.3,
-            system_prompt=system_prompt if system_prompt else None,
-        )
-        return response
 
     def _select_best_result(
         self,

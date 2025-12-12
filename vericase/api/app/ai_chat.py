@@ -105,7 +105,7 @@ class AIEvidenceOrchestrator:
         self.db = db
         self.openai_key = get_ai_api_key("openai", db) or ""
         self.anthropic_key = get_ai_api_key("anthropic", db) or ""
-        self.google_key = get_ai_api_key("gemini", db) or ""
+        self.gemini_key = get_ai_api_key("gemini", db) or ""
 
         # Bedrock uses IAM credentials, not API keys
         self.bedrock_enabled = is_bedrock_enabled(db) and bedrock_available()
@@ -119,6 +119,15 @@ class AIEvidenceOrchestrator:
         self.bedrock_model = get_ai_model("bedrock", db)
 
         self.model_service = AIModelService()
+
+    @property
+    def google_key(self) -> str:
+        """Backwards-compatible alias for Gemini API key."""
+        return self.gemini_key
+
+    @google_key.setter
+    def google_key(self, value: str) -> None:
+        self.gemini_key = value or ""
 
     @property
     def bedrock_provider(self) -> BedrockProvider | None:
@@ -135,7 +144,7 @@ class AIEvidenceOrchestrator:
         AISettings.refresh_cache(db)
         self.openai_key = get_ai_api_key("openai", db) or ""
         self.anthropic_key = get_ai_api_key("anthropic", db) or ""
-        self.google_key = get_ai_api_key("gemini", db) or ""
+        self.gemini_key = get_ai_api_key("gemini", db) or ""
         self.bedrock_enabled = is_bedrock_enabled(db) and bedrock_available()
         self.bedrock_region = get_bedrock_region(db)
         self._bedrock_provider = None  # Reset to reload
@@ -180,7 +189,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
             display_name = AIModelService.display_name(candidate)
 
             try:
-                if provider == "google" and self.google_key:
+                if provider in ("gemini", "google") and self.gemini_key:
                     response_text = await self._query_gemini_flash(prompt, model_name)
                 elif provider == "openai" and self.openai_key:
                     response_text = await self._query_gpt_turbo(prompt, model_name)
@@ -258,7 +267,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
                         query, context, emails, model_name, display_name
                     )
                 )
-            elif provider == "google" and self.google_key:
+            elif provider in ("gemini", "google") and self.gemini_key:
                 tasks.append(
                     self._gemini_find_patterns(
                         query, context, emails, model_name, display_name
@@ -462,65 +471,53 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
     async def _query_gemini_flash(self, prompt: str, model_name: str = None) -> str:
         """Gemini Flash for quick responses"""
         try:
-            import google.generativeai as genai  # pyright: ignore[reportMissingTypeStubs]
+            from .ai_runtime import complete_chat
 
-            genai.configure(api_key=self.google_key)
-            # Use configured model or fallback
-            actual_model: str = model_name or self.gemini_model or "gemini-3.0-pro"
-            model = genai.GenerativeModel(actual_model)
-            response = await asyncio.to_thread(model.generate_content, prompt)
-            return response.text
+            actual_model: str = model_name or self.gemini_model or "gemini-2.0-flash"
+            return await complete_chat(
+                provider="gemini",
+                model_id=actual_model,
+                prompt=prompt,
+                api_key=self.gemini_key,
+                max_tokens=1000,
+                temperature=0.7,
+            )
         except Exception as e:
             raise Exception(f"Gemini error: {str(e)}")
 
     async def _query_gpt_turbo(self, prompt: str, model_name: str = None) -> str:
         """GPT-4 Turbo for quick responses"""
         try:
-            import openai
+            from .ai_runtime import complete_chat
 
-            client = openai.AsyncOpenAI(api_key=self.openai_key)
-            # Use configured model or fallback
             actual_model: str = model_name or self.openai_model or "gpt-4o"
-
-            # o-series models require max_completion_tokens instead of max_tokens
-            is_o_series = actual_model.startswith(("o1", "o3", "o4"))
-
-            if is_o_series:
-                response = await client.chat.completions.create(
-                    model=actual_model,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_completion_tokens=1000,
-                )
-            else:
-                response = await client.chat.completions.create(
-                    model=actual_model,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=1000,
-                )
-            return response.choices[0].message.content
+            return await complete_chat(
+                provider="openai",
+                model_id=actual_model,
+                prompt=prompt,
+                api_key=self.openai_key,
+                max_tokens=1000,
+                temperature=0.3,
+            )
         except Exception as e:
             raise Exception(f"GPT error: {str(e)}")
 
     async def _query_claude_sonnet(self, prompt: str, model_name: str = None) -> str:
         """Claude Sonnet for structured quick responses"""
         try:
-            import anthropic
+            from .ai_runtime import complete_chat
 
-            client = anthropic.AsyncAnthropic(api_key=self.anthropic_key)
-            # Use configured model or fallback
             actual_model: str = (
                 model_name or self.anthropic_model or "claude-sonnet-4-20250514"
             )
-            response = await client.messages.create(
-                model=actual_model,
+            return await complete_chat(
+                provider="anthropic",
+                model_id=actual_model,
+                prompt=prompt,
+                api_key=self.anthropic_key,
                 max_tokens=1200,
-                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
             )
-            text = ""
-            for block in response.content:
-                if hasattr(block, "text"):
-                    text += block.text
-            return text or response.content[0].text
         except Exception as e:
             raise Exception(f"Claude error: {str(e)}")
 
@@ -536,9 +533,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
         start_time = datetime.now(timezone.utc)
 
         try:
-            import openai
-
-            client = openai.AsyncOpenAI(api_key=self.openai_key)
+            from .ai_runtime import complete_chat
 
             prompt = f"""You are a construction dispute expert analyzing email evidence to build a chronology.
 
@@ -555,14 +550,16 @@ Focus on:
 
 Provide a structured chronology with dates, events, and responsible parties."""
 
-            response = await client.chat.completions.create(
-                model=model_override
-                or "o1",  # OpenAI o1 reasoning model
-                messages=[{"role": "user", "content": prompt}],
+            response_text = await complete_chat(
+                provider="openai",
+                model_id=model_override or "o1",
+                prompt=prompt,
+                api_key=self.openai_key,
+                max_tokens=2000,
+                temperature=0.2,
             )
 
             processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
-            response_text = response.choices[0].message.content
 
             log_model_selection(
                 "deep_research",
@@ -601,10 +598,7 @@ Provide a structured chronology with dates, events, and responsible parties."""
         start_time = datetime.now(timezone.utc)
 
         try:
-            import google.generativeai as genai
-
-            genai.configure(api_key=self.google_key)
-            model = genai.GenerativeModel(model_override or "gemini-3.0-pro")
+            from .ai_runtime import complete_chat
 
             prompt = f"""You are analyzing construction dispute evidence to find patterns and connections.
 
@@ -622,22 +616,29 @@ Focus on:
 
 Identify patterns that tell the story of what happened."""
 
-            response = await asyncio.to_thread(model.generate_content, prompt)
+            response_text = await complete_chat(
+                provider="gemini",
+                model_id=model_override or "gemini-1.5-pro",
+                prompt=prompt,
+                api_key=self.gemini_key,
+                max_tokens=2500,
+                temperature=0.5,
+            )
             processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
 
             log_model_selection(
                 "deep_research",
                 friendly_name,
-                f"Gemini:{model_override or 'gemini-3.0-pro'}",
+                f"Gemini:{model_override or 'gemini-1.5-pro'}",
             )
 
             return ModelResponse(
                 model=friendly_name,
                 task="Pattern Recognition & Connection Mapping",
-                response=response.text,
+                response=response_text,
                 confidence=0.93,
                 processing_time=processing_time,
-                key_findings=self._extract_key_findings(response.text),
+                key_findings=self._extract_key_findings(response_text),
             )
         except Exception as e:
             logger.error(f"Gemini pattern error: {e}")
@@ -662,9 +663,7 @@ Identify patterns that tell the story of what happened."""
         start_time = datetime.now(timezone.utc)
 
         try:
-            import anthropic
-
-            client = anthropic.AsyncAnthropic(api_key=self.anthropic_key)
+            from .ai_runtime import complete_chat
 
             prompt = f"""You are a legal narrative expert helping build a dispute case from email evidence.
 
@@ -682,19 +681,15 @@ Focus on:
 
 Build a narrative that explains what happened and why it matters."""
 
-            response = await client.messages.create(
-                model=model_override or "claude-sonnet-4-20250514",
+            response_text = await complete_chat(
+                provider="anthropic",
+                model_id=model_override or "claude-sonnet-4-20250514",
+                prompt=prompt,
+                api_key=self.anthropic_key,
                 max_tokens=4096,
-                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
             )
-
             processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
-
-            # Extract text from response
-            response_text = ""
-            for block in response.content:
-                if hasattr(block, "text"):
-                    response_text += block.text
 
             log_model_selection(
                 "deep_research",
@@ -726,14 +721,18 @@ Build a narrative that explains what happened and why it matters."""
         if not self.bedrock_provider:
             raise RuntimeError("Bedrock provider not available")
 
+        from .ai_runtime import complete_chat
+
         actual_model = model_name or self.bedrock_model or "amazon.nova-pro-v1:0"
-        response = await self.bedrock_provider.invoke(
+        return await complete_chat(
+            provider="bedrock",
             model_id=actual_model,
             prompt=prompt,
+            bedrock_provider=self.bedrock_provider,
+            bedrock_region=self.bedrock_region,
             max_tokens=1500,
             temperature=0.7,
         )
-        return response
 
     async def _bedrock_identify_gaps(
         self,
@@ -766,13 +765,18 @@ Focus on:
 
 Provide a critical analysis identifying gaps and suggesting what's needed."""
 
+            from .ai_runtime import complete_chat
+
             actual_model = model_override or self.bedrock_model or "amazon.nova-pro-v1:0"
-            response_text = await self.bedrock_provider.invoke(
+            response_text = await complete_chat(
+                provider="bedrock",
                 model_id=actual_model,
                 prompt=prompt,
+                system_prompt="You are an expert legal analyst providing critical analysis of evidence with thorough reasoning.",
+                bedrock_provider=self.bedrock_provider,
+                bedrock_region=self.bedrock_region,
                 max_tokens=3000,
                 temperature=0.7,
-                system_prompt="You are an expert legal analyst providing critical analysis of evidence with thorough reasoning.",
             )
 
             processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
@@ -1001,7 +1005,7 @@ async def get_models_status(
                 "task": "Chronology & Event Analysis",
             },
             "gemini": {
-                "available": bool(orchestrator.google_key),
+                "available": bool(orchestrator.gemini_key),
                 "name": "Google Gemini",
                 "model": orchestrator.gemini_model,
                 "task": "Pattern Recognition",
@@ -1021,14 +1025,14 @@ async def get_models_status(
             },
         },
         "quick_search_available": bool(
-            orchestrator.google_key
+            orchestrator.gemini_key
             or orchestrator.openai_key
             or orchestrator.anthropic_key
             or orchestrator.bedrock_enabled
         ),
         "deep_research_available": bool(
             orchestrator.openai_key
-            or orchestrator.google_key
+            or orchestrator.gemini_key
             or orchestrator.anthropic_key
             or orchestrator.bedrock_enabled
         ),
@@ -1061,7 +1065,7 @@ async def test_ai_provider(
             model = orchestrator.anthropic_model
 
         elif provider == "gemini":
-            if not orchestrator.google_key:
+            if not orchestrator.gemini_key:
                 return {"success": False, "error": "Gemini API key not configured"}
             response = await orchestrator._query_gemini_flash(test_prompt)
             model = orchestrator.gemini_model
@@ -1149,7 +1153,7 @@ async def ai_health_check(
             return {"healthy": False, "error": str(e)}
 
     async def test_gemini() -> dict[str, Any]:
-        if not orchestrator.google_key:
+        if not orchestrator.gemini_key:
             return {"healthy": False, "error": "Not configured"}
         start = time.time()
         try:

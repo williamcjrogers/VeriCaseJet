@@ -20,7 +20,7 @@ import logging
 import uuid
 import json
 from datetime import datetime, timezone
-from typing import Annotated, Any, Callable, NotRequired, TypedDict, cast, TYPE_CHECKING
+from typing import Annotated, Any, Callable, NotRequired, TypedDict, cast
 from enum import Enum
 from dataclasses import dataclass
 
@@ -39,31 +39,11 @@ from .security import current_user
 from .ai_settings import get_ai_api_key, get_ai_model, is_bedrock_enabled, get_bedrock_region
 from .settings import settings
 from .ai_providers import BedrockProvider, bedrock_available
-
-if TYPE_CHECKING:
-    from openai.types.chat import (
-        ChatCompletionMessageParam,
-        ChatCompletionSystemMessageParam,
-        ChatCompletionUserMessageParam,
-    )
-else:  # pragma: no cover - fallback types when OpenAI package isn't available at runtime
-    ChatCompletionMessageParam = Any  # type: ignore[assignment]
-    ChatCompletionSystemMessageParam = dict[str, Any]  # type: ignore[assignment]
-    ChatCompletionUserMessageParam = dict[str, Any]  # type: ignore[assignment]
+from .ai_runtime import complete_chat
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/deep-research", tags=["deep-research"])
-
-# Latest flagship model defaults for Deep Analysis (use most powerful models)
-# Supports 4 providers: OpenAI, Anthropic, Gemini, Amazon Bedrock
-LATEST_MODEL_DEFAULTS = {
-    "openai": "gpt-4o",  # GPT-4o (available)
-    "anthropic": "claude-sonnet-4-20250514",  # Claude Sonnet 4 (correct ID)
-    "gemini": "gemini-2.0-flash",  # Gemini 2.0 Flash (available)
-    "bedrock": "amazon.nova-pro-v1:0",  # Amazon Nova Pro - enterprise AI via Bedrock
-}
-
 
 # =============================================================================
 # Data Models
@@ -297,84 +277,61 @@ class BaseAgent:
         )
 
     async def _call_openai(self, prompt: str, system_prompt: str = "") -> str:
-        import openai
-
-        client = openai.AsyncOpenAI(api_key=self.openai_key)
-        messages: list[ChatCompletionMessageParam] = []
-        if system_prompt:
-            system_message: ChatCompletionSystemMessageParam = {
-                "role": "system",
-                "content": system_prompt,
-            }
-            messages.append(system_message)
-        user_message: ChatCompletionUserMessageParam = {
-            "role": "user",
-            "content": prompt,
-        }
-        messages.append(user_message)
-
-        response = await client.chat.completions.create(
-            model=self.openai_model or LATEST_MODEL_DEFAULTS["openai"],
-            messages=messages,
+        model_id = self.openai_model
+        return await complete_chat(
+            provider="openai",
+            model_id=model_id,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            api_key=self.openai_key,
             max_tokens=4000,
             temperature=0.3,
         )
-        content = response.choices[0].message.content
-        return content or ""
 
     async def _call_anthropic(self, prompt: str, system_prompt: str = "") -> str:
-        import anthropic
-
-        client = anthropic.AsyncAnthropic(api_key=self.anthropic_key)
-
-        response = await client.messages.create(
-            model=self.anthropic_model or LATEST_MODEL_DEFAULTS["anthropic"],
-            max_tokens=4000,
-            system=(
+        model_id = self.anthropic_model
+        return await complete_chat(
+            provider="anthropic",
+            model_id=model_id,
+            prompt=prompt,
+            system_prompt=(
                 system_prompt
                 if system_prompt
                 else "You are an expert legal and construction dispute analyst."
             ),
-            messages=[{"role": "user", "content": prompt}],
+            api_key=self.anthropic_key,
+            max_tokens=4000,
+            temperature=0.3,
         )
-
-        text = ""
-        for block in response.content:
-            text_piece = getattr(block, "text", "")
-            if text_piece:
-                text += str(text_piece)
-        return text
 
     async def _call_gemini(self, prompt: str, system_prompt: str = "") -> str:
-        import google.generativeai as genai  # pyright: ignore[reportMissingTypeStubs]
-
-        genai.configure(
-            api_key=self.gemini_key
-        )  # pyright: ignore[reportUnknownMemberType]
-
-        model = genai.GenerativeModel(
-            self.gemini_model or LATEST_MODEL_DEFAULTS["gemini"]
+        model_id = self.gemini_model
+        return await complete_chat(
+            provider="gemini",
+            model_id=model_id,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            api_key=self.gemini_key,
+            max_tokens=4000,
+            temperature=0.3,
         )
-        full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-        generate_fn = cast(Callable[[str], Any], model.generate_content)
-        response = await asyncio.to_thread(
-            generate_fn, full_prompt
-        )  # pyright: ignore[reportAny]
-        return str(getattr(response, "text", ""))  # pyright: ignore[reportAny]
 
     async def _call_bedrock(self, prompt: str, system_prompt: str = "") -> str:
         """Call Amazon Bedrock via BedrockProvider"""
         if not self.bedrock_provider:
             raise RuntimeError("Bedrock provider not available")
 
-        response = await self.bedrock_provider.invoke(
-            model_id=self.bedrock_model or LATEST_MODEL_DEFAULTS["bedrock"],
+        model_id = self.bedrock_model
+        return await complete_chat(
+            provider="bedrock",
+            model_id=model_id,
             prompt=prompt,
+            system_prompt=system_prompt,
+            bedrock_provider=self.bedrock_provider,
+            bedrock_region=self.bedrock_region,
             max_tokens=4000,
             temperature=0.3,
-            system_prompt=system_prompt if system_prompt else None,
         )
-        return response
 
 
 class PlannerAgent(BaseAgent):
