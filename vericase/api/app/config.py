@@ -211,6 +211,13 @@ class Settings(BaseSettings):
     BEDROCK_EMBEDDING_MODEL: str = (
         "amazon.titan-embed-text-v1"  # Embedding model for KB
     )
+    # When true, AI endpoints will attempt to augment prompts from the KB
+    USE_KNOWLEDGE_BASE: bool = True
+
+    # Ops / monitoring defaults (optional)
+    EKS_CLUSTER_NAME: str = ""
+    RDS_INSTANCE_ID: str = ""
+    CLOUDWATCH_LOG_GROUP: str = ""
 
     # AWS Step Functions settings
     STEP_FUNCTION_ARN: str = ""  # ARN of the evidence processing state machine
@@ -229,6 +236,16 @@ class Settings(BaseSettings):
 
     # AWS Macie settings
     MACIE_ENABLED: bool = False  # Enable Macie sensitive data scanning
+
+    # Deployment Settings (SSH automation)
+    STAGING_HOST: str = ""
+    STAGING_KEY_PATH: str = ""
+    PRODUCTION_HOST: str = ""
+    PRODUCTION_KEY_PATH: str = ""
+
+    # Slack Integration
+    SLACK_WEBHOOK_URL: str = ""
+    SLACK_DEFAULT_CHANNEL: str = "#case-updates"
 
     # AWS Lambda function names (for Step Functions)
     LAMBDA_TEXTRACT_PROCESSOR: str = "vericase-textract-processor"
