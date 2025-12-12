@@ -1,3 +1,4 @@
+
 fastapi==0.121.3
 uvicorn[standard]==0.38.0
 python-dotenv==1.2.1
@@ -28,11 +29,11 @@ transformers==4.57.1
 torch==2.9.1
 numpy==2.3.5
 requests-aws4auth==1.3.1
+asyncssh==2.21.0
 
 # General Utilities
 pandas==2.3.3
 pyyaml==6.0.3
-asyncssh==2.14.2  # For SSH deployment automation
 
 # NLP / NER for semantic processing
 spacy>=3.7.0  # Named entity recognition for deep research
