@@ -51,19 +51,22 @@
       pointer-events: none;
     }
 
-    /* Override for dashboard - uses its own layout */
-    .app-shell .app-main {
-      margin-left: 260px;
-    }
-
     /* Hide the original top-bar when shell is active */
     .app-shell .top-bar {
       display: none;
     }
 
+    /* Dashboard page: remove duplicate header title in shell */
+    .app-shell .app-header-title {
+      display: none;
+    }
+
     /* Adjust dashboard container when shell is active */
     .app-shell .dashboard-container {
-      padding-top: 0;
+      width: 100% !important;
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
     }
 
     .top-bar {
@@ -159,8 +162,9 @@
     }
 
     .dashboard-container {
-      max-width: 1400px;
-      margin: 0 auto;
+      width: 100%;
+      max-width: none;
+      margin: 0;
       padding: 2rem;
     }
 
@@ -208,11 +212,13 @@
 
     .welcome-banner h2 {
       font-family: "DM Sans", sans-serif;
-      font-size: 2.25rem;
+      font-size: var(--text-5xl);
       font-weight: 700;
       color: #fff;
       letter-spacing: -0.02em;
-      margin-bottom: 0.5rem;
+      line-height: 1.15;
+      margin-bottom: 1rem;
+      max-width: none;
       position: relative;
       z-index: 1;
     }
@@ -224,12 +230,26 @@
       color: var(--vc-gold-light);
     }
 
+    .welcome-banner h2 .title-suffix {
+      display: block;
+      margin-top: 0.35rem;
+      font-size: var(--text-2xl);
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.92);
+      letter-spacing: -0.01em;
+      line-height: 1.25;
+    }
+
     .welcome-banner p {
-      font-size: 1.125rem;
+      font-size: 1rem;
+      font-weight: 400;
       color: rgba(255, 255, 255, 0.85);
       line-height: 1.6;
-      max-width: 760px;
+      max-width: none;
       margin: 0.75rem 0 0;
+      text-align: justify;
+      text-justify: inter-word;
+      hyphens: auto;
       position: relative;
       z-index: 1;
     }
@@ -237,8 +257,8 @@
     .welcome-banner .meta {
       margin-top: 1.25rem;
       display: flex;
-      gap: 2rem;
-      font-size: 0.875rem;
+      gap: 1.75rem;
+      font-size: 0.8125rem;
       position: relative;
       z-index: 1;
       flex-wrap: wrap;
@@ -262,7 +282,7 @@
     /* Quick Actions - Modernized Grid */
     .quick-actions {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 1rem;
       margin-bottom: 2rem;
     }
@@ -620,7 +640,7 @@
 
     @media (max-width: 1200px) {
       .quick-actions {
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(2, 1fr);
       }
 
       .widgets-grid {
@@ -687,7 +707,11 @@
       }
 
       .welcome-banner h2 {
-        font-size: 1.375rem;
+        font-size: var(--text-4xl);
+      }
+
+      .welcome-banner h2 .title-suffix {
+        font-size: var(--text-xl);
       }
 
       .welcome-banner p {
@@ -737,7 +761,11 @@
       }
 
       .welcome-banner h2 {
-        font-size: 1.25rem;
+        font-size: var(--text-3xl);
+      }
+
+      .welcome-banner h2 .title-suffix {
+        font-size: var(--text-lg);
       }
 
       .action-card {
@@ -822,16 +850,16 @@
         <span class="btn-text">Home</span>
       </button>
       <button class="btn btn-primary" id="uploadBtn" onclick="openPstUpload()">
-        <i class="fas fa-cloud-upload-alt"></i>
+        <i class="fas fa-cloud-arrow-up"></i>
         <span class="btn-text">Upload</span>
       </button>
       <button class="btn btn-gold" onclick="window.location.href = 'deep-research.html'"
         title="Deep Research & Analysis">
-        <i class="fas fa-atom"></i>
+        <i class="fas fa-microscope"></i>
         <span class="btn-text">Research</span>
       </button>
       <button class="btn btn-secondary" onclick="showSettings()" title="Settings">
-        <i class="fas fa-cog"></i>
+        <i class="fas fa-gear"></i>
       </button>
       <button class="btn btn-secondary" id="adminApprovalBtn" onclick="window.location.href = 'admin-approvals.html'"
         style="display: none" title="Pending Approvals">
@@ -840,7 +868,7 @@
       </button>
       <button class="btn btn-secondary" id="adminSettingsBtn" onclick="window.location.href = 'admin-settings.html'"
         style="display: none" title="Admin Settings">
-        <i class="fas fa-sliders-h"></i>
+        <i class="fas fa-sliders"></i>
       </button>
     </div>
   </div>
@@ -848,9 +876,9 @@
   <div class="dashboard-container">
     <!-- Welcome Banner -->
     <div class="welcome-banner" id="welcomeBanner">
-      <h2 id="welcomeTitle">Welcome to <span class="title-accent">Project Dashboard</span></h2>
+      <h2 id="welcomeTitle"><span class="title-accent">Project Dashboard</span></h2>
       <p id="welcomeMessage">
-          VeriCase turns your evidence into dispute-winning insight. Upload evidence to get started, or use the tools below to explore your project.
+        VeriCase turns your evidence into dispute-winning insights.
       </p>
       <div class="meta">
         <div class="meta-item">
@@ -923,11 +951,11 @@
               border-radius: 8px;
             ">
           <span style="color: var(--text-secondary); font-size: 0.875rem">
-            <i class="fas fa-envelope" style="color: var(--vericase-teal)"></i>
+            <i class="fas fa-envelope-open-text" style="color: var(--vericase-teal)"></i>
             <strong id="emailCount">0</strong> emails
           </span>
           <span style="color: var(--text-secondary); font-size: 0.875rem">
-            <i class="fas fa-file" style="color: var(--vericase-blue)"></i>
+            <i class="fas fa-file-lines" style="color: var(--vericase-blue)"></i>
             <strong id="pstCount">0</strong> PST files
           </span>
           <span style="color: var(--text-secondary); font-size: 0.875rem">
@@ -942,7 +970,7 @@
     <div class="quick-actions">
       <div class="action-card" onclick="openPstUpload()">
         <div class="icon">
-          <i class="fas fa-cloud-upload-alt"></i>
+          <i class="fas fa-cloud-arrow-up"></i>
         </div>
         <h3>Upload Evidence</h3>
         <p>Import PST files, emails, and documents</p>
@@ -950,7 +978,7 @@
 
       <div class="action-card" onclick="viewCorrespondence()">
         <div class="icon">
-          <i class="fas fa-envelope"></i>
+          <i class="fas fa-envelope-open-text"></i>
         </div>
         <h3>Correspondence</h3>
         <p>Access project communications</p>
@@ -958,7 +986,7 @@
 
       <div class="action-card" onclick="viewTimeline()">
         <div class="icon">
-          <i class="fas fa-timeline"></i>
+          <i class="fas fa-chart-gantt"></i>
         </div>
         <h3>Timeline</h3>
         <p>Visualize project chronology</p>
@@ -966,7 +994,7 @@
 
       <div class="action-card" onclick="viewChronology()">
         <div class="icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);">
-          <i class="fas fa-history"></i>
+          <i class="fas fa-list-timeline"></i>
         </div>
         <h3>Chronology</h3>
         <p>Build detailed event chronologies</p>
@@ -974,7 +1002,7 @@
 
       <div class="action-card" onclick="viewProgramme()">
         <div class="icon" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);">
-          <i class="fas fa-project-diagram"></i>
+          <i class="fas fa-diagram-project"></i>
         </div>
         <h3>Programme</h3>
         <p>Manage schedule and milestones</p>
@@ -990,7 +1018,7 @@
 
       <div class="action-card" onclick="manageStakeholders()">
         <div class="icon" style="background: linear-gradient(135deg, var(--vc-gold) 0%, var(--vc-gold-muted) 100%);">
-          <i class="fas fa-users"></i>
+          <i class="fas fa-people-group"></i>
         </div>
         <h3>Stakeholders</h3>
         <p>Manage project parties</p>
@@ -1684,14 +1712,14 @@
         const projects = await response.json();
         const selector = document.getElementById("projectSelector");
 
-          // Prefer last-selected project over auto-selecting the first one.
-          if (!profileId) {
-            const storedPreferredId =
-              localStorage.getItem("vericase_current_project") ||
-              localStorage.getItem("currentProjectId") ||
-              localStorage.getItem("projectId");
-            if (storedPreferredId) profileId = storedPreferredId;
-          }
+        // Prefer last-selected project over auto-selecting the first one.
+        if (!profileId) {
+          const storedPreferredId =
+            localStorage.getItem("vericase_current_project") ||
+            localStorage.getItem("currentProjectId") ||
+            localStorage.getItem("projectId");
+          if (storedPreferredId) profileId = storedPreferredId;
+        }
 
         if (!projects || projects.length === 0) {
           selector.innerHTML =
@@ -1708,28 +1736,28 @@
         });
         selector.innerHTML = options;
 
-          // If a project is already selected (URL/localStorage), reflect it and load stats.
-          if (profileId) {
-            const selectedProject = projects.find(
-              (p) => String(p.id) === String(profileId),
-            );
-            if (selectedProject) {
-              selector.value = profileId;
-              const selectedName =
-                selectedProject.project_name ||
-                selectedProject.name ||
-                "Unnamed Project";
-              localStorage.setItem("currentProjectId", profileId);
-              localStorage.setItem("vericase_current_project", profileId);
-              localStorage.setItem("profileType", "project");
-              localStorage.setItem("currentProjectName", selectedName);
-              localStorage.setItem("vericase_current_project_name", selectedName);
-              document.getElementById("profileName").textContent = selectedName;
-            }
-
-            // Load stats for current project
-            loadProjectStats(profileId);
+        // If a project is already selected (URL/localStorage), reflect it and load stats.
+        if (profileId) {
+          const selectedProject = projects.find(
+            (p) => String(p.id) === String(profileId),
+          );
+          if (selectedProject) {
+            selector.value = profileId;
+            const selectedName =
+              selectedProject.project_name ||
+              selectedProject.name ||
+              "Unnamed Project";
+            localStorage.setItem("currentProjectId", profileId);
+            localStorage.setItem("vericase_current_project", profileId);
+            localStorage.setItem("profileType", "project");
+            localStorage.setItem("currentProjectName", selectedName);
+            localStorage.setItem("vericase_current_project_name", selectedName);
+            document.getElementById("profileName").textContent = selectedName;
           }
+
+          // Load stats for current project
+          loadProjectStats(profileId);
+        }
       } catch (error) {
         console.error("Error loading projects:", error);
         document.getElementById("projectSelector").innerHTML =
@@ -1763,14 +1791,14 @@
         const welcomeTitle = document.getElementById("welcomeTitle");
         if (welcomeTitle) {
           welcomeTitle.innerHTML = "";
-          welcomeTitle.appendChild(document.createTextNode("Welcome to "));
           const accent = document.createElement("span");
           accent.className = "title-accent";
           accent.textContent = "Project Dashboard";
           welcomeTitle.appendChild(accent);
-          welcomeTitle.appendChild(
-            document.createTextNode(` for ${projectName}`),
-          );
+          const suffix = document.createElement("span");
+          suffix.className = "title-suffix";
+          suffix.textContent = projectName;
+          welcomeTitle.appendChild(suffix);
         }
 
         // Default created date to today until we fetch the project's created_at
@@ -1835,7 +1863,7 @@
             createdDateEl.textContent = `Created ${createdLabel}`;
           }
 
-          // Banner title: "Welcome to Project Dashboard for <name>"
+          // Banner title: "Project Dashboard" with project name below
           const projectName =
             project.project_name ||
             project.name ||
@@ -1845,14 +1873,14 @@
             const welcomeTitle = document.getElementById("welcomeTitle");
             if (welcomeTitle) {
               welcomeTitle.innerHTML = "";
-              welcomeTitle.appendChild(document.createTextNode("Welcome to "));
               const accent = document.createElement("span");
               accent.className = "title-accent";
               accent.textContent = "Project Dashboard";
               welcomeTitle.appendChild(accent);
-              welcomeTitle.appendChild(
-                document.createTextNode(` for ${projectName}`),
-              );
+              const suffix = document.createElement("span");
+              suffix.className = "title-suffix";
+              suffix.textContent = projectName;
+              welcomeTitle.appendChild(suffix);
             }
           }
         } else {
@@ -1875,14 +1903,14 @@
             const welcomeTitle = document.getElementById("welcomeTitle");
             if (welcomeTitle) {
               welcomeTitle.innerHTML = "";
-              welcomeTitle.appendChild(document.createTextNode("Welcome to "));
               const accent = document.createElement("span");
               accent.className = "title-accent";
               accent.textContent = "Project Dashboard";
               welcomeTitle.appendChild(accent);
-              welcomeTitle.appendChild(
-                document.createTextNode(` for ${fallbackName}`),
-              );
+              const suffix = document.createElement("span");
+              suffix.className = "title-suffix";
+              suffix.textContent = fallbackName;
+              welcomeTitle.appendChild(suffix);
             }
           }
         }
@@ -1899,7 +1927,7 @@
       // Inject the navigation shell with sidebar
       if (window.VericaseShell && typeof window.VericaseShell.inject === 'function') {
         window.VericaseShell.inject({
-          title: 'Project Dashboard',
+          title: '',
           breadcrumbs: [
             { label: 'Home', url: 'master-dashboard.html', icon: 'fa-home' },
             { label: 'Project Dashboard' }
@@ -1920,7 +1948,7 @@
       } else {
         // Show welcome message for users without a profile
         document.getElementById("welcomeTitle").innerHTML =
-          'Welcome to <span class="title-accent">Project Dashboard</span>';
+          '<span class="title-accent">Project Dashboard</span>';
         document.getElementById("welcomeMessage").innerHTML =
           "Select a project above or create a new one to get started.";
         document.getElementById("profileName").textContent = "Dashboard";
@@ -2124,14 +2152,14 @@
       const welcomeTitle = document.getElementById("welcomeTitle");
       if (welcomeTitle) {
         welcomeTitle.innerHTML = "";
-        welcomeTitle.appendChild(document.createTextNode("Welcome to "));
         const accent = document.createElement("span");
         accent.className = "title-accent";
         accent.textContent = "Project Dashboard";
         welcomeTitle.appendChild(accent);
-        welcomeTitle.appendChild(
-          document.createTextNode(` for ${profileName}`),
-        );
+        const suffix = document.createElement("span");
+        suffix.className = "title-suffix";
+        suffix.textContent = profileName;
+        welcomeTitle.appendChild(suffix);
       }
 
       const createdDateEl = document.getElementById("createdDate");
@@ -2248,7 +2276,7 @@
     function showFirstTimeOnboarding() {
       const welcomeMsg =
         profileType === "project"
-          ? "Your project has been created! Start by uploading evidence to reconstruct the project timeline."
+          ? "VeriCase turns your evidence into dispute-winning insights. Start by uploading evidence."
           : "Your case has been set up! Upload evidence sources to begin building your dispute strategy.";
 
       document.getElementById("welcomeMessage").textContent = welcomeMsg;

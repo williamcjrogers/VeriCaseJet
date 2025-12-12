@@ -3,7 +3,7 @@ import boto3
 import json
 import logging
 from typing import Dict, List, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
@@ -36,6 +36,11 @@ class AWSServicesManager:
         self.quicksight = self.session.client("quicksight")
         self.macie = self.session.client("macie2")
         self.s3 = self.session.client("s3")
+        # Ops / monitoring clients (optional; permissions may vary)
+        self.cloudwatch = self.session.client("cloudwatch")
+        self.logs = self.session.client("logs")
+        self.eks = self.session.client("eks")
+        self.rds = self.session.client("rds")
 
         self.executor = ThreadPoolExecutor(max_workers=10)
 
@@ -1212,6 +1217,166 @@ class AWSServicesManager:
             "services": services_status,
             "checked_at": datetime.utcnow().isoformat(),
         }
+
+    # ---------------------------------------------------------------------
+    # 11. OPS METRICS (CloudWatch/EKS/RDS/S3/Logs)
+    # ---------------------------------------------------------------------
+
+    async def get_cloudwatch_logs(
+        self,
+        log_group: str,
+        filter_pattern: str = "",
+        hours: int = 1,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Fetch recent CloudWatch log events matching a pattern."""
+        if not log_group:
+            return []
+        try:
+            start_time = int(
+                (datetime.now(timezone.utc) - timedelta(hours=hours)).timestamp()
+                * 1000
+            )
+            response = await self._run_in_executor(
+                self.logs.filter_log_events,
+                logGroupName=log_group,
+                filterPattern=filter_pattern or None,
+                startTime=start_time,
+                limit=limit,
+            )
+            events = []
+            for event in response.get("events", []):
+                events.append(
+                    {
+                        "timestamp": event.get("timestamp"),
+                        "message": (event.get("message") or "").strip(),
+                        "log_stream": event.get("logStreamName"),
+                    }
+                )
+            return events
+        except Exception as e:
+            logger.warning(f"CloudWatch logs fetch failed: {e}")
+            return []
+
+    async def get_rds_metrics(
+        self,
+        db_instance: str,
+        metrics: List[str],
+        period_seconds: int = 300,
+        minutes: int = 10,
+    ) -> Dict[str, Any]:
+        """Get latest RDS CloudWatch metrics for an instance."""
+        if not db_instance or not metrics:
+            return {}
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(minutes=minutes)
+        results: Dict[str, Any] = {}
+        for metric in metrics:
+            try:
+                resp = await self._run_in_executor(
+                    self.cloudwatch.get_metric_statistics,
+                    Namespace="AWS/RDS",
+                    MetricName=metric,
+                    Dimensions=[
+                        {
+                            "Name": "DBInstanceIdentifier",
+                            "Value": db_instance,
+                        }
+                    ],
+                    StartTime=start_time,
+                    EndTime=end_time,
+                    Period=period_seconds,
+                    Statistics=["Average"],
+                )
+                datapoints = sorted(
+                    resp.get("Datapoints", []),
+                    key=lambda d: d.get("Timestamp", end_time),
+                )
+                results[metric] = (
+                    datapoints[-1].get("Average") if datapoints else None
+                )
+            except Exception as e:
+                logger.debug(f"RDS metric {metric} failed: {e}")
+                results[metric] = None
+        return results
+
+    async def get_s3_bucket_size(self, bucket: str) -> float | None:
+        """Approximate S3 bucket size in bytes using CloudWatch (fallback to None)."""
+        if not bucket:
+            return None
+        try:
+            end_time = datetime.now(timezone.utc)
+            start_time = end_time - timedelta(days=2)
+            resp = await self._run_in_executor(
+                self.cloudwatch.get_metric_statistics,
+                Namespace="AWS/S3",
+                MetricName="BucketSizeBytes",
+                Dimensions=[
+                    {"Name": "BucketName", "Value": bucket},
+                    {"Name": "StorageType", "Value": "StandardStorage"},
+                ],
+                StartTime=start_time,
+                EndTime=end_time,
+                Period=86400,
+                Statistics=["Average"],
+            )
+            datapoints = sorted(
+                resp.get("Datapoints", []),
+                key=lambda d: d.get("Timestamp", end_time),
+            )
+            if datapoints:
+                return float(datapoints[-1].get("Average") or 0)
+        except Exception as e:
+            logger.debug(f"S3 size metric failed: {e}")
+        return None
+
+    async def get_eks_cluster_health(
+        self, cluster_name: str | None = None
+    ) -> Dict[str, Any]:
+        """Best-effort EKS cluster health summary."""
+        name = cluster_name or getattr(settings, "EKS_CLUSTER_NAME", "")
+        if not name:
+            return {"status": "unknown", "node_count": None, "pod_count": None}
+        try:
+            desc = await self._run_in_executor(
+                self.eks.describe_cluster, name=name
+            )
+            cluster = desc.get("cluster", {}) if isinstance(desc, dict) else {}
+            status = cluster.get("status", "UNKNOWN")
+
+            # Approximate node count from nodegroup desired sizes
+            node_count = 0
+            try:
+                ngs = await self._run_in_executor(
+                    self.eks.list_nodegroups, clusterName=name
+                )
+                for ng in ngs.get("nodegroups", []):
+                    ng_desc = await self._run_in_executor(
+                        self.eks.describe_nodegroup,
+                        clusterName=name,
+                        nodegroupName=ng,
+                    )
+                    scaling = (
+                        ng_desc.get("nodegroup", {}).get("scalingConfig", {})
+                        if isinstance(ng_desc, dict)
+                        else {}
+                    )
+                    node_count += int(
+                        scaling.get("desiredSize")
+                        or scaling.get("maxSize")
+                        or 0
+                    )
+            except Exception:
+                node_count = None
+
+            return {
+                "status": str(status).lower(),
+                "node_count": node_count,
+                "pod_count": None,  # Requires Container Insights / K8s API
+            }
+        except Exception as e:
+            logger.warning(f"EKS health fetch failed: {e}")
+            return {"status": "unknown", "node_count": None, "pod_count": None}
 
 
 # Global instance - lazy initialization

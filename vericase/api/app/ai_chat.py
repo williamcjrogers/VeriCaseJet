@@ -36,6 +36,11 @@ from .ai_models import (
 )
 from .ai_providers import BedrockProvider, bedrock_available
 
+try:
+    from .aws_services import get_aws_services  # Optional KB augmentation
+except Exception:  # pragma: no cover
+    get_aws_services = None
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ai-chat", tags=["ai-chat"])
@@ -76,6 +81,15 @@ class EvidenceSource(BaseModel):
     relevance: str
 
 
+class KBSource(BaseModel):
+    """Source item from Bedrock Knowledge Base retrieval"""
+
+    content: str
+    score: float | None = None
+    metadata: dict[str, Any] = {}
+    location: dict[str, Any] = {}
+
+
 class ChatRequest(BaseModel):
     query: str
     mode: ResearchMode
@@ -90,6 +104,7 @@ class ChatResponse(BaseModel):
     answer: str
     model_responses: list[ModelResponse]
     sources: list[EvidenceSource]
+    kb_sources: list[KBSource] = []
     chronology_events: list[dict[str, Any]]
     key_findings: list[str]
     processing_time: float

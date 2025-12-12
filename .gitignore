@@ -63,6 +63,12 @@ env/
 *.swo
 *~
 
+# MCP Server settings (contains credentials)
+cline_mcp_settings.json
+**/cline_mcp_settings.json
+.mcp/
+mcp-config.json
+
 # OS
 .DS_Store
 Thumbs.db
