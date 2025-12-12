@@ -314,6 +314,11 @@
                         <span>Profile</span>
                     </a>
                 </div>
+                <div class="sidebar-collapse-toggle" id="sidebarCollapseToggle" title="Collapse sidebar">
+                    <button class="sidebar-collapse-btn" aria-label="Collapse sidebar">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                </div>
             </aside>
         `;
   }
@@ -535,8 +540,47 @@
             "title",
             collapsed ? "Show sidebar" : "Hide sidebar"
           );
+          // Save preference
+          localStorage.setItem("vericase_sidebar_collapsed", collapsed);
+          updateCollapseToggleState(collapsed);
         }
       });
+    }
+
+    // Setup sidebar collapse toggle (chevron button inside sidebar)
+    const collapseToggle = document.getElementById("sidebarCollapseToggle");
+    if (collapseToggle && sidebar) {
+      // Restore collapsed state from localStorage
+      const savedCollapsed = localStorage.getItem("vericase_sidebar_collapsed") === "true";
+      if (savedCollapsed && !mediaQuery.matches) {
+        sidebar.classList.add("collapsed");
+        updateCollapseToggleState(true);
+      }
+
+      collapseToggle.addEventListener("click", () => {
+        if (!mediaQuery.matches) {
+          const collapsed = sidebar.classList.toggle("collapsed");
+          localStorage.setItem("vericase_sidebar_collapsed", collapsed);
+          updateCollapseToggleState(collapsed);
+        }
+      });
+    }
+
+    function updateCollapseToggleState(collapsed) {
+      const collapseToggle = document.getElementById("sidebarCollapseToggle");
+      if (collapseToggle) {
+        collapseToggle.setAttribute(
+          "title",
+          collapsed ? "Expand sidebar" : "Collapse sidebar"
+        );
+        const btn = collapseToggle.querySelector(".sidebar-collapse-btn");
+        if (btn) {
+          btn.setAttribute(
+            "aria-label",
+            collapsed ? "Expand sidebar" : "Collapse sidebar"
+          );
+        }
+      }
     }
   }
 
