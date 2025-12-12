@@ -55,13 +55,15 @@ class ModelPriorityManager:
         "bedrock-claude-opus",
     ]
 
-    @staticmethod
-    def get_model_order(task: str, complexity: TaskComplexity) -> list[str]:
-        if complexity == TaskComplexity.DEEP_RESEARCH:
-            return ModelPriorityManager.DEEP_RESEARCH_ORDER
-        if complexity == TaskComplexity.MODERATE:
-            return ModelPriorityManager.MODERATE_ORDER
-        return ModelPriorityManager.BASIC_ORDER
+    ORDER_BY_COMPLEXITY: dict[TaskComplexity, list[str]] = {
+        TaskComplexity.BASIC: BASIC_ORDER,
+        TaskComplexity.MODERATE: MODERATE_ORDER,
+        TaskComplexity.DEEP_RESEARCH: DEEP_RESEARCH_ORDER,
+    }
+
+    @classmethod
+    def get_model_order(cls, task: str, complexity: TaskComplexity) -> list[str]:
+        return cls.ORDER_BY_COMPLEXITY.get(complexity, cls.BASIC_ORDER)
 
 
 class ModelConfig(TypedDict, total=False):
@@ -216,7 +218,7 @@ class AIModelService:
         base_config = cls.MODELS.get(
             resolved_complexity, cls.MODELS[TaskComplexity.BASIC]
         )
-        model_config: ModelConfig = {**base_config}
+        model_config = cls._copy_model_config(base_config)
 
         preferences = getattr(settings, "AI_MODEL_PREFERENCES", {}) or {}
         override_key = f"{task_type}:{resolved_complexity.value}"
@@ -247,20 +249,30 @@ class AIModelService:
 
     @classmethod
     def resolve_model(cls, friendly_name: str) -> dict[str, str] | None:
-        resolved = resolve_friendly_model(friendly_name)
-        if resolved:
-            return resolved
-        return cls.MODEL_API_MAP.get(friendly_name)
+        return resolve_friendly_model(friendly_name) or cls.MODEL_API_MAP.get(
+            friendly_name
+        )
 
     @classmethod
     def display_name(cls, friendly_name: str) -> str:
         return cls.MODEL_LABELS.get(friendly_name, friendly_name)
 
     @staticmethod
+    def _copy_model_config(config: ModelConfig) -> ModelConfig:
+        copied: ModelConfig = dict(config)
+        if "fallbacks" in config:
+            copied["fallbacks"] = list(config["fallbacks"])
+        if "features" in config:
+            copied["features"] = list(config["features"])
+        return copied
+
+    @staticmethod
     def _ensure_complexity(value: TaskComplexity | str) -> TaskComplexity:
         if isinstance(value, TaskComplexity):
             return value
+        if not isinstance(value, str):
+            return TaskComplexity.BASIC
         try:
-            return TaskComplexity(value.lower())
-        except Exception:
+            return TaskComplexity(value.lower().strip())
+        except ValueError:
             return TaskComplexity.BASIC
