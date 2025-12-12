@@ -1150,11 +1150,6 @@ class EmailMessage(Base):
     delay_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_critical_path: Mapped[bool | None] = mapped_column(Boolean, default=False)
 
-    # Review status for filtering (active, spam, other_project, excluded, etc.)
-    review_status: Mapped[str] = mapped_column(
-        String(50), nullable=False, default="active", server_default="active"
-    )
-
     # Flags
     has_attachments: Mapped[bool] = mapped_column(Boolean, default=False)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)

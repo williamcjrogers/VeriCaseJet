@@ -906,12 +906,13 @@ async def get_email_count(
     elif project_id:
         query = query.filter(EmailMessage.project_id == project_id)
 
-    # Filter out excluded emails unless explicitly requested - only count active emails
+    # Filter out excluded emails unless explicitly requested - only count non-tagged emails
     if not include_excluded:
         query = query.filter(
             or_(
-                EmailMessage.review_status == "active",
-                EmailMessage.review_status.is_(None),
+                EmailMessage.meta.is_(None),
+                ~EmailMessage.meta.op("?")("status"),
+                EmailMessage.meta.op("->>")("status") == "active",
             )
         )
 
@@ -929,12 +930,12 @@ async def get_excluded_emails(
     db: Session = Depends(get_db),
 ):
     """
-    View emails that have been excluded (spam, other projects, etc.)
+    View emails that have been tagged/excluded (spam, other projects, etc.)
     """
-    # Filter for non-active emails using review_status column
+    # Filter for emails with status tag in metadata (not active)
     query = db.query(EmailMessage).filter(
-        EmailMessage.review_status != "active",
-        EmailMessage.review_status.isnot(None),
+        EmailMessage.meta.op("?")("status"),
+        EmailMessage.meta.op("->>")("status") != "active",
     )
 
     if case_id:
@@ -944,14 +945,14 @@ async def get_excluded_emails(
 
     total = query.count()
 
-    # Group by review_status instead of metadata reason
+    # Group by status tag in metadata
     reason_counts = {}
     reasons_query = db.query(
-        EmailMessage.review_status.label("reason"),
+        EmailMessage.meta.op("->>")("status").label("reason"),
         func.count(EmailMessage.id).label("count")
     ).filter(
-        EmailMessage.review_status != "active",
-        EmailMessage.review_status.isnot(None),
+        EmailMessage.meta.op("?")("status"),
+        EmailMessage.meta.op("->>")("status") != "active",
     )
 
     if case_id:
@@ -959,7 +960,7 @@ async def get_excluded_emails(
     elif project_id:
         reasons_query = reasons_query.filter(EmailMessage.project_id == project_id)
 
-    reasons_query = reasons_query.group_by(EmailMessage.review_status)
+    reasons_query = reasons_query.group_by(EmailMessage.meta.op("->>")("status"))
 
     for row in reasons_query.all():
         reason_counts[row.reason or "unknown"] = row.count
@@ -980,7 +981,7 @@ async def get_excluded_emails(
                 "sender_email": e.sender_email,
                 "sender_name": e.sender_name,
                 "date_sent": e.date_sent.isoformat() if e.date_sent else None,
-                "review_status": e.review_status,
+                "status": (e.meta or {}).get("status", "unknown"),
             }
             for e in emails
         ],
@@ -993,13 +994,15 @@ async def restore_excluded_emails(
     db: Session = Depends(get_db),
 ):
     """
-    Restore excluded emails back to the main view by setting review_status to 'active'
+    Restore excluded emails back to the main view by removing status tag from metadata
     """
     restored = 0
     for email_id in email_ids:
         email = db.query(EmailMessage).filter(EmailMessage.id == email_id).first()
-        if email and email.review_status != "active":
-            email.review_status = "active"
+        if email and email.meta and email.meta.get("status"):
+            meta = dict(email.meta)
+            meta.pop("status", None)
+            email.meta = meta
             restored += 1
 
     db.commit()
@@ -1024,8 +1027,8 @@ async def list_emails(
     ] = None,
     date_from: Annotated[datetime | None, Query(description="Date range start")] = None,
     date_to: Annotated[datetime | None, Query(description="Date range end")] = None,
-    review_status: Annotated[
-        str | None, Query(description="Filter by review status (active, spam, other_project, excluded, not_relevant, empty)")
+    status_filter: Annotated[
+        str | None, Query(description="Filter by status tag in metadata (spam, other_project, not_relevant, empty)")
     ] = None,
     include_hidden: Annotated[
         bool, Query(description="Include ALL emails including filtered (default: False)")
@@ -1084,16 +1087,19 @@ async def list_emails(
     if date_to:
         query = query.filter(EmailMessage.date_sent <= date_to)
 
-    # Filter by review_status column
-    if review_status:
-        # Show only emails with specific review status
-        query = query.filter(EmailMessage.review_status == review_status)
+    # Filter by status tag in metadata
+    if status_filter:
+        # Show only emails with specific status tag
+        query = query.filter(
+            EmailMessage.meta.op("->>")("status") == status_filter
+        )
     elif not include_hidden:
-        # By default, only show active emails (exclude spam, other_project, etc.)
+        # By default, exclude emails tagged as spam/other_project/etc in metadata
         query = query.filter(
             or_(
-                EmailMessage.review_status == "active",
-                EmailMessage.review_status.is_(None),
+                EmailMessage.meta.is_(None),
+                ~EmailMessage.meta.op("?")("status"),
+                EmailMessage.meta.op("->>")("status") == "active",
             )
         )
         # Also exclude Outlook activity items (IPM.Activity) which are not real emails
@@ -1103,7 +1109,7 @@ async def list_emails(
                 ~EmailMessage.subject.like("IPM.%"),
             )
         )
-    # If include_hidden=True and no review_status specified, show all emails
+    # If include_hidden=True and no status_filter specified, show all emails
 
     # Get total count
     total = query.count()
@@ -1561,11 +1567,12 @@ async def get_emails_server_side(
     else:
         query = db.query(EmailMessage)
 
-    # Filter out excluded emails by default - only show active emails
+    # Filter out excluded emails by default - only show non-tagged emails
     query = query.filter(
         or_(
-            EmailMessage.review_status == "active",
-            EmailMessage.review_status.is_(None),
+            EmailMessage.meta.is_(None),
+            ~EmailMessage.meta.op("?")("status"),
+            EmailMessage.meta.op("->>")("status") == "active",
         )
     )
 
