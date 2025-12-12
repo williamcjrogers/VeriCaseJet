@@ -88,3 +88,8 @@ archive/
 # Data clearing scripts (local only, do not deploy)
 vericase/clear_*.py
 vericase/CLEAR_DATA_INSTRUCTIONS.md
+
+# Virtual environments
+.venv/
+venv/
+ENV/

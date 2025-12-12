@@ -46,13 +46,6 @@ router = APIRouter(prefix="/api/ai-refinement", tags=["ai-refinement"])
 # Constants and Configuration
 # =============================================================================
 
-LATEST_MODEL_DEFAULTS = {
-    "openai": "gpt-4o",  # GPT-4o (available)
-    "anthropic": "claude-sonnet-4-20250514",  # Claude Sonnet 4 (correct ID)
-    "gemini": "gemini-2.0-flash",  # Gemini 2.0 Flash (available)
-    "bedrock": "amazon.nova-pro-v1:0",  # Amazon Nova Pro via Bedrock
-}
-
 # Spam/Newsletter detection patterns - CONSERVATIVE to avoid false positives
 # Only flag clear marketing/bulk mail, NOT normal business correspondence
 SPAM_INDICATORS = {
@@ -456,83 +449,65 @@ class AIRefinementEngine:
         )
 
     async def _call_openai(self, prompt: str, system_prompt: str = "") -> str:
-        import openai
+        from .ai_runtime import complete_chat
 
-        client = openai.AsyncOpenAI(api_key=self.openai_key)
-        messages: list[dict[str, str]] = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-
-        response = await client.chat.completions.create(
-            model=self.openai_model or LATEST_MODEL_DEFAULTS["openai"],
-            messages=messages,  # pyright: ignore[reportArgumentType]
+        model_id = self.openai_model
+        return await complete_chat(
+            provider="openai",
+            model_id=model_id,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            api_key=self.openai_key,
             max_tokens=4000,
             temperature=0.2,
         )
-        return response.choices[0].message.content or ""
 
     async def _call_anthropic(self, prompt: str, system_prompt: str = "") -> str:
-        import anthropic
-        import httpx
+        from .ai_runtime import complete_chat
 
-        def sync_call():
-            # Create httpx client without proxies to avoid compatibility issues
-            http_client = httpx.Client(timeout=httpx.Timeout(60.0))
-            try:
-                client = anthropic.Anthropic(
-                    api_key=self.anthropic_key, http_client=http_client
-                )
-                response = client.messages.create(
-                    model=self.anthropic_model or LATEST_MODEL_DEFAULTS["anthropic"],
-                    max_tokens=4000,
-                    system=system_prompt
-                    or "You are an expert legal analyst specializing in construction disputes and e-discovery.",
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                text = ""
-                for block in response.content:
-                    text_piece = getattr(block, "text", "")
-                    if text_piece:
-                        text += str(text_piece)
-                return text
-            finally:
-                http_client.close()
-
-        return await asyncio.to_thread(sync_call)
+        model_id = self.anthropic_model
+        return await complete_chat(
+            provider="anthropic",
+            model_id=model_id,
+            prompt=prompt,
+            system_prompt=system_prompt
+            or "You are an expert legal analyst specializing in construction disputes and e-discovery.",
+            api_key=self.anthropic_key,
+            max_tokens=4000,
+            temperature=0.2,
+        )
 
     async def _call_gemini(self, prompt: str, system_prompt: str = "") -> str:
-        import google.generativeai as genai  # pyright: ignore[reportMissingTypeStubs]
+        from .ai_runtime import complete_chat
 
-        genai.configure(
-            api_key=self.gemini_key
-        )  # pyright: ignore[reportUnknownMemberType]
-
-        model: object = genai.GenerativeModel(LATEST_MODEL_DEFAULTS["gemini"])
-        full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-        generate_fn: object = getattr(model, "generate_content", None)
-        if generate_fn is None or not callable(generate_fn):
-            return ""
-        response = await asyncio.to_thread(
-            generate_fn, full_prompt
-        )  # pyright: ignore[reportUnknownVariableType]
-        return str(
-            getattr(response, "text", "")
-        )  # pyright: ignore[reportUnknownArgumentType]
+        model_id = self.gemini_model
+        return await complete_chat(
+            provider="gemini",
+            model_id=model_id,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            api_key=self.gemini_key,
+            max_tokens=4000,
+            temperature=0.2,
+        )
 
     async def _call_bedrock(self, prompt: str, system_prompt: str = "") -> str:
-        """Call Amazon Bedrock via BedrockProvider"""
+        from .ai_runtime import complete_chat
+
         if not self.bedrock_provider:
             raise RuntimeError("Bedrock provider not available")
 
-        response = await self.bedrock_provider.invoke(
-            model_id=self.bedrock_model or LATEST_MODEL_DEFAULTS["bedrock"],
+        model_id = self.bedrock_model
+        return await complete_chat(
+            provider="bedrock",
+            model_id=model_id,
             prompt=prompt,
+            system_prompt=system_prompt,
+            bedrock_provider=self.bedrock_provider,
+            bedrock_region=self.bedrock_region,
             max_tokens=4000,
             temperature=0.2,
-            system_prompt=system_prompt if system_prompt else None,
         )
-        return response
 
     async def analyze_for_other_projects(
         self, emails: list[EmailMessage]

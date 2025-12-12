@@ -16,7 +16,9 @@ from sqlalchemy import (
     Boolean,
     Index,
     ARRAY,
+    Float,
 )
+import sqlalchemy as sa
 from sqlalchemy.sql import func, expression
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, Mapped, mapped_column
@@ -856,6 +858,47 @@ class Project(Base):
     )
 
 
+class OcrCorrection(Base):
+    """Manual OCR corrections for feedback loop"""
+
+    __tablename__ = "ocr_corrections"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    doc_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_type: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # document, email_attachment
+    page: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    bbox: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    field_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    original_text: Mapped[str] = mapped_column(Text, nullable=False)
+    corrected_text: Mapped[str] = mapped_column(Text, nullable=False)
+    ocr_engine: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    ocr_confidence: Mapped[float | None] = mapped_column(
+        sa.Float, nullable=True
+    )  # Using sa.Float directly as Float isn't imported from sqlalchemy in lines 7-19
+    scope: Mapped[str] = mapped_column(
+        String(50), nullable=False, server_default="project"
+    )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True
+    )
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True
+    )
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class PSTFile(Base):
     """Uploaded PST files for email forensics"""
 
@@ -934,6 +977,15 @@ class EmailMessage(Base):
     thread_id: Mapped[str | None] = mapped_column(
         String(100), nullable=True, index=True
     )  # Computed thread ID for grouping
+    thread_group_id: Mapped[str | None] = mapped_column(
+        String(128), nullable=True, index=True
+    )  # Stable thread grouping identifier
+    thread_path: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    thread_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    parent_message_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    is_inclusive: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=expression.true()
+    )
 
     # PST forensic data
     pst_message_offset: Mapped[int | None] = mapped_column(
@@ -1025,6 +1077,8 @@ class EmailMessage(Base):
         Index("idx_email_project_conversation", "project_id", "conversation_index"),
         Index("idx_email_case_content_hash", "case_id", "content_hash"),
         Index("idx_email_project_content_hash", "project_id", "content_hash"),
+        Index("idx_email_thread_group", "thread_group_id"),
+        Index("idx_email_thread_path", "thread_group_id", "thread_path"),
     )
 
 

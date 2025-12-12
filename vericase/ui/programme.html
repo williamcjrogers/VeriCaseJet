@@ -3,11 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Programme | VeriCase</title>
-    <link
-      rel="stylesheet"
-      href="./assets/fontawesome/css/all.min.css"
-    />
+    <title>Programme Management | VeriCase</title>
+    <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
     <link rel="stylesheet" href="brand-styles.css" />
     <link rel="stylesheet" href="design-system.css" />
     <script src="vericase-ui.js"></script>
@@ -15,124 +12,1414 @@
     <script src="config.js"></script>
     <script src="app-state.js"></script>
     <style>
-      .coming-soon-container {
+      body {
+        background: var(--bg-primary);
+      }
+
+      .programme-layout {
+        display: flex;
+        gap: 24px;
+        padding: 24px;
+        min-height: calc(100vh - 64px);
+      }
+
+      /* Main Content */
+      .programme-main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+        min-width: 0;
+      }
+
+      /* Stats Bar */
+      .stats-bar {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .stat-card {
+        background: white;
+        border-radius: var(--radius-xl);
+        padding: 20px 24px;
+        flex: 1;
+        min-width: 180px;
+        border: 1px solid var(--gray-200);
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: var(--radius-lg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+      }
+
+      .stat-icon.blue { background: #dbeafe; color: #2563eb; }
+      .stat-icon.green { background: #d1fae5; color: #059669; }
+      .stat-icon.amber { background: #fef3c7; color: #d97706; }
+      .stat-icon.red { background: #fee2e2; color: #dc2626; }
+      .stat-icon.teal { background: rgba(23, 181, 163, 0.15); color: var(--vericase-teal); }
+
+      .stat-content {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+      }
+
+      .stat-label {
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+      }
+
+      /* Toolbar */
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 20px;
+        background: white;
+        border-radius: var(--radius-xl);
+        border: 1px solid var(--gray-200);
+      }
+
+      .toolbar-spacer {
+        flex: 1;
+      }
+
+      /* Programme Cards Grid */
+      .programmes-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 20px;
+      }
+
+      .programme-card {
+        background: white;
+        border-radius: var(--radius-xl);
+        border: 1px solid var(--gray-200);
+        padding: 24px;
+        transition: all var(--duration-fast);
+        cursor: pointer;
+      }
+
+      .programme-card:hover {
+        border-color: var(--vericase-teal);
+        box-shadow: 0 4px 12px rgba(23, 181, 163, 0.1);
+      }
+
+      .programme-card-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .programme-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: var(--radius-lg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        flex-shrink: 0;
+      }
+
+      .programme-icon.baseline { background: #dbeafe; color: #2563eb; }
+      .programme-icon.as-built { background: #d1fae5; color: #059669; }
+      .programme-icon.interim { background: #fef3c7; color: #d97706; }
+      .programme-icon.actual { background: #ede9fe; color: #7c3aed; }
+
+      .programme-info {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .programme-name {
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .programme-type-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: var(--radius-full);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+      }
+
+      .programme-type-badge.baseline { background: #dbeafe; color: #1e40af; }
+      .programme-type-badge.as-built { background: #d1fae5; color: #065f46; }
+      .programme-type-badge.interim { background: #fef3c7; color: #92400e; }
+      .programme-type-badge.actual { background: #ede9fe; color: #5b21b6; }
+
+      .programme-meta {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid var(--gray-100);
+      }
+
+      .meta-item {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .meta-label {
+        font-size: 0.6875rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+      }
+
+      .meta-value {
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        font-weight: 500;
+      }
+
+      .programme-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid var(--gray-100);
+      }
+
+      /* Detail Panel */
+      .detail-panel {
+        width: 420px;
+        background: white;
+        border-radius: var(--radius-xl);
+        border: 1px solid var(--gray-200);
+        display: none;
+        flex-direction: column;
+        max-height: calc(100vh - 112px);
+        position: sticky;
+        top: 88px;
+      }
+
+      .detail-panel.open {
+        display: flex;
+      }
+
+      .detail-header {
+        padding: 20px;
+        border-bottom: 1px solid var(--gray-200);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .detail-header h3 {
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .detail-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+      }
+
+      .detail-section {
+        margin-bottom: 24px;
+      }
+
+      .detail-section-title {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .detail-section-title i {
+        color: var(--vericase-teal);
+      }
+
+      /* Activities List */
+      .activities-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+
+      .activity-item {
+        padding: 12px;
+        background: var(--gray-50);
+        border-radius: var(--radius-md);
+        font-size: 0.8125rem;
+      }
+
+      .activity-item.critical {
+        background: #fee2e2;
+        border-left: 3px solid #dc2626;
+      }
+
+      .activity-name {
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+      }
+
+      .activity-dates {
+        display: flex;
+        gap: 12px;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      /* Milestones */
+      .milestone-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        background: var(--gray-50);
+        border-radius: var(--radius-md);
+        font-size: 0.8125rem;
+      }
+
+      .milestone-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--vericase-teal);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+      }
+
+      .milestone-info {
+        flex: 1;
+      }
+
+      .milestone-name {
+        font-weight: 500;
+        color: var(--text-primary);
+      }
+
+      .milestone-date {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      /* Upload Modal */
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.5);
+        z-index: 100;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+      }
+
+      .modal-backdrop.active {
+        display: flex;
+      }
+
+      .modal {
+        background: white;
+        border-radius: var(--radius-2xl);
+        width: 500px;
+        max-width: 90vw;
+        max-height: 90vh;
+        overflow: hidden;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+      }
+
+      .modal-header {
+        padding: 24px;
+        border-bottom: 1px solid var(--gray-200);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .modal-header h2 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .modal-header h2 i {
+        color: var(--vericase-teal);
+      }
+
+      .modal-body {
+        padding: 24px;
+      }
+
+      .modal-footer {
+        padding: 16px 24px;
+        border-top: 1px solid var(--gray-200);
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        background: var(--gray-50);
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      .form-label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+      }
+
+      .form-input, .form-select {
+        width: 100%;
+        padding: 12px 16px;
+        border: 2px solid var(--gray-200);
+        border-radius: var(--radius-lg);
+        font-size: 0.9375rem;
+        transition: all var(--duration-fast);
+      }
+
+      .form-input:focus, .form-select:focus {
+        outline: none;
+        border-color: var(--vericase-teal);
+        box-shadow: 0 0 0 3px rgba(23, 181, 163, 0.1);
+      }
+
+      .file-upload-zone {
+        border: 2px dashed var(--gray-300);
+        border-radius: var(--radius-lg);
+        padding: 32px;
+        text-align: center;
+        cursor: pointer;
+        transition: all var(--duration-fast);
+      }
+
+      .file-upload-zone:hover {
+        border-color: var(--vericase-teal);
+        background: rgba(23, 181, 163, 0.05);
+      }
+
+      .file-upload-zone.dragover {
+        border-color: var(--vericase-teal);
+        background: rgba(23, 181, 163, 0.1);
+      }
+
+      .file-upload-zone i {
+        font-size: 2rem;
+        color: var(--text-muted);
+        margin-bottom: 12px;
+      }
+
+      .file-upload-zone p {
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+      }
+
+      .file-upload-zone small {
+        color: var(--text-muted);
+        font-size: 0.75rem;
+      }
+
+      .selected-file {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: var(--gray-50);
+        border-radius: var(--radius-md);
+        margin-top: 12px;
+      }
+
+      .selected-file i {
+        color: var(--vericase-teal);
+        font-size: 1.25rem;
+      }
+
+      .selected-file-info {
+        flex: 1;
+      }
+
+      .selected-file-name {
+        font-weight: 500;
+        color: var(--text-primary);
+      }
+
+      .selected-file-size {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      /* Compare Modal */
+      .compare-section {
+        display: flex;
+        gap: 16px;
+        align-items: flex-end;
+      }
+
+      .compare-section .form-group {
+        flex: 1;
+        margin-bottom: 0;
+      }
+
+      .compare-arrow {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-muted);
+        font-size: 1.25rem;
+      }
+
+      /* Empty State */
+      .empty-state {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        min-height: 60vh;
+        padding: 64px 24px;
         text-align: center;
-        padding: 2rem;
       }
 
-      .coming-soon-icon {
-        width: 120px;
-        height: 120px;
-        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-        border-radius: 24px;
+      .empty-state-icon {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-navy) 100%);
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-bottom: 2rem;
-        box-shadow: 0 20px 40px rgba(59, 130, 246, 0.3);
+        margin-bottom: 24px;
       }
 
-      .coming-soon-icon i {
-        font-size: 3rem;
+      .empty-state-icon i {
+        font-size: 2rem;
         color: white;
       }
 
-      .coming-soon-title {
-        font-size: 2rem;
-        font-weight: 700;
-        color: var(--vericase-navy);
-        margin-bottom: 1rem;
+      .empty-state h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 8px;
       }
 
-      .coming-soon-description {
-        font-size: 1.125rem;
+      .empty-state p {
         color: var(--text-secondary);
-        max-width: 500px;
-        line-height: 1.6;
-        margin-bottom: 2rem;
+        max-width: 400px;
+        margin-bottom: 24px;
       }
 
-      .feature-list {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 1.5rem;
-        max-width: 800px;
-        margin-top: 2rem;
+      /* Buttons */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 18px;
+        border-radius: var(--radius-lg);
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all var(--duration-fast);
+        border: none;
       }
 
-      .feature-item {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 12px;
-        border: 2px solid #e5e7eb;
-        text-align: left;
+      .btn-primary {
+        background: var(--vericase-teal);
+        color: white;
       }
 
-      .feature-item h4 {
-        color: var(--vericase-navy);
-        margin-bottom: 0.5rem;
+      .btn-primary:hover {
+        background: var(--vericase-teal-dark);
+      }
+
+      .btn-secondary {
+        background: var(--gray-100);
+        color: var(--text-primary);
+      }
+
+      .btn-secondary:hover {
+        background: var(--gray-200);
+      }
+
+      .btn-ghost {
+        background: transparent;
+        color: var(--text-secondary);
+      }
+
+      .btn-ghost:hover {
+        background: var(--gray-100);
+        color: var(--text-primary);
+      }
+
+      .btn-sm {
+        padding: 8px 14px;
+        font-size: 0.8125rem;
+      }
+
+      .btn-icon {
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        justify-content: center;
+      }
+
+      .close-btn {
+        width: 32px;
+        height: 32px;
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-      }
-
-      .feature-item h4 i {
-        color: #3b82f6;
-      }
-
-      .feature-item p {
+        justify-content: center;
+        background: transparent;
+        border: none;
+        border-radius: var(--radius-md);
+        cursor: pointer;
         color: var(--text-muted);
-        font-size: 0.875rem;
+        transition: all var(--duration-fast);
+      }
+
+      .close-btn:hover {
+        background: var(--gray-100);
+        color: var(--text-primary);
+      }
+
+      /* Responsive */
+      @media (max-width: 1200px) {
+        .detail-panel {
+          position: fixed;
+          right: 0;
+          top: 64px;
+          bottom: 0;
+          border-radius: 0;
+          width: 400px;
+          z-index: 50;
+          box-shadow: -8px 0 30px rgba(0, 0, 0, 0.1);
+        }
+      }
+
+      @media (max-width: 768px) {
+        .programme-layout {
+          flex-direction: column;
+          padding: 16px;
+        }
+
+        .stats-bar {
+          flex-direction: column;
+        }
+
+        .stat-card {
+          min-width: auto;
+        }
+
+        .programmes-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .detail-panel {
+          width: 100%;
+        }
+
+        .compare-section {
+          flex-direction: column;
+        }
+
+        .compare-arrow {
+          transform: rotate(90deg);
+        }
       }
     </style>
   </head>
-  <body>
-    <div class="coming-soon-container">
-      <div class="coming-soon-icon">
-        <i class="fas fa-project-diagram"></i>
-      </div>
-      <h1 class="coming-soon-title">Programme Management</h1>
-      <p class="coming-soon-description">
-        Manage your project schedule, track milestones, and monitor planned activities
-        against actual progress. Coming soon to VeriCase.
-      </p>
+  <body class="preload">
+    <!-- Stats Bar -->
+    <div class="programme-layout">
+      <div class="programme-main">
+        <div class="stats-bar">
+          <div class="stat-card">
+            <div class="stat-icon teal">
+              <i class="fas fa-project-diagram"></i>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value" id="totalProgrammes">0</div>
+              <div class="stat-label">Total Programmes</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon blue">
+              <i class="fas fa-tasks"></i>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value" id="totalActivities">0</div>
+              <div class="stat-label">Activities</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon amber">
+              <i class="fas fa-route"></i>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value" id="criticalActivities">0</div>
+              <div class="stat-label">Critical Path</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green">
+              <i class="fas fa-flag-checkered"></i>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value" id="totalMilestones">0</div>
+              <div class="stat-label">Milestones</div>
+            </div>
+          </div>
+        </div>
 
-      <div class="feature-list">
-        <div class="feature-item">
-          <h4><i class="fas fa-calendar-alt"></i> Schedule Import</h4>
-          <p>Import project schedules from Microsoft Project, Primavera P6, or Excel</p>
+        <!-- Toolbar -->
+        <div class="toolbar">
+          <span style="font-weight: 600; color: var(--text-primary);">
+            <i class="fas fa-project-diagram" style="color: var(--vericase-teal); margin-right: 8px;"></i>
+            Programmes
+          </span>
+          <div class="toolbar-spacer"></div>
+          <button class="btn btn-secondary" id="compareBtn" disabled>
+            <i class="fas fa-exchange-alt"></i>
+            Compare Programmes
+          </button>
+          <button class="btn btn-primary" id="uploadBtn">
+            <i class="fas fa-upload"></i>
+            Upload Programme
+          </button>
         </div>
-        <div class="feature-item">
-          <h4><i class="fas fa-flag-checkered"></i> Milestone Tracking</h4>
-          <p>Track key milestones and compare planned vs actual dates</p>
+
+        <!-- Programmes Grid -->
+        <div id="programmesContainer">
+          <div class="empty-state" id="emptyState">
+            <div class="empty-state-icon">
+              <i class="fas fa-project-diagram"></i>
+            </div>
+            <h3>No Programmes Yet</h3>
+            <p>Upload your first programme to start tracking project schedules, milestones, and delays.</p>
+            <button class="btn btn-primary" onclick="openUploadModal()">
+              <i class="fas fa-upload"></i>
+              Upload Programme
+            </button>
+          </div>
+          <div class="programmes-grid" id="programmesGrid" style="display: none;"></div>
         </div>
-        <div class="feature-item">
-          <h4><i class="fas fa-chart-gantt"></i> Gantt Visualization</h4>
-          <p>Interactive Gantt charts with critical path analysis</p>
+      </div>
+
+      <!-- Detail Panel -->
+      <div class="detail-panel" id="detailPanel">
+        <div class="detail-header">
+          <h3 id="detailTitle">Programme Details</h3>
+          <button class="close-btn" onclick="closeDetailPanel()">
+            <i class="fas fa-times"></i>
+          </button>
         </div>
-        <div class="feature-item">
-          <h4><i class="fas fa-link"></i> Evidence Linking</h4>
-          <p>Link programme activities to correspondence and documents</p>
+        <div class="detail-body" id="detailBody">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div class="modal-backdrop" id="uploadModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h2><i class="fas fa-upload"></i> Upload Programme</h2>
+          <button class="close-btn" onclick="closeUploadModal()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Programme File</label>
+            <div class="file-upload-zone" id="dropZone">
+              <i class="fas fa-cloud-upload-alt"></i>
+              <p>Drag & drop your file here or click to browse</p>
+              <small>Supported: XML (Asta), Excel (.xlsx), PDF</small>
+            </div>
+            <input type="file" id="fileInput" accept=".xml,.xlsx,.xls,.pdf" style="display: none;">
+            <div id="selectedFileDisplay" style="display: none;"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Programme Type</label>
+            <select class="form-select" id="programmeType">
+              <option value="baseline">Baseline / As-Planned</option>
+              <option value="as_built">As-Built / Actual</option>
+              <option value="interim">Interim Update</option>
+              <option value="tender">Tender Programme</option>
+              <option value="revised">Revised Programme</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Programme Date</label>
+            <input type="date" class="form-input" id="programmeDate">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Version (Optional)</label>
+            <input type="text" class="form-input" id="versionNumber" placeholder="e.g., Rev 3, Update 2">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeUploadModal()">Cancel</button>
+          <button class="btn btn-primary" id="submitUploadBtn" onclick="submitUpload()" disabled>
+            <i class="fas fa-upload"></i> Upload Programme
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compare Modal -->
+    <div class="modal-backdrop" id="compareModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h2><i class="fas fa-exchange-alt"></i> Compare Programmes</h2>
+          <button class="close-btn" onclick="closeCompareModal()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            Compare an as-planned programme against an as-built programme to automatically detect delays and slippage.
+          </p>
+          <div class="compare-section">
+            <div class="form-group">
+              <label class="form-label">As-Planned Programme</label>
+              <select class="form-select" id="asPlannedSelect">
+                <option value="">Select baseline...</option>
+              </select>
+            </div>
+            <div class="compare-arrow">
+              <i class="fas fa-arrow-right"></i>
+            </div>
+            <div class="form-group">
+              <label class="form-label">As-Built Programme</label>
+              <select class="form-select" id="asBuiltSelect">
+                <option value="">Select actual...</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeCompareModal()">Cancel</button>
+          <button class="btn btn-primary" id="runCompareBtn" onclick="runComparison()">
+            <i class="fas fa-bolt"></i> Run Comparison
+          </button>
         </div>
       </div>
     </div>
 
     <script>
-      document.addEventListener("DOMContentLoaded", () => {
+      const apiUrl = window.VeriCaseConfig ? window.VeriCaseConfig.apiUrl : window.location.origin;
+      let caseId = null;
+      let programmes = [];
+      let selectedProgramme = null;
+      let selectedFile = null;
+
+      // ============================================
+      // INITIALIZATION
+      // ============================================
+
+      document.addEventListener("DOMContentLoaded", async () => {
+        // Inject navigation shell
         if (window.VericaseShell) {
           window.VericaseShell.inject({
-            title: 'Programme',
+            title: 'Programme Management',
             breadcrumbs: [
               { label: 'Home', url: 'master-dashboard.html', icon: 'fa-home' },
               { label: 'Programme' }
             ]
           });
         }
+
+        // Get case context
+        caseId = getCaseId();
+        if (!caseId) {
+          VericaseUI.Toast.warning("Please select a case to manage programmes");
+        }
+
+        // Set default date to today
+        document.getElementById('programmeDate').valueAsDate = new Date();
+
+        // Setup file upload
+        setupFileUpload();
+
+        // Load programmes
+        await loadProgrammes();
+
+        // Remove preload class
+        requestAnimationFrame(() => {
+          document.body.classList.remove("preload");
+        });
+      });
+
+      function getCaseId() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('caseId') || urlParams.get('case_id') ||
+               localStorage.getItem('vericase_current_case') || '1';
+      }
+
+      // ============================================
+      // DATA LOADING
+      // ============================================
+
+      async function loadProgrammes() {
+        if (!caseId) return;
+
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`${apiUrl}/api/cases/${caseId}/programmes`, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+          });
+
+          if (response.ok) {
+            programmes = await response.json();
+            renderProgrammes();
+            updateStats();
+            updateCompareSelects();
+          } else {
+            console.error('Failed to load programmes:', response.status);
+          }
+        } catch (error) {
+          console.error('Error loading programmes:', error);
+          VericaseUI.Toast.error('Failed to load programmes');
+        }
+      }
+
+      function renderProgrammes() {
+        const grid = document.getElementById('programmesGrid');
+        const emptyState = document.getElementById('emptyState');
+        const compareBtn = document.getElementById('compareBtn');
+
+        if (programmes.length === 0) {
+          emptyState.style.display = 'flex';
+          grid.style.display = 'none';
+          compareBtn.disabled = true;
+          return;
+        }
+
+        emptyState.style.display = 'none';
+        grid.style.display = 'grid';
+        compareBtn.disabled = programmes.length < 2;
+
+        grid.innerHTML = programmes.map(p => {
+          const typeClass = getTypeClass(p.programme_type);
+          const typeLabel = getTypeLabel(p.programme_type);
+
+          return `
+            <div class="programme-card" onclick="showProgrammeDetail(${p.id})">
+              <div class="programme-card-header">
+                <div class="programme-icon ${typeClass}">
+                  <i class="fas fa-calendar-alt"></i>
+                </div>
+                <div class="programme-info">
+                  <div class="programme-name">${escapeHtml(p.programme_name || 'Unnamed Programme')}</div>
+                  <span class="programme-type-badge ${typeClass}">${typeLabel}</span>
+                </div>
+              </div>
+              <div class="programme-meta">
+                <div class="meta-item">
+                  <span class="meta-label">Programme Date</span>
+                  <span class="meta-value">${formatDate(p.programme_date)}</span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">Activities</span>
+                  <span class="meta-value">${p.total_activities || 0}</span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">Project Start</span>
+                  <span class="meta-value">${formatDate(p.project_start) || '-'}</span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">Project Finish</span>
+                  <span class="meta-value">${formatDate(p.project_finish) || '-'}</span>
+                </div>
+              </div>
+              <div class="programme-actions">
+                <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); viewActivities(${p.id})">
+                  <i class="fas fa-list"></i> View Activities
+                </button>
+                <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation(); downloadProgramme(${p.id})">
+                  <i class="fas fa-download"></i>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      function updateStats() {
+        let totalActivities = 0;
+        let criticalActivities = 0;
+        let totalMilestones = 0;
+
+        programmes.forEach(p => {
+          totalActivities += p.total_activities || 0;
+          // These would come from the full programme data
+        });
+
+        document.getElementById('totalProgrammes').textContent = programmes.length;
+        document.getElementById('totalActivities').textContent = totalActivities;
+        document.getElementById('criticalActivities').textContent = criticalActivities || '-';
+        document.getElementById('totalMilestones').textContent = totalMilestones || '-';
+      }
+
+      function updateCompareSelects() {
+        const asPlannedSelect = document.getElementById('asPlannedSelect');
+        const asBuiltSelect = document.getElementById('asBuiltSelect');
+
+        const options = programmes.map(p =>
+          `<option value="${p.id}">${escapeHtml(p.programme_name || 'Programme')} (${getTypeLabel(p.programme_type)})</option>`
+        ).join('');
+
+        asPlannedSelect.innerHTML = '<option value="">Select baseline...</option>' + options;
+        asBuiltSelect.innerHTML = '<option value="">Select actual...</option>' + options;
+      }
+
+      // ============================================
+      // PROGRAMME DETAIL
+      // ============================================
+
+      async function showProgrammeDetail(programmeId) {
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`${apiUrl}/api/programmes/${programmeId}`, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+          });
+
+          if (!response.ok) throw new Error('Failed to load programme');
+
+          selectedProgramme = await response.json();
+          renderDetailPanel();
+          document.getElementById('detailPanel').classList.add('open');
+        } catch (error) {
+          console.error('Error loading programme:', error);
+          VericaseUI.Toast.error('Failed to load programme details');
+        }
+      }
+
+      function renderDetailPanel() {
+        const p = selectedProgramme;
+        if (!p) return;
+
+        document.getElementById('detailTitle').textContent = p.programme_name || 'Programme Details';
+
+        const activities = p.activities || [];
+        const criticalPath = p.critical_path || [];
+        const milestones = p.milestones || [];
+
+        const criticalActivities = activities.filter(a => criticalPath.includes(a.id) || a.is_critical);
+
+        let html = `
+          <div class="detail-section">
+            <div class="detail-section-title">
+              <i class="fas fa-info-circle"></i> Overview
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="meta-item">
+                <span class="meta-label">Type</span>
+                <span class="meta-value">${getTypeLabel(p.programme_type)}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Version</span>
+                <span class="meta-value">${p.version_number || '-'}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Programme Date</span>
+                <span class="meta-value">${formatDate(p.programme_date)}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Total Activities</span>
+                <span class="meta-value">${p.total_activities || activities.length}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Project Start</span>
+                <span class="meta-value">${formatDate(p.project_start) || '-'}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Project Finish</span>
+                <span class="meta-value">${formatDate(p.project_finish) || '-'}</span>
+              </div>
+            </div>
+          </div>
+        `;
+
+        // Critical Path Activities
+        if (criticalActivities.length > 0) {
+          html += `
+            <div class="detail-section">
+              <div class="detail-section-title">
+                <i class="fas fa-route"></i> Critical Path (${criticalActivities.length})
+              </div>
+              <div class="activities-list">
+                ${criticalActivities.slice(0, 10).map(a => `
+                  <div class="activity-item critical">
+                    <div class="activity-name">${escapeHtml(a.name)}</div>
+                    <div class="activity-dates">
+                      <span><i class="fas fa-play"></i> ${formatDate(a.start_date)}</span>
+                      <span><i class="fas fa-stop"></i> ${formatDate(a.finish_date)}</span>
+                    </div>
+                  </div>
+                `).join('')}
+                ${criticalActivities.length > 10 ? `<p style="color: var(--text-muted); font-size: 0.75rem;">+ ${criticalActivities.length - 10} more...</p>` : ''}
+              </div>
+            </div>
+          `;
+        }
+
+        // Milestones
+        if (milestones.length > 0) {
+          html += `
+            <div class="detail-section">
+              <div class="detail-section-title">
+                <i class="fas fa-flag-checkered"></i> Milestones (${milestones.length})
+              </div>
+              <div class="activities-list">
+                ${milestones.slice(0, 8).map(m => `
+                  <div class="milestone-item">
+                    <div class="milestone-icon"><i class="fas fa-flag"></i></div>
+                    <div class="milestone-info">
+                      <div class="milestone-name">${escapeHtml(m.name)}</div>
+                      <div class="milestone-date">${formatDate(m.date)}</div>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }
+
+        // Notes
+        if (p.notes) {
+          html += `
+            <div class="detail-section">
+              <div class="detail-section-title">
+                <i class="fas fa-sticky-note"></i> Notes
+              </div>
+              <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5;">${escapeHtml(p.notes)}</p>
+            </div>
+          `;
+        }
+
+        document.getElementById('detailBody').innerHTML = html;
+      }
+
+      function closeDetailPanel() {
+        document.getElementById('detailPanel').classList.remove('open');
+        selectedProgramme = null;
+      }
+
+      async function viewActivities(programmeId) {
+        await showProgrammeDetail(programmeId);
+      }
+
+      function downloadProgramme(programmeId) {
+        VericaseUI.Toast.info('Download functionality coming soon');
+      }
+
+      // ============================================
+      // UPLOAD FUNCTIONALITY
+      // ============================================
+
+      function setupFileUpload() {
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+          dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          dropZone.classList.remove('dragover');
+          if (e.dataTransfer.files.length > 0) {
+            handleFileSelect(e.dataTransfer.files[0]);
+          }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+          if (e.target.files.length > 0) {
+            handleFileSelect(e.target.files[0]);
+          }
+        });
+      }
+
+      function handleFileSelect(file) {
+        const validTypes = ['.xml', '.xlsx', '.xls', '.pdf'];
+        const ext = '.' + file.name.split('.').pop().toLowerCase();
+
+        if (!validTypes.includes(ext)) {
+          VericaseUI.Toast.error('Invalid file type. Please upload XML, Excel, or PDF files.');
+          return;
+        }
+
+        selectedFile = file;
+        document.getElementById('dropZone').style.display = 'none';
+        document.getElementById('submitUploadBtn').disabled = false;
+
+        document.getElementById('selectedFileDisplay').innerHTML = `
+          <div class="selected-file">
+            <i class="fas fa-file-alt"></i>
+            <div class="selected-file-info">
+              <div class="selected-file-name">${escapeHtml(file.name)}</div>
+              <div class="selected-file-size">${formatFileSize(file.size)}</div>
+            </div>
+            <button class="close-btn" onclick="clearSelectedFile()">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        `;
+        document.getElementById('selectedFileDisplay').style.display = 'block';
+      }
+
+      function clearSelectedFile() {
+        selectedFile = null;
+        document.getElementById('fileInput').value = '';
+        document.getElementById('dropZone').style.display = 'block';
+        document.getElementById('selectedFileDisplay').style.display = 'none';
+        document.getElementById('submitUploadBtn').disabled = true;
+      }
+
+      function openUploadModal() {
+        document.getElementById('uploadModal').classList.add('active');
+      }
+
+      function closeUploadModal() {
+        document.getElementById('uploadModal').classList.remove('active');
+        clearSelectedFile();
+        document.getElementById('programmeType').value = 'baseline';
+        document.getElementById('programmeDate').valueAsDate = new Date();
+        document.getElementById('versionNumber').value = '';
+      }
+
+      async function submitUpload() {
+        if (!selectedFile || !caseId) return;
+
+        const submitBtn = document.getElementById('submitUploadBtn');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+
+        try {
+          const formData = new FormData();
+          formData.append('file', selectedFile);
+          formData.append('case_id', caseId);
+          formData.append('programme_type', document.getElementById('programmeType').value);
+          formData.append('programme_date', document.getElementById('programmeDate').value);
+
+          const version = document.getElementById('versionNumber').value;
+          if (version) formData.append('version_number', version);
+
+          const token = localStorage.getItem('token');
+          const response = await fetch(`${apiUrl}/api/programmes/upload`, {
+            method: 'POST',
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+            body: formData
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            VericaseUI.Toast.success(`Programme uploaded! ${result.activities_parsed} activities parsed.`);
+            closeUploadModal();
+            await loadProgrammes();
+          } else {
+            const error = await response.json();
+            VericaseUI.Toast.error(error.detail || 'Upload failed');
+          }
+        } catch (error) {
+          console.error('Upload error:', error);
+          VericaseUI.Toast.error('Upload failed. Please try again.');
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<i class="fas fa-upload"></i> Upload Programme';
+        }
+      }
+
+      // ============================================
+      // COMPARE FUNCTIONALITY
+      // ============================================
+
+      document.getElementById('compareBtn').addEventListener('click', () => {
+        document.getElementById('compareModal').classList.add('active');
+      });
+
+      function closeCompareModal() {
+        document.getElementById('compareModal').classList.remove('active');
+      }
+
+      async function runComparison() {
+        const asPlannedId = document.getElementById('asPlannedSelect').value;
+        const asBuiltId = document.getElementById('asBuiltSelect').value;
+
+        if (!asPlannedId || !asBuiltId) {
+          VericaseUI.Toast.warning('Please select both programmes to compare');
+          return;
+        }
+
+        if (asPlannedId === asBuiltId) {
+          VericaseUI.Toast.warning('Please select different programmes to compare');
+          return;
+        }
+
+        const btn = document.getElementById('runCompareBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
+
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(
+            `${apiUrl}/api/programmes/compare?as_planned_id=${asPlannedId}&as_built_id=${asBuiltId}`,
+            {
+              method: 'POST',
+              headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            }
+          );
+
+          if (response.ok) {
+            const result = await response.json();
+            closeCompareModal();
+
+            if (result.total_delays > 0) {
+              VericaseUI.Toast.success(
+                `Comparison complete! Found ${result.total_delays} delays (${result.critical_delays_count} critical). View in Delays page.`
+              );
+              // Offer to navigate to delays page
+              setTimeout(() => {
+                if (confirm('Would you like to view the detected delays?')) {
+                  window.location.href = `delays.html?caseId=${caseId}`;
+                }
+              }, 500);
+            } else {
+              VericaseUI.Toast.info('Comparison complete. No significant delays detected.');
+            }
+          } else {
+            const error = await response.json();
+            VericaseUI.Toast.error(error.detail || 'Comparison failed');
+          }
+        } catch (error) {
+          console.error('Comparison error:', error);
+          VericaseUI.Toast.error('Comparison failed. Please try again.');
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-bolt"></i> Run Comparison';
+        }
+      }
+
+      // ============================================
+      // UTILITY FUNCTIONS
+      // ============================================
+
+      function getTypeClass(type) {
+        const classes = {
+          'baseline': 'baseline',
+          'as_planned': 'baseline',
+          'as_built': 'as-built',
+          'actual': 'actual',
+          'interim': 'interim',
+          'tender': 'baseline',
+          'revised': 'interim'
+        };
+        return classes[type] || 'baseline';
+      }
+
+      function getTypeLabel(type) {
+        const labels = {
+          'baseline': 'Baseline',
+          'as_planned': 'As-Planned',
+          'as_built': 'As-Built',
+          'actual': 'Actual',
+          'interim': 'Interim',
+          'tender': 'Tender',
+          'revised': 'Revised'
+        };
+        return labels[type] || type;
+      }
+
+      function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        try {
+          const d = new Date(dateStr);
+          return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        } catch {
+          return dateStr;
+        }
+      }
+
+      function formatFileSize(bytes) {
+        if (!bytes) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+      }
+
+      function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Close modals on escape
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closeUploadModal();
+          closeCompareModal();
+          closeDetailPanel();
+        }
+      });
+
+      // Close modals on backdrop click
+      document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+        backdrop.addEventListener('click', (e) => {
+          if (e.target === backdrop) {
+            backdrop.classList.remove('active');
+          }
+        });
       });
     </script>
   </body>

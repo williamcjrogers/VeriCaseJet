@@ -6,7 +6,7 @@ AI-powered chatbot that guides users through system configuration
 import asyncio
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import Annotated, Any, Callable, TYPE_CHECKING, TypeGuard, cast
+from typing import Annotated, Any, Callable, TypeGuard, cast
 from pydantic import BaseModel, Field
 import logging
 import re
@@ -20,15 +20,7 @@ from .ai_models import (
     TaskComplexity,
     log_model_selection,
 )
-
-if TYPE_CHECKING:
-    from openai.types.chat import (
-        ChatCompletionMessageParam,
-        ChatCompletionUserMessageParam,
-    )
-else:  # pragma: no cover - fallback types when OpenAI package isn't available
-    ChatCompletionMessageParam = Any  # type: ignore[assignment]
-    ChatCompletionUserMessageParam = dict[str, Any]  # type: ignore[assignment]
+from .ai_runtime import complete_chat
 
 logger = logging.getLogger(__name__)
 
@@ -305,74 +297,42 @@ async def _get_ai_config_response(
 
         try:
             if provider == "anthropic" and settings.CLAUDE_API_KEY:
-                import anthropic
-
-                client = anthropic.AsyncAnthropic(api_key=settings.CLAUDE_API_KEY)
-                response = await client.messages.create(
-                    model=model_name,
+                response_text = await complete_chat(
+                    provider="anthropic",
+                    model_id=model_name,
+                    prompt=prompt,
+                    api_key=settings.CLAUDE_API_KEY,
                     max_tokens=2000,
-                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3,
                 )
-                response_text = ""
-                for block in response.content:
-                    block_text = getattr(block, "text", None)
-                    if isinstance(block_text, str):
-                        response_text += block_text
-                if not response_text and response.content:
-                    fallback_text = getattr(response.content[0], "text", None)
-                    if isinstance(fallback_text, str):
-                        response_text = fallback_text
                 log_model_selection(
                     "configuration", display_name, f"Anthropic:{model_name}"
                 )
                 return response_text
 
             if provider == "openai" and settings.OPENAI_API_KEY:
-                import openai
-
-                client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-                messages: list[ChatCompletionMessageParam] = []
-                user_message: ChatCompletionUserMessageParam = {
-                    "role": "user",
-                    "content": prompt,
-                }
-                messages.append(user_message)
-                response = await client.chat.completions.create(
-                    model=model_name,
-                    messages=messages,
+                response_text = await complete_chat(
+                    provider="openai",
+                    model_id=model_name,
+                    prompt=prompt,
+                    api_key=settings.OPENAI_API_KEY,
                     max_tokens=2000,
+                    temperature=0.3,
                 )
-                message_content = response.choices[0].message.content
-                response_text = message_content or ""
                 log_model_selection(
                     "configuration", display_name, f"OpenAI:{model_name}"
                 )
                 return response_text
 
-            if provider == "google" and settings.GEMINI_API_KEY:
-                try:
-                    import google.generativeai as genai  # pyright: ignore[reportMissingTypeStubs]
-                except ImportError as exc:
-                    logger.warning("Gemini provider unavailable: %s", exc)
-                    continue
-
-                configure_fn = cast(Callable[..., Any], getattr(genai, "configure"))
-                generative_model_cls = cast(
-                    Callable[[str], Any], getattr(genai, "GenerativeModel")
+            if provider in ("gemini", "google") and settings.GEMINI_API_KEY:
+                response_text = await complete_chat(
+                    provider="gemini",
+                    model_id=model_name,
+                    prompt=prompt,
+                    api_key=settings.GEMINI_API_KEY,
+                    max_tokens=2000,
+                    temperature=0.3,
                 )
-
-                configure_fn(api_key=settings.GEMINI_API_KEY)
-                model: object = generative_model_cls(model_name)
-                generate_fn = cast(
-                    Callable[[str], Any], getattr(model, "generate_content")
-                )
-                response_obj: object = await asyncio.to_thread(generate_fn, prompt)
-                response_text = ""
-                text_attr = getattr(response_obj, "text", None)
-                if isinstance(text_attr, str):
-                    response_text = text_attr
-                if not response_text:
-                    response_text = str(response_obj)
                 if response_text:
                     log_model_selection(
                         "configuration", display_name, f"Gemini:{model_name}"

@@ -207,6 +207,34 @@ AI_MODELS_2025: dict[str, dict[str, Any]] = {
                 "context_window": 128000,
                 "cost_tier": "budget",
             },
+            # Claude via Bedrock - 4.5 Series (latest)
+            {
+                "id": "anthropic.claude-sonnet-4-5-20250929-v1:0",
+                "name": "Claude Sonnet 4.5 (Bedrock)",
+                "description": "Latest Claude Sonnet via AWS Bedrock",
+                "type": "flagship",
+                "capabilities": ["chat", "reasoning", "analysis", "code"],
+                "context_window": 200000,
+                "cost_tier": "standard",
+            },
+            {
+                "id": "anthropic.claude-opus-4-5-20251101-v1:0",
+                "name": "Claude Opus 4.5 (Bedrock)",
+                "description": "Highest-end Claude Opus via AWS Bedrock",
+                "type": "flagship",
+                "capabilities": ["chat", "reasoning", "analysis", "code", "research"],
+                "context_window": 200000,
+                "cost_tier": "premium",
+            },
+            {
+                "id": "anthropic.claude-haiku-4-5-20251001-v1:0",
+                "name": "Claude Haiku 4.5 (Bedrock)",
+                "description": "Fast Claude Haiku via AWS Bedrock",
+                "type": "fast",
+                "capabilities": ["chat", "analysis"],
+                "context_window": 200000,
+                "cost_tier": "budget",
+            },
             # Claude via Bedrock - 3.5 Series
             {
                 "id": "anthropic.claude-3-5-sonnet-20241022-v2:0",
@@ -383,3 +411,74 @@ def get_models_by_type(model_type: str) -> list[dict[str, Any]]:
                 model_info["provider_name"] = config.get("provider_name", provider)
                 matching_models.append(model_info)
     return matching_models
+
+
+# ---------------------------------------------------------------------------
+# Friendly-name resolution (compat layer)
+# ---------------------------------------------------------------------------
+
+def normalize_provider(provider: str) -> str:
+    """Normalize provider keys to canonical names."""
+    p = (provider or "").lower().strip()
+    if p == "google":
+        return "gemini"
+    return p
+
+
+# Backward-compatible friendly aliases used across the codebase.
+FRIENDLY_MODEL_ALIASES: dict[str, tuple[str, str]] = {
+    # Anthropic direct
+    "claude-sonnet-4": ("anthropic", "claude-sonnet-4-20250514"),
+    "claude-opus-4-extended": ("anthropic", "claude-opus-4-20250514"),
+    "claude-haiku-4": ("anthropic", "claude-3-5-haiku-20241022"),
+    # OpenAI
+    "gpt-4o": ("openai", "gpt-4o"),
+    "gpt-4o-mini": ("openai", "gpt-4o-mini"),
+    "gpt-5": ("openai", "gpt-5.1"),
+    "o1-reasoning": ("openai", "o1"),
+    "o3-reasoning": ("openai", "o1"),
+    # Gemini
+    "gemini-2-flash": ("gemini", "gemini-2.0-flash"),
+    "gemini-3-pro": ("gemini", "gemini-1.5-pro"),
+    "gemini-2-5-pro": ("gemini", "gemini-1.5-pro"),
+    # Bedrock
+    "bedrock-nova-pro": ("bedrock", "amazon.nova-pro-v1:0"),
+    "bedrock-nova-lite": ("bedrock", "amazon.nova-lite-v1:0"),
+    "bedrock-nova-micro": ("bedrock", "amazon.nova-micro-v1:0"),
+    "bedrock-claude-sonnet": ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
+    "bedrock-claude-opus": ("bedrock", "anthropic.claude-opus-4-5-20251101-v1:0"),
+}
+
+
+def resolve_friendly_model(friendly_name: str) -> dict[str, str] | None:
+    """
+    Resolve a friendly/alias model name to canonical provider + model ID.
+
+    Accepts:
+      - friendly aliases (claude-sonnet-4, bedrock-nova-pro, gemini-2-flash, ...)
+      - raw provider:model_id strings
+      - raw model IDs present in AI_MODELS_2025
+    """
+    if not friendly_name:
+        return None
+
+    name = friendly_name.strip()
+
+    if ":" in name:
+        maybe_provider, maybe_id = name.split(":", 1)
+        provider_norm = normalize_provider(maybe_provider)
+        if provider_norm in SUPPORTED_PROVIDERS:
+            return {"provider": provider_norm, "model": maybe_id}
+
+    alias = FRIENDLY_MODEL_ALIASES.get(name)
+    if alias:
+        provider, model_id = alias
+        return {"provider": provider, "model": model_id}
+
+    # If it's already a known model ID, infer provider from catalog.
+    for provider, config in AI_MODELS_2025.items():
+        for model in config.get("models", []):
+            if model.get("id") == name:
+                return {"provider": provider, "model": name}
+
+    return None

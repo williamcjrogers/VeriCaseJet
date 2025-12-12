@@ -36,6 +36,8 @@ from .ai_settings import (
     AISettings,
 )
 from .ai_fallback import AIFallbackChain, FallbackResult
+from .ai_pricing import get_cost_tier
+from .ai_runtime import complete_chat
 
 logger = logging.getLogger(__name__)
 
@@ -438,7 +440,7 @@ class AdaptiveModelRouter:
 
     def _route_by_fallback(self, task_type: str) -> RoutingDecision:
         """Route using predefined fallback order."""
-        defaults = self.TASK_DEFAULTS.get(task_type, self.TASK_DEFAULTS["default"])
+        defaults = self._get_task_chain(task_type)
 
         for provider, model_id in defaults:
             if self.is_provider_available(provider):
@@ -473,7 +475,7 @@ class AdaptiveModelRouter:
         exclude: tuple[str, str] | None = None,
     ) -> list[tuple[str, str]]:
         """Get alternative models for fallback."""
-        defaults = self.TASK_DEFAULTS.get(task_type, self.TASK_DEFAULTS["default"])
+        defaults = self._get_task_chain(task_type)
         alternatives = []
 
         for provider, model_id in defaults:
@@ -486,19 +488,24 @@ class AdaptiveModelRouter:
 
     def _get_cost_tier(self, provider: str, model_id: str) -> int:
         """Get cost tier (1=cheapest, 5=expensive)."""
-        cost_tiers = {
-            "amazon.nova-micro-v1:0": 1,
-            "amazon.nova-lite-v1:0": 1,
-            "gemini-2.0-flash": 2,
-            "gpt-4o-mini": 2,
-            "claude-3-5-haiku-20241022": 2,
-            "amazon.nova-pro-v1:0": 3,
-            "gpt-4o": 4,
-            "claude-sonnet-4-20250514": 4,
-            "anthropic.claude-3-5-sonnet-20241022-v2:0": 4,
-            "claude-opus-4-20250514": 5,
-        }
-        return cost_tiers.get(model_id, 3)  # Default to middle tier
+        return get_cost_tier(model_id, default=3)
+
+    def _get_task_chain(self, task_type: str) -> list[tuple[str, str]]:
+        """Read task fallback chain from AISettings, with static defaults fallback."""
+        try:
+            config = AISettings.get_function_config(task_type, self.db)
+            raw_chain = config.get("fallback_chain")
+            if isinstance(raw_chain, list):
+                parsed: list[tuple[str, str]] = []
+                for item in raw_chain:
+                    if isinstance(item, (list, tuple)) and len(item) == 2:
+                        parsed.append((str(item[0]), str(item[1])))
+                if parsed:
+                    return parsed
+        except Exception as exc:
+            logger.debug("Failed to load task chain for %s: %s", task_type, exc)
+
+        return self.TASK_DEFAULTS.get(task_type, self.TASK_DEFAULTS["default"])
 
     async def execute(
         self,
@@ -634,58 +641,25 @@ class AdaptiveModelRouter:
         system_prompt: str,
     ) -> str:
         """Default implementation for calling models."""
-        import asyncio
-
+        api_key = None
         if provider == "openai":
-            import openai
-            client = openai.AsyncOpenAI(api_key=self.openai_key)
-            messages = []
-            if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
-            messages.append({"role": "user", "content": prompt})
-
-            response = await client.chat.completions.create(
-                model=model_id,
-                messages=messages,
-                max_tokens=4000,
-                temperature=0.3,
-            )
-            return response.choices[0].message.content or ""
-
+            api_key = self.openai_key
         elif provider == "anthropic":
-            import anthropic
-            client = anthropic.AsyncAnthropic(api_key=self.anthropic_key)
-            response = await client.messages.create(
-                model=model_id,
-                max_tokens=4000,
-                system=system_prompt or "You are a helpful assistant.",
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return "".join(
-                block.text for block in response.content if hasattr(block, "text")
-            )
-
+            api_key = self.anthropic_key
         elif provider == "gemini":
-            import google.generativeai as genai
-            genai.configure(api_key=self.gemini_key)
-            model = genai.GenerativeModel(model_id)
-            full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-            response = await asyncio.to_thread(model.generate_content, full_prompt)
-            return getattr(response, "text", "")
+            api_key = self.gemini_key
 
-        elif provider == "bedrock":
-            from .ai_providers import BedrockProvider
-            bedrock = BedrockProvider(region=self.bedrock_region)
-            return await bedrock.invoke(
-                model_id=model_id,
-                prompt=prompt,
-                max_tokens=4000,
-                temperature=0.3,
-                system_prompt=system_prompt,
-            )
-
-        else:
-            raise ValueError(f"Unknown provider: {provider}")
+        return await complete_chat(
+            provider=provider,
+            model_id=model_id,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            db=self.db,
+            api_key=api_key,
+            bedrock_region=self.bedrock_region,
+            max_tokens=4000,
+            temperature=0.3,
+        )
 
 
 # Convenience function for quick routing

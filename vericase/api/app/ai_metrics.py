@@ -21,6 +21,8 @@ from datetime import datetime, timezone, timedelta
 from typing import Any
 from collections import defaultdict
 
+from .ai_pricing import TOKEN_PRICING_PER_1M, estimate_cost_usd
+
 logger = logging.getLogger(__name__)
 
 # Try to import Redis
@@ -136,20 +138,8 @@ class MetricsCollector:
     - Export capabilities
     """
 
-    # Token pricing per 1M tokens (approximate)
-    TOKEN_PRICING = {
-        "gpt-4o": {"input": 2.50, "output": 10.00},
-        "gpt-4o-mini": {"input": 0.15, "output": 0.60},
-        "claude-sonnet-4-20250514": {"input": 3.00, "output": 15.00},
-        "claude-opus-4-20250514": {"input": 15.00, "output": 75.00},
-        "claude-3-5-haiku-20241022": {"input": 0.25, "output": 1.25},
-        "gemini-2.0-flash": {"input": 0.075, "output": 0.30},
-        "gemini-1.5-pro": {"input": 1.25, "output": 5.00},
-        "amazon.nova-pro-v1:0": {"input": 0.80, "output": 3.20},
-        "amazon.nova-lite-v1:0": {"input": 0.06, "output": 0.24},
-        "amazon.nova-micro-v1:0": {"input": 0.035, "output": 0.14},
-        "anthropic.claude-3-5-sonnet-20241022-v2:0": {"input": 3.00, "output": 15.00},
-    }
+    # Token pricing per 1M tokens (approximate) - shared source of truth
+    TOKEN_PRICING = TOKEN_PRICING_PER_1M
 
     def __init__(self, redis_url: str | None = None):
         self.redis_url = redis_url
@@ -276,12 +266,12 @@ class MetricsCollector:
         tokens_completion: int,
     ) -> float:
         """Estimate cost in USD based on token usage."""
-        pricing = self.TOKEN_PRICING.get(model_id, {"input": 1.0, "output": 1.0})
-
-        input_cost = (tokens_prompt / 1_000_000) * pricing["input"]
-        output_cost = (tokens_completion / 1_000_000) * pricing["output"]
-
-        return input_cost + output_cost
+        return estimate_cost_usd(
+            model_id=model_id,
+            tokens_total=tokens_prompt + tokens_completion,
+            tokens_prompt=tokens_prompt,
+            tokens_completion=tokens_completion,
+        )
 
     def _persist_metric(self, metric: AICallMetric) -> None:
         """Persist metric to Redis."""

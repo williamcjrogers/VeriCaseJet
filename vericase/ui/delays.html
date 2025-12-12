@@ -3,11 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Delays | VeriCase</title>
-    <link
-      rel="stylesheet"
-      href="./assets/fontawesome/css/all.min.css"
-    />
+    <title>Delay Analysis | VeriCase</title>
+    <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
     <link rel="stylesheet" href="brand-styles.css" />
     <link rel="stylesheet" href="design-system.css" />
     <script src="vericase-ui.js"></script>
@@ -15,124 +12,1592 @@
     <script src="config.js"></script>
     <script src="app-state.js"></script>
     <style>
-      .coming-soon-container {
+      body {
+        background: var(--bg-primary);
+      }
+
+      .delay-layout {
+        display: flex;
+        gap: 24px;
+        padding: 24px;
+        min-height: calc(100vh - 64px);
+      }
+
+      .delay-main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+        min-width: 0;
+      }
+
+      /* Stats Cards */
+      .stats-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+      }
+
+      .stat-card {
+        background: white;
+        border-radius: var(--radius-xl);
+        padding: 20px;
+        border: 1px solid var(--gray-200);
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: var(--radius-lg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+      }
+
+      .stat-icon.red { background: #fee2e2; color: #dc2626; }
+      .stat-icon.blue { background: #dbeafe; color: #2563eb; }
+      .stat-icon.amber { background: #fef3c7; color: #d97706; }
+      .stat-icon.purple { background: #ede9fe; color: #7c3aed; }
+      .stat-icon.green { background: #d1fae5; color: #059669; }
+      .stat-icon.teal { background: rgba(23, 181, 163, 0.15); color: var(--vericase-teal); }
+
+      .stat-content {
+        flex: 1;
+      }
+
+      .stat-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        line-height: 1;
+      }
+
+      .stat-label {
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+        margin-top: 4px;
+      }
+
+      .stat-trend {
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: var(--radius-full);
+      }
+
+      .stat-trend.up { background: #fee2e2; color: #dc2626; }
+      .stat-trend.down { background: #d1fae5; color: #059669; }
+
+      /* Toolbar */
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 20px;
+        background: white;
+        border-radius: var(--radius-xl);
+        border: 1px solid var(--gray-200);
+        flex-wrap: wrap;
+      }
+
+      .toolbar-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .toolbar-title i {
+        color: #dc2626;
+      }
+
+      .toolbar-spacer {
+        flex: 1;
+      }
+
+      .filter-pills {
+        display: flex;
+        gap: 8px;
+      }
+
+      .filter-pill {
+        padding: 8px 16px;
+        border-radius: var(--radius-full);
+        font-size: 0.8125rem;
+        font-weight: 500;
+        cursor: pointer;
+        border: 2px solid var(--gray-200);
+        background: white;
+        color: var(--text-secondary);
+        transition: all var(--duration-fast);
+      }
+
+      .filter-pill:hover {
+        border-color: var(--gray-300);
+      }
+
+      .filter-pill.active {
+        background: var(--vericase-navy);
+        border-color: var(--vericase-navy);
+        color: white;
+      }
+
+      /* Delays Table */
+      .delays-card {
+        background: white;
+        border-radius: var(--radius-xl);
+        border: 1px solid var(--gray-200);
+        overflow: hidden;
+      }
+
+      .delays-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--gray-200);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .delays-header h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .delays-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .delays-table th {
+        text-align: left;
+        padding: 12px 16px;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        background: var(--gray-50);
+        border-bottom: 1px solid var(--gray-200);
+      }
+
+      .delays-table td {
+        padding: 16px;
+        border-bottom: 1px solid var(--gray-100);
+        font-size: 0.875rem;
+      }
+
+      .delays-table tr:hover {
+        background: rgba(23, 181, 163, 0.03);
+      }
+
+      .delays-table tr:last-child td {
+        border-bottom: none;
+      }
+
+      .delay-activity {
+        font-weight: 500;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .critical-badge {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #dc2626;
+        flex-shrink: 0;
+      }
+
+      .delay-days {
+        font-weight: 700;
+        font-size: 1rem;
+      }
+
+      .delay-days.positive { color: #dc2626; }
+      .delay-days.negative { color: #059669; }
+
+      .delay-type-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: var(--radius-full);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .delay-type-badge.employer { background: #fee2e2; color: #991b1b; }
+      .delay-type-badge.contractor { background: #dbeafe; color: #1e40af; }
+      .delay-type-badge.neutral { background: #fef3c7; color: #92400e; }
+      .delay-type-badge.concurrent { background: #ede9fe; color: #5b21b6; }
+      .delay-type-badge.critical { background: #fee2e2; color: #991b1b; }
+      .delay-type-badge.non_critical { background: var(--gray-100); color: var(--text-secondary); }
+
+      .delay-dates {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 0.8125rem;
+      }
+
+      .delay-dates .planned {
+        color: var(--text-muted);
+      }
+
+      .delay-dates .actual {
+        color: var(--text-primary);
+        font-weight: 500;
+      }
+
+      .linked-evidence {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        color: var(--vericase-teal);
+        font-size: 0.8125rem;
+      }
+
+      .linked-evidence.none {
+        color: var(--text-muted);
+      }
+
+      /* Detail Panel */
+      .detail-panel {
+        width: 450px;
+        background: white;
+        border-radius: var(--radius-xl);
+        border: 1px solid var(--gray-200);
+        display: none;
+        flex-direction: column;
+        max-height: calc(100vh - 112px);
+        position: sticky;
+        top: 88px;
+      }
+
+      .detail-panel.open {
+        display: flex;
+      }
+
+      .detail-header {
+        padding: 20px;
+        border-bottom: 1px solid var(--gray-200);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .detail-header h3 {
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .detail-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+      }
+
+      .detail-section {
+        margin-bottom: 24px;
+      }
+
+      .detail-section-title {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .detail-section-title i {
+        color: var(--vericase-teal);
+      }
+
+      .meta-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .meta-item {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .meta-label {
+        font-size: 0.6875rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+      }
+
+      .meta-value {
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        font-weight: 500;
+      }
+
+      /* Causation Chain */
+      .causation-chain {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .causation-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 12px;
+        background: var(--gray-50);
+        border-radius: var(--radius-md);
+        font-size: 0.8125rem;
+      }
+
+      .causation-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--vericase-teal);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        flex-shrink: 0;
+      }
+
+      .causation-content {
+        flex: 1;
+      }
+
+      .causation-title {
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+      }
+
+      .causation-desc {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      .causation-arrow {
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        padding: 4px 0;
+      }
+
+      /* Evidence Links */
+      .evidence-link {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: var(--gray-50);
+        border-radius: var(--radius-md);
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: all var(--duration-fast);
+      }
+
+      .evidence-link:hover {
+        background: rgba(23, 181, 163, 0.1);
+      }
+
+      .evidence-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: var(--radius-md);
+        background: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--vericase-teal);
+        border: 1px solid var(--gray-200);
+      }
+
+      .evidence-info {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .evidence-name {
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .evidence-meta {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      /* Analysis Results */
+      .analysis-card {
+        background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-navy) 100%);
+        border-radius: var(--radius-xl);
+        padding: 24px;
+        color: white;
+        margin-bottom: 24px;
+      }
+
+      .analysis-card h4 {
+        font-size: 0.875rem;
+        font-weight: 600;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .analysis-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .analysis-stat {
+        text-align: center;
+      }
+
+      .analysis-stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+      }
+
+      .analysis-stat-label {
+        font-size: 0.6875rem;
+        opacity: 0.8;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .analysis-narrative {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: var(--radius-lg);
+        padding: 16px;
+        font-size: 0.875rem;
+        line-height: 1.6;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+
+      /* Modal Styles */
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.5);
+        z-index: 100;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+      }
+
+      .modal-backdrop.active {
+        display: flex;
+      }
+
+      .modal {
+        background: white;
+        border-radius: var(--radius-2xl);
+        width: 600px;
+        max-width: 90vw;
+        max-height: 90vh;
+        overflow: hidden;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+      }
+
+      .modal-header {
+        padding: 24px;
+        border-bottom: 1px solid var(--gray-200);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .modal-header h2 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .modal-header h2 i {
+        color: var(--vericase-teal);
+      }
+
+      .modal-body {
+        padding: 24px;
+        max-height: calc(90vh - 180px);
+        overflow-y: auto;
+      }
+
+      .modal-footer {
+        padding: 16px 24px;
+        border-top: 1px solid var(--gray-200);
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        background: var(--gray-50);
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      .form-label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+      }
+
+      .form-input, .form-select, .form-textarea {
+        width: 100%;
+        padding: 12px 16px;
+        border: 2px solid var(--gray-200);
+        border-radius: var(--radius-lg);
+        font-size: 0.9375rem;
+        transition: all var(--duration-fast);
+      }
+
+      .form-textarea {
+        resize: vertical;
+        min-height: 100px;
+      }
+
+      .form-input:focus, .form-select:focus, .form-textarea:focus {
+        outline: none;
+        border-color: var(--vericase-teal);
+        box-shadow: 0 0 0 3px rgba(23, 181, 163, 0.1);
+      }
+
+      .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+
+      /* Empty State */
+      .empty-state {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        min-height: 60vh;
+        padding: 64px 24px;
         text-align: center;
-        padding: 2rem;
       }
 
-      .coming-soon-icon {
-        width: 120px;
-        height: 120px;
-        background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
-        border-radius: 24px;
+      .empty-state-icon {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
         display: flex;
         align-items: center;
         justify-content: center;
-        margin-bottom: 2rem;
-        box-shadow: 0 20px 40px rgba(239, 68, 68, 0.3);
+        margin-bottom: 24px;
       }
 
-      .coming-soon-icon i {
-        font-size: 3rem;
+      .empty-state-icon i {
+        font-size: 2rem;
         color: white;
       }
 
-      .coming-soon-title {
-        font-size: 2rem;
-        font-weight: 700;
-        color: var(--vericase-navy);
-        margin-bottom: 1rem;
+      .empty-state h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 8px;
       }
 
-      .coming-soon-description {
-        font-size: 1.125rem;
+      .empty-state p {
         color: var(--text-secondary);
-        max-width: 500px;
-        line-height: 1.6;
-        margin-bottom: 2rem;
+        max-width: 400px;
+        margin-bottom: 24px;
       }
 
-      .feature-list {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 1.5rem;
-        max-width: 800px;
-        margin-top: 2rem;
+      /* Buttons */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 18px;
+        border-radius: var(--radius-lg);
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all var(--duration-fast);
+        border: none;
       }
 
-      .feature-item {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 12px;
-        border: 2px solid #e5e7eb;
-        text-align: left;
+      .btn-primary {
+        background: var(--vericase-teal);
+        color: white;
       }
 
-      .feature-item h4 {
-        color: var(--vericase-navy);
-        margin-bottom: 0.5rem;
+      .btn-primary:hover {
+        background: var(--vericase-teal-dark);
+      }
+
+      .btn-danger {
+        background: #dc2626;
+        color: white;
+      }
+
+      .btn-danger:hover {
+        background: #b91c1c;
+      }
+
+      .btn-secondary {
+        background: var(--gray-100);
+        color: var(--text-primary);
+      }
+
+      .btn-secondary:hover {
+        background: var(--gray-200);
+      }
+
+      .btn-ghost {
+        background: transparent;
+        color: var(--text-secondary);
+      }
+
+      .btn-ghost:hover {
+        background: var(--gray-100);
+        color: var(--text-primary);
+      }
+
+      .btn-sm {
+        padding: 8px 14px;
+        font-size: 0.8125rem;
+      }
+
+      .btn-icon {
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        justify-content: center;
+      }
+
+      .close-btn {
+        width: 32px;
+        height: 32px;
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-      }
-
-      .feature-item h4 i {
-        color: #ef4444;
-      }
-
-      .feature-item p {
+        justify-content: center;
+        background: transparent;
+        border: none;
+        border-radius: var(--radius-md);
+        cursor: pointer;
         color: var(--text-muted);
-        font-size: 0.875rem;
+        transition: all var(--duration-fast);
+      }
+
+      .close-btn:hover {
+        background: var(--gray-100);
+        color: var(--text-primary);
+      }
+
+      /* Loading state */
+      .loading-spinner {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.75s linear infinite;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      /* Responsive */
+      @media (max-width: 1200px) {
+        .detail-panel {
+          position: fixed;
+          right: 0;
+          top: 64px;
+          bottom: 0;
+          border-radius: 0;
+          width: 400px;
+          z-index: 50;
+          box-shadow: -8px 0 30px rgba(0, 0, 0, 0.1);
+        }
+      }
+
+      @media (max-width: 768px) {
+        .delay-layout {
+          flex-direction: column;
+          padding: 16px;
+        }
+
+        .stats-row {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .detail-panel {
+          width: 100%;
+        }
+
+        .filter-pills {
+          flex-wrap: wrap;
+        }
+
+        .form-row {
+          grid-template-columns: 1fr;
+        }
+
+        .delays-table {
+          display: block;
+          overflow-x: auto;
+        }
       }
     </style>
   </head>
-  <body>
-    <div class="coming-soon-container">
-      <div class="coming-soon-icon">
-        <i class="fas fa-clock"></i>
-      </div>
-      <h1 class="coming-soon-title">Delay Analysis</h1>
-      <p class="coming-soon-description">
-        Track, analyze, and document project delays with full causation chains
-        and impact assessment. Coming soon to VeriCase.
-      </p>
+  <body class="preload">
+    <div class="delay-layout">
+      <div class="delay-main">
+        <!-- Stats Row -->
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-icon red">
+              <i class="fas fa-clock"></i>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value" id="totalDelays">0</div>
+              <div class="stat-label">Total Delay Events</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon amber">
+              <i class="fas fa-building"></i>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value" id="employerDays">0</div>
+              <div class="stat-label">Employer Delay Days</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon blue">
+              <i class="fas fa-hard-hat"></i>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value" id="contractorDays">0</div>
+              <div class="stat-label">Contractor Delay Days</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green">
+              <i class="fas fa-calendar-check"></i>
+            </div>
+            <div class="stat-content">
+              <div class="stat-value" id="eotEntitlement">0</div>
+              <div class="stat-label">EOT Entitlement (Days)</div>
+            </div>
+          </div>
+        </div>
 
-      <div class="feature-list">
-        <div class="feature-item">
-          <h4><i class="fas fa-exclamation-triangle"></i> Delay Events</h4>
-          <p>Record and categorize delay events with start/end dates and responsible parties</p>
+        <!-- AI Analysis Card (shown when analysis exists) -->
+        <div class="analysis-card" id="analysisCard" style="display: none;">
+          <h4><i class="fas fa-brain"></i> AI Delay Analysis</h4>
+          <div class="analysis-stats">
+            <div class="analysis-stat">
+              <div class="analysis-stat-value" id="analysisEOT">0</div>
+              <div class="analysis-stat-label">EOT Entitlement</div>
+            </div>
+            <div class="analysis-stat">
+              <div class="analysis-stat-value" id="analysisProlongation">$0</div>
+              <div class="analysis-stat-label">Prolongation</div>
+            </div>
+            <div class="analysis-stat">
+              <div class="analysis-stat-value" id="analysisConfidence">0%</div>
+              <div class="analysis-stat-label">Confidence</div>
+            </div>
+          </div>
+          <div class="analysis-narrative" id="analysisNarrative">
+            Analysis narrative will appear here...
+          </div>
         </div>
-        <div class="feature-item">
-          <h4><i class="fas fa-sitemap"></i> Causation Analysis</h4>
-          <p>Build causation chains linking delays to root causes</p>
+
+        <!-- Toolbar -->
+        <div class="toolbar">
+          <div class="toolbar-title">
+            <i class="fas fa-clock"></i>
+            Delay Events
+          </div>
+          <div class="filter-pills">
+            <button class="filter-pill active" data-filter="all">All</button>
+            <button class="filter-pill" data-filter="critical">Critical Path</button>
+            <button class="filter-pill" data-filter="employer">Employer</button>
+            <button class="filter-pill" data-filter="contractor">Contractor</button>
+          </div>
+          <div class="toolbar-spacer"></div>
+          <button class="btn btn-secondary" id="runAnalysisBtn">
+            <i class="fas fa-brain"></i>
+            Run AI Analysis
+          </button>
+          <button class="btn btn-primary" id="addDelayBtn">
+            <i class="fas fa-plus"></i>
+            Add Delay Event
+          </button>
         </div>
-        <div class="feature-item">
-          <h4><i class="fas fa-calculator"></i> Impact Quantification</h4>
-          <p>Calculate time and cost impacts with supporting evidence</p>
+
+        <!-- Delays Table -->
+        <div class="delays-card">
+          <div class="delays-header">
+            <h3><i class="fas fa-list" style="color: var(--vericase-teal);"></i> Delay Events (<span id="delayCount">0</span>)</h3>
+            <button class="btn btn-ghost btn-sm" onclick="loadDelays()">
+              <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+          </div>
+          <div id="delaysContainer">
+            <div class="empty-state" id="emptyState">
+              <div class="empty-state-icon">
+                <i class="fas fa-clock"></i>
+              </div>
+              <h3>No Delay Events</h3>
+              <p>Add delay events manually or run a programme comparison to detect delays automatically.</p>
+              <div style="display: flex; gap: 12px;">
+                <button class="btn btn-primary" onclick="openAddModal()">
+                  <i class="fas fa-plus"></i> Add Delay Event
+                </button>
+                <button class="btn btn-secondary" onclick="goToProgrammes()">
+                  <i class="fas fa-project-diagram"></i> Compare Programmes
+                </button>
+              </div>
+            </div>
+            <table class="delays-table" id="delaysTable" style="display: none;">
+              <thead>
+                <tr>
+                  <th>Activity</th>
+                  <th>Delay</th>
+                  <th>Type</th>
+                  <th>Cause</th>
+                  <th>Dates</th>
+                  <th>Evidence</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="delaysBody">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div class="feature-item">
-          <h4><i class="fas fa-file-contract"></i> Claim Preparation</h4>
-          <p>Generate delay claim narratives with linked evidence</p>
+      </div>
+
+      <!-- Detail Panel -->
+      <div class="detail-panel" id="detailPanel">
+        <div class="detail-header">
+          <h3 id="detailTitle">Delay Details</h3>
+          <button class="close-btn" onclick="closeDetailPanel()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="detail-body" id="detailBody">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Add/Edit Delay Modal -->
+    <div class="modal-backdrop" id="addModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h2><i class="fas fa-plus-circle"></i> <span id="modalTitle">Add Delay Event</span></h2>
+          <button class="close-btn" onclick="closeAddModal()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Activity Name</label>
+            <input type="text" class="form-input" id="activityName" placeholder="e.g., Foundation Works">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Description</label>
+            <textarea class="form-textarea" id="delayDescription" placeholder="Describe the delay event and its circumstances..."></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Planned Finish Date</label>
+              <input type="date" class="form-input" id="plannedDate">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Actual Finish Date</label>
+              <input type="date" class="form-input" id="actualDate">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Delay Days</label>
+              <input type="number" class="form-input" id="delayDays" placeholder="0" min="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Delay Cause</label>
+              <select class="form-select" id="delayCause">
+                <option value="">Select cause...</option>
+                <option value="employer">Employer</option>
+                <option value="contractor">Contractor</option>
+                <option value="neutral">Neutral Event</option>
+                <option value="concurrent">Concurrent</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Delay Type</label>
+              <select class="form-select" id="delayType">
+                <option value="critical">Critical Path</option>
+                <option value="non_critical">Non-Critical</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">On Critical Path</label>
+              <select class="form-select" id="isCritical">
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeAddModal()">Cancel</button>
+          <button class="btn btn-primary" id="saveDelayBtn" onclick="saveDelay()">
+            <i class="fas fa-save"></i> Save Delay
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Analysis Modal -->
+    <div class="modal-backdrop" id="analysisModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h2><i class="fas fa-brain"></i> AI Delay Analysis</h2>
+          <button class="close-btn" onclick="closeAnalysisModal()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            Run AI-powered analysis to determine causation, quantify impacts, and calculate entitlements for the selected delay events.
+          </p>
+          <div class="form-group">
+            <label class="form-label">Analysis Options</label>
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="focusCritical" checked>
+                Focus on critical path delays
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="includeCost" checked>
+                Include cost impact analysis
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="analyzeConcurrent" checked>
+                Analyze concurrent delays
+              </label>
+            </div>
+          </div>
+          <div id="analysisProgress" style="display: none;">
+            <div style="text-align: center; padding: 24px;">
+              <div class="loading-spinner" style="width: 32px; height: 32px; border-width: 3px; margin-bottom: 16px;"></div>
+              <p style="color: var(--text-secondary);" id="analysisStatus">Starting analysis...</p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" id="analysisFooter">
+          <button class="btn btn-secondary" onclick="closeAnalysisModal()">Cancel</button>
+          <button class="btn btn-primary" id="startAnalysisBtn" onclick="startAnalysis()">
+            <i class="fas fa-play"></i> Start Analysis
+          </button>
         </div>
       </div>
     </div>
 
     <script>
-      document.addEventListener("DOMContentLoaded", () => {
+      const apiUrl = window.VeriCaseConfig ? window.VeriCaseConfig.apiUrl : window.location.origin;
+      let caseId = null;
+      let delays = [];
+      let selectedDelay = null;
+      let currentFilter = 'all';
+      let analysisSession = null;
+
+      // ============================================
+      // INITIALIZATION
+      // ============================================
+
+      document.addEventListener("DOMContentLoaded", async () => {
+        // Inject navigation shell
         if (window.VericaseShell) {
           window.VericaseShell.inject({
-            title: 'Delays',
+            title: 'Delay Analysis',
             breadcrumbs: [
               { label: 'Home', url: 'master-dashboard.html', icon: 'fa-home' },
               { label: 'Delays' }
             ]
           });
         }
+
+        // Get case context
+        caseId = getCaseId();
+        if (!caseId) {
+          VericaseUI.Toast.warning("Please select a case to analyze delays");
+        }
+
+        // Setup event listeners
+        setupEventListeners();
+
+        // Load delays
+        await loadDelays();
+
+        // Remove preload class
+        requestAnimationFrame(() => {
+          document.body.classList.remove("preload");
+        });
+      });
+
+      function getCaseId() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('caseId') || urlParams.get('case_id') ||
+               localStorage.getItem('vericase_current_case') || '1';
+      }
+
+      function setupEventListeners() {
+        // Filter pills
+        document.querySelectorAll('.filter-pill').forEach(pill => {
+          pill.addEventListener('click', () => {
+            document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+            pill.classList.add('active');
+            currentFilter = pill.dataset.filter;
+            renderDelays();
+          });
+        });
+
+        // Add delay button
+        document.getElementById('addDelayBtn').addEventListener('click', openAddModal);
+
+        // Run analysis button
+        document.getElementById('runAnalysisBtn').addEventListener('click', openAnalysisModal);
+
+        // Date inputs auto-calculate delay days
+        document.getElementById('plannedDate').addEventListener('change', calculateDelayDays);
+        document.getElementById('actualDate').addEventListener('change', calculateDelayDays);
+      }
+
+      // ============================================
+      // DATA LOADING
+      // ============================================
+
+      async function loadDelays() {
+        if (!caseId) return;
+
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`${apiUrl}/api/cases/${caseId}/delays`, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+          });
+
+          if (response.ok) {
+            delays = await response.json();
+            renderDelays();
+            updateStats();
+          } else {
+            console.error('Failed to load delays:', response.status);
+          }
+        } catch (error) {
+          console.error('Error loading delays:', error);
+          VericaseUI.Toast.error('Failed to load delay events');
+        }
+      }
+
+      function renderDelays() {
+        const emptyState = document.getElementById('emptyState');
+        const table = document.getElementById('delaysTable');
+        const tbody = document.getElementById('delaysBody');
+
+        // Apply filter
+        let filteredDelays = delays;
+        if (currentFilter !== 'all') {
+          filteredDelays = delays.filter(d => {
+            if (currentFilter === 'critical') return d.is_on_critical_path;
+            if (currentFilter === 'employer') return d.delay_cause === 'employer';
+            if (currentFilter === 'contractor') return d.delay_cause === 'contractor';
+            return true;
+          });
+        }
+
+        document.getElementById('delayCount').textContent = filteredDelays.length;
+
+        if (filteredDelays.length === 0) {
+          emptyState.style.display = 'flex';
+          table.style.display = 'none';
+          return;
+        }
+
+        emptyState.style.display = 'none';
+        table.style.display = 'table';
+
+        tbody.innerHTML = filteredDelays.map(d => `
+          <tr onclick="showDelayDetail(${d.id})" style="cursor: pointer;">
+            <td>
+              <div class="delay-activity">
+                ${d.is_on_critical_path ? '<span class="critical-badge" title="Critical Path"></span>' : ''}
+                ${escapeHtml(d.activity_name || 'Unknown Activity')}
+              </div>
+            </td>
+            <td>
+              <span class="delay-days ${d.delay_days > 0 ? 'positive' : 'negative'}">
+                ${d.delay_days > 0 ? '+' : ''}${d.delay_days} days
+              </span>
+            </td>
+            <td>
+              <span class="delay-type-badge ${d.delay_type || 'critical'}">
+                ${d.delay_type === 'critical' ? 'Critical' : 'Non-Critical'}
+              </span>
+            </td>
+            <td>
+              <span class="delay-type-badge ${d.delay_cause || 'neutral'}">
+                ${getCauseLabel(d.delay_cause)}
+              </span>
+            </td>
+            <td>
+              <div class="delay-dates">
+                <span class="planned">Planned: ${formatDate(d.planned_finish)}</span>
+                <span class="actual">Actual: ${formatDate(d.actual_finish)}</span>
+              </div>
+            </td>
+            <td>
+              <span class="linked-evidence ${d.linked_correspondence?.length > 0 ? '' : 'none'}">
+                <i class="fas fa-paperclip"></i>
+                ${d.linked_correspondence?.length || 0}
+              </span>
+            </td>
+            <td>
+              <button class="btn btn-ghost btn-icon btn-sm" onclick="event.stopPropagation(); linkEvidence(${d.id})" title="Link Evidence">
+                <i class="fas fa-link"></i>
+              </button>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      function updateStats() {
+        let totalDelays = delays.length;
+        let employerDays = 0;
+        let contractorDays = 0;
+        let eotDays = 0;
+
+        delays.forEach(d => {
+          if (d.delay_cause === 'employer') {
+            employerDays += d.delay_days || 0;
+            eotDays += d.delay_days || 0;
+          } else if (d.delay_cause === 'contractor') {
+            contractorDays += d.delay_days || 0;
+          } else if (d.delay_cause === 'neutral') {
+            eotDays += d.delay_days || 0;
+          }
+        });
+
+        document.getElementById('totalDelays').textContent = totalDelays;
+        document.getElementById('employerDays').textContent = employerDays;
+        document.getElementById('contractorDays').textContent = contractorDays;
+        document.getElementById('eotEntitlement').textContent = eotDays;
+      }
+
+      // ============================================
+      // DELAY DETAIL
+      // ============================================
+
+      async function showDelayDetail(delayId) {
+        selectedDelay = delays.find(d => d.id === delayId);
+        if (!selectedDelay) return;
+
+        renderDetailPanel();
+        document.getElementById('detailPanel').classList.add('open');
+      }
+
+      function renderDetailPanel() {
+        const d = selectedDelay;
+        if (!d) return;
+
+        document.getElementById('detailTitle').textContent = d.activity_name || 'Delay Details';
+
+        let html = `
+          <div class="detail-section">
+            <div class="detail-section-title">
+              <i class="fas fa-info-circle"></i> Overview
+            </div>
+            <div class="meta-grid">
+              <div class="meta-item">
+                <span class="meta-label">Delay Days</span>
+                <span class="meta-value" style="color: ${d.delay_days > 0 ? '#dc2626' : '#059669'};">
+                  ${d.delay_days > 0 ? '+' : ''}${d.delay_days} days
+                </span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Critical Path</span>
+                <span class="meta-value">${d.is_on_critical_path ? 'Yes' : 'No'}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Delay Cause</span>
+                <span class="meta-value">${getCauseLabel(d.delay_cause)}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Delay Type</span>
+                <span class="meta-value">${d.delay_type === 'critical' ? 'Critical' : 'Non-Critical'}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Planned Finish</span>
+                <span class="meta-value">${formatDate(d.planned_finish)}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Actual Finish</span>
+                <span class="meta-value">${formatDate(d.actual_finish)}</span>
+              </div>
+            </div>
+          </div>
+        `;
+
+        // Notes
+        if (d.notes) {
+          html += `
+            <div class="detail-section">
+              <div class="detail-section-title">
+                <i class="fas fa-sticky-note"></i> Notes
+              </div>
+              <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5;">${escapeHtml(d.notes)}</p>
+            </div>
+          `;
+        }
+
+        // Linked Evidence
+        const linkedCount = d.linked_correspondence?.length || 0;
+        html += `
+          <div class="detail-section">
+            <div class="detail-section-title">
+              <i class="fas fa-paperclip"></i> Linked Evidence (${linkedCount})
+            </div>
+            ${linkedCount > 0 ? `
+              <div id="linkedEvidenceList">
+                ${d.linked_correspondence.map(id => `
+                  <div class="evidence-link">
+                    <div class="evidence-icon"><i class="fas fa-file"></i></div>
+                    <div class="evidence-info">
+                      <div class="evidence-name">Evidence #${id}</div>
+                      <div class="evidence-meta">Click to view</div>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            ` : `
+              <p style="font-size: 0.875rem; color: var(--text-muted);">No evidence linked to this delay event.</p>
+            `}
+            <button class="btn btn-sm btn-secondary" onclick="linkEvidence(${d.id})" style="margin-top: 12px;">
+              <i class="fas fa-link"></i> Link Evidence
+            </button>
+          </div>
+        `;
+
+        // EOT Entitlement
+        if (d.eot_entitlement_days) {
+          html += `
+            <div class="detail-section">
+              <div class="detail-section-title">
+                <i class="fas fa-calendar-plus"></i> EOT Entitlement
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Entitled Days</span>
+                <span class="meta-value" style="font-size: 1.25rem; color: var(--vericase-teal);">
+                  ${d.eot_entitlement_days} days
+                </span>
+              </div>
+            </div>
+          `;
+        }
+
+        document.getElementById('detailBody').innerHTML = html;
+      }
+
+      function closeDetailPanel() {
+        document.getElementById('detailPanel').classList.remove('open');
+        selectedDelay = null;
+      }
+
+      // ============================================
+      // ADD/EDIT DELAY
+      // ============================================
+
+      function openAddModal() {
+        document.getElementById('modalTitle').textContent = 'Add Delay Event';
+        document.getElementById('activityName').value = '';
+        document.getElementById('delayDescription').value = '';
+        document.getElementById('plannedDate').value = '';
+        document.getElementById('actualDate').value = '';
+        document.getElementById('delayDays').value = '';
+        document.getElementById('delayCause').value = '';
+        document.getElementById('delayType').value = 'critical';
+        document.getElementById('isCritical').value = 'true';
+        document.getElementById('addModal').classList.add('active');
+      }
+
+      function closeAddModal() {
+        document.getElementById('addModal').classList.remove('active');
+      }
+
+      function calculateDelayDays() {
+        const planned = document.getElementById('plannedDate').value;
+        const actual = document.getElementById('actualDate').value;
+
+        if (planned && actual) {
+          const plannedDate = new Date(planned);
+          const actualDate = new Date(actual);
+          const diffDays = Math.round((actualDate - plannedDate) / (1000 * 60 * 60 * 24));
+          document.getElementById('delayDays').value = diffDays;
+        }
+      }
+
+      async function saveDelay() {
+        const activityName = document.getElementById('activityName').value.trim();
+        const description = document.getElementById('delayDescription').value.trim();
+        const plannedDate = document.getElementById('plannedDate').value;
+        const actualDate = document.getElementById('actualDate').value;
+        const delayDays = parseInt(document.getElementById('delayDays').value) || 0;
+        const delayCause = document.getElementById('delayCause').value;
+        const delayType = document.getElementById('delayType').value;
+        const isCritical = document.getElementById('isCritical').value === 'true';
+
+        if (!activityName) {
+          VericaseUI.Toast.warning('Please enter an activity name');
+          return;
+        }
+
+        // For now, just add to local list and show success
+        // In a real implementation, this would call the API
+        const newDelay = {
+          id: Date.now(),
+          activity_name: activityName,
+          description: description,
+          planned_finish: plannedDate,
+          actual_finish: actualDate,
+          delay_days: delayDays,
+          delay_cause: delayCause,
+          delay_type: delayType,
+          is_on_critical_path: isCritical,
+          linked_correspondence: []
+        };
+
+        delays.push(newDelay);
+        renderDelays();
+        updateStats();
+        closeAddModal();
+        VericaseUI.Toast.success('Delay event added successfully');
+      }
+
+      // ============================================
+      // AI ANALYSIS
+      // ============================================
+
+      function openAnalysisModal() {
+        if (delays.length === 0) {
+          VericaseUI.Toast.warning('No delay events to analyze. Add delays first.');
+          return;
+        }
+        document.getElementById('analysisProgress').style.display = 'none';
+        document.getElementById('analysisFooter').style.display = 'flex';
+        document.getElementById('startAnalysisBtn').disabled = false;
+        document.getElementById('analysisModal').classList.add('active');
+      }
+
+      function closeAnalysisModal() {
+        document.getElementById('analysisModal').classList.remove('active');
+      }
+
+      async function startAnalysis() {
+        const focusCritical = document.getElementById('focusCritical').checked;
+        const includeCost = document.getElementById('includeCost').checked;
+        const analyzeConcurrent = document.getElementById('analyzeConcurrent').checked;
+
+        // Show progress
+        document.getElementById('analysisProgress').style.display = 'block';
+        document.getElementById('startAnalysisBtn').disabled = true;
+        document.getElementById('analysisStatus').textContent = 'Starting analysis session...';
+
+        try {
+          const token = localStorage.getItem('token');
+
+          // Step 1: Start analysis session
+          const startResponse = await fetch(`${apiUrl}/api/delay-analysis/start`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({
+              case_id: caseId,
+              focus_on_critical_path: focusCritical,
+              include_cost_impact: includeCost,
+              analyze_concurrent_delays: analyzeConcurrent
+            })
+          });
+
+          if (!startResponse.ok) {
+            throw new Error('Failed to start analysis session');
+          }
+
+          const startResult = await startResponse.json();
+          const sessionId = startResult.session_id;
+
+          document.getElementById('analysisStatus').textContent = 'Analyzing delay events...';
+
+          // Step 2: Submit delay events for analysis
+          const delayEvents = delays.map(d => ({
+            description: d.activity_name + (d.description ? ': ' + d.description : ''),
+            event_date: d.actual_finish,
+            planned_date: d.planned_finish,
+            actual_date: d.actual_finish,
+            delay_days: d.delay_days,
+            evidence_ids: (d.linked_correspondence || []).map(String)
+          }));
+
+          const analyzeResponse = await fetch(`${apiUrl}/api/delay-analysis/analyze`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({
+              session_id: sessionId,
+              delay_events: delayEvents
+            })
+          });
+
+          if (!analyzeResponse.ok) {
+            throw new Error('Failed to analyze delays');
+          }
+
+          const result = await analyzeResponse.json();
+          analysisSession = result;
+
+          // Show results
+          showAnalysisResults(result);
+          closeAnalysisModal();
+          VericaseUI.Toast.success('AI analysis complete!');
+
+        } catch (error) {
+          console.error('Analysis error:', error);
+          VericaseUI.Toast.error('Analysis failed. Please try again.');
+          document.getElementById('analysisProgress').style.display = 'none';
+          document.getElementById('startAnalysisBtn').disabled = false;
+        }
+      }
+
+      function showAnalysisResults(result) {
+        const card = document.getElementById('analysisCard');
+        card.style.display = 'block';
+
+        document.getElementById('analysisEOT').textContent =
+          (result.entitlements?.eot_days || 0) + ' days';
+        document.getElementById('analysisProlongation').textContent =
+          '$' + ((result.entitlements?.prolongation || 0).toLocaleString());
+        document.getElementById('analysisConfidence').textContent =
+          Math.round((result.delay_events?.[0]?.confidence || 0.75) * 100) + '%';
+
+        const narrative = result.claims_narrative || 'No narrative generated.';
+        document.getElementById('analysisNarrative').textContent =
+          narrative.substring(0, 500) + (narrative.length > 500 ? '...' : '');
+      }
+
+      // ============================================
+      // LINK EVIDENCE
+      // ============================================
+
+      function linkEvidence(delayId) {
+        // For now, just show a toast - would open evidence picker in full implementation
+        VericaseUI.Toast.info('Evidence linking coming soon. Navigate to Evidence page to link documents.');
+      }
+
+      // ============================================
+      // UTILITY FUNCTIONS
+      // ============================================
+
+      function goToProgrammes() {
+        window.location.href = `programme.html?caseId=${caseId}`;
+      }
+
+      function getCauseLabel(cause) {
+        const labels = {
+          'employer': 'Employer',
+          'contractor': 'Contractor',
+          'neutral': 'Neutral',
+          'concurrent': 'Concurrent'
+        };
+        return labels[cause] || 'Unknown';
+      }
+
+      function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        try {
+          const d = new Date(dateStr);
+          return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        } catch {
+          return dateStr;
+        }
+      }
+
+      function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Close modals on escape
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closeAddModal();
+          closeAnalysisModal();
+          closeDetailPanel();
+        }
+      });
+
+      // Close modals on backdrop click
+      document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+        backdrop.addEventListener('click', (e) => {
+          if (e.target === backdrop) {
+            backdrop.classList.remove('active');
+          }
+        });
       });
     </script>
   </body>

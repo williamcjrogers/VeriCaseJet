@@ -68,8 +68,8 @@
 }
 
 .sidebar-logo img {
-  height: 80px;
-  width: auto;
+  width: 100%;
+  height: auto;
   max-width: 220px;
   object-fit: contain;
 }

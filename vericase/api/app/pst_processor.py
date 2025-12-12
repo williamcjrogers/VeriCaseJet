@@ -136,7 +136,7 @@ class UltimatePSTProcessor:
         self.total_count = 0
         self.attachment_hashes: dict[str, Any] = {}  # For Document deduplication
         self.evidence_item_hashes: dict[str, Any] = {}  # For EvidenceItem deduplication
-        
+
         # Parallel upload executor
         self.upload_executor = ThreadPoolExecutor(max_workers=20)
         self.upload_futures = []
@@ -326,18 +326,32 @@ class UltimatePSTProcessor:
             )
             # endregion agent log H12 open
 
-            # Get root folder and count total messages first
+            # Get root folder and (optionally) count total messages first
             root: Any = pst_file.get_root_folder()
-            self.total_count = self._count_messages(root)
-            logger.info(f"Found {self.total_count} total messages to process")
-            # region agent log H12 count
-            agent_log(
-                "H12",
-                "Total messages counted",
-                {"total_count": self.total_count},
-                run_id="pre-fix",
-            )
-            # endregion agent log H12 count
+            if getattr(settings, "PST_PRECOUNT_MESSAGES", True):
+                self.total_count = self._count_messages(root)
+                logger.info(f"Found {self.total_count} total messages to process")
+                # region agent log H12 count
+                agent_log(
+                    "H12",
+                    "Total messages counted",
+                    {"total_count": self.total_count},
+                    run_id="pre-fix",
+                )
+                # endregion agent log H12 count
+            else:
+                self.total_count = 0
+                logger.info(
+                    "Skipping PST pre-count for speed (PST_PRECOUNT_MESSAGES=false)"
+                )
+                # region agent log H12 count skipped
+                agent_log(
+                    "H12",
+                    "Total messages pre-count skipped",
+                    {"total_count": None},
+                    run_id="pre-fix",
+                )
+                # endregion agent log H12 count skipped
 
             # Process all folders recursively
             self._process_folder(
@@ -530,17 +544,19 @@ class UltimatePSTProcessor:
 
                 # Log progress every 100 emails
                 if self.processed_count % 100 == 0:
-                    progress = (
-                        (self.processed_count / self.total_count * 100)
-                        if self.total_count > 0
-                        else 0
-                    )
-                    logger.info(
-                        "Progress: %d/%d (%.1f%%)",
-                        self.processed_count,
-                        self.total_count,
-                        progress,
-                    )
+                    if self.total_count > 0:
+                        progress = (self.processed_count / self.total_count) * 100
+                        logger.info(
+                            "Progress: %d/%d (%.1f%%)",
+                            self.processed_count,
+                            self.total_count,
+                            progress,
+                        )
+                    else:
+                        logger.info(
+                            "Progress: %d emails processed (total unknown)",
+                            self.processed_count,
+                        )
 
             except (
                 AttributeError,
@@ -1569,7 +1585,7 @@ class UltimatePSTProcessor:
 
             if email.conversation_index and hasattr(email, "thread_id") and email.thread_id:
                 conv_index_map[email.conversation_index] = email.thread_id
-            
+
             subject = thread_info.get("subject", "")
             if subject:
                 norm_subj = re.sub(r"^(re|fw|fwd):\s*", "", subject.lower().strip())
@@ -1631,18 +1647,21 @@ class UltimatePSTProcessor:
             # Create new thread if none found
             if not thread_id:
                 thread_id = f"thread_{len(thread_groups) + 1}_{uuid.uuid4().hex[:8]}"
-            
+
             # Update indexes for subsequent lookups in this pass
             if conversation_index and not conv_index_map.get(conversation_index):
                 conv_index_map[conversation_index] = thread_id
-            
+
             if subject:
                  normalized_subject = re.sub(r"^(re|fw|fwd):\s*", "", subject.lower().strip())
                  if not subject_map.get(normalized_subject):
                      subject_map[normalized_subject] = thread_id
 
-            # Assign thread_id to email
+            # Assign thread_id to email (legacy)
             email_message.thread_id = thread_id
+            # New metadata defaults
+            email_message.thread_group_id = thread_id
+            email_message.is_inclusive = True  # conservative default until finer-grained calc
 
             # Add to thread group
             if thread_id not in thread_groups:
@@ -1662,6 +1681,21 @@ class UltimatePSTProcessor:
                 logger.info(
                     f"Thread stats: avg={avg_size:.1f} emails/thread, max={max_size} emails/thread"
                 )
+
+            # Assign path/position within each thread (ordered by date_sent then id)
+            for tg_id, emails in thread_groups.items():
+                sorted_emails = sorted(
+                    emails,
+                    key=lambda e: (
+                        e.date_sent or datetime.min.replace(tzinfo=timezone.utc),
+                        str(e.id),
+                    ),
+                )
+                for idx, em in enumerate(sorted_emails):
+                    em.thread_group_id = tg_id
+                    em.thread_position = idx
+                    em.thread_path = str(idx)
+
         except Exception as e:
             logger.error(f"Error updating thread relationships: {e}")
             self.db.rollback()
