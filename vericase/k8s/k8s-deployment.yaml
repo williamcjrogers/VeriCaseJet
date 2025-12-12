@@ -103,6 +103,34 @@ spec:
               value: "true"
             - name: AWS_REGION_FOR_TEXTRACT
               value: "eu-west-2"
+            # AWS AI Services - ALL ENABLED
+            - name: USE_COMPREHEND
+              value: "true"
+            - name: BEDROCK_ENABLED
+              value: "true"
+            - name: USE_KNOWLEDGE_BASE
+              value: "true"
+            - name: BEDROCK_REGION
+              value: "eu-west-2"
+            - name: EMBEDDING_PROVIDER
+              value: "bedrock"
+            - name: BEDROCK_MODEL_ID
+              value: "anthropic.claude-3-sonnet-20240229-v1:0"
+            # AI Feature Flags - ALL ENABLED
+            - name: ENABLE_AI_AUTO_CLASSIFY
+              value: "true"
+            - name: ENABLE_AI_DATASET_INSIGHTS
+              value: "true"
+            - name: ENABLE_AI_NATURAL_LANGUAGE_QUERY
+              value: "true"
+            - name: AI_DEFAULT_MODEL
+              value: "gemini"
+            - name: AI_WEB_ACCESS_ENABLED
+              value: "true"
+            - name: AI_TASK_COMPLEXITY_DEFAULT
+              value: "advanced"
+            - name: MULTI_VECTOR_ENABLED
+              value: "true"
             # AI API Keys from Secrets Manager
             - name: AWS_SECRETS_MANAGER_AI_KEYS
               value: "vericase/ai-api-keys"
@@ -228,6 +256,34 @@ spec:
               value: "true"
             - name: AWS_REGION_FOR_TEXTRACT
               value: "eu-west-2"
+            # AWS AI Services - ALL ENABLED
+            - name: USE_COMPREHEND
+              value: "true"
+            - name: BEDROCK_ENABLED
+              value: "true"
+            - name: USE_KNOWLEDGE_BASE
+              value: "true"
+            - name: BEDROCK_REGION
+              value: "eu-west-2"
+            - name: EMBEDDING_PROVIDER
+              value: "bedrock"
+            - name: BEDROCK_MODEL_ID
+              value: "anthropic.claude-3-sonnet-20240229-v1:0"
+            # AI Feature Flags - ALL ENABLED
+            - name: ENABLE_AI_AUTO_CLASSIFY
+              value: "true"
+            - name: ENABLE_AI_DATASET_INSIGHTS
+              value: "true"
+            - name: ENABLE_AI_NATURAL_LANGUAGE_QUERY
+              value: "true"
+            - name: AI_DEFAULT_MODEL
+              value: "gemini"
+            - name: AI_WEB_ACCESS_ENABLED
+              value: "true"
+            - name: AI_TASK_COMPLEXITY_DEFAULT
+              value: "advanced"
+            - name: MULTI_VECTOR_ENABLED
+              value: "true"
             # AI API Keys from Secrets Manager
             - name: AWS_SECRETS_MANAGER_AI_KEYS
               value: "vericase/ai-api-keys"
