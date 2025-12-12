@@ -94,6 +94,7 @@ from .ai_orchestrator import router as orchestrator_router
 from .ai_chat import router as ai_chat_router
 from .admin_approval import router as admin_approval_router
 from .admin_settings import router as admin_settings_router
+from .deployment_tools import router as deployment_router  # SSH deployment tools
 from .intelligent_config import router as intelligent_config_router
 from .cases import router as cases_router
 from .simple_cases import router as simple_cases_router
@@ -342,6 +343,7 @@ app.include_router(orchestrator_router)
 app.include_router(ai_chat_router)  # AI Chat with multi-model research
 app.include_router(admin_approval_router)  # Admin user approval system
 app.include_router(admin_settings_router)  # Admin settings management
+app.include_router(deployment_router)  # SSH deployment tools
 app.include_router(intelligent_config_router)  # Intelligent AI-powered configuration
 app.include_router(
     wizard_router

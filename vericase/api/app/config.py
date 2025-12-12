@@ -243,9 +243,6 @@ class Settings(BaseSettings):
     PRODUCTION_HOST: str = ""
     PRODUCTION_KEY_PATH: str = ""
 
-    # Slack Integration
-    SLACK_WEBHOOK_URL: str = ""
-    SLACK_DEFAULT_CHANNEL: str = "#case-updates"
 
     # AWS Lambda function names (for Step Functions)
     LAMBDA_TEXTRACT_PROCESSOR: str = "vericase-textract-processor"
