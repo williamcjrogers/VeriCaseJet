@@ -17,6 +17,7 @@ from sqlalchemy import or_
 
 from .models import User, EmailMessage, Project, Case
 from .db import get_db
+from .config import settings
 from .security import current_user
 from .ai_settings import (
     AISettings,
@@ -873,6 +874,29 @@ def get_orchestrator(db: Session) -> AIEvidenceOrchestrator:
     return orchestrator
 
 
+async def _augment_query_with_kb(query: str) -> tuple[str, list[KBSource]]:
+    """Optionally augment the user query with Bedrock Knowledge Base context."""
+    if not settings.USE_KNOWLEDGE_BASE or not settings.BEDROCK_KB_ID:
+        return query, []
+    if get_aws_services is None:
+        return query, []
+
+    try:
+        aws = get_aws_services()
+        kb_results = await aws.query_knowledge_base(query, settings.BEDROCK_KB_ID)
+        kb_sources = [KBSource(**r) for r in kb_results[:5] if r.get("content")]
+        context = "\n".join(s.content for s in kb_sources if s.content)
+        if context:
+            augmented = (
+                f"{query}\n\nRelevant legal knowledge base context:\n{context}"
+            )
+            return augmented, kb_sources
+        return query, kb_sources
+    except Exception as e:
+        logger.debug("KB augmentation failed: %s", e)
+        return query, []
+
+
 @router.post("/query", response_model=ChatResponse)
 async def ai_evidence_query(
     request: ChatRequest = Body(...),
@@ -964,6 +988,92 @@ async def ai_evidence_query(
         raise
     except Exception as e:
         logger.exception(f"AI evidence query failed: {e}")
+        raise HTTPException(500, f"AI analysis failed: {str(e)}")
+
+
+@router.post("/query-enhanced", response_model=ChatResponse)
+async def ai_evidence_query_enhanced(
+    request: ChatRequest = Body(...),
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Same as `/query`, but augments the question with Bedrock Knowledge Base context
+    when configured (`USE_KNOWLEDGE_BASE` and `BEDROCK_KB_ID`).
+    """
+    start_time = datetime.now(timezone.utc)
+
+    try:
+        orchestrator = get_orchestrator(db)
+
+        augmented_query, kb_sources = await _augment_query_with_kb(request.query)
+
+        emails = await _get_relevant_emails(
+            db, user.id, request.project_id, request.case_id
+        )
+        if not emails:
+            raise HTTPException(404, "No evidence found. Upload PST files first.")
+
+        sources = [
+            EvidenceSource(
+                email_id=str(email.id),
+                subject=email.subject or "No subject",
+                date=email.date_sent or datetime.now(timezone.utc),
+                sender=email.sender_name or email.sender_email or "Unknown",
+                relevance="Referenced in analysis",
+            )
+            for email in emails[:10]
+        ]
+
+        if request.mode == ResearchMode.QUICK:
+            model_response = await orchestrator.quick_search(augmented_query, emails)
+            return ChatResponse(
+                query=request.query,
+                mode="quick",
+                plan=None,
+                answer=model_response.response,
+                model_responses=[model_response],
+                sources=sources,
+                kb_sources=kb_sources,
+                chronology_events=[],
+                key_findings=model_response.key_findings,
+                processing_time=(
+                    datetime.now(timezone.utc) - start_time
+                ).total_seconds(),
+                timestamp=datetime.now(timezone.utc),
+            )
+
+        plan, model_responses = await orchestrator.deep_research(
+            augmented_query, emails
+        )
+        synthesized = orchestrator.synthesize_evidence_analysis(
+            model_responses, request.query
+        )
+
+        all_findings = []
+        for r in model_responses:
+            all_findings.extend(r.key_findings)
+
+        return ChatResponse(
+            query=request.query,
+            mode="deep",
+            plan=plan,
+            answer=synthesized,
+            model_responses=model_responses,
+            sources=sources,
+            kb_sources=kb_sources,
+            chronology_events=[],
+            key_findings=all_findings[:10],
+            processing_time=(
+                datetime.now(timezone.utc) - start_time
+            ).total_seconds(),
+            timestamp=datetime.now(timezone.utc),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Enhanced AI evidence query failed: {e}")
         raise HTTPException(500, f"AI analysis failed: {str(e)}")
 
 

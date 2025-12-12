@@ -204,6 +204,16 @@ class Document(Base):
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), onupdate=func.now()
     )
+    comments: Mapped[list["DocumentComment"]] = relationship(
+        "DocumentComment",
+        back_populates="document",
+        cascade="all, delete-orphan",
+    )
+    annotations: Mapped[list["DocumentAnnotation"]] = relationship(
+        "DocumentAnnotation",
+        back_populates="document",
+        cascade="all, delete-orphan",
+    )
 
 
 class Folder(Base):
@@ -292,6 +302,117 @@ class DocumentShare(Base):
     permission: Mapped[str] = mapped_column(String(20), nullable=False, default="view")
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class DocumentComment(Base):
+    """Threaded comments for documents (moved out of document.metadata)."""
+
+    __tablename__ = "document_comments"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
+    )
+    parent_comment_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("document_comments.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    mentions: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    is_edited: Mapped[bool] = mapped_column(Boolean, default=False)
+    edited_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    author_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+
+    document: Mapped[Document] = relationship("Document", back_populates="comments")
+    author: Mapped[User] = relationship("User")
+    parent_comment: Mapped["DocumentComment | None"] = relationship(
+        "DocumentComment", remote_side=[id], backref="replies"
+    )
+
+    __table_args__ = (
+        Index("idx_doc_comments_document", "document_id"),
+        Index("idx_doc_comments_parent", "parent_comment_id"),
+        Index("idx_doc_comments_created", "created_at"),
+    )
+
+
+class DocumentAnnotation(Base):
+    """Structured annotations for documents (moved out of document.metadata)."""
+
+    __tablename__ = "document_annotations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
+    )
+    page_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    x: Mapped[float] = mapped_column(Float, nullable=False)
+    y: Mapped[float] = mapped_column(Float, nullable=False)
+    width: Mapped[float] = mapped_column(Float, nullable=False)
+    height: Mapped[float] = mapped_column(Float, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    color: Mapped[str] = mapped_column(String(16), default="#FFD700")
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    author_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+
+    document: Mapped[Document] = relationship("Document", back_populates="annotations")
+    author: Mapped[User] = relationship("User")
+
+    __table_args__ = (
+        Index("idx_doc_annotations_document", "document_id"),
+        Index("idx_doc_annotations_page", "document_id", "page_number"),
+        Index("idx_doc_annotations_created", "created_at"),
+    )
+
+
+class CollaborationActivity(Base):
+    """Audit trail for collaboration actions (comments/annotations)."""
+
+    __tablename__ = "collaboration_activity"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    resource_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    details: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    user: Mapped[User | None] = relationship("User")
+
+    __table_args__ = (
+        Index("idx_collab_activity_resource", "resource_type", "resource_id"),
+        Index("idx_collab_activity_user", "user_id"),
+        Index("idx_collab_activity_created", "created_at"),
     )
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

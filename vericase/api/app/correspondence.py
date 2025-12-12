@@ -920,6 +920,95 @@ async def get_email_count(
     return {"count": count}
 
 
+@router.get("/emails/excluded")
+async def get_excluded_emails(
+    project_id: Annotated[str | None, Query(description="Project ID")] = None,
+    case_id: Annotated[str | None, Query(description="Case ID")] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    """
+    View emails that have been excluded (spam, other projects, etc.)
+    """
+    query = db.query(EmailMessage).filter(
+        EmailMessage.meta.op("->>")("ai_excluded").cast(Boolean).is_(True)
+    )
+
+    if case_id:
+        query = query.filter(EmailMessage.case_id == case_id)
+    elif project_id:
+        query = query.filter(EmailMessage.project_id == project_id)
+
+    total = query.count()
+
+    # Group by exclusion reason
+    reason_counts = {}
+    reasons_query = db.query(
+        EmailMessage.meta.op("->>")("ai_exclude_reason").label("reason"),
+        func.count(EmailMessage.id).label("count")
+    ).filter(
+        EmailMessage.meta.op("->>")("ai_excluded").cast(Boolean).is_(True)
+    )
+
+    if case_id:
+        reasons_query = reasons_query.filter(EmailMessage.case_id == case_id)
+    elif project_id:
+        reasons_query = reasons_query.filter(EmailMessage.project_id == project_id)
+
+    reasons_query = reasons_query.group_by(
+        EmailMessage.meta.op("->>")("ai_exclude_reason")
+    )
+
+    for row in reasons_query.all():
+        reason_counts[row.reason or "unknown"] = row.count
+
+    # Get paginated emails
+    offset = (page - 1) * page_size
+    emails = query.order_by(EmailMessage.date_sent.desc()).offset(offset).limit(page_size).all()
+
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "reason_counts": reason_counts,
+        "emails": [
+            {
+                "id": str(e.id),
+                "subject": e.subject,
+                "sender_email": e.sender_email,
+                "sender_name": e.sender_name,
+                "date_sent": e.date_sent.isoformat() if e.date_sent else None,
+                "exclusion_reason": (e.meta or {}).get("ai_exclude_reason", "unknown"),
+            }
+            for e in emails
+        ],
+    }
+
+
+@router.post("/emails/restore")
+async def restore_excluded_emails(
+    email_ids: list[str] = Body(..., description="List of email IDs to restore"),
+    db: Session = Depends(get_db),
+):
+    """
+    Restore excluded emails back to the main view
+    """
+    restored = 0
+    for email_id in email_ids:
+        email = db.query(EmailMessage).filter(EmailMessage.id == email_id).first()
+        if email and email.meta:
+            meta = dict(email.meta)
+            meta.pop("ai_excluded", None)
+            meta.pop("ai_exclude_reason", None)
+            meta.pop("ai_exclude_date", None)
+            email.meta = meta
+            restored += 1
+
+    db.commit()
+    return {"restored": restored, "message": f"Restored {restored} emails"}
+
+
 @router.get("/emails", response_model=EmailListResponse)
 async def list_emails(
     case_id: Annotated[str | None, Query(description="Case ID")] = None,

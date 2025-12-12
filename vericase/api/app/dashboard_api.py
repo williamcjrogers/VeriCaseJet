@@ -26,6 +26,12 @@ from .models import (
 )
 from .security import current_user
 from .cache import get_cached, set_cached
+from .config import settings
+
+try:
+    from .aws_services import get_aws_services
+except Exception:  # pragma: no cover
+    get_aws_services = None
 
 logger = logging.getLogger(__name__)
 
@@ -640,3 +646,79 @@ async def get_quick_stats(db: DbDep) -> dict[str, int]:
     # Cache the result
     _set_cached("quick_stats", result)
     return result
+
+
+async def _get_processing_stats() -> dict[str, Any]:
+    """Best-effort Celery/Redis processing stats."""
+    queue_length = None
+    active_workers = None
+
+    try:
+        import redis  # type: ignore
+
+        r = redis.Redis.from_url(settings.REDIS_URL)
+        queue_length = int(r.llen(settings.CELERY_QUEUE))
+    except Exception as e:
+        logger.debug("Redis queue length unavailable: %s", e)
+
+    try:
+        from .tasks import celery_app
+
+        insp = celery_app.control.inspect()
+        active = insp.active() or {}
+        active_workers = len(active.keys())
+    except Exception as e:
+        logger.debug("Celery worker inspect unavailable: %s", e)
+
+    return {"queue_length": queue_length, "active_workers": active_workers}
+
+
+@router.get("/system-health")
+async def get_system_health(
+    db: DbDep,
+    user: Annotated[User, Depends(current_user)],
+) -> dict[str, Any]:
+    """Get real-time system health from AWS where available."""
+    if get_aws_services is None:
+        raise HTTPException(
+            status_code=503, detail="AWS services not configured in this deployment"
+        )
+
+    aws = get_aws_services()
+
+    eks_health = await aws.get_eks_cluster_health()
+    rds_instance = settings.RDS_INSTANCE_ID or "vericase-prod"
+    db_metrics = await aws.get_rds_metrics(
+        db_instance=rds_instance,
+        metrics=["CPUUtilization", "DatabaseConnections", "FreeableMemory"],
+    )
+    s3_bytes = await aws.get_s3_bucket_size(settings.S3_BUCKET)
+    log_group = settings.CLOUDWATCH_LOG_GROUP or "/aws/eks/vericase/api"
+    recent_errors = await aws.get_cloudwatch_logs(
+        log_group=log_group, filter_pattern="ERROR", hours=1
+    )
+    processing_stats = await _get_processing_stats()
+
+    evidence_count = db.query(func.count(EvidenceItem.id)).scalar() or 0
+
+    return {
+        "timestamp": datetime.now(timezone.utc),
+        "eks": eks_health,
+        "database": {
+            "instance": rds_instance,
+            "cpu": db_metrics.get("CPUUtilization"),
+            "connections": db_metrics.get("DatabaseConnections"),
+            "freeable_memory": db_metrics.get("FreeableMemory"),
+        },
+        "storage": {
+            "bucket": settings.S3_BUCKET,
+            "size_gb": (s3_bytes / (1024**3)) if s3_bytes else None,
+            "evidence_count": evidence_count,
+        },
+        "processing": processing_stats,
+        "errors": {
+            "count": len(recent_errors),
+            "recent": recent_errors[:5],
+            "log_group": log_group,
+        },
+    }
