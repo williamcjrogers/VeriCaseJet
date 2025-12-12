@@ -18,9 +18,10 @@
   <script src="nav-shell.js"></script>
   <style>
     :root {
-      --vc-gold: #b8860b;
-      --vc-gold-light: #d4a84b;
-      --vc-gold-muted: #a68b5b;
+      /* Back-compat aliases used by this page */
+      --vc-gold: var(--vericase-gold);
+      --vc-gold-light: var(--vericase-gold-light);
+      --vc-gold-muted: var(--vericase-gold-muted);
     }
 
     * {
@@ -294,7 +295,7 @@
       box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
       cursor: pointer;
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      border: 1px solid var(--border-muted, #f1f5f9);
+      border: 1px solid var(--border-muted);
       position: relative;
       overflow: hidden;
     }
@@ -336,6 +337,18 @@
       box-shadow: 0 4px 14px rgba(15, 157, 154, 0.25);
     }
 
+    .action-card .icon.icon--navy {
+      background: linear-gradient(135deg, var(--vericase-navy) 0%, var(--vericase-navy-light) 100%);
+    }
+
+    .action-card .icon.icon--gold {
+      background: linear-gradient(135deg, var(--vericase-gold) 0%, var(--vericase-gold-muted) 100%);
+    }
+
+    .action-card .icon.icon--error {
+      background: linear-gradient(135deg, var(--error) 0%, var(--error-dark) 100%);
+    }
+
     .action-card h3 {
       font-size: 0.9375rem;
       font-weight: 600;
@@ -345,7 +358,7 @@
 
     .action-card p {
       font-size: 0.8125rem;
-      color: var(--text-secondary, #475569);
+      color: var(--text-secondary);
       line-height: 1.5;
     }
 
@@ -382,13 +395,13 @@
       padding: 1.5rem;
       border-radius: 12px;
       box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
-      border: 1px solid var(--border-muted, #f1f5f9);
+      border: 1px solid var(--border-muted);
       transition: all 0.2s ease;
     }
 
     .widget:hover {
       box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-      border-color: var(--border-default, #e2e8f0);
+      border-color: var(--border-default);
     }
 
     .widget h3 {
@@ -411,7 +424,7 @@
       justify-content: space-between;
       align-items: center;
       padding: 0.875rem 1rem;
-      background: var(--gray-50, #f8fafc);
+      background: var(--gray-50);
       border-radius: 8px;
       margin-bottom: 0.625rem;
     }
@@ -422,7 +435,7 @@
 
     .stat-label {
       font-size: 0.8125rem;
-      color: var(--text-secondary, #475569);
+      color: var(--text-secondary);
     }
 
     .stat-value {
@@ -434,7 +447,7 @@
     .progress-bar {
       width: 100%;
       height: 6px;
-      background: var(--gray-200, #e2e8f0);
+      background: var(--gray-200);
       border-radius: 3px;
       overflow: hidden;
       margin-top: 0.5rem;
@@ -459,7 +472,7 @@
       top: 4px;
       bottom: 4px;
       width: 2px;
-      background: var(--gray-200, #e2e8f0);
+      background: var(--gray-200);
       border-radius: 1px;
     }
 
@@ -488,7 +501,7 @@
 
     .timeline-date {
       font-size: 0.75rem;
-      color: var(--text-muted, #94a3b8);
+      color: var(--text-muted);
       margin-bottom: 0.25rem;
     }
 
@@ -501,7 +514,7 @@
 
     .timeline-desc {
       font-size: 0.8125rem;
-      color: var(--text-secondary, #475569);
+      color: var(--text-secondary);
       line-height: 1.4;
     }
 
@@ -522,27 +535,27 @@
     }
 
     .alert-warning {
-      background: var(--warning-light, #fef3c7);
-      border-color: var(--warning, #d97706);
-      color: var(--warning-dark, #b45309);
+      background: var(--warning-light);
+      border-color: var(--warning);
+      color: var(--warning-dark);
     }
 
     .alert-info {
-      background: rgba(15, 157, 154, 0.08);
+      background: var(--vericase-teal-ghost);
       border-color: var(--vericase-teal);
       color: var(--vericase-teal-dark);
     }
 
     .alert-success {
-      background: var(--success-light, #d1fae5);
-      border-color: var(--success, #059669);
-      color: var(--success-dark, #047857);
+      background: var(--success-light);
+      border-color: var(--success);
+      color: var(--success-dark);
     }
 
     .empty-state {
       text-align: center;
       padding: 2rem 1.5rem;
-      color: var(--text-muted, #94a3b8);
+      color: var(--text-muted);
     }
 
     .empty-state i {
@@ -568,23 +581,23 @@
     }
 
     .badge-discovery {
-      background: rgba(59, 130, 246, 0.1);
-      color: #2563eb;
+      background: var(--info-light);
+      color: var(--vericase-teal-dark);
     }
 
     .badge-progress {
-      background: var(--warning-light, #fef3c7);
-      color: var(--warning-dark, #b45309);
+      background: var(--warning-light);
+      color: var(--warning-dark);
     }
 
     .badge-complete {
-      background: var(--success-light, #d1fae5);
-      color: var(--success-dark, #047857);
+      background: var(--success-light);
+      color: var(--success-dark);
     }
 
     .list-item {
       padding: 0.75rem 0;
-      border-bottom: 1px solid var(--border-muted, #f1f5f9);
+      border-bottom: 1px solid var(--border-muted);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -604,7 +617,7 @@
 
     .list-item-meta {
       font-size: 0.75rem;
-      color: var(--text-muted, #94a3b8);
+      color: var(--text-muted);
       margin-top: 0.25rem;
     }
 
@@ -615,12 +628,12 @@
       padding: 1.25rem 1.5rem;
       margin-bottom: 1.5rem;
       box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
-      border: 1px solid var(--border-muted, #f1f5f9);
+      border: 1px solid var(--border-muted);
     }
 
     .project-selector-panel select {
       padding: 0.625rem 1rem;
-      border: 1px solid var(--border-default, #e2e8f0);
+      border: 1px solid var(--border-default);
       border-radius: 8px;
       font-size: 0.875rem;
       background: white;
@@ -800,23 +813,23 @@
       justify-content: space-between;
       align-items: center;
       padding: 1.5rem 2rem;
-      border-bottom: 1px solid #e5e7eb;
+      border-bottom: 1px solid var(--border-default);
     }
 
     .modal-header h2 {
       margin: 0;
-      color: #1a202c;
+      color: var(--text-primary);
     }
 
     .close {
       font-size: 24px;
       cursor: pointer;
-      color: #6b7280;
+      color: var(--text-muted);
       transition: color 0.2s;
     }
 
     .close:hover {
-      color: #1a202c;
+      color: var(--text-primary);
     }
 
     @keyframes modalFadeIn {
@@ -921,7 +934,7 @@
                 flex: 1;
                 max-width: 400px;
                 padding: 0.75rem 1rem;
-                border: 2px solid #e5e7eb;
+                border: 2px solid var(--border-default);
                 border-radius: 8px;
                 font-size: 14px;
                 background: white;
@@ -947,7 +960,7 @@
               display: flex;
               gap: 2rem;
               padding: 0.75rem;
-              background: #f9fafb;
+            background: var(--gray-50);
               border-radius: 8px;
             ">
           <span style="color: var(--text-secondary); font-size: 0.875rem">
@@ -955,11 +968,11 @@
             <strong id="emailCount">0</strong> emails
           </span>
           <span style="color: var(--text-secondary); font-size: 0.875rem">
-            <i class="fas fa-file-lines" style="color: var(--vericase-blue)"></i>
+            <i class="fas fa-file-lines" style="color: var(--vericase-gold)"></i>
             <strong id="pstCount">0</strong> PST files
           </span>
           <span style="color: var(--text-secondary); font-size: 0.875rem">
-            <i class="fas fa-calendar" style="color: #6b7280"></i>
+            <i class="fas fa-calendar" style="color: var(--text-muted)"></i>
             Created: <span id="projectCreated">-</span>
           </span>
         </div>
@@ -993,7 +1006,7 @@
       </div>
 
       <div class="action-card" onclick="viewChronology()">
-        <div class="icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);">
+        <div class="icon icon--navy">
           <i class="fas fa-list-timeline"></i>
         </div>
         <h3>Chronology</h3>
@@ -1001,7 +1014,7 @@
       </div>
 
       <div class="action-card" onclick="viewProgramme()">
-        <div class="icon" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);">
+        <div class="icon">
           <i class="fas fa-diagram-project"></i>
         </div>
         <h3>Programme</h3>
@@ -1009,7 +1022,7 @@
       </div>
 
       <div class="action-card" onclick="viewDelays()">
-        <div class="icon" style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);">
+        <div class="icon icon--error">
           <i class="fas fa-clock"></i>
         </div>
         <h3>Delays</h3>
@@ -1017,7 +1030,7 @@
       </div>
 
       <div class="action-card" onclick="manageStakeholders()">
-        <div class="icon" style="background: linear-gradient(135deg, var(--vc-gold) 0%, var(--vc-gold-muted) 100%);">
+        <div class="icon icon--gold">
           <i class="fas fa-people-group"></i>
         </div>
         <h3>Stakeholders</h3>
@@ -1332,7 +1345,7 @@
                         </div>
                     </div>
 
-                    <div onclick="document.getElementById('quickProfileModal').remove(); window.location.href='wizard.html'" style="padding: 1.5rem; border: 2px solid #e5e7eb; border-radius: 12px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--vericase-teal)'; this.style.background='#f9fafb'" onmouseout="this.style.borderColor='#e5e7eb'; this.style.background=''">
+                    <div onclick="document.getElementById('quickProfileModal').remove(); window.location.href='wizard.html'" style="padding: 1.5rem; border: 2px solid var(--border-default); border-radius: 12px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--vericase-teal)'; this.style.background='var(--gray-50)'" onmouseout="this.style.borderColor='var(--border-default)'; this.style.background=''">
                         <h4 style="color: var(--vericase-navy); margin: 0 0 0.5rem 0; font-size: 1.1rem;">
                             <i class="fas fa-list-check"></i> Full Wizard (Detailed)
                         </h4>
@@ -1410,7 +1423,7 @@
         // Show success and redirect
         content.innerHTML = `
                     <div style="text-align: center; padding: 2rem;">
-                        <i class="fas fa-check-circle" style="font-size: 3rem; color: #10b981; margin-bottom: 1rem;"></i>
+                        <i class="fas fa-check-circle" style="font-size: 3rem; color: var(--success); margin-bottom: 1rem;"></i>
                         <h3 style="color: var(--vericase-navy); margin: 0 0 0.5rem 0;">Profile created!</h3>
                         <p style="color: var(--text-secondary); margin: 0;">Redirecting to upload...</p>
                     </div>
@@ -1424,7 +1437,7 @@
         console.error("Error creating quick profile:", error);
         content.innerHTML = `
                     <div style="text-align: center; padding: 2rem;">
-                        <i class="fas fa-exclamation-circle" style="font-size: 3rem; color: #ef4444; margin-bottom: 1rem;"></i>
+                        <i class="fas fa-exclamation-circle" style="font-size: 3rem; color: var(--error); margin-bottom: 1rem;"></i>
                         <h3 style="color: var(--vericase-navy); margin: 0 0 0.5rem 0;">Unable to create profile</h3>
                         <p style="color: var(--text-secondary); margin: 0 0 1.5rem 0;">Please try using the full wizard instead.</p>
                         <button onclick="window.location.href='wizard.html'" class="btn btn-primary">
@@ -1993,7 +2006,7 @@
                             <div class="empty-state" style="padding: 1.5rem;">
                                 <i class="fas fa-folder-plus" style="font-size: 2.5rem; color: var(--vericase-teal); margin-bottom: 0.75rem;"></i>
                                 <p style="margin-bottom: 0.5rem; color: var(--vericase-navy); font-weight: 500;">No evidence uploaded yet</p>
-                                <p style="font-size: 0.8rem; color: #6b7280;">Upload files, PSTs, or documents to build your evidence repository</p>
+                                <p style="font-size: 0.8rem; color: var(--text-tertiary);">Upload files, PSTs, or documents to build your evidence repository</p>
                                 <button class="btn btn-primary" style="margin-top: 1rem; padding: 0.5rem 1rem; font-size: 0.875rem;" onclick="event.stopPropagation(); openPstUpload();">
                                     <i class="fas fa-upload"></i> Upload Evidence
                                 </button>
@@ -2008,19 +2021,19 @@
             container.innerHTML = `
                             <div style="padding: 0.5rem 0;">
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
-                                    <div style="padding: 0.75rem; background: #f0fdf4; border-radius: 8px; text-align: center;">
-                                        <div style="font-size: 1.5rem; font-weight: 700; color: #166534;">${stats.total}</div>
-                                        <div style="font-size: 0.75rem; color: #6b7280;">Total Files</div>
+                                  <div style="padding: 0.75rem; background: var(--success-light); border-radius: 8px; text-align: center;">
+                                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--success-dark);">${stats.total}</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-tertiary);">Total Files</div>
                                     </div>
-                                    <div style="padding: 0.75rem; background: #eff6ff; border-radius: 8px; text-align: center;">
-                                        <div style="font-size: 1.5rem; font-weight: 700; color: #1e40af;">${stats.with_correspondence || 0}</div>
-                                        <div style="font-size: 0.75rem; color: #6b7280;">With Links</div>
+                                  <div style="padding: 0.75rem; background: var(--info-light); border-radius: 8px; text-align: center;">
+                                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--vericase-teal-dark);">${stats.with_correspondence || 0}</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-tertiary);">With Links</div>
                                     </div>
                                 </div>
 
                                 ${stats.unassigned > 0
                 ? `
-                                    <div style="padding: 0.5rem 0.75rem; background: #fef3c7; border-radius: 6px; margin-bottom: 0.75rem; font-size: 0.8rem; color: #92400e;">
+                                  <div style="padding: 0.5rem 0.75rem; background: var(--warning-light); border-radius: 6px; margin-bottom: 0.75rem; font-size: 0.8rem; color: var(--warning-dark);">
                                         <i class="fas fa-inbox"></i> ${stats.unassigned} unassigned files need review
                                     </div>
                                 `
@@ -2029,12 +2042,12 @@
 
                                 ${topTypes.length > 0
                 ? `
-                                    <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.5rem;">Top Evidence Types</div>
+                                  <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 0.5rem;">Top Evidence Types</div>
                                     <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
                                         ${topTypes
                   .map(
                     ([type, count]) => `
-                                            <span style="padding: 0.25rem 0.5rem; background: #e2e8f0; border-radius: 4px; font-size: 0.75rem; color: #475569;">
+                                      <span style="padding: 0.25rem 0.5rem; background: var(--gray-200); border-radius: 4px; font-size: 0.75rem; color: var(--text-secondary);">
                                                 ${type || "other"}: ${count}
                                             </span>
                                         `,
@@ -2045,7 +2058,7 @@
                 : ""
               }
 
-                                <div style="margin-top: 1rem; text-align: center; padding-top: 0.75rem; border-top: 1px solid #e5e7eb;">
+                                <div style="margin-top: 1rem; text-align: center; padding-top: 0.75rem; border-top: 1px solid var(--border-default);">
                                     <span style="color: var(--vericase-teal); font-size: 0.8rem; font-weight: 500;">
                                         <i class="fas fa-external-link-alt"></i> Click to open Evidence Repository
                                     </span>
@@ -2059,7 +2072,7 @@
                         <div class="empty-state" style="padding: 1.5rem;">
                             <i class="fas fa-folder-open" style="font-size: 2.5rem; color: var(--vericase-teal); margin-bottom: 0.75rem;"></i>
                             <p style="margin-bottom: 0.5rem; color: var(--vericase-navy); font-weight: 500;">Evidence Repository</p>
-                            <p style="font-size: 0.8rem; color: #6b7280;">Click to manage all evidence files, documents, and attachments</p>
+                            <p style="font-size: 0.8rem; color: var(--text-tertiary);">Click to manage all evidence files, documents, and attachments</p>
                             <div style="margin-top: 1rem; color: var(--vericase-teal); font-size: 0.8rem;">
                                 <i class="fas fa-arrow-right"></i> Open Repository
                             </div>
@@ -2072,7 +2085,7 @@
                     <div class="empty-state" style="padding: 1.5rem;">
                         <i class="fas fa-folder-open" style="font-size: 2.5rem; color: var(--vericase-teal); margin-bottom: 0.75rem;"></i>
                         <p style="margin-bottom: 0.5rem; color: var(--vericase-navy); font-weight: 500;">Evidence Repository</p>
-                        <p style="font-size: 0.8rem; color: #6b7280;">Click to manage all evidence files and documents</p>
+                        <p style="font-size: 0.8rem; color: var(--text-tertiary);">Click to manage all evidence files and documents</p>
                         <div style="margin-top: 1rem; color: var(--vericase-teal); font-size: 0.8rem;">
                             <i class="fas fa-arrow-right"></i> Open Repository
                         </div>
@@ -2296,8 +2309,8 @@
 
       if (!key) {
         showKeyMessage(provider, "Please enter an API key", "error");
-        input.style.borderColor = "#ef4444";
-        setTimeout(() => (input.style.borderColor = "#e5e7eb"), 1500);
+        input.style.borderColor = "var(--error)";
+        setTimeout(() => (input.style.borderColor = "var(--border-default)"), 1500);
         return;
       }
 
@@ -2365,16 +2378,16 @@
       banner.textContent = `${provider.toUpperCase()}: ${message}`;
       banner.style.background =
         type === "error"
-          ? "#fee2e2"
+          ? "var(--error-light)"
           : type === "success"
-            ? "#ecfdf5"
-            : "#eef2ff";
+            ? "var(--success-light)"
+            : "var(--info-light)";
       banner.style.color =
         type === "error"
-          ? "#991b1b"
+          ? "var(--error-dark)"
           : type === "success"
-            ? "#065f46"
-            : "#1e3a8a";
+            ? "var(--success-dark)"
+            : "var(--vericase-navy)";
       banner.style.display = "block";
       setTimeout(() => (banner.style.display = "none"), 3000);
     }
@@ -2383,7 +2396,7 @@
       const el = document.createElement("div");
       el.id = "wizardBanner";
       el.style.cssText =
-        "position:fixed;top:0;left:0;right:0;z-index:9999;display:none;padding:10px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;border-bottom:1px solid #e2e8f0;text-align:center;";
+        "position:fixed;top:0;left:0;right:0;z-index:9999;display:none;padding:10px 16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;border-bottom:1px solid var(--border-default);text-align:center;";
       document.body.appendChild(el);
       return el;
     }
@@ -2425,14 +2438,14 @@
       if (overallStatus) {
         if (anyConfigured) {
           overallStatus.innerHTML =
-            '<i class="fas fa-check-circle" style="color: #10b981;"></i> <strong>API keys configured locally</strong> - Intelligent features are available in this browser';
-          overallStatus.style.background = "#ecfdf5";
-          overallStatus.style.borderColor = "#10b981";
+            '<i class="fas fa-check-circle" style="color: var(--success);"></i> <strong>API keys configured locally</strong> - Intelligent features are available in this browser';
+          overallStatus.style.background = "var(--success-light)";
+          overallStatus.style.borderColor = "var(--success)";
         } else {
           overallStatus.innerHTML =
-            '<i class="fas fa-exclamation-triangle" style="color: #f59e0b;"></i> <strong>No local API keys configured</strong> - Add keys above to enable AI features';
-          overallStatus.style.background = "#fffbeb";
-          overallStatus.style.borderColor = "#fbbf24";
+            '<i class="fas fa-exclamation-triangle" style="color: var(--warning);"></i> <strong>No local API keys configured</strong> - Add keys above to enable AI features';
+          overallStatus.style.background = "var(--warning-light)";
+          overallStatus.style.borderColor = "var(--warning)";
         }
       }
     }
@@ -2456,7 +2469,7 @@
     <div id="settingsModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
         <div style="background: white; border-radius: 12px; width: 90%; max-width: 800px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
             <!-- Header -->
-            <div style="padding: 1.5rem 2rem; border-bottom: 2px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
+            <div style="padding: 1.5rem 2rem; border-bottom: 2px solid var(--border-default); display: flex; justify-content: space-between; align-items: center;">
                 <h2 style="font-size: 1.5rem; color: var(--vericase-navy); margin: 0;">
                     <i class="fas fa-cog"></i> Settings
                 </h2>
@@ -2466,7 +2479,7 @@
             </div>
 
             <!-- Tabs -->
-            <div style="display: flex; border-bottom: 2px solid #e5e7eb;">
+            <div style="display: flex; border-bottom: 2px solid var(--border-default);">
                 <button class="settings-tab-btn active" data-tab="general" onclick="showSettingsTab('general')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; border-bottom: 3px solid transparent; transition: all 0.2s;">
                     <i class="fas fa-sliders-h"></i> General
                 </button>
@@ -2482,7 +2495,7 @@
                     <h3 style="margin-bottom: 1rem; color: var(--vericase-navy);">Profile Settings</h3>
                     <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Configure your profile and preferences.</p>
 
-                    <div style="background: #f9fafb; padding: 1rem; border-radius: 8px; border: 1px solid #e5e7eb;">
+                    <div style="background: var(--gray-50); padding: 1rem; border-radius: 8px; border: 1px solid var(--border-default);">
                         <p style="color: var(--text-secondary); margin: 0;">
                             <i class="fas fa-info-circle"></i> General settings coming soon
                         </p>
@@ -2495,14 +2508,14 @@
                     <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Configure API keys for AI-powered features like intelligent configuration, document analysis, and chat assistance.</p>
 
                     <!-- Overall Status -->
-                    <div id="aiOverallStatus" style="padding: 1rem; background: #f0f9ff; border: 2px solid #bae6fd; border-radius: 8px; margin-bottom: 2rem;">
+                    <div id="aiOverallStatus" style="padding: 1rem; background: var(--info-light); border: 2px solid var(--border-focus); border-radius: 8px; margin-bottom: 2rem;">
                         <i class="fas fa-spinner fa-spin"></i> Checking AI service status...
                     </div>
 
                     <!-- API Key Entry Forms -->
                     <div style="display: grid; gap: 1.5rem; margin-bottom: 2rem;">
                         <!-- OpenAI -->
-                        <div class="ai-provider-card" style="padding: 1.5rem; border: 2px solid #e5e7eb; border-radius: 12px; background: white;">
+                        <div class="ai-provider-card" style="padding: 1.5rem; border: 2px solid var(--border-default); border-radius: 12px; background: white;">
                             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
                                 <div>
                                     <h4 style="color: var(--vericase-navy); margin: 0 0 0.25rem 0;"><i class="fas fa-brain"></i> OpenAI (GPT-4)</h4>
@@ -2511,7 +2524,7 @@
                                 <span id="openaiStatus" class="status-indicator status-inactive"></span>
                             </div>
                             <div style="display: flex; gap: 0.75rem; align-items: center;">
-                                <label for="openaiKeyInput"></label><input type="password" id="openaiKeyInput" placeholder="sk-..." style="flex: 1; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.875rem;">
+                                <label for="openaiKeyInput"></label><input type="password" id="openaiKeyInput" placeholder="sk-..." style="flex: 1; padding: 0.75rem; border: 2px solid var(--border-default); border-radius: 8px; font-size: 0.875rem;">
                                 <button onclick="saveLocalAIKey('openai')" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">
                                     <i class="fas fa-save"></i> Save
                                 </button>
@@ -2522,7 +2535,7 @@
                         </div>
 
                         <!-- Anthropic -->
-                        <div class="ai-provider-card" style="padding: 1.5rem; border: 2px solid #e5e7eb; border-radius: 12px; background: white;">
+                        <div class="ai-provider-card" style="padding: 1.5rem; border: 2px solid var(--border-default); border-radius: 12px; background: white;">
                             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
                                 <div>
                                     <h4 style="color: var(--vericase-navy); margin: 0 0 0.25rem 0;"><i class="fas fa-robot"></i> Anthropic (Claude)</h4>
@@ -2531,7 +2544,7 @@
                                 <span id="anthropicStatus" class="status-indicator status-inactive"></span>
                             </div>
                             <div style="display: flex; gap: 0.75rem; align-items: center;">
-                                <label for="anthropicKeyInput"></label><input type="password" id="anthropicKeyInput" placeholder="sk-ant-..." style="flex: 1; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.875rem;">
+                                <label for="anthropicKeyInput"></label><input type="password" id="anthropicKeyInput" placeholder="sk-ant-..." style="flex: 1; padding: 0.75rem; border: 2px solid var(--border-default); border-radius: 8px; font-size: 0.875rem;">
                                 <button onclick="saveLocalAIKey('anthropic')" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">
                                     <i class="fas fa-save"></i> Save
                                 </button>
@@ -2542,7 +2555,7 @@
                         </div>
 
                         <!-- Google Gemini -->
-                        <div class="ai-provider-card" style="padding: 1.5rem; border: 2px solid #e5e7eb; border-radius: 12px; background: white;">
+                        <div class="ai-provider-card" style="padding: 1.5rem; border: 2px solid var(--border-default); border-radius: 12px; background: white;">
                             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
                                 <div>
                                     <h4 style="color: var(--vericase-navy); margin: 0 0 0.25rem 0;"><i class="fas fa-lightbulb"></i> Google (Gemini)</h4>
@@ -2551,7 +2564,7 @@
                                 <span id="geminiStatus" class="status-indicator status-inactive"></span>
                             </div>
                             <div style="display: flex; gap: 0.75rem; align-items: center;">
-                                <label for="geminiKeyInput"></label><input type="password" id="geminiKeyInput" placeholder="AI..." style="flex: 1; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.875rem;">
+                                <label for="geminiKeyInput"></label><input type="password" id="geminiKeyInput" placeholder="AI..." style="flex: 1; padding: 0.75rem; border: 2px solid var(--border-default); border-radius: 8px; font-size: 0.875rem;">
                                 <button onclick="saveLocalAIKey('gemini')" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">
                                     <i class="fas fa-save"></i> Save
                                 </button>
@@ -2562,7 +2575,7 @@
                         </div>
 
                         <!-- Perplexity -->
-                        <div class="ai-provider-card" style="padding: 1.5rem; border: 2px solid #e5e7eb; border-radius: 12px; background: white;">
+                        <div class="ai-provider-card" style="padding: 1.5rem; border: 2px solid var(--border-default); border-radius: 12px; background: white;">
                             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
                                 <div>
                                     <h4 style="color: var(--vericase-navy); margin: 0 0 0.25rem 0;"><i class="fas fa-search"></i> Perplexity</h4>
@@ -2571,7 +2584,7 @@
                                 <span id="perplexityStatus" class="status-indicator status-inactive"></span>
                             </div>
                             <div style="display: flex; gap: 0.75rem; align-items: center;">
-                                <label for="perplexityKeyInput"></label><input type="password" id="perplexityKeyInput" placeholder="pplx-..." style="flex: 1; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.875rem;">
+                                <label for="perplexityKeyInput"></label><input type="password" id="perplexityKeyInput" placeholder="pplx-..." style="flex: 1; padding: 0.75rem; border: 2px solid var(--border-default); border-radius: 8px; font-size: 0.875rem;">
                                 <button onclick="saveLocalAIKey('perplexity')" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">
                                     <i class="fas fa-save"></i> Save
                                 </button>
@@ -2583,7 +2596,7 @@
                     </div>
 
                     <!-- Configuration Instructions -->
-                    <div style="margin-top: 2rem; padding: 1.5rem; background: #f0f9ff; border: 2px solid #3b82f6; border-radius: 8px;">
+                    <div style="margin-top: 2rem; padding: 1.5rem; background: var(--info-light); border: 2px solid var(--border-focus); border-radius: 8px;">
                         <h4 style="color: var(--vericase-navy); margin: 0 0 0.5rem 0;">
                             <i class="fas fa-info-circle"></i> About API Keys
                         </h4>
@@ -2601,7 +2614,7 @@
             </div>
 
             <!-- Footer -->
-            <div style="padding: 1rem 2rem; border-top: 2px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 1rem;">
+            <div style="padding: 1rem 2rem; border-top: 2px solid var(--border-default); display: flex; justify-content: flex-end; gap: 1rem;">
                 <button onclick="closeSettings()" class="btn btn-secondary">Close</button>
             </div>
         </div>
@@ -2628,13 +2641,13 @@
     }
 
     .status-active {
-      background: #10b981;
-      box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+      background: var(--success);
+      box-shadow: 0 0 0 3px var(--success-light);
     }
 
     .status-inactive {
-      background: #ef4444;
-      box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+      background: var(--error);
+      box-shadow: 0 0 0 3px var(--error-light);
     }
   </style>
 </body>

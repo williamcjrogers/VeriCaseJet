@@ -44,17 +44,17 @@
     BlinkMacSystemFont,
     sans-serif
   );
-  --ag-font-size: 13px;
+  --ag-font-size: 12px;
   --ag-header-font-family: var(--font-sans, "DM Sans", sans-serif);
   --ag-header-font-weight: 600;
-  --ag-header-font-size: 11px;
+  --ag-header-font-size: 10px;
 
   /* Spacing & Sizing */
-  --ag-grid-size: 6px;
-  --ag-list-item-height: 32px;
-  --ag-row-height: 48px;
-  --ag-header-height: 44px;
-  --ag-cell-horizontal-padding: 16px;
+  --ag-grid-size: 4px;
+  --ag-list-item-height: 28px;
+  --ag-row-height: 100px;
+  --ag-header-height: 36px;
+  --ag-cell-horizontal-padding: 10px;
 
   /* Interactive */
   --ag-input-focus-border-color: var(--vericase-teal, #0f9d9a);
