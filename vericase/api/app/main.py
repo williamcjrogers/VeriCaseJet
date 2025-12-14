@@ -1116,24 +1116,46 @@ def complete_upload(
 
     # Check if PST file - trigger PST processor instead of OCR
     if filename.lower().endswith(".pst"):
+        from .models import PSTFile
+
         # Extract case/project from body if provided
-        case_id = body.get("case_id") or "00000000-0000-0000-0000-000000000000"
+        case_id = body.get("case_id")
         project_id = body.get("project_id")
-        company_id = body.get("company_id", "")
-        # region agent log H11 pst task trigger
-        agent_log("H11", "Queuing forensic PST processing task", {"doc_id": str(doc.id), "case_id": case_id, "project_id": project_id, "company_id": company_id})
-        # endregion agent log H11 pst task trigger
-        # Queue forensic task with optional case/project
+
+        # Create pst_files record so forensic pipeline has a stable ID
+        pst_file = PSTFile(
+            filename=filename,
+            case_id=uuid.UUID(case_id) if case_id else None,
+            project_id=uuid.UUID(project_id) if project_id else None,
+            s3_bucket=doc.bucket,
+            s3_key=doc.s3_key,
+            file_size_bytes=size or None,
+            processing_status="pending",
+            uploaded_by=user.id,
+        )
+        db.add(pst_file)
+        db.commit()
+        db.refresh(pst_file)
+
+        logger.info(
+            "Queuing forensic PST processing task doc_id=%s pst_file_id=%s case_id=%s project_id=%s",
+            str(doc.id),
+            str(pst_file.id),
+            case_id,
+            project_id,
+        )
+
         celery_app.send_task(
             "app.process_pst_forensic",
-            args=[str(doc.id), settings.S3_BUCKET, doc.s3_key],
+            args=[str(pst_file.id), doc.bucket, doc.s3_key],
             kwargs={"case_id": case_id, "project_id": project_id},
-            queue=settings.CELERY_QUEUE  # Route to worker's queue
+            queue=settings.CELERY_PST_QUEUE,
         )
         return {
             "id": str(doc.id),
             "status": "PROCESSING_PST_FORENSIC",
             "message": "Forensic PST file queued for extraction and analysis",
+            "pst_file_id": str(pst_file.id),
         }
     else:
         # Queue OCR and AI classification for other files
@@ -1170,8 +1192,8 @@ def admin_trigger_pst(
         raise HTTPException(status_code=400, detail="Only PST files supported")
 
     # Check if PST file already exists in pst_files table
-    from app.models import PstFile
-    existing = db.query(PstFile).filter(PstFile.s3_key == s3_key).first()
+    from .models import PSTFile
+    existing = db.query(PSTFile).filter(PSTFile.s3_key == s3_key).first()
 
     if existing:
         # Reset status to pending and re-trigger
@@ -1183,7 +1205,7 @@ def admin_trigger_pst(
         pst_file_id = str(existing.id)
     else:
         # Create new pst_files record
-        pst_record = PstFile(
+        pst_record = PSTFile(
             project_id=uuid.UUID(project_id),
             filename=filename,
             s3_key=s3_key,

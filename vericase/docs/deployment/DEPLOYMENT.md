@@ -4,10 +4,10 @@
 
 VeriCase uses a streamlined deployment model:
 
-| Environment | Target | Config |
-|-------------|--------|--------|
-| **Local Dev** | Docker Compose | `vericase/docker-compose.yml` |
-| **Production** | AWS EKS | `vericase/k8s/` manifests |
+| Environment    | Target         | Config                        |
+| -------------- | -------------- | ----------------------------- |
+| **Local Dev**  | Docker Compose | `vericase/docker-compose.yml` |
+| **Production** | AWS EKS        | `vericase/k8s/` manifests     |
 
 ## Quick Start
 
@@ -19,9 +19,9 @@ docker-compose up -d
 ```
 
 Access points:
+
 - API: http://localhost:8010
 - API Docs: http://localhost:8010/docs
-- Frontend: http://localhost:5173
 - MinIO Console: http://localhost:9003
 
 ### Production (EKS)
@@ -41,23 +41,25 @@ git push origin main  →  Build image  →  Push to registries  →  Deploy to 
 **Trigger:** Push to `main` affecting `vericase/**` files, or manual dispatch
 
 **Steps:**
+
 1. Build Docker image
 2. Push to Docker Hub (`wcjrogers/vericase-api`)
 3. Push to GHCR (`ghcr.io/williamcjrogers/vericase-api`)
 4. Deploy to EKS cluster
 
 **Image tags:**
+
 - `latest` - most recent build
 - `{commit-sha}` - for rollback/pinning
 - `YYYYMMDD-HHmmss` - timestamp
 
 ### Required GitHub Secrets
 
-| Secret | Description |
-|--------|-------------|
-| `DOCKER_PAT` | Docker Hub personal access token |
-| `AWS_ACCESS_KEY_ID` | AWS IAM access key |
-| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key |
+| Secret                  | Description                      |
+| ----------------------- | -------------------------------- |
+| `DOCKER_PAT`            | Docker Hub personal access token |
+| `AWS_ACCESS_KEY_ID`     | AWS IAM access key               |
+| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key               |
 
 ---
 
@@ -71,11 +73,11 @@ git push origin main  →  Build image  →  Push to registries  →  Deploy to 
 
 ### Deployments
 
-| Deployment | Replicas | Purpose |
-|------------|----------|---------|
-| vericase-api | 3 (HPA: 3-10) | FastAPI backend |
-| vericase-worker | 2 (HPA: 2-6) | Celery workers |
-| tika | 1 | Document processing |
+| Deployment      | Replicas      | Purpose             |
+| --------------- | ------------- | ------------------- |
+| vericase-api    | 3 (HPA: 3-10) | FastAPI backend     |
+| vericase-worker | 2 (HPA: 2-6)  | Celery workers      |
+| tika            | 1             | Document processing |
 
 ### Common Commands
 
@@ -100,6 +102,7 @@ kubectl rollout status deployment/vericase-api -n vericase
 ### Ingress & Domains
 
 Served via AWS ALB Ingress:
+
 - `veri-case.com`
 - `www.veri-case.com`
 - `api.veri-case.com`
@@ -110,13 +113,13 @@ SSL managed by AWS ACM.
 
 ## AWS Resources
 
-| Resource | Identifier |
-|----------|------------|
-| EKS Cluster | `vericase-cluster` |
-| S3 Bucket | `vericase-docs` |
-| RDS | `database-1.cv8uwu0uqr7f.eu-west-2.rds.amazonaws.com` |
+| Resource    | Identifier                                                     |
+| ----------- | -------------------------------------------------------------- |
+| EKS Cluster | `vericase-cluster`                                             |
+| S3 Bucket   | `vericase-docs`                                                |
+| RDS         | `database-1.cv8uwu0uqr7f.eu-west-2.rds.amazonaws.com`          |
 | ElastiCache | `master.vericase-redis-simple.dbbgbx.euw2.cache.amazonaws.com` |
-| Region | `eu-west-2` |
+| Region      | `eu-west-2`                                                    |
 
 ### Production Environment Variables
 
@@ -137,16 +140,15 @@ Secrets (DATABASE_URL, JWT_SECRET, etc.) are managed via Kubernetes secrets.
 
 ### Services
 
-| Service | Purpose | Port |
-|---------|---------|------|
-| api | FastAPI backend | 8010 |
-| worker | Celery task processor | - |
-| frontend | React + Vite | 5173 |
-| postgres | PostgreSQL 15 | 54321 |
-| redis | Cache/broker | 6379 |
-| opensearch | Search engine | 9200 |
-| tika | Document processor | 9998 |
-| minio | S3-compatible storage | 9002/9003 |
+| Service    | Purpose               | Port      |
+| ---------- | --------------------- | --------- |
+| api        | FastAPI backend       | 8010      |
+| worker     | Celery task processor | -         |
+| postgres   | PostgreSQL 15         | 54321     |
+| redis      | Cache/broker          | 6379      |
+| opensearch | Search engine         | 9200      |
+| tika       | Document processor    | 9998      |
+| minio      | S3-compatible storage | 9002/9003 |
 
 ### Environment Setup
 
@@ -156,6 +158,7 @@ cp vericase/.env.example vericase/.env
 ```
 
 Key local variables:
+
 ```env
 USE_AWS_SERVICES=false
 DATABASE_URL=postgresql+psycopg2://vericase:vericase@postgres:5432/vericase

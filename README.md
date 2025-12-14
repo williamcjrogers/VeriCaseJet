@@ -20,7 +20,6 @@ vericase/
 │   ├── migrations/      # Database migrations
 │   └── Dockerfile
 ├── ui/                  # Production static UI (HTML/CSS/JS)
-├── frontend/            # React dev UI (local development only)
 ├── worker_app/          # Celery background workers
 ├── ops/                 # Operations scripts
 ├── k8s/                 # Kubernetes deployment configs
@@ -52,12 +51,12 @@ kubectl apply -f vericase/k8s/k8s-deployment.yaml -n vericase
 
 ## AWS Infrastructure
 
-| Resource | Value |
-|----------|-------|
-| Region | eu-west-2 |
-| EKS Cluster | vericase-cluster |
-| EC2 (Backup) | 18.175.232.87 |
-| S3 Bucket | vericase-docs |
+| Resource     | Value            |
+| ------------ | ---------------- |
+| Region       | eu-west-2        |
+| EKS Cluster  | vericase-cluster |
+| EC2 (Backup) | 18.175.232.87    |
+| S3 Bucket    | vericase-docs    |
 
 ## Status
 
