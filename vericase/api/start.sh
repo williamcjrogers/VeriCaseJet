@@ -3,8 +3,34 @@ set -e
 
 echo "=== VeriCase Startup ==="
 
-# Wait for Postgres (simple check or just rely on depends_on + retry)
-# In production, we might want a proper wait-for-it script, but for now:
+echo "Waiting for Postgres to accept connections..."
+python - <<'PY'
+import os
+import sys
+import time
+
+import psycopg2
+
+database_url = os.getenv("DATABASE_URL", "")
+if database_url.startswith("postgresql+psycopg2://"):
+  database_url = database_url.replace("postgresql+psycopg2://", "postgresql://", 1)
+
+deadline = time.time() + int(os.getenv("DB_WAIT_SECONDS", "60"))
+last_error = None
+
+while time.time() < deadline:
+  try:
+    conn = psycopg2.connect(database_url)
+    conn.close()
+    print("Postgres is ready.")
+    sys.exit(0)
+  except Exception as exc:
+    last_error = exc
+    time.sleep(2)
+
+print(f"Postgres did not become ready in time: {last_error}")
+sys.exit(1)
+PY
 
 echo "Running migrations (Alembic preferred)..."
 
