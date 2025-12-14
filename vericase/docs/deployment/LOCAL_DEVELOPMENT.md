@@ -3,6 +3,7 @@
 ## 🚀 5-Minute Setup
 
 ### Prerequisites
+
 - Docker Desktop (Windows 11) with 8GB+ RAM
 - Git
 - PowerShell
@@ -11,7 +12,7 @@
 
 ```powershell
 # Navigate to project
-cd "c:\Users\William\Documents\Projects\VeriCase Analysis\pst-analysis-engine"
+cd "c:\Users\William\Documents\Projects\main\vericase"
 
 # Start all services
 docker-compose up -d
@@ -25,7 +26,6 @@ docker-compose up -d
 - **Dashboard**: http://localhost:8010/ui/dashboard.html
 - **API Docs**: http://localhost:8010/docs
 - **MinIO Console**: http://localhost:9003 (admin/changeme123)
-- **Frontend (React)**: http://localhost:5173 (if running separately)
 
 ---
 
@@ -41,23 +41,14 @@ docker-compose up -d
 4. **Changes are live!** (takes ~1 second)
 
 **Watch logs to see reload:**
+
 ```powershell
 docker-compose logs -f api
 # You'll see: "Reloading..." when you save a file
 ```
 
-### Frontend (React + Vite) - AUTO RELOAD ✅
+### UI (Static HTML) - FAST ITERATION ✅
 
-**Option 1: Vite Dev Server** (Recommended for frontend work)
-```powershell
-cd ..\frontend
-npm install
-npm run dev
-# Access at http://localhost:5173
-# Changes hot-reload instantly!
-```
-
-**Option 2: Static UI**
 - Edit files in `ui/*.html`
 - Served at http://localhost:8010/ui/
 - Refresh browser to see changes
@@ -65,6 +56,7 @@ npm run dev
 ### Worker (Celery) - Manual Restart
 
 Changes to `worker_app/*.py` need a restart:
+
 ```powershell
 docker-compose restart worker
 ```
@@ -226,15 +218,15 @@ docker-compose exec api ls -la /code/app/
 
 When you run `docker-compose up -d`, you start:
 
-| Service | Purpose | Port | Status Check |
-|---------|---------|------|--------------|
-| **api** | FastAPI backend | 8010 | http://localhost:8010/docs |
-| **worker** | Celery background tasks | - | docker-compose logs worker |
-| **postgres** | PostgreSQL database | 54321 | docker-compose ps postgres |
-| **redis** | Cache & message queue | 6379 | docker-compose ps redis |
-| **opensearch** | Search engine | 9200 | http://localhost:9200 |
-| **minio** | S3-compatible storage | 9002, 9003 | http://localhost:9003 |
-| **tika** | Document extraction | 9998 | docker-compose ps tika |
+| Service        | Purpose                 | Port       | Status Check               |
+| -------------- | ----------------------- | ---------- | -------------------------- |
+| **api**        | FastAPI backend         | 8010       | http://localhost:8010/docs |
+| **worker**     | Celery background tasks | -          | docker-compose logs worker |
+| **postgres**   | PostgreSQL database     | 54321      | docker-compose ps postgres |
+| **redis**      | Cache & message queue   | 6379       | docker-compose ps redis    |
+| **opensearch** | Search engine           | 9200       | http://localhost:9200      |
+| **minio**      | S3-compatible storage   | 9002, 9003 | http://localhost:9003      |
+| **tika**       | Document extraction     | 9998       | docker-compose ps tika     |
 
 ---
 

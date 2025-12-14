@@ -47,7 +47,6 @@ vericase/
 │   └── Dockerfile
 ├── worker_app/      # Celery background workers
 ├── ui/              # Production static UI (HTML/CSS/JS)
-├── frontend/        # React dev UI (local development only)
 ├── ops/             # Operations scripts
 ├── k8s/             # Kubernetes deployment configs
 ├── docs/            # All documentation
