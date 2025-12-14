@@ -285,7 +285,7 @@ class AdaptiveModelRouter:
             ("gemini", "gemini-2.0-flash"),          # ~$0.35/1M
             ("bedrock", "amazon.nova-pro-v1:0"),    # ~$0.8/1M
             ("openai", "gpt-4o-mini"),              # ~$0.15/1M
-            ("anthropic", "claude-3-5-haiku-20241022"),  # ~$0.25/1M
+            ("anthropic", "claude-4.5-haiku"),  # ~$0.30/1M
             ("openai", "gpt-4o"),                   # ~$5/1M
             ("anthropic", "claude-sonnet-4-20250514"),   # ~$3/1M
         ]

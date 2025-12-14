@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from enum import Enum
-from typing import TypedDict
+from typing import TypedDict, cast
 
 from .config import settings
 from .ai_models_2025 import resolve_friendly_model
@@ -119,6 +119,10 @@ class AIModelService:
         "claude-haiku-4": {
             "provider": "anthropic",
             "model": "claude-3-5-haiku-20241022",
+        },
+        "claude-haiku-4.5": {
+            "provider": "anthropic",
+            "model": "claude-4.5-haiku",
         },
         "claude-opus-4.5": {
             "provider": "anthropic",
@@ -254,6 +258,7 @@ class AIModelService:
         "claude-sonnet-4": "Claude 4.5 Sonnet",
         "claude-opus-4-extended": "Claude 4.5 Opus (Extended Thinking)",
         "claude-haiku-4": "Claude 4.5 Haiku",
+        "claude-haiku-4.5": "Claude 4.5 Haiku",
         "claude-opus-4.5": "Claude 4.5 Opus",
         "claude-sonnet-4.5": "Claude 4.5 Sonnet",
         # OpenAI
@@ -348,7 +353,7 @@ class AIModelService:
 
     @staticmethod
     def _copy_model_config(config: ModelConfig) -> ModelConfig:
-        copied: ModelConfig = dict(config)
+        copied: ModelConfig = cast(ModelConfig, dict(config))
         if "fallbacks" in config:
             copied["fallbacks"] = list(config["fallbacks"])
         if "features" in config:

@@ -21,6 +21,7 @@ TOKEN_PRICING_PER_1M: dict[str, dict[str, float]] = {
     # Anthropic direct
     "claude-sonnet-4-20250514": {"input": 3.00, "output": 15.00},
     "claude-opus-4-20250514": {"input": 15.00, "output": 75.00},
+    "claude-4.5-haiku": {"input": 0.30, "output": 1.50},
     "claude-3-5-haiku-20241022": {"input": 0.25, "output": 1.25},
     "claude-3-5-sonnet-20241022": {"input": 3.00, "output": 15.00},
     # Gemini
@@ -51,7 +52,9 @@ COST_TIER_MAP: dict[str, int] = {
     "gemini-2.0-flash": 2,
     "gemini-2.0-flash-lite": 2,
     "gpt-4o-mini": 2,
+    "claude-4.5-haiku": 2,
     "claude-3-5-haiku-20241022": 2,
+    "anthropic.claude-haiku-4-5-20251001-v1:0": 2,
     "amazon.nova-pro-v1:0": 3,
     "gemini-1.5-pro": 3,
     "gpt-4o": 4,
@@ -91,4 +94,3 @@ def estimate_cost_usd(
 
     avg_rate = (pricing["input"] + pricing["output"]) / 2
     return (tokens_total / 1_000_000) * avg_rate
-

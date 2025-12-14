@@ -60,7 +60,7 @@ class AIFallbackChain:
         "quick_search": [
             ("bedrock", "amazon.nova-micro-v1:0"),      # Primary: fastest, cheapest
             ("bedrock", "amazon.nova-lite-v1:0"),       # Fallback 1
-            ("anthropic", "claude-3-5-haiku-20241022"),  # External fallback
+            ("anthropic", "claude-4.5-haiku"),  # External fallback (upgraded)
         ],
         "deep_analysis": [
             ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),  # Primary: Claude via Bedrock
@@ -90,7 +90,7 @@ class AIFallbackChain:
         "refinement": [
             ("bedrock", "amazon.nova-lite-v1:0"),       # Primary: cost-effective
             ("bedrock", "amazon.nova-micro-v1:0"),      # Fallback 1: fastest
-            ("anthropic", "claude-3-5-haiku-20241022"),  # External fallback
+            ("anthropic", "claude-4.5-haiku"),  # External fallback (upgraded)
         ],
     }
 
