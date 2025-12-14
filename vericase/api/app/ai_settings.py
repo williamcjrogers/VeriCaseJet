@@ -163,7 +163,7 @@ class AISettings:
         # Claude 4.5 series
         "claude-4.5-opus": "anthropic.claude-4.5-opus-v1:0",
         "claude-4.5-sonnet": "anthropic.claude-4.5-sonnet-v1:0",
-        "claude-4.5-haiku": "anthropic.claude-4.5-haiku-v1:0",
+        "claude-4.5-haiku": "anthropic.claude-haiku-4-5-20251001-v1:0",
         # Claude 4.1 series
         "claude-4.1-opus": "anthropic.claude-4.1-opus-v1:0",
         "claude-4.1-sonnet": "anthropic.claude-4.1-sonnet-v1:0",

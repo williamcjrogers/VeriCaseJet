@@ -153,6 +153,15 @@ AI_MODELS_2025: dict[str, dict[str, Any]] = {
                 "context_window": 200000,
                 "cost_tier": "standard",
             },
+            {
+                "id": "claude-4.5-haiku",
+                "name": "Claude Haiku 4.5 (Fast)",
+                "description": "Fast, cost-efficient Claude 4.5 Haiku model",
+                "type": "fast",
+                "capabilities": ["chat", "analysis"],
+                "context_window": 200000,
+                "cost_tier": "budget",
+            },
             # Claude 4 Series (Latest - actual API model IDs)
             {
                 "id": "claude-opus-4-20250514",
@@ -667,6 +676,7 @@ FRIENDLY_MODEL_ALIASES: dict[str, tuple[str, str]] = {
     "claude-sonnet-4": ("anthropic", "claude-sonnet-4-20250514"),
     "claude-opus-4-extended": ("anthropic", "claude-opus-4-20250514"),
     "claude-haiku-4": ("anthropic", "claude-3-5-haiku-20241022"),
+    "claude-4.5-haiku": ("anthropic", "claude-4.5-haiku"),
     "claude-opus-4.5": ("anthropic", "claude-opus-4.5"),
     "claude-sonnet-4.5": ("anthropic", "claude-sonnet-4.5"),
     # OpenAI
@@ -693,6 +703,7 @@ FRIENDLY_MODEL_ALIASES: dict[str, tuple[str, str]] = {
     "bedrock-nova-micro": ("bedrock", "amazon.nova-micro-v1:0"),
     "bedrock-claude-sonnet": ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
     "bedrock-claude-opus": ("bedrock", "anthropic.claude-opus-4-5-20251101-v1:0"),
+    "bedrock-claude-haiku": ("bedrock", "anthropic.claude-haiku-4-5-20251001-v1:0"),
     # xAI Grok
     "grok-4.1-fast": ("xai", "grok-4.1-fast"),
     "grok-4.1-fast-reason": ("xai", "grok-4.1-fast-reason"),
