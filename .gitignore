@@ -84,6 +84,12 @@ tmp/
 NUL
 *.pst
 
+# AWS exports / inventory dumps (often contain sensitive details)
+aws-*-export-*.json
+aws-complete-export-*.json
+aws-export-*.json
+*aws*export*.json
+
 # Archive folder (old docs, scripts, logs)
 archive/
 

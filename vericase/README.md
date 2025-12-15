@@ -124,6 +124,9 @@ The initial Alembic revision (`0001_vericase_baseline`) is a no-op baseline used
 
 ## Documentation
 
+- [AI Full Power Mode](docs/AI_FULLPOWER.md) — Enable all 6 AI providers + features
+- [AI Configuration Guide](docs/AI_CONFIGURATION_GUIDE.md) — Per-provider setup
+- [AI Key Management](AI_KEY_MANAGEMENT.md) — Secrets Manager & rotation
 - [Deployment Guide](docs/deployment/DEPLOYMENT.md)
 - [Local Development](docs/deployment/LOCAL_DEVELOPMENT.md)
 - [AWS Setup](docs/aws/AWS_SETUP_GUIDE.md)
