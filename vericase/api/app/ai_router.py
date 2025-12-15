@@ -155,6 +155,8 @@ class AdaptiveModelRouter:
         self.openai_key = get_ai_api_key("openai", db)
         self.anthropic_key = get_ai_api_key("anthropic", db)
         self.gemini_key = get_ai_api_key("gemini", db)
+        self.xai_key = get_ai_api_key("xai", db) or get_ai_api_key("grok", db)
+        self.perplexity_key = get_ai_api_key("perplexity", db)
         self.bedrock_enabled = is_bedrock_enabled(db)
         self.bedrock_region = get_bedrock_region(db)
 
@@ -185,6 +187,10 @@ class AdaptiveModelRouter:
             return bool(self.anthropic_key)
         elif provider == "gemini":
             return bool(self.gemini_key)
+        elif provider in {"xai", "grok"}:
+            return bool(self.xai_key)
+        elif provider == "perplexity":
+            return bool(self.perplexity_key)
         elif provider == "bedrock":
             return self.bedrock_enabled
         return False
@@ -198,6 +204,10 @@ class AdaptiveModelRouter:
             providers.append("anthropic")
         if self.gemini_key:
             providers.append("gemini")
+        if self.xai_key:
+            providers.append("xai")
+        if self.perplexity_key:
+            providers.append("perplexity")
         if self.bedrock_enabled:
             providers.append("bedrock")
         return providers

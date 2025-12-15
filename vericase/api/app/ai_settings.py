@@ -232,8 +232,18 @@ class AISettings:
             "openai_api_key": "OPENAI_API_KEY",
             "anthropic_api_key": "CLAUDE_API_KEY",
             "gemini_api_key": "GEMINI_API_KEY",
+            "xai_api_key": "XAI_API_KEY",
+            "grok_api_key": "GROK_API_KEY",
+            "perplexity_api_key": "PERPLEXITY_API_KEY",
             "bedrock_enabled": "BEDROCK_ENABLED",
-            "bedrock_region": "AWS_REGION",
+            "bedrock_region": "BEDROCK_REGION",
+            "bedrock_route_claude": "BEDROCK_ROUTE_CLAUDE",
+            "ai_fallback_enabled": "AI_FALLBACK_ENABLED",
+            "ai_fallback_log_attempts": "AI_FALLBACK_LOG_ATTEMPTS",
+            "ai_routing_strategy": "AI_ROUTING_STRATEGY",
+            "ai_prefer_bedrock": "AI_PREFER_BEDROCK",
+            "ai_enable_multi_model": "AI_ENABLE_MULTI_MODEL",
+            "ai_enable_validation": "AI_ENABLE_VALIDATION",
         }
 
         env_var = env_map.get(key)
