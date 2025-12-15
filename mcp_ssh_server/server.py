@@ -17,6 +17,7 @@ class SSHConfig:
     private_key_path: str
     private_key_passphrase: str | None
     strict_host_key_checking: bool
+    known_hosts_path: str | None
 
 
 def _env(name: str, default: str | None = None) -> str | None:
@@ -61,6 +62,13 @@ def _load_config() -> SSHConfig:
     private_key_path = _require_env("SSH_PRIVATE_KEY_PATH")
     private_key_passphrase = _env("SSH_PRIVATE_KEY_PASSPHRASE")
     strict_host_key_checking = _parse_bool(_env("SSH_STRICT_HOST_KEY_CHECKING"), False)
+    known_hosts_path = _env("SSH_KNOWN_HOSTS_PATH")
+
+    if strict_host_key_checking and known_hosts_path and not os.path.exists(known_hosts_path):
+        raise RuntimeError(
+            f"SSH_KNOWN_HOSTS_PATH does not exist: {known_hosts_path}. "
+            "Prime known_hosts first (for Windows: run vericase/ops/setup-ssh.ps1)."
+        )
 
     return SSHConfig(
         host=host,
@@ -69,6 +77,7 @@ def _load_config() -> SSHConfig:
         private_key_path=private_key_path,
         private_key_passphrase=private_key_passphrase,
         strict_host_key_checking=strict_host_key_checking,
+        known_hosts_path=known_hosts_path,
     )
 
 
@@ -77,6 +86,8 @@ def _run_ssh_command(cfg: SSHConfig, command: str, timeout_s: float) -> dict:
 
     if cfg.strict_host_key_checking:
         client.load_system_host_keys()
+        if cfg.known_hosts_path:
+            client.load_host_keys(cfg.known_hosts_path)
         client.set_missing_host_key_policy(paramiko.RejectPolicy())
     else:
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -118,7 +129,8 @@ mcp = FastMCP(
     instructions=(
         "Run commands on a remote host over SSH. "
         "Configure SSH_HOST, SSH_USER, SSH_PORT (optional), SSH_PRIVATE_KEY_PATH, "
-        "SSH_PRIVATE_KEY_PASSPHRASE (optional), and SSH_STRICT_HOST_KEY_CHECKING (optional)."
+        "SSH_PRIVATE_KEY_PASSPHRASE (optional), and SSH_STRICT_HOST_KEY_CHECKING (optional). "
+        "Optionally set SSH_KNOWN_HOSTS_PATH to a known_hosts file path when strict checking is enabled."
     ),
 )
 

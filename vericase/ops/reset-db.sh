@@ -78,7 +78,13 @@ reset_ec2() {
     fi
 
     echo "Connecting to EC2..."
-    ssh -i "$key_path" -o StrictHostKeyChecking=no ec2-user@$EC2_IP << 'ENDSSH'
+    known_hosts_file="$HOME/.ssh/known_hosts"
+    if [ ! -f "$known_hosts_file" ]; then
+        echo -e "${YELLOW}known_hosts not found: $known_hosts_file${NC}"
+        echo "Prime it first (Windows): powershell -ExecutionPolicy Bypass -File .\\vericase\\ops\\setup-ssh.ps1"
+        exit 1
+    fi
+    ssh -i "$key_path" -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" ec2-user@$EC2_IP << 'ENDSSH'
         cd ~/vericase || exit 1
 
         echo "[1/4] Stopping services..."
@@ -102,6 +108,12 @@ reset_ec2() {
         echo "Database reset complete!"
         sudo docker-compose ps
 ENDSSH
+
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}SSH failed. If this is the first connection or host key changed, prime known_hosts first.${NC}"
+        echo "Windows: powershell -ExecutionPolicy Bypass -File .\\vericase\\ops\\setup-ssh.ps1"
+        exit 1
+    fi
 
     echo ""
     echo -e "${GREEN}EC2 database reset complete!${NC}"

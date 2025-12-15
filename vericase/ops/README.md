@@ -8,6 +8,7 @@ Consolidated operations scripts for deploying and managing VeriCase.
 |--------|---------|-------|
 | `deploy.sh` / `deploy.ps1` | Deploy application | `./ops/deploy.sh [local\|ec2\|eks]` |
 | `diagnose.sh` / `diagnose.ps1` | Run diagnostics | `./ops/diagnose.sh [local\|ec2\|aws\|all]` |
+| `setup-ssh.ps1` | Prime SSH config + known_hosts (Windows) | `powershell -ExecutionPolicy Bypass -File .\\ops\\setup-ssh.ps1` |
 | `setup-aws.sh` | Configure AWS services | `./ops/setup-aws.sh [minimal\|standard\|full]` |
 | `ec2-bootstrap.sh` | EC2 UserData script | Paste into EC2 launch wizard |
 | `reset-db.sh` | Reset database | `./ops/reset-db.sh [local\|ec2]` |
@@ -31,6 +32,11 @@ export SSH_KEY_PATH=~/.ssh/VeriCase-Safe.pem
 
 # Check EC2 status
 ./ops/diagnose.sh ec2
+```
+
+### Windows SSH bootstrap (recommended)
+```powershell
+powershell -ExecutionPolicy Bypass -File .\ops\setup-ssh.ps1
 ```
 
 ### EKS Deployment

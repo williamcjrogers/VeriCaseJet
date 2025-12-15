@@ -142,7 +142,21 @@ echo "Checking status..."
 sudo docker-compose ps
 "@
 
-    ssh -i $keyPath -o StrictHostKeyChecking=no ec2-user@$EC2_IP $commands
+    $knownHosts = "$env:USERPROFILE\.ssh\known_hosts"
+    if (-not (Test-Path $knownHosts)) {
+        Log-Warn "known_hosts not found: $knownHosts"
+        Log-Info "Run: powershell -ExecutionPolicy Bypass -File .\\vericase\\ops\\setup-ssh.ps1"
+        Log-Info "Then retry this deploy."
+        exit 1
+    }
+
+    ssh -i "$keyPath" -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$knownHosts" ec2-user@$EC2_IP $commands
+    if ($LASTEXITCODE -ne 0) {
+        Log-Error "SSH command failed (exit code $LASTEXITCODE)."
+        Log-Info "If this is the first connection or the instance was rebuilt, prime known_hosts:"
+        Log-Info "  powershell -ExecutionPolicy Bypass -File .\\vericase\\ops\\setup-ssh.ps1"
+        exit $LASTEXITCODE
+    }
 
     Log-Success "EC2 deployment complete!"
     Write-Host ""
