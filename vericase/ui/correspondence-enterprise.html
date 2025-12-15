@@ -943,25 +943,29 @@
     }
 
     #aiChatContainer .ai-compact {
-      max-width: 100%;
+      width: 100%;
       display: flex;
       align-items: center;
       gap: 1rem;
+      flex-wrap: nowrap;
     }
 
     #aiChatContainer .ai-icon {
       width: 36px;
       height: 36px;
+      min-width: 36px;
       background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-teal-dark));
       border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
       box-shadow: 0 2px 8px rgba(15, 157, 154, 0.3);
+      flex-shrink: 0;
     }
 
     #aiChatContainer .ai-input-wrapper {
       flex: 1;
+      min-width: 0;
       position: relative;
     }
 
@@ -986,6 +990,7 @@
       display: flex;
       gap: 0.5rem;
       align-items: center;
+      flex-shrink: 0;
     }
 
     .breadcrumb-case-info {
