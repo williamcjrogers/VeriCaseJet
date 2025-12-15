@@ -28,32 +28,19 @@ You need AWS credentials to use the AWS MCP servers. These can be obtained from 
    - **Access Key ID**
    - **Secret Access Key**
 
-### Step 2: Configure AWS MCP Servers
+### Step 2: Configure AWS MCP Servers (Recommended: AWS Profiles)
 
-The AWS MCP servers are configured in:
+This repo includes a setup script that generates a workspace-local MCP config using `AWS_PROFILE` + `AWS_REGION`
+(avoids hardcoding access keys into JSON files).
+
+1) Configure a profile:
+```powershell
+aws configure --profile default
 ```
-C:\Users\William\AppData\Roaming\Code\User\globalStorage\saoudrizwan.claude-dev\settings\cline_mcp_settings.json
-```
 
-Update the following entries with your AWS credentials:
-
-```json
-{
-  "github.com/modelcontextprotocol/servers/tree/main/src/aws-kb-retrieval": {
-    "env": {
-      "AWS_REGION": "us-east-1",  // Change to your preferred region
-      "AWS_ACCESS_KEY_ID": "YOUR_ACCESS_KEY_ID",
-      "AWS_SECRET_ACCESS_KEY": "YOUR_SECRET_ACCESS_KEY"
-    }
-  },
-  "github.com/modelcontextprotocol/servers/tree/main/src/aws": {
-    "env": {
-      "AWS_REGION": "us-east-1",  // Change to your preferred region
-      "AWS_ACCESS_KEY_ID": "YOUR_ACCESS_KEY_ID",
-      "AWS_SECRET_ACCESS_KEY": "YOUR_SECRET_ACCESS_KEY"
-    }
-  }
-}
+2) Generate `.vscode/mcp.json`:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-mcp-servers.ps1 -Force
 ```
 
 ### Step 3: Common AWS Regions
@@ -67,13 +54,22 @@ Update the following entries with your AWS credentials:
 
 ## SSH Configuration
 
-### SSH/SSHFS Server
+### Workspace SSH MCP Server (Paramiko)
 
-The SSH MCP server allows you to connect to remote servers via SSH and access their file systems.
+This repo’s SSH MCP server runs commands over SSH using Paramiko.
 
-### Configuration Options
+It reads:
+- `SSH_HOST`, `SSH_USER`, `SSH_PORT`
+- `SSH_PRIVATE_KEY_PATH`
+- `SSH_STRICT_HOST_KEY_CHECKING` (recommended `true`)
+- `SSH_KNOWN_HOSTS_PATH` (path to an OpenSSH `known_hosts` file)
 
-The SSH server is configured to connect dynamically based on your requests. You can connect to servers using standard SSH connection strings.
+If strict host key checking is enabled, you must prime `known_hosts` first.
+
+Windows helper (recommended):
+```powershell
+powershell -ExecutionPolicy Bypass -File .\vericase\ops\setup-ssh.ps1
+```
 
 ### Common SSH Use Cases
 

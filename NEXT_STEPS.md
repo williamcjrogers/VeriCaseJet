@@ -261,8 +261,14 @@ New services may incur costs:
 ## 📚 Where to Find Everything
 
 ### MCP Configuration
+Workspace MCP config is generated here:
 ```
-C:\Users\William\AppData\Roaming\Code\User\globalStorage\saoudrizwan.claude-dev\settings\cline_mcp_settings.json
+.vscode/mcp.json
+```
+
+Generate/refresh it:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-mcp-servers.ps1 -Force
 ```
 
 ### New API Files
