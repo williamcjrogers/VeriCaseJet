@@ -133,16 +133,18 @@ aws secretsmanager get-secret-value \
   --query SecretString \
   --output text
 
-# If error "ResourceNotFoundException", create it:
+# If error "ResourceNotFoundException", create it with YOUR keys (do NOT hardcode in docs):
 aws secretsmanager create-secret \
   --name vericase/ai-api-keys \
   --region eu-west-2 \
   --secret-string '{
-    "GEMINI_API_KEY": "AIzaSyCNfRrYZHyRxAXl92Y9k-lj-oOWQgX1Nns",
-    "CLAUDE_API_KEY": "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",
-    "OPENAI_API_KEY": "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"
+    "GEMINI_API_KEY": "<your-gemini-key>",
+    "CLAUDE_API_KEY": "<your-claude-key>",
+    "OPENAI_API_KEY": "<your-openai-key>"
   }'
 ```
+
+> 🔒 Never commit or paste real keys in this repo. Rotate any keys that were previously exposed.
 
 ### Check 3: Do you have IAM permissions?
 

@@ -17,9 +17,9 @@ This builds your latest code and makes it available everywhere.
 ### Step 1: Build the Image Locally
 
 ```bash
-cd c:\Users\William\Documents\Projects\main\vericase
+cd C:\Users\William\Documents\Projects\VeriCaseJet_canonical\vericase
 
-# Build the Docker image with your latest code
+# Build the Docker image with your latest code (context is repo root)
 docker build -t wcjrogers/vericase-api:latest -f api/Dockerfile .
 ```
 
@@ -89,7 +89,7 @@ This updates your EC2 instance directly via SSH.
 ### Using the Deploy Script
 
 ```bash
-cd c:\Users\William\Documents\Projects\main\vericase
+cd C:\Users\William\Documents\Projects\VeriCaseJet_canonical\vericase
 
 # Deploy to EC2 (pulls latest Docker image)
 ./ops/deploy.sh ec2
@@ -126,7 +126,7 @@ http://18.175.232.87:8010
 
 ```bash
 # 1. BUILD: Create new Docker image with your latest code
-cd c:\Users\William\Documents\Projects\main\vericase
+cd C:\Users\William\Documents\Projects\VeriCaseJet_canonical\vericase
 docker build -t wcjrogers/vericase-api:latest -f api/Dockerfile .
 
 # 2. PUSH: Upload to Docker Hub
