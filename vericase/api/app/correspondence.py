@@ -909,11 +909,12 @@ async def get_email_count(
 
     # Filter out excluded emails unless explicitly requested - only count non-tagged emails
     if not include_excluded:
+        status_field = EmailMessage.meta["status"].astext
         query = query.filter(
             or_(
                 EmailMessage.meta.is_(None),
-                ~EmailMessage.meta.op("?")("status"),
-                EmailMessage.meta.op("->>")("status") == "active",
+                status_field.is_(None),
+                status_field == "active",
             )
         )
 
@@ -934,9 +935,10 @@ async def get_excluded_emails(
     View emails that have been tagged/excluded (spam, other projects, etc.)
     """
     # Filter for emails with status tag in metadata (not active)
+    status_field = EmailMessage.meta["status"].astext
     query = db.query(EmailMessage).filter(
-        EmailMessage.meta.op("?")("status"),
-        EmailMessage.meta.op("->>")("status") != "active",
+        status_field.is_not(None),
+        status_field != "active",
     )
 
     if case_id:
@@ -949,11 +951,11 @@ async def get_excluded_emails(
     # Group by status tag in metadata
     reason_counts = {}
     reasons_query = db.query(
-        EmailMessage.meta.op("->>")("status").label("reason"),
+        status_field.label("reason"),
         func.count(EmailMessage.id).label("count")
     ).filter(
-        EmailMessage.meta.op("?")("status"),
-        EmailMessage.meta.op("->>")("status") != "active",
+        status_field.is_not(None),
+        status_field != "active",
     )
 
     if case_id:
@@ -961,7 +963,7 @@ async def get_excluded_emails(
     elif project_id:
         reasons_query = reasons_query.filter(EmailMessage.project_id == project_id)
 
-    reasons_query = reasons_query.group_by(EmailMessage.meta.op("->>")("status"))
+    reasons_query = reasons_query.group_by(status_field)
 
     for row in reasons_query.all():
         reason_counts[row.reason or "unknown"] = row.count
@@ -1089,18 +1091,18 @@ async def list_emails(
         query = query.filter(EmailMessage.date_sent <= date_to)
 
     # Filter by status tag in metadata
+    status_field = EmailMessage.meta["status"].astext
+
     if status_filter:
         # Show only emails with specific status tag
-        query = query.filter(
-            EmailMessage.meta.op("->>")("status") == status_filter
-        )
+        query = query.filter(status_field == status_filter)
     elif not include_hidden:
         # By default, exclude emails tagged as spam/other_project/etc in metadata
         query = query.filter(
             or_(
                 EmailMessage.meta.is_(None),
-                ~EmailMessage.meta.op("?")("status"),
-                EmailMessage.meta.op("->>")("status") == "active",
+                status_field.is_(None),
+                status_field == "active",
             )
         )
         # Also exclude Outlook activity items (IPM.Activity) which are not real emails
@@ -1569,11 +1571,12 @@ async def get_emails_server_side(
         query = db.query(EmailMessage)
 
     # Filter out excluded emails by default - only show non-tagged emails
+    status_field = EmailMessage.meta["status"].astext
     query = query.filter(
         or_(
             EmailMessage.meta.is_(None),
-            ~EmailMessage.meta.op("?")("status"),
-            EmailMessage.meta.op("->>")("status") == "active",
+            status_field.is_(None),
+            status_field == "active",
         )
     )
 
