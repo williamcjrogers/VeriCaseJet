@@ -10,7 +10,7 @@ import os
 import re as _re_module
 import uuid
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 
 from boto3.s3.transfer import TransferConfig
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
