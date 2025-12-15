@@ -442,9 +442,7 @@ async def list_heads_of_claim(
     user: User = Depends(current_user),
 ):
     """List heads of claim with filtering"""
-    logger.info(f"list_heads_of_claim called with params: project_id={project_id}, case_id={case_id}, contentious_matter_id={contentious_matter_id}, status={status}, claim_type={claim_type}, page={page}, page_size={page_size}")
     query = db.query(HeadOfClaim)
-    logger.info("Initial query created")
 
     if project_id:
         pid = _parse_uuid(project_id, "project_id")
@@ -460,20 +458,15 @@ async def list_heads_of_claim(
     if claim_type:
         query = query.filter(HeadOfClaim.claim_type == claim_type)
 
-    logger.info("About to count total")
     total = query.count()
-    logger.info(f"Total count: {total}")
-    logger.info("About to execute claims query")
     claims = (
         query.order_by(HeadOfClaim.created_at.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
     )
-    logger.info(f"Retrieved {len(claims)} claims")
-    logger.info("About to build result list")
-    try:
-        result = []
+
+    result = []
         for c in claims:
             item_count = (
                 db.query(func.count(ItemClaimLink.id))
@@ -520,9 +513,6 @@ async def list_heads_of_claim(
                     item_count=item_count,
                 )
             )
-    except Exception as e:
-        logger.error(f"Error building result: {e}")
-        raise
 
     return {"items": result, "total": total, "page": page, "page_size": page_size}
 
@@ -1261,7 +1251,6 @@ async def list_item_links(
             )
         )
 
-    logger.info("About to return result")
     return {"items": result, "total": total, "page": page, "page_size": page_size}
 
 
