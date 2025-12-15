@@ -1837,6 +1837,43 @@
           </div>
         </div>
 
+        <!-- AI Suggestions & Insights -->
+        <div class="context-section" id="aiSuggestionsSection">
+          <div class="context-section-header" onclick="toggleContextSection('aiSuggestions')">
+            <span><i class="fas fa-robot"></i> AI Insights</span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="context-section-body" id="aiSuggestionsBody">
+            <div id="aiSuggestionsList">
+              <div class="context-empty-state">
+                <i class="fas fa-robot"></i>
+                <p>Select emails for AI suggestions</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Smart Actions -->
+        <div class="context-section" id="smartActionsSection">
+          <div class="context-section-header" onclick="toggleContextSection('smartActions')">
+            <span><i class="fas fa-lightbulb"></i> Smart Actions</span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="context-section-body" id="smartActionsBody">
+            <div style="display: flex; flex-direction: column; gap: 0.5rem">
+              <button class="btn" onclick="showSimilarEmails()" style="justify-content: flex-start; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;">
+                <i class="fas fa-search-plus"></i> Show Similar Emails
+              </button>
+              <button class="btn" onclick="suggestExclusion()" style="justify-content: flex-start; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;">
+                <i class="fas fa-filter"></i> Suggest Exclusion Tag
+              </button>
+              <button class="btn" onclick="analyzeSelection()" style="justify-content: flex-start; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;">
+                <i class="fas fa-chart-pie"></i> Analyze Selection
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Bulk Actions -->
         <div class="context-section" id="bulkActionsSection">
           <div class="context-section-header" onclick="toggleContextSection('bulkActions')">
@@ -1850,6 +1887,9 @@
               </button>
               <button class="btn" onclick="bulkAddKeywords()" style="justify-content: flex-start">
                 <i class="fas fa-tag"></i> Add Keywords
+              </button>
+              <button class="btn" onclick="markAsExcluded()" style="justify-content: flex-start; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;">
+                <i class="fas fa-ban"></i> Mark as Excluded
               </button>
               <button class="btn" onclick="bulkExportSelected()" style="justify-content: flex-start">
                 <i class="fas fa-download"></i> Export
@@ -2952,16 +2992,28 @@
       {
         headerName: "From",
         field: "email_from",
-        width: 140,
+        width: 180,
         wrapText: true,
         cellStyle: {
           "white-space": "normal",
           "word-wrap": "break-word",
+          "font-size": "0.85rem",
+          "line-height": "1.3",
         },
-        cellRenderer: (params) =>
-          params.value
-            ? `<span style="font-weight: 500;">${params.value}</span>`
-            : "-",
+        valueGetter: (params) => {
+          // Try multiple fields to get sender with full email
+          return params.data.sender_email || params.data.email_from || params.data.from || '';
+        },
+        cellRenderer: (params) => {
+          if (!params.value) return '<span style="color: var(--text-muted);">—</span>';
+          const email = String(params.value);
+          // Extract name and email if in "Name <email>" format
+          const match = email.match(/^(.+?)\s*<(.+?)>$/);
+          if (match) {
+            return `<div style="line-height: 1.3;"><div style="font-weight: 600; color: var(--vericase-navy);">${match[1]}</div><div style="font-size: 0.75rem; color: var(--text-muted);">${match[2]}</div></div>`;
+          }
+          return `<span style="font-weight: 500;">${email}</span>`;
+        },
         filter: "agTextColumnFilter",
         filterParams: {
           filterOptions: ["contains", "startsWith", "endsWith", "equals"],
@@ -2972,16 +3024,27 @@
       {
         headerName: "To",
         field: "email_to",
-        width: 140,
+        width: 180,
         wrapText: true,
         cellStyle: {
           "white-space": "normal",
           "word-wrap": "break-word",
+          "font-size": "0.8rem",
+          "line-height": "1.3",
         },
-        cellRenderer: (params) =>
-          params.value
-            ? `<span style="font-weight: 500;">${params.value}</span>`
-            : "-",
+        valueGetter: (params) => {
+          // Try multiple fields to get To recipients
+          return params.data.email_to || params.data.recipients_to || params.data.to || '';
+        },
+        cellRenderer: (params) => {
+          if (!params.value) return '<span style="color: var(--text-muted);">—</span>';
+          // Split by comma/semicolon and show first few
+          const emails = String(params.value).split(/[,;]/).map(e => e.trim()).filter(e => e);
+          if (emails.length === 0) return '<span style="color: var(--text-muted);">—</span>';
+          const display = emails.slice(0, 2).join('<br>');
+          const more = emails.length > 2 ? `<br><span style="color: var(--text-muted); font-size: 0.7rem;">+${emails.length - 2} more</span>` : '';
+          return `<div style="font-size: 0.8rem; line-height: 1.3;">${display}${more}</div>`;
+        },
         filter: "agTextColumnFilter",
         filterParams: {
           filterOptions: ["contains", "startsWith", "endsWith", "equals"],
@@ -2992,17 +3055,28 @@
       {
         headerName: "CC",
         field: "email_cc",
-        width: 140,
-        hide: true, // Hidden by default - show via column chooser
+        width: 160,
+        hide: false, // Visible by default per user request
         wrapText: true,
         cellStyle: {
           "white-space": "normal",
           "word-wrap": "break-word",
+          "font-size": "0.8rem",
+          "line-height": "1.3",
         },
-        cellRenderer: (params) =>
-          params.value
-            ? `<span style="font-weight: 500;">${params.value}</span>`
-            : "-",
+        valueGetter: (params) => {
+          // Try multiple fields to get CC recipients
+          return params.data.email_cc || params.data.recipients_cc || params.data.cc || '';
+        },
+        cellRenderer: (params) => {
+          if (!params.value) return '<span style="color: var(--text-muted);">—</span>';
+          // Show full email addresses, truncate if too long
+          const emails = String(params.value).split(/[,;]/).map(e => e.trim()).filter(e => e);
+          if (emails.length === 0) return '<span style="color: var(--text-muted);">—</span>';
+          const display = emails.slice(0, 2).join('<br>');
+          const more = emails.length > 2 ? `<br><span style="color: var(--text-muted); font-size: 0.7rem;">+${emails.length - 2} more</span>` : '';
+          return `<div style="font-size: 0.8rem; line-height: 1.3;">${display}${more}</div>`;
+        },
         filter: "agTextColumnFilter",
         filterParams: {
           filterOptions: ["contains", "startsWith", "endsWith", "equals"],
@@ -3088,6 +3162,15 @@
             }
 
             let cleaned = text;
+
+            // Remove CSS artifacts - P {margin-top:0;margin-bottom:0;} patterns
+            cleaned = cleaned.replace(/[A-Z]\s*\{[^}]*margin[^}]*\}/gi, '');
+            cleaned = cleaned.replace(/@font-face\s*\{[^}]*\}/gi, '');
+            cleaned = cleaned.replace(/\.\w+\s*\{[^}]*\}/gi, '');
+            cleaned = cleaned.replace(/\*\s*\{[^}]*\}/gi, '');
+            cleaned = cleaned.replace(/<!--\[if[^\]]*\]>.*?<!\[endif\]-->/gis, '');
+            cleaned = cleaned.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+            cleaned = cleaned.replace(/mso-[a-z-]+:[^;]+;?/gi, '');
 
             // Remove external email warning containers (including HTML) BEFORE removing tags
             cleaned = cleaned.replace(/<div[^>]*external[^>]*>.*?<\/div>/gi, '');
@@ -3499,31 +3582,35 @@
       {
         headerName: "Claim Status",
         field: "claim_status",
-        width: 140,
+        width: 120,
         cellStyle: {
           "display": "flex",
-          "align-items": "center",
+          "align-items": "flex-start",
           "justify-content": "center",
-          "background": "#f8fafc",
+          "padding-top": "8px",
         },
         cellRenderer: (params) => {
           const status = params.data.claim_status || "none";
           const statusConfig = {
-            none: { bg: "#f3f4f6", color: "#6b7280", label: "None" },
+            none: { bg: "transparent", color: "#9ca3af", label: "—", border: "none" },
             contentious_matter: {
               bg: "#fef3c7",
-              color: "#92400e",
-              label: "Matter",
+              color: "#b45309",
+              label: "⚖️ Matter",
+              border: "1px solid #fcd34d",
             },
             head_of_claim: {
-              bg: "#fee2e2",
-              color: "#991b1b",
-              label: "Claim",
+              bg: "#fce7f3",
+              color: "#be185d",
+              label: "📋 Claim",
+              border: "1px solid #f9a8d4",
             },
           };
           const cfg = statusConfig[status] || statusConfig["none"];
-          return `<span style="padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; 
-                                       font-weight: 600; background: ${cfg.bg}; color: ${cfg.color};">
+          if (status === 'none') return `<span style="color: #9ca3af;">—</span>`;
+          return `<span style="padding: 5px 10px; border-radius: 16px; font-size: 0.7rem; 
+                                       font-weight: 600; background: ${cfg.bg}; color: ${cfg.color}; border: ${cfg.border};
+                                       display: inline-flex; align-items: center; gap: 4px;">
                                 ${cfg.label}
                             </span>`;
         },
@@ -3542,12 +3629,12 @@
       {
         headerName: "Linked To",
         field: "linked_to",
-        width: 200,
+        width: 180,
         cellStyle: {
           "display": "flex",
-          "align-items": "center",
+          "align-items": "flex-start",
           "justify-content": "center",
-          "background": "#f8fafc",
+          "padding-top": "8px",
         },
         valueGetter: (params) => {
           // This would need to be populated by API with linked matter/claim names
@@ -3562,30 +3649,31 @@
           const linkedValue = params.value;
 
           if (!linkedValue) {
-            // No link - show "Link" button
-            return `<div style="display: flex; align-items: center; gap: 6px;">
+            // No link - show subtle "Link" button
+            return `<div style="display: flex; align-items: center; justify-content: center;">
                             <button onclick="openQuickLinkDropdown('${emailId}', event); event.stopPropagation();"
-                                    style="background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb;
-                                           padding: 4px 10px; border-radius: 6px; font-size: 0.75rem;
-                                           cursor: pointer; display: flex; align-items: center; gap: 4px;">
-                                <i class="fas fa-link"></i> Link
+                                    style="background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd;
+                                           padding: 4px 12px; border-radius: 16px; font-size: 0.7rem;
+                                           cursor: pointer; display: flex; align-items: center; gap: 4px; font-weight: 500;">
+                                <i class="fas fa-link" style="font-size: 0.65rem;"></i> Link
                             </button>
                         </div>`;
           }
 
-          // Has link - show link with view/unlink options
+          // Has link - show link with pastel styling
           const isMatter = params.data.linked_matter_name;
-          const icon = isMatter ? "fa-exclamation-triangle" : "fa-gavel";
-          const iconColor = isMatter ? "#f59e0b" : "#ef4444";
-          const bgColor = isMatter ? "#fef3c7" : "#fee2e2";
+          const icon = isMatter ? "fa-balance-scale" : "fa-gavel";
+          const bgColor = isMatter ? "#ecfdf5" : "#fdf4ff";
+          const textColor = isMatter ? "#047857" : "#a21caf";
+          const borderColor = isMatter ? "#a7f3d0" : "#f0abfc";
 
           return `<div style="display: flex; align-items: center; gap: 4px;">
                         <span style="display: inline-flex; align-items: center; gap: 4px;
-                                    padding: 3px 8px; background: ${bgColor}; border-radius: 6px;
-                                    font-size: 0.75rem; cursor: pointer; max-width: 140px;"
+                                    padding: 4px 10px; background: ${bgColor}; border-radius: 16px; border: 1px solid ${borderColor};
+                                    font-size: 0.7rem; cursor: pointer; max-width: 140px; color: ${textColor}; font-weight: 500;"
                               onclick="openLinkedItem('${emailId}')"
                               title="Click to view in Contentious Matters">
-                            <i class="fas ${icon}" style="color: ${iconColor}; font-size: 0.65rem;"></i>
+                            <i class="fas ${icon}" style="font-size: 0.65rem;"></i>
                             <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${linkedValue}</span>
                         </span>
                         <button onclick="unlinkEmail('${emailId}'); event.stopPropagation();"
@@ -3621,20 +3709,22 @@
       {
         headerName: "Priority",
         field: "priority",
-        width: 110,
+        width: 100,
+        cellStyle: {
+          "display": "flex",
+          "align-items": "flex-start",
+          "justify-content": "center",
+          "padding-top": "8px",
+        },
         cellRenderer: (params) => {
           const priority = params.value || "Normal";
-          const colors = {
-            High: "#FEE2E2",
-            Normal: "#EFF6FF",
-            Low: "#ECFDF3",
+          const config = {
+            High: { bg: "#fff1f2", color: "#e11d48", border: "#fecdd3", icon: "🔴" },
+            Normal: { bg: "#f0f9ff", color: "#0284c7", border: "#bae6fd", icon: "🔵" },
+            Low: { bg: "#f0fdf4", color: "#16a34a", border: "#bbf7d0", icon: "🟢" },
           };
-          const textColors = {
-            High: "#B91C1C",
-            Normal: "#1D4ED8",
-            Low: "#166534",
-          };
-          return `<span style="display:inline-block;padding:6px 12px;border-radius:999px;background:${colors[priority] || "#E5E7EB"};color:${textColors[priority] || "#374151"};font-weight:700;">${priority}</span>`;
+          const cfg = config[priority] || config.Normal;
+          return `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:16px;background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.border};font-weight:600;font-size:0.7rem;">${cfg.icon} ${priority}</span>`;
         },
         filter: "agTextColumnFilter",
         filterParams: {
@@ -3647,19 +3737,22 @@
         headerName: "Status",
         field: "status",
         width: 120,
+        cellStyle: {
+          "display": "flex",
+          "align-items": "flex-start",
+          "justify-content": "center",
+          "padding-top": "8px",
+        },
         cellRenderer: (params) => {
           const status = params.value || "Open";
-          const colors = {
-            Open: "#EFF6FF",
-            "In Progress": "#FEF3C7",
-            Closed: "#ECFDF3",
+          const config = {
+            Open: { bg: "#eff6ff", color: "#2563eb", border: "#bfdbfe", icon: "📬" },
+            "In Progress": { bg: "#fefce8", color: "#ca8a04", border: "#fef08a", icon: "⏳" },
+            Reviewed: { bg: "#f5f3ff", color: "#7c3aed", border: "#ddd6fe", icon: "👁️" },
+            Closed: { bg: "#f0fdf4", color: "#16a34a", border: "#bbf7d0", icon: "✅" },
           };
-          const textColors = {
-            Open: "#1D4ED8",
-            "In Progress": "#B45309",
-            Closed: "#166534",
-          };
-          return `<span style="display:inline-block;padding:6px 12px;border-radius:999px;background:${colors[status] || "#E5E7EB"};color:${textColors[status] || "#374151"};font-weight:700;">${status}</span>`;
+          const cfg = config[status] || config.Open;
+          return `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:16px;background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.border};font-weight:600;font-size:0.7rem;">${cfg.icon} ${status}</span>`;
         },
         filter: "agTextColumnFilter",
         filterParams: {
@@ -3823,7 +3916,16 @@
       // Server-side configuration
       cacheBlockSize: 100, // Load 100 rows at a time
       // Note: maxBlocksInCache removed - incompatible with autoHeight on columns
-      blockLoadDebounceMillis: 100, // Debounce rapid scroll
+      blockLoadDebounceMillis: 200, // Debounce rapid scroll - increased for performance
+      
+      // Performance optimizations
+      suppressRowHoverHighlight: false,
+      suppressCellFocus: false,
+      enableCellTextSelection: true,
+      suppressAnimationFrame: false,
+      suppressColumnVirtualisation: false, // Keep column virtualization for performance
+      suppressRowVirtualisation: false, // Keep row virtualization for performance
+      debounceVerticalScrollbar: true, // Smoother scrolling
 
       // Enterprise features
       sideBar: {
@@ -3880,7 +3982,8 @@
 
       // Performance
       animateRows: false, // Disable for smoother server-side scrolling
-      rowBuffer: 20, // Buffer for smooth scroll
+      rowBuffer: 10, // Reduced buffer for better performance
+      suppressPropertyNamesCheck: true, // Skip property validation for performance
 
       // Events
       onSelectionChanged: onSelectionChanged,
@@ -9073,6 +9176,274 @@
       }
       if (mainIcon && dropdownIcon) {
         dropdownIcon.className = mainIcon.className;
+      }
+    }
+
+    // ==========================================
+    // Smart Actions Functions
+    // ==========================================
+    
+    /**
+     * Show similar emails based on selected email's subject/sender patterns
+     */
+    function showSimilarEmails() {
+      const selectedRows = gridApi?.getSelectedRows() || [];
+      if (selectedRows.length === 0) {
+        VericaseUI?.Toast?.warning('Please select an email first');
+        return;
+      }
+      
+      const email = selectedRows[0];
+      // Extract key patterns from subject
+      const subject = (email.subject || email.email_subject || '').toLowerCase();
+      const sender = (email.sender_email || email.email_from || '').toLowerCase();
+      
+      // Find key words from subject (remove common words)
+      const stopWords = ['re:', 'fw:', 'fwd:', 'the', 'a', 'an', 'and', 'or', 'for', 'to', 'from', 'in', 'on', 'at'];
+      const keywords = subject.split(/\s+/)
+        .filter(w => w.length > 3 && !stopWords.includes(w.toLowerCase()))
+        .slice(0, 3);
+      
+      if (keywords.length === 0 && !sender) {
+        VericaseUI?.Toast?.info('No patterns found to search for similar emails');
+        return;
+      }
+      
+      // Build search query
+      const searchInput = document.getElementById('globalSearchInput') || document.querySelector('.search-input');
+      if (searchInput) {
+        const query = keywords.length > 0 ? keywords.join(' ') : sender.split('@')[0];
+        searchInput.value = query;
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        VericaseUI?.Toast?.success(`Searching for similar emails: "${query}"`);
+      } else {
+        // Fallback: Apply filter to subject column
+        const filterInstance = gridApi?.getFilterInstance('email_subject');
+        if (filterInstance && keywords.length > 0) {
+          filterInstance.setModel({ 
+            filterType: 'text', 
+            type: 'contains', 
+            filter: keywords[0] 
+          });
+          gridApi?.onFilterChanged();
+          VericaseUI?.Toast?.success(`Filtered by subject containing: "${keywords[0]}"`);
+        }
+      }
+    }
+    
+    /**
+     * Suggest exclusion tag based on email content analysis
+     */
+    function suggestExclusion() {
+      const selectedRows = gridApi?.getSelectedRows() || [];
+      if (selectedRows.length === 0) {
+        VericaseUI?.Toast?.warning('Please select emails first');
+        return;
+      }
+      
+      // Analyze selected emails for common exclusion patterns
+      const suggestions = [];
+      const spamPatterns = ['unsubscribe', 'newsletter', 'marketing', 'promotion', 'discount'];
+      const autoPatterns = ['automatic reply', 'auto-reply', 'out of office', 'ooo:'];
+      const duplicateCount = selectedRows.filter((e, i, arr) => 
+        arr.findIndex(x => x.subject === e.subject && x.email_from === e.email_from) !== i
+      ).length;
+      
+      const combinedText = selectedRows.map(e => 
+        `${e.subject || ''} ${e.body_text_clean || e.body_text || ''}`
+      ).join(' ').toLowerCase();
+      
+      if (spamPatterns.some(p => combinedText.includes(p))) {
+        suggestions.push({ tag: 'spam', label: '🚫 Spam/Marketing', confidence: 'High' });
+      }
+      if (autoPatterns.some(p => combinedText.includes(p))) {
+        suggestions.push({ tag: 'auto_reply', label: '🤖 Auto-Reply', confidence: 'High' });
+      }
+      if (duplicateCount > 0) {
+        suggestions.push({ tag: 'duplicate', label: '📋 Duplicate', confidence: 'Medium' });
+      }
+      if (combinedText.includes('external email') && combinedText.length < 500) {
+        suggestions.push({ tag: 'system_notice', label: '⚙️ System Notice', confidence: 'Medium' });
+      }
+      
+      // Show suggestions in AI panel
+      const container = document.getElementById('aiSuggestionsList');
+      if (container) {
+        if (suggestions.length === 0) {
+          container.innerHTML = `
+            <div class="context-empty-state">
+              <i class="fas fa-check-circle" style="color: var(--success);"></i>
+              <p>No exclusion patterns detected</p>
+              <p style="font-size: 0.75rem; color: var(--text-muted);">These emails appear to be legitimate correspondence</p>
+            </div>
+          `;
+        } else {
+          container.innerHTML = `
+            <div style="font-size: 0.8rem; margin-bottom: 8px; color: var(--text-secondary);">
+              <i class="fas fa-lightbulb" style="color: #f59e0b;"></i> Suggested Exclusion Tags:
+            </div>
+            ${suggestions.map(s => `
+              <div class="suggestion-card" style="border-left: 3px solid #f59e0b; margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-weight: 600;">${s.label}</span>
+                  <span style="font-size: 0.7rem; color: var(--text-muted);">${s.confidence}</span>
+                </div>
+                <button class="suggestion-btn accept" onclick="applyExclusionTag('${s.tag}')" style="margin-top: 6px;">
+                  <i class="fas fa-tag"></i> Apply Tag
+                </button>
+              </div>
+            `).join('')}
+          `;
+        }
+      }
+    }
+    
+    /**
+     * Apply exclusion tag to selected emails
+     */
+    async function applyExclusionTag(tag) {
+      const selectedRows = gridApi?.getSelectedRows() || [];
+      if (selectedRows.length === 0) return;
+      
+      const emailIds = selectedRows.map(e => e.id);
+      
+      try {
+        const token = localStorage.getItem('token') || localStorage.getItem('vericase_token');
+        const response = await fetch(`${API_BASE}/api/correspondence/emails/bulk-update`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            email_ids: emailIds,
+            updates: {
+              meta: { exclusion_tag: tag, ai_excluded: true, ai_exclude_reason: tag }
+            }
+          })
+        });
+        
+        if (response.ok) {
+          VericaseUI?.Toast?.success(`Tagged ${emailIds.length} emails as "${tag}"`);
+          gridApi?.refreshServerSide({ purge: false });
+        } else {
+          // Fallback: Update notes column
+          VericaseUI?.Toast?.info(`Updating notes with exclusion tag...`);
+          selectedRows.forEach(row => {
+            row.notes = `[EXCLUDED: ${tag}] ${row.notes || ''}`;
+          });
+          gridApi?.refreshCells({ force: true });
+        }
+      } catch (error) {
+        console.error('Error applying exclusion tag:', error);
+        VericaseUI?.Toast?.error('Failed to apply exclusion tag');
+      }
+    }
+    
+    /**
+     * Mark selected emails as excluded
+     */
+    function markAsExcluded() {
+      const selectedRows = gridApi?.getSelectedRows() || [];
+      if (selectedRows.length === 0) {
+        VericaseUI?.Toast?.warning('Please select emails first');
+        return;
+      }
+      
+      // Show exclusion type picker
+      const types = [
+        { value: 'spam', label: '🚫 Spam/Marketing' },
+        { value: 'other_project', label: '📁 Other Project' },
+        { value: 'duplicate', label: '📋 Duplicate' },
+        { value: 'auto_reply', label: '🤖 Auto-Reply' },
+        { value: 'irrelevant', label: '🗑️ Irrelevant' }
+      ];
+      
+      const choice = prompt(
+        `Select exclusion type for ${selectedRows.length} email(s):\\n\\n` +
+        types.map((t, i) => `${i + 1}. ${t.label}`).join('\\n') +
+        '\\n\\nEnter number (1-5):'
+      );
+      
+      const index = parseInt(choice) - 1;
+      if (index >= 0 && index < types.length) {
+        applyExclusionTag(types[index].value);
+      }
+    }
+    
+    /**
+     * Analyze selection and show insights
+     */
+    function analyzeSelection() {
+      const selectedRows = gridApi?.getSelectedRows() || [];
+      if (selectedRows.length === 0) {
+        VericaseUI?.Toast?.warning('Please select emails first');
+        return;
+      }
+      
+      // Gather insights
+      const senders = {};
+      const dateRange = { min: null, max: null };
+      let attachmentCount = 0;
+      const subjects = [];
+      
+      selectedRows.forEach(email => {
+        // Count senders
+        const sender = email.sender_email || email.email_from || 'Unknown';
+        senders[sender] = (senders[sender] || 0) + 1;
+        
+        // Track date range
+        if (email.date_sent) {
+          const date = new Date(email.date_sent);
+          if (!dateRange.min || date < dateRange.min) dateRange.min = date;
+          if (!dateRange.max || date > dateRange.max) dateRange.max = date;
+        }
+        
+        // Count attachments
+        if (email.has_attachments) attachmentCount++;
+        
+        // Collect subjects
+        if (email.subject || email.email_subject) subjects.push(email.subject || email.email_subject);
+      });
+      
+      // Find top senders
+      const topSenders = Object.entries(senders)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3);
+      
+      // Show insights in AI panel
+      const container = document.getElementById('aiSuggestionsList');
+      if (container) {
+        container.innerHTML = `
+          <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 10px; color: var(--vericase-navy);">
+            <i class="fas fa-chart-pie" style="color: var(--vericase-teal);"></i> Selection Analysis
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.75rem;">
+            <div style="background: #f0f9ff; padding: 8px; border-radius: 8px; text-align: center;">
+              <div style="font-size: 1.25rem; font-weight: 700; color: #0369a1;">${selectedRows.length}</div>
+              <div style="color: var(--text-muted);">Emails</div>
+            </div>
+            <div style="background: #f0fdf4; padding: 8px; border-radius: 8px; text-align: center;">
+              <div style="font-size: 1.25rem; font-weight: 700; color: #16a34a;">${attachmentCount}</div>
+              <div style="color: var(--text-muted);">With Attachments</div>
+            </div>
+          </div>
+          <div style="margin-top: 12px; font-size: 0.75rem;">
+            <div style="font-weight: 600; margin-bottom: 4px;">📅 Date Range:</div>
+            <div style="color: var(--text-secondary);">
+              ${dateRange.min ? dateRange.min.toLocaleDateString('en-GB') : '?'} - ${dateRange.max ? dateRange.max.toLocaleDateString('en-GB') : '?'}
+            </div>
+          </div>
+          <div style="margin-top: 12px; font-size: 0.75rem;">
+            <div style="font-weight: 600; margin-bottom: 4px;">👤 Top Senders:</div>
+            ${topSenders.map(([sender, count]) => `
+              <div style="display: flex; justify-content: space-between; padding: 2px 0; color: var(--text-secondary);">
+                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px;">${sender}</span>
+                <span style="font-weight: 600;">${count}</span>
+              </div>
+            `).join('')}
+          </div>
+        `;
       }
     }
   </script>

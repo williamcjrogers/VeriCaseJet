@@ -950,7 +950,7 @@
   <div class="dashboard-container">
     <!-- Welcome Banner -->
     <div class="welcome-banner" id="welcomeBanner">
-      <h2 id="welcomeTitle"><span class="title-accent">Project Dashboard</span></h2>
+      <h2 id="welcomeTitle"><span class="title-accent">Project Dashboard</span> <span class="title-suffix" id="projectTitleSuffix"></span></h2>
       <p id="welcomeMessage">
         Organize, analyze, and extract insights from your evidence.
       </p>
@@ -1944,17 +1944,9 @@
             localStorage.getItem("currentProjectName") ||
             "";
           if (projectName) {
-            const welcomeTitle = document.getElementById("welcomeTitle");
-            if (welcomeTitle) {
-              welcomeTitle.innerHTML = "";
-              const accent = document.createElement("span");
-              accent.className = "title-accent";
-              accent.textContent = "Project Dashboard";
-              welcomeTitle.appendChild(accent);
-              const suffix = document.createElement("span");
-              suffix.className = "title-suffix";
-              suffix.textContent = projectName;
-              welcomeTitle.appendChild(suffix);
+            const projectTitleSuffix = document.getElementById("projectTitleSuffix");
+            if (projectTitleSuffix) {
+              projectTitleSuffix.textContent = projectName;
             }
           }
         } else {
@@ -1974,17 +1966,9 @@
             localStorage.getItem("vericase_current_project_name") ||
             "";
           if (fallbackName) {
-            const welcomeTitle = document.getElementById("welcomeTitle");
-            if (welcomeTitle) {
-              welcomeTitle.innerHTML = "";
-              const accent = document.createElement("span");
-              accent.className = "title-accent";
-              accent.textContent = "Project Dashboard";
-              welcomeTitle.appendChild(accent);
-              const suffix = document.createElement("span");
-              suffix.className = "title-suffix";
-              suffix.textContent = fallbackName;
-              welcomeTitle.appendChild(suffix);
+            const projectTitleSuffix = document.getElementById("projectTitleSuffix");
+            if (projectTitleSuffix) {
+              projectTitleSuffix.textContent = fallbackName;
             }
           }
         }
@@ -2002,17 +1986,9 @@
       const cachedProjectName = localStorage.getItem("currentProjectName") || 
                                 localStorage.getItem("vericase_current_project_name");
       if (cachedProjectName && profileId) {
-        const welcomeTitle = document.getElementById("welcomeTitle");
-        if (welcomeTitle) {
-          welcomeTitle.innerHTML = "";
-          const accent = document.createElement("span");
-          accent.className = "title-accent";
-          accent.textContent = "Project Dashboard";
-          welcomeTitle.appendChild(accent);
-          const suffix = document.createElement("span");
-          suffix.className = "title-suffix";
-          suffix.textContent = cachedProjectName;
-          welcomeTitle.appendChild(suffix);
+        const projectTitleSuffix = document.getElementById("projectTitleSuffix");
+        if (projectTitleSuffix) {
+          projectTitleSuffix.textContent = cachedProjectName;
         }
         const profileNameEl = document.getElementById("profileName");
         if (profileNameEl) {

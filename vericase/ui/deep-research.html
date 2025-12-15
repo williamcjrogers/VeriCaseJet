@@ -20,6 +20,8 @@
     <link rel="stylesheet" href="design-system.css" />
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
+    <script src="config.js"></script>
+    <script src="app-state.js"></script>
     <style>
       :root {
         /* VeriCase Brand Colors - Mapped to brand-styles.css */
@@ -108,6 +110,16 @@
         position: sticky;
         top: 0;
         z-index: 100;
+      }
+
+      /* Hide custom header when app-shell is active */
+      .app-shell .header {
+        display: none;
+      }
+
+      /* Adjust hero padding when shell is active */
+      .app-shell .hero {
+        padding-top: 1rem;
       }
 
       .logo {
@@ -1361,6 +1373,17 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
 
       // Initialize
       document.addEventListener("DOMContentLoaded", async () => {
+        // Inject navigation shell
+        if (window.VericaseShell) {
+          window.VericaseShell.inject({
+            title: 'Deep Analysis',
+            breadcrumbs: [
+              { label: 'Home', url: 'master-dashboard.html', icon: 'fa-home' },
+              { label: 'Deep Analysis' }
+            ]
+          });
+        }
+
         loadHistory();
         setupFocusTags();
         await loadProjectSelector();

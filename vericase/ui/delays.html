@@ -1402,26 +1402,42 @@
           return;
         }
 
-        // For now, just add to local list and show success
-        // In a real implementation, this would call the API
-        const newDelay = {
-          id: Date.now(),
-          activity_name: activityName,
-          description: description,
-          planned_finish: plannedDate,
-          actual_finish: actualDate,
-          delay_days: delayDays,
-          delay_cause: delayCause,
-          delay_type: delayType,
-          is_on_critical_path: isCritical,
-          linked_correspondence: []
-        };
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`${apiUrl}/api/cases/${caseId}/delays`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({
+              activity_name: activityName,
+              description: description,
+              planned_finish: plannedDate || null,
+              actual_finish: actualDate || null,
+              delay_days: delayDays,
+              delay_cause: delayCause || 'neutral',
+              delay_type: delayType || 'critical',
+              is_on_critical_path: isCritical,
+              notes: description
+            })
+          });
 
-        delays.push(newDelay);
-        renderDelays();
-        updateStats();
-        closeAddModal();
-        VericaseUI.Toast.success('Delay event added successfully');
+          if (!response.ok) {
+            const error = await response.text();
+            throw new Error(error || 'Failed to create delay event');
+          }
+
+          const newDelay = await response.json();
+          delays.push(newDelay);
+          renderDelays();
+          updateStats();
+          closeAddModal();
+          VericaseUI.Toast.success('Delay event added successfully');
+        } catch (error) {
+          console.error('Error creating delay:', error);
+          VericaseUI.Toast.error('Failed to save delay event. Please try again.');
+        }
       }
 
       // ============================================

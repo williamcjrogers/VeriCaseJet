@@ -696,6 +696,122 @@
       }
     }
 
+    /* Live Processing Tracker */
+    .live-tracker {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      display: none;
+    }
+
+    .live-tracker.active {
+      display: block;
+    }
+
+    .live-tracker-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .live-tracker-header h2 {
+      font-size: 16px;
+      color: var(--vericase-navy);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .live-tracker-header .pulse {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #10b981;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .processing-items {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .processing-item {
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .processing-item-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-navy));
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .processing-item-details {
+      flex: 1;
+    }
+
+    .processing-item-details h4 {
+      font-size: 14px;
+      color: var(--vericase-navy);
+      margin-bottom: 4px;
+    }
+
+    .processing-item-stats {
+      display: flex;
+      gap: 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .processing-item-stats strong {
+      color: var(--vericase-teal);
+    }
+
+    .processing-item-progress {
+      width: 120px;
+    }
+
+    .processing-item-progress .progress-bar {
+      height: 8px;
+      background: var(--gray-200);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 4px;
+    }
+
+    .processing-item-progress .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--vericase-teal), var(--vericase-navy));
+      transition: width 0.5s ease;
+    }
+
+    .processing-item-progress .progress-text {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
     .global-progress h3 {
       font-size: 14px;
       color: var(--vericase-navy);
@@ -785,6 +901,23 @@
   </div>
 
   <div class="container">
+    <!-- Live Processing Tracker -->
+    <div class="live-tracker" id="liveTracker">
+      <div class="live-tracker-header">
+        <h2>
+          <i class="fas fa-cogs" style="color: var(--vericase-teal);"></i>
+          Live Processing Status
+          <span class="pulse"></span>
+        </h2>
+        <button class="btn btn-sm btn-ghost" onclick="refreshLiveStatus()">
+          <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+      </div>
+      <div class="processing-items" id="processingItems">
+        <!-- Dynamically populated -->
+      </div>
+    </div>
+
     <!-- Stats Bar -->
     <div class="stats-bar">
       <div class="stat-card">
@@ -1876,7 +2009,126 @@
     VeriCaseApp.init().then(() => {
       console.log("VeriCaseApp initialized:", VeriCaseApp.projectId);
       loadPSTHistory();
+      startLiveTracking();
     });
+
+    // ============ LIVE PROCESSING TRACKER ============
+    let liveTrackingInterval = null;
+    let activeProcessingFiles = [];
+
+    function startLiveTracking() {
+      // Poll every 5 seconds for processing status
+      refreshLiveStatus();
+      liveTrackingInterval = setInterval(refreshLiveStatus, 5000);
+    }
+
+    function stopLiveTracking() {
+      if (liveTrackingInterval) {
+        clearInterval(liveTrackingInterval);
+        liveTrackingInterval = null;
+      }
+    }
+
+    async function refreshLiveStatus() {
+      try {
+        const params = new URLSearchParams();
+        if (VeriCaseApp.projectId) params.append("project_id", VeriCaseApp.projectId);
+        params.append("status", "processing");
+        params.append("page_size", "10");
+
+        const response = await fetch(
+          `${apiUrl}/api/correspondence/pst/files?${params}`,
+          withAuth({})
+        );
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+        activeProcessingFiles = data.items?.filter(
+          f => f.processing_status === "processing" || f.processing_status === "queued"
+        ) || [];
+
+        updateLiveTracker();
+        
+        // Also fetch individual status for more accurate progress
+        for (const file of activeProcessingFiles) {
+          try {
+            const statusResp = await fetch(
+              `${apiUrl}/api/correspondence/pst/${file.id}/status`,
+              withAuth({})
+            );
+            if (statusResp.ok) {
+              const status = await statusResp.json();
+              file.progress_percent = status.progress_percent || 0;
+              file.processed_emails = status.processed_emails || 0;
+              file.total_emails = status.total_emails || file.total_emails || 0;
+              file.current_phase = status.current_phase || "Processing";
+            }
+          } catch (e) {
+            // Ignore individual status errors
+          }
+        }
+        
+        updateLiveTracker();
+        
+        // If something finished, refresh history
+        if (activeProcessingFiles.length !== (window._lastActiveCount || 0)) {
+          loadPSTHistory();
+        }
+        window._lastActiveCount = activeProcessingFiles.length;
+
+      } catch (error) {
+        console.error("Error fetching live status:", error);
+      }
+    }
+
+    function updateLiveTracker() {
+      const tracker = document.getElementById("liveTracker");
+      const container = document.getElementById("processingItems");
+
+      if (activeProcessingFiles.length === 0) {
+        tracker.classList.remove("active");
+        return;
+      }
+
+      tracker.classList.add("active");
+
+      container.innerHTML = activeProcessingFiles.map(file => `
+        <div class="processing-item">
+          <div class="processing-item-icon">
+            <i class="fas fa-envelope"></i>
+          </div>
+          <div class="processing-item-details">
+            <h4>${escapeHtml(file.filename)}</h4>
+            <div class="processing-item-stats">
+              <span><i class="fas fa-envelope-open"></i> <strong>${(file.processed_emails || 0).toLocaleString()}</strong> / ${(file.total_emails || '?').toLocaleString()} emails</span>
+              <span><i class="fas fa-tasks"></i> ${file.current_phase || "Extracting"}</span>
+              <span><i class="fas fa-clock"></i> ${formatTimeAgo(file.uploaded_at)}</span>
+            </div>
+          </div>
+          <div class="processing-item-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: ${file.progress_percent || 0}%"></div>
+            </div>
+            <div class="progress-text">${file.progress_percent || 0}% Complete</div>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function formatTimeAgo(dateStr) {
+      if (!dateStr) return "just now";
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+
+      if (diffMins < 1) return "just now";
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      return formatDate(dateStr);
+    }
   </script>
 </body>
 
