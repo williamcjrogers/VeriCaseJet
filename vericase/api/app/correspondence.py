@@ -16,7 +16,7 @@ from boto3.s3.transfer import TransferConfig
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, field_validator
 from pydantic.fields import Field
-from sqlalchemy import Boolean, and_, func, or_, select
+from sqlalchemy import Boolean, String, and_, cast, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -756,7 +756,7 @@ async def get_pst_status(
             # Decode Redis data (bytes to string)
             decoded_redis_data = {k.decode(): v.decode() for k, v in redis_data.items()}
 
-            # Get chunk progress
+        status_field = EmailMessage.meta["status"].astext
             total_chunks = int(decoded_redis_data.get("total_chunks", "0"))
             completed_chunks = int(decoded_redis_data.get("completed_chunks", "0"))
             failed_chunks = int(decoded_redis_data.get("failed_chunks", "0"))
@@ -909,7 +909,7 @@ async def get_email_count(
 
     # Filter out excluded emails unless explicitly requested - only count non-tagged emails
     if not include_excluded:
-        status_field = EmailMessage.meta["status"].astext
+        status_field = cast(EmailMessage.meta["status"], String)
         query = query.filter(
             or_(
                 EmailMessage.meta.is_(None),
@@ -1091,7 +1091,7 @@ async def list_emails(
         query = query.filter(EmailMessage.date_sent <= date_to)
 
     # Filter by status tag in metadata
-    status_field = EmailMessage.meta["status"].astext
+    status_field = cast(EmailMessage.meta["status"], String)
 
     if status_filter:
         # Show only emails with specific status tag
@@ -1554,19 +1554,33 @@ async def get_emails_server_side(
     High-performance server-side endpoint for AG Grid.
     Only loads the rows needed for display, enabling handling of 100k+ emails.
     """
+    case_uuid: uuid.UUID | None = None
+    project_uuid: uuid.UUID | None = None
+    if case_id:
+        try:
+            case_uuid = uuid.UUID(case_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid case_id format")
+    if project_id:
+        try:
+            project_uuid = uuid.UUID(project_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid project_id format")
+
+    def _join_recipients(recipients: list[str] | None) -> str:
+        if not recipients:
+            return ""
+        return ", ".join([r.strip() for r in recipients if isinstance(r, str) and r.strip()])
+
     start_row = request.startRow
     end_row = request.endRow
     page_size = end_row - start_row
 
     # Build base query
-    if case_id:
-        query = db.query(EmailMessage).filter(
-            EmailMessage.case_id == uuid.UUID(case_id)
-        )
-    elif project_id:
-        query = db.query(EmailMessage).filter(
-            EmailMessage.project_id == uuid.UUID(project_id)
-        )
+    if case_uuid is not None:
+        query = db.query(EmailMessage).filter(EmailMessage.case_id == case_uuid)
+    elif project_uuid is not None:
+        query = db.query(EmailMessage).filter(EmailMessage.project_id == project_uuid)
     else:
         query = db.query(EmailMessage)
 
@@ -1666,10 +1680,10 @@ async def get_emails_server_side(
 
     # Pre-load all stakeholders for this project/case for efficient lookup
     stakeholders_by_name: dict[str, dict] = {}
-    if project_id:
+    if project_uuid is not None:
         stakeholders = (
             db.query(Stakeholder)
-            .filter(Stakeholder.project_id == uuid.UUID(project_id))
+            .filter(Stakeholder.project_id == project_uuid)
             .all()
         )
         for s in stakeholders:
@@ -1680,9 +1694,9 @@ async def get_emails_server_side(
                 "organization": s.organization,
                 "email": s.email,
             }
-    elif case_id:
+    elif case_uuid is not None:
         stakeholders = (
-            db.query(Stakeholder).filter(Stakeholder.case_id == uuid.UUID(case_id)).all()
+            db.query(Stakeholder).filter(Stakeholder.case_id == case_uuid).all()
         )
         for s in stakeholders:
             stakeholders_by_name[s.name] = {
@@ -1774,20 +1788,26 @@ async def get_emails_server_side(
                 "sender_email": e.sender_email or "",
                 "email_date": e.date_sent.isoformat() if e.date_sent else None,
                 "date_sent": e.date_sent.isoformat() if e.date_sent else None,
-                "email_to": e.recipients_to or [],
-                "email_cc": e.recipients_cc or [],
+                "email_to": _join_recipients(e.recipients_to),
+                "email_cc": _join_recipients(e.recipients_cc),
                 "has_attachments": len(attachment_list) > 0 or (e.has_attachments or False),
                 "attachment_count": len(attachment_list) or 0,
                 "attachments": attachment_list,
                 "keywords": ",".join(e.matched_keywords) if e.matched_keywords else None,
                 "matched_keywords": e.matched_keywords,
                 "matched_stakeholders": matched_stakeholders,
+                "matched_stakeholders_details": matched_stakeholders_details,
                 "stakeholder_role": stakeholder_role,
                 "importance": getattr(e, "importance", "normal"),
                 "thread_id": str(e.thread_id) if getattr(e, "thread_id", None) else None,
                 "email_body": e.body_text_clean or e.body_text or "",
                 "body_text": e.body_text or "",
                 "body_text_clean": e.body_text_clean or "",
+                "body_html": e.body_html,
+                "meta": {
+                    "attachments": attachment_list,
+                    "keywords": e.matched_keywords or [],
+                },
                 "baseline_activity": getattr(e, "as_planned_activity", None),
                 "as_built_activity": getattr(e, "as_built_activity", None),
                 "delay_days": getattr(e, "delay_days", None),
@@ -1805,12 +1825,10 @@ async def get_emails_server_side(
     if start_row == 0:
         # Build base query for stats (without pagination)
         stats_query = db.query(EmailMessage)
-        if case_id:
-            stats_query = stats_query.filter(EmailMessage.case_id == uuid.UUID(case_id))
-        elif project_id:
-            stats_query = stats_query.filter(
-                EmailMessage.project_id == uuid.UUID(project_id)
-            )
+        if case_uuid is not None:
+            stats_query = stats_query.filter(EmailMessage.case_id == case_uuid)
+        elif project_uuid is not None:
+            stats_query = stats_query.filter(EmailMessage.project_id == project_uuid)
 
         # Total count
         stats["total"] = total
@@ -1833,12 +1851,10 @@ async def get_emails_server_side(
         date_result = db.query(
             func.min(EmailMessage.date_sent), func.max(EmailMessage.date_sent)
         )
-        if case_id:
-            date_result = date_result.filter(EmailMessage.case_id == uuid.UUID(case_id))
-        elif project_id:
-            date_result = date_result.filter(
-                EmailMessage.project_id == uuid.UUID(project_id)
-            )
+        if case_uuid is not None:
+            date_result = date_result.filter(EmailMessage.case_id == case_uuid)
+        elif project_uuid is not None:
+            date_result = date_result.filter(EmailMessage.project_id == project_uuid)
 
         min_date, max_date = date_result.first()
         if min_date and max_date:
