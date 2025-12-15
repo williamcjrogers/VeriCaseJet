@@ -11,27 +11,27 @@
        ============================================ */
 
   /* Primary Teal - Intelligence & Technology */
-  --vericase-teal: #0f9d9a;
-  --vericase-teal-dark: #0a7b79;
-  --vericase-teal-darker: #086665;
-  --vericase-teal-light: #14b8b4;
-  --vericase-teal-lighter: #5eead4;
-  --vericase-teal-ghost: rgba(15, 157, 154, 0.08);
+  --vericase-teal: #1f6f78;
+  --vericase-teal-dark: #1a5c64;
+  --vericase-teal-darker: #12454c;
+  --vericase-teal-light: #2d7f89;
+  --vericase-teal-lighter: #5b9ea6;
+  --vericase-teal-ghost: rgba(31, 111, 120, 0.08);
 
   /* Navy - Authority & Trust */
-  --vericase-navy: #0f172a;
-  --vericase-navy-light: #1e293b;
-  --vericase-navy-lighter: #334155;
+  --vericase-navy: #0f1720;
+  --vericase-navy-light: #1b2534;
+  --vericase-navy-lighter: #223042;
 
   /* Gold - Premium Accent */
-  --vericase-gold: #b8860b;
-  --vericase-gold-light: #d4a84b;
-  --vericase-gold-muted: #a68b5b;
+  --vericase-gold: #b59b6a;
+  --vericase-gold-light: #c9b07d;
+  --vericase-gold-muted: #9f8a63;
 
   /* Cream - Warmth & Sophistication */
-  --vericase-cream: #faf9f6;
-  --vericase-cream-dark: #f0ede8;
-  --vericase-cream-warm: #fdf8f3;
+  --vericase-cream: #f6f5f2;
+  --vericase-cream-dark: #ede9e3;
+  --vericase-cream-warm: #f8f6f1;
 
   /* ============================================
        SEMANTIC COLORS

@@ -736,8 +736,8 @@ async def list_evidence(
         query = query.filter(
             or_(
                 EvidenceItem.meta.is_(None),
-                EvidenceItem.meta["spam"]["is_hidden"].astext != "true",
-                ~EvidenceItem.meta.has_key("spam"),
+                EvidenceItem.meta.op('->>')('spam').is_(None),
+                EvidenceItem.meta.op('->')('spam').op('->>')('is_hidden') != "true",
             )
         )
 
@@ -1055,8 +1055,8 @@ async def get_evidence_server_side(
         base_query = base_query.filter(
             or_(
                 EvidenceItem.meta.is_(None),
-                EvidenceItem.meta["spam"]["is_hidden"].astext != "true",
-                ~EvidenceItem.meta.has_key("spam"),
+                EvidenceItem.meta.op('->>')('spam').is_(None),
+                EvidenceItem.meta.op('->')('spam').op('->>')('is_hidden') != "true",
             )
         )
 

@@ -122,18 +122,18 @@
           icon: "fa-project-diagram",
           url: "programme.html",
         },
-        {
-          id: "delays",
-          label: "Delay Analysis",
-          icon: "fa-hourglass-half",
-          url: "delays.html",
-        },
-        {
-          id: "chronology",
-          label: "Chronology",
-          icon: "fa-history",
-          url: "chronology.html",
-        },
+      {
+        id: "delays",
+        label: "The Delay Ripple",
+        icon: "fa-hourglass-half",
+        url: "delays.html",
+      },
+      {
+        id: "chronology",
+        label: "The Chronology Lense\u2122",
+        icon: "fa-history",
+        url: "chronology.html",
+      },
         {
           id: "stakeholders",
           label: "Stakeholders",
