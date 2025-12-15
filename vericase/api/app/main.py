@@ -116,7 +116,9 @@ from .claims_module import (
 )  # Contentious Matters and Heads of Claim
 from .dashboard_api import router as dashboard_router  # Master Dashboard API
 from .timeline import router as timeline_router  # Project Timeline (Event + Chronology)
-# from .chronology import router as chronology_router  # Standalone Chronology CRUD - disabled until AG Grid stable
+from .chronology import router as chronology_router  # Standalone Chronology CRUD - disabled until AG Grid stable
+from .delay_analysis import router as delay_analysis_router  # Delay Analysis AI agents
+from .collaboration import router as collaboration_router  # Collaboration features
 from .enhanced_api_routes import (
     aws_router,
 )  # AWS AI Services (Bedrock, Textract, Comprehend, etc.)
@@ -365,7 +367,9 @@ app.include_router(dashboard_router)  # Master Dashboard API
 app.include_router(aws_router)  # AWS AI Services (Bedrock, Textract, Comprehend, etc.)
 app.include_router(ai_models_router)  # 2025 AI Models API
 app.include_router(timeline_router)  # Project Timeline (Event + Chronology)
-# app.include_router(chronology_router)  # Standalone Chronology CRUD - disabled until AG Grid stable
+app.include_router(chronology_router)  # Standalone Chronology CRUD - disabled until AG Grid stable
+app.include_router(delay_analysis_router)  # Delay Analysis AI agents
+app.include_router(collaboration_router)  # Collaboration features (comments, annotations, activity)
 
 # Import and include unified router
 from .correspondence import unified_router

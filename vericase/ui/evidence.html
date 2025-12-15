@@ -1444,6 +1444,28 @@
             },
           },
           {
+            field: "source_email_subject",
+            headerName: "Source Email",
+            width: 200,
+            cellRenderer: (params) => {
+              const subject = params.value;
+              const emailId = safeGet(params.data, "source_email_id", "");
+              const senderName = safeGet(params.data, "source_email_sender", "");
+              if (!subject && !emailId) {
+                return '<span style="color: var(--text-muted);">—</span>';
+              }
+              const displayText = subject || "Email";
+              const senderInfo = senderName ? `<br><span style="font-size: 0.7rem; color: var(--text-muted);">From: ${escapeHtml(senderName)}</span>` : "";
+              if (emailId) {
+                return `<div style="cursor: pointer; color: var(--vericase-teal);" onclick="event.stopPropagation(); openSourceEmail('${emailId}')" title="Click to view email">
+                  <i class="fas fa-envelope-open-text" style="margin-right: 4px;"></i>${escapeHtml(displayText.substring(0, 30))}${displayText.length > 30 ? '...' : ''}
+                  ${senderInfo}
+                </div>`;
+              }
+              return `<span style="color: var(--text-secondary);"><i class="fas fa-envelope"></i> ${escapeHtml(displayText.substring(0, 25))}...</span>`;
+            },
+          },
+          {
             field: "is_starred",
             headerName: "",
             width: 50,
@@ -2162,6 +2184,17 @@
     // ============================================
     // ACTIONS
     // ============================================
+
+    function openSourceEmail(emailId) {
+      // Navigate to correspondence page with the specific email highlighted
+      if (emailId && projectId) {
+        window.location.href = `correspondence-enterprise.html?projectId=${projectId}&emailId=${emailId}`;
+      } else if (emailId) {
+        VericaseUI.Toast.info('Opening email viewer...');
+        // Could also open in a modal or panel
+        window.open(`/api/correspondence/${emailId}`, '_blank');
+      }
+    }
 
     async function toggleStar(evidenceId) {
       try {

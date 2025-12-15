@@ -268,11 +268,13 @@
       border-color: #dc2626;
     }
 
-    /* Quick Links */
+    /* Quick Links - Enhanced Design */
     .quick-links-section {
-      margin-top: 40px;
-      padding-top: 32px;
-      border-top: 1px solid var(--border-subtle);
+      margin-top: 48px;
+      padding: 32px;
+      background: linear-gradient(135deg, rgba(26, 43, 60, 0.02) 0%, rgba(15, 157, 154, 0.03) 100%);
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--gray-200);
     }
 
     .section-title {
@@ -280,43 +282,73 @@
       font-style: italic;
       font-size: 1.25rem;
       color: var(--text-primary);
-      margin-bottom: 20px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-title::before {
+      content: '';
+      width: 4px;
+      height: 24px;
+      background: linear-gradient(180deg, var(--vericase-teal), var(--vericase-navy));
+      border-radius: 2px;
     }
 
     .quick-links-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
     }
 
     .quick-link-card {
       background: white;
-      padding: 16px;
-      border-radius: 12px;
+      padding: 20px;
+      border-radius: 16px;
       border: 1px solid var(--gray-200);
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 16px;
       text-decoration: none;
       color: var(--text-primary);
-      transition: all 0.2s;
+      transition: all 0.3s ease;
+      box-shadow: var(--shadow-sm);
     }
 
     .quick-link-card:hover {
       border-color: var(--vericase-teal);
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-md);
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .quick-link-card:hover .quick-link-icon {
+      background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-navy));
+      color: white;
     }
 
     .quick-link-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 8px;
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
       background: rgba(15, 157, 154, 0.1);
       color: var(--vericase-teal);
       display: flex;
       align-items: center;
       justify-content: center;
+      font-size: 1.25rem;
+      transition: all 0.3s ease;
+    }
+
+    .quick-link-content h4 {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .quick-link-content p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin: 0;
     }
 
     /* Empty State */
@@ -587,6 +619,9 @@
         placeholder="Search projects or ask 'Show me NEC4 contracts with delay notices'..." />
     </div>
     <div style="display: flex; gap: 12px">
+      <button class="btn btn-outline" onclick="toggleAIAssistant()" title="Ask VeriCase AI">
+        <i class="fas fa-robot"></i> AI Assistant
+      </button>
       <button class="btn btn-outline" onclick="loadDashboard()">
         <i class="fas fa-sync-alt"></i> Refresh
       </button>
@@ -595,6 +630,119 @@
       </button>
     </div>
   </div>
+
+  <!-- AI Assistant Panel -->
+  <div id="aiAssistantPanel" class="ai-assistant-panel" style="display: none;">
+    <div class="ai-panel-header">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <i class="fas fa-brain" style="color: var(--vericase-teal);"></i>
+        <span style="font-weight: 600;">VeriCase AI Assistant</span>
+      </div>
+      <button onclick="toggleAIAssistant()" class="modal-close" style="background: none; border: none; cursor: pointer;">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="ai-chat-container" id="aiChatMessages">
+      <div class="ai-message assistant">
+        <i class="fas fa-robot ai-avatar"></i>
+        <div class="ai-bubble">
+          Hello! I'm VeriCase AI. I can help you:
+          <ul style="margin: 10px 0 0 20px; font-size: 0.875rem;">
+            <li>Search across all your projects and evidence</li>
+            <li>Answer questions about your cases</li>
+            <li>Find specific contracts or delay notices</li>
+            <li>Analyze patterns across disputes</li>
+          </ul>
+          <div style="margin-top: 10px; font-size: 0.8125rem; color: var(--text-muted);">
+            Try: "Show me projects with NEC4 contracts" or "Find delay notices from 2024"
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="ai-input-container">
+      <input type="text" id="aiChatInput" class="ai-chat-input" placeholder="Ask VeriCase AI anything..." />
+      <button onclick="sendAIMessage()" class="btn btn-vericase" style="padding: 10px 16px;">
+        <i class="fas fa-paper-plane"></i>
+      </button>
+    </div>
+  </div>
+
+  <style>
+    .ai-assistant-panel {
+      background: white;
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--gray-200);
+      box-shadow: var(--shadow-lg);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .ai-panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--gray-200);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(135deg, rgba(15, 157, 154, 0.05) 0%, rgba(26, 43, 60, 0.05) 100%);
+    }
+    .ai-chat-container {
+      padding: 20px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .ai-message {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .ai-message.user {
+      flex-direction: row-reverse;
+    }
+    .ai-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(15, 157, 154, 0.1);
+      color: var(--vericase-teal);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .ai-message.user .ai-avatar {
+      background: rgba(26, 43, 60, 0.1);
+      color: var(--vericase-navy);
+    }
+    .ai-bubble {
+      background: var(--gray-100);
+      padding: 12px 16px;
+      border-radius: 12px;
+      max-width: 80%;
+      line-height: 1.5;
+    }
+    .ai-message.user .ai-bubble {
+      background: var(--vericase-teal);
+      color: white;
+    }
+    .ai-input-container {
+      padding: 16px 20px;
+      border-top: 1px solid var(--gray-200);
+      display: flex;
+      gap: 12px;
+      background: var(--gray-50);
+    }
+    .ai-chat-input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-lg);
+      font-size: 0.9375rem;
+    }
+    .ai-chat-input:focus {
+      outline: none;
+      border-color: var(--vericase-teal);
+      box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.1);
+    }
+  </style>
 
   <!-- Projects Grid -->
   <div class="work-items-grid" id="workItemsGrid">
@@ -613,29 +761,44 @@
     <div class="quick-links-grid">
       <a href="pst-upload.html" class="quick-link-card">
         <div class="quick-link-icon"><i class="fas fa-upload"></i></div>
-        <div>
-          <div style="font-weight: 600">Upload Data</div>
-          <div style="font-size: 0.75rem; color: var(--text-muted)">
-            Process new PST files
-          </div>
+        <div class="quick-link-content">
+          <h4>Upload Data</h4>
+          <p>Process PST, EML, MSG, or document files</p>
         </div>
       </a>
       <a href="deep-research.html" class="quick-link-card">
         <div class="quick-link-icon"><i class="fas fa-microscope"></i></div>
-        <div>
-          <div style="font-weight: 600">Deep Research</div>
-          <div style="font-size: 0.75rem; color: var(--text-muted)">
-            AI-powered investigation
-          </div>
+        <div class="quick-link-content">
+          <h4>Deep Research</h4>
+          <p>AI-powered investigation &amp; analysis</p>
+        </div>
+      </a>
+      <a href="ai-refinement-wizard.html" class="quick-link-card">
+        <div class="quick-link-icon"><i class="fas fa-magic"></i></div>
+        <div class="quick-link-content">
+          <h4>AI Refinement</h4>
+          <p>Smart filtering &amp; categorization</p>
         </div>
       </a>
       <a href="evidence.html" class="quick-link-card">
         <div class="quick-link-icon"><i class="fas fa-folder-open"></i></div>
-        <div>
-          <div style="font-weight: 600">Global Evidence</div>
-          <div style="font-size: 0.75rem; color: var(--text-muted)">
-            Search all files
-          </div>
+        <div class="quick-link-content">
+          <h4>Global Evidence</h4>
+          <p>Search all files across projects</p>
+        </div>
+      </a>
+      <a href="delays.html" class="quick-link-card">
+        <div class="quick-link-icon"><i class="fas fa-calendar-alt"></i></div>
+        <div class="quick-link-content">
+          <h4>Delay Analysis</h4>
+          <p>Track and analyze project delays</p>
+        </div>
+      </a>
+      <a href="correspondence-enterprise.html" class="quick-link-card">
+        <div class="quick-link-icon"><i class="fas fa-envelope-open-text"></i></div>
+        <div class="quick-link-content">
+          <h4>Correspondence</h4>
+          <p>Email thread analysis &amp; search</p>
         </div>
       </a>
     </div>
@@ -1233,6 +1396,131 @@
       if (n > 1000) return (n / 1000).toFixed(1) + "k";
       return n;
     }
+
+    // AI Assistant functions
+    function toggleAIAssistant() {
+      const panel = document.getElementById('aiAssistantPanel');
+      if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        document.getElementById('aiChatInput').focus();
+      } else {
+        panel.style.display = 'none';
+      }
+    }
+
+    async function sendAIMessage() {
+      const input = document.getElementById('aiChatInput');
+      const message = input.value.trim();
+      if (!message) return;
+
+      const container = document.getElementById('aiChatMessages');
+      
+      // Add user message
+      container.innerHTML += `
+        <div class="ai-message user">
+          <i class="fas fa-user ai-avatar"></i>
+          <div class="ai-bubble">${escapeHtml(message)}</div>
+        </div>
+      `;
+      input.value = '';
+      container.scrollTop = container.scrollHeight;
+
+      // Show typing indicator
+      const typingId = 'typing-' + Date.now();
+      container.innerHTML += `
+        <div class="ai-message assistant" id="${typingId}">
+          <i class="fas fa-robot ai-avatar"></i>
+          <div class="ai-bubble"><i class="fas fa-spinner fa-spin"></i> Thinking...</div>
+        </div>
+      `;
+      container.scrollTop = container.scrollHeight;
+
+      try {
+        const headers = {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        };
+
+        const response = await fetch('/api/ai-chat/chat', {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({
+            message: message,
+            context: 'command_center',
+            include_projects: true
+          })
+        });
+
+        // Remove typing indicator
+        document.getElementById(typingId)?.remove();
+
+        if (response.ok) {
+          const data = await response.json();
+          const reply = data.response || data.message || 'I processed your request but have no specific response.';
+          
+          container.innerHTML += `
+            <div class="ai-message assistant">
+              <i class="fas fa-robot ai-avatar"></i>
+              <div class="ai-bubble">${escapeHtml(reply)}</div>
+            </div>
+          `;
+        } else {
+          // Fallback to semantic search for queries
+          if (message.toLowerCase().includes('show') || message.toLowerCase().includes('find')) {
+            container.innerHTML += `
+              <div class="ai-message assistant">
+                <i class="fas fa-robot ai-avatar"></i>
+                <div class="ai-bubble">
+                  I'll search your projects for: "${escapeHtml(message)}"
+                  <br><br>
+                  <em style="color: var(--text-muted); font-size: 0.875rem;">
+                    Searching across ${dashboardData?.stats?.total_projects || 0} projects...
+                  </em>
+                </div>
+              </div>
+            `;
+            // Trigger search
+            document.getElementById('searchInput').value = message;
+            searchQuery = message.toLowerCase();
+            renderWorkItems(dashboardData.work_items);
+          } else {
+            container.innerHTML += `
+              <div class="ai-message assistant">
+                <i class="fas fa-robot ai-avatar"></i>
+                <div class="ai-bubble">
+                  I couldn't process that request. Try searching for specific projects or ask questions like:
+                  <ul style="margin-top: 8px; margin-left: 20px;">
+                    <li>"Show me NEC4 contracts"</li>
+                    <li>"Find projects with delay notices"</li>
+                    <li>"Which projects have the most emails?"</li>
+                  </ul>
+                </div>
+              </div>
+            `;
+          }
+        }
+        container.scrollTop = container.scrollHeight;
+      } catch (error) {
+        console.error('AI Chat error:', error);
+        document.getElementById(typingId)?.remove();
+        container.innerHTML += `
+          <div class="ai-message assistant">
+            <i class="fas fa-robot ai-avatar"></i>
+            <div class="ai-bubble">Sorry, I encountered an error. Please try again.</div>
+          </div>
+        `;
+        container.scrollTop = container.scrollHeight;
+      }
+    }
+
+    // Handle Enter key in AI chat input
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('aiChatInput')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          sendAIMessage();
+        }
+      });
+    });
   </script>
 </body>
 

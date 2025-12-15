@@ -678,9 +678,10 @@
       async function loadStakeholders() {
         try {
           const apiUrl = window.CONFIG?.apiUrl || '';
+          const token = localStorage.getItem('token') || localStorage.getItem('vericase_token') || localStorage.getItem('access_token');
           const response = await fetch(`${apiUrl}/api/wizard/projects/${currentProjectId}/stakeholders`, {
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+              'Authorization': `Bearer ${token}`
             }
           });
 
@@ -878,21 +879,23 @@
 
         try {
           const apiUrl = window.CONFIG?.apiUrl || '';
+          const token = localStorage.getItem('token') || localStorage.getItem('vericase_token') || localStorage.getItem('access_token');
           
-          // For now, use bulk endpoint with single item (adapt based on actual API)
-          const url = `${apiUrl}/api/wizard/projects/${currentProjectId}/stakeholders/bulk`;
+          // Use the individual stakeholder POST endpoint
+          const url = `${apiUrl}/api/wizard/projects/${currentProjectId}/stakeholders`;
           
           const response = await fetch(url, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+              'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ stakeholders: [stakeholderData] })
+            body: JSON.stringify(stakeholderData)
           });
 
           if (!response.ok) {
-            throw new Error('Failed to save stakeholder');
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Failed to save stakeholder');
           }
 
           closeStakeholderModal();
@@ -900,7 +903,7 @@
           showSuccess(editingStakeholderId ? 'Stakeholder updated successfully' : 'Stakeholder added successfully');
         } catch (error) {
           console.error('Error saving stakeholder:', error);
-          showError('Failed to save stakeholder. Please try again.');
+          showError(error.message || 'Failed to save stakeholder. Please try again.');
         }
       }
 
@@ -911,12 +914,26 @@
         }
 
         try {
-          // Note: API endpoint for delete may need to be added
-          showError('Delete functionality to be implemented');
-          // Placeholder for when API endpoint is available
+          const apiUrl = window.CONFIG?.apiUrl || '';
+          const token = localStorage.getItem('token') || localStorage.getItem('vericase_token') || localStorage.getItem('access_token');
+          
+          const response = await fetch(`${apiUrl}/api/wizard/projects/${currentProjectId}/stakeholders/${stakeholderId}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Failed to delete stakeholder');
+          }
+
+          await loadStakeholders();
+          showSuccess('Stakeholder deleted successfully');
         } catch (error) {
           console.error('Error deleting stakeholder:', error);
-          showError('Failed to delete stakeholder. Please try again.');
+          showError(error.message || 'Failed to delete stakeholder. Please try again.');
         }
       }
 

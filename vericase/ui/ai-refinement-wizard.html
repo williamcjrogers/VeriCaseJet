@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="design-system.css" />
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
+    <script src="config.js"></script>
+    <script src="app-state.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -88,6 +90,11 @@
         top: 0;
         z-index: 100;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      }
+
+      /* Hide custom header when app-shell is active */
+      .app-shell .header {
+        display: none;
       }
 
       .header-content {
@@ -828,12 +835,12 @@
       <div class="header-content">
         <div class="logo">
           <img
-            src="/assets/Logo-Vector.png"
+            src="/ui/assets/VeriCaseContrast.png"
             alt="VeriCase"
             style="height: 28px"
           />
           <i class="fas fa-wand-magic-sparkles"></i>
-          AI Refinement
+          VeriCase Refine
         </div>
         <div class="project-info">
           <span
@@ -945,24 +952,41 @@
 
       // Initialize
       document.addEventListener("DOMContentLoaded", async () => {
+        // Inject navigation shell
+        if (window.VericaseShell) {
+          window.VericaseShell.inject({
+            title: 'VeriCase Refine',
+            breadcrumbs: [
+              { label: 'Home', url: 'master-dashboard.html', icon: 'fa-home' },
+              { label: 'Project Dashboard', url: 'dashboard.html' },
+              { label: 'VeriCase Refine' }
+            ]
+          });
+        }
+
         const urlParams = new URLSearchParams(window.location.search);
         let projectId = urlParams.get("projectId");
 
         if (!projectId) {
           projectId =
             localStorage.getItem("currentProjectId") ||
-            localStorage.getItem("projectId");
+            localStorage.getItem("projectId") ||
+            localStorage.getItem("vericase_current_project");
         }
 
         if (!projectId) {
-          alert("No project selected. Redirecting to dashboard...");
+          if (window.VericaseUI?.Toast) {
+            VericaseUI.Toast.warning("No project selected. Please select a project first.");
+          }
           window.location.href = "dashboard.html";
           return;
         }
 
         // Update header
-        document.getElementById("projectName").textContent =
-          localStorage.getItem("currentProjectName") || "Project";
+        const projectName = localStorage.getItem("currentProjectName") || 
+                            localStorage.getItem("vericase_current_project_name") || 
+                            "Project";
+        document.getElementById("projectName").textContent = projectName;
 
         // Start analysis
         await startAnalysis(projectId);

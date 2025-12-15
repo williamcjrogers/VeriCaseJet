@@ -18,7 +18,7 @@ metadata:
     app: vericase-api
     component: api
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: vericase-api
@@ -34,14 +34,14 @@ spec:
           image: docker.io/wcjrogers/vericase-api:latest
           ports:
             - containerPort: 8000
-          # Resource limits for stability
+          # Resource limits optimized for 50GB+ file uploads
           resources:
             requests:
-              memory: "512Mi"
-              cpu: "250m"
-            limits:
               memory: "2Gi"
-              cpu: "1000m"
+              cpu: "500m"
+            limits:
+              memory: "6Gi"
+              cpu: "2000m"
           # Health checks
           livenessProbe:
             httpGet:
@@ -188,15 +188,15 @@ spec:
       containers:
         - name: vericase-worker
           image: docker.io/wcjrogers/vericase-api:latest
-          command: ["celery", "-A", "worker_app.worker:celery_app", "worker", "--loglevel=info", "--pool=solo"]
-          # Workers need more resources for PST processing
+          command: ["celery", "-A", "worker_app.worker:celery_app", "worker", "--loglevel=info", "--pool=prefork", "--concurrency=2", "--max-tasks-per-child=5", "--max-memory-per-child=10485760"]
+          # Workers optimized for 50GB+ PST processing
           resources:
             requests:
-              memory: "1Gi"
-              cpu: "500m"
-            limits:
               memory: "4Gi"
-              cpu: "2000m"
+              cpu: "1000m"
+            limits:
+              memory: "12Gi"
+              cpu: "3000m"
           # Liveness probe for workers (no HTTP, just process check)
           livenessProbe:
             exec:
@@ -341,8 +341,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: vericase-api
-  minReplicas: 3
-  maxReplicas: 10
+  minReplicas: 2
+  maxReplicas: 4
   metrics:
     - type: Resource
       resource:

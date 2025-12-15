@@ -619,6 +619,81 @@ async def list_delays(
     ]
 
 
+from pydantic import BaseModel
+from typing import Optional
+
+
+class DelayEventCreate(BaseModel):
+    """Create a new delay event"""
+    activity_name: str
+    delay_days: int = 0
+    delay_type: str = "critical"  # critical, non_critical
+    delay_cause: str = "neutral"  # employer, contractor, neutral, concurrent
+    is_on_critical_path: bool = True
+    planned_finish: Optional[str] = None
+    actual_finish: Optional[str] = None
+    notes: Optional[str] = None
+    description: Optional[str] = None
+
+
+@router.post("/api/cases/{case_id}/delays")
+async def create_delay(
+    case_id: int,
+    delay_data: DelayEventCreate,
+    db: Session = Depends(get_db),
+    user: "User" = Depends(current_user)
+):
+    """Create a new delay event for a case"""
+    # Verify case exists
+    case = db.query(Case).filter(Case.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+    
+    # Parse dates
+    planned = None
+    actual = None
+    if delay_data.planned_finish:
+        try:
+            planned = date_parser.parse(delay_data.planned_finish).replace(tzinfo=None)
+        except Exception:
+            pass
+    if delay_data.actual_finish:
+        try:
+            actual = date_parser.parse(delay_data.actual_finish).replace(tzinfo=None)
+        except Exception:
+            pass
+    
+    delay = DelayEvent(
+        case_id=case_id,
+        activity_name=delay_data.activity_name,
+        delay_days=delay_data.delay_days,
+        delay_type=delay_data.delay_type,
+        delay_cause=delay_data.delay_cause,
+        is_on_critical_path=delay_data.is_on_critical_path,
+        planned_finish=planned,
+        actual_finish=actual,
+        notes=delay_data.notes,
+        description=delay_data.description,
+    )
+    
+    db.add(delay)
+    db.commit()
+    db.refresh(delay)
+    
+    return {
+        "id": delay.id,
+        "activity_name": delay.activity_name,
+        "delay_days": delay.delay_days,
+        "delay_type": delay.delay_type,
+        "delay_cause": delay.delay_cause,
+        "is_on_critical_path": delay.is_on_critical_path,
+        "planned_finish": delay.planned_finish.isoformat() if delay.planned_finish else None,
+        "actual_finish": delay.actual_finish.isoformat() if delay.actual_finish else None,
+        "notes": delay.notes,
+        "message": "Delay event created successfully"
+    }
+
+
 @router.patch("/api/delays/{delay_id}/link-correspondence")
 async def link_correspondence_to_delay(
     delay_id: int,

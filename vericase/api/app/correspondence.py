@@ -2381,6 +2381,81 @@ async def get_project_stakeholders(
     ]
 
 
+class StakeholderCreate(BaseModel):
+    """Model for creating a single stakeholder"""
+    name: str
+    role: str
+    email: Optional[str] = None
+    organization: Optional[str] = None
+
+
+@wizard_router.post("/projects/{project_id}/stakeholders")
+async def create_project_stakeholder(
+    project_id: str,
+    stakeholder_data: StakeholderCreate,
+    db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+):
+    """Create a single stakeholder for a project"""
+    try:
+        project_uuid = uuid.UUID(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Create the stakeholder
+    new_stakeholder = Stakeholder(
+        id=uuid.uuid4(),
+        project_id=project_uuid,
+        name=stakeholder_data.name,
+        role=stakeholder_data.role,
+        email=stakeholder_data.email,
+        organization=stakeholder_data.organization,
+    )
+    
+    db.add(new_stakeholder)
+    db.commit()
+    db.refresh(new_stakeholder)
+
+    return {
+        "id": str(new_stakeholder.id),
+        "name": new_stakeholder.name,
+        "role": new_stakeholder.role,
+        "email": new_stakeholder.email,
+        "organization": new_stakeholder.organization,
+    }
+
+
+@wizard_router.delete("/projects/{project_id}/stakeholders/{stakeholder_id}")
+async def delete_project_stakeholder(
+    project_id: str,
+    stakeholder_id: str,
+    db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
+):
+    """Delete a stakeholder from a project"""
+    try:
+        project_uuid = uuid.UUID(project_id)
+        stakeholder_uuid = uuid.UUID(stakeholder_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+
+    stakeholder = db.query(Stakeholder).filter(
+        Stakeholder.id == stakeholder_uuid,
+        Stakeholder.project_id == project_uuid
+    ).first()
+    
+    if not stakeholder:
+        raise HTTPException(status_code=404, detail="Stakeholder not found")
+
+    db.delete(stakeholder)
+    db.commit()
+
+    return {"message": "Stakeholder deleted successfully"}
+
+
 @wizard_router.get("/projects/{project_id}/keywords")
 async def get_project_keywords(
     project_id: str,
