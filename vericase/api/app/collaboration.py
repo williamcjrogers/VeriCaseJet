@@ -226,7 +226,7 @@ def _log_collaboration_activity(
 def _serialize_comment(
     comment: DocumentComment,
     replies_count: int,
-    mention_users: dict[uuid.UUID, User],
+    mention_users: dict[UUID, User],
 ) -> CommentResponse:
     mention_info = []
     for mid in comment.mentions or []:
