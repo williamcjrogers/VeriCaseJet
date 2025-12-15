@@ -52,6 +52,91 @@ celery_app.conf.update(
 )
 
 
+def cascade_spam_to_evidence(db, entity_id: str, entity_type: str) -> dict[str, int]:
+    """
+    Bulk cascade spam classification from emails to their evidence items.
+    
+    When an email is marked as spam/hidden, its attachments (evidence items)
+    should also be hidden. When an email is restored, its evidence should be restored.
+    
+    Args:
+        db: Database session
+        entity_id: Project or case UUID
+        entity_type: "project" or "case"
+    
+    Returns:
+        Dict with 'updated' (hidden) and 'restored' counts
+    """
+    from sqlalchemy import text
+    import uuid
+    
+    stats = {"updated": 0, "restored": 0}
+    
+    try:
+        entity_uuid = uuid.UUID(entity_id)
+        
+        # Determine the filter column
+        if entity_type == "project":
+            filter_clause = "ei.project_id = :entity_id"
+        else:
+            filter_clause = "ei.case_id = :entity_id"
+        
+        # 1. Mark evidence as hidden where parent email is hidden
+        # Only update if not already marked with same spam info
+        update_hidden_sql = text(f"""
+            UPDATE evidence_items ei
+            SET meta = jsonb_set(
+                COALESCE(meta, '{{}}'),
+                '{{spam}}',
+                jsonb_build_object(
+                    'is_hidden', true,
+                    'inherited_from_email', em.id::text,
+                    'score', (em.meta->'spam'->>'score')::int,
+                    'category', em.meta->'spam'->>'category'
+                )
+            )
+            FROM email_messages em
+            WHERE ei.source_email_id = em.id
+              AND em.meta->'spam'->>'is_hidden' = 'true'
+              AND {filter_clause}
+              AND (
+                  ei.meta IS NULL 
+                  OR ei.meta->'spam'->>'is_hidden' IS NULL 
+                  OR ei.meta->'spam'->>'is_hidden' != 'true'
+              )
+        """)
+        
+        result = db.execute(update_hidden_sql, {"entity_id": entity_uuid})
+        stats["updated"] = result.rowcount
+        
+        # 2. Restore evidence where parent email is no longer hidden
+        # Only restore if it was inherited (not manually hidden)
+        restore_sql = text(f"""
+            UPDATE evidence_items ei
+            SET meta = meta - 'spam'
+            FROM email_messages em
+            WHERE ei.source_email_id = em.id
+              AND {filter_clause}
+              AND ei.meta->'spam'->>'inherited_from_email' IS NOT NULL
+              AND (
+                  em.meta->'spam'->>'is_hidden' IS NULL 
+                  OR em.meta->'spam'->>'is_hidden' = 'false'
+              )
+              AND ei.meta->'spam'->>'is_hidden' = 'true'
+        """)
+        
+        result = db.execute(restore_sql, {"entity_id": entity_uuid})
+        stats["restored"] = result.rowcount
+        
+        db.commit()
+        
+    except Exception as e:
+        logger.warning(f"Evidence cascade failed: {e}")
+        db.rollback()
+    
+    return stats
+
+
 @celery_app.task(bind=True, name="index_project_emails_semantic")
 def index_project_emails_semantic(self, project_id: str, batch_size: int = 50) -> dict[str, Any]:
     """
@@ -465,6 +550,16 @@ def apply_spam_filter_batch(
         logger.info(
             f"Spam filter complete for {entity_type} {entity_id}: "
             f"{stats['spam_detected']} spam detected, {stats['hidden']} hidden"
+        )
+
+        # Cascade spam classification to evidence items
+        evidence_cascade_stats = cascade_spam_to_evidence(db, entity_id, entity_type)
+        stats["evidence_cascaded"] = evidence_cascade_stats.get("updated", 0)
+        stats["evidence_restored"] = evidence_cascade_stats.get("restored", 0)
+
+        logger.info(
+            f"Evidence cascade complete: {stats['evidence_cascaded']} hidden, "
+            f"{stats['evidence_restored']} restored"
         )
 
         return {

@@ -137,8 +137,8 @@ class UltimatePSTProcessor:
         self.attachment_hashes: dict[str, Any] = {}  # For Document deduplication
         self.evidence_item_hashes: dict[str, Any] = {}  # For EvidenceItem deduplication
 
-        # Parallel upload executor
-        self.upload_executor = ThreadPoolExecutor(max_workers=20)
+        # Parallel upload executor (increased for multi-PST throughput)
+        self.upload_executor = ThreadPoolExecutor(max_workers=50)
         self.upload_futures = []
 
         # Initialize semantic processing for deep research acceleration
@@ -515,7 +515,7 @@ class UltimatePSTProcessor:
         logger.info("Processing folder: %s (%d messages)", current_path, num_messages)
 
         # Process messages in this folder
-        COMMIT_BATCH_SIZE = 1000  # Commit every N messages for performance (increased for speed)
+        COMMIT_BATCH_SIZE = 2500  # Commit every N messages for performance (optimized for large PST files)
 
         for i in range(num_messages):
             try:
@@ -1648,13 +1648,13 @@ class UltimatePSTProcessor:
             if not thread_id:
                 thread_id = f"thread_{len(thread_groups) + 1}_{uuid.uuid4().hex[:8]}"
 
-            # Update indexes for subsequent lookups in this pass
-            if conversation_index and not conv_index_map.get(conversation_index):
+            # Update indexes for subsequent lookups (only if not already set)
+            if conversation_index and conversation_index not in conv_index_map:
                 conv_index_map[conversation_index] = thread_id
 
             if subject:
                  normalized_subject = re.sub(r"^(re|fw|fwd):\s*", "", subject.lower().strip())
-                 if not subject_map.get(normalized_subject):
+                 if normalized_subject not in subject_map:
                      subject_map[normalized_subject] = thread_id
 
             # Assign thread_id to email (legacy)

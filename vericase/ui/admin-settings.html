@@ -249,6 +249,50 @@
         background: var(--gray-300);
       }
 
+      .btn-outline {
+        background: transparent;
+        color: var(--vericase-teal);
+        border: 1px solid var(--vericase-teal);
+      }
+
+      .btn-outline:hover {
+        background: rgba(23, 181, 163, 0.1);
+      }
+
+      /* Model status messages */
+      .model-status-message {
+        margin-top: 0.75rem;
+        padding: 0.75rem 1rem;
+        border-radius: var(--radius-md);
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .model-status-message.loading {
+        background: var(--gray-100);
+        color: var(--text-secondary);
+      }
+
+      .model-status-message.success {
+        background: rgba(16, 185, 129, 0.1);
+        color: #059669;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+      }
+
+      .model-status-message.error {
+        background: rgba(239, 68, 68, 0.1);
+        color: #dc2626;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+      }
+
+      .model-status-message.warning {
+        background: rgba(245, 158, 11, 0.1);
+        color: #d97706;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+      }
+
       .btn-success {
         background: var(--success);
         color: white;
@@ -822,18 +866,26 @@
                   Save Key
                 </button>
                 <button class="btn btn-secondary" onclick="testProvider('openai')">
-                  <i class="fas fa-vial"></i> Test
+                  <i class="fas fa-vial"></i> Test Connection
                 </button>
               </div>
               <div class="provider-row">
                 <label>Model:</label>
-                <select id="openai_model" class="setting-input wide">
+                <select id="openai_model" class="setting-input" style="width: 250px;">
                   <!-- Populated dynamically -->
                 </select>
-                <button class="btn btn-primary" onclick="saveSetting('openai_model')">
+                <input type="text" id="openai_model_custom" class="setting-input" style="width: 180px;" placeholder="Or enter custom model ID..." />
+                <button class="btn btn-primary" onclick="saveModelSetting('openai')">
                   Save
                 </button>
+                <button class="btn btn-secondary" onclick="testSpecificModel('openai')">
+                  <i class="fas fa-flask"></i> Test Model
+                </button>
+                <button class="btn btn-outline" onclick="fetchAvailableModels('openai')">
+                  <i class="fas fa-sync"></i> Fetch My Models
+                </button>
               </div>
+              <div id="openai_model_status" class="model-status-message" style="display: none;"></div>
             </div>
           </div>
 
@@ -867,18 +919,23 @@
                   Save Key
                 </button>
                 <button class="btn btn-secondary" onclick="testProvider('anthropic')">
-                  <i class="fas fa-vial"></i> Test
+                  <i class="fas fa-vial"></i> Test Connection
                 </button>
               </div>
               <div class="provider-row">
                 <label>Model:</label>
-                <select id="anthropic_model" class="setting-input wide">
+                <select id="anthropic_model" class="setting-input" style="width: 250px;">
                   <!-- Populated dynamically -->
                 </select>
-                <button class="btn btn-primary" onclick="saveSetting('anthropic_model')">
+                <input type="text" id="anthropic_model_custom" class="setting-input" style="width: 180px;" placeholder="Or enter custom model ID..." />
+                <button class="btn btn-primary" onclick="saveModelSetting('anthropic')">
                   Save
                 </button>
+                <button class="btn btn-secondary" onclick="testSpecificModel('anthropic')">
+                  <i class="fas fa-flask"></i> Test Model
+                </button>
               </div>
+              <div id="anthropic_model_status" class="model-status-message" style="display: none;"></div>
             </div>
           </div>
 
@@ -912,18 +969,26 @@
                   Save Key
                 </button>
                 <button class="btn btn-secondary" onclick="testProvider('gemini')">
-                  <i class="fas fa-vial"></i> Test
+                  <i class="fas fa-vial"></i> Test Connection
                 </button>
               </div>
               <div class="provider-row">
                 <label>Model:</label>
-                <select id="gemini_model" class="setting-input wide">
+                <select id="gemini_model" class="setting-input" style="width: 250px;">
                   <!-- Populated dynamically -->
                 </select>
-                <button class="btn btn-primary" onclick="saveSetting('gemini_model')">
+                <input type="text" id="gemini_model_custom" class="setting-input" style="width: 180px;" placeholder="Or enter custom model ID..." />
+                <button class="btn btn-primary" onclick="saveModelSetting('gemini')">
                   Save
                 </button>
+                <button class="btn btn-secondary" onclick="testSpecificModel('gemini')">
+                  <i class="fas fa-flask"></i> Test Model
+                </button>
+                <button class="btn btn-outline" onclick="fetchAvailableModels('gemini')">
+                  <i class="fas fa-sync"></i> Fetch My Models
+                </button>
               </div>
+              <div id="gemini_model_status" class="model-status-message" style="display: none;"></div>
             </div>
           </div>
 
@@ -1488,6 +1553,162 @@
         } catch (error) {
           console.error("Error saving setting:", error);
           showToast("Failed to save setting", "error");
+        }
+      }
+
+      // ====== Save Model Setting (with custom input support) ======
+      async function saveModelSetting(provider) {
+        const selectEl = document.getElementById(`${provider}_model`);
+        const customEl = document.getElementById(`${provider}_model_custom`);
+        
+        // Use custom input if filled, otherwise use dropdown
+        let modelId = customEl?.value?.trim() || selectEl?.value;
+        
+        if (!modelId) {
+          showToast("Please select or enter a model ID", "error");
+          return;
+        }
+        
+        const key = `${provider}_model`;
+        
+        try {
+          const response = await fetch(`${API_BASE}/api/admin/settings/${key}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              value: modelId,
+              description: `${provider} model to use`,
+            }),
+          });
+
+          if (!response.ok) {
+            showToast("Failed to save model setting", "error");
+            return;
+          }
+
+          showToast(`${provider.toUpperCase()} model set to: ${modelId}`);
+          
+          // Clear custom input and update dropdown if needed
+          if (customEl) customEl.value = "";
+          
+        } catch (error) {
+          console.error("Error saving model:", error);
+          showToast("Failed to save model", "error");
+        }
+      }
+
+      // ====== Test Specific Model ======
+      async function testSpecificModel(provider) {
+        const selectEl = document.getElementById(`${provider}_model`);
+        const customEl = document.getElementById(`${provider}_model_custom`);
+        const statusEl = document.getElementById(`${provider}_model_status`);
+        
+        // Use custom input if filled, otherwise use dropdown
+        let modelId = customEl?.value?.trim() || selectEl?.value;
+        
+        if (!modelId) {
+          showToast("Please select or enter a model ID to test", "error");
+          return;
+        }
+        
+        // Show loading state
+        if (statusEl) {
+          statusEl.style.display = "block";
+          statusEl.className = "model-status-message loading";
+          statusEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Testing model "${modelId}"...`;
+        }
+        
+        try {
+          const response = await fetch(`${API_BASE}/api/admin/settings/ai/test-model/${provider}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ model_id: modelId }),
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            showToast(`✓ Model "${modelId}" is accessible! (${result.response_time_ms}ms)`);
+            if (statusEl) {
+              statusEl.className = "model-status-message success";
+              statusEl.innerHTML = `<i class="fas fa-check-circle"></i> Model "${modelId}" works! Response time: ${result.response_time_ms}ms`;
+            }
+          } else {
+            showToast(`✗ Model "${modelId}" failed: ${result.error}`, "error");
+            if (statusEl) {
+              statusEl.className = "model-status-message error";
+              statusEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${result.error}`;
+            }
+          }
+          
+        } catch (error) {
+          showToast(`Failed to test model: ${error.message}`, "error");
+          if (statusEl) {
+            statusEl.className = "model-status-message error";
+            statusEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${error.message}`;
+          }
+        }
+      }
+
+      // ====== Fetch Available Models from Provider API ======
+      async function fetchAvailableModels(provider) {
+        const selectEl = document.getElementById(`${provider}_model`);
+        const statusEl = document.getElementById(`${provider}_model_status`);
+        
+        if (statusEl) {
+          statusEl.style.display = "block";
+          statusEl.className = "model-status-message loading";
+          statusEl.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Fetching available models from ${provider}...`;
+        }
+        
+        try {
+          const response = await fetch(`${API_BASE}/api/admin/settings/ai/fetch-models/${provider}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          
+          const result = await response.json();
+          
+          if (result.success && result.models?.length > 0) {
+            // Update dropdown with fetched models
+            selectEl.innerHTML = "";
+            result.models.forEach((model) => {
+              const option = document.createElement("option");
+              option.value = model.id;
+              option.textContent = model.name || model.id;
+              selectEl.appendChild(option);
+            });
+            
+            showToast(`Found ${result.models.length} models available for your API key`);
+            if (statusEl) {
+              statusEl.className = "model-status-message success";
+              statusEl.innerHTML = `<i class="fas fa-check-circle"></i> Found ${result.models.length} models. Select one and click "Test Model" to verify.`;
+            }
+          } else if (result.note) {
+            // Provider doesn't support model listing
+            if (statusEl) {
+              statusEl.className = "model-status-message warning";
+              statusEl.innerHTML = `<i class="fas fa-info-circle"></i> ${result.note}`;
+            }
+          } else {
+            showToast(`No models found: ${result.error || "Unknown error"}`, "error");
+            if (statusEl) {
+              statusEl.className = "model-status-message error";
+              statusEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${result.error || "No models found"}`;
+            }
+          }
+          
+        } catch (error) {
+          showToast(`Failed to fetch models: ${error.message}`, "error");
+          if (statusEl) {
+            statusEl.className = "model-status-message error";
+            statusEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${error.message}`;
+          }
         }
       }
 

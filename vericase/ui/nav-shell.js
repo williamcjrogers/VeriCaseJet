@@ -283,11 +283,15 @@
 
     // Add project context indicator - always show, clickable to switch projects
     const projectId = getProjectId();
+    // Get cached project name to show immediately (avoids flash of "Loading...")
+    const cachedProjectName = localStorage.getItem("currentProjectName") || 
+                              localStorage.getItem("vericase_current_project_name") || 
+                              "Loading...";
     const projectContext = projectId
       ? `
             <div class="project-context" onclick="VericaseShell.showProjectSelector()" style="cursor: pointer;" title="Click to switch project">
                 <div class="project-context-label">Current Project <i class="fas fa-exchange-alt" style="float:right;opacity:0.5;font-size:0.75rem;"></i></div>
-                <div class="project-context-name" id="currentProjectName">Loading...</div>
+                <div class="project-context-name" id="currentProjectName">${cachedProjectName}</div>
             </div>
         `
       : `

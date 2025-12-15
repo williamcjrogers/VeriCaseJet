@@ -368,3 +368,290 @@ async def test_bedrock_connection(
             "success": False,
             "error": str(e),
         }
+
+
+class TestModelRequest(BaseModel):
+    """Request to test a specific model"""
+    model_id: str
+
+
+@router.post("/ai/test-model/{provider}")
+async def test_specific_model(
+    provider: str,
+    request: Annotated[TestModelRequest, Body(...)],
+    db: DbSession,
+    admin: AdminDep,
+) -> dict[str, Any]:
+    """
+    Test a SPECIFIC model (not just the provider).
+    Use this to verify the user has access to a particular model before configuring it.
+    """
+    import time
+    
+    if provider not in RUNTIME_SUPPORTED_PROVIDERS:
+        return {
+            "success": False,
+            "error": f"Invalid provider: {provider}. Supported: {', '.join(RUNTIME_SUPPORTED_PROVIDERS)}",
+        }
+    
+    model_id = request.model_id
+    test_prompt = "Reply with just 'OK' to confirm you can access this model."
+    start_time = time.time()
+    
+    try:
+        from .ai_runtime import complete_chat
+        from .ai_settings import get_ai_api_key
+        
+        api_key = get_ai_api_key(provider, db)
+        
+        if not api_key and provider != "bedrock":
+            return {
+                "success": False,
+                "error": f"{provider.title()} API key not configured",
+            }
+        
+        # Try to call the specific model
+        response = await complete_chat(
+            provider=provider,
+            model_id=model_id,
+            prompt=test_prompt,
+            api_key=api_key,
+            max_tokens=50,
+            temperature=0.0,
+        )
+        
+        elapsed = int((time.time() - start_time) * 1000)
+        
+        return {
+            "success": True,
+            "provider": provider,
+            "model": model_id,
+            "response_time_ms": elapsed,
+            "response_preview": (response[:100] if response else "OK"),
+            "message": f"Successfully connected to {model_id}",
+        }
+        
+    except Exception as e:
+        error_msg = str(e)
+        
+        # Parse common errors for better messages
+        if "does not have access" in error_msg.lower() or "model not found" in error_msg.lower():
+            return {
+                "success": False,
+                "provider": provider,
+                "model": model_id,
+                "error": f"Your API key does not have access to model '{model_id}'. Check your OpenAI project permissions.",
+                "error_type": "model_access",
+            }
+        elif "invalid api key" in error_msg.lower() or "authentication" in error_msg.lower():
+            return {
+                "success": False,
+                "provider": provider,
+                "model": model_id,
+                "error": "Invalid API key. Please check your credentials.",
+                "error_type": "auth_error",
+            }
+        elif "rate limit" in error_msg.lower():
+            return {
+                "success": False,
+                "provider": provider,
+                "model": model_id,
+                "error": "Rate limited. Please try again in a moment.",
+                "error_type": "rate_limit",
+            }
+        else:
+            return {
+                "success": False,
+                "provider": provider,
+                "model": model_id,
+                "error": error_msg,
+                "error_type": "unknown",
+            }
+
+
+@router.get("/ai/fetch-models/{provider}")
+async def fetch_available_models(
+    provider: str,
+    db: DbSession,
+    admin: AdminDep,
+) -> dict[str, Any]:
+    """
+    Fetch the list of models the user actually has access to from the provider's API.
+    This queries the provider directly to discover available models.
+    """
+    from .ai_settings import get_ai_api_key
+    
+    if provider not in RUNTIME_SUPPORTED_PROVIDERS:
+        return {
+            "success": False,
+            "error": f"Invalid provider: {provider}",
+        }
+    
+    api_key = get_ai_api_key(provider, db)
+    
+    if not api_key and provider != "bedrock":
+        return {
+            "success": False,
+            "error": f"{provider.title()} API key not configured",
+            "models": [],
+        }
+    
+    try:
+        if provider == "openai":
+            return await _fetch_openai_models(api_key)
+        elif provider == "anthropic":
+            # Anthropic doesn't have a models list API, return known models
+            return {
+                "success": True,
+                "provider": "anthropic",
+                "models": [
+                    {"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4", "type": "flagship"},
+                    {"id": "claude-opus-4-20250514", "name": "Claude Opus 4", "type": "premium"},
+                    {"id": "claude-3-5-sonnet-20241022", "name": "Claude 3.5 Sonnet", "type": "flagship"},
+                    {"id": "claude-3-5-haiku-20241022", "name": "Claude 3.5 Haiku", "type": "fast"},
+                    {"id": "claude-3-opus-20240229", "name": "Claude 3 Opus", "type": "premium"},
+                ],
+                "note": "Anthropic doesn't provide a models list API. These are known models - test to verify access.",
+            }
+        elif provider == "gemini":
+            return await _fetch_gemini_models(api_key)
+        elif provider == "bedrock":
+            return await _fetch_bedrock_models(db)
+        else:
+            return {"success": False, "error": f"Unknown provider: {provider}"}
+            
+    except Exception as e:
+        logger.error(f"Failed to fetch models for {provider}: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "models": [],
+        }
+
+
+async def _fetch_openai_models(api_key: str) -> dict[str, Any]:
+    """Fetch available models from OpenAI API"""
+    import httpx
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://api.openai.com/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=30.0,
+        )
+        
+        if response.status_code != 200:
+            return {
+                "success": False,
+                "error": f"OpenAI API error: {response.status_code} - {response.text}",
+                "models": [],
+            }
+        
+        data = response.json()
+        models = data.get("data", [])
+        
+        # Filter to chat/completion models, sorted by ID
+        chat_models = []
+        for m in models:
+            model_id = m.get("id", "")
+            # Include GPT models and o1/o3 reasoning models
+            if any(prefix in model_id for prefix in ["gpt-4", "gpt-3.5", "gpt-5", "o1", "o3"]):
+                chat_models.append({
+                    "id": model_id,
+                    "name": model_id,
+                    "owned_by": m.get("owned_by", "openai"),
+                    "created": m.get("created"),
+                })
+        
+        # Sort by ID (newer models first)
+        chat_models.sort(key=lambda x: x["id"], reverse=True)
+        
+        return {
+            "success": True,
+            "provider": "openai",
+            "models": chat_models,
+            "total_models": len(models),
+            "chat_models": len(chat_models),
+        }
+
+
+async def _fetch_gemini_models(api_key: str) -> dict[str, Any]:
+    """Fetch available models from Google AI API"""
+    import httpx
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}",
+            timeout=30.0,
+        )
+        
+        if response.status_code != 200:
+            return {
+                "success": False,
+                "error": f"Gemini API error: {response.status_code}",
+                "models": [],
+            }
+        
+        data = response.json()
+        models = data.get("models", [])
+        
+        # Filter to generative models
+        generative_models = []
+        for m in models:
+            name = m.get("name", "")
+            if "generateContent" in m.get("supportedGenerationMethods", []):
+                model_id = name.replace("models/", "")
+                generative_models.append({
+                    "id": model_id,
+                    "name": m.get("displayName", model_id),
+                    "description": m.get("description", ""),
+                })
+        
+        return {
+            "success": True,
+            "provider": "gemini",
+            "models": generative_models,
+        }
+
+
+async def _fetch_bedrock_models(db: Session) -> dict[str, Any]:
+    """Fetch available models from AWS Bedrock"""
+    if not bedrock_available():
+        return {
+            "success": False,
+            "error": "boto3 not installed",
+            "models": [],
+        }
+    
+    try:
+        import boto3
+        
+        region = get_bedrock_region(db)
+        client = boto3.client("bedrock", region_name=region)
+        
+        response = client.list_foundation_models()
+        models = response.get("modelSummaries", [])
+        
+        # Filter to text generation models
+        text_models = []
+        for m in models:
+            if "TEXT" in m.get("outputModalities", []):
+                text_models.append({
+                    "id": m.get("modelId"),
+                    "name": m.get("modelName"),
+                    "provider": m.get("providerName"),
+                })
+        
+        return {
+            "success": True,
+            "provider": "bedrock",
+            "region": region,
+            "models": text_models,
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "models": [],
+        }

@@ -720,11 +720,26 @@ async def list_evidence(
     processing_status: Annotated[str | None, Query()] = None,
     sort_by: Annotated[str, Query(description="Sort field")] = "created_at",
     sort_order: Annotated[str, Query(description="asc or desc")] = "desc",
+    include_hidden: Annotated[
+        bool, Query(description="Include spam-filtered/hidden items (admin only)")
+    ] = False,
 ) -> EvidenceListResponse:
     """
     List evidence items with filtering and pagination
     """
     query = db.query(EvidenceItem)
+
+    # Filter out hidden/spam-filtered items by default
+    # Items can be hidden directly or inherited from parent email spam classification
+    if not include_hidden:
+        # Exclude items where meta->'spam'->>'is_hidden' = 'true'
+        query = query.filter(
+            or_(
+                EvidenceItem.meta.is_(None),
+                EvidenceItem.meta["spam"]["is_hidden"].astext != "true",
+                ~EvidenceItem.meta.has_key("spam"),
+            )
+        )
 
     # Apply filters
     if search:
@@ -1006,6 +1021,7 @@ async def get_evidence_server_side(
     case_id: str | None = Query(None),
     collection_id: str | None = Query(None),
     include_email_info: bool = Query(False),
+    include_hidden: bool = Query(False, description="Include spam-filtered/hidden items"),
 ) -> ServerSideEvidenceResponse:
     """
     High-performance server-side endpoint for AG Grid.
@@ -1033,6 +1049,16 @@ async def get_evidence_server_side(
             raise HTTPException(status_code=400, detail="Invalid collection_id format")
 
     base_query = db.query(EvidenceItem)
+
+    # Filter out hidden/spam-filtered items by default
+    if not include_hidden:
+        base_query = base_query.filter(
+            or_(
+                EvidenceItem.meta.is_(None),
+                EvidenceItem.meta["spam"]["is_hidden"].astext != "true",
+                ~EvidenceItem.meta.has_key("spam"),
+            )
+        )
 
     # Context filters
     if project_uuid is not None:

@@ -31,6 +31,11 @@ from .models import (
     ItemComment,
     EmailMessage,
     EvidenceItem,
+    CollaborationActivity,
+    CaseUser,
+    CommentReaction,
+    CommentReadStatus,
+    UserNotificationPreferences,
 )
 
 DbSession = Annotated[Session, Depends(get_db)]
@@ -213,6 +218,8 @@ class CommentResponse(BaseModel):
     parent_comment_id: Optional[str]
     is_edited: bool
     edited_at: Optional[datetime]
+    is_pinned: bool = False
+    pinned_at: Optional[datetime] = None
     created_at: datetime
     created_by: Optional[str]
     created_by_name: Optional[str] = None
@@ -540,6 +547,21 @@ async def create_head_of_claim(
     )
 
     db.add(claim)
+    db.flush()  # Get the ID without committing
+
+    # Log activity
+    _log_claim_activity(
+        db,
+        action="claim.created",
+        claim_id=claim.id,
+        user_id=user.id,
+        details={
+            "name": claim.name,
+            "reference_number": claim.reference_number,
+            "claim_type": claim.claim_type,
+            "claimed_amount": claim.claimed_amount,
+        },
+    )
     db.commit()
     db.refresh(claim)
 
@@ -635,6 +657,14 @@ async def update_head_of_claim(
     for key, value in update_data.items():
         setattr(claim, key, value)
 
+    # Log activity
+    _log_claim_activity(
+        db,
+        action="claim.updated",
+        claim_id=claim.id,
+        user_id=user.id,
+        details={"updated_fields": list(update_data.keys())},
+    )
     db.commit()
     return {"id": str(claim.id), "status": "updated"}
 
@@ -654,6 +684,451 @@ async def delete_head_of_claim(
     db.delete(claim)
     db.commit()
     return {"id": claim_id, "status": "deleted"}
+
+
+# =============================================================================
+# Team Members Endpoint (for @mention autocomplete)
+# =============================================================================
+
+
+class TeamMemberResponse(BaseModel):
+    id: str
+    email: str
+    display_name: Optional[str]
+
+
+@router.get("/heads-of-claim/{claim_id}/team-members")
+async def get_claim_team_members(
+    claim_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Get team members who can be @mentioned on this claim"""
+    claim_uuid = _parse_uuid(claim_id, "claim_id")
+
+    # Verify claim exists
+    claim = db.query(HeadOfClaim).filter(HeadOfClaim.id == claim_uuid).first()
+    if not claim:
+        raise HTTPException(404, "Head of claim not found")
+
+    # Get team members from case_id if available
+    team_members = []
+
+    if claim.case_id:
+        # Get all users linked to this case
+        case_users = (
+            db.query(User.id, User.email, User.display_name)
+            .join(CaseUser, CaseUser.user_id == User.id)
+            .filter(CaseUser.case_id == claim.case_id)
+            .filter(User.is_active == True)
+            .all()
+        )
+        for cu in case_users:
+            team_members.append(
+                TeamMemberResponse(
+                    id=str(cu.id),
+                    email=cu.email,
+                    display_name=cu.display_name,
+                )
+            )
+
+    # Always include current user if not already in list
+    if not any(tm.id == str(user.id) for tm in team_members):
+        team_members.append(
+            TeamMemberResponse(
+                id=str(user.id),
+                email=user.email,
+                display_name=user.display_name,
+            )
+        )
+
+    # Sort by display_name or email
+    team_members.sort(key=lambda x: (x.display_name or x.email).lower())
+
+    return {"items": [tm.model_dump() for tm in team_members]}
+
+
+@router.get("/heads-of-claim/{claim_id}/evidence-comments")
+async def get_evidence_comments(
+    claim_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Get comments on evidence/correspondence linked to this claim (evidence notes tab)"""
+    claim_uuid = _parse_uuid(claim_id, "claim_id")
+
+    # Verify claim exists
+    claim = db.query(HeadOfClaim).filter(HeadOfClaim.id == claim_uuid).first()
+    if not claim:
+        raise HTTPException(404, "Head of claim not found")
+
+    # Get all links to this claim
+    links = (
+        db.query(ItemClaimLink)
+        .filter(ItemClaimLink.head_of_claim_id == claim_uuid)
+        .all()
+    )
+
+    if not links:
+        return {"items": [], "total": 0}
+
+    # Build response grouped by linked item
+    result_items = []
+
+    for link in links:
+        # Get the linked item name
+        item_name = f"Unknown {link.item_type}"
+        if link.item_type == "evidence":
+            evidence = db.query(EvidenceItem).filter(EvidenceItem.id == link.item_id).first()
+            if evidence:
+                item_name = evidence.name or evidence.original_filename or f"Evidence #{str(link.item_id)[:8]}"
+        elif link.item_type == "correspondence":
+            email = db.query(EmailMessage).filter(EmailMessage.id == link.item_id).first()
+            if email:
+                item_name = email.subject or f"Email #{str(link.item_id)[:8]}"
+
+        # Get comments on this link
+        comments = (
+            db.query(ItemComment)
+            .filter(
+                ItemComment.item_claim_link_id == link.id,
+                ItemComment.parent_comment_id.is_(None),
+            )
+            .order_by(ItemComment.created_at.desc())
+            .all()
+        )
+
+        def build_comment_response(comment):
+            creator_name = None
+            if comment.created_by:
+                creator = (
+                    db.query(User.email, User.display_name)
+                    .filter(User.id == comment.created_by)
+                    .first()
+                )
+                if creator:
+                    creator_name = creator.display_name or creator.email
+
+            # Get replies
+            replies = (
+                db.query(ItemComment)
+                .filter(ItemComment.parent_comment_id == comment.id)
+                .order_by(ItemComment.created_at.asc())
+                .all()
+            )
+
+            return {
+                "id": str(comment.id),
+                "content": comment.content,
+                "item_claim_link_id": str(link.id),
+                "is_edited": comment.is_edited or False,
+                "edited_at": comment.edited_at,
+                "created_at": comment.created_at,
+                "created_by": str(comment.created_by) if comment.created_by else None,
+                "created_by_name": creator_name,
+                "replies": [build_comment_response(r) for r in replies],
+            }
+
+        result_items.append({
+            "link_id": str(link.id),
+            "item_type": link.item_type,
+            "item_id": str(link.item_id),
+            "item_name": item_name,
+            "link_type": link.link_type,
+            "comment_count": len(comments),
+            "comments": [build_comment_response(c) for c in comments],
+        })
+
+    # Sort by comment_count descending (most discussed first)
+    result_items.sort(key=lambda x: x["comment_count"], reverse=True)
+
+    return {"items": result_items, "total": len(result_items)}
+
+
+# =============================================================================
+# Head of Claim Comments Endpoints
+# =============================================================================
+
+
+@router.get("/heads-of-claim/{claim_id}/comments")
+async def get_claim_comments(
+    claim_id: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    search: Optional[str] = Query(None, description="Search comments by content"),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Get comments directly on a head of claim (discussion tab)"""
+    claim_uuid = _parse_uuid(claim_id, "claim_id")
+
+    # Verify claim exists
+    claim = db.query(HeadOfClaim).filter(HeadOfClaim.id == claim_uuid).first()
+    if not claim:
+        raise HTTPException(404, "Head of claim not found")
+
+    # Build base query
+    base_filter = [
+        ItemComment.item_type == "claim",
+        ItemComment.item_id == claim_uuid,
+        ItemComment.parent_comment_id.is_(None),
+    ]
+
+    # Add search filter if provided
+    if search and search.strip():
+        search_term = f"%{search.strip()}%"
+        base_filter.append(ItemComment.content.ilike(search_term))
+
+    # Get top-level comments on this claim
+    comments = (
+        db.query(ItemComment)
+        .filter(*base_filter)
+        .order_by(ItemComment.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    total = (
+        db.query(func.count(ItemComment.id))
+        .filter(*base_filter)
+        .scalar()
+        or 0
+    )
+
+    def build_comment_tree(comment):
+        creator_name = None
+        if comment.created_by:
+            creator = (
+                db.query(User.email, User.display_name)
+                .filter(User.id == comment.created_by)
+                .first()
+            )
+            if creator:
+                creator_name = creator.display_name or creator.email
+
+        # Get replies
+        replies = (
+            db.query(ItemComment)
+            .filter(ItemComment.parent_comment_id == comment.id)
+            .order_by(ItemComment.created_at.asc())
+            .all()
+        )
+
+        return CommentResponse(
+            id=str(comment.id),
+            content=comment.content,
+            item_claim_link_id=None,
+            item_type="claim",
+            item_id=str(comment.item_id) if comment.item_id else None,
+            parent_comment_id=(
+                str(comment.parent_comment_id) if comment.parent_comment_id else None
+            ),
+            is_edited=comment.is_edited or False,
+            edited_at=comment.edited_at,
+            is_pinned=comment.is_pinned or False,
+            pinned_at=comment.pinned_at,
+            created_at=comment.created_at,
+            created_by=str(comment.created_by) if comment.created_by else None,
+            created_by_name=creator_name,
+            replies=[build_comment_tree(r) for r in replies],
+        )
+
+    return {
+        "items": [build_comment_tree(c) for c in comments],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@router.post("/heads-of-claim/{claim_id}/comments")
+async def create_claim_comment(
+    claim_id: str,
+    request: CommentCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Create a comment directly on a head of claim"""
+    claim_uuid = _parse_uuid(claim_id, "claim_id")
+
+    # Verify claim exists
+    claim = db.query(HeadOfClaim).filter(HeadOfClaim.id == claim_uuid).first()
+    if not claim:
+        raise HTTPException(404, "Head of claim not found")
+
+    # Validate parent comment if provided
+    parent_uuid = None
+    if request.parent_comment_id:
+        parent_uuid = _parse_uuid(request.parent_comment_id, "parent_comment_id")
+        parent = db.query(ItemComment).filter(ItemComment.id == parent_uuid).first()
+        if not parent:
+            raise HTTPException(404, "Parent comment not found")
+
+    comment = ItemComment(
+        item_type="claim",
+        item_id=claim_uuid,
+        parent_comment_id=parent_uuid,
+        content=request.content,
+        created_by=user.id,
+    )
+
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+
+    # Get creator info for response
+    creator_name = user.display_name or user.email
+
+    # Log activity
+    _log_claim_activity(
+        db,
+        action="comment.created",
+        claim_id=claim_uuid,
+        user_id=user.id,
+        details={"comment_id": str(comment.id), "content_preview": request.content[:100]},
+    )
+
+    # Process notifications (@mentions and replies)
+    try:
+        from .notifications import process_comment_notifications
+        notification_result = process_comment_notifications(db, comment, user, claim)
+        logger.info(f"Notifications processed: {notification_result}")
+    except Exception as e:
+        logger.error(f"Failed to process notifications: {e}")
+
+    return {
+        "id": str(comment.id),
+        "content": comment.content,
+        "item_type": "claim",
+        "item_id": claim_id,
+        "parent_comment_id": request.parent_comment_id,
+        "created_by": str(user.id),
+        "created_by_name": creator_name,
+        "created_at": comment.created_at.isoformat() if comment.created_at else None,
+        "status": "created",
+    }
+
+
+# =============================================================================
+# Activity History Endpoints
+# =============================================================================
+
+
+def _log_claim_activity(
+    db: Session,
+    action: str,
+    claim_id: uuid.UUID,
+    user_id: uuid.UUID | None,
+    details: dict | None = None,
+) -> None:
+    """Log an activity entry for a head of claim."""
+    activity = CollaborationActivity(
+        action=action,
+        resource_type="claim",
+        resource_id=claim_id,
+        user_id=user_id,
+        details=details or {},
+    )
+    db.add(activity)
+
+
+class ActivityResponse(BaseModel):
+    id: str
+    action: str
+    resource_type: str
+    resource_id: str
+    user_id: Optional[str]
+    user_name: Optional[str]
+    details: dict
+    created_at: datetime
+
+
+@router.get("/heads-of-claim/{claim_id}/activity")
+async def get_claim_activity(
+    claim_id: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Get all-time activity history for a head of claim"""
+    claim_uuid = _parse_uuid(claim_id, "claim_id")
+
+    # Verify claim exists
+    claim = db.query(HeadOfClaim).filter(HeadOfClaim.id == claim_uuid).first()
+    if not claim:
+        raise HTTPException(404, "Head of claim not found")
+
+    # Get activity entries for this claim
+    activities = (
+        db.query(CollaborationActivity)
+        .filter(
+            CollaborationActivity.resource_type == "claim",
+            CollaborationActivity.resource_id == claim_uuid,
+        )
+        .order_by(CollaborationActivity.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    total = (
+        db.query(func.count(CollaborationActivity.id))
+        .filter(
+            CollaborationActivity.resource_type == "claim",
+            CollaborationActivity.resource_id == claim_uuid,
+        )
+        .scalar()
+        or 0
+    )
+
+    # Also include link activities related to this claim
+    link_activities = (
+        db.query(CollaborationActivity)
+        .join(ItemClaimLink, CollaborationActivity.resource_id == ItemClaimLink.id)
+        .filter(
+            CollaborationActivity.resource_type == "link",
+            ItemClaimLink.head_of_claim_id == claim_uuid,
+        )
+        .order_by(CollaborationActivity.created_at.desc())
+        .limit(page_size)
+        .all()
+    )
+
+    # Combine and sort
+    all_activities = activities + link_activities
+    all_activities.sort(key=lambda x: x.created_at or datetime.min, reverse=True)
+    all_activities = all_activities[:page_size]
+
+    # Get user names
+    user_ids = {a.user_id for a in all_activities if a.user_id}
+    users_map = {}
+    if user_ids:
+        users = db.query(User).filter(User.id.in_(user_ids)).all()
+        users_map = {u.id: u.display_name or u.email for u in users}
+
+    result = []
+    for activity in all_activities:
+        result.append(
+            ActivityResponse(
+                id=str(activity.id),
+                action=activity.action,
+                resource_type=activity.resource_type,
+                resource_id=str(activity.resource_id),
+                user_id=str(activity.user_id) if activity.user_id else None,
+                user_name=users_map.get(activity.user_id) if activity.user_id else None,
+                details=activity.details or {},
+                created_at=activity.created_at or datetime.utcnow(),
+            )
+        )
+
+    return {
+        "items": result,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 # =============================================================================
@@ -845,6 +1320,22 @@ async def create_item_link(
     )
 
     db.add(link)
+    db.flush()
+
+    # Log activity if linked to a claim
+    if link.head_of_claim_id:
+        _log_claim_activity(
+            db,
+            action="evidence.linked",
+            claim_id=link.head_of_claim_id,
+            user_id=user.id,
+            details={
+                "link_id": str(link.id),
+                "item_type": link.item_type,
+                "item_id": str(link.item_id),
+                "link_type": link.link_type,
+            },
+        )
     db.commit()
     db.refresh(link)
 
@@ -947,6 +1438,8 @@ async def get_link_comments(
             ),
             is_edited=comment.is_edited or False,
             edited_at=comment.edited_at,
+            is_pinned=comment.is_pinned or False,
+            pinned_at=comment.pinned_at,
             created_at=comment.created_at,
             created_by=str(comment.created_by) if comment.created_by else None,
             created_by_name=creator_name,
@@ -1186,3 +1679,801 @@ async def get_claims_stats(
         "total_claimed_amount": total_claimed,
         "currency": "GBP",
     }
+
+
+# =============================================================================
+# AI-Powered Collaboration Endpoints
+# =============================================================================
+
+
+class AISummarizeRequest(BaseModel):
+    max_length: Optional[int] = 500
+
+
+class AISuggestEvidenceRequest(BaseModel):
+    context: Optional[str] = None
+
+
+class AIDraftReplyRequest(BaseModel):
+    context: Optional[str] = None
+    tone: str = "professional"  # professional, formal, casual
+
+
+class AIAutoTagRequest(BaseModel):
+    content: str
+
+
+class AIResponse(BaseModel):
+    result: str
+    tokens_used: Optional[int] = None
+    model_used: Optional[str] = None
+
+
+@router.post("/heads-of-claim/{claim_id}/ai/summarize")
+async def ai_summarize_discussion(
+    claim_id: str,
+    request: AISummarizeRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """AI-powered summary of claim discussion threads"""
+    from .ai_runtime import complete_chat
+    from .ai_settings import get_ai_api_key
+
+    claim_uuid = _parse_uuid(claim_id, "claim_id")
+
+    # Verify claim exists
+    claim = db.query(HeadOfClaim).filter(HeadOfClaim.id == claim_uuid).first()
+    if not claim:
+        raise HTTPException(404, "Head of claim not found")
+
+    # Get all comments on this claim
+    comments = (
+        db.query(ItemComment)
+        .filter(
+            ItemComment.item_type == "claim",
+            ItemComment.item_id == claim_uuid,
+        )
+        .order_by(ItemComment.created_at.asc())
+        .all()
+    )
+
+    if not comments:
+        return AIResponse(
+            result="No discussion to summarize yet.",
+            tokens_used=0,
+            model_used=None,
+        )
+
+    # Build discussion text
+    discussion_parts = []
+    for comment in comments:
+        creator = db.query(User).filter(User.id == comment.created_by).first()
+        creator_name = creator.display_name or creator.email if creator else "Unknown"
+        discussion_parts.append(f"[{creator_name}]: {comment.content}")
+
+    discussion_text = "\n".join(discussion_parts)
+
+    system_prompt = """You are an assistant summarizing legal claim discussions.
+Provide a concise summary highlighting:
+1. Key discussion points
+2. Any decisions or agreements reached
+3. Outstanding questions or action items
+Keep the summary professional and factual."""
+
+    prompt = f"""Summarize this discussion about claim "{claim.name}" (Reference: {claim.reference_number or 'N/A'}):
+
+{discussion_text}
+
+Provide a summary in no more than {request.max_length} words."""
+
+    try:
+        # Try to get an API key and make the call
+        api_key = get_ai_api_key("openai", db) or get_ai_api_key("anthropic", db)
+        if not api_key:
+            raise HTTPException(503, "No AI provider configured")
+
+        provider = "openai" if get_ai_api_key("openai", db) else "anthropic"
+        model = "gpt-4o-mini" if provider == "openai" else "claude-sonnet-4-20250514"
+
+        result = await complete_chat(
+            provider=provider,
+            model_id=model,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            db=db,
+            max_tokens=1000,
+            temperature=0.3,
+        )
+
+        return AIResponse(
+            result=result,
+            model_used=f"{provider}/{model}",
+        )
+    except Exception as e:
+        logger.error(f"AI summarize failed: {e}")
+        raise HTTPException(503, f"AI service unavailable: {str(e)}")
+
+
+@router.post("/heads-of-claim/{claim_id}/ai/suggest-evidence")
+async def ai_suggest_evidence(
+    claim_id: str,
+    request: AISuggestEvidenceRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """AI-powered evidence suggestions based on claim discussion"""
+    from .ai_runtime import complete_chat
+    from .ai_settings import get_ai_api_key
+
+    claim_uuid = _parse_uuid(claim_id, "claim_id")
+
+    # Verify claim exists
+    claim = db.query(HeadOfClaim).filter(HeadOfClaim.id == claim_uuid).first()
+    if not claim:
+        raise HTTPException(404, "Head of claim not found")
+
+    # Get recent comments for context
+    comments = (
+        db.query(ItemComment)
+        .filter(
+            ItemComment.item_type == "claim",
+            ItemComment.item_id == claim_uuid,
+        )
+        .order_by(ItemComment.created_at.desc())
+        .limit(10)
+        .all()
+    )
+
+    comment_text = "\n".join([c.content for c in comments]) if comments else ""
+
+    # Get already linked evidence
+    linked = (
+        db.query(ItemClaimLink)
+        .filter(
+            ItemClaimLink.head_of_claim_id == claim_uuid,
+            ItemClaimLink.status == "active",
+        )
+        .all()
+    )
+    linked_ids = {str(l.item_id) for l in linked}
+
+    # Get available evidence not yet linked
+    available_evidence = (
+        db.query(EvidenceItem)
+        .filter(EvidenceItem.project_id == claim.project_id)
+        .limit(50)
+        .all()
+    )
+
+    evidence_list = []
+    for ev in available_evidence:
+        if str(ev.id) not in linked_ids:
+            evidence_list.append(f"- {ev.title or ev.filename} (Type: {ev.document_type or 'Unknown'})")
+
+    if not evidence_list:
+        return AIResponse(
+            result="No additional evidence available to suggest.",
+            model_used=None,
+        )
+
+    system_prompt = """You are a legal research assistant helping identify relevant evidence for claims.
+Based on the claim details and discussion, suggest which evidence items would be most relevant to link."""
+
+    prompt = f"""Claim: {claim.name}
+Type: {claim.claim_type or 'General'}
+Description: {claim.description or 'N/A'}
+Contract Clause: {claim.supporting_contract_clause or 'N/A'}
+
+Recent Discussion:
+{comment_text or 'No discussion yet'}
+
+Additional Context: {request.context or 'None provided'}
+
+Available Evidence (not yet linked):
+{chr(10).join(evidence_list[:20])}
+
+Suggest which evidence items should be linked to this claim and why. Format as a numbered list."""
+
+    try:
+        api_key = get_ai_api_key("openai", db) or get_ai_api_key("anthropic", db)
+        if not api_key:
+            raise HTTPException(503, "No AI provider configured")
+
+        provider = "openai" if get_ai_api_key("openai", db) else "anthropic"
+        model = "gpt-4o-mini" if provider == "openai" else "claude-sonnet-4-20250514"
+
+        result = await complete_chat(
+            provider=provider,
+            model_id=model,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            db=db,
+            max_tokens=1000,
+            temperature=0.3,
+        )
+
+        return AIResponse(
+            result=result,
+            model_used=f"{provider}/{model}",
+        )
+    except Exception as e:
+        logger.error(f"AI suggest evidence failed: {e}")
+        raise HTTPException(503, f"AI service unavailable: {str(e)}")
+
+
+@router.post("/heads-of-claim/{claim_id}/ai/draft-reply")
+async def ai_draft_reply(
+    claim_id: str,
+    request: AIDraftReplyRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """AI-assisted reply drafting for claim discussions"""
+    from .ai_runtime import complete_chat
+    from .ai_settings import get_ai_api_key
+
+    claim_uuid = _parse_uuid(claim_id, "claim_id")
+
+    # Verify claim exists
+    claim = db.query(HeadOfClaim).filter(HeadOfClaim.id == claim_uuid).first()
+    if not claim:
+        raise HTTPException(404, "Head of claim not found")
+
+    # Get recent comments
+    comments = (
+        db.query(ItemComment)
+        .filter(
+            ItemComment.item_type == "claim",
+            ItemComment.item_id == claim_uuid,
+        )
+        .order_by(ItemComment.created_at.desc())
+        .limit(5)
+        .all()
+    )
+
+    recent_discussion = []
+    for comment in reversed(comments):
+        creator = db.query(User).filter(User.id == comment.created_by).first()
+        creator_name = creator.display_name or creator.email if creator else "Unknown"
+        recent_discussion.append(f"[{creator_name}]: {comment.content}")
+
+    tone_guidance = {
+        "professional": "Use a professional, clear tone suitable for business communication.",
+        "formal": "Use formal language appropriate for legal/official correspondence.",
+        "casual": "Use a friendly but professional tone.",
+    }
+
+    system_prompt = f"""You are an assistant helping draft replies in claim discussions.
+{tone_guidance.get(request.tone, tone_guidance['professional'])}
+Draft a thoughtful response that addresses the discussion points."""
+
+    prompt = f"""Claim: {claim.name} ({claim.reference_number or 'N/A'})
+Type: {claim.claim_type or 'General'}
+
+Recent Discussion:
+{chr(10).join(recent_discussion) or 'No prior discussion'}
+
+Context for reply: {request.context or 'General response needed'}
+
+Draft a reply for the current user to post. Keep it concise but comprehensive."""
+
+    try:
+        api_key = get_ai_api_key("openai", db) or get_ai_api_key("anthropic", db)
+        if not api_key:
+            raise HTTPException(503, "No AI provider configured")
+
+        provider = "openai" if get_ai_api_key("openai", db) else "anthropic"
+        model = "gpt-4o-mini" if provider == "openai" else "claude-sonnet-4-20250514"
+
+        result = await complete_chat(
+            provider=provider,
+            model_id=model,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            db=db,
+            max_tokens=500,
+            temperature=0.5,
+        )
+
+        return AIResponse(
+            result=result,
+            model_used=f"{provider}/{model}",
+        )
+    except Exception as e:
+        logger.error(f"AI draft reply failed: {e}")
+        raise HTTPException(503, f"AI service unavailable: {str(e)}")
+
+
+@router.post("/comments/{comment_id}/ai/auto-tag")
+async def ai_auto_tag_comment(
+    comment_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """AI-powered auto-tagging of comments - extracts dates, amounts, clauses, entities"""
+    import re
+
+    comment_uuid = _parse_uuid(comment_id, "comment_id")
+    comment = db.query(ItemComment).filter(ItemComment.id == comment_uuid).first()
+
+    if not comment:
+        raise HTTPException(404, "Comment not found")
+
+    content = comment.content
+    tags = []
+
+    # Extract dates (various formats)
+    date_patterns = [
+        r'\b\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}\b',
+        r'\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4}\b',
+        r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{2,4}\b',
+    ]
+    for pattern in date_patterns:
+        matches = re.findall(pattern, content, re.IGNORECASE)
+        for match in matches:
+            tags.append({"type": "date", "value": match})
+
+    # Extract monetary amounts
+    amount_patterns = [
+        r'£[\d,]+(?:\.\d{2})?(?:\s*[kmb])?',
+        r'\$[\d,]+(?:\.\d{2})?(?:\s*[kmb])?',
+        r'€[\d,]+(?:\.\d{2})?(?:\s*[kmb])?',
+        r'\b\d{1,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:GBP|USD|EUR)\b',
+    ]
+    for pattern in amount_patterns:
+        matches = re.findall(pattern, content, re.IGNORECASE)
+        for match in matches:
+            tags.append({"type": "amount", "value": match})
+
+    # Extract clause references
+    clause_patterns = [
+        r'\b[Cc]lause\s+\d+(?:\.\d+)*\b',
+        r'\b[Ss]ection\s+\d+(?:\.\d+)*\b',
+        r'§\s*\d+(?:\.\d+)*',
+        r'\bArticle\s+\d+\b',
+    ]
+    for pattern in clause_patterns:
+        matches = re.findall(pattern, content)
+        for match in matches:
+            tags.append({"type": "clause", "value": match})
+
+    # Extract document references
+    doc_patterns = [
+        r'\b(?:DRG|DWG|VI|SI|RFI|CO|PCO)[-\s]?\d+\b',
+        r'\b[A-Z]{2,4}-\d{3,6}\b',
+    ]
+    for pattern in doc_patterns:
+        matches = re.findall(pattern, content)
+        for match in matches:
+            tags.append({"type": "reference", "value": match})
+
+    # Remove duplicates
+    seen = set()
+    unique_tags = []
+    for tag in tags:
+        key = (tag["type"], tag["value"])
+        if key not in seen:
+            seen.add(key)
+            unique_tags.append(tag)
+
+    return {
+        "comment_id": comment_id,
+        "tags": unique_tags,
+        "tag_count": len(unique_tags),
+    }
+
+
+# =============================================================================
+# Comment Reactions Endpoints
+# =============================================================================
+
+
+ALLOWED_EMOJIS = ["👍", "👎", "❤️", "🎉", "🤔", "👀"]
+
+
+class ReactionRequest(BaseModel):
+    emoji: str
+
+
+class ReactionResponse(BaseModel):
+    emoji: str
+    count: int
+    users: List[str]  # User emails/names who reacted
+    user_reacted: bool  # Whether current user has this reaction
+
+
+@router.post("/comments/{comment_id}/reactions")
+async def add_reaction(
+    comment_id: str,
+    request: ReactionRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Add a reaction to a comment"""
+    if request.emoji not in ALLOWED_EMOJIS:
+        raise HTTPException(400, f"Invalid emoji. Allowed: {', '.join(ALLOWED_EMOJIS)}")
+
+    comment_uuid = _parse_uuid(comment_id, "comment_id")
+
+    # Verify comment exists
+    comment = db.query(ItemComment).filter(ItemComment.id == comment_uuid).first()
+    if not comment:
+        raise HTTPException(404, "Comment not found")
+
+    # Check if user already has this reaction
+    existing = (
+        db.query(CommentReaction)
+        .filter(
+            CommentReaction.comment_id == comment_uuid,
+            CommentReaction.user_id == user.id,
+            CommentReaction.emoji == request.emoji,
+        )
+        .first()
+    )
+
+    if existing:
+        # Remove existing reaction (toggle off)
+        db.delete(existing)
+        db.commit()
+        action = "removed"
+    else:
+        # Add new reaction
+        reaction = CommentReaction(
+            comment_id=comment_uuid,
+            user_id=user.id,
+            emoji=request.emoji,
+        )
+        db.add(reaction)
+        db.commit()
+        action = "added"
+
+    # Get updated reaction counts
+    reactions = _get_comment_reactions(db, comment_uuid, user.id)
+
+    return {
+        "status": action,
+        "emoji": request.emoji,
+        "reactions": reactions,
+    }
+
+
+@router.delete("/comments/{comment_id}/reactions/{emoji}")
+async def remove_reaction(
+    comment_id: str,
+    emoji: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Remove a reaction from a comment"""
+    comment_uuid = _parse_uuid(comment_id, "comment_id")
+
+    reaction = (
+        db.query(CommentReaction)
+        .filter(
+            CommentReaction.comment_id == comment_uuid,
+            CommentReaction.user_id == user.id,
+            CommentReaction.emoji == emoji,
+        )
+        .first()
+    )
+
+    if not reaction:
+        raise HTTPException(404, "Reaction not found")
+
+    db.delete(reaction)
+    db.commit()
+
+    reactions = _get_comment_reactions(db, comment_uuid, user.id)
+
+    return {
+        "status": "removed",
+        "emoji": emoji,
+        "reactions": reactions,
+    }
+
+
+@router.get("/comments/{comment_id}/reactions")
+async def get_reactions(
+    comment_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Get all reactions for a comment"""
+    comment_uuid = _parse_uuid(comment_id, "comment_id")
+
+    reactions = _get_comment_reactions(db, comment_uuid, user.id)
+
+    return {"comment_id": comment_id, "reactions": reactions}
+
+
+def _get_comment_reactions(
+    db: Session, comment_id: uuid.UUID, current_user_id: uuid.UUID
+) -> List[dict]:
+    """Helper to get reactions with counts and user info"""
+    # Get all reactions for this comment
+    all_reactions = (
+        db.query(CommentReaction)
+        .filter(CommentReaction.comment_id == comment_id)
+        .all()
+    )
+
+    # Group by emoji
+    emoji_groups: dict[str, list] = {}
+    for r in all_reactions:
+        if r.emoji not in emoji_groups:
+            emoji_groups[r.emoji] = []
+        emoji_groups[r.emoji].append(r)
+
+    result = []
+    for emoji in ALLOWED_EMOJIS:
+        reactions = emoji_groups.get(emoji, [])
+        if reactions:
+            user_names = []
+            user_reacted = False
+            for r in reactions:
+                reactor = db.query(User).filter(User.id == r.user_id).first()
+                if reactor:
+                    user_names.append(reactor.display_name or reactor.email)
+                if r.user_id == current_user_id:
+                    user_reacted = True
+
+            result.append({
+                "emoji": emoji,
+                "count": len(reactions),
+                "users": user_names,
+                "user_reacted": user_reacted,
+            })
+
+    return result
+
+
+# =============================================================================
+# Comment Pinning Endpoints
+# =============================================================================
+
+
+@router.post("/comments/{comment_id}/pin")
+async def pin_comment(
+    comment_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Pin a comment to the top of the thread"""
+    comment_uuid = _parse_uuid(comment_id, "comment_id")
+
+    comment = db.query(ItemComment).filter(ItemComment.id == comment_uuid).first()
+    if not comment:
+        raise HTTPException(404, "Comment not found")
+
+    # Only allow pinning on claim-level comments (not evidence)
+    if comment.item_type != "claim":
+        raise HTTPException(400, "Only claim discussion comments can be pinned")
+
+    # Toggle pin status
+    if comment.is_pinned:
+        comment.is_pinned = False
+        comment.pinned_at = None
+        comment.pinned_by = None
+        action = "unpinned"
+    else:
+        comment.is_pinned = True
+        comment.pinned_at = datetime.utcnow()
+        comment.pinned_by = user.id
+
+        # Log activity
+        if comment.item_id:
+            _log_claim_activity(
+                db,
+                action="comment.pinned",
+                claim_id=comment.item_id,
+                user_id=user.id,
+                details={"comment_id": str(comment.id)},
+            )
+        action = "pinned"
+
+    db.commit()
+
+    return {
+        "comment_id": comment_id,
+        "is_pinned": comment.is_pinned,
+        "status": action,
+    }
+
+
+@router.delete("/comments/{comment_id}/pin")
+async def unpin_comment(
+    comment_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Unpin a comment"""
+    comment_uuid = _parse_uuid(comment_id, "comment_id")
+
+    comment = db.query(ItemComment).filter(ItemComment.id == comment_uuid).first()
+    if not comment:
+        raise HTTPException(404, "Comment not found")
+
+    if not comment.is_pinned:
+        raise HTTPException(400, "Comment is not pinned")
+
+    comment.is_pinned = False
+    comment.pinned_at = None
+    comment.pinned_by = None
+
+    db.commit()
+
+    return {"comment_id": comment_id, "is_pinned": False, "status": "unpinned"}
+
+
+# =============================================================================
+# Read/Unread Status Endpoints
+# =============================================================================
+
+
+@router.post("/heads-of-claim/{claim_id}/mark-read")
+async def mark_claim_read(
+    claim_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Mark all comments on a claim as read for the current user"""
+    claim_uuid = _parse_uuid(claim_id, "claim_id")
+
+    # Verify claim exists
+    claim = db.query(HeadOfClaim).filter(HeadOfClaim.id == claim_uuid).first()
+    if not claim:
+        raise HTTPException(404, "Head of claim not found")
+
+    # Upsert read status
+    read_status = (
+        db.query(CommentReadStatus)
+        .filter(
+            CommentReadStatus.user_id == user.id,
+            CommentReadStatus.claim_id == claim_uuid,
+        )
+        .first()
+    )
+
+    if read_status:
+        read_status.last_read_at = datetime.utcnow()
+    else:
+        read_status = CommentReadStatus(
+            user_id=user.id,
+            claim_id=claim_uuid,
+            last_read_at=datetime.utcnow(),
+        )
+        db.add(read_status)
+
+    db.commit()
+
+    return {
+        "claim_id": claim_id,
+        "last_read_at": read_status.last_read_at.isoformat(),
+        "status": "marked_read",
+    }
+
+
+@router.get("/heads-of-claim/{claim_id}/unread-count")
+async def get_unread_count(
+    claim_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Get count of unread comments for a claim"""
+    claim_uuid = _parse_uuid(claim_id, "claim_id")
+
+    # Get user's last read timestamp
+    read_status = (
+        db.query(CommentReadStatus)
+        .filter(
+            CommentReadStatus.user_id == user.id,
+            CommentReadStatus.claim_id == claim_uuid,
+        )
+        .first()
+    )
+
+    last_read = read_status.last_read_at if read_status else None
+
+    # Count comments after last_read
+    query = db.query(func.count(ItemComment.id)).filter(
+        ItemComment.item_type == "claim",
+        ItemComment.item_id == claim_uuid,
+    )
+
+    if last_read:
+        query = query.filter(ItemComment.created_at > last_read)
+
+    unread_count = query.scalar() or 0
+
+    return {
+        "claim_id": claim_id,
+        "unread_count": unread_count,
+        "last_read_at": last_read.isoformat() if last_read else None,
+    }
+
+
+# =============================================================================
+# Notification Preferences Endpoints
+# =============================================================================
+
+
+class NotificationPreferencesUpdate(BaseModel):
+    email_mentions: Optional[bool] = None
+    email_replies: Optional[bool] = None
+    email_claim_updates: Optional[bool] = None
+    email_daily_digest: Optional[bool] = None
+
+
+class NotificationPreferencesResponse(BaseModel):
+    email_mentions: bool
+    email_replies: bool
+    email_claim_updates: bool
+    email_daily_digest: bool
+
+
+@router.get("/notification-preferences")
+async def get_notification_preferences(
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Get current user's notification preferences"""
+    prefs = (
+        db.query(UserNotificationPreferences)
+        .filter(UserNotificationPreferences.user_id == user.id)
+        .first()
+    )
+
+    if not prefs:
+        # Return defaults if no preferences set
+        return NotificationPreferencesResponse(
+            email_mentions=True,
+            email_replies=True,
+            email_claim_updates=True,
+            email_daily_digest=False,
+        )
+
+    return NotificationPreferencesResponse(
+        email_mentions=prefs.email_mentions,
+        email_replies=prefs.email_replies,
+        email_claim_updates=prefs.email_claim_updates,
+        email_daily_digest=prefs.email_daily_digest,
+    )
+
+
+@router.put("/notification-preferences")
+async def update_notification_preferences(
+    request: NotificationPreferencesUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Update current user's notification preferences"""
+    prefs = (
+        db.query(UserNotificationPreferences)
+        .filter(UserNotificationPreferences.user_id == user.id)
+        .first()
+    )
+
+    if not prefs:
+        prefs = UserNotificationPreferences(user_id=user.id)
+        db.add(prefs)
+
+    # Update only provided fields
+    if request.email_mentions is not None:
+        prefs.email_mentions = request.email_mentions
+    if request.email_replies is not None:
+        prefs.email_replies = request.email_replies
+    if request.email_claim_updates is not None:
+        prefs.email_claim_updates = request.email_claim_updates
+    if request.email_daily_digest is not None:
+        prefs.email_daily_digest = request.email_daily_digest
+
+    db.commit()
+    db.refresh(prefs)
+
+    return NotificationPreferencesResponse(
+        email_mentions=prefs.email_mentions,
+        email_replies=prefs.email_replies,
+        email_claim_updates=prefs.email_claim_updates,
+        email_daily_digest=prefs.email_daily_digest,
+    )
