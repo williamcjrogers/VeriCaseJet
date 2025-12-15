@@ -1763,15 +1763,12 @@ async def get_emails_server_side(
                 if stakeholder_role is None:
                     stakeholder_role = details.get("role")
 
+        # Only include fields expected by AG Grid columns - exclude extra metadata
         rows.append(
             {
                 "id": str(e.id),
-                # Map to expected frontend field names
                 "email_subject": e.subject or "(No Subject)",
                 "subject": e.subject or "(No Subject)",
-                "baseline_activity": getattr(e, "as_planned_activity", None),
-                "as_built_activity": getattr(e, "as_built_activity", None),
-                "delay_days": getattr(e, "delay_days", None),
                 "email_from": e.sender_email or "",
                 "sender_name": e.sender_name or "",
                 "sender_email": e.sender_email or "",
@@ -1779,46 +1776,24 @@ async def get_emails_server_side(
                 "date_sent": e.date_sent.isoformat() if e.date_sent else None,
                 "email_to": e.recipients_to or [],
                 "email_cc": e.recipients_cc or [],
-                "recipients": recipients_list,
-                "recipients_to": e.recipients_to or [],
-                "recipients_cc": e.recipients_cc or [],
-                "has_attachments": len(attachment_list) > 0
-                or (e.has_attachments or False),
-                "attachment_count": len(attachment_list)
-                or getattr(e, "attachment_count", 0)
-                or 0,
-                "attachments": attachment_list,  # Include ALL attachments details for grid cell renderer
-                "meta": (
-                    {"attachments": attachment_list} if attachment_list else None
-                ),  # Also in meta for compatibility
-                "is_flagged": getattr(e, "is_flagged", False),
+                "has_attachments": len(attachment_list) > 0 or (e.has_attachments or False),
+                "attachment_count": len(attachment_list) or 0,
+                "attachments": attachment_list,
+                "keywords": ",".join(e.matched_keywords) if e.matched_keywords else None,
+                "matched_keywords": e.matched_keywords,
+                "matched_stakeholders": matched_stakeholders,
+                "stakeholder_role": stakeholder_role,
                 "importance": getattr(e, "importance", "normal"),
-                "read_status": getattr(e, "read_status", "unread"),
-                "thread_id": (
-                    str(e.thread_id) if getattr(e, "thread_id", None) else None
-                ),
-                "thread_group_id": getattr(e, "thread_group_id", None),
-                "thread_path": getattr(e, "thread_path", None),
-                "thread_position": getattr(e, "thread_position", None),
-                "is_inclusive": getattr(e, "is_inclusive", None),
-                "conversation_index": getattr(e, "conversation_index", None),
-                "categories": getattr(e, "categories", []) or [],
-                "linked_activity_id": (
-                    str(e.linked_activity_id)
-                    if getattr(e, "linked_activity_id", None)
-                    else None
-                ),
-                "notes": getattr(e, "notes", None),
-                # Body content for Message column - prefer clean text over raw
+                "thread_id": str(e.thread_id) if getattr(e, "thread_id", None) else None,
                 "email_body": e.body_text_clean or e.body_text or "",
                 "body_text": e.body_text or "",
                 "body_text_clean": e.body_text_clean or "",
-                "body_html": getattr(e, "body_html", None),
-                "content": e.body_text_clean or e.body_text or "",
-                # Stakeholder data for Party Role column
-                "matched_stakeholders": matched_stakeholders,
-                "matched_stakeholders_details": matched_stakeholders_details,
-                "stakeholder_role": stakeholder_role,
+                "baseline_activity": getattr(e, "as_planned_activity", None),
+                "as_built_activity": getattr(e, "as_built_activity", None),
+                "delay_days": getattr(e, "delay_days", None),
+                "priority": "Normal",
+                "status": "Open",
+                "notes": None,
             }
         )
 
