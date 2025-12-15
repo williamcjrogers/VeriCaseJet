@@ -37,7 +37,7 @@ def load_ai_keys_from_secrets_manager() -> bool:
         secrets: Any = json.loads(secret_string)
 
         # Map secret keys to environment variables
-        # Supported providers: OpenAI, Anthropic, Gemini
+        # Supported providers: OpenAI, Anthropic, Gemini, xAI, Perplexity
         # Note: Bedrock uses IAM credentials (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY)
         # rather than API keys - no mapping needed for Bedrock
         key_mapping = {
@@ -45,6 +45,9 @@ def load_ai_keys_from_secrets_manager() -> bool:
             "ANTHROPIC_API_KEY": "CLAUDE_API_KEY",  # App uses CLAUDE_API_KEY internally
             "CLAUDE_API_KEY": "CLAUDE_API_KEY",
             "GEMINI_API_KEY": "GEMINI_API_KEY",
+            "XAI_API_KEY": "XAI_API_KEY",
+            "GROK_API_KEY": "XAI_API_KEY",  # Alias for xAI
+            "PERPLEXITY_API_KEY": "PERPLEXITY_API_KEY",
             # Bedrock settings (optional - can be in Secrets Manager or env vars)
             "BEDROCK_ENABLED": "BEDROCK_ENABLED",
             "BEDROCK_REGION": "BEDROCK_REGION",
