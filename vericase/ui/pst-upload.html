@@ -1370,6 +1370,12 @@
         console.log("Uploading PST to:", uploadUrl);
         xhr.open("POST", uploadUrl, true);
 
+        // Add Authorization header for authenticated upload
+        const token = localStorage.getItem("token") || localStorage.getItem("jwt");
+        if (token) {
+          xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+        }
+
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
             const pct = Math.round((e.loaded / e.total) * 95);
@@ -1628,6 +1634,12 @@
         await new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.open("POST", `${apiUrl}/api/evidence/upload`, true);
+
+          // Add Authorization header for authenticated upload
+          const token = localStorage.getItem("token") || localStorage.getItem("jwt");
+          if (token) {
+            xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+          }
 
           xhr.upload.onprogress = (e) => {
             if (e.lengthComputable) {

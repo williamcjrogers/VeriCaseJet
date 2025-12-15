@@ -20,6 +20,14 @@ window.VeriCaseApp = {
   apiBase: "/api",
 
   /**
+   * Get authorization headers for API requests
+   */
+  _getAuthHeaders() {
+    const token = localStorage.getItem("token") || localStorage.getItem("jwt");
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  },
+
+  /**
    * Initialize the app state
    * Always succeeds - creates default project if needed
    */
@@ -53,7 +61,21 @@ window.VeriCaseApp = {
         }
       }
 
-      // 2. No valid URL param - get or create default project
+      // 2. Check localStorage for previously selected project
+      const storedProjectId = localStorage.getItem("vericase_current_project")
+        || localStorage.getItem("currentProjectId");
+      if (storedProjectId && storedProjectId !== "null" && storedProjectId !== "undefined") {
+        const storedProject = await this._fetchProject(storedProjectId);
+        if (storedProject) {
+          this.projectId = storedProject.id;
+          this.projectName = storedProject.project_name || storedProject.name;
+          this.config = storedProject.meta || {};
+          console.log("[VeriCaseApp] Using stored project:", this.projectId);
+          return this;
+        }
+      }
+
+      // 3. No valid URL param or stored project - get or create default project
       const defaultProject = await this._getOrCreateDefaultProject();
       this.projectId = defaultProject.id;
       this.projectName = defaultProject.project_name || defaultProject.name;
@@ -83,6 +105,7 @@ window.VeriCaseApp = {
     try {
       const response = await fetch(`${this.apiBase}/projects/${projectId}`, {
         credentials: "include",
+        headers: this._getAuthHeaders(),
       });
       if (response.ok) {
         return await response.json();
@@ -107,6 +130,7 @@ window.VeriCaseApp = {
     try {
       const response = await fetch(`${this.apiBase}/cases/${caseId}`, {
         credentials: "include",
+        headers: this._getAuthHeaders(),
       });
       if (response.ok) {
         return await response.json();
@@ -128,6 +152,7 @@ window.VeriCaseApp = {
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
+          ...this._getAuthHeaders(),
         },
       });
       if (response.ok) {
