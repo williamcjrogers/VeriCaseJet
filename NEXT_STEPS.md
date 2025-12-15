@@ -17,7 +17,7 @@ You now have a massively enhanced VeriCase system with AWS, SSH, and collaborati
 ### 2. New API Modules ✅ CREATED
 - ✅ `collaboration.py` - Comments, annotations, case sharing, activity stream
 - ✅ `production_dashboard.py` - Live EKS, RDS, S3 metrics
-- ✅ `smart_document_processor.py` - AWS Textract/Comprehend (can delete - redundant)
+- ✅ `smart_document_processor.py` - AWS Textract/Comprehend (optional; keep for Smart Document Processing)
 
 ### 3. Documentation ✅ COMPLETE
 - ✅ MCP_QUICKSTART.md - MCP setup guide
@@ -233,11 +233,8 @@ The `.gitignore` is configured to protect:
 - `.mcp/` directory
 - All `.env` files
 
-### Delete Redundant File
-```bash
-# This file is redundant - you already have enhanced_evidence_processor.py
-rm vericase/api/app/smart_document_processor.py
-```
+### Keep Smart Document Processor
+`vericase/api/app/smart_document_processor.py` should be retained. It may overlap with `enhanced_evidence_processor.py`, but it is intentionally kept for Smart Document Processing workflows.
 
 ### Monitor AWS Costs
 New services may incur costs:

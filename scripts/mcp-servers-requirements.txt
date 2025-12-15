@@ -2,3 +2,6 @@ mcp-server-fetch
 mcp-server-time
 mcp-server-git
 mcp-server-sqlite
+awslabs.core-mcp-server
+awslabs.ccapi-mcp-server
+paramiko

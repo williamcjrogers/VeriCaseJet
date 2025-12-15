@@ -734,6 +734,50 @@ def startup():
 
                 logger.info("Schema migration attempts completed")
 
+                # AUTO-SYNC: Add any missing columns from SQLAlchemy models
+                logger.info("Running auto-schema-sync for missing columns...")
+                try:
+                    from sqlalchemy import inspect
+                    inspector = inspect(engine)
+
+                    # Get all model classes from Base
+                    for table_name, table in Base.metadata.tables.items():
+                        try:
+                            existing_columns = {col['name'] for col in inspector.get_columns(table_name)}
+                            model_columns = {col.name for col in table.columns}
+                            missing_columns = model_columns - existing_columns
+
+                            for col_name in missing_columns:
+                                col = table.columns[col_name]
+                                # Build column type string
+                                col_type = str(col.type)
+                                nullable = "NULL" if col.nullable else "NOT NULL"
+                                default = ""
+                                if col.default is not None:
+                                    if hasattr(col.default, 'arg'):
+                                        default_val = col.default.arg
+                                        if callable(default_val):
+                                            default = ""  # Skip callable defaults
+                                        elif isinstance(default_val, bool):
+                                            default = f"DEFAULT {str(default_val).upper()}"
+                                        elif isinstance(default_val, str):
+                                            default = f"DEFAULT '{default_val}'"
+                                        else:
+                                            default = f"DEFAULT {default_val}"
+
+                                sql = f'ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS "{col_name}" {col_type} {default}'
+                                logger.info(f"  Adding column: {table_name}.{col_name}")
+                                conn.execute(text(sql))
+                                conn.commit()
+                        except Exception as col_err:
+                            logger.debug(f"Column sync skipped for {table_name}: {col_err}")
+                            conn.rollback()
+
+                    logger.info("Auto-schema-sync completed")
+                except Exception as sync_err:
+                    logger.warning(f"Auto-schema-sync failed: {sync_err}")
+                    conn.rollback()
+
     except Exception as e:
         logger.warning(f"Database initialization skipped: {e}")
 
