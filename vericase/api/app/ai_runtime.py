@@ -146,5 +146,51 @@ async def complete_chat(
             system_prompt=system_prompt if system_prompt else None,
         )
 
+    # xAI / Grok — OpenAI-compatible API
+    if provider_norm in {"xai", "grok"}:
+        if not api_key:
+            raise RuntimeError("xAI (Grok) API key not configured")
+        import openai  # local import
+
+        client = openai.AsyncOpenAI(
+            api_key=api_key,
+            base_url="https://api.x.ai/v1",
+        )
+        messages: list[dict[str, str]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        response = await client.chat.completions.create(
+            model=model_id,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        return response.choices[0].message.content or ""
+
+    # Perplexity Sonar — OpenAI-compatible API
+    if provider_norm == "perplexity":
+        if not api_key:
+            raise RuntimeError("Perplexity API key not configured")
+        import openai  # local import
+
+        client = openai.AsyncOpenAI(
+            api_key=api_key,
+            base_url="https://api.perplexity.ai",
+        )
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        response = await client.chat.completions.create(
+            model=model_id,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        return response.choices[0].message.content or ""
+
     raise ValueError(f"Unknown provider: {provider}")
 

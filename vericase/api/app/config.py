@@ -306,31 +306,56 @@ class Settings(BaseSettings):
     JWT_ISSUER: str = "vericase-docs"
     JWT_EXPIRE_MIN: int = 7200
 
-    # AI Model API Keys (4 providers: OpenAI, Anthropic, Gemini, Bedrock)
-    GEMINI_API_KEY: str = ""
-    CLAUDE_API_KEY: str = ""
+    # =========================================================================
+    # AI MODEL API KEYS — 6 PROVIDERS
+    # =========================================================================
+    # OpenAI (GPT-5.x, GPT-4o, o1, embeddings)
     OPENAI_API_KEY: str = ""
+    # Anthropic (Claude 4.x, Sonnet, Opus, Haiku)
+    CLAUDE_API_KEY: str = ""
+    # Google (Gemini 3/2.5 Pro, Flash, Lite)
+    GEMINI_API_KEY: str = ""
+    # xAI (Grok 4.x — 2M context)
+    XAI_API_KEY: str = ""
+    GROK_API_KEY: str = ""  # Alias for XAI_API_KEY
+    # Perplexity (Sonar — real-time web search)
+    PERPLEXITY_API_KEY: str = ""
 
-    # Amazon Bedrock settings (uses IAM credentials from AWS_ACCESS_KEY_ID or IRSA)
+    # =========================================================================
+    # AMAZON BEDROCK (Claude via AWS, Nova, Titan, Cohere embeddings)
+    # =========================================================================
     BEDROCK_ENABLED: bool = False
     BEDROCK_REGION: str = "us-east-1"
+    # Route Claude requests through Bedrock instead of direct Anthropic API
+    BEDROCK_ROUTE_CLAUDE: bool = False
 
-    # Embedding settings
-    # Provider: "bedrock" (Cohere Embed v3, 1024 dims) or "sentence-transformers" (fallback)
-    EMBEDDING_PROVIDER: str = "bedrock"
+    # =========================================================================
+    # EMBEDDING / VECTOR SEARCH
+    # =========================================================================
+    EMBEDDING_PROVIDER: str = "bedrock"  # bedrock | sentence-transformers
     BEDROCK_EMBEDDING_MODEL: str = "cohere.embed-english-v3"
-
-    # Multi-vector semantic search (4 vectors: content, participant, temporal, attachment)
     MULTI_VECTOR_ENABLED: bool = True
 
-    # AI Feature Flags
+    # =========================================================================
+    # AI FEATURE FLAGS
+    # =========================================================================
     ENABLE_AI_AUTO_CLASSIFY: bool = True
     ENABLE_AI_DATASET_INSIGHTS: bool = True
     ENABLE_AI_NATURAL_LANGUAGE_QUERY: bool = True
-    AI_DEFAULT_MODEL: str = "gemini"
+    AI_DEFAULT_MODEL: str = "gemini"  # gemini | openai | anthropic | bedrock | xai | perplexity
     AI_WEB_ACCESS_ENABLED: bool = False
-    AI_TASK_COMPLEXITY_DEFAULT: str = "basic"
+    AI_TASK_COMPLEXITY_DEFAULT: str = "basic"  # basic | moderate | deep_research | advanced
     AI_MODEL_PREFERENCES: dict[str, str] = Field(default_factory=dict)
+
+    # =========================================================================
+    # AI FALLBACK + ROUTING + ORCHESTRATION
+    # =========================================================================
+    AI_FALLBACK_ENABLED: bool = True
+    AI_FALLBACK_LOG_ATTEMPTS: bool = True
+    AI_ROUTING_STRATEGY: str = "balanced"  # performance | cost | latency | quality | balanced | pinned | fallback
+    AI_PREFER_BEDROCK: bool = True
+    AI_ENABLE_MULTI_MODEL: bool = False
+    AI_ENABLE_VALIDATION: bool = True
 
 
 try:
