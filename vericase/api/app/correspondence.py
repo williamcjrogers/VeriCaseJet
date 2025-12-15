@@ -934,7 +934,7 @@ async def get_excluded_emails(
     View emails that have been tagged/excluded (spam, other projects, etc.)
     """
     # Filter for emails with status tag in metadata (not active)
-    status_field = EmailMessage.meta["status"].astext
+    status_field = cast(EmailMessage.meta["status"], String)
     query = db.query(EmailMessage).filter(
         status_field.is_not(None),
         status_field != "active",
@@ -1584,7 +1584,7 @@ async def get_emails_server_side(
         query = db.query(EmailMessage)
 
     # Filter out excluded emails by default - only show non-tagged emails
-    status_field = EmailMessage.meta["status"].astext
+    status_field = cast(EmailMessage.meta["status"], String)
     query = query.filter(
         or_(
             EmailMessage.meta.is_(None),
