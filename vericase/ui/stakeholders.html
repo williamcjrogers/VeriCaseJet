@@ -3,11 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Stakeholders | VeriCase</title>
-    <link
-      rel="stylesheet"
-      href="./assets/fontawesome/css/all.min.css"
-    />
+    <title>Stakeholder Management | VeriCase</title>
+    <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="brand-styles.css" />
     <link rel="stylesheet" href="design-system.css" />
     <script src="vericase-ui.js"></script>
@@ -15,125 +15,981 @@
     <script src="config.js"></script>
     <script src="app-state.js"></script>
     <style>
-      .coming-soon-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        min-height: 60vh;
-        text-align: center;
+      :root {
+        --vc-teal: var(--vericase-teal);
+        --vc-navy: var(--vericase-navy);
+        --vc-gold: #8b7355;
+        --bg-primary: #f8f6f3;
+        --bg-card: #ffffff;
+        --text-primary: var(--vc-navy);
+        --text-secondary: #4a5568;
+        --text-muted: #718096;
+        --border-color: #e2e8f0;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        min-height: 100vh;
+      }
+
+      .container {
+        max-width: 1600px;
+        margin: 0 auto;
         padding: 2rem;
       }
 
-      .coming-soon-icon {
-        width: 120px;
-        height: 120px;
-        background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%);
-        border-radius: 24px;
+      /* Page Header */
+      .page-header {
         display: flex;
-        align-items: center;
-        justify-content: center;
-        margin-bottom: 2rem;
-        box-shadow: 0 20px 40px rgba(15, 157, 154, 0.3);
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1.5rem;
+        gap: 1.5rem;
+        flex-wrap: wrap;
       }
 
-      .coming-soon-icon i {
-        font-size: 3rem;
-        color: white;
-      }
-
-      .coming-soon-title {
+      .page-title {
         font-size: 2rem;
         font-weight: 700;
-        color: var(--vericase-navy);
+        color: var(--vc-navy);
+        margin-bottom: 0.5rem;
+      }
+
+      .page-subtitle {
+        font-size: 0.9375rem;
+        color: var(--text-secondary);
+      }
+
+      .page-actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      /* Buttons */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.625rem 1rem;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        white-space: nowrap;
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, var(--vc-teal) 0%, #0a7b79 100%);
+        color: white;
+        box-shadow: 0 2px 8px rgba(15, 157, 154, 0.3);
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(15, 157, 154, 0.4);
+      }
+
+      .btn-secondary {
+        background: white;
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+      }
+
+      .btn-secondary:hover {
+        background: #f1efe9;
+      }
+
+      /* Stats Bar */
+      .stats-bar {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+      }
+
+      .stat-card {
+        flex: 1;
+        min-width: 150px;
+        background: var(--bg-card);
+        border-radius: 10px;
+        border: 1px solid var(--border-color);
+        padding: 1rem 1.25rem;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      }
+
+      .stat-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 0.375rem;
+      }
+
+      .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+      }
+
+      /* Filters Panel */
+      .filters-panel {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      }
+
+      .filters-row {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        align-items: flex-end;
+      }
+
+      .filter-group {
+        flex: 1;
+        min-width: 200px;
+      }
+
+      .filter-label {
+        display: block;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+      }
+
+      .filter-input,
+      .filter-select {
+        width: 100%;
+        padding: 0.625rem 0.875rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-family: inherit;
+        background: white;
+        transition: border-color 0.2s;
+      }
+
+      .filter-input:focus,
+      .filter-select:focus {
+        outline: none;
+        border-color: var(--vc-teal);
+        box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.1);
+      }
+
+      /* Grid View */
+      .stakeholders-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 1.25rem;
+        margin-bottom: 2rem;
+      }
+
+      .stakeholder-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        transition: all 0.2s;
+        cursor: pointer;
+      }
+
+      .stakeholder-card:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+      }
+
+      .stakeholder-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
         margin-bottom: 1rem;
       }
 
-      .coming-soon-description {
-        font-size: 1.125rem;
-        color: var(--text-secondary);
-        max-width: 500px;
-        line-height: 1.6;
-        margin-bottom: 2rem;
+      .stakeholder-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--vc-teal) 0%, #0a7b79 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.25rem;
+        font-weight: 600;
+        flex-shrink: 0;
       }
 
-      .feature-list {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 1.5rem;
-        max-width: 800px;
-        margin-top: 2rem;
+      .stakeholder-info {
+        flex: 1;
+        min-width: 0;
       }
 
-      .feature-item {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 12px;
-        border: 2px solid #e5e7eb;
-        text-align: left;
+      .stakeholder-name {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
-      .feature-item h4 {
-        color: var(--vericase-navy);
-        margin-bottom: 0.5rem;
+      .stakeholder-role {
+        display: inline-block;
+        padding: 0.25rem 0.625rem;
+        border-radius: 100px;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+
+      .stakeholder-details {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-top: 1rem;
+      }
+
+      .detail-row {
         display: flex;
         align-items: center;
         gap: 0.5rem;
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
       }
 
-      .feature-item h4 i {
-        color: var(--vericase-teal);
-      }
-
-      .feature-item p {
+      .detail-row i {
+        width: 16px;
         color: var(--text-muted);
+      }
+
+      .stakeholder-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border-color);
+      }
+
+      .action-btn {
+        flex: 1;
+        padding: 0.5rem;
+        border: 1px solid var(--border-color);
+        background: white;
+        color: var(--text-secondary);
+        font-size: 0.8125rem;
+        font-weight: 500;
+        cursor: pointer;
+        border-radius: 6px;
+        transition: all 0.2s;
+      }
+
+      .action-btn:hover {
+        background: #f1efe9;
+        color: var(--text-primary);
+      }
+
+      .action-btn.danger:hover {
+        background: #fee2e2;
+        color: #dc2626;
+        border-color: #fecaca;
+      }
+
+      /* Empty State */
+      .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: var(--text-muted);
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+      }
+
+      .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.3;
+      }
+
+      .empty-state p {
+        font-size: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      /* Modal */
+      .modal-backdrop {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+      }
+
+      .modal-backdrop.active {
+        display: flex;
+      }
+
+      .modal {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        max-width: 600px;
+        width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+
+      .modal-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .modal-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-primary);
+      }
+
+      .modal-close {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0.5rem;
+        border-radius: 4px;
+        transition: all 0.2s;
+      }
+
+      .modal-close:hover {
+        background: #f1f5f9;
+        color: var(--text-primary);
+      }
+
+      .modal-body {
+        padding: 1.5rem;
+      }
+
+      .form-group {
+        margin-bottom: 1.25rem;
+      }
+
+      .form-label {
+        display: block;
         font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+      }
+
+      .form-input,
+      .form-select,
+      .form-textarea {
+        width: 100%;
+        padding: 0.625rem 0.875rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-family: inherit;
+        background: white;
+        transition: border-color 0.2s;
+      }
+
+      .form-input:focus,
+      .form-select:focus,
+      .form-textarea:focus {
+        outline: none;
+        border-color: var(--vc-teal);
+        box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.1);
+      }
+
+      .modal-footer {
+        padding: 1.5rem;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        gap: 0.75rem;
+        justify-content: flex-end;
+      }
+
+      /* Loading State */
+      .loading {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-muted);
+      }
+
+      .loading i {
+        font-size: 2rem;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      /* Role Colors */
+      .role-client { background: #dbeafe; color: #1e40af; }
+      .role-contractor { background: #fef3c7; color: #92400e; }
+      .role-consultant { background: #d1fae5; color: #065f46; }
+      .role-subcontractor { background: #f3e8ff; color: #6b21a8; }
+      .role-supplier { background: #fce7f3; color: #9f1239; }
+      .role-other { background: #f1f5f9; color: #64748b; }
+
+      /* Responsive */
+      @media (max-width: 768px) {
+        .container {
+          padding: 1rem;
+        }
+
+        .page-header {
+          flex-direction: column;
+        }
+
+        .stats-bar {
+          flex-direction: column;
+        }
+
+        .stat-card {
+          max-width: none;
+        }
+
+        .stakeholders-grid {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
   <body>
-    <div class="coming-soon-container">
-      <div class="coming-soon-icon">
-        <i class="fas fa-users"></i>
+    <div class="container">
+      <!-- Page Header -->
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Stakeholder Management</h1>
+          <p class="page-subtitle">Manage parties, contacts & relationships</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" onclick="exportStakeholders()">
+            <i class="fas fa-download"></i>
+            <span>Export</span>
+          </button>
+          <button class="btn btn-primary" onclick="showAddStakeholderModal()">
+            <i class="fas fa-plus"></i>
+            <span>Add Stakeholder</span>
+          </button>
+        </div>
       </div>
-      <h1 class="coming-soon-title">Stakeholder Management</h1>
-      <p class="coming-soon-description">
-        Manage project parties, track relationships, and analyze communication patterns
-        between stakeholders. Coming soon to VeriCase.
-      </p>
 
-      <div class="feature-list">
-        <div class="feature-item">
-          <h4><i class="fas fa-address-book"></i> Party Directory</h4>
-          <p>Maintain a directory of all project stakeholders with contact details</p>
+      <!-- Statistics -->
+      <div class="stats-bar">
+        <div class="stat-card">
+          <div class="stat-label">Total Stakeholders</div>
+          <div class="stat-value" id="statTotal">0</div>
         </div>
-        <div class="feature-item">
-          <h4><i class="fas fa-project-diagram"></i> Relationship Mapping</h4>
-          <p>Visualize relationships between parties and organizations</p>
+        <div class="stat-card">
+          <div class="stat-label">Organizations</div>
+          <div class="stat-value" id="statOrgs">0</div>
         </div>
-        <div class="feature-item">
-          <h4><i class="fas fa-chart-bar"></i> Communication Analytics</h4>
-          <p>Analyze communication patterns and key influencers</p>
+        <div class="stat-card">
+          <div class="stat-label">Roles</div>
+          <div class="stat-value" id="statRoles">0</div>
         </div>
-        <div class="feature-item">
-          <h4><i class="fas fa-user-tag"></i> Role Assignment</h4>
-          <p>Assign roles and responsibilities to track accountability</p>
+        <div class="stat-card">
+          <div class="stat-label">With Email</div>
+          <div class="stat-value" id="statEmails">0</div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="filters-panel">
+        <div class="filters-row">
+          <div class="filter-group">
+            <label class="filter-label">Search</label>
+            <input type="text" class="filter-input" id="searchInput" placeholder="Search by name, email, or organization..." />
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Role</label>
+            <select class="filter-select" id="roleFilter">
+              <option value="">All Roles</option>
+              <option value="Client">Client</option>
+              <option value="Main Contractor">Main Contractor</option>
+              <option value="Consultant">Consultant</option>
+              <option value="Subcontractor">Subcontractor</option>
+              <option value="Supplier">Supplier</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Organization</label>
+            <select class="filter-select" id="orgFilter">
+              <option value="">All Organizations</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <button class="btn btn-secondary" onclick="clearFilters()" style="width: 100%;">
+              <i class="fas fa-times"></i>
+              <span>Clear</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stakeholders Grid -->
+      <div id="loadingState" class="loading">
+        <i class="fas fa-circle-notch"></i>
+        <p>Loading stakeholders...</p>
+      </div>
+
+      <div id="emptyState" class="empty-state" style="display: none;">
+        <i class="fas fa-user-group"></i>
+        <p>No stakeholders yet</p>
+        <button class="btn btn-primary" onclick="showAddStakeholderModal()">
+          <i class="fas fa-plus"></i>
+          <span>Add Your First Stakeholder</span>
+        </button>
+      </div>
+
+      <div class="stakeholders-grid" id="stakeholdersGrid" style="display: none;">
+        <!-- Stakeholder cards will be populated here -->
+      </div>
+    </div>
+
+    <!-- Add/Edit Stakeholder Modal -->
+    <div class="modal-backdrop" id="stakeholderModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title" id="modalTitle">Add Stakeholder</h2>
+          <button class="modal-close" onclick="closeStakeholderModal()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form id="stakeholderForm" onsubmit="saveStakeholder(event)">
+            <input type="hidden" id="stakeholderId" />
+            
+            <div class="form-group">
+              <label class="form-label">Name *</label>
+              <input type="text" class="form-input" id="stakeholderName" placeholder="Full name" required />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Role *</label>
+              <select class="form-select" id="stakeholderRole" required>
+                <option value="">Select a role...</option>
+                <option value="Client">Client</option>
+                <option value="Main Contractor">Main Contractor</option>
+                <option value="Consultant">Consultant</option>
+                <option value="Subcontractor">Subcontractor</option>
+                <option value="Supplier">Supplier</option>
+                <option value="Architect">Architect</option>
+                <option value="Engineer">Engineer</option>
+                <option value="Project Manager">Project Manager</option>
+                <option value="Legal Counsel">Legal Counsel</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Organization</label>
+              <input type="text" class="form-input" id="stakeholderOrg" placeholder="Company or organization name" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Email</label>
+              <input type="email" class="form-input" id="stakeholderEmail" placeholder="email@example.com" />
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeStakeholderModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="document.getElementById('stakeholderForm').requestSubmit()">
+            <i class="fas fa-save"></i>
+            <span id="saveButtonText">Save Stakeholder</span>
+          </button>
         </div>
       </div>
     </div>
 
     <script>
-      document.addEventListener("DOMContentLoaded", () => {
+      let currentProjectId = null;
+      let allStakeholders = [];
+      let editingStakeholderId = null;
+
+      // Initialize
+      document.addEventListener('DOMContentLoaded', async () => {
         if (window.VericaseShell) {
           window.VericaseShell.inject({
-            title: 'Stakeholders',
+            title: 'Stakeholder Management',
             breadcrumbs: [
-              { label: 'Home', url: 'master-dashboard.html', icon: 'fa-home' },
+              { label: 'Home', url: 'dashboard.html', icon: 'fa-home' },
               { label: 'Stakeholders' }
             ]
           });
         }
+
+        // Get project ID from URL or app state
+        const urlParams = new URLSearchParams(window.location.search);
+        currentProjectId = urlParams.get('projectId') || urlParams.get('caseId');
+        
+        if (!currentProjectId && window.appState) {
+          currentProjectId = window.appState.getSelectedProfile();
+        }
+
+        if (!currentProjectId) {
+          showError('Please select a project first');
+          return;
+        }
+
+        await loadStakeholders();
+
+        // Setup filter listeners
+        document.getElementById('searchInput').addEventListener('input', filterStakeholders);
+        document.getElementById('roleFilter').addEventListener('change', filterStakeholders);
+        document.getElementById('orgFilter').addEventListener('change', filterStakeholders);
       });
+
+      // Load stakeholders from API
+      async function loadStakeholders() {
+        try {
+          const apiUrl = window.CONFIG?.apiUrl || '';
+          const response = await fetch(`${apiUrl}/api/wizard/projects/${currentProjectId}/stakeholders`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to load stakeholders');
+          }
+
+          allStakeholders = await response.json();
+          renderStakeholders(allStakeholders);
+          updateStats(allStakeholders);
+          populateOrgFilter(allStakeholders);
+          
+          document.getElementById('loadingState').style.display = 'none';
+        } catch (error) {
+          console.error('Error loading stakeholders:', error);
+          document.getElementById('loadingState').innerHTML = `
+            <i class="fas fa-exclamation-triangle" style="color: #dc2626;"></i>
+            <p style="color: #dc2626;">Failed to load stakeholders</p>
+            <p style="font-size: 0.875rem;">Please try refreshing the page</p>
+          `;
+        }
+      }
+
+      // Render stakeholders in grid
+      function renderStakeholders(stakeholders) {
+        const grid = document.getElementById('stakeholdersGrid');
+        const emptyState = document.getElementById('emptyState');
+
+        if (!stakeholders || stakeholders.length === 0) {
+          grid.style.display = 'none';
+          emptyState.style.display = 'block';
+          return;
+        }
+
+        grid.style.display = 'grid';
+        emptyState.style.display = 'none';
+
+        // Sort by name
+        stakeholders.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+        grid.innerHTML = stakeholders.map(sh => {
+          const initials = getInitials(sh.name);
+          const roleClass = getRoleClass(sh.role);
+          
+          return `
+            <div class="stakeholder-card" onclick="editStakeholder('${sh.id}')">
+              <div class="stakeholder-header">
+                <div class="stakeholder-avatar">${initials}</div>
+                <div class="stakeholder-info">
+                  <div class="stakeholder-name">${escapeHtml(sh.name)}</div>
+                  <span class="stakeholder-role ${roleClass}">${escapeHtml(sh.role)}</span>
+                </div>
+              </div>
+              <div class="stakeholder-details">
+                ${sh.organization ? `
+                  <div class="detail-row">
+                    <i class="fas fa-building"></i>
+                    <span>${escapeHtml(sh.organization)}</span>
+                  </div>
+                ` : ''}
+                ${sh.email ? `
+                  <div class="detail-row">
+                    <i class="fas fa-envelope"></i>
+                    <span>${escapeHtml(sh.email)}</span>
+                  </div>
+                ` : ''}
+              </div>
+              <div class="stakeholder-actions" onclick="event.stopPropagation()">
+                <button class="action-btn" onclick="editStakeholder('${sh.id}')" title="Edit">
+                  <i class="fas fa-edit"></i> Edit
+                </button>
+                <button class="action-btn danger" onclick="deleteStakeholder('${sh.id}')" title="Delete">
+                  <i class="fas fa-trash"></i> Delete
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Update statistics
+      function updateStats(stakeholders) {
+        document.getElementById('statTotal').textContent = stakeholders.length;
+
+        const orgs = new Set(stakeholders.filter(s => s.organization).map(s => s.organization));
+        document.getElementById('statOrgs').textContent = orgs.size;
+
+        const roles = new Set(stakeholders.map(s => s.role));
+        document.getElementById('statRoles').textContent = roles.size;
+
+        const withEmails = stakeholders.filter(s => s.email).length;
+        document.getElementById('statEmails').textContent = withEmails;
+      }
+
+      // Populate organization filter
+      function populateOrgFilter(stakeholders) {
+        const orgFilter = document.getElementById('orgFilter');
+        const orgs = new Set(stakeholders.filter(s => s.organization).map(s => s.organization));
+        
+        const currentValue = orgFilter.value;
+        orgFilter.innerHTML = '<option value="">All Organizations</option>' +
+          Array.from(orgs).sort().map(org => 
+            `<option value="${escapeHtml(org)}">${escapeHtml(org)}</option>`
+          ).join('');
+        
+        if (currentValue) orgFilter.value = currentValue;
+      }
+
+      // Filter stakeholders
+      function filterStakeholders() {
+        const search = document.getElementById('searchInput').value.toLowerCase();
+        const role = document.getElementById('roleFilter').value;
+        const org = document.getElementById('orgFilter').value;
+
+        let filtered = allStakeholders.filter(sh => {
+          // Search filter
+          if (search) {
+            const matchesName = sh.name && sh.name.toLowerCase().includes(search);
+            const matchesEmail = sh.email && sh.email.toLowerCase().includes(search);
+            const matchesOrg = sh.organization && sh.organization.toLowerCase().includes(search);
+            if (!matchesName && !matchesEmail && !matchesOrg) {
+              return false;
+            }
+          }
+
+          // Role filter
+          if (role && sh.role !== role) {
+            return false;
+          }
+
+          // Organization filter
+          if (org && sh.organization !== org) {
+            return false;
+          }
+
+          return true;
+        });
+
+        renderStakeholders(filtered);
+        updateStats(filtered);
+      }
+
+      // Clear filters
+      function clearFilters() {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('roleFilter').value = '';
+        document.getElementById('orgFilter').value = '';
+        filterStakeholders();
+      }
+
+      // Show add stakeholder modal
+      function showAddStakeholderModal() {
+        editingStakeholderId = null;
+        document.getElementById('modalTitle').textContent = 'Add Stakeholder';
+        document.getElementById('saveButtonText').textContent = 'Save Stakeholder';
+        document.getElementById('stakeholderForm').reset();
+        document.getElementById('stakeholderId').value = '';
+        document.getElementById('stakeholderModal').classList.add('active');
+      }
+
+      // Show edit stakeholder modal
+      function editStakeholder(stakeholderId) {
+        const stakeholder = allStakeholders.find(s => s.id === stakeholderId);
+        if (!stakeholder) return;
+
+        editingStakeholderId = stakeholderId;
+        document.getElementById('modalTitle').textContent = 'Edit Stakeholder';
+        document.getElementById('saveButtonText').textContent = 'Update Stakeholder';
+        
+        document.getElementById('stakeholderId').value = stakeholder.id;
+        document.getElementById('stakeholderName').value = stakeholder.name;
+        document.getElementById('stakeholderRole').value = stakeholder.role || '';
+        document.getElementById('stakeholderOrg').value = stakeholder.organization || '';
+        document.getElementById('stakeholderEmail').value = stakeholder.email || '';
+
+        document.getElementById('stakeholderModal').classList.add('active');
+      }
+
+      // Close stakeholder modal
+      function closeStakeholderModal() {
+        document.getElementById('stakeholderModal').classList.remove('active');
+        editingStakeholderId = null;
+      }
+
+      // Save stakeholder
+      async function saveStakeholder(e) {
+        e.preventDefault();
+
+        const stakeholderData = {
+          name: document.getElementById('stakeholderName').value,
+          role: document.getElementById('stakeholderRole').value,
+          organization: document.getElementById('stakeholderOrg').value || null,
+          email: document.getElementById('stakeholderEmail').value || null
+        };
+
+        try {
+          const apiUrl = window.CONFIG?.apiUrl || '';
+          
+          // For now, use bulk endpoint with single item (adapt based on actual API)
+          const url = `${apiUrl}/api/wizard/projects/${currentProjectId}/stakeholders/bulk`;
+          
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+            },
+            body: JSON.stringify({ stakeholders: [stakeholderData] })
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to save stakeholder');
+          }
+
+          closeStakeholderModal();
+          await loadStakeholders();
+          showSuccess(editingStakeholderId ? 'Stakeholder updated successfully' : 'Stakeholder added successfully');
+        } catch (error) {
+          console.error('Error saving stakeholder:', error);
+          showError('Failed to save stakeholder. Please try again.');
+        }
+      }
+
+      // Delete stakeholder
+      async function deleteStakeholder(stakeholderId) {
+        if (!confirm('Are you sure you want to delete this stakeholder?')) {
+          return;
+        }
+
+        try {
+          // Note: API endpoint for delete may need to be added
+          showError('Delete functionality to be implemented');
+          // Placeholder for when API endpoint is available
+        } catch (error) {
+          console.error('Error deleting stakeholder:', error);
+          showError('Failed to delete stakeholder. Please try again.');
+        }
+      }
+
+      // Export stakeholders
+      function exportStakeholders() {
+        if (allStakeholders.length === 0) {
+          showError('No stakeholders to export');
+          return;
+        }
+
+        // Create CSV
+        const headers = ['Name', 'Role', 'Organization', 'Email'];
+        const rows = allStakeholders.map(sh => [
+          sh.name,
+          sh.role,
+          sh.organization || '',
+          sh.email || ''
+        ]);
+
+        const csv = [
+          headers.join(','),
+          ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        ].join('\n');
+
+        // Download
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `stakeholders-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showSuccess('Stakeholders exported successfully');
+      }
+
+      // Utility functions
+      function getInitials(name) {
+        if (!name) return '?';
+        return name
+          .split(' ')
+          .map(n => n[0])
+          .join('')
+          .toUpperCase()
+          .slice(0, 2);
+      }
+
+      function getRoleClass(role) {
+        if (!role) return 'role-other';
+        const r = role.toLowerCase();
+        if (r.includes('client')) return 'role-client';
+        if (r.includes('contractor')) return 'role-contractor';
+        if (r.includes('consultant')) return 'role-consultant';
+        if (r.includes('subcontractor')) return 'role-subcontractor';
+        if (r.includes('supplier')) return 'role-supplier';
+        return 'role-other';
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      function showSuccess(message) {
+        alert(message);
+      }
+
+      function showError(message) {
+        alert(message);
+      }
     </script>
   </body>
 </html>

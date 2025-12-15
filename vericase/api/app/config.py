@@ -194,6 +194,11 @@ class Settings(BaseSettings):
     # When true (default), pre-traverse the PST to count total messages for progress %
     # tracking. Disable to avoid the extra full pass on very large PSTs.
     PST_PRECOUNT_MESSAGES: bool = True
+    
+    # PST processing optimization settings
+    PST_BATCH_COMMIT_SIZE: int = 2500  # Messages per DB commit batch
+    PST_UPLOAD_WORKERS: int = 50  # Parallel S3 upload threads
+    PST_SKIP_SEMANTIC_INDEXING: bool = True  # Skip during ingestion (run in background)
 
     # AWS Textract settings
     USE_TEXTRACT: bool = True  # Use Textract as primary, Tika as fallback

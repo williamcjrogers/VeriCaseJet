@@ -437,13 +437,12 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
     def _build_evidence_context(
         self, emails: list[EmailMessage], detailed: bool = False
     ) -> str:
-        """Build evidence context from emails with smart sampling"""
+        """Build evidence context from all emails - modern LLMs handle 200k+ context"""
         if not emails:
             return "No evidence available."
 
-        # Smart sampling: if more than 200 emails, sample the most recent 200
-        if len(emails) > 200:
-            emails = sorted(emails, key=lambda e: e.date_sent or datetime.min, reverse=True)[:200]
+        # Sort by date for chronological analysis
+        emails = sorted(emails, key=lambda e: e.date_sent or datetime.min, reverse=True)
 
         context_parts = []
         for i, email in enumerate(emails, 1):
@@ -1083,6 +1082,15 @@ async def _get_relevant_emails(
     """Get relevant emails for analysis"""
     try:
         query = db.query(EmailMessage)
+
+        # Filter out hidden/spam-filtered emails
+        query = query.filter(
+            or_(
+                EmailMessage.meta.is_(None),
+                EmailMessage.meta["spam"]["is_hidden"].astext != "true",
+                ~EmailMessage.meta.has_key("spam"),
+            )
+        )
 
         if project_id:
             query = query.filter(EmailMessage.project_id == project_id)

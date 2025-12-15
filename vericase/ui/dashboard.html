@@ -283,8 +283,8 @@
     /* Quick Actions - Modernized Grid */
     .quick-actions {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 1rem;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
       margin-bottom: 2rem;
     }
 
@@ -349,6 +349,55 @@
       background: linear-gradient(135deg, var(--error) 0%, var(--error-dark) 100%);
     }
 
+    .action-card .icon.icon--purple {
+      background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    }
+
+    .action-card .icon.icon--blue {
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    }
+
+    .action-card .icon.icon--rose {
+      background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+    }
+
+    .action-card .icon.icon--emerald {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+
+    /* Pastel background tints for action cards */
+    .action-card.pastel-teal {
+      background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
+    }
+
+    .action-card.pastel-blue {
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    }
+
+    .action-card.pastel-purple {
+      background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+    }
+
+    .action-card.pastel-amber {
+      background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    }
+
+    .action-card.pastel-rose {
+      background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%);
+    }
+
+    .action-card.pastel-emerald {
+      background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    }
+
+    .action-card.pastel-slate {
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    }
+
+    .action-card.pastel-indigo {
+      background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+    }
+
     .action-card h3 {
       font-size: 0.9375rem;
       font-weight: 600;
@@ -362,10 +411,11 @@
       line-height: 1.5;
     }
 
-    /* Feature Card - Special styling for AI Refinement */
+    /* Feature Card - Special styling for VeriCase Refine */
     .action-card.feature-card {
-      background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-teal-dark) 100%);
+      background: linear-gradient(135deg, #312e81 0%, #1e1b4b 100%);
       border: none;
+      box-shadow: 0 4px 20px rgba(49, 46, 129, 0.3);
     }
 
     .action-card.feature-card::before {
@@ -378,8 +428,13 @@
     }
 
     .action-card.feature-card .icon {
-      background: rgba(255, 255, 255, 0.2);
-      box-shadow: 0 4px 14px rgba(255, 255, 255, 0.2);
+      background: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
+      box-shadow: 0 4px 14px rgba(129, 140, 248, 0.4);
+    }
+
+    .action-card.feature-card:hover {
+      box-shadow: 0 8px 30px rgba(49, 46, 129, 0.4);
+      transform: translateY(-3px);
     }
 
     /* Widgets Grid - Modernized */
@@ -651,6 +706,12 @@
          MOBILE RESPONSIVENESS
          ============================================ */
 
+    @media (max-width: 1400px) {
+      .quick-actions {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
     @media (max-width: 1200px) {
       .quick-actions {
         grid-template-columns: repeat(2, 1fr);
@@ -891,7 +952,7 @@
     <div class="welcome-banner" id="welcomeBanner">
       <h2 id="welcomeTitle"><span class="title-accent">Project Dashboard</span></h2>
       <p id="welcomeMessage">
-        VeriCase turns your evidence into dispute-winning insights.
+        Organize, analyze, and extract insights from your evidence.
       </p>
       <div class="meta">
         <div class="meta-item">
@@ -981,68 +1042,68 @@
 
     <!-- Quick Actions -->
     <div class="quick-actions">
-      <div class="action-card" onclick="openPstUpload()">
+      <div class="action-card pastel-teal" onclick="openPstUpload()">
         <div class="icon">
-          <i class="fas fa-cloud-arrow-up"></i>
+          <i class="fas fa-file-import"></i>
         </div>
-        <h3>Upload Evidence</h3>
-        <p>Import PST files, emails, and documents</p>
+        <h3>Import Evidence</h3>
+        <p>Upload PST files, emails & documents for analysis</p>
       </div>
 
-      <div class="action-card" onclick="viewCorrespondence()">
-        <div class="icon">
-          <i class="fas fa-envelope-open-text"></i>
+      <div class="action-card pastel-blue" onclick="viewCorrespondence()">
+        <div class="icon icon--blue">
+          <i class="fas fa-comments"></i>
         </div>
-        <h3>Correspondence</h3>
-        <p>Access project communications</p>
+        <h3>Communications</h3>
+        <p>Browse and search all project emails</p>
       </div>
 
-      <div class="action-card" onclick="viewTimeline()">
-        <div class="icon">
-          <i class="fas fa-chart-gantt"></i>
+      <div class="action-card pastel-purple" onclick="viewTimeline()">
+        <div class="icon icon--purple">
+          <i class="fas fa-timeline"></i>
         </div>
-        <h3>Timeline</h3>
-        <p>Visualize project chronology</p>
+        <h3>Timeline View</h3>
+        <p>Interactive visualization of events</p>
       </div>
 
-      <div class="action-card" onclick="viewChronology()">
+      <div class="action-card pastel-slate" onclick="viewChronology()">
         <div class="icon icon--navy">
-          <i class="fas fa-list-timeline"></i>
+          <i class="fas fa-list-check"></i>
         </div>
-        <h3>Chronology</h3>
-        <p>Build detailed event chronologies</p>
+        <h3>Chronology Builder</h3>
+        <p>Create detailed event-by-event narratives</p>
       </div>
 
-      <div class="action-card" onclick="viewProgramme()">
-        <div class="icon">
-          <i class="fas fa-diagram-project"></i>
+      <div class="action-card pastel-emerald" onclick="viewProgramme()">
+        <div class="icon icon--emerald">
+          <i class="fas fa-sitemap"></i>
         </div>
         <h3>Programme</h3>
-        <p>Manage schedule and milestones</p>
+        <p>Track schedules, milestones & deliverables</p>
       </div>
 
-      <div class="action-card" onclick="viewDelays()">
-        <div class="icon icon--error">
-          <i class="fas fa-clock"></i>
+      <div class="action-card pastel-rose" onclick="viewDelays()">
+        <div class="icon icon--rose">
+          <i class="fas fa-hourglass-half"></i>
         </div>
-        <h3>Delays</h3>
-        <p>Track and analyze delays</p>
+        <h3>Delay Analysis</h3>
+        <p>Identify causes and quantify impacts</p>
       </div>
 
-      <div class="action-card" onclick="manageStakeholders()">
+      <div class="action-card pastel-amber" onclick="manageStakeholders()">
         <div class="icon icon--gold">
-          <i class="fas fa-people-group"></i>
+          <i class="fas fa-user-group"></i>
         </div>
         <h3>Stakeholders</h3>
-        <p>Manage project parties</p>
+        <p>Manage parties, contacts & relationships</p>
       </div>
 
       <div class="action-card feature-card" onclick="openAIRefinement()">
         <div class="icon">
-          <i class="fas fa-wand-magic-sparkles"></i>
+          <i class="fas fa-sparkles"></i>
         </div>
-        <h3>AI Refinement</h3>
-        <p>Discover patterns with AI assistance</p>
+        <h3>VeriCase Refine</h3>
+        <p>AI-powered spam filtering & deduplication</p>
       </div>
     </div>
 
@@ -1937,6 +1998,28 @@
 
     // Initialize dashboard
     document.addEventListener("DOMContentLoaded", () => {
+      // Immediately show cached project name if available (before API calls)
+      const cachedProjectName = localStorage.getItem("currentProjectName") || 
+                                localStorage.getItem("vericase_current_project_name");
+      if (cachedProjectName && profileId) {
+        const welcomeTitle = document.getElementById("welcomeTitle");
+        if (welcomeTitle) {
+          welcomeTitle.innerHTML = "";
+          const accent = document.createElement("span");
+          accent.className = "title-accent";
+          accent.textContent = "Project Dashboard";
+          welcomeTitle.appendChild(accent);
+          const suffix = document.createElement("span");
+          suffix.className = "title-suffix";
+          suffix.textContent = cachedProjectName;
+          welcomeTitle.appendChild(suffix);
+        }
+        const profileNameEl = document.getElementById("profileName");
+        if (profileNameEl) {
+          profileNameEl.textContent = cachedProjectName;
+        }
+      }
+
       // Inject the navigation shell with sidebar
       if (window.VericaseShell && typeof window.VericaseShell.inject === 'function') {
         window.VericaseShell.inject({
@@ -2289,8 +2372,8 @@
     function showFirstTimeOnboarding() {
       const welcomeMsg =
         profileType === "project"
-          ? "VeriCase turns your evidence into dispute-winning insights. Start by uploading evidence."
-          : "Your case has been set up! Upload evidence sources to begin building your dispute strategy.";
+          ? "Get started by uploading evidence files, PSTs, or documents."
+          : "Your case has been set up! Upload evidence to begin building your case strategy.";
 
       document.getElementById("welcomeMessage").textContent = welcomeMsg;
     }

@@ -2127,9 +2127,15 @@
           "padding-top": "8px",
           "padding-bottom": "8px",
         },
-        filter: "agSetColumnFilter",
+        cellRenderer: (params) => {
+          if (!params.value) return "-";
+          return `<span style="font-weight: 500; color: var(--text-primary);">${params.value}</span>`;
+        },
+        filter: "agTextColumnFilter",
         filterParams: {
-          buttons: ["apply", "clear", "reset"],
+          filterOptions: ["contains", "startsWith", "endsWith", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
         },
       },
       {
@@ -2150,9 +2156,15 @@
           if (Array.isArray(to)) return to.join(", ");
           return to;
         },
-        filter: "agSetColumnFilter",
+        cellRenderer: (params) => {
+          if (!params.value || params.value === "-") return "-";
+          return `<span style="font-weight: 500; color: var(--text-primary);">${params.value}</span>`;
+        },
+        filter: "agTextColumnFilter",
         filterParams: {
-          buttons: ["apply", "clear", "reset"],
+          filterOptions: ["contains", "startsWith", "endsWith", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
         },
       },
       {
@@ -2173,9 +2185,15 @@
           if (Array.isArray(cc)) return cc.join(", ");
           return cc;
         },
-        filter: "agSetColumnFilter",
+        cellRenderer: (params) => {
+          if (!params.value || params.value === "-") return "-";
+          return `<span style="font-weight: 500; color: var(--text-primary);">${params.value}</span>`;
+        },
+        filter: "agTextColumnFilter",
         filterParams: {
-          buttons: ["apply", "clear", "reset"],
+          filterOptions: ["contains", "startsWith", "endsWith", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
         },
       },
       {
@@ -2300,9 +2318,11 @@
           const color = colorMap[params.value] || "#6b7280";
           return `<span style="background:${color}; color:white; padding:2px 8px; border-radius:4px; font-size:0.75rem;">${params.value}</span>`;
         },
-        filter: "agSetColumnFilter",
+        filter: "agTextColumnFilter",
         filterParams: {
-          buttons: ["apply", "clear", "reset"],
+          filterOptions: ["contains", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
         },
       },
       {
@@ -2658,10 +2678,11 @@
                         <span>CRITICAL</span>
                     </div>`;
         },
-        filter: "agSetColumnFilter",
+        filter: "agTextColumnFilter",
         filterParams: {
-          values: ["Yes", "No"],
-          buttons: ["apply", "clear"],
+          filterOptions: ["contains", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
         },
       },
 
@@ -2698,10 +2719,11 @@
                         <span>${status}</span>
                     </div>`;
         },
-        filter: "agSetColumnFilter",
+        filter: "agTextColumnFilter",
         filterParams: {
-          values: ["Not Started", "In Progress", "Complete", "Delayed"],
-          buttons: ["apply", "clear"],
+          filterOptions: ["contains", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
         },
       },
 
@@ -2840,9 +2862,11 @@
           // No category and no suggestion
           return '<span style="color: var(--text-muted);">—</span>';
         },
-        filter: "agSetColumnFilter",
+        filter: "agTextColumnFilter",
         filterParams: {
-          buttons: ["apply", "clear", "reset"],
+          filterOptions: ["contains", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
         },
       },
 
@@ -2930,9 +2954,11 @@
 
           return "";
         },
-        filter: "agSetColumnFilter",
+        filter: "agTextColumnFilter",
         filterParams: {
-          buttons: ["apply", "clear", "reset"],
+          filterOptions: ["contains", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
         },
       },
 
@@ -2966,9 +2992,11 @@
             justifyContent: "center",
           };
         },
-        filter: "agSetColumnFilter",
+        filter: "agTextColumnFilter",
         filterParams: {
-          buttons: ["apply", "clear", "reset"],
+          filterOptions: ["contains", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
         },
       },
 
@@ -3014,9 +3042,11 @@
                         <span>${params.value}</span>
                     </div>`;
         },
-        filter: "agSetColumnFilter",
+        filter: "agTextColumnFilter",
         filterParams: {
-          buttons: ["apply", "clear", "reset"],
+          filterOptions: ["contains", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
         },
       },
 
@@ -3092,7 +3122,12 @@
           params.value
             ? `<span style="font-weight: 500;">${params.value}</span>`
             : "-",
-        filter: "agSetColumnFilter",
+        filter: "agTextColumnFilter",
+        filterParams: {
+          filterOptions: ["contains", "startsWith", "endsWith", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
+        },
       },
       {
         headerName: "To",
@@ -3107,7 +3142,12 @@
           params.value
             ? `<span style="font-weight: 500;">${params.value}</span>`
             : "-",
-        filter: "agSetColumnFilter",
+        filter: "agTextColumnFilter",
+        filterParams: {
+          filterOptions: ["contains", "startsWith", "endsWith", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
+        },
       },
       {
         headerName: "CC",
@@ -3123,7 +3163,12 @@
           params.value
             ? `<span style="font-weight: 500;">${params.value}</span>`
             : "-",
-        filter: "agSetColumnFilter",
+        filter: "agTextColumnFilter",
+        filterParams: {
+          filterOptions: ["contains", "startsWith", "endsWith", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
+        },
       },
       {
         headerName: "Thread",
@@ -3138,10 +3183,11 @@
             <span style="font-weight: 600; font-size: 0.85rem;">Thread</span>
           </div>`;
         },
-        filter: "agSetColumnFilter",
+        filter: "agTextColumnFilter",
         filterParams: {
-          values: ['Thread', 'Single'],
-          valueFormatter: (params) => params.value || 'Single'
+          filterOptions: ["contains", "equals"],
+          defaultOption: "contains",
+          trimInput: true
         },
       },
       {
@@ -3568,7 +3614,12 @@
             )
             .join("");
         },
-        filter: "agSetColumnFilter",
+        filter: "agTextColumnFilter",
+        filterParams: {
+          filterOptions: ["contains", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
+        },
       },
       {
         headerName: "Party Role",
@@ -3598,7 +3649,12 @@
                                 ${params.value}
                             </span>`;
         },
-        filter: "agSetColumnFilter",
+        filter: "agTextColumnFilter",
+        filterParams: {
+          filterOptions: ["contains", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
+        },
       },
       {
         headerName: "Claim Status",
@@ -3636,7 +3692,12 @@
           values: ["none", "contentious_matter", "head_of_claim"],
         },
         editable: true,
-        filter: "agSetColumnFilter",
+        filter: "agTextColumnFilter",
+        filterParams: {
+          filterOptions: ["contains", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
+        },
       },
       {
         headerName: "Linked To",
@@ -3735,7 +3796,12 @@
           };
           return `<span style="display:inline-block;padding:6px 12px;border-radius:999px;background:${colors[priority] || "#E5E7EB"};color:${textColors[priority] || "#374151"};font-weight:700;">${priority}</span>`;
         },
-        filter: "agSetColumnFilter",
+        filter: "agTextColumnFilter",
+        filterParams: {
+          filterOptions: ["contains", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
+        },
       },
       {
         headerName: "Status",
@@ -3755,7 +3821,12 @@
           };
           return `<span style="display:inline-block;padding:6px 12px;border-radius:999px;background:${colors[status] || "#E5E7EB"};color:${textColors[status] || "#374151"};font-weight:700;">${status}</span>`;
         },
-        filter: "agSetColumnFilter",
+        filter: "agTextColumnFilter",
+        filterParams: {
+          filterOptions: ["contains", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
+        },
       },
       {
         headerName: "Notes",

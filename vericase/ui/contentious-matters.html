@@ -743,6 +743,1050 @@
         flex: 1;
         min-width: 100px;
       }
+
+      /* ==========================================
+         Collaboration Section Styles
+         ========================================== */
+      .collab-section {
+        border: 1px solid var(--gray-200);
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 16px;
+      }
+
+      .collab-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        background: linear-gradient(135deg, #1a2b3c 0%, #2d4a5e 100%);
+        color: white;
+        cursor: pointer;
+      }
+
+      .collab-header h4 {
+        margin: 0;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .collab-toggle {
+        transition: transform 0.2s;
+      }
+
+      .collab-section.collapsed .collab-toggle {
+        transform: rotate(-90deg);
+      }
+
+      .collab-section.collapsed .collab-body {
+        display: none;
+      }
+
+      .collab-tabs {
+        display: flex;
+        border-bottom: 1px solid var(--gray-200);
+        background: var(--gray-50);
+      }
+
+      .collab-tab {
+        flex: 1;
+        padding: 10px 12px;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--text-muted);
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+        border-bottom: 2px solid transparent;
+      }
+
+      .collab-tab:hover {
+        color: var(--text-primary);
+        background: rgba(15, 157, 154, 0.05);
+      }
+
+      .collab-tab.active {
+        color: var(--vericase-teal);
+        border-bottom-color: var(--vericase-teal);
+        background: white;
+      }
+
+      .collab-content {
+        padding: 16px;
+        max-height: 400px;
+        overflow-y: auto;
+      }
+
+      .ai-tools-bar {
+        display: flex;
+        gap: 8px;
+        padding: 12px 16px;
+        background: linear-gradient(180deg, rgba(250, 249, 246, 1) 0%, rgba(255, 255, 255, 1) 100%);
+        border-bottom: 1px solid var(--gray-200);
+        flex-wrap: wrap;
+      }
+
+      .ai-tools-bar .btn {
+        font-size: 0.75rem;
+        padding: 6px 12px;
+        gap: 4px;
+      }
+
+      .ai-tools-bar .btn i {
+        color: var(--vericase-gold);
+      }
+
+      /* Comment Styles */
+      .comment-thread {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .comment-item {
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: 8px;
+        padding: 12px;
+      }
+
+      .comment-item.reply {
+        margin-left: 24px;
+        border-left: 3px solid var(--vericase-teal);
+      }
+
+      .comment-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .comment-author {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .comment-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--vericase-navy);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+
+      .comment-author-name {
+        font-weight: 600;
+        font-size: 0.8125rem;
+        color: var(--text-primary);
+      }
+
+      .comment-time {
+        font-size: 0.6875rem;
+        color: var(--text-muted);
+      }
+
+      .comment-menu {
+        position: relative;
+      }
+
+      .comment-content {
+        font-size: 0.875rem;
+        line-height: 1.6;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+      }
+
+      .comment-tags {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+
+      .comment-tag {
+        padding: 2px 6px;
+        background: var(--gray-100);
+        border-radius: 4px;
+        font-size: 0.6875rem;
+        color: var(--text-muted);
+      }
+
+      .comment-tag.tag-date { background: #dbeafe; color: #1e40af; }
+      .comment-tag.tag-amount { background: #d1fae5; color: #065f46; }
+      .comment-tag.tag-clause { background: #fef3c7; color: #92400e; }
+      .comment-tag.tag-reference { background: #e9d5ff; color: #7c3aed; }
+
+      .comment-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .comment-actions button {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: all 0.2s;
+      }
+
+      .comment-actions button:hover {
+        background: var(--gray-100);
+        color: var(--text-primary);
+      }
+
+      /* Comment Input */
+      .comment-input-area {
+        padding: 12px 16px;
+        border-top: 1px solid var(--gray-200);
+        background: var(--gray-50);
+      }
+
+      .comment-input-wrapper {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+      }
+
+      .comment-textarea {
+        flex: 1;
+        resize: none;
+        border: 1px solid var(--gray-300);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 0.875rem;
+        font-family: inherit;
+        min-height: 60px;
+        transition: border-color 0.2s;
+      }
+
+      .comment-textarea:focus {
+        outline: none;
+        border-color: var(--vericase-teal);
+      }
+
+      .comment-input-actions {
+        display: flex;
+        gap: 4px;
+        flex-direction: column;
+      }
+
+      .comment-input-actions button {
+        width: 32px;
+        height: 32px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+      }
+
+      .comment-input-actions .btn-mention {
+        background: var(--gray-200);
+        color: var(--text-secondary);
+      }
+
+      .comment-input-actions .btn-mention:hover {
+        background: var(--vericase-teal);
+        color: white;
+      }
+
+      .comment-input-actions .btn-send {
+        background: var(--vericase-teal);
+        color: white;
+      }
+
+      .comment-input-actions .btn-send:hover {
+        background: var(--vericase-teal-dark);
+      }
+
+      /* Activity Timeline */
+      .activity-timeline {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+
+      .activity-item {
+        display: flex;
+        gap: 12px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--gray-100);
+      }
+
+      .activity-item:last-child {
+        border-bottom: none;
+      }
+
+      .activity-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--gray-100);
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        flex-shrink: 0;
+      }
+
+      .activity-icon.icon-comment { background: #dbeafe; color: #1e40af; }
+      .activity-icon.icon-link { background: #d1fae5; color: #065f46; }
+      .activity-icon.icon-update { background: #fef3c7; color: #92400e; }
+      .activity-icon.icon-create { background: #e9d5ff; color: #7c3aed; }
+
+      .activity-info {
+        flex: 1;
+      }
+
+      .activity-text {
+        font-size: 0.8125rem;
+        color: var(--text-primary);
+        line-height: 1.5;
+      }
+
+      .activity-text strong {
+        color: var(--vericase-navy);
+      }
+
+      .activity-time {
+        font-size: 0.6875rem;
+        color: var(--text-muted);
+        margin-top: 2px;
+      }
+
+      .empty-collab {
+        text-align: center;
+        padding: 32px 16px;
+        color: var(--text-muted);
+      }
+
+      .empty-collab i {
+        font-size: 2rem;
+        color: var(--gray-300);
+        margin-bottom: 12px;
+      }
+
+      .empty-collab p {
+        font-size: 0.875rem;
+        margin: 0;
+      }
+
+      /* AI Result Display */
+      .ai-result-box {
+        background: linear-gradient(180deg, rgba(250, 249, 246, 1) 0%, rgba(255, 255, 255, 1) 100%);
+        border: 1px solid rgba(139, 115, 85, 0.3);
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+
+      .ai-result-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+
+      .ai-result-header h5 {
+        margin: 0;
+        font-size: 0.8125rem;
+        color: var(--vericase-gold);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .ai-result-content {
+        font-size: 0.875rem;
+        line-height: 1.6;
+        color: var(--text-secondary);
+        white-space: pre-wrap;
+      }
+
+      .ai-loading {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--text-muted);
+        font-size: 0.875rem;
+      }
+
+      .ai-loading i {
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      /* Mention Autocomplete Dropdown */
+      .mention-dropdown {
+        position: absolute;
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 1000;
+        min-width: 200px;
+        display: none;
+      }
+
+      .mention-dropdown.visible {
+        display: block;
+      }
+
+      .mention-item {
+        padding: 10px 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-bottom: 1px solid var(--gray-100);
+        transition: background 0.15s;
+      }
+
+      .mention-item:last-child {
+        border-bottom: none;
+      }
+
+      .mention-item:hover,
+      .mention-item.selected {
+        background: var(--bg-tertiary);
+      }
+
+      .mention-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--vc-teal) 0%, var(--vc-teal-dark) 100%);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        flex-shrink: 0;
+      }
+
+      .mention-info {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .mention-name {
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .mention-email {
+        font-size: 0.6875rem;
+        color: var(--text-muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .mention-dropdown-empty {
+        padding: 16px;
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 0.8125rem;
+      }
+
+      /* Evidence Notes Styles */
+      .evidence-group {
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        margin-bottom: 12px;
+        overflow: hidden;
+      }
+
+      .evidence-group-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        background: var(--bg-tertiary);
+        border-bottom: 1px solid var(--border-color);
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+
+      .evidence-group-header:hover {
+        background: var(--gray-100);
+      }
+
+      .evidence-group-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        flex-shrink: 0;
+      }
+
+      .evidence-group-icon.type-evidence {
+        background: #dbeafe;
+        color: #1e40af;
+      }
+
+      .evidence-group-icon.type-correspondence {
+        background: #fef3c7;
+        color: #92400e;
+      }
+
+      .evidence-group-info {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .evidence-group-name {
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .evidence-group-meta {
+        font-size: 0.6875rem;
+        color: var(--text-muted);
+        display: flex;
+        gap: 8px;
+      }
+
+      .evidence-group-badge {
+        background: var(--vericase-teal);
+        color: white;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 100px;
+        min-width: 20px;
+        text-align: center;
+      }
+
+      .evidence-group-badge.empty {
+        background: var(--gray-200);
+        color: var(--text-muted);
+      }
+
+      .evidence-group-toggle {
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        transition: transform 0.2s;
+      }
+
+      .evidence-group.collapsed .evidence-group-toggle {
+        transform: rotate(-90deg);
+      }
+
+      .evidence-group.collapsed .evidence-group-body {
+        display: none;
+      }
+
+      .evidence-group-body {
+        padding: 12px;
+      }
+
+      .evidence-add-comment {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--gray-100);
+      }
+
+      .evidence-add-comment input {
+        flex: 1;
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 0.8125rem;
+        font-family: inherit;
+      }
+
+      .evidence-add-comment input:focus {
+        outline: none;
+        border-color: var(--vericase-teal);
+      }
+
+      .evidence-add-comment button {
+        padding: 8px 12px;
+        background: var(--vericase-teal);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.8125rem;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+
+      .evidence-add-comment button:hover {
+        background: var(--vericase-teal-dark);
+      }
+
+      /* Comment Menu Dropdown */
+      .comment-menu {
+        position: relative;
+      }
+
+      .comment-menu-dropdown {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        min-width: 120px;
+        z-index: 100;
+        display: none;
+      }
+
+      .comment-menu-dropdown.visible {
+        display: block;
+      }
+
+      .comment-menu-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        font-size: 0.8125rem;
+        color: var(--text-primary);
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+
+      .comment-menu-item:first-child {
+        border-radius: 6px 6px 0 0;
+      }
+
+      .comment-menu-item:last-child {
+        border-radius: 0 0 6px 6px;
+      }
+
+      .comment-menu-item:hover {
+        background: var(--bg-tertiary);
+      }
+
+      .comment-menu-item.danger {
+        color: var(--error);
+      }
+
+      .comment-menu-item.danger:hover {
+        background: #fef2f2;
+      }
+
+      /* Comment Edit Mode */
+      .comment-edit-area {
+        margin-top: 8px;
+      }
+
+      .comment-edit-area textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid var(--vericase-teal);
+        border-radius: 6px;
+        font-size: 0.8125rem;
+        font-family: inherit;
+        resize: vertical;
+        min-height: 60px;
+      }
+
+      .comment-edit-area textarea:focus {
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(15, 157, 154, 0.2);
+      }
+
+      .comment-edit-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+        justify-content: flex-end;
+      }
+
+      .comment-edit-actions button {
+        padding: 6px 12px;
+        font-size: 0.75rem;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+
+      .comment-edit-actions .btn-cancel {
+        background: var(--gray-100);
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+      }
+
+      .comment-edit-actions .btn-cancel:hover {
+        background: var(--gray-200);
+      }
+
+      .comment-edit-actions .btn-save {
+        background: var(--vericase-teal);
+        border: none;
+        color: white;
+      }
+
+      .comment-edit-actions .btn-save:hover {
+        background: var(--vericase-teal-dark);
+      }
+
+      /* Comment Search */
+      .comment-search {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .comment-search-input {
+        flex: 1;
+        padding: 8px 12px 8px 32px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 0.8125rem;
+        font-family: inherit;
+        background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23718096' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='M21 21l-4.35-4.35'/%3E%3C/svg%3E") no-repeat 10px center;
+      }
+
+      .comment-search-input:focus {
+        outline: none;
+        border-color: var(--vericase-teal);
+      }
+
+      .comment-search-input::placeholder {
+        color: var(--text-muted);
+      }
+
+      .comment-search-clear {
+        padding: 8px 12px;
+        background: var(--gray-100);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        color: var(--text-secondary);
+        cursor: pointer;
+        font-size: 0.75rem;
+        transition: all 0.15s;
+      }
+
+      .comment-search-clear:hover {
+        background: var(--gray-200);
+      }
+
+      .search-highlight {
+        background: rgba(15, 157, 154, 0.2);
+        padding: 1px 2px;
+        border-radius: 2px;
+      }
+
+      /* Comment Reactions */
+      .comment-reactions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border-color);
+      }
+
+      .reaction-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 100px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+
+      .reaction-btn:hover {
+        background: white;
+        border-color: var(--vericase-teal);
+      }
+
+      .reaction-btn.active {
+        background: rgba(15, 157, 154, 0.1);
+        border-color: var(--vericase-teal);
+      }
+
+      .reaction-btn .emoji {
+        font-size: 1rem;
+      }
+
+      .reaction-btn .count {
+        color: var(--text-secondary);
+        font-weight: 500;
+      }
+
+      .reaction-picker {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        padding: 4px 6px;
+        background: var(--bg-tertiary);
+        border: 1px dashed var(--border-color);
+        border-radius: 100px;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+
+      .reaction-picker:hover {
+        background: white;
+        border-style: solid;
+        border-color: var(--vericase-teal);
+      }
+
+      .reaction-picker-dropdown {
+        position: absolute;
+        bottom: 100%;
+        left: 0;
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        padding: 8px;
+        display: none;
+        z-index: 100;
+        margin-bottom: 4px;
+      }
+
+      .reaction-picker-dropdown.visible {
+        display: flex;
+        gap: 4px;
+      }
+
+      .reaction-picker-emoji {
+        padding: 6px;
+        font-size: 1.25rem;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: background 0.15s;
+      }
+
+      .reaction-picker-emoji:hover {
+        background: var(--bg-tertiary);
+      }
+
+      /* Pinned Comment Styles */
+      .comment-item.pinned {
+        background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+        border: 1px solid #f59e0b;
+        border-left: 4px solid #f59e0b;
+      }
+
+      .pinned-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        background: #f59e0b;
+        color: white;
+        border-radius: 100px;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        margin-left: 8px;
+      }
+
+      .pinned-badge svg {
+        width: 10px;
+        height: 10px;
+      }
+
+      /* Unread Badge */
+      .collab-tab-unread {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        background: var(--error);
+        color: white;
+        border-radius: 100px;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        margin-left: 6px;
+      }
+
+      .comment-item.unread {
+        border-left: 3px solid var(--vericase-teal);
+        background: rgba(15, 157, 154, 0.03);
+      }
+
+      .unread-indicator {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        background: var(--vericase-teal);
+        border-radius: 50%;
+        margin-right: 6px;
+      }
+
+      /* Notification Preferences Modal */
+      .notification-prefs-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: transparent;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        color: var(--text-secondary);
+        cursor: pointer;
+        font-size: 0.75rem;
+        transition: all 0.15s;
+      }
+
+      .notification-prefs-btn:hover {
+        background: var(--bg-tertiary);
+        border-color: var(--vericase-teal);
+        color: var(--vericase-teal);
+      }
+
+      .prefs-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.2s;
+      }
+
+      .prefs-modal-overlay.visible {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      .prefs-modal {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        width: 100%;
+        max-width: 400px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        transform: translateY(-20px);
+        transition: transform 0.2s;
+      }
+
+      .prefs-modal-overlay.visible .prefs-modal {
+        transform: translateY(0);
+      }
+
+      .prefs-modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+      }
+
+      .prefs-modal-header h3 {
+        margin: 0;
+        font-size: 1.125rem;
+        color: var(--text-primary);
+      }
+
+      .prefs-modal-close {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--text-muted);
+        padding: 4px;
+      }
+
+      .prefs-modal-close:hover {
+        color: var(--text-primary);
+      }
+
+      .pref-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .pref-item:last-child {
+        border-bottom: none;
+      }
+
+      .pref-label {
+        font-size: 0.875rem;
+        color: var(--text-primary);
+      }
+
+      .pref-toggle {
+        position: relative;
+        width: 44px;
+        height: 24px;
+        background: var(--gray-300);
+        border-radius: 100px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+
+      .pref-toggle.active {
+        background: var(--vericase-teal);
+      }
+
+      .pref-toggle::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 20px;
+        height: 20px;
+        background: white;
+        border-radius: 50%;
+        transition: transform 0.2s;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .pref-toggle.active::after {
+        transform: translateX(20px);
+      }
     </style>
   </head>
   <body>
@@ -884,7 +1928,8 @@
       async function initPage() {
         await Promise.all([
           loadMatters(),
-          loadStats()
+          loadStats(),
+          loadNotificationPreferences()
         ]);
         // Load all claims initially (no matter filter)
         await loadClaims();
@@ -1355,6 +2400,104 @@
             ${renderLinkedItems(linkedItems.evidence, 'evidence')}
           </div>
 
+          <!-- Collaboration Section -->
+          <div class="collab-section" id="collabSection-${claim.id}">
+            <div class="collab-header" onclick="toggleCollabSection('${claim.id}')">
+              <h4><i class="fas fa-comments"></i> Collaboration</h4>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <button class="notification-prefs-btn" onclick="event.stopPropagation(); openNotificationPrefsModal();" title="Notification Settings">
+                  <i class="fas fa-bell"></i>
+                </button>
+                <i class="fas fa-chevron-down collab-toggle"></i>
+              </div>
+            </div>
+            <div class="collab-body">
+              <div class="collab-tabs">
+                <button class="collab-tab active" onclick="switchCollabTab('${claim.id}', 'discussion')">
+                  <i class="fas fa-comment-dots"></i> Discussion
+                  <span class="collab-tab-unread" id="unreadBadge-${claim.id}" style="display: none;">0</span>
+                </button>
+                <button class="collab-tab" onclick="switchCollabTab('${claim.id}', 'evidence-notes')">
+                  <i class="fas fa-sticky-note"></i> Evidence Notes
+                </button>
+                <button class="collab-tab" onclick="switchCollabTab('${claim.id}', 'activity')">
+                  <i class="fas fa-history"></i> Activity
+                </button>
+              </div>
+
+              <div class="ai-tools-bar">
+                <button class="btn btn-outline btn-sm" onclick="aiSummarize('${claim.id}')">
+                  <i class="fas fa-magic"></i> Summarize
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="aiSuggestEvidence('${claim.id}')">
+                  <i class="fas fa-lightbulb"></i> Suggest Evidence
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="aiDraftReply('${claim.id}')">
+                  <i class="fas fa-pen-fancy"></i> Draft Reply
+                </button>
+              </div>
+
+              <div class="collab-content" id="collabContent-${claim.id}">
+                <div id="aiResultArea-${claim.id}"></div>
+                <div id="discussionTab-${claim.id}" class="collab-tab-content">
+                  <div class="comment-search">
+                    <input type="text"
+                           class="comment-search-input"
+                           id="commentSearch-${claim.id}"
+                           placeholder="Search comments..."
+                           oninput="handleCommentSearch('${claim.id}')"
+                           onkeydown="if(event.key==='Escape'){clearCommentSearch('${claim.id}')}"
+                    >
+                    <button class="comment-search-clear" onclick="clearCommentSearch('${claim.id}')" title="Clear search">
+                      Clear
+                    </button>
+                  </div>
+                  <div class="comment-thread" id="commentThread-${claim.id}">
+                    <div class="empty-collab">
+                      <i class="fas fa-comments"></i>
+                      <p>No comments yet. Start the discussion!</p>
+                    </div>
+                  </div>
+                </div>
+                <div id="evidenceNotesTab-${claim.id}" class="collab-tab-content" style="display: none;">
+                  <div class="empty-collab">
+                    <i class="fas fa-sticky-note"></i>
+                    <p>Comments on linked evidence will appear here</p>
+                  </div>
+                </div>
+                <div id="activityTab-${claim.id}" class="collab-tab-content" style="display: none;">
+                  <div class="activity-timeline" id="activityTimeline-${claim.id}">
+                    <div class="empty-collab">
+                      <i class="fas fa-history"></i>
+                      <p>Activity history will appear here</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="comment-input-area">
+                <div class="comment-input-wrapper" style="position: relative;">
+                  <textarea
+                    class="comment-textarea"
+                    id="commentInput-${claim.id}"
+                    placeholder="Add a comment... Use @ to mention someone"
+                    onkeydown="handleCommentKeydown(event, '${claim.id}')"
+                    oninput="handleCommentInput(event, '${claim.id}')"
+                  ></textarea>
+                  <div class="mention-dropdown" id="mentionDropdown-${claim.id}"></div>
+                  <div class="comment-input-actions">
+                    <button class="btn-mention" title="Mention someone" onclick="showMentionDropdown('${claim.id}')">
+                      <i class="fas fa-at"></i>
+                    </button>
+                    <button class="btn-send" title="Post comment" onclick="postComment('${claim.id}')">
+                      <i class="fas fa-paper-plane"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="detail-section">
             <div class="detail-section-title">Actions</div>
             <div class="action-buttons">
@@ -1367,6 +2510,9 @@
             </div>
           </div>
         `;
+
+        // Load collaboration data for this claim
+        loadClaimCollaboration(claim.id);
       }
 
       // ==========================================
@@ -1957,6 +3103,1312 @@
           VericaseUI.Toast.error('Failed to remove link');
         }
       }
+
+      // ==========================================
+      // Collaboration Functions
+      // ==========================================
+
+      function toggleCollabSection(claimId) {
+        const section = document.getElementById(`collabSection-${claimId}`);
+        if (section) {
+          section.classList.toggle('collapsed');
+        }
+      }
+
+      function switchCollabTab(claimId, tabName) {
+        // Update tab buttons
+        const tabs = document.querySelectorAll(`#collabSection-${claimId} .collab-tab`);
+        tabs.forEach(tab => tab.classList.remove('active'));
+
+        // Find and activate the clicked tab
+        const tabMap = { 'discussion': 0, 'evidence-notes': 1, 'activity': 2 };
+        if (tabs[tabMap[tabName]]) {
+          tabs[tabMap[tabName]].classList.add('active');
+        }
+
+        // Hide all tab contents
+        document.getElementById(`discussionTab-${claimId}`).style.display = 'none';
+        document.getElementById(`evidenceNotesTab-${claimId}`).style.display = 'none';
+        document.getElementById(`activityTab-${claimId}`).style.display = 'none';
+
+        // Show selected tab content
+        if (tabName === 'discussion') {
+          document.getElementById(`discussionTab-${claimId}`).style.display = 'block';
+          // Mark as read after a brief delay to ensure user has seen the content
+          setTimeout(() => markClaimAsRead(claimId), 1000);
+        } else if (tabName === 'evidence-notes') {
+          document.getElementById(`evidenceNotesTab-${claimId}`).style.display = 'block';
+          loadEvidenceComments(claimId);
+        } else if (tabName === 'activity') {
+          document.getElementById(`activityTab-${claimId}`).style.display = 'block';
+          loadClaimActivity(claimId);
+        }
+      }
+
+      let searchDebounceTimers = {};
+      let currentSearchTerms = {};
+
+      async function loadClaimCollaboration(claimId, searchTerm = '') {
+        // Load unread count first to enable unread highlighting
+        await loadUnreadCount(claimId);
+
+        // Load comments
+        try {
+          let url = `/api/claims/heads-of-claim/${claimId}/comments`;
+          if (searchTerm && searchTerm.trim()) {
+            url += `?search=${encodeURIComponent(searchTerm.trim())}`;
+          }
+          const response = await VeriCaseConfig.apiCall(url);
+
+          // Sort pinned comments to top
+          const items = response.items || [];
+          items.sort((a, b) => {
+            if (a.is_pinned && !b.is_pinned) return -1;
+            if (!a.is_pinned && b.is_pinned) return 1;
+            return 0;
+          });
+
+          renderComments(claimId, items, searchTerm);
+        } catch (error) {
+          console.error('Error loading comments:', error);
+        }
+      }
+
+      function handleCommentSearch(claimId) {
+        // Debounce search to avoid too many API calls
+        if (searchDebounceTimers[claimId]) {
+          clearTimeout(searchDebounceTimers[claimId]);
+        }
+
+        searchDebounceTimers[claimId] = setTimeout(() => {
+          const searchInput = document.getElementById(`commentSearch-${claimId}`);
+          const searchTerm = searchInput ? searchInput.value : '';
+          currentSearchTerms[claimId] = searchTerm;
+          loadClaimCollaboration(claimId, searchTerm);
+        }, 300);
+      }
+
+      function clearCommentSearch(claimId) {
+        const searchInput = document.getElementById(`commentSearch-${claimId}`);
+        if (searchInput) {
+          searchInput.value = '';
+        }
+        currentSearchTerms[claimId] = '';
+        loadClaimCollaboration(claimId, '');
+      }
+
+      async function loadEvidenceComments(claimId) {
+        const container = document.getElementById(`evidenceNotesTab-${claimId}`);
+        if (!container) return;
+
+        // Show loading
+        container.innerHTML = `
+          <div class="empty-collab">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Loading evidence notes...</p>
+          </div>
+        `;
+
+        try {
+          const response = await VeriCaseConfig.apiCall(`/api/claims/heads-of-claim/${claimId}/evidence-comments`);
+          const items = response.items || [];
+
+          if (items.length === 0) {
+            container.innerHTML = `
+              <div class="empty-collab">
+                <i class="fas fa-sticky-note"></i>
+                <p>No linked evidence yet. Link evidence items to add notes.</p>
+              </div>
+            `;
+            return;
+          }
+
+          container.innerHTML = items.map(group => renderEvidenceGroup(claimId, group)).join('');
+        } catch (error) {
+          console.error('Error loading evidence comments:', error);
+          container.innerHTML = `
+            <div class="empty-collab">
+              <i class="fas fa-exclamation-triangle"></i>
+              <p>Failed to load evidence notes</p>
+            </div>
+          `;
+        }
+      }
+
+      function renderEvidenceGroup(claimId, group) {
+        const iconClass = group.item_type === 'evidence' ? 'type-evidence' : 'type-correspondence';
+        const icon = group.item_type === 'evidence' ? 'fa-file-alt' : 'fa-envelope';
+        const badgeClass = group.comment_count > 0 ? '' : 'empty';
+        const linkTypeLabel = group.link_type === 'supporting' ? 'Supporting' :
+                              group.link_type === 'contradicting' ? 'Contradicting' : 'Related';
+
+        let commentsHtml = '';
+        if (group.comments.length > 0) {
+          commentsHtml = group.comments.map(comment => renderEvidenceComment(claimId, group.link_id, comment)).join('');
+        } else {
+          commentsHtml = `
+            <div class="empty-collab" style="padding: 16px;">
+              <p>No notes yet</p>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="evidence-group" id="evidenceGroup-${group.link_id}">
+            <div class="evidence-group-header" onclick="toggleEvidenceGroup('${group.link_id}')">
+              <div class="evidence-group-icon ${iconClass}">
+                <i class="fas ${icon}"></i>
+              </div>
+              <div class="evidence-group-info">
+                <div class="evidence-group-name">${escapeHtml(group.item_name)}</div>
+                <div class="evidence-group-meta">
+                  <span>${linkTypeLabel}</span>
+                </div>
+              </div>
+              <div class="evidence-group-badge ${badgeClass}">${group.comment_count}</div>
+              <i class="fas fa-chevron-down evidence-group-toggle"></i>
+            </div>
+            <div class="evidence-group-body">
+              <div class="comment-thread">
+                ${commentsHtml}
+              </div>
+              <div class="evidence-add-comment">
+                <input type="text"
+                       id="evidenceCommentInput-${group.link_id}"
+                       placeholder="Add a note..."
+                       onkeydown="handleEvidenceCommentKeydown(event, '${claimId}', '${group.link_id}')">
+                <button onclick="postEvidenceComment('${claimId}', '${group.link_id}')">
+                  <i class="fas fa-paper-plane"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderEvidenceComment(claimId, linkId, comment, isReply = false) {
+        const timeAgo = formatTimeAgo(new Date(comment.created_at));
+        const initials = getInitials(comment.created_by_name || 'User');
+
+        let repliesHtml = '';
+        if (comment.replies && comment.replies.length > 0) {
+          repliesHtml = comment.replies.map(reply => renderEvidenceComment(claimId, linkId, reply, true)).join('');
+        }
+
+        return `
+          <div class="comment-item ${isReply ? 'reply' : ''}">
+            <div class="comment-header">
+              <div class="comment-author">
+                <div class="comment-avatar">${initials}</div>
+                <div>
+                  <div class="comment-author-name">${escapeHtml(comment.created_by_name || 'User')}</div>
+                  <div class="comment-time">${timeAgo}${comment.is_edited ? ' (edited)' : ''}</div>
+                </div>
+              </div>
+            </div>
+            <div class="comment-content">${escapeHtml(comment.content)}</div>
+            ${repliesHtml}
+          </div>
+        `;
+      }
+
+      function toggleEvidenceGroup(linkId) {
+        const group = document.getElementById(`evidenceGroup-${linkId}`);
+        if (group) {
+          group.classList.toggle('collapsed');
+        }
+      }
+
+      function handleEvidenceCommentKeydown(event, claimId, linkId) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          postEvidenceComment(claimId, linkId);
+        }
+      }
+
+      async function postEvidenceComment(claimId, linkId) {
+        const input = document.getElementById(`evidenceCommentInput-${linkId}`);
+        if (!input) return;
+
+        const content = input.value.trim();
+        if (!content) return;
+
+        try {
+          await VeriCaseConfig.apiCall(`/api/claims/links/${linkId}/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content }),
+          });
+
+          input.value = '';
+          VericaseUI.Toast.success('Note added');
+          loadEvidenceComments(claimId);
+        } catch (error) {
+          console.error('Error posting evidence comment:', error);
+          VericaseUI.Toast.error('Failed to add note');
+        }
+      }
+
+      async function loadClaimActivity(claimId) {
+        const timeline = document.getElementById(`activityTimeline-${claimId}`);
+        if (!timeline) return;
+
+        try {
+          const response = await VeriCaseConfig.apiCall(`/api/claims/heads-of-claim/${claimId}/activity`);
+          const items = response.items || [];
+
+          if (items.length === 0) {
+            timeline.innerHTML = `
+              <div class="empty-collab">
+                <i class="fas fa-history"></i>
+                <p>No activity yet</p>
+              </div>
+            `;
+            return;
+          }
+
+          timeline.innerHTML = items.map(activity => renderActivityItem(activity)).join('');
+        } catch (error) {
+          console.error('Error loading activity:', error);
+          timeline.innerHTML = `
+            <div class="empty-collab">
+              <i class="fas fa-exclamation-triangle"></i>
+              <p>Failed to load activity</p>
+            </div>
+          `;
+        }
+      }
+
+      function renderActivityItem(activity) {
+        const actionIcons = {
+          'claim.created': { icon: 'fa-plus-circle', class: 'icon-create' },
+          'claim.updated': { icon: 'fa-edit', class: 'icon-update' },
+          'comment.created': { icon: 'fa-comment', class: 'icon-comment' },
+          'evidence.linked': { icon: 'fa-link', class: 'icon-link' },
+        };
+
+        const actionTexts = {
+          'claim.created': 'created this claim',
+          'claim.updated': 'updated this claim',
+          'comment.created': 'added a comment',
+          'evidence.linked': 'linked evidence',
+        };
+
+        const config = actionIcons[activity.action] || { icon: 'fa-circle', class: '' };
+        const actionText = actionTexts[activity.action] || activity.action;
+        const timeAgo = formatTimeAgo(new Date(activity.created_at));
+
+        return `
+          <div class="activity-item">
+            <div class="activity-icon ${config.class}">
+              <i class="fas ${config.icon}"></i>
+            </div>
+            <div class="activity-info">
+              <div class="activity-text">
+                <strong>${escapeHtml(activity.user_name || 'Someone')}</strong> ${actionText}
+              </div>
+              <div class="activity-time">${timeAgo}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderComments(claimId, comments, searchTerm = '') {
+        const thread = document.getElementById(`commentThread-${claimId}`);
+        if (!thread) return;
+
+        if (comments.length === 0) {
+          const message = searchTerm
+            ? `No comments matching "${escapeHtml(searchTerm)}"`
+            : 'No comments yet. Start the discussion!';
+          thread.innerHTML = `
+            <div class="empty-collab">
+              <i class="fas ${searchTerm ? 'fa-search' : 'fa-comments'}"></i>
+              <p>${message}</p>
+            </div>
+          `;
+          return;
+        }
+
+        thread.innerHTML = comments.map(comment => renderCommentItem(comment, claimId, false, searchTerm)).join('');
+      }
+
+      function renderCommentItem(comment, claimId, isReply = false, searchTerm = '') {
+        const timeAgo = formatTimeAgo(new Date(comment.created_at));
+        const initials = getInitials(comment.created_by_name || 'User');
+        let contentRendered = renderMarkdown(comment.content);
+        const contentEscaped = escapeHtml(comment.content);
+
+        // Highlight search term if present
+        if (searchTerm && searchTerm.trim()) {
+          const escapedTerm = escapeHtml(searchTerm).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(`(${escapedTerm})`, 'gi');
+          contentRendered = contentRendered.replace(regex, '<span class="search-highlight">$1</span>');
+        }
+
+        let repliesHtml = '';
+        if (comment.replies && comment.replies.length > 0) {
+          repliesHtml = comment.replies.map(reply => renderCommentItem(reply, claimId, true)).join('');
+        }
+
+        // Check if pinned and unread
+        const isPinned = comment.is_pinned;
+        const isUnread = !isReply && isCommentUnread(comment, claimId);
+        const pinnedBadge = isPinned ? `<span class="pinned-badge"><i class="fas fa-thumbtack"></i> Pinned</span>` : '';
+        const unreadIndicator = isUnread ? '<span class="unread-indicator"></span>' : '';
+        const pinLabel = isPinned ? 'Unpin' : 'Pin';
+        const pinIcon = isPinned ? 'fa-thumbtack' : 'fa-thumbtack';
+
+        // Build classes
+        let itemClasses = ['comment-item'];
+        if (isReply) itemClasses.push('reply');
+        if (isPinned) itemClasses.push('pinned');
+        if (isUnread) itemClasses.push('unread');
+
+        return `
+          <div class="${itemClasses.join(' ')}" id="commentItem-${comment.id}">
+            <div class="comment-header">
+              <div class="comment-author">
+                <div class="comment-avatar">${initials}</div>
+                <div>
+                  <div class="comment-author-name">
+                    ${unreadIndicator}${escapeHtml(comment.created_by_name || 'User')}${pinnedBadge}
+                  </div>
+                  <div class="comment-time">${timeAgo}${comment.is_edited ? ' (edited)' : ''}</div>
+                </div>
+              </div>
+              <div class="comment-menu">
+                <button class="btn btn-ghost btn-icon btn-sm" onclick="toggleCommentMenu('${comment.id}', event)">
+                  <i class="fas fa-ellipsis-h"></i>
+                </button>
+                <div class="comment-menu-dropdown" id="commentMenu-${comment.id}">
+                  ${!isReply ? `
+                  <div class="comment-menu-item" onclick="togglePinComment('${claimId}', '${comment.id}')">
+                    <i class="fas ${pinIcon}"></i> ${pinLabel}
+                  </div>
+                  ` : ''}
+                  <div class="comment-menu-item" onclick="extractCommentTags('${comment.id}')">
+                    <i class="fas fa-tags"></i> Extract Tags
+                  </div>
+                  <div class="comment-menu-item" onclick="startEditComment('${claimId}', '${comment.id}')">
+                    <i class="fas fa-edit"></i> Edit
+                  </div>
+                  <div class="comment-menu-item danger" onclick="deleteComment('${claimId}', '${comment.id}')">
+                    <i class="fas fa-trash"></i> Delete
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="comment-content" id="commentContent-${comment.id}" data-raw="${contentEscaped}">${contentRendered}</div>
+            <div class="comment-tags" id="commentTags-${comment.id}"></div>
+            <div class="comment-actions" id="commentActions-${comment.id}">
+              <button onclick="replyToComment('${claimId}', '${comment.id}')">
+                <i class="fas fa-reply"></i> Reply
+              </button>
+              <button onclick="quoteComment('${claimId}', '${comment.id}', '${contentEscaped.substring(0, 50)}')">
+                <i class="fas fa-quote-left"></i> Quote
+              </button>
+            </div>
+            <div class="comment-reactions" id="reactions-${comment.id}">
+              <div class="reaction-picker" onclick="toggleReactionPicker(event, '${comment.id}')">
+                <i class="fas fa-smile" style="font-size: 0.875rem; color: var(--text-muted);"></i>
+                <div class="reaction-picker-dropdown" id="reactionPicker-${comment.id}">
+                  ${ALLOWED_EMOJIS.map(e => `
+                    <span class="reaction-picker-emoji" onclick="event.stopPropagation(); toggleReaction('${claimId}', '${comment.id}', '${e}'); closeReactionPicker();">${e}</span>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+            ${repliesHtml}
+          </div>
+        `;
+      }
+
+      function getInitials(name) {
+        if (!name) return '?';
+        const parts = name.split(/[\s@]+/);
+        if (parts.length >= 2) {
+          return (parts[0][0] + parts[1][0]).toUpperCase();
+        }
+        return name.substring(0, 2).toUpperCase();
+      }
+
+      function renderMarkdown(text) {
+        // First escape HTML to prevent XSS
+        let html = escapeHtml(text);
+
+        // Bold: **text** or __text__
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
+
+        // Italic: *text* or _text_ (but not inside words)
+        html = html.replace(/(?<![a-zA-Z])\*([^*\n]+)\*(?![a-zA-Z])/g, '<em>$1</em>');
+        html = html.replace(/(?<![a-zA-Z])_([^_\n]+)_(?![a-zA-Z])/g, '<em>$1</em>');
+
+        // Inline code: `code`
+        html = html.replace(/`([^`\n]+)`/g, '<code style="background: var(--gray-100); padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 0.875em;">$1</code>');
+
+        // Links: [text](url) - only allow http/https
+        html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color: var(--vericase-teal);">$1</a>');
+
+        // Line breaks
+        html = html.replace(/\n/g, '<br>');
+
+        // Quote blocks: > text (at start of line)
+        html = html.replace(/^&gt;\s*(.+)$/gm, '<span style="border-left: 3px solid var(--gray-300); padding-left: 10px; color: var(--text-muted); display: block; margin: 4px 0;">$1</span>');
+
+        // @mentions - highlight them
+        html = html.replace(/@&quot;([^&]+)&quot;/g, '<span style="color: var(--vericase-teal); font-weight: 500;">@"$1"</span>');
+        html = html.replace(/@([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g, '<span style="color: var(--vericase-teal); font-weight: 500;">@$1</span>');
+
+        return html;
+      }
+
+      function formatTimeAgo(date) {
+        const now = new Date();
+        const diff = now - date;
+        const minutes = Math.floor(diff / 60000);
+        const hours = Math.floor(diff / 3600000);
+        const days = Math.floor(diff / 86400000);
+
+        if (minutes < 1) return 'just now';
+        if (minutes < 60) return `${minutes} min ago`;
+        if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+        if (days < 7) return `${days} day${days > 1 ? 's' : ''} ago`;
+        return date.toLocaleDateString();
+      }
+
+      let replyingToCommentId = null;
+
+      function replyToComment(claimId, commentId) {
+        replyingToCommentId = commentId;
+        const input = document.getElementById(`commentInput-${claimId}`);
+        if (input) {
+          input.focus();
+          input.placeholder = 'Replying to comment... (Esc to cancel)';
+        }
+      }
+
+      function quoteComment(claimId, commentId, preview) {
+        const input = document.getElementById(`commentInput-${claimId}`);
+        if (input) {
+          input.value = `> ${preview}...\n\n`;
+          input.focus();
+        }
+      }
+
+      // Mention autocomplete state
+      const teamMembersCache = {};
+      let mentionState = {
+        active: false,
+        claimId: null,
+        startPos: 0,
+        selectedIndex: 0,
+        filteredMembers: [],
+      };
+
+      async function loadTeamMembers(claimId) {
+        if (teamMembersCache[claimId]) return teamMembersCache[claimId];
+
+        try {
+          const response = await VeriCaseConfig.apiCall(`/api/claims/heads-of-claim/${claimId}/team-members`);
+          teamMembersCache[claimId] = response.items || [];
+          return teamMembersCache[claimId];
+        } catch (error) {
+          console.error('Error loading team members:', error);
+          return [];
+        }
+      }
+
+      function handleCommentInput(event, claimId) {
+        const input = event.target;
+        const cursorPos = input.selectionStart;
+        const text = input.value;
+
+        // Check if we're in a mention context (find @ before cursor)
+        const beforeCursor = text.substring(0, cursorPos);
+        const lastAtIndex = beforeCursor.lastIndexOf('@');
+
+        if (lastAtIndex !== -1) {
+          const textAfterAt = beforeCursor.substring(lastAtIndex + 1);
+          // Only trigger if @ is at start or after whitespace, and no space after @
+          const charBeforeAt = lastAtIndex > 0 ? beforeCursor[lastAtIndex - 1] : ' ';
+
+          if ((charBeforeAt === ' ' || charBeforeAt === '\n' || lastAtIndex === 0) && !textAfterAt.includes(' ')) {
+            showMentionDropdown(claimId, textAfterAt, lastAtIndex);
+            return;
+          }
+        }
+
+        hideMentionDropdown(claimId);
+      }
+
+      async function showMentionDropdown(claimId, searchText = '', startPos = null) {
+        const dropdown = document.getElementById(`mentionDropdown-${claimId}`);
+        const input = document.getElementById(`commentInput-${claimId}`);
+        if (!dropdown || !input) return;
+
+        const members = await loadTeamMembers(claimId);
+
+        // If called from @ button click, insert @ first
+        if (startPos === null) {
+          const cursorPos = input.selectionStart;
+          const before = input.value.substring(0, cursorPos);
+          const after = input.value.substring(cursorPos);
+          input.value = before + '@' + after;
+          input.selectionStart = input.selectionEnd = cursorPos + 1;
+          input.focus();
+          startPos = cursorPos;
+          searchText = '';
+        }
+
+        mentionState = {
+          active: true,
+          claimId,
+          startPos,
+          selectedIndex: 0,
+          filteredMembers: [],
+        };
+
+        // Filter members
+        const search = searchText.toLowerCase();
+        mentionState.filteredMembers = members.filter(m => {
+          const name = (m.display_name || '').toLowerCase();
+          const email = m.email.toLowerCase();
+          return name.includes(search) || email.includes(search);
+        });
+
+        if (mentionState.filteredMembers.length === 0) {
+          dropdown.innerHTML = '<div class="mention-dropdown-empty">No matching team members</div>';
+        } else {
+          dropdown.innerHTML = mentionState.filteredMembers.map((member, index) => {
+            const initials = getInitials(member.display_name || member.email);
+            const name = member.display_name || member.email.split('@')[0];
+            const selected = index === mentionState.selectedIndex ? 'selected' : '';
+            return `
+              <div class="mention-item ${selected}"
+                   data-index="${index}"
+                   onclick="selectMention('${claimId}', ${index})">
+                <div class="mention-avatar">${initials}</div>
+                <div class="mention-info">
+                  <div class="mention-name">${escapeHtml(name)}</div>
+                  <div class="mention-email">${escapeHtml(member.email)}</div>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        // Position dropdown below textarea
+        dropdown.classList.add('visible');
+      }
+
+      function hideMentionDropdown(claimId) {
+        const dropdown = document.getElementById(`mentionDropdown-${claimId}`);
+        if (dropdown) {
+          dropdown.classList.remove('visible');
+        }
+        mentionState.active = false;
+      }
+
+      function selectMention(claimId, index) {
+        const member = mentionState.filteredMembers[index];
+        if (!member) return;
+
+        const input = document.getElementById(`commentInput-${claimId}`);
+        if (!input) return;
+
+        const before = input.value.substring(0, mentionState.startPos);
+        const after = input.value.substring(input.selectionStart);
+
+        // Use @"Display Name" format if display_name exists, otherwise @email
+        const mentionText = member.display_name
+          ? `@"${member.display_name}" `
+          : `@${member.email} `;
+
+        input.value = before + mentionText + after;
+        const newCursorPos = before.length + mentionText.length;
+        input.selectionStart = input.selectionEnd = newCursorPos;
+        input.focus();
+
+        hideMentionDropdown(claimId);
+      }
+
+      function handleCommentKeydown(event, claimId) {
+        // Handle mention dropdown navigation
+        if (mentionState.active && mentionState.claimId === claimId) {
+          if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            if (mentionState.selectedIndex < mentionState.filteredMembers.length - 1) {
+              mentionState.selectedIndex++;
+              updateMentionSelection(claimId);
+            }
+            return;
+          } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            if (mentionState.selectedIndex > 0) {
+              mentionState.selectedIndex--;
+              updateMentionSelection(claimId);
+            }
+            return;
+          } else if (event.key === 'Enter' || event.key === 'Tab') {
+            event.preventDefault();
+            if (mentionState.filteredMembers.length > 0) {
+              selectMention(claimId, mentionState.selectedIndex);
+            }
+            return;
+          } else if (event.key === 'Escape') {
+            event.preventDefault();
+            hideMentionDropdown(claimId);
+            return;
+          }
+        }
+
+        // Standard keyboard shortcuts
+        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+          event.preventDefault();
+          postComment(claimId);
+        } else if (event.key === 'Escape') {
+          replyingToCommentId = null;
+          hideMentionDropdown(claimId);
+          const input = document.getElementById(`commentInput-${claimId}`);
+          if (input) {
+            input.placeholder = 'Add a comment... Use @ to mention someone';
+          }
+        }
+      }
+
+      function updateMentionSelection(claimId) {
+        const dropdown = document.getElementById(`mentionDropdown-${claimId}`);
+        if (!dropdown) return;
+
+        const items = dropdown.querySelectorAll('.mention-item');
+        items.forEach((item, index) => {
+          if (index === mentionState.selectedIndex) {
+            item.classList.add('selected');
+            item.scrollIntoView({ block: 'nearest' });
+          } else {
+            item.classList.remove('selected');
+          }
+        });
+      }
+
+      async function postComment(claimId) {
+        const input = document.getElementById(`commentInput-${claimId}`);
+        if (!input) return;
+
+        const content = input.value.trim();
+        if (!content) {
+          VericaseUI.Toast.warning('Please enter a comment');
+          return;
+        }
+
+        try {
+          const payload = { content };
+          if (replyingToCommentId) {
+            payload.parent_comment_id = replyingToCommentId;
+          }
+
+          await VeriCaseConfig.apiCall(`/api/claims/heads-of-claim/${claimId}/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+
+          // Clear input and reload comments
+          input.value = '';
+          replyingToCommentId = null;
+          input.placeholder = 'Add a comment... Use @ to mention someone';
+
+          VericaseUI.Toast.success('Comment posted');
+          await loadClaimCollaboration(claimId);
+        } catch (error) {
+          console.error('Error posting comment:', error);
+          VericaseUI.Toast.error('Failed to post comment');
+        }
+      }
+
+      let activeCommentMenu = null;
+
+      function toggleCommentMenu(commentId, event) {
+        event.stopPropagation();
+
+        // Close any other open menu
+        if (activeCommentMenu && activeCommentMenu !== commentId) {
+          const oldMenu = document.getElementById(`commentMenu-${activeCommentMenu}`);
+          if (oldMenu) oldMenu.classList.remove('visible');
+        }
+
+        const menu = document.getElementById(`commentMenu-${commentId}`);
+        if (!menu) return;
+
+        if (menu.classList.contains('visible')) {
+          menu.classList.remove('visible');
+          activeCommentMenu = null;
+        } else {
+          menu.classList.add('visible');
+          activeCommentMenu = commentId;
+        }
+      }
+
+      // Close menu when clicking outside
+      document.addEventListener('click', () => {
+        if (activeCommentMenu) {
+          const menu = document.getElementById(`commentMenu-${activeCommentMenu}`);
+          if (menu) menu.classList.remove('visible');
+          activeCommentMenu = null;
+        }
+      });
+
+      let editingCommentId = null;
+      let editingCommentOriginalContent = '';
+
+      function startEditComment(claimId, commentId) {
+        // Close menu
+        const menu = document.getElementById(`commentMenu-${commentId}`);
+        if (menu) menu.classList.remove('visible');
+        activeCommentMenu = null;
+
+        // Get current content (use data-raw to get original markdown)
+        const contentDiv = document.getElementById(`commentContent-${commentId}`);
+        const actionsDiv = document.getElementById(`commentActions-${commentId}`);
+        if (!contentDiv) return;
+
+        editingCommentId = commentId;
+        // Get raw content from data attribute, decode HTML entities
+        const rawContent = contentDiv.dataset.raw || contentDiv.textContent;
+        editingCommentOriginalContent = rawContent.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+
+        // Replace content with textarea
+        contentDiv.innerHTML = `
+          <div class="comment-edit-area">
+            <textarea id="editCommentInput-${commentId}">${escapeHtml(editingCommentOriginalContent)}</textarea>
+            <div class="comment-edit-actions">
+              <button class="btn-cancel" onclick="cancelEditComment('${claimId}', '${commentId}')">Cancel</button>
+              <button class="btn-save" onclick="saveEditComment('${claimId}', '${commentId}')">Save</button>
+            </div>
+          </div>
+        `;
+
+        // Hide actions while editing
+        if (actionsDiv) actionsDiv.style.display = 'none';
+
+        // Focus the textarea
+        const textarea = document.getElementById(`editCommentInput-${commentId}`);
+        if (textarea) {
+          textarea.focus();
+          textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        }
+      }
+
+      function cancelEditComment(claimId, commentId) {
+        const contentDiv = document.getElementById(`commentContent-${commentId}`);
+        const actionsDiv = document.getElementById(`commentActions-${commentId}`);
+
+        if (contentDiv) {
+          contentDiv.innerHTML = escapeHtml(editingCommentOriginalContent);
+        }
+        if (actionsDiv) {
+          actionsDiv.style.display = '';
+        }
+
+        editingCommentId = null;
+        editingCommentOriginalContent = '';
+      }
+
+      async function saveEditComment(claimId, commentId) {
+        const textarea = document.getElementById(`editCommentInput-${commentId}`);
+        if (!textarea) return;
+
+        const newContent = textarea.value.trim();
+        if (!newContent) {
+          VericaseUI.Toast.warning('Comment cannot be empty');
+          return;
+        }
+
+        if (newContent === editingCommentOriginalContent) {
+          cancelEditComment(claimId, commentId);
+          return;
+        }
+
+        try {
+          await VeriCaseConfig.apiCall(`/api/claims/comments/${commentId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: newContent }),
+          });
+
+          VericaseUI.Toast.success('Comment updated');
+          editingCommentId = null;
+          editingCommentOriginalContent = '';
+
+          // Reload comments
+          await loadClaimCollaboration(claimId);
+        } catch (error) {
+          console.error('Error updating comment:', error);
+          VericaseUI.Toast.error('Failed to update comment');
+        }
+      }
+
+      async function deleteComment(claimId, commentId) {
+        // Close menu
+        const menu = document.getElementById(`commentMenu-${commentId}`);
+        if (menu) menu.classList.remove('visible');
+        activeCommentMenu = null;
+
+        if (!confirm('Delete this comment? This cannot be undone.')) return;
+
+        try {
+          await VeriCaseConfig.apiCall(`/api/claims/comments/${commentId}`, {
+            method: 'DELETE',
+          });
+
+          VericaseUI.Toast.success('Comment deleted');
+          await loadClaimCollaboration(claimId);
+        } catch (error) {
+          console.error('Error deleting comment:', error);
+          VericaseUI.Toast.error('Failed to delete comment');
+        }
+      }
+
+      async function extractCommentTags(commentId) {
+        // Close menu
+        const menu = document.getElementById(`commentMenu-${commentId}`);
+        if (menu) menu.classList.remove('visible');
+        activeCommentMenu = null;
+
+        const tagsContainer = document.getElementById(`commentTags-${commentId}`);
+        if (!tagsContainer) return;
+
+        // Show loading
+        tagsContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 0.75rem;"><i class="fas fa-spinner fa-spin"></i> Extracting...</span>';
+
+        try {
+          const response = await VeriCaseConfig.apiCall(`/api/claims/comments/${commentId}/ai/auto-tag`, {
+            method: 'POST',
+          });
+
+          const tags = response.tags || [];
+
+          if (tags.length === 0) {
+            tagsContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 0.75rem;">No tags found</span>';
+            setTimeout(() => { tagsContainer.innerHTML = ''; }, 2000);
+            return;
+          }
+
+          tagsContainer.innerHTML = tags.map(tag => {
+            const typeClass = `tag-${tag.type}`;
+            const icon = tag.type === 'date' ? 'fa-calendar' :
+                         tag.type === 'amount' ? 'fa-pound-sign' :
+                         tag.type === 'clause' ? 'fa-gavel' :
+                         'fa-bookmark';
+            return `<span class="comment-tag ${typeClass}"><i class="fas ${icon}"></i> ${escapeHtml(tag.value)}</span>`;
+          }).join('');
+
+          VericaseUI.Toast.success(`Found ${tags.length} tag${tags.length > 1 ? 's' : ''}`);
+        } catch (error) {
+          console.error('Error extracting tags:', error);
+          tagsContainer.innerHTML = '';
+          VericaseUI.Toast.error('Failed to extract tags');
+        }
+      }
+
+      // AI Functions
+      async function aiSummarize(claimId) {
+        const resultArea = document.getElementById(`aiResultArea-${claimId}`);
+        if (!resultArea) return;
+
+        resultArea.innerHTML = `
+          <div class="ai-result-box">
+            <div class="ai-loading">
+              <i class="fas fa-spinner fa-spin"></i> Generating summary...
+            </div>
+          </div>
+        `;
+
+        try {
+          const response = await VeriCaseConfig.apiCall(`/api/claims/heads-of-claim/${claimId}/ai/summarize`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ max_length: 300 }),
+          });
+
+          resultArea.innerHTML = `
+            <div class="ai-result-box">
+              <div class="ai-result-header">
+                <h5><i class="fas fa-magic"></i> AI Summary</h5>
+                <button class="btn btn-ghost btn-sm" onclick="this.closest('.ai-result-box').remove()">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+              <div class="ai-result-content">${escapeHtml(response.result)}</div>
+            </div>
+          `;
+        } catch (error) {
+          console.error('AI summarize error:', error);
+          resultArea.innerHTML = `
+            <div class="ai-result-box">
+              <div class="ai-result-header">
+                <h5 style="color: var(--error);"><i class="fas fa-exclamation-triangle"></i> Error</h5>
+                <button class="btn btn-ghost btn-sm" onclick="this.closest('.ai-result-box').remove()">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+              <div class="ai-result-content">Failed to generate summary. Please try again.</div>
+            </div>
+          `;
+        }
+      }
+
+      async function aiSuggestEvidence(claimId) {
+        const resultArea = document.getElementById(`aiResultArea-${claimId}`);
+        if (!resultArea) return;
+
+        resultArea.innerHTML = `
+          <div class="ai-result-box">
+            <div class="ai-loading">
+              <i class="fas fa-spinner fa-spin"></i> Analyzing evidence...
+            </div>
+          </div>
+        `;
+
+        try {
+          const response = await VeriCaseConfig.apiCall(`/api/claims/heads-of-claim/${claimId}/ai/suggest-evidence`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          });
+
+          resultArea.innerHTML = `
+            <div class="ai-result-box">
+              <div class="ai-result-header">
+                <h5><i class="fas fa-lightbulb"></i> Evidence Suggestions</h5>
+                <button class="btn btn-ghost btn-sm" onclick="this.closest('.ai-result-box').remove()">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+              <div class="ai-result-content">${escapeHtml(response.result)}</div>
+            </div>
+          `;
+        } catch (error) {
+          console.error('AI suggest evidence error:', error);
+          resultArea.innerHTML = `
+            <div class="ai-result-box">
+              <div class="ai-result-header">
+                <h5 style="color: var(--error);"><i class="fas fa-exclamation-triangle"></i> Error</h5>
+                <button class="btn btn-ghost btn-sm" onclick="this.closest('.ai-result-box').remove()">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+              <div class="ai-result-content">Failed to suggest evidence. Please try again.</div>
+            </div>
+          `;
+        }
+      }
+
+      async function aiDraftReply(claimId) {
+        const resultArea = document.getElementById(`aiResultArea-${claimId}`);
+        if (!resultArea) return;
+
+        resultArea.innerHTML = `
+          <div class="ai-result-box">
+            <div class="ai-loading">
+              <i class="fas fa-spinner fa-spin"></i> Drafting reply...
+            </div>
+          </div>
+        `;
+
+        try {
+          const response = await VeriCaseConfig.apiCall(`/api/claims/heads-of-claim/${claimId}/ai/draft-reply`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tone: 'professional' }),
+          });
+
+          resultArea.innerHTML = `
+            <div class="ai-result-box">
+              <div class="ai-result-header">
+                <h5><i class="fas fa-pen-fancy"></i> Draft Reply</h5>
+                <button class="btn btn-ghost btn-sm" onclick="this.closest('.ai-result-box').remove()">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+              <div class="ai-result-content">${escapeHtml(response.result)}</div>
+              <div style="margin-top: 12px;">
+                <button class="btn btn-vericase btn-sm" onclick="useAIDraft('${claimId}', this)">
+                  <i class="fas fa-check"></i> Use This Draft
+                </button>
+              </div>
+            </div>
+          `;
+        } catch (error) {
+          console.error('AI draft reply error:', error);
+          resultArea.innerHTML = `
+            <div class="ai-result-box">
+              <div class="ai-result-header">
+                <h5 style="color: var(--error);"><i class="fas fa-exclamation-triangle"></i> Error</h5>
+                <button class="btn btn-ghost btn-sm" onclick="this.closest('.ai-result-box').remove()">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+              <div class="ai-result-content">Failed to draft reply. Please try again.</div>
+            </div>
+          `;
+        }
+      }
+
+      function useAIDraft(claimId, button) {
+        const resultBox = button.closest('.ai-result-box');
+        const content = resultBox.querySelector('.ai-result-content').textContent;
+        const input = document.getElementById(`commentInput-${claimId}`);
+        if (input) {
+          input.value = content;
+          input.focus();
+        }
+        resultBox.remove();
+      }
+
+      // =============================================================================
+      // Comment Reactions
+      // =============================================================================
+
+      const ALLOWED_EMOJIS = ['👍', '👎', '❤️', '🎉', '🤔', '👀'];
+      let activeReactionPicker = null;
+
+      async function toggleReaction(claimId, commentId, emoji) {
+        try {
+          const response = await VeriCaseConfig.apiCall(`/api/claims/comments/${commentId}/reactions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emoji }),
+          });
+
+          // Update the reactions display
+          renderReactions(commentId, response.reactions);
+        } catch (error) {
+          console.error('Error toggling reaction:', error);
+          VericaseUI.Toast.error('Failed to update reaction');
+        }
+      }
+
+      function renderReactions(commentId, reactions) {
+        const container = document.getElementById(`reactions-${commentId}`);
+        if (!container) return;
+
+        let html = '';
+
+        // Render existing reactions
+        for (const r of reactions || []) {
+          const activeClass = r.user_reacted ? 'active' : '';
+          const tooltip = r.users.join(', ');
+          html += `
+            <button class="reaction-btn ${activeClass}"
+                    onclick="toggleReaction(null, '${commentId}', '${r.emoji}')"
+                    title="${tooltip}">
+              <span class="emoji">${r.emoji}</span>
+              <span class="count">${r.count}</span>
+            </button>
+          `;
+        }
+
+        // Reaction picker
+        html += `
+          <div class="reaction-picker" onclick="toggleReactionPicker(event, '${commentId}')">
+            <i class="fas fa-smile" style="font-size: 0.875rem; color: var(--text-muted);"></i>
+            <div class="reaction-picker-dropdown" id="reactionPicker-${commentId}">
+              ${ALLOWED_EMOJIS.map(e => `
+                <span class="reaction-picker-emoji" onclick="event.stopPropagation(); toggleReaction(null, '${commentId}', '${e}'); closeReactionPicker();">${e}</span>
+              `).join('')}
+            </div>
+          </div>
+        `;
+
+        container.innerHTML = html;
+      }
+
+      function toggleReactionPicker(event, commentId) {
+        event.stopPropagation();
+        const picker = document.getElementById(`reactionPicker-${commentId}`);
+
+        // Close any open picker
+        if (activeReactionPicker && activeReactionPicker !== picker) {
+          activeReactionPicker.classList.remove('visible');
+        }
+
+        picker.classList.toggle('visible');
+        activeReactionPicker = picker.classList.contains('visible') ? picker : null;
+      }
+
+      function closeReactionPicker() {
+        if (activeReactionPicker) {
+          activeReactionPicker.classList.remove('visible');
+          activeReactionPicker = null;
+        }
+      }
+
+      // Close picker when clicking outside
+      document.addEventListener('click', () => closeReactionPicker());
+
+      // =============================================================================
+      // Comment Pinning
+      // =============================================================================
+
+      async function togglePinComment(claimId, commentId) {
+        // Close menu
+        const menu = document.getElementById(`commentMenu-${commentId}`);
+        if (menu) menu.classList.remove('visible');
+        activeCommentMenu = null;
+
+        try {
+          const response = await VeriCaseConfig.apiCall(`/api/claims/comments/${commentId}/pin`, {
+            method: 'POST',
+          });
+
+          VericaseUI.Toast.success(response.status === 'pinned' ? 'Comment pinned' : 'Comment unpinned');
+          await loadClaimCollaboration(claimId);
+        } catch (error) {
+          console.error('Error toggling pin:', error);
+          VericaseUI.Toast.error('Failed to toggle pin');
+        }
+      }
+
+      // =============================================================================
+      // Read/Unread Tracking
+      // =============================================================================
+
+      const claimReadStatus = {}; // Cache last_read_at per claim
+
+      async function loadUnreadCount(claimId) {
+        try {
+          const response = await VeriCaseConfig.apiCall(`/api/claims/heads-of-claim/${claimId}/unread-count`);
+          claimReadStatus[claimId] = response.last_read_at ? new Date(response.last_read_at) : null;
+          updateUnreadBadge(claimId, response.unread_count);
+          return response;
+        } catch (error) {
+          console.error('Error loading unread count:', error);
+          return { unread_count: 0, last_read_at: null };
+        }
+      }
+
+      function updateUnreadBadge(claimId, count) {
+        const badge = document.getElementById(`unreadBadge-${claimId}`);
+        if (badge) {
+          if (count > 0) {
+            badge.textContent = count > 99 ? '99+' : count;
+            badge.style.display = 'inline-flex';
+          } else {
+            badge.style.display = 'none';
+          }
+        }
+      }
+
+      async function markClaimAsRead(claimId) {
+        try {
+          await VeriCaseConfig.apiCall(`/api/claims/heads-of-claim/${claimId}/mark-read`, {
+            method: 'POST',
+          });
+          claimReadStatus[claimId] = new Date();
+          updateUnreadBadge(claimId, 0);
+        } catch (error) {
+          console.error('Error marking as read:', error);
+        }
+      }
+
+      function isCommentUnread(comment, claimId) {
+        const lastRead = claimReadStatus[claimId];
+        if (!lastRead) return true; // Never read = all unread
+        return new Date(comment.created_at) > lastRead;
+      }
+
+      // =============================================================================
+      // Notification Preferences
+      // =============================================================================
+
+      let notificationPrefs = {
+        email_mentions: true,
+        email_replies: true,
+        email_claim_updates: true,
+        email_daily_digest: false,
+      };
+
+      async function loadNotificationPreferences() {
+        try {
+          const response = await VeriCaseConfig.apiCall('/api/claims/notification-preferences');
+          notificationPrefs = response;
+          return response;
+        } catch (error) {
+          console.error('Error loading notification preferences:', error);
+          return notificationPrefs;
+        }
+      }
+
+      async function updateNotificationPreference(key, value) {
+        try {
+          const response = await VeriCaseConfig.apiCall('/api/claims/notification-preferences', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [key]: value }),
+          });
+          notificationPrefs = response;
+          VericaseUI.Toast.success('Preferences updated');
+        } catch (error) {
+          console.error('Error updating notification preferences:', error);
+          VericaseUI.Toast.error('Failed to update preferences');
+        }
+      }
+
+      function openNotificationPrefsModal() {
+        const overlay = document.getElementById('notificationPrefsOverlay');
+        if (!overlay) return;
+
+        // Update toggles to match current state
+        document.getElementById('prefMentions').classList.toggle('active', notificationPrefs.email_mentions);
+        document.getElementById('prefReplies').classList.toggle('active', notificationPrefs.email_replies);
+        document.getElementById('prefClaimUpdates').classList.toggle('active', notificationPrefs.email_claim_updates);
+        document.getElementById('prefDailyDigest').classList.toggle('active', notificationPrefs.email_daily_digest);
+
+        overlay.classList.add('visible');
+      }
+
+      function closeNotificationPrefsModal() {
+        const overlay = document.getElementById('notificationPrefsOverlay');
+        if (overlay) {
+          overlay.classList.remove('visible');
+        }
+      }
+
+      function toggleNotificationPref(key, element) {
+        const isActive = element.classList.toggle('active');
+        updateNotificationPreference(key, isActive);
+      }
     </script>
+
+    <!-- Notification Preferences Modal -->
+    <div class="prefs-modal-overlay" id="notificationPrefsOverlay" onclick="if(event.target === this) closeNotificationPrefsModal()">
+      <div class="prefs-modal">
+        <div class="prefs-modal-header">
+          <h3><i class="fas fa-bell" style="color: var(--vericase-teal); margin-right: 8px;"></i>Notification Settings</h3>
+          <button class="prefs-modal-close" onclick="closeNotificationPrefsModal()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="pref-item">
+          <span class="pref-label">Email when @mentioned</span>
+          <div class="pref-toggle" id="prefMentions" onclick="toggleNotificationPref('email_mentions', this)"></div>
+        </div>
+        <div class="pref-item">
+          <span class="pref-label">Email when someone replies</span>
+          <div class="pref-toggle" id="prefReplies" onclick="toggleNotificationPref('email_replies', this)"></div>
+        </div>
+        <div class="pref-item">
+          <span class="pref-label">Email for claim updates</span>
+          <div class="pref-toggle" id="prefClaimUpdates" onclick="toggleNotificationPref('email_claim_updates', this)"></div>
+        </div>
+        <div class="pref-item">
+          <span class="pref-label">Daily digest email</span>
+          <div class="pref-toggle" id="prefDailyDigest" onclick="toggleNotificationPref('email_daily_digest', this)"></div>
+        </div>
+      </div>
+    </div>
   </body>
 </html>

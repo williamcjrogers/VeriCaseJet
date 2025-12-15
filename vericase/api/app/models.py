@@ -1787,6 +1787,9 @@ class EvidenceItem(Base):
     # User notes
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Metadata (spam classification, refinement state, etc.)
+    meta: Mapped[dict[str, Any] | None] = mapped_column(JSONB, default=dict)
+
     # Audit
     uploaded_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
@@ -2343,6 +2346,15 @@ class ItemComment(Base):
         DateTime(timezone=True), nullable=True
     )
 
+    # Pinning
+    is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    pinned_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    pinned_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+
     # Audit
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -2366,7 +2378,121 @@ class ItemComment(Base):
         Index("idx_item_comments_item", "item_type", "item_id"),
         Index("idx_item_comments_parent", "parent_comment_id"),
         Index("idx_item_comments_created", "created_at"),
+        Index("idx_item_comments_pinned", "is_pinned"),
     )
+
+
+class CommentReaction(Base):
+    """
+    Emoji reactions on comments.
+    Users can add one reaction per emoji type per comment.
+    """
+
+    __tablename__ = "comment_reactions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    comment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("item_comments.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    emoji: Mapped[str] = mapped_column(String(10), nullable=False)  # e.g., '👍', '❤️'
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    # Relationships
+    comment: Mapped[ItemComment] = relationship("ItemComment", backref="reactions")
+    user: Mapped[User] = relationship("User")
+
+    # Unique constraint: one reaction per emoji per user per comment
+    __table_args__ = (
+        Index("idx_comment_reactions_comment", "comment_id"),
+        Index("idx_comment_reactions_user", "user_id"),
+        sa.UniqueConstraint("comment_id", "user_id", "emoji", name="uq_comment_reaction"),
+    )
+
+
+class CommentReadStatus(Base):
+    """
+    Track when users last read comments on a claim.
+    Used for unread badges and highlighting new comments.
+    """
+
+    __tablename__ = "comment_read_status"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    claim_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("heads_of_claim.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    last_read_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    # Relationships
+    user: Mapped[User] = relationship("User")
+    claim: Mapped[HeadOfClaim] = relationship("HeadOfClaim")
+
+    # Unique constraint: one read status per user per claim
+    __table_args__ = (
+        Index("idx_comment_read_user", "user_id"),
+        Index("idx_comment_read_claim", "claim_id"),
+        sa.UniqueConstraint("user_id", "claim_id", name="uq_comment_read_status"),
+    )
+
+
+class UserNotificationPreferences(Base):
+    """
+    User preferences for notification types.
+    Controls which notifications users receive via email.
+    """
+
+    __tablename__ = "user_notification_preferences"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+
+    # Email notification toggles
+    email_mentions: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    email_replies: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    email_claim_updates: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    email_daily_digest: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Timestamps
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+
+    # Relationships
+    user: Mapped[User] = relationship("User", backref="notification_preferences")
+
+    __table_args__ = (Index("idx_notification_prefs_user", "user_id"),)
 
 
 # =============================================================================

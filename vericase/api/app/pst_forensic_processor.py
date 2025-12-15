@@ -17,6 +17,7 @@ from typing import Any
 from email.utils import parseaddr
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .models import PSTFile, EmailMessage, EmailAttachment, Stakeholder, Keyword
 from .storage import put_object, download_file_streaming
@@ -82,6 +83,8 @@ class ForensicPSTProcessor:
         self.processed_count = 0
         self.total_count = 0
         self.attachment_hashes = {}  # For deduplication
+        self.upload_executor = ThreadPoolExecutor(max_workers=50)  # Parallel uploads
+        self.upload_futures = []
 
     def _stream_pst_to_temp(self, s3_bucket: str, s3_key: str) -> str:
         tmp = tempfile.NamedTemporaryFile(suffix=".pst", delete=False)
@@ -146,6 +149,18 @@ class ForensicPSTProcessor:
         self._process_folder_recursive(root, pst_file, stakeholders, keywords, stats)
 
         pst.close()
+
+        # Wait for any pending attachment uploads
+        if self.upload_futures:
+            logger.info(f"Waiting for {len(self.upload_futures)} attachment uploads...")
+            for future in as_completed(self.upload_futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    logger.error(f"Async upload failed: {e}")
+                    stats["errors"].append(f"Async upload failed: {str(e)}")
+            logger.info("All attachment uploads completed")
+            self.upload_futures = []
 
         entity_id = pst_file.case_id or pst_file.project_id
         threads = self._build_email_threads(
@@ -278,8 +293,8 @@ class ForensicPSTProcessor:
                 self.processed_count += 1
                 processed_messages += 1
 
-                # Commit every 50 emails for progress tracking
-                if self.processed_count % 50 == 0:
+                # Commit every 2500 emails for better performance (optimized batch size)
+                if self.processed_count % 2500 == 0:
                     pst_file.processed_emails = self.processed_count
                     self.db.commit()
                     logger.info(
@@ -596,16 +611,19 @@ class ForensicPSTProcessor:
                     s3_key = f"attachments/{email_msg.id}/{filename}"
 
                 try:
-                    put_object(
+                    # Parallel upload using thread pool executor
+                    future = self.upload_executor.submit(
+                        put_object,
                         s3_key,
                         data,
                         content_type,
                         bucket=s3_bucket,
                     )
+                    self.upload_futures.append(future)
                     self.attachment_hashes[file_hash] = s3_key
                     stats["unique_attachments"] += 1
                 except Exception as e:
-                    logger.error(f"Failed to upload attachment: {e}")
+                    logger.error(f"Failed to queue attachment upload: {e}")
                     raise
 
             # region agent log H8 attachment dedup

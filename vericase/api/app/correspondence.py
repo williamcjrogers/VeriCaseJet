@@ -1600,13 +1600,19 @@ async def get_emails_server_side(
         filter_value = filter_data.get("filter", "")
 
         # Map column IDs to model attributes
+        # Include both frontend field names and legacy names
         column_map = {
             "subject": EmailMessage.subject,
+            "email_subject": EmailMessage.subject,
             "sender_name": EmailMessage.sender_name,
             "sender_email": EmailMessage.sender_email,
+            "email_from": EmailMessage.sender_email,
+            "email_to": EmailMessage.recipients_to,
+            "email_cc": EmailMessage.recipients_cc,
             "date_sent": EmailMessage.date_sent,
             "has_attachments": EmailMessage.has_attachments,
             "body_text": EmailMessage.body_text,
+            "email_body": EmailMessage.body_text,
             "baseline_activity": EmailMessage.as_planned_activity,
             "as_built_activity": EmailMessage.as_built_activity,
             "delay_days": EmailMessage.delay_days,
@@ -1656,10 +1662,16 @@ async def get_emails_server_side(
 
             column_map = {
                 "subject": EmailMessage.subject,
+                "email_subject": EmailMessage.subject,
                 "sender_name": EmailMessage.sender_name,
                 "sender_email": EmailMessage.sender_email,
+                "email_from": EmailMessage.sender_email,
+                "email_to": EmailMessage.recipients_to,
+                "email_cc": EmailMessage.recipients_cc,
                 "date_sent": EmailMessage.date_sent,
                 "has_attachments": EmailMessage.has_attachments,
+                "body_text": EmailMessage.body_text,
+                "email_body": EmailMessage.body_text,
                 "baseline_activity": EmailMessage.as_planned_activity,
                 "as_built_activity": EmailMessage.as_built_activity,
                 "delay_days": EmailMessage.delay_days,

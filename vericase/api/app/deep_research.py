@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 try:  # Optional Redis
     from redis import Redis  # type: ignore
@@ -1899,10 +1900,9 @@ async def build_evidence_context(
     user_id: str,
     project_id: str | None = None,
     case_id: str | None = None,
-    max_items: int = 100,
 ) -> EvidenceContext:
     """
-    Build evidence context from emails and documents.
+    Build evidence context from ALL emails and documents in project/case.
 
     Returns both:
     - Text format for direct LLM consumption
@@ -1912,8 +1912,18 @@ async def build_evidence_context(
     context_parts: list[str] = []
     evidence_items: list[dict[str, Any]] = []
 
-    # Get emails
+    # Get emails - exclude spam-filtered/hidden
     email_query = db.query(EmailMessage)
+    
+    # Filter out hidden emails (spam-filtered)
+    email_query = email_query.filter(
+        or_(
+            EmailMessage.meta.is_(None),
+            EmailMessage.meta["spam"]["is_hidden"].astext != "true",
+            ~EmailMessage.meta.has_key("spam"),
+        )
+    )
+    
     if project_id:
         email_query = email_query.filter(EmailMessage.project_id == project_id)
     elif case_id:
@@ -1927,7 +1937,7 @@ async def build_evidence_context(
         if project_ids:
             email_query = email_query.filter(EmailMessage.project_id.in_(project_ids))
 
-    emails = email_query.order_by(EmailMessage.date_sent.desc()).limit(max_items).all()
+    emails = email_query.order_by(EmailMessage.date_sent.desc()).all()
 
     for email in emails:
         # Build text content
@@ -1962,11 +1972,18 @@ async def build_evidence_context(
         )
 
     # Get evidence items (documents/attachments linked to project)
-    evidence_query = db.query(EvidenceItem)
+    # Exclude spam-filtered/hidden evidence
+    evidence_query = db.query(EvidenceItem).filter(
+        or_(
+            EvidenceItem.meta.is_(None),
+            EvidenceItem.meta["spam"]["is_hidden"].astext != "true",
+            ~EvidenceItem.meta.has_key("spam"),
+        )
+    )
     if project_id:
         evidence_query = evidence_query.filter(EvidenceItem.project_id == project_id)
 
-    evidence_docs = evidence_query.limit(50).all()
+    evidence_docs = evidence_query.all()
 
     for evidence in evidence_docs:
         # Build text content from available fields
