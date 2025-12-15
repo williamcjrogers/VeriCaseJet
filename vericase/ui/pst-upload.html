@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="design-system.css" />
   <script src="vericase-ui.js"></script>
   <script src="nav-shell.js"></script>
+  <script src="security.js"></script>
   <style>
     * {
       margin: 0;
@@ -917,12 +918,15 @@
     // Attach auth token/cookies to API calls that require authentication
     function withAuth(options = {}) {
       const token = localStorage.getItem("token");
+      const csrfToken =
+        typeof getCsrfToken === "function" ? getCsrfToken() : null;
       return {
         credentials: "include",
         ...options,
         headers: {
           ...(options.headers || {}),
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
         },
       };
     }
