@@ -442,7 +442,9 @@ async def list_heads_of_claim(
     user: User = Depends(current_user),
 ):
     """List heads of claim with filtering"""
+    logger.info(f"list_heads_of_claim called with params: project_id={project_id}, case_id={case_id}, contentious_matter_id={contentious_matter_id}, status={status}, claim_type={claim_type}, page={page}, page_size={page_size}")
     query = db.query(HeadOfClaim)
+    logger.info("Initial query created")
 
     if project_id:
         pid = _parse_uuid(project_id, "project_id")
@@ -458,61 +460,69 @@ async def list_heads_of_claim(
     if claim_type:
         query = query.filter(HeadOfClaim.claim_type == claim_type)
 
+    logger.info("About to count total")
     total = query.count()
+    logger.info(f"Total count: {total}")
+    logger.info("About to execute claims query")
     claims = (
         query.order_by(HeadOfClaim.created_at.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
     )
-
-    result = []
-    for c in claims:
-        item_count = (
-            db.query(func.count(ItemClaimLink.id))
-            .filter(
-                ItemClaimLink.head_of_claim_id == c.id, ItemClaimLink.status == "active"
+    logger.info(f"Retrieved {len(claims)} claims")
+    logger.info("About to build result list")
+    try:
+        result = []
+        for c in claims:
+            item_count = (
+                db.query(func.count(ItemClaimLink.id))
+                .filter(
+                    ItemClaimLink.head_of_claim_id == c.id, ItemClaimLink.status == "active"
+                )
+                .scalar()
+                or 0
             )
-            .scalar()
-            or 0
-        )
 
-        matter_name = None
-        if c.contentious_matter_id:
-            matter = (
-                db.query(ContentiousMatter.name)
-                .filter(ContentiousMatter.id == c.contentious_matter_id)
-                .first()
-            )
-            if matter:
-                matter_name = matter.name
+            matter_name = None
+            if c.contentious_matter_id:
+                matter = (
+                    db.query(ContentiousMatter.name)
+                    .filter(ContentiousMatter.id == c.contentious_matter_id)
+                    .first()
+                )
+                if matter:
+                    matter_name = matter.name
 
-        result.append(
-            HeadOfClaimResponse(
-                id=str(c.id),
-                name=c.name,
-                description=c.description,
-                project_id=str(c.project_id) if c.project_id else None,
-                case_id=str(c.case_id) if c.case_id else None,
-                contentious_matter_id=(
-                    str(c.contentious_matter_id) if c.contentious_matter_id else None
-                ),
-                contentious_matter_name=matter_name,
-                reference_number=c.reference_number,
-                claim_type=c.claim_type,
-                claimed_amount=c.claimed_amount,
-                awarded_amount=c.awarded_amount,
-                currency=c.currency or "GBP",
-                status=c.status or "draft",
-                submission_date=c.submission_date,
-                response_due_date=c.response_due_date,
-                determination_date=c.determination_date,
-                supporting_contract_clause=c.supporting_contract_clause,
-                created_at=c.created_at,
-                created_by=str(c.created_by) if c.created_by else None,
-                item_count=item_count,
+            result.append(
+                HeadOfClaimResponse(
+                    id=str(c.id),
+                    name=c.name,
+                    description=c.description,
+                    project_id=str(c.project_id) if c.project_id else None,
+                    case_id=str(c.case_id) if c.case_id else None,
+                    contentious_matter_id=(
+                        str(c.contentious_matter_id) if c.contentious_matter_id else None
+                    ),
+                    contentious_matter_name=matter_name,
+                    reference_number=c.reference_number,
+                    claim_type=c.claim_type,
+                    claimed_amount=c.claimed_amount,
+                    awarded_amount=c.awarded_amount,
+                    currency=c.currency or "GBP",
+                    status=c.status or "draft",
+                    submission_date=c.submission_date,
+                    response_due_date=c.response_due_date,
+                    determination_date=c.determination_date,
+                    supporting_contract_clause=c.supporting_contract_clause,
+                    created_at=c.created_at,
+                    created_by=str(c.created_by) if c.created_by else None,
+                    item_count=item_count,
+                )
             )
-        )
+    except Exception as e:
+        logger.error(f"Error building result: {e}")
+        raise
 
     return {"items": result, "total": total, "page": page, "page_size": page_size}
 
@@ -1251,6 +1261,7 @@ async def list_item_links(
             )
         )
 
+    logger.info("About to return result")
     return {"items": result, "total": total, "page": page, "page_size": page_size}
 
 
