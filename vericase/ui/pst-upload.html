@@ -914,6 +914,19 @@
       : window.location.origin;
     console.log("Upload using API URL:", apiUrl);
 
+    // Attach auth token/cookies to API calls that require authentication
+    function withAuth(options = {}) {
+      const token = localStorage.getItem("token");
+      return {
+        credentials: "include",
+        ...options,
+        headers: {
+          ...(options.headers || {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      };
+    }
+
     // Inject shared navigation shell so this page matches the rest of the app
     if (window.VericaseShell && typeof window.VericaseShell.inject === "function") {
       window.VericaseShell.inject({
@@ -1405,11 +1418,11 @@
 
       const initResp = await fetch(
         `${apiUrl}/api/correspondence/pst/upload/init`,
-        {
+        withAuth({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(initBody),
-        },
+        }),
       );
 
       if (!initResp.ok) throw new Error("Failed to initialize upload");
@@ -1440,9 +1453,10 @@
       updateFileItem(item.id, { status: "processing", progress: 95 });
 
       // Start processing
-      await fetch(`${apiUrl}/api/correspondence/pst/${pst_file_id}/process`, {
-        method: "POST",
-      });
+      await fetch(
+        `${apiUrl}/api/correspondence/pst/${pst_file_id}/process`,
+        withAuth({ method: "POST" }),
+      );
     }
 
     async function uploadPSTMultipart(item) {
@@ -1457,11 +1471,11 @@
 
       const initResp = await fetch(
         `${apiUrl}/api/correspondence/pst/upload/multipart/init`,
-        {
+        withAuth({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(initBody),
-        },
+        }),
       );
 
       if (!initResp.ok)
@@ -1509,11 +1523,11 @@
       // Complete multipart
       const completeResp = await fetch(
         `${apiUrl}/api/correspondence/pst/upload/multipart/complete`,
-        {
+        withAuth({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ pst_file_id, upload_id, parts }),
-        },
+        }),
       );
 
       if (!completeResp.ok)
@@ -1521,9 +1535,10 @@
 
       updateFileItem(item.id, { status: "processing", progress: 95 });
 
-      await fetch(`${apiUrl}/api/correspondence/pst/${pst_file_id}/process`, {
-        method: "POST",
-      });
+      await fetch(
+        `${apiUrl}/api/correspondence/pst/${pst_file_id}/process`,
+        withAuth({ method: "POST" }),
+      );
     }
 
     // Bulk email upload
@@ -1551,10 +1566,13 @@
         // Update progress during upload
         items.forEach((item) => updateFileItem(item.id, { progress: 50 }));
 
-        const response = await fetch(`${apiUrl}/api/evidence/upload-bulk`, {
-          method: "POST",
-          body: formData,
-        });
+        const response = await fetch(
+          `${apiUrl}/api/evidence/upload-bulk`,
+          withAuth({
+            method: "POST",
+            body: formData,
+          }),
+        );
 
         if (!response.ok)
           throw new Error(`Bulk upload failed: ${response.status}`);
