@@ -772,17 +772,29 @@ async def list_evidence(
         )
 
     if case_id:
-        query = query.filter(EvidenceItem.case_id == uuid.UUID(case_id))
+        try:
+            case_uuid = uuid.UUID(case_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid case_id format")
+        query = query.filter(EvidenceItem.case_id == case_uuid)
 
     if project_id:
-        query = query.filter(EvidenceItem.project_id == uuid.UUID(project_id))
+        try:
+            project_uuid = uuid.UUID(project_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid project_id format")
+        query = query.filter(EvidenceItem.project_id == project_uuid)
 
     if collection_id:
+        try:
+            collection_uuid = uuid.UUID(collection_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid collection_id format")
         # Join with collection items
         query = query.join(
             EvidenceCollectionItem,
             EvidenceCollectionItem.evidence_item_id == EvidenceItem.id,
-        ).filter(EvidenceCollectionItem.collection_id == uuid.UUID(collection_id))
+        ).filter(EvidenceCollectionItem.collection_id == collection_uuid)
 
     if processing_status:
         query = query.filter(EvidenceItem.processing_status == processing_status)
@@ -1001,18 +1013,37 @@ async def get_evidence_server_side(
     - No presigned URLs are generated here
     - Supports server-side filtering and sorting
     """
+    project_uuid: uuid.UUID | None = None
+    case_uuid: uuid.UUID | None = None
+    collection_uuid: uuid.UUID | None = None
+    if project_id:
+        try:
+            project_uuid = uuid.UUID(project_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid project_id format")
+    if case_id:
+        try:
+            case_uuid = uuid.UUID(case_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid case_id format")
+    if collection_id:
+        try:
+            collection_uuid = uuid.UUID(collection_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid collection_id format")
+
     base_query = db.query(EvidenceItem)
 
     # Context filters
-    if project_id:
-        base_query = base_query.filter(EvidenceItem.project_id == uuid.UUID(project_id))
-    if case_id:
-        base_query = base_query.filter(EvidenceItem.case_id == uuid.UUID(case_id))
-    if collection_id:
+    if project_uuid is not None:
+        base_query = base_query.filter(EvidenceItem.project_id == project_uuid)
+    if case_uuid is not None:
+        base_query = base_query.filter(EvidenceItem.case_id == case_uuid)
+    if collection_uuid is not None:
         base_query = base_query.join(
             EvidenceCollectionItem,
             EvidenceCollectionItem.evidence_item_id == EvidenceItem.id,
-        ).filter(EvidenceCollectionItem.collection_id == uuid.UUID(collection_id))
+        ).filter(EvidenceCollectionItem.collection_id == collection_uuid)
 
     # Apply AG Grid filter model
     filtered_query = _apply_ag_filters(base_query, request.filterModel)
@@ -1758,17 +1789,25 @@ async def list_collections(
         query = query.filter(EvidenceCollection.is_system == False)
 
     if case_id:
+        try:
+            case_uuid = uuid.UUID(case_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid case_id format")
         query = query.filter(
             or_(
-                EvidenceCollection.case_id == uuid.UUID(case_id),
+                EvidenceCollection.case_id == case_uuid,
                 EvidenceCollection.case_id.is_(None),
             )
         )
 
     if project_id:
+        try:
+            project_uuid = uuid.UUID(project_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid project_id format")
         query = query.filter(
             or_(
-                EvidenceCollection.project_id == uuid.UUID(project_id),
+                EvidenceCollection.project_id == project_uuid,
                 EvidenceCollection.project_id.is_(None),
             )
         )
