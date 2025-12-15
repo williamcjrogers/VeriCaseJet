@@ -370,9 +370,9 @@ async def upload_pst_file(
     s3_client = s3()
     if s3_client is not None:  # pyright: ignore[reportUnnecessaryComparison]
         transfer_config = TransferConfig(
-            multipart_threshold=8 * 1024 * 1024,
-            multipart_chunksize=8 * 1024 * 1024,
-            max_concurrency=2,
+            multipart_threshold=100 * 1024 * 1024,  # 100MB to match multipart endpoint
+            multipart_chunksize=100 * 1024 * 1024,  # Larger chunks = fewer API calls
+            max_concurrency=20,  # High concurrency for 20GB+ files
             use_threads=True,
         )
 
