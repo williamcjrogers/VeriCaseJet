@@ -307,45 +307,35 @@
       background: var(--bg-tertiary);
     }
 
-    /* Statistics Bar - Clean Card Style (matching timeline) */
+    /* Statistics Bar - Minimal & Clean */
     .stats-bar {
-      background: var(--bg-primary);
-      padding: 1rem 1.5rem;
+      background: var(--bg-card);
+      padding: 0.5rem 1.5rem;
       display: flex;
       align-items: center;
-      gap: 1rem;
-      overflow-x: auto;
+      gap: 2rem;
       border-bottom: 1px solid var(--border);
+      font-size: 0.8125rem;
     }
 
     .stat-item {
       display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-      min-width: 120px;
-      background: var(--bg-card);
-      padding: 0.875rem 1.25rem;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow-card);
+      align-items: center;
+      gap: 0.5rem;
     }
 
     .stat-label {
-      font-size: 0.6875rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
       color: var(--text-muted);
+      font-weight: 500;
     }
 
     .stat-value {
-      font-size: 1.25rem;
       font-weight: 700;
       color: var(--vc-navy);
     }
 
     .stat-value.highlight {
-      color: var(--vc-teal);
+      color: var(--vericase-teal);
     }
 
     /* Main Content */
@@ -943,57 +933,59 @@
     }
 
     /* ============================================
-       Unified Header Bar - Clean, Single Row
+       AI Chat Bar - Compact & Always Visible
        ============================================ */
-    .correspondence-breadcrumb {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 0.5rem 1.5rem;
-      display: flex;
-      align-items: center;
-      min-height: 48px;
+    #aiChatContainer {
+      background: linear-gradient(135deg, #ffffff 0%, #f8fcfc 100%);
+      border-bottom: 2px solid var(--vericase-teal);
+      padding: 0.75rem 1.5rem;
+      display: block !important;
     }
 
-    .breadcrumb-content {
+    #aiChatContainer .ai-compact {
+      max-width: 100%;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 1rem;
+    }
+
+    #aiChatContainer .ai-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-teal-dark));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(15, 157, 154, 0.3);
+    }
+
+    #aiChatContainer .ai-input-wrapper {
       flex: 1;
+      position: relative;
     }
 
-    .breadcrumb-link {
-      color: var(--text-muted);
-      text-decoration: none;
-      font-size: 0.8125rem;
+    #aiQuery {
+      width: 100%;
+      padding: 0.625rem 1rem;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 20px;
+      font-size: 0.875rem;
+      transition: all 0.2s;
+      resize: none;
+      height: 42px;
+    }
+
+    #aiQuery:focus {
+      outline: none;
+      border-color: var(--vericase-teal);
+      box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.1);
+    }
+
+    #aiChatContainer .ai-actions {
       display: flex;
+      gap: 0.5rem;
       align-items: center;
-      gap: 0.25rem;
-      transition: color 0.15s;
-    }
-
-    .breadcrumb-link:hover {
-      color: var(--vericase-teal);
-    }
-
-    .breadcrumb-separator {
-      color: var(--text-muted);
-      opacity: 0.4;
-      font-size: 0.625rem;
-      margin: 0 0.125rem;
-    }
-
-    .breadcrumb-current {
-      color: var(--text-primary);
-      font-size: 0.8125rem;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 0.25rem;
-    }
-
-    .breadcrumb-current i {
-      color: var(--vericase-teal);
-      font-size: 0.75rem;
     }
 
     .breadcrumb-case-info {
@@ -1428,147 +1420,61 @@
   
   <!-- Main correspondence content wrapper -->
   <div id="correspondence-app" style="height: 100%; display: flex; flex-direction: column;">
-    
-    <!-- Breadcrumb bar (visible inside shell) -->
-    <div class="correspondence-breadcrumb" id="breadcrumbBar">
-      <div class="breadcrumb-content">
-        <a href="master-dashboard.html" class="breadcrumb-link">
-          <i class="fas fa-home"></i> Command Center
-        </a>
-        <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
-        <a href="dashboard.html" class="breadcrumb-link" id="breadcrumbProject">Project</a>
-        <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
-        <span class="breadcrumb-current">
-          <i class="fas fa-envelope-open-text"></i> Correspondence
-        </span>
-        <div class="breadcrumb-case-info">
-          <span class="case-badge" id="caseNumber">Loading...</span>
-          <span id="caseName">Loading case details...</span>
-        </div>
-      </div>
-    </div>
 
-  <!-- AI Chat Interface -->
-  <div id="aiChatContainer" style="
-        background: white;
-        border-bottom: 2px solid var(--vericase-teal);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-        padding: 1.5rem 2rem;
-        display: none;
-      ">
-    <div style="max-width: 1400px; margin: 0 auto">
-      <div style="
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            margin-bottom: 1rem;
-          ">
-        <div style="
-              width: 48px;
-              height: 48px;
-              background: linear-gradient(
-                135deg,
-                var(--vericase-teal),
-                var(--vericase-teal-dark)
-              );
-              border-radius: 12px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              box-shadow: 0 4px 14px rgba(23, 181, 163, 0.39);
-            ">
-          <i class="fas fa-brain" style="color: white; font-size: 24px"></i>
-        </div>
-        <div style="flex: 1">
-          <h3 style="
-                color: var(--vericase-navy);
-                font-size: 1.25rem;
-                margin-bottom: 0.25rem;
-              ">
-            AI Research Assistant
-          </h3>
-          <p style="color: var(--text-muted); font-size: 0.875rem">
-            Ask questions about your evidence. Choose Quick Search or Deep
-            Research mode.
-          </p>
-        </div>
-        <button onclick="toggleAIChat()" style="
-              background: transparent;
-              border: none;
-              color: var(--text-muted);
-              cursor: pointer;
-              font-size: 1.5rem;
-              padding: 0.5rem;
-            ">
-          <i class="fas fa-times"></i>
-        </button>
+  <!-- AI Chat Interface - Compact & Always Visible -->
+  <div id="aiChatContainer">
+    <div class="ai-compact">
+      <div class="ai-icon">
+        <i class="fas fa-brain" style="color: white; font-size: 18px"></i>
       </div>
-
-      <div style="display: flex; gap: 1rem; margin-bottom: 1rem">
-        <div style="flex: 1; position: relative">
-          <label for="aiQuery"></label><textarea id="aiQuery"
-            placeholder="Ask a question about your evidence... e.g., 'What are the key delay events?' or 'Summarize the dispute timeline'"
-            style="
-                width: 100%;
-                min-height: 80px;
-                padding: 1rem;
-                border: 2px solid #e5e7eb;
-                border-radius: 12px;
-                font-size: 0.9375rem;
-                font-family: inherit;
-                resize: vertical;
-              " onkeydown="
-                if (event.key === 'Enter' && event.ctrlKey) aiQuickSearch();
-              "></textarea>
-          <div style="
-                position: absolute;
-                bottom: 0.75rem;
-                right: 0.75rem;
-                font-size: 0.75rem;
-                color: var(--text-muted);
-              ">
-            Ctrl+Enter for Quick Search
-          </div>
-        </div>
+      <div class="ai-input-wrapper">
+        <label for="aiQuery"></label><textarea id="aiQuery"
+          placeholder="Ask AI about your evidence... (Ctrl+Enter for Quick Search, Ctrl+Shift+Enter for Deep Research)"
+          onkeydown="
+            if (event.key === 'Enter' && event.ctrlKey && !event.shiftKey) { event.preventDefault(); aiQuickSearch(); }
+            else if (event.key === 'Enter' && event.ctrlKey && event.shiftKey) { event.preventDefault(); aiDeepResearch(); }
+          "></textarea>
       </div>
-
-      <div style="display: flex; gap: 1rem; align-items: center">
+      <div class="ai-actions">
         <button id="quickSearchBtn" onclick="aiQuickSearch()" class="btn" style="
               background: var(--vericase-teal);
               color: white;
-              padding: 0.75rem 1.5rem;
+              padding: 0.5rem 1rem;
               border: none;
-              border-radius: 8px;
+              border-radius: 20px;
               font-weight: 600;
+              font-size: 0.8125rem;
               cursor: pointer;
               display: flex;
               align-items: center;
-              gap: 0.5rem;
-              box-shadow: 0 4px 14px rgba(23, 181, 163, 0.39);
-            ">
-          <i class="fas fa-bolt"></i> Quick Search (3s)
+              gap: 0.375rem;
+              box-shadow: 0 2px 8px rgba(15, 157, 154, 0.3);
+              transition: all 0.2s;
+            " onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(15, 157, 154, 0.4)'"
+               onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 8px rgba(15, 157, 154, 0.3)'">
+          <i class="fas fa-bolt"></i> Quick
         </button>
         <button id="deepResearchBtn" onclick="aiDeepResearch()" class="btn" style="
               background: var(--vericase-navy);
               color: white;
-              padding: 0.75rem 1.5rem;
+              padding: 0.5rem 1rem;
               border: none;
-              border-radius: 8px;
+              border-radius: 20px;
               font-weight: 600;
+              font-size: 0.8125rem;
               cursor: pointer;
               display: flex;
               align-items: center;
-              gap: 0.5rem;
+              gap: 0.375rem;
               box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-            ">
-          <i class="fas fa-microscope"></i> Deep Research (60s)
+              transition: all 0.2s;
+            " onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(0, 0, 0, 0.25)'"
+               onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 8px rgba(0, 0, 0, 0.15)'">
+          <i class="fas fa-microscope"></i> Deep
         </button>
-        <div id="aiModelsStatus" style="
-              margin-left: auto;
-              font-size: 0.75rem;
-              color: var(--text-muted);
-            "></div>
+        <div id="aiModelsStatus" style="font-size: 0.7rem; color: var(--text-muted); white-space: nowrap;"></div>
       </div>
+    </div>
 
       <!-- Research Progress -->
       <div id="researchProgress" style="
@@ -1623,39 +1529,22 @@
     </div>
   </div>
 
-  <!-- Toolbar - Clean Single-Row Layout -->
+  <!-- Toolbar - Minimal & Focused -->
   <div class="toolbar">
     <div class="toolbar-left">
-      <!-- Search First -->
+      <!-- Search -->
       <div class="search-box">
         <i class="fas fa-search"></i>
-        <label for="quickFilter"></label><input type="text" id="quickFilter" placeholder="Search... (Ctrl+K)"
+        <label for="quickFilter"></label><input type="text" id="quickFilter" placeholder="Search emails... (Ctrl+K)"
           onkeyup="onQuickFilterChanged()" />
       </div>
 
-      <!-- View Mode Toggle -->
-      <div class="btn-group view-toggle-group">
-        <button class="btn active" onclick="setViewMode('all')" data-view="all" title="All Emails">
-          <i class="fas fa-inbox"></i>
-        </button>
-        <button class="btn" onclick="setViewMode('threads')" data-view="threads" title="Threads">
-          <i class="fas fa-comments"></i>
-        </button>
-        <button class="btn" onclick="setViewMode('attachments')" data-view="attachments" title="Attachments">
-          <i class="fas fa-paperclip"></i>
-        </button>
-      </div>
-
-      <!-- Filter dropdown -->
+      <!-- Essential Filters -->
       <div class="toolbar-dropdown" id="filterDropdown">
-        <button class="btn" onclick="toggleFilterDropdown()" title="Filter options">
-          <i class="fas fa-filter"></i>
-          <i class="fas fa-chevron-down dropdown-arrow"></i>
+        <button class="btn" onclick="toggleFilterDropdown()" title="Filter">
+          <i class="fas fa-filter"></i> Filter
         </button>
         <div class="dropdown-menu" id="filterDropdownMenu">
-          <button class="dropdown-item" onclick="toggleAdvancedFilter(); closeAllDropdowns()">
-            <i class="fas fa-sliders-h"></i> Advanced Filter
-          </button>
           <button class="dropdown-item" onclick="showStakeholderFilter(); closeAllDropdowns()">
             <i class="fas fa-users"></i> By Stakeholder
           </button>
@@ -1672,18 +1561,22 @@
     </div>
 
     <div class="toolbar-right">
-      <!-- View Controls -->
-      <button class="btn btn-icon" onclick="toggleDetailPanel()" title="Toggle Details">
-        <i class="fas fa-columns"></i>
-      </button>
+      <!-- View Mode -->
+      <div class="btn-group view-toggle-group">
+        <button class="btn active" onclick="setViewMode('all')" data-view="all" title="All">
+          <i class="fas fa-inbox"></i>
+        </button>
+        <button class="btn" onclick="setViewMode('threads')" data-view="threads" title="Threads">
+          <i class="fas fa-comments"></i>
+        </button>
+        <button class="btn" onclick="setViewMode('attachments')" data-view="attachments" title="Files">
+          <i class="fas fa-paperclip"></i>
+        </button>
+      </div>
 
-      <button class="btn btn-icon" id="toggleViewBtn" onclick="toggleAllEmails()" title="Toggle Preview">
-        <i class="fas fa-compress"></i>
-      </button>
-
-      <!-- More Actions -->
+      <!-- Actions -->
       <div class="toolbar-dropdown" id="moreActionsDropdown">
-        <button class="btn btn-icon" onclick="toggleMoreActionsDropdown()" title="More">
+        <button class="btn btn-icon" onclick="toggleMoreActionsDropdown()" title="Actions">
           <i class="fas fa-ellipsis-v"></i>
         </button>
         <div class="dropdown-menu dropdown-menu-right" id="moreActionsMenu">
@@ -1892,14 +1785,14 @@
       </div>
     </div>
 
-    <!-- Context Panel (Right Sidebar) -->
+    <!-- Context Panel - Simplified Actions Only -->
     <div class="context-panel" id="contextPanel">
       <div class="context-panel-header">
         <h3>
-          <i class="fas fa-layer-group"></i>
-          <span class="context-toggle-label">Actions & Context</span>
+          <i class="fas fa-bolt"></i>
+          <span class="context-toggle-label">Quick Actions</span>
         </h3>
-        <button class="context-toggle-btn" onclick="toggleContextPanel()" title="Toggle panel">
+        <button class="context-toggle-btn" onclick="toggleContextPanel()" title="Toggle">
           <i class="fas fa-chevron-right" id="contextToggleIcon"></i>
         </button>
       </div>
@@ -1907,7 +1800,7 @@
         <!-- Selection Info -->
         <div class="context-section" id="selectionSection">
           <div class="context-section-header" onclick="toggleContextSection('selection')">
-            <span><i class="fas fa-check-square"></i> Selected Emails
+            <span><i class="fas fa-check-square"></i> Selected
               <span class="selected-count-badge" id="contextSelectedCount">0</span></span>
             <i class="fas fa-chevron-down"></i>
           </div>
@@ -1915,7 +1808,7 @@
             <div id="selectedEmailsPreview">
               <div class="context-empty-state">
                 <i class="fas fa-mouse-pointer"></i>
-                <p>Select emails to see preview and take actions</p>
+                <p>Select emails for actions</p>
               </div>
             </div>
           </div>
@@ -1924,83 +1817,30 @@
         <!-- Quick Link Section -->
         <div class="context-section" id="quickLinkSection">
           <div class="context-section-header" onclick="toggleContextSection('quickLink')">
-            <span><i class="fas fa-link"></i> Quick Link</span>
+            <span><i class="fas fa-link"></i> Link to Case</span>
             <i class="fas fa-chevron-down"></i>
           </div>
           <div class="context-section-body" id="quickLinkBody">
             <label for="linkTypeSelect"></label><select class="quick-link-dropdown" id="linkTypeSelect"
               onchange="onLinkTypeChange()">
-              <option value="">Select link type...</option>
-              <option value="matter">Link to Contentious Matter</option>
-              <option value="claim">Link to Head of Claim</option>
+              <option value="">Select type...</option>
+              <option value="matter">Contentious Matter</option>
+              <option value="claim">Head of Claim</option>
             </select>
             <label for="linkTargetSelect"></label><select class="quick-link-dropdown" id="linkTargetSelect"
               style="display: none">
               <option value="">Select target...</option>
             </select>
             <button class="link-btn" id="linkSelectedBtn" onclick="linkSelectedEmails()" disabled>
-              <i class="fas fa-link"></i> Link Selected Emails
+              <i class="fas fa-link"></i> Link Emails
             </button>
-            <div style="margin-top: 0.75rem; text-align: center">
-              <button class="btn" style="font-size: 0.75rem; padding: 0.375rem 0.75rem"
-                onclick="openCreateMatterModal()">
-                <i class="fas fa-plus"></i> Create New Matter
-              </button>
-            </div>
           </div>
         </div>
 
-        <!-- Keywords Section -->
-        <div class="context-section" id="keywordsSection">
-          <div class="context-section-header" onclick="toggleContextSection('keywords')">
-            <span><i class="fas fa-tags"></i> Project Keywords</span>
-            <i class="fas fa-chevron-down"></i>
-          </div>
-          <div class="context-section-body" id="keywordsBody">
-            <div class="keyword-list" id="contextKeywordList">
-              <!-- Keywords will be loaded here -->
-            </div>
-            <div class="add-keyword-input">
-              <label for="newKeywordInput"></label><input type="text" id="newKeywordInput" placeholder="Add keyword..."
-                onkeypress="
-                    if (event.key === 'Enter') addKeywordFromContext();
-                  " />
-              <button onclick="addKeywordFromContext()">
-                <i class="fas fa-plus"></i>
-              </button>
-            </div>
-            <div style="margin-top: 0.75rem">
-              <button class="btn" style="width: 100%; font-size: 0.75rem" onclick="suggestKeywordsFromSelection()">
-                <i class="fas fa-wand-magic-sparkles"></i> Suggest from
-                Selection
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Stakeholders Section -->
-        <div class="context-section" id="stakeholdersSection">
-          <div class="context-section-header" onclick="toggleContextSection('stakeholders')">
-            <span><i class="fas fa-users"></i> Stakeholders</span>
-            <i class="fas fa-chevron-down"></i>
-          </div>
-          <div class="context-section-body" id="stakeholdersBody">
-            <div id="contextStakeholderList" style="display: flex; flex-wrap: wrap; gap: 0.5rem">
-              <!-- Stakeholders will be loaded here -->
-            </div>
-            <div style="margin-top: 0.75rem">
-              <button class="btn" style="width: 100%; font-size: 0.75rem" onclick="openRefinementWizard()">
-                <i class="fas fa-cog"></i> Manage Stakeholders
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- AI Suggestions Section -->
-        <!-- Bulk Actions Section -->
+        <!-- Bulk Actions -->
         <div class="context-section" id="bulkActionsSection">
           <div class="context-section-header" onclick="toggleContextSection('bulkActions')">
-            <span><i class="fas fa-tasks"></i> Bulk Actions</span>
+            <span><i class="fas fa-bolt"></i> Bulk Actions</span>
             <i class="fas fa-chevron-down"></i>
           </div>
           <div class="context-section-body" id="bulkActionsBody">
@@ -2012,7 +1852,7 @@
                 <i class="fas fa-tag"></i> Add Keywords
               </button>
               <button class="btn" onclick="bulkExportSelected()" style="justify-content: flex-start">
-                <i class="fas fa-file-export"></i> Export Selected
+                <i class="fas fa-download"></i> Export
               </button>
             </div>
           </div>
@@ -7000,20 +6840,7 @@
     // Note: projectId and caseId are already declared at the top of the script
 
     /**
-     * Toggle AI Chat Interface
-     */
-    window.toggleAIChat = function () {
-      const container = document.getElementById("aiChatContainer");
-      if (container.style.display === "none") {
-        container.style.display = "block";
-        loadAIModelsStatus();
-      } else {
-        container.style.display = "none";
-      }
-    };
-
-    /**
-     * Load AI models status
+     * Load AI models status (called on page load)
      */
     async function loadAIModelsStatus() {
       try {
