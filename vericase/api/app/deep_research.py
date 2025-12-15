@@ -1919,8 +1919,8 @@ async def build_evidence_context(
     email_query = email_query.filter(
         or_(
             EmailMessage.meta.is_(None),
-            EmailMessage.meta["spam"]["is_hidden"].astext != "true",
-            ~EmailMessage.meta.has_key("spam"),
+            EmailMessage.meta.op('->>')('spam').is_(None),
+            EmailMessage.meta.op('->')('spam').op('->>')('is_hidden') != "true",
         )
     )
     
@@ -1976,8 +1976,8 @@ async def build_evidence_context(
     evidence_query = db.query(EvidenceItem).filter(
         or_(
             EvidenceItem.meta.is_(None),
-            EvidenceItem.meta["spam"]["is_hidden"].astext != "true",
-            ~EvidenceItem.meta.has_key("spam"),
+            EvidenceItem.meta.op('->>')('spam').is_(None),
+            EvidenceItem.meta.op('->')('spam').op('->>')('is_hidden') != "true",
         )
     )
     if project_id:

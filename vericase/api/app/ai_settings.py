@@ -312,6 +312,18 @@ class AISettings:
                 "region": bedrock_region,
                 "task": "Enterprise AI (Claude, Nova, Titan, Llama)",
             },
+            "xai": {
+                "name": "xAI (Grok)",
+                "available": bool(cls.get_api_key("xai", db)),
+                "model": cls.get_model("xai", db) or "grok-3-latest",
+                "task": "Real-time Analysis & Reasoning",
+            },
+            "perplexity": {
+                "name": "Perplexity (Sonar)",
+                "available": bool(cls.get_api_key("perplexity", db)),
+                "model": cls.get_model("perplexity", db) or "sonar-pro",
+                "task": "Research & Web Search",
+            },
         }
         return providers
 

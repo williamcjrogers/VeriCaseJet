@@ -1057,6 +1057,121 @@
               </div>
             </div>
           </div>
+
+          <!-- xAI (Grok) -->
+          <div class="provider-card">
+            <div class="provider-header">
+              <div>
+                <div class="provider-title">
+                  <i class="fas fa-bolt" style="color: #1da1f2"></i>
+                  xAI (Grok)
+                </div>
+                <p class="provider-description">
+                  Real-time knowledge and reasoning with X/Twitter integration.
+                  <a href="https://console.x.ai/" target="_blank">Get API key</a>
+                </p>
+              </div>
+              <span class="status-badge not-configured" id="status-badge-xai">
+                <i class="fas fa-circle"></i> Not configured
+              </span>
+            </div>
+            <div class="provider-body">
+              <div class="provider-row">
+                <label>API Key:</label>
+                <input
+                  type="password"
+                  id="xai_api_key"
+                  class="setting-input wide"
+                  placeholder="xai-..."
+                />
+                <button class="btn btn-primary" onclick="saveSetting('xai_api_key')">
+                  Save Key
+                </button>
+                <button class="btn btn-secondary" onclick="testProvider('xai')">
+                  <i class="fas fa-vial"></i> Test Connection
+                </button>
+              </div>
+              <div class="provider-row">
+                <label>Model:</label>
+                <select id="xai_model" class="setting-input" style="width: 250px;">
+                  <option value="grok-3">Grok 3 (Latest)</option>
+                  <option value="grok-3-mini">Grok 3 Mini (Fast)</option>
+                  <option value="grok-2">Grok 2</option>
+                  <option value="grok-2-mini">Grok 2 Mini</option>
+                  <option value="grok-beta">Grok Beta</option>
+                </select>
+                <input type="text" id="xai_model_custom" class="setting-input" style="width: 180px;" placeholder="Or enter custom model ID..." />
+                <button class="btn btn-primary" onclick="saveModelSetting('xai')">
+                  Save
+                </button>
+                <button class="btn btn-secondary" onclick="testSpecificModel('xai')">
+                  <i class="fas fa-flask"></i> Test Model
+                </button>
+              </div>
+              <div id="xai_model_status" class="model-status-message" style="display: none;"></div>
+            </div>
+          </div>
+
+          <!-- Perplexity -->
+          <div class="provider-card">
+            <div class="provider-header">
+              <div>
+                <div class="provider-title">
+                  <i class="fas fa-search-plus" style="color: #20b2aa"></i>
+                  Perplexity
+                </div>
+                <p class="provider-description">
+                  AI with built-in web search and citations.
+                  <a href="https://www.perplexity.ai/settings/api" target="_blank">Get API key</a>
+                </p>
+              </div>
+              <span class="status-badge not-configured" id="status-badge-perplexity">
+                <i class="fas fa-circle"></i> Not configured
+              </span>
+            </div>
+            <div class="provider-body">
+              <div class="provider-row">
+                <label>API Key:</label>
+                <input
+                  type="password"
+                  id="perplexity_api_key"
+                  class="setting-input wide"
+                  placeholder="pplx-..."
+                />
+                <button class="btn btn-primary" onclick="saveSetting('perplexity_api_key')">
+                  Save Key
+                </button>
+                <button class="btn btn-secondary" onclick="testProvider('perplexity')">
+                  <i class="fas fa-vial"></i> Test Connection
+                </button>
+              </div>
+              <div class="provider-row">
+                <label>Model:</label>
+                <select id="perplexity_model" class="setting-input" style="width: 250px;">
+                  <option value="sonar-pro">Sonar Pro (Best)</option>
+                  <option value="sonar">Sonar (Fast)</option>
+                  <option value="sonar-reasoning-pro">Sonar Reasoning Pro</option>
+                  <option value="sonar-reasoning">Sonar Reasoning</option>
+                  <option value="sonar-deep-research">Sonar Deep Research</option>
+                </select>
+                <input type="text" id="perplexity_model_custom" class="setting-input" style="width: 180px;" placeholder="Or enter custom model ID..." />
+                <button class="btn btn-primary" onclick="saveModelSetting('perplexity')">
+                  Save
+                </button>
+                <button class="btn btn-secondary" onclick="testSpecificModel('perplexity')">
+                  <i class="fas fa-flask"></i> Test Model
+                </button>
+              </div>
+              <div id="perplexity_model_status" class="model-status-message" style="display: none;"></div>
+            </div>
+            <div class="info-box">
+              <i class="fas fa-globe"></i>
+              <div>
+                <strong>Web Search:</strong> Perplexity automatically searches the web and provides citations.
+                Ideal for research queries requiring up-to-date information.
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1814,6 +1929,16 @@
               status.models.bedrock?.available,
               status.models.bedrock?.available ? "Enabled" : "Not enabled"
             );
+            updateProviderStatus(
+              "xai",
+              status.models.xai?.available,
+              status.models.xai?.available ? "Configured" : "Not configured"
+            );
+            updateProviderStatus(
+              "perplexity",
+              status.models.perplexity?.available,
+              status.models.perplexity?.available ? "Configured" : "Not configured"
+            );
           }
         } catch (error) {
           console.error("Error checking provider status:", error);
@@ -1882,6 +2007,8 @@
           populateModelDropdown("anthropic_model", aiModels.anthropic?.models || []);
           populateModelDropdown("gemini_model", aiModels.gemini?.models || []);
           populateModelDropdown("bedrock_model", aiModels.bedrock?.models || []);
+          populateModelDropdown("xai_model", aiModels.xai?.models || []);
+          populateModelDropdown("perplexity_model", aiModels.perplexity?.models || []);
 
           // Setup function config model dropdowns
           setupFunctionModelDropdowns();

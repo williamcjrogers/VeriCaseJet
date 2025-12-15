@@ -117,11 +117,13 @@ class AIEvidenceOrchestrator:
 
     def __init__(self, db: Session | None = None):
         # Load API keys from database settings (with env var fallback)
-        # Supports 4 providers: OpenAI, Anthropic, Gemini, Amazon Bedrock
+        # Supports 6 providers: OpenAI, Anthropic, Gemini, Amazon Bedrock, xAI (Grok), Perplexity
         self.db = db
         self.openai_key = get_ai_api_key("openai", db) or ""
         self.anthropic_key = get_ai_api_key("anthropic", db) or ""
         self.gemini_key = get_ai_api_key("gemini", db) or ""
+        self.xai_key = get_ai_api_key("xai", db) or ""
+        self.perplexity_key = get_ai_api_key("perplexity", db) or ""
 
         # Bedrock uses IAM credentials, not API keys
         self.bedrock_enabled = is_bedrock_enabled(db) and bedrock_available()
@@ -133,6 +135,8 @@ class AIEvidenceOrchestrator:
         self.anthropic_model = get_ai_model("anthropic", db)
         self.gemini_model = get_ai_model("gemini", db)
         self.bedrock_model = get_ai_model("bedrock", db)
+        self.xai_model = get_ai_model("xai", db) or "grok-3-latest"
+        self.perplexity_model = get_ai_model("perplexity", db) or "sonar-pro"
 
         self.model_service = AIModelService()
 
@@ -161,6 +165,8 @@ class AIEvidenceOrchestrator:
         self.openai_key = get_ai_api_key("openai", db) or ""
         self.anthropic_key = get_ai_api_key("anthropic", db) or ""
         self.gemini_key = get_ai_api_key("gemini", db) or ""
+        self.xai_key = get_ai_api_key("xai", db) or ""
+        self.perplexity_key = get_ai_api_key("perplexity", db) or ""
         self.bedrock_enabled = is_bedrock_enabled(db) and bedrock_available()
         self.bedrock_region = get_bedrock_region(db)
         self._bedrock_provider = None  # Reset to reload
@@ -168,6 +174,8 @@ class AIEvidenceOrchestrator:
         self.anthropic_model = get_ai_model("anthropic", db)
         self.gemini_model = get_ai_model("gemini", db)
         self.bedrock_model = get_ai_model("bedrock", db)
+        self.xai_model = get_ai_model("xai", db) or "grok-3-latest"
+        self.perplexity_model = get_ai_model("perplexity", db) or "sonar-pro"
 
     async def quick_search(
         self, query: str, emails: list[EmailMessage]
@@ -1087,8 +1095,8 @@ async def _get_relevant_emails(
         query = query.filter(
             or_(
                 EmailMessage.meta.is_(None),
-                EmailMessage.meta["spam"]["is_hidden"].astext != "true",
-                ~EmailMessage.meta.has_key("spam"),
+                EmailMessage.meta.op('->>')('spam').is_(None),
+                EmailMessage.meta.op('->')('spam').op('->>')('is_hidden') != "true",
             )
         )
 
@@ -1125,7 +1133,7 @@ async def _get_relevant_emails(
 async def get_models_status(
     user: User = Depends(current_user), db: Session = Depends(get_db)
 ):
-    """Check which AI models are configured (4 providers: OpenAI, Anthropic, Gemini, Bedrock)"""
+    """Check which AI models are configured (6 providers: OpenAI, Anthropic, Gemini, Bedrock, xAI, Perplexity)"""
     # Refresh settings from database
     orchestrator = get_orchestrator(db)
 
@@ -1156,18 +1164,34 @@ async def get_models_status(
                 "region": orchestrator.bedrock_region,
                 "task": "Gap Analysis & Enterprise AI",
             },
+            "xai": {
+                "available": bool(orchestrator.xai_key),
+                "name": "xAI Grok",
+                "model": orchestrator.xai_model,
+                "task": "Real-time Analysis & Reasoning",
+            },
+            "perplexity": {
+                "available": bool(orchestrator.perplexity_key),
+                "name": "Perplexity Sonar",
+                "model": orchestrator.perplexity_model,
+                "task": "Research & Web Search",
+            },
         },
         "quick_search_available": bool(
             orchestrator.gemini_key
             or orchestrator.openai_key
             or orchestrator.anthropic_key
             or orchestrator.bedrock_enabled
+            or orchestrator.xai_key
+            or orchestrator.perplexity_key
         ),
         "deep_research_available": bool(
             orchestrator.openai_key
             or orchestrator.gemini_key
             or orchestrator.anthropic_key
             or orchestrator.bedrock_enabled
+            or orchestrator.xai_key
+            or orchestrator.perplexity_key
         ),
     }
 
@@ -1176,8 +1200,9 @@ async def get_models_status(
 async def test_ai_provider(
     provider: str, user: User = Depends(current_user), db: Session = Depends(get_db)
 ):
-    """Test connection to a specific AI provider (OpenAI, Anthropic, Gemini, Bedrock)"""
+    """Test connection to a specific AI provider (OpenAI, Anthropic, Gemini, Bedrock, xAI, Perplexity)"""
     import time
+    from .ai_runtime import complete_chat
 
     orchestrator = get_orchestrator(db)
 
@@ -1222,8 +1247,34 @@ async def test_ai_provider(
             else:
                 return {"success": False, "error": test_result.get("error", "Bedrock test failed")}
 
+        elif provider == "xai":
+            if not orchestrator.xai_key:
+                return {"success": False, "error": "xAI (Grok) API key not configured"}
+            response = await complete_chat(
+                provider="xai",
+                model_id=orchestrator.xai_model or "grok-3-latest",
+                prompt=test_prompt,
+                api_key=orchestrator.xai_key,
+                max_tokens=50,
+                temperature=0.3,
+            )
+            model = orchestrator.xai_model or "grok-3-latest"
+
+        elif provider == "perplexity":
+            if not orchestrator.perplexity_key:
+                return {"success": False, "error": "Perplexity API key not configured"}
+            response = await complete_chat(
+                provider="perplexity",
+                model_id=orchestrator.perplexity_model or "sonar-pro",
+                prompt=test_prompt,
+                api_key=orchestrator.perplexity_key,
+                max_tokens=50,
+                temperature=0.3,
+            )
+            model = orchestrator.perplexity_model or "sonar-pro"
+
         else:
-            return {"success": False, "error": f"Unknown provider: {provider}. Supported: openai, anthropic, gemini, bedrock"}
+            return {"success": False, "error": f"Unknown provider: {provider}. Supported: openai, anthropic, gemini, bedrock, xai, perplexity"}
 
         elapsed = int((time.time() - start_time) * 1000)
 
