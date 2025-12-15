@@ -105,16 +105,22 @@ try:
                 existing.value = val
                 synced += 1
     
-    # Set optimal models for configured providers
+    # Set/correct optimal models for configured providers
     for provider, (model, desc) in AI_MODELS.items():
         key_name = f'{provider}_api_key'
         has_key = db.query(AppSetting).filter(AppSetting.key == key_name, AppSetting.value.isnot(None)).first()
         if has_key or (provider == 'bedrock' and os.environ.get('BEDROCK_ENABLED') == 'true'):
             model_key = f'{provider}_model'
-            if not db.query(AppSetting).filter(AppSetting.key == model_key).first():
+            existing = db.query(AppSetting).filter(AppSetting.key == model_key).first()
+            if not existing:
                 db.add(AppSetting(key=model_key, value=model, description=desc))
                 synced += 1
                 print(f'✓ Set {provider} model: {model}')
+            elif existing.value != model:
+                old_val = existing.value
+                existing.value = model
+                synced += 1
+                print(f'✓ Fixed {provider} model: {old_val} -> {model}')
     
     # Set default provider if not set
     if not db.query(AppSetting).filter(AppSetting.key == 'ai_default_provider').first():
