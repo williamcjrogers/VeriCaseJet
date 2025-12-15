@@ -55,19 +55,19 @@ if ($WriteVSCodeConfig) {
                         type        = 'promptString'
                         id          = 'aws_region'
                         description = 'AWS region (for AWS MCP servers)'
-                        default     = 'us-east-1'
+                        default     = 'eu-west-2'
                     },
                     @{
                         type        = 'promptString'
                         id          = 'ssh_host'
                         description = 'SSH host (hostname or IP)'
-                        default     = ''
+                        default     = '18.175.232.87'
                     },
                     @{
                         type        = 'promptString'
                         id          = 'ssh_user'
                         description = 'SSH username'
-                        default     = ''
+                        default     = 'ec2-user'
                     },
                     @{
                         type        = 'promptString'
@@ -79,7 +79,13 @@ if ($WriteVSCodeConfig) {
                         type        = 'promptString'
                         id          = 'ssh_key_path'
                         description = 'SSH private key path'
-                        default     = '${env:USERPROFILE}/.ssh/id_rsa'
+                        default     = '${env:USERPROFILE}/.ssh/VeriCase-Safe.pem'
+                    },
+                    @{
+                        type        = 'promptString'
+                        id          = 'ssh_known_hosts_path'
+                        description = 'SSH known_hosts path (used when strict host key checking is enabled)'
+                        default     = '${env:USERPROFILE}/.ssh/known_hosts'
                     }
                 )
                 servers = @{
@@ -125,7 +131,8 @@ if ($WriteVSCodeConfig) {
                             SSH_USER                    = '${input:ssh_user}'
                             SSH_PORT                    = '${input:ssh_port}'
                             SSH_PRIVATE_KEY_PATH        = '${input:ssh_key_path}'
-                            SSH_STRICT_HOST_KEY_CHECKING = 'false'
+                            SSH_STRICT_HOST_KEY_CHECKING = 'true'
+                            SSH_KNOWN_HOSTS_PATH         = '${input:ssh_known_hosts_path}'
                         }
                     }
                 }

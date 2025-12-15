@@ -124,7 +124,15 @@ deploy_ec2() {
     fi
 
     log_info "Connecting to EC2..."
-    ssh -i "$key_path" -o StrictHostKeyChecking=no ec2-user@$EC2_IP << 'ENDSSH'
+    local known_hosts_file="$HOME/.ssh/known_hosts"
+    if [ ! -f "$known_hosts_file" ]; then
+        log_warn "known_hosts not found: $known_hosts_file"
+        log_info "Prime it first (Windows): powershell -ExecutionPolicy Bypass -File .\\vericase\\ops\\setup-ssh.ps1"
+        log_info "Then retry this deploy."
+        exit 1
+    fi
+
+    ssh -i "$key_path" -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" ec2-user@$EC2_IP << 'ENDSSH'
         cd ~/vericase || exit 1
         echo "Pulling latest images..."
         sudo docker-compose pull
@@ -134,6 +142,12 @@ deploy_ec2() {
         echo "Checking status..."
         sudo docker-compose ps
 ENDSSH
+
+    if [ $? -ne 0 ]; then
+        log_error "SSH failed. If this is the first connection or host key changed, prime known_hosts first."
+        log_info "Windows: powershell -ExecutionPolicy Bypass -File .\\vericase\\ops\\setup-ssh.ps1"
+        exit 1
+    fi
 
     log_success "EC2 deployment complete!"
     echo ""

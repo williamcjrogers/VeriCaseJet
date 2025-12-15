@@ -106,13 +106,23 @@ function Diagnose-EC2 {
         Write-Host ""
         Write-Host "SSH Access:" -ForegroundColor Yellow
         try {
-            $result = ssh -i $keyPath -o ConnectTimeout=5 -o StrictHostKeyChecking=no ec2-user@$EC2_IP "echo connected" 2>$null
+            $knownHosts = "$env:USERPROFILE\.ssh\known_hosts"
+            if (-not (Test-Path $knownHosts)) {
+                Warn "known_hosts not found: $knownHosts"
+                Info "Run: powershell -ExecutionPolicy Bypass -File .\\vericase\\ops\\setup-ssh.ps1"
+                return
+            }
+            $result = ssh -i "$keyPath" -o ConnectTimeout=5 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$knownHosts" ec2-user@$EC2_IP "echo connected" 2>$null
             if ($result -eq "connected") {
                 Ok "SSH connection successful"
 
                 Write-Host ""
                 Write-Host "Remote Docker Status:" -ForegroundColor Yellow
-                ssh -i $keyPath -o StrictHostKeyChecking=no ec2-user@$EC2_IP "sudo docker ps --format 'table {{.Names}}\t{{.Status}}'" 2>$null
+                ssh -i "$keyPath" -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$knownHosts" ec2-user@$EC2_IP "sudo docker ps --format 'table {{.Names}}\t{{.Status}}'" 2>$null
+            } else {
+                Fail "SSH connection failed"
+                Info "If this is the first connection or the instance host key changed, prime known_hosts:"
+                Info "  powershell -ExecutionPolicy Bypass -File .\\vericase\\ops\\setup-ssh.ps1"
             }
         } catch {
             Fail "SSH connection failed"

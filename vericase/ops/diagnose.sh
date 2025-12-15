@@ -115,14 +115,22 @@ diagnose_ec2() {
     if [ -f "$key_path" ]; then
         echo ""
         echo "SSH Access:"
-        if ssh -i "$key_path" -o ConnectTimeout=5 -o StrictHostKeyChecking=no ec2-user@$EC2_IP "echo connected" &>/dev/null; then
+        local known_hosts_file="$HOME/.ssh/known_hosts"
+        if [ ! -f "$known_hosts_file" ]; then
+            warn "known_hosts not found: $known_hosts_file"
+            info "Prime it first (Windows): powershell -ExecutionPolicy Bypass -File .\\vericase\\ops\\setup-ssh.ps1"
+            return 0
+        fi
+        if ssh -i "$key_path" -o ConnectTimeout=5 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" ec2-user@$EC2_IP "echo connected" &>/dev/null; then
             ok "SSH connection successful"
 
             echo ""
             echo "Remote Docker Status:"
-            ssh -i "$key_path" -o StrictHostKeyChecking=no ec2-user@$EC2_IP "sudo docker ps --format 'table {{.Names}}\t{{.Status}}' 2>/dev/null" || warn "Could not get docker status"
+            ssh -i "$key_path" -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" ec2-user@$EC2_IP "sudo docker ps --format 'table {{.Names}}\t{{.Status}}' 2>/dev/null" || warn "Could not get docker status"
         else
             fail "SSH connection failed"
+            info "If this is the first connection or host key changed, prime known_hosts first."
+            info "Windows: powershell -ExecutionPolicy Bypass -File .\\vericase\\ops\\setup-ssh.ps1"
         fi
     else
         warn "SSH key not found: $key_path"
