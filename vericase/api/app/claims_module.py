@@ -467,52 +467,52 @@ async def list_heads_of_claim(
     )
 
     result = []
-        for c in claims:
-            item_count = (
-                db.query(func.count(ItemClaimLink.id))
-                .filter(
-                    ItemClaimLink.head_of_claim_id == c.id, ItemClaimLink.status == "active"
-                )
-                .scalar()
-                or 0
+    for c in claims:
+        item_count = (
+            db.query(func.count(ItemClaimLink.id))
+            .filter(
+                ItemClaimLink.head_of_claim_id == c.id, ItemClaimLink.status == "active"
             )
+            .scalar()
+            or 0
+        )
 
-            matter_name = None
-            if c.contentious_matter_id:
-                matter = (
-                    db.query(ContentiousMatter.name)
-                    .filter(ContentiousMatter.id == c.contentious_matter_id)
-                    .first()
-                )
-                if matter:
-                    matter_name = matter.name
-
-            result.append(
-                HeadOfClaimResponse(
-                    id=str(c.id),
-                    name=c.name,
-                    description=c.description,
-                    project_id=str(c.project_id) if c.project_id else None,
-                    case_id=str(c.case_id) if c.case_id else None,
-                    contentious_matter_id=(
-                        str(c.contentious_matter_id) if c.contentious_matter_id else None
-                    ),
-                    contentious_matter_name=matter_name,
-                    reference_number=c.reference_number,
-                    claim_type=c.claim_type,
-                    claimed_amount=c.claimed_amount,
-                    awarded_amount=c.awarded_amount,
-                    currency=c.currency or "GBP",
-                    status=c.status or "draft",
-                    submission_date=c.submission_date,
-                    response_due_date=c.response_due_date,
-                    determination_date=c.determination_date,
-                    supporting_contract_clause=c.supporting_contract_clause,
-                    created_at=c.created_at,
-                    created_by=str(c.created_by) if c.created_by else None,
-                    item_count=item_count,
-                )
+        matter_name = None
+        if c.contentious_matter_id:
+            matter = (
+                db.query(ContentiousMatter.name)
+                .filter(ContentiousMatter.id == c.contentious_matter_id)
+                .first()
             )
+            if matter:
+                matter_name = matter.name
+
+        result.append(
+            HeadOfClaimResponse(
+                id=str(c.id),
+                name=c.name,
+                description=c.description,
+                project_id=str(c.project_id) if c.project_id else None,
+                case_id=str(c.case_id) if c.case_id else None,
+                contentious_matter_id=(
+                    str(c.contentious_matter_id) if c.contentious_matter_id else None
+                ),
+                contentious_matter_name=matter_name,
+                reference_number=c.reference_number,
+                claim_type=c.claim_type,
+                claimed_amount=c.claimed_amount,
+                awarded_amount=c.awarded_amount,
+                currency=c.currency or "GBP",
+                status=c.status or "draft",
+                submission_date=c.submission_date,
+                response_due_date=c.response_due_date,
+                determination_date=c.determination_date,
+                supporting_contract_clause=c.supporting_contract_clause,
+                created_at=c.created_at,
+                created_by=str(c.created_by) if c.created_by else None,
+                item_count=item_count,
+            )
+        )
 
     return {"items": result, "total": total, "page": page, "page_size": page_size}
 

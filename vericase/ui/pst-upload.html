@@ -942,12 +942,13 @@
       });
     }
 
-    // Retry helper for network issues
+    // Retry helper for network issues (optimized for large file uploads)
     async function fetchWithRetry(url, options, retries = 3) {
       for (let i = 0; i < retries; i++) {
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 300000); // 5 min timeout
+          // Extended timeout for large chunks (100MB can take time on slower connections)
+          const timeout = setTimeout(() => controller.abort(), 600000); // 10 min timeout for 100MB chunks
 
           const response = await fetch(url, {
             ...options,
@@ -957,13 +958,15 @@
 
           if (response.ok) return response;
           if (response.status >= 500 && i < retries - 1) {
-            await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+            // Exponential backoff for server errors
+            await new Promise((r) => setTimeout(r, 2000 * (i + 1)));
             continue;
           }
           return response;
         } catch (error) {
           if (i === retries - 1) throw error;
-          await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+          // Longer retry delay for large uploads
+          await new Promise((r) => setTimeout(r, 3000 * (i + 1)));
         }
       }
     }
@@ -976,8 +979,8 @@
     let totalBytesUploaded = 0;
 
     // Concurrent upload settings
-    const MAX_CONCURRENT = 4; // Max parallel uploads
-    const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks for large files
+    const MAX_CONCURRENT = 4; // Max parallel file uploads
+    const CHUNK_SIZE = 100 * 1024 * 1024; // 100MB chunks (optimal for 20GB+ files)
 
     // DOM Elements
     const uploadZone = document.getElementById("uploadZone");
@@ -1496,7 +1499,9 @@
       const totalChunks = Math.ceil(item.size / actualChunkSize);
       const parts = [];
 
-      for (let partNumber = 1; partNumber <= totalChunks; partNumber++) {
+      // Upload parts in parallel (up to 6 concurrent for large files 20GB+)
+      const MAX_PART_CONCURRENCY = 6;
+      const uploadPart = async (partNumber) => {
         const start = (partNumber - 1) * actualChunkSize;
         const end = Math.min(start + actualChunkSize, item.size);
         const chunk = item.file.slice(start, end);
@@ -1524,9 +1529,19 @@
           throw new Error(`Failed to upload part ${partNumber}`);
 
         const etag = uploadResp.headers.get("ETag") || `part${partNumber}`;
-        parts.push({ ETag: etag.replace(/"/g, ""), PartNumber: partNumber });
+        return { ETag: etag.replace(/"/g, ""), PartNumber: partNumber };
+      };
 
-        const pct = Math.round((partNumber / totalChunks) * 85);
+      // Upload all parts with controlled concurrency
+      for (let i = 0; i < totalChunks; i += MAX_PART_CONCURRENCY) {
+        const batch = [];
+        for (let j = 0; j < MAX_PART_CONCURRENCY && i + j < totalChunks; j++) {
+          batch.push(uploadPart(i + j + 1));
+        }
+        const batchResults = await Promise.all(batch);
+        parts.push(...batchResults);
+        
+        const pct = Math.round((parts.length / totalChunks) * 85);
         updateFileItem(item.id, { progress: pct });
       }
 
