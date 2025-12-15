@@ -45,7 +45,18 @@ def reset_admin_password():
             print(f"✅ Account UNLOCKED. Password reset to: {new_password}")
         else:
             print(f"❌ User {email} not found! Creating it...")
-            # Fallback to create user if missing logic could go here, but likely not needed if just locked
+            # Create admin user
+            _ = session.execute(
+                text(
+                    """
+                    INSERT INTO users (email, password_hash, role, failed_login_attempts)
+                    VALUES (:email, :hash, 'ADMIN', 0)
+                """
+                ),
+                {"email": email, "hash": new_hash},
+            )
+            session.commit()
+            print(f"✅ Admin user created: {email} / {new_password}")
 
     except Exception as e:
         print(f"❌ Error: {e}")
