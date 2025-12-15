@@ -756,7 +756,6 @@ async def get_pst_status(
             # Decode Redis data (bytes to string)
             decoded_redis_data = {k.decode(): v.decode() for k, v in redis_data.items()}
 
-        status_field = EmailMessage.meta["status"].astext
             total_chunks = int(decoded_redis_data.get("total_chunks", "0"))
             completed_chunks = int(decoded_redis_data.get("completed_chunks", "0"))
             failed_chunks = int(decoded_redis_data.get("failed_chunks", "0"))
