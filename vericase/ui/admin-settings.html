@@ -1459,6 +1459,14 @@
             headers: { Authorization: `Bearer ${token}` },
           });
 
+          if (response.status === 401) {
+            console.error("Token expired or invalid - redirecting to login");
+            localStorage.removeItem("token");
+            alert("Session expired. Please log in again.");
+            window.location.href = "login.html";
+            return;
+          }
+
           if (response.status === 403) {
             alert("Admin access required");
             window.location.href = "dashboard.html";
@@ -1466,7 +1474,8 @@
           }
 
           if (!response.ok) {
-            console.error("Error loading settings");
+            const errorText = await response.text();
+            console.error("Error loading settings:", response.status, errorText);
             return;
           }
 
