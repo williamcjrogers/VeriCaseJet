@@ -110,7 +110,8 @@ from .ai_refinement import (
 from .auth_enhanced import router as auth_enhanced_router  # Enhanced authentication
 from .evidence_repository import router as evidence_router  # Evidence repository
 from .ocr_feedback import router as ocr_feedback_router  # OCR feedback
-from .deep_research import router as deep_research_router  # Deep Research Agent
+from .deep_research import router as deep_research_router  # Deep Research (Correspondence tab)
+from .vericase_analysis import router as vericase_analysis_router  # VeriCase Analysis (flagship)
 from .claims_module import (
     router as claims_router,
 )  # Contentious Matters and Heads of Claim
@@ -361,7 +362,8 @@ app.include_router(
 app.include_router(auth_enhanced_router)  # Enhanced authentication endpoints
 app.include_router(evidence_router)  # Evidence repository
 app.include_router(ocr_feedback_router)  # OCR feedback
-app.include_router(deep_research_router)  # Deep Research Agent
+app.include_router(deep_research_router)  # Deep Research (Correspondence tab)
+app.include_router(vericase_analysis_router)  # VeriCase Analysis (flagship orchestrator)
 app.include_router(claims_router)  # Contentious Matters and Heads of Claim
 app.include_router(dashboard_router)  # Master Dashboard API
 app.include_router(aws_router)  # AWS AI Services (Bedrock, Textract, Comprehend, etc.)
