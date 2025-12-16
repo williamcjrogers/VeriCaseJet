@@ -8,12 +8,17 @@ on:
       - '.github/workflows/deploy-eks.yml'
   workflow_dispatch:
 
+concurrency:
+  group: deploy-eks-main
+  cancel-in-progress: true
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+      id-token: write
     env:
       AWS_REGION: eu-west-2
       EKS_CLUSTER: vericase-cluster
@@ -54,6 +59,7 @@ jobs:
             type=raw,value={{date 'YYYYMMDD-HHmmss'}}
 
       - name: Build and push to registries
+        id: build
         uses: docker/build-push-action@v5
         with:
           builder: ${{ steps.buildx.outputs.name }}
@@ -69,27 +75,39 @@ jobs:
       - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          # Use GitHub OIDC instead of long-lived AWS keys.
+          # Create an AWS IAM role trusted for GitHub OIDC and set its ARN in GitHub Secrets as AWS_ROLE_TO_ASSUME.
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS Identity (OIDC)
+        run: |
+          aws sts get-caller-identity
+          aws eks describe-cluster --name $EKS_CLUSTER --region $AWS_REGION --query 'cluster.status'
 
       - name: Deploy to EKS
         run: |
+          set -Eeuo pipefail
+
           aws eks update-kubeconfig --name $EKS_CLUSTER --region $AWS_REGION
+          kubectl get nodes
           kubectl apply -f vericase/k8s/k8s-deployment.yaml -n vericase
           kubectl apply -f vericase/k8s/k8s-ingress.yaml -n vericase
           kubectl apply -f vericase/k8s/tika-deployment.yaml -n vericase
           # Record the commit SHA on the deployments for observability (no extra rollout)
           kubectl annotate deployment/vericase-api vericase.com/commit-sha=${GITHUB_SHA} --overwrite -n vericase
           kubectl annotate deployment/vericase-worker vericase.com/commit-sha=${GITHUB_SHA} --overwrite -n vericase
-          # Update deployments to use the commit-specific image tag (short SHA matches docker/metadata-action)
-          SHORT_SHA=${GITHUB_SHA::7}
-          kubectl set image deployment/vericase-api vericase-api=${DOCKER_IMAGE}:${SHORT_SHA} -n vericase
-          kubectl set image deployment/vericase-worker vericase-worker=${DOCKER_IMAGE}:${SHORT_SHA} -n vericase
-          kubectl rollout status deployment/vericase-api -n vericase --timeout=10m || true
-          kubectl rollout status deployment/vericase-worker -n vericase --timeout=10m || true
-          kubectl get pods -n vericase
-          echo "Deployment triggered - pods may still be starting"
+          # Update deployments to use the image digest we just built (avoids any tag-caching issues)
+          DIGEST=${{ steps.build.outputs.digest }}
+          echo "Deploying image digest: ${DIGEST}"
+          kubectl set image deployment/vericase-api vericase-api=${DOCKER_IMAGE}@${DIGEST} -n vericase
+          kubectl set image deployment/vericase-worker vericase-worker=${DOCKER_IMAGE}@${DIGEST} -n vericase
+          kubectl rollout status deployment/vericase-api -n vericase --timeout=10m || { kubectl describe deployment/vericase-api -n vericase; kubectl get pods -n vericase -o wide; exit 1; }
+          kubectl rollout status deployment/vericase-worker -n vericase --timeout=10m || { kubectl describe deployment/vericase-worker -n vericase; kubectl get pods -n vericase -o wide; exit 1; }
+          echo "Deployed images (should include @sha256:...):"
+          kubectl -n vericase get deploy vericase-api -o jsonpath='{.spec.template.spec.containers[*].image}'; echo
+          kubectl -n vericase get deploy vericase-worker -o jsonpath='{.spec.template.spec.containers[*].image}'; echo
+          kubectl get pods -n vericase -o wide
 
       - name: Summary
         run: |
@@ -98,5 +116,8 @@ jobs:
           echo "**Images published to:**" >> $GITHUB_STEP_SUMMARY
           echo "- Docker Hub: \`${{ env.DOCKER_IMAGE }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- GHCR: \`${{ env.GHCR_IMAGE }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Digest: \`${{ steps.build.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Deployed to:** \`${{ env.EKS_CLUSTER }}\` (eu-west-2)" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed image (by digest):** \`${{ env.DOCKER_IMAGE }}@${{ steps.build.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
