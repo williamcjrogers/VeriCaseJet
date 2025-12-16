@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 FROM python:3.11-slim
 # Build: 2025-12-10
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -24,7 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Build and install libpff from source (required for pypff)
-RUN git clone https://github.com/libyal/libpff.git /tmp/libpff && \
+RUN git clone --depth=1 https://github.com/libyal/libpff.git /tmp/libpff && \
     cd /tmp/libpff && \
     ./synclibs.sh && \
     ./autogen.sh && \

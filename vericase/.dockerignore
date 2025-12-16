@@ -1,0 +1,49 @@
+# NOTE: Docker build context for the API image is ./vericase (see .github/workflows/deploy-eks.yml).
+# Keep the context small so CI builds are faster and cache reuse is better.
+
+# Git
+.git/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# Virtual environments / env files
+venv/
+.venv/
+env/
+.env/
+.env.*
+*.env
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Logs / temp
+*.log
+logs/
+tmp/
+temp/
+
+# Not needed inside the container image (Dockerfile only copies api/, worker_app/, ui/, requirements.txt)
+Deep Research/
+docs/
+tests/
+k8s/
+ops/
+nginx/
+migrations/
+assets/

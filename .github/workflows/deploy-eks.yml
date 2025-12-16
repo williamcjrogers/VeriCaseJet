@@ -79,9 +79,9 @@ jobs:
           kubectl apply -f vericase/k8s/k8s-deployment.yaml -n vericase
           kubectl apply -f vericase/k8s/k8s-ingress.yaml -n vericase
           kubectl apply -f vericase/k8s/tika-deployment.yaml -n vericase
-          # Record the commit SHA on the deployments for observability
-          kubectl set env deployment/vericase-api VERICASE_COMMIT_SHA=${GITHUB_SHA} -n vericase
-          kubectl set env deployment/vericase-worker VERICASE_COMMIT_SHA=${GITHUB_SHA} -n vericase
+          # Record the commit SHA on the deployments for observability (no extra rollout)
+          kubectl annotate deployment/vericase-api vericase.com/commit-sha=${GITHUB_SHA} --overwrite -n vericase
+          kubectl annotate deployment/vericase-worker vericase.com/commit-sha=${GITHUB_SHA} --overwrite -n vericase
           # Update deployments to use the commit-specific image tag (short SHA matches docker/metadata-action)
           SHORT_SHA=${GITHUB_SHA::7}
           kubectl set image deployment/vericase-api vericase-api=${DOCKER_IMAGE}:${SHORT_SHA} -n vericase

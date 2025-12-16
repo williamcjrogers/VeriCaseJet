@@ -165,9 +165,9 @@
         },
         {
           id: "research",
-          label: "Deep Analysis",
+          label: "VeriCase Analysis",
           icon: "fa-microscope",
-          url: "deep-research.html",
+          url: "vericase-analysis.html",
           badge: "NEW",
         },
       ],
