@@ -39,11 +39,12 @@ tmp/
 temp/
 
 # Not needed inside the container image (Dockerfile only copies api/, worker_app/, ui/, requirements.txt)
-Deep Research/
-docs/
-tests/
-k8s/
-ops/
-nginx/
-migrations/
-assets/
+# Anchor these to the build-context root so we don't accidentally exclude e.g. ui/assets or api/migrations.
+/Deep Research/
+/docs/
+/tests/
+/k8s/
+/ops/
+/nginx/
+/migrations/
+/assets/

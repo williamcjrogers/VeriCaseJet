@@ -36,7 +36,8 @@ RUN git clone --depth=1 https://github.com/libyal/libpff.git /tmp/libpff && \
     cd /tmp && rm -rf /tmp/libpff
 
 COPY requirements.txt /code/requirements.txt
-RUN pip install --no-cache-dir -r /code/requirements.txt
+# Requires BuildKit (Docker Desktop defaults to this; otherwise set DOCKER_BUILDKIT=1).
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r /code/requirements.txt
 
 # Copy application code
 COPY api/app /code/app
