@@ -1424,18 +1424,24 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
                         </p>
                     `;
 
-            const topicGroup = topicInput.closest(".form-group");
-            if (topicGroup) {
+            const topicGroup = topicInput ? topicInput.closest(".form-group") : null;
+            if (topicGroup && topicGroup.parentNode) {
               topicGroup.parentNode.insertBefore(formGroup, topicGroup);
+            } else {
+              // Fallback: append to main form
+              const mainForm = document.querySelector('.research-form') || document.querySelector('form');
+              if (mainForm) mainForm.prepend(formGroup);
             }
 
             projectSelect = document.getElementById("projectSelect");
           }
 
-          // Update on change
-          projectSelect.addEventListener("change", (e) => {
-            currentProjectId = e.target.value || null;
-          });
+          // Update on change - with null check
+          if (projectSelect) {
+            projectSelect.addEventListener("change", (e) => {
+              currentProjectId = e.target.value || null;
+            });
+          }
         } catch (error) {
           console.error("Error loading projects:", error);
         }

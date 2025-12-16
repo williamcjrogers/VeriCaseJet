@@ -248,9 +248,12 @@ class AISettings:
 
         env_var = env_map.get(key)
         if env_var:
-            env_value_raw: object | None = getattr(env_settings, env_var, None)
-            if env_value_raw is not None:
-                return str(env_value_raw)
+            # Use os.getenv directly - config_production.py loads secrets into os.environ
+            # at startup, but env_settings Pydantic object was created before that
+            import os
+            env_value = os.getenv(env_var)
+            if env_value is not None:
+                return env_value
 
         return default
 

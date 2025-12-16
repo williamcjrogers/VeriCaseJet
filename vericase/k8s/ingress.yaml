@@ -1,0 +1,59 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:eu-west-2:526015377510:certificate/fa1c323e-4062-4480-9234-b0c7476a23d0
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/target-type: ip
+    # Increase timeout for AI deep research (LLM calls take 30-120 seconds)
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=300
+    kubernetes.io/ingress.class: alb
+  name: vericase-ingress
+  namespace: vericase
+spec:
+  rules:
+  - http:
+      paths:
+      - backend:
+          service:
+            name: vericase-api
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+  - host: veri-case.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: vericase-api
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+  - host: www.veri-case.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: vericase-api
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+  - host: api.veri-case.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: vericase-api
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+status:
+  loadBalancer:
+    ingress:
+    - hostname: k8s-vericase-vericase-831b8104f3-1782642699.eu-west-2.elb.amazonaws.com
