@@ -2042,26 +2042,35 @@ async def start_research(
 
     save_session(session)
 
-    # Start planning in background
-    async def run_planning():
-        try:
-            evidence_context = await build_evidence_context(
-                db, str(user.id), request.project_id, request.case_id
-            )
+    # Capture values needed for background task (don't pass db session)
+    user_id = str(user.id)
+    project_id = request.project_id
+    case_id = request.case_id
+    focus_areas = request.focus_areas
 
-            master = MasterAgent(db, session)
-            _ = await master.run_planning_phase(evidence_context, request.focus_areas)
-
-        except Exception as e:
-            logger.exception(f"Planning failed: {e}")
-            session.status = ResearchStatus.FAILED
-            session.error_message = str(e)
-        finally:
-            save_session(session)
-
-    # Schedule background task properly - wrap async function for BackgroundTasks
+    # Start planning in background with fresh DB session
     def sync_run_planning():
         import asyncio
+        from .db import SessionLocal
+        
+        async def run_planning():
+            # Create fresh DB session for background task
+            task_db = SessionLocal()
+            try:
+                evidence_context = await build_evidence_context(
+                    task_db, user_id, project_id, case_id
+                )
+
+                master = MasterAgent(task_db, session)
+                _ = await master.run_planning_phase(evidence_context, focus_areas)
+
+            except Exception as e:
+                logger.exception(f"Planning failed: {e}")
+                session.status = ResearchStatus.FAILED
+                session.error_message = str(e)
+            finally:
+                task_db.close()
+                save_session(session)
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -2156,23 +2165,32 @@ async def approve_research_plan(
             session.topic = f"{session.topic}\n\nUser feedback: {request.modifications}"
 
         session.status = ResearchStatus.PENDING
+        save_session(session)
 
-        async def regenerate_plan():
-            try:
-                evidence_context = await build_evidence_context(
-                    db, str(user.id), session.project_id, session.case_id
-                )
-                master = MasterAgent(db, session)
-                _ = await master.run_planning_phase(evidence_context)
-            except Exception as e:
-                logger.exception(f"Plan regeneration failed: {e}")
-                session.status = ResearchStatus.FAILED
-                session.error_message = str(e)
-            finally:
-                save_session(session)
+        # Capture values for background task
+        user_id = str(user.id)
+        project_id = session.project_id
+        case_id = session.case_id
 
         def sync_regenerate_plan():
             import asyncio
+            from .db import SessionLocal
+
+            async def regenerate_plan():
+                task_db = SessionLocal()
+                try:
+                    evidence_context = await build_evidence_context(
+                        task_db, user_id, project_id, case_id
+                    )
+                    master = MasterAgent(task_db, session)
+                    _ = await master.run_planning_phase(evidence_context)
+                except Exception as e:
+                    logger.exception(f"Plan regeneration failed: {e}")
+                    session.status = ResearchStatus.FAILED
+                    session.error_message = str(e)
+                finally:
+                    task_db.close()
+                    save_session(session)
 
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -2196,29 +2214,37 @@ async def approve_research_plan(
     session.updated_at = datetime.now(timezone.utc)
     save_session(session)
 
-    async def run_research():
-        try:
-            evidence_context = await build_evidence_context(
-                db, str(user.id), session.project_id, session.case_id
-            )
-
-            master = MasterAgent(db, session)
-            await master.run_research_phase(evidence_context)
-            _ = await master.run_synthesis_phase()
-
-            session.processing_time_seconds = (
-                datetime.now(timezone.utc) - start_time
-            ).total_seconds()
-
-        except Exception as e:
-            logger.exception(f"Research failed: {e}")
-            session.status = ResearchStatus.FAILED
-            session.error_message = str(e)
-        finally:
-            save_session(session)
+    # Capture values for background task
+    user_id = str(user.id)
+    project_id = session.project_id
+    case_id = session.case_id
 
     def sync_run_research():
         import asyncio
+        from .db import SessionLocal
+
+        async def run_research():
+            task_db = SessionLocal()
+            try:
+                evidence_context = await build_evidence_context(
+                    task_db, user_id, project_id, case_id
+                )
+
+                master = MasterAgent(task_db, session)
+                await master.run_research_phase(evidence_context)
+                _ = await master.run_synthesis_phase()
+
+                session.processing_time_seconds = (
+                    datetime.now(timezone.utc) - start_time
+                ).total_seconds()
+
+            except Exception as e:
+                logger.exception(f"Research failed: {e}")
+                session.status = ResearchStatus.FAILED
+                session.error_message = str(e)
+            finally:
+                task_db.close()
+                save_session(session)
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)

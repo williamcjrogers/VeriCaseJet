@@ -347,6 +347,15 @@ class ForensicPSTProcessor:
 
             # Get RFC822 message headers for threading
             transport_headers = message.get_transport_headers() or ""
+
+            # Fallback: Exchange often returns display names, extract SMTP from headers
+            if not sender_email_addr or "@" not in sender_email_addr:
+                from_match = re.search(
+                    r'From:.*?([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
+                    transport_headers, re.IGNORECASE | re.DOTALL
+                )
+                if from_match:
+                    sender_email_addr = from_match.group(1)
             message_id = self._extract_header(transport_headers, "Message-ID")
             in_reply_to = self._extract_header(transport_headers, "In-Reply-To")
             references_header = self._extract_header(transport_headers, "References")
@@ -360,10 +369,10 @@ class ForensicPSTProcessor:
             except (AttributeError, TypeError, ValueError):
                 pass
 
-            # Get recipients
-            recipients_to = self._extract_recipients(message, "to")
-            recipients_cc = self._extract_recipients(message, "cc")
-            recipients_bcc = self._extract_recipients(message, "bcc")
+            # Get recipients (with transport headers fallback for Exchange emails)
+            recipients_to = self._extract_recipients(message, "to", transport_headers)
+            recipients_cc = self._extract_recipients(message, "cc", transport_headers)
+            recipients_bcc = self._extract_recipients(message, "bcc", transport_headers)
 
             # Get dates
             date_sent = message.get_delivery_time()
@@ -672,7 +681,7 @@ class ForensicPSTProcessor:
         if not headers:
             return None
 
-        pattern = "{header_name}:\s*(.+?)(?:\r?\n(?!\s)|$)"
+        pattern = f"{re.escape(header_name)}:\s*(.+?)(?:\r?\n(?!\s)|$)"
         match = re.search(pattern, headers, re.IGNORECASE | re.MULTILINE)
         value = match.group(1).strip() if match else None
         # region agent log H7 header parse
@@ -693,7 +702,7 @@ class ForensicPSTProcessor:
         return value
 
     def _extract_recipients(
-        self, message: Any, recipient_type: str
+        self, message: Any, recipient_type: str, transport_headers: str = ""
     ) -> list[dict[str, str]]:
         """Extract recipients as list of {name, email} dicts"""
         recipients = []
@@ -713,7 +722,27 @@ class ForensicPSTProcessor:
                 addr = addr.strip()
                 if addr:
                     name, email = parseaddr(addr)
-                    recipients.append({"name": name or email, "email": email})
+                    # If no email extracted, it might be display name only - try to find in headers
+                    if not email or "@" not in email:
+                        email = addr  # Keep original as fallback
+                    recipients.append({"name": name or addr, "email": email})
+            
+            # Fallback: If no valid emails found, extract from transport headers
+            if transport_headers and (not recipients or not any(r.get("email") and "@" in r["email"] for r in recipients)):
+                header_map = {"to": "To", "cc": "Cc", "bcc": "Bcc"}
+                header_name = header_map.get(recipient_type)
+                if header_name:
+                    pattern = f"{header_name}:\\s*(.+?)(?:\\r?\\n(?!\\s)|$)"
+                    match = re.search(pattern, transport_headers, re.IGNORECASE | re.MULTILINE)
+                    if match:
+                        header_value = match.group(1).strip()
+                        # Extract all emails from header
+                        email_matches = re.findall(
+                            r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
+                            header_value
+                        )
+                        if email_matches:
+                            recipients = [{"name": e, "email": e} for e in email_matches]
         except Exception as e:
             logger.warning(f"Error parsing {recipient_type} recipients: {e}")
 
