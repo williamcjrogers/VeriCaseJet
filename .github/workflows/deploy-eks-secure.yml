@@ -1,0 +1,151 @@
+name: Deploy to EKS (Secure OIDC)
+
+#
+# Manual-only: keep this separate from deploy-eks.yml to avoid duplicate deploys on push.
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write  # Required for OIDC
+    env:
+      AWS_REGION: eu-west-2
+      EKS_CLUSTER: vericase-cluster
+      DOCKER_IMAGE: wcjrogers/vericase-api
+      GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/vericase-api
+      DOCKER_USER: ${{ vars.DOCKER_USER || 'wcjrogers' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PAT }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.DOCKER_IMAGE }}
+            ${{ env.GHCR_IMAGE }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=
+            type=raw,value={{date 'YYYYMMDD-HHmmss'}}
+
+      - name: Build and push to registries
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: ./vericase
+          file: ./vericase/api/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # Use GitHub OIDC instead of long-lived AWS keys
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-session-name: GitHubActions-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS Identity
+        run: |
+          echo "AWS Identity:"
+          aws sts get-caller-identity
+          echo "EKS Cluster Access:"
+          aws eks describe-cluster --name $EKS_CLUSTER --region $AWS_REGION --query 'cluster.status'
+
+      - name: Deploy to EKS
+        run: |
+          # Update kubeconfig
+          aws eks update-kubeconfig --name $EKS_CLUSTER --region $AWS_REGION
+          
+          # Verify kubectl access
+          kubectl get nodes
+          
+          # Apply manifests
+          kubectl apply -f vericase/k8s/k8s-deployment.yaml -n vericase
+          kubectl apply -f vericase/k8s/k8s-ingress.yaml -n vericase
+          kubectl apply -f vericase/k8s/tika-deployment.yaml -n vericase
+          
+          # Record deployment metadata
+          kubectl annotate deployment/vericase-api vericase.com/commit-sha=${GITHUB_SHA} --overwrite -n vericase
+          kubectl annotate deployment/vericase-worker vericase.com/commit-sha=${GITHUB_SHA} --overwrite -n vericase
+          kubectl annotate deployment/vericase-api vericase.com/deployed-by="github-actions" --overwrite -n vericase
+          kubectl annotate deployment/vericase-worker vericase.com/deployed-by="github-actions" --overwrite -n vericase
+          kubectl annotate deployment/vericase-api vericase.com/deployed-at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" --overwrite -n vericase
+          kubectl annotate deployment/vericase-worker vericase.com/deployed-at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" --overwrite -n vericase
+          
+          # Update deployments with new image digest
+          DIGEST=${{ steps.build.outputs.digest }}
+          echo "Updating deployments with image digest: ${DIGEST}"
+          kubectl set image deployment/vericase-api vericase-api=${DOCKER_IMAGE}@${DIGEST} -n vericase
+          kubectl set image deployment/vericase-worker vericase-worker=${DOCKER_IMAGE}@${DIGEST} -n vericase
+          
+          # Wait for rollout with timeout
+          echo "Waiting for rollout to complete..."
+          kubectl rollout status deployment/vericase-api -n vericase --timeout=10m
+          kubectl rollout status deployment/vericase-worker -n vericase --timeout=10m
+          
+          # Show final status
+          echo "Deployment Status:"
+          kubectl get pods -n vericase -o wide
+          kubectl get deployments -n vericase
+
+      - name: Post-deployment Health Check
+        run: |
+          # Wait a bit for pods to be ready
+          sleep 30
+          
+          # Check pod health
+          echo "Pod Health Check:"
+          kubectl get pods -n vericase
+          
+          # Check if any pods are failing
+          FAILING_PODS=$(kubectl get pods -n vericase --field-selector=status.phase!=Running --no-headers 2>/dev/null | wc -l)
+          if [ "$FAILING_PODS" -gt 0 ]; then
+            echo "⚠️ Warning: $FAILING_PODS pods are not in Running state"
+            kubectl get pods -n vericase --field-selector=status.phase!=Running
+          else
+            echo "✅ All pods are running successfully"
+          fi
+
+      - name: Deployment Summary
+        run: |
+          echo "## 🚀 Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Images published to:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker Hub: \`${{ env.DOCKER_IMAGE }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- GHCR: \`${{ env.GHCR_IMAGE }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Image Digest: \`${{ steps.build.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed to:** \`${{ env.EKS_CLUSTER }}\` (eu-west-2)" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed by:** GitHub Actions (OIDC)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Security:** ✅ Using IAM OIDC (no long-lived AWS keys)" >> $GITHUB_STEP_SUMMARY
