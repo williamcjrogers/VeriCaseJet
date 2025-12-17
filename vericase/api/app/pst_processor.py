@@ -47,15 +47,21 @@ from .spam_filter import classify_email, SpamResult
 
 
 class ThreadInfo(TypedDict, total=False):
-    """Type definition for thread tracking info."""
+    """Type definition for thread tracking info.
+
+    MEMORY OPTIMIZATION: Only store fields needed for threading.
+    - email_message: Reference to the EmailMessage ORM object
+    - in_reply_to: For RFC 2822 threading
+    - references: For RFC 2822 threading
+    - date: For thread ordering
+    - subject: For subject-based fallback threading
+    """
 
     email_message: EmailMessage
     in_reply_to: str | None
     references: str | None
     date: datetime | None
     subject: str
-    content: str
-    email_data: dict[str, Any]
 
 
 class ProcessingStats(TypedDict):
@@ -156,9 +162,15 @@ class UltimatePSTProcessor:
             getattr(settings, "PST_ATTACHMENT_CHUNK_SIZE", 1024 * 1024) or 1024 * 1024
         )
 
-        # Parallel upload executor (increased for multi-PST throughput)
-        self.upload_executor = ThreadPoolExecutor(max_workers=50)
+        # Parallel upload executor (configurable via PST_UPLOAD_WORKERS)
+        upload_workers = getattr(settings, "PST_UPLOAD_WORKERS", 50) or 50
+        self.upload_executor = ThreadPoolExecutor(max_workers=upload_workers)
         self.upload_futures = []
+
+        # Batch commit size (configurable via PST_BATCH_COMMIT_SIZE)
+        self.batch_commit_size = (
+            getattr(settings, "PST_BATCH_COMMIT_SIZE", 2500) or 2500
+        )
 
         # Initialize semantic processing for deep research acceleration
         self.semantic_service: Any = None
@@ -543,8 +555,6 @@ class UltimatePSTProcessor:
         logger.info("Processing folder: %s (%d messages)", current_path, num_messages)
 
         # Process messages in this folder
-        COMMIT_BATCH_SIZE = 2500  # Commit every N messages for performance (optimized for large PST files)
-
         for i in range(num_messages):
             try:
                 message = folder.get_sub_message(i)
@@ -562,8 +572,8 @@ class UltimatePSTProcessor:
                 stats["total_emails"] += 1
                 self.processed_count += 1
 
-                # Commit every COMMIT_BATCH_SIZE messages for performance
-                if self.processed_count % COMMIT_BATCH_SIZE == 0:
+                # Commit every batch_commit_size messages for performance
+                if self.processed_count % self.batch_commit_size == 0:
                     try:
                         self.db.commit()
                     except Exception as commit_error:
@@ -954,8 +964,6 @@ class UltimatePSTProcessor:
                     "references": references,
                     "date": email_date,
                     "subject": subject or "",
-                    "content": "",
-                    "email_data": email_data,
                 }
                 self.threads_map[message_id] = thread_info
 
@@ -1205,8 +1213,6 @@ class UltimatePSTProcessor:
                 "references": references,
                 "date": email_date,
                 "subject": subject or "",
-                "content": "",
-                "email_data": email_data,
             }
             self.threads_map[message_id] = thread_info
 
@@ -1817,7 +1823,7 @@ class UltimatePSTProcessor:
             if subject:
                 norm_subj = re.sub(r"^(re|fw|fwd):\s*", "", subject.lower().strip())
                 if hasattr(email, "thread_id") and email.thread_id:
-                    participants = self._participants_set(email, thread_info)
+                    participants = self._participants_set(email)
                     subject_map.setdefault(norm_subj, (email.thread_id, participants))
         # ===================================================
 
@@ -1832,7 +1838,7 @@ class UltimatePSTProcessor:
             conversation_index = email_message.conversation_index
 
             thread_id = None
-            participants = self._participants_set(email_message, thread_info)
+            participants = self._participants_set(email_message)
 
             # PRIORITY 1: Use RFC 2822 standard logic (Message-ID / In-Reply-To / References)
             if not thread_id and in_reply_to and in_reply_to in message_id_to_email:
@@ -1959,24 +1965,15 @@ class UltimatePSTProcessor:
             return None, 0
 
     @staticmethod
-    def _participants_set(
-        email_message: EmailMessage, thread_info: ThreadInfo
-    ) -> set[str]:
+    def _participants_set(email_message: EmailMessage) -> set[str]:
         """Lower-cased sender/recipient set for heuristic matching."""
         participants: set[str] = set()
         try:
-            email_data = thread_info.get("email_data", {}) if thread_info else {}
-            sender = (
-                getattr(email_message, "sender_email", None)
-                or email_data.get("from")
-                or ""
-            ).lower()
+            sender = (getattr(email_message, "sender_email", None) or "").lower()
             if sender:
                 participants.add(sender)
             for field in ("to", "cc", "bcc"):
-                vals = email_data.get(field) or getattr(
-                    email_message, f"recipients_{field}", None
-                )
+                vals = getattr(email_message, f"recipients_{field}", None)
                 if vals:
                     for v in vals:
                         if v:
