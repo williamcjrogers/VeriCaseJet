@@ -1486,7 +1486,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
         }
 
         try {
-          const response = await secureApiFetch(`/api/deep-research/start`, {
+          const response = await secureApiFetch(`/api/vericase-analysis/start`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1553,7 +1553,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
 
         try {
           const response = await secureApiFetch(
-            `/api/deep-research/status/${currentSessionId}`,
+            `/api/vericase-analysis/status/${currentSessionId}`,
           );
           if (!response.ok) throw new Error("Failed to get status");
 
@@ -1742,7 +1742,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
 
           try {
             const response = await secureApiFetch(
-              `/api/deep-research/approve-plan`,
+              `/api/vericase-analysis/approve-plan`,
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -1788,7 +1788,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
 
         try {
           const response = await secureApiFetch(
-            `/api/deep-research/approve-plan`,
+            `/api/vericase-analysis/approve-plan`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -1856,7 +1856,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
       // History
       async function loadHistory() {
         try {
-          const response = await secureApiFetch(`/api/deep-research/sessions`);
+          const response = await secureApiFetch(`/api/vericase-analysis/sessions`);
           if (!response.ok) return;
 
           const data = await response.json();
@@ -1899,7 +1899,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
 
         // Only poll if not completed
         const response = await secureApiFetch(
-          `/api/deep-research/status/${sessionId}`,
+          `/api/vericase-analysis/status/${sessionId}`,
         );
         const data = await response.json();
         if (!["completed", "failed", "cancelled"].includes(data.status)) {
