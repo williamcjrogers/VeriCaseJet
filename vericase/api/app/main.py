@@ -105,7 +105,6 @@ from .correspondence import (
     router as correspondence_router,
     wizard_router,
 )  # PST Analysis endpoints
-from .refinement import router as refinement_router  # AI refinement wizard
 from .ai_refinement import (
     router as ai_refinement_router,
 )  # Enhanced AI refinement with intelligent questioning
@@ -123,9 +122,6 @@ from .claims_module import (
 )  # Contentious Matters and Heads of Claim
 from .dashboard_api import router as dashboard_router  # Master Dashboard API
 from .timeline import router as timeline_router  # Project Timeline (Event + Chronology)
-from .chronology import (
-    router as chronology_router,
-)  # Standalone Chronology CRUD - disabled until AG Grid stable
 from .delay_analysis import router as delay_analysis_router  # Delay Analysis AI agents
 from .collaboration import router as collaboration_router  # Collaboration features
 from .enhanced_api_routes import (
@@ -363,7 +359,6 @@ app.include_router(simple_cases_router)  # Must come BEFORE cases_router to matc
 app.include_router(cases_router)
 app.include_router(programmes_router)
 app.include_router(correspondence_router)  # PST Analysis & email correspondence
-app.include_router(refinement_router)  # AI refinement wizard endpoints
 app.include_router(
     ai_refinement_router
 )  # Enhanced AI refinement with intelligent questioning
@@ -379,9 +374,6 @@ app.include_router(dashboard_router)  # Master Dashboard API
 app.include_router(aws_router)  # AWS AI Services (Bedrock, Textract, Comprehend, etc.)
 app.include_router(ai_models_router)  # 2025 AI Models API
 app.include_router(timeline_router)  # Project Timeline (Event + Chronology)
-app.include_router(
-    chronology_router
-)  # Standalone Chronology CRUD - disabled until AG Grid stable
 app.include_router(delay_analysis_router)  # Delay Analysis AI agents
 app.include_router(
     collaboration_router

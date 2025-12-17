@@ -433,7 +433,7 @@ async def list_heads_of_claim(
     status: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-    sort_by: str = Query("created_at", "id", "case_id", "contentious_matter_id"),
+    sort_by: str = Query("created_at"),
     sort_order: str = Query("desc"),
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
