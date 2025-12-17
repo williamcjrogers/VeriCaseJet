@@ -55,7 +55,14 @@ def _require_admin(user: Annotated[User, Depends(current_user)]) -> User:
 
 AdminDep = Annotated[User, Depends(_require_admin)]
 
-RUNTIME_SUPPORTED_PROVIDERS = ["openai", "anthropic", "gemini", "bedrock"]
+RUNTIME_SUPPORTED_PROVIDERS = [
+    "openai",
+    "anthropic",
+    "gemini",
+    "bedrock",
+    "xai",
+    "perplexity",
+]
 
 
 @router.get("", response_model=list[SettingResponse])
@@ -547,6 +554,10 @@ async def fetch_available_models(
             return await _fetch_gemini_models(api_key)
         elif provider == "bedrock":
             return await _fetch_bedrock_models(db)
+        elif provider == "xai":
+            return await _fetch_xai_models(api_key)
+        elif provider == "perplexity":
+            return await _fetch_perplexity_models(api_key)
         else:
             return {"success": False, "error": f"Unknown provider: {provider}"}
 
@@ -693,4 +704,82 @@ async def _fetch_bedrock_models(db: Session) -> dict[str, Any]:
             "success": False,
             "error": str(e),
             "models": [],
+        }
+
+
+async def _fetch_xai_models(api_key: str) -> dict[str, Any]:
+    """Fetch available models from xAI (Grok) - OpenAI-compatible /models endpoint"""
+    import httpx
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://api.x.ai/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=30.0,
+        )
+
+        if response.status_code != 200:
+            return {
+                "success": False,
+                "error": f"xAI API error: {response.status_code} - {response.text}",
+                "models": [],
+            }
+
+        data = response.json()
+        models = data.get("data", [])
+        chat_models = [
+            {
+                "id": m.get("id", ""),
+                "name": m.get("id", ""),
+                "owned_by": m.get("owned_by", "xai"),
+            }
+            for m in models
+            if isinstance(m, dict) and m.get("id")
+        ]
+        chat_models.sort(key=lambda x: x["id"], reverse=True)
+
+        return {
+            "success": True,
+            "provider": "xai",
+            "models": chat_models,
+            "total_models": len(models),
+        }
+
+
+async def _fetch_perplexity_models(api_key: str) -> dict[str, Any]:
+    """Fetch available models from Perplexity - OpenAI-compatible /models endpoint"""
+    import httpx
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://api.perplexity.ai/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=30.0,
+        )
+
+        if response.status_code != 200:
+            return {
+                "success": False,
+                "error": f"Perplexity API error: {response.status_code} - {response.text}",
+                "models": [],
+            }
+
+        data = response.json()
+        models = data.get("data", [])
+        chat_models = [
+            {
+                "id": m.get("id", ""),
+                "name": m.get("id", ""),
+                "owned_by": m.get("owned_by", "perplexity"),
+            }
+            for m in models
+            if isinstance(m, dict) and m.get("id")
+        ]
+        chat_models.sort(key=lambda x: x["id"], reverse=True)
+
+        return {
+            "success": True,
+            "provider": "perplexity",
+            "models": chat_models,
+            "total_models": len(models),
         }

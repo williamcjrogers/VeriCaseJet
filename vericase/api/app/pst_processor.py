@@ -24,10 +24,12 @@ import re
 import tempfile
 import uuid
 import time
+import io
 from datetime import datetime, timezone
 from typing import Any, TypedDict
 from uuid import UUID
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from email.utils import getaddresses
 
 import pypff  # type: ignore  # pypff is installed in Docker container
 
@@ -143,6 +145,15 @@ class UltimatePSTProcessor:
         self.total_count = 0
         self.attachment_hashes: dict[str, Any] = {}  # For Document deduplication
         self.evidence_item_hashes: dict[str, Any] = {}  # For EvidenceItem deduplication
+        self.body_offload_threshold = (
+            getattr(settings, "PST_BODY_OFFLOAD_THRESHOLD", 50000) or 50000
+        )
+        self.body_offload_bucket = (
+            getattr(settings, "S3_EMAIL_BODY_BUCKET", None) or settings.S3_BUCKET
+        )
+        self.chunk_size = (
+            getattr(settings, "PST_ATTACHMENT_CHUNK_SIZE", 1024 * 1024) or 1024 * 1024
+        )
 
         # Parallel upload executor (increased for multi-PST throughput)
         self.upload_executor = ThreadPoolExecutor(max_workers=50)
@@ -342,7 +353,7 @@ class UltimatePSTProcessor:
 
             # Get root folder and (optionally) count total messages first
             root: Any = pst_file.get_root_folder()
-            if getattr(settings, "PST_PRECOUNT_MESSAGES", True):
+            if getattr(settings, "PST_PRECOUNT_MESSAGES", False):
                 self.total_count = self._count_messages(root)
                 logger.info(f"Found {self.total_count} total messages to process")
                 # region agent log H12 count
@@ -752,13 +763,14 @@ class UltimatePSTProcessor:
         def _normalize_recipients(raw: str | None) -> list[str]:
             if not raw:
                 return []
-            # Handle bytes
             if isinstance(raw, bytes):
                 raw = raw.decode("utf-8", errors="replace")
-            # Outlook often separates with ; but can include commas as well.
-            # Also handle "Name <email>" format
-            parts = [part.strip() for part in re.split(r"[;,]", raw) if part.strip()]
-            return parts
+            # Extract only email addresses, drop display names
+            emails = [addr for _, addr in getaddresses([raw]) if addr]
+            if emails:
+                return emails
+            # Fallback: basic split if parsing failed
+            return [part.strip() for part in re.split(r"[;,]", raw) if part.strip()]
 
         to_recipients = _normalize_recipients(self._get_header(message, "To"))
         cc_recipients = _normalize_recipients(self._get_header(message, "Cc"))
@@ -890,6 +902,31 @@ class UltimatePSTProcessor:
         # Clean body text - decode HTML entities and remove zero-width characters
         body_text_clean = self._clean_body_text(canonical_body)
 
+        # Optional offload of very large bodies to S3 to keep DB lean
+        offloaded_body_key = None
+        if (
+            canonical_body
+            and len(canonical_body) > self.body_offload_threshold
+            and self.s3 is not None
+            and self.body_offload_bucket
+        ):
+            try:
+                entity_folder = (
+                    f"case_{case_id}"
+                    if case_id
+                    else f"project_{project_id}" if project_id else "no_entity"
+                )
+                offloaded_body_key = f"email-bodies/{entity_folder}/{email_date.isoformat() if email_date else 'no_date'}_{uuid.uuid4().hex}.txt"
+                body_bytes = canonical_body.encode("utf-8")
+                self.s3.upload_fileobj(
+                    io.BytesIO(body_bytes), self.body_offload_bucket, offloaded_body_key
+                )
+                # Keep only preview in DB
+                canonical_body = ""
+                body_text_clean = (body_preview or "")[:1000] if body_preview else None
+            except Exception as e:
+                logger.warning(f"Body offload failed, keeping inline: {e}")
+
         # Compute content hash for deduplication (canonical body + key metadata)
         content_hash = None
         try:
@@ -948,6 +985,11 @@ class UltimatePSTProcessor:
                 "attachments": [],  # Will be populated after attachments are processed
                 "has_attachments": num_attachments > 0,
                 "canonical_hash": content_hash,
+                "body_offloaded": bool(offloaded_body_key),
+                "body_offload_bucket": (
+                    self.body_offload_bucket if offloaded_body_key else None
+                ),
+                "body_offload_key": offloaded_body_key,
             },
         )
 
@@ -1008,7 +1050,7 @@ class UltimatePSTProcessor:
                 "references": references,
                 "date": email_date,
                 "subject": subject or "",
-                "content": body_html_content or body_text or "",
+                "content": "",
                 "email_data": email_data,
             }
             self.threads_map[message_id] = thread_info
@@ -1249,8 +1291,12 @@ class UltimatePSTProcessor:
                     logger.warning(f"No data for attachment {filename}, skipping")
                     continue
 
-                # Calculate hash for deduplication
-                file_hash = hashlib.sha256(attachment_data).hexdigest()
+                # Calculate hash for deduplication using chunked hashing to reduce peak allocations
+                hasher = hashlib.sha256()
+                mv = memoryview(attachment_data)
+                for offset in range(0, len(mv), self.chunk_size):
+                    hasher.update(mv[offset : offset + self.chunk_size])
+                file_hash = hasher.hexdigest()
 
                 # Sanitize filename and generate unique S3 key
                 safe_filename = self._sanitize_attachment_filename(
@@ -1592,10 +1638,10 @@ class UltimatePSTProcessor:
                 message_id_to_email[message_id] = email_message
 
         # === NEW OPTIMIZATION: Pre-index fallback fields ===
-        # Map conversation_index -> thread_id
-        conv_index_map = {}
-        # Map normalized_subject -> thread_id
-        subject_map = {}
+        # Map conversation_index root -> thread_id
+        conv_root_map: dict[str, str] = {}
+        # Map normalized_subject -> (thread_id, participants)
+        subject_map: dict[str, tuple[str, set[str]]] = {}
 
         # Build lookup maps
         for thread_info in self.threads_map.values():
@@ -1608,13 +1654,16 @@ class UltimatePSTProcessor:
                 and hasattr(email, "thread_id")
                 and email.thread_id
             ):
-                conv_index_map[email.conversation_index] = email.thread_id
+                conv_root, _ = self._decode_conversation_index(email.conversation_index)
+                if conv_root:
+                    conv_root_map.setdefault(conv_root, email.thread_id)
 
             subject = thread_info.get("subject", "")
             if subject:
                 norm_subj = re.sub(r"^(re|fw|fwd):\s*", "", subject.lower().strip())
                 if hasattr(email, "thread_id") and email.thread_id:
-                    subject_map[norm_subj] = email.thread_id
+                    participants = self._participants_set(email, thread_info)
+                    subject_map.setdefault(norm_subj, (email.thread_id, participants))
         # ===================================================
 
         # Second pass: assign thread IDs using fallback logic
@@ -1628,6 +1677,7 @@ class UltimatePSTProcessor:
             conversation_index = email_message.conversation_index
 
             thread_id = None
+            participants = self._participants_set(email_message, thread_info)
 
             # PRIORITY 1: Use RFC 2822 standard logic (Message-ID / In-Reply-To / References)
             if not thread_id and in_reply_to and in_reply_to in message_id_to_email:
@@ -1654,11 +1704,13 @@ class UltimatePSTProcessor:
                             thread_id = parent_email.thread_id
                             break
 
-            # Try conversation index (Outlook threading) - NOW O(1)
+            # Try conversation index (Outlook threading) via root hash
             if not thread_id and conversation_index:
-                thread_id = conv_index_map.get(conversation_index)
+                conv_root, _ = self._decode_conversation_index(conversation_index)
+                if conv_root:
+                    thread_id = conv_root_map.get(conv_root)
 
-            # Last resort: subject-based grouping (normalized subject) - NOW O(1)
+            # Last resort: subject-based grouping (normalized subject) with participant overlap
             if not thread_id:
                 subject = thread_info.get("subject", "")
                 if subject:
@@ -1666,22 +1718,28 @@ class UltimatePSTProcessor:
                     normalized_subject = re.sub(
                         r"^(re|fw|fwd):\s*", "", subject.lower().strip()
                     )
-                    thread_id = subject_map.get(normalized_subject)
+                    subject_entry = subject_map.get(normalized_subject)
+                    if subject_entry:
+                        existing_thread_id, existing_participants = subject_entry
+                        if participants & existing_participants:
+                            thread_id = existing_thread_id
 
             # Create new thread if none found
             if not thread_id:
                 thread_id = f"thread_{len(thread_groups) + 1}_{uuid.uuid4().hex[:8]}"
 
             # Update indexes for subsequent lookups (only if not already set)
-            if conversation_index and conversation_index not in conv_index_map:
-                conv_index_map[conversation_index] = thread_id
+            if conversation_index:
+                conv_root, _ = self._decode_conversation_index(conversation_index)
+                if conv_root and conv_root not in conv_root_map:
+                    conv_root_map.setdefault(conv_root, thread_id)
 
             if subject:
                 normalized_subject = re.sub(
                     r"^(re|fw|fwd):\s*", "", subject.lower().strip()
                 )
                 if normalized_subject not in subject_map:
-                    subject_map[normalized_subject] = thread_id
+                    subject_map[normalized_subject] = (thread_id, participants)
 
             # Assign thread_id to email (legacy)
             email_message.thread_id = thread_id
@@ -1727,6 +1785,50 @@ class UltimatePSTProcessor:
         except Exception as e:
             logger.error(f"Error updating thread relationships: {e}")
             self.db.rollback()
+
+    @staticmethod
+    def _decode_conversation_index(
+        conv_index_hex: str | None,
+    ) -> tuple[str | None, int]:
+        """Return (root_hash, depth) from Outlook Conversation-Index; tolerant to malformed data."""
+        if not conv_index_hex:
+            return None, 0
+        try:
+            data = bytes.fromhex(conv_index_hex)
+            if len(data) < 22:
+                return None, 0
+            root = data[:22].hex()
+            depth = max((len(data) - 22) // 5, 0)
+            return root, depth
+        except (ValueError, TypeError):
+            return None, 0
+
+    @staticmethod
+    def _participants_set(
+        email_message: EmailMessage, thread_info: ThreadInfo
+    ) -> set[str]:
+        """Lower-cased sender/recipient set for heuristic matching."""
+        participants: set[str] = set()
+        try:
+            email_data = thread_info.get("email_data", {}) if thread_info else {}
+            sender = (
+                getattr(email_message, "sender_email", None)
+                or email_data.get("from")
+                or ""
+            ).lower()
+            if sender:
+                participants.add(sender)
+            for field in ("to", "cc", "bcc"):
+                vals = email_data.get(field) or getattr(
+                    email_message, f"recipients_{field}", None
+                )
+                if vals:
+                    for v in vals:
+                        if v:
+                            participants.add(str(v).lower())
+        except Exception:
+            pass
+        return participants
 
     def _extract_email_from_headers(self, message: Any) -> str | None:
         """
