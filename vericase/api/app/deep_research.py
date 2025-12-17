@@ -254,29 +254,53 @@ class BaseAgent:
         self, prompt: str, system_prompt: str = "", use_powerful: bool = False
     ) -> str:
         """Call the appropriate LLM based on configuration (4 providers) - Bedrock first for cost optimization"""
+        errors: list[str] = []
+
         # Try Bedrock FIRST - uses AWS billing, more cost effective
         if self.bedrock_enabled:
             try:
                 return await self._call_bedrock(prompt, system_prompt)
             except Exception as e:
                 logger.warning(f"Bedrock call failed, trying fallback: {e}")
+                errors.append(f"Bedrock: {e}")
 
-        # Fallback to external APIs
+        # Fallback to external APIs - each with error handling
         # Use Anthropic for powerful/complex tasks
         if use_powerful and self.anthropic_key:
-            return await self._call_anthropic(prompt, system_prompt)
+            try:
+                return await self._call_anthropic(prompt, system_prompt)
+            except Exception as e:
+                logger.warning(f"Anthropic (powerful) call failed: {e}")
+                errors.append(f"Anthropic: {e}")
 
         # Try OpenAI
         if self.openai_key:
-            return await self._call_openai(prompt, system_prompt)
+            try:
+                return await self._call_openai(prompt, system_prompt)
+            except Exception as e:
+                logger.warning(f"OpenAI call failed: {e}")
+                errors.append(f"OpenAI: {e}")
 
         # Try Gemini
         if self.gemini_key:
-            return await self._call_gemini(prompt, system_prompt)
+            try:
+                return await self._call_gemini(prompt, system_prompt)
+            except Exception as e:
+                logger.warning(f"Gemini call failed: {e}")
+                errors.append(f"Gemini: {e}")
 
         # Final fallback to Anthropic
-        if self.anthropic_key:
-            return await self._call_anthropic(prompt, system_prompt)
+        if self.anthropic_key and "Anthropic" not in str(errors):
+            try:
+                return await self._call_anthropic(prompt, system_prompt)
+            except Exception as e:
+                logger.warning(f"Anthropic (fallback) call failed: {e}")
+                errors.append(f"Anthropic: {e}")
+
+        # If we got here, all providers failed or none configured
+        if errors:
+            error_summary = "; ".join(errors)
+            raise HTTPException(500, f"All AI providers failed: {error_summary}")
 
         raise HTTPException(
             500, "No AI providers configured. Please add API keys in Admin Settings."
