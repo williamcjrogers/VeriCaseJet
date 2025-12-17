@@ -50,6 +50,9 @@ from .ai_settings import (
     get_ai_model,
     is_bedrock_enabled,
     get_bedrock_region,
+    get_tool_config,
+    get_tool_fallback_chain,
+    get_tool_agent_config,
 )
 from .settings import settings
 from .ai_providers import BedrockProvider, bedrock_available
@@ -311,10 +314,30 @@ class EvidenceContext:
 
 
 class BaseAgent:
-    """Base class for all agents - supports 6 providers: OpenAI, Anthropic, Gemini, Bedrock, xAI, Perplexity"""
+    """
+    Base class for all agents - supports 6 providers: OpenAI, Anthropic, Gemini, Bedrock, xAI, Perplexity.
 
-    def __init__(self, db: Session):
+    Uses centralized tool configuration from AISettings.DEFAULT_TOOL_CONFIGS["vericase_analysis"].
+    """
+
+    # Tool name for configuration lookup
+    TOOL_NAME = "vericase_analysis"
+
+    def __init__(self, db: Session, agent_name: str | None = None):
         self.db = db
+        self.agent_name = agent_name
+
+        # Load tool configuration
+        self.tool_config = get_tool_config(self.TOOL_NAME, db)
+        self.fallback_chain = get_tool_fallback_chain(self.TOOL_NAME, db)
+
+        # Load agent-specific config if applicable
+        if agent_name:
+            self.agent_config = get_tool_agent_config(self.TOOL_NAME, agent_name, db)
+        else:
+            self.agent_config = {}
+
+        # API keys for all providers
         self.openai_key = get_ai_api_key("openai", db)
         self.anthropic_key = get_ai_api_key("anthropic", db)
         self.gemini_key = get_ai_api_key("gemini", db)
@@ -324,11 +347,32 @@ class BaseAgent:
         self.bedrock_region = get_bedrock_region(db)
         self._bedrock_provider: BedrockProvider | None = None
 
-        # Model selections
-        self.openai_model = get_ai_model("openai", db)
-        self.anthropic_model = get_ai_model("anthropic", db)
-        self.gemini_model = get_ai_model("gemini", db)
-        self.bedrock_model = get_ai_model("bedrock", db)
+        # Model selections - use agent config if available, else tool config, else provider default
+        self.openai_model = (
+            self.agent_config.get("model")
+            if self.agent_config.get("provider") == "openai"
+            else get_ai_model("openai", db)
+        )
+        self.anthropic_model = (
+            self.agent_config.get("model")
+            if self.agent_config.get("provider") == "anthropic"
+            else get_ai_model("anthropic", db)
+        )
+        self.gemini_model = (
+            self.agent_config.get("model")
+            if self.agent_config.get("provider") == "gemini"
+            else get_ai_model("gemini", db)
+        )
+        self.bedrock_model = (
+            self.agent_config.get("model")
+            if self.agent_config.get("provider") == "bedrock"
+            else get_ai_model("bedrock", db)
+        )
+
+        # Tool-specific settings from config
+        self.max_tokens = self.tool_config.get("max_tokens", 8000)
+        self.temperature = self.tool_config.get("temperature", 0.2)
+        self.max_duration = self.tool_config.get("max_duration_seconds", 600)
 
     @property
     def bedrock_provider(self) -> BedrockProvider | None:

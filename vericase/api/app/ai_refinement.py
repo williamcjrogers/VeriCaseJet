@@ -39,6 +39,8 @@ from .ai_settings import (
     get_ai_model,
     is_bedrock_enabled,
     get_bedrock_region,
+    get_tool_config,
+    get_tool_fallback_chain,
 )
 from .ai_providers import BedrockProvider, bedrock_available
 
@@ -318,11 +320,22 @@ class AIRefinementEngine:
     """
     AI-powered refinement engine that analyzes emails and generates
     intelligent questions for the user.
+
+    Uses centralized tool configuration from AISettings.DEFAULT_TOOL_CONFIGS["ai_refinement"].
     """
+
+    # Tool name for configuration lookup
+    TOOL_NAME = "ai_refinement"
 
     def __init__(self, db: Session, project: Project):
         self.db = db
         self.project = project
+
+        # Load tool configuration
+        self.tool_config = get_tool_config(self.TOOL_NAME, db)
+        self.fallback_chain = get_tool_fallback_chain(self.TOOL_NAME, db)
+
+        # API keys for all providers
         self.openai_key = get_ai_api_key("openai", db)
         self.anthropic_key = get_ai_api_key("anthropic", db)
         self.gemini_key = get_ai_api_key("gemini", db)
@@ -332,10 +345,16 @@ class AIRefinementEngine:
         self.bedrock_region = get_bedrock_region(db)
         self._bedrock_provider: BedrockProvider | None = None
 
+        # Load models from tool config or fall back to provider defaults
         self.openai_model = get_ai_model("openai", db)
         self.anthropic_model = get_ai_model("anthropic", db)
         self.gemini_model = get_ai_model("gemini", db)
         self.bedrock_model = get_ai_model("bedrock", db)
+
+        # Tool-specific settings from config
+        self.max_tokens = self.tool_config.get("max_tokens", 4000)
+        self.temperature = self.tool_config.get("temperature", 0.2)
+        self.max_duration = self.tool_config.get("max_duration_seconds", 300)
 
         # Build project context from configuration
         self.project_context = self._build_project_context()

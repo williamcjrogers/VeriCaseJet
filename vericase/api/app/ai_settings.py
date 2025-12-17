@@ -44,11 +44,366 @@ class AISettings:
         "perplexity": "sonar",
     }
 
+    # ==========================================================================
+    # AI TOOL REGISTRY - Comprehensive Configuration for All AI Features
+    # ==========================================================================
+    # Each tool has: enabled status, provider/model, fallback chain, parameters
+    # Admin can override any setting via database (ai_tool_{tool_name})
+    # ==========================================================================
+
+    DEFAULT_TOOL_CONFIGS: dict[str, dict[str, Any]] = {
+        # ------------------------------------------------------------------
+        # BASIC AI CHAT - Simple query/response for email evidence
+        # ------------------------------------------------------------------
+        "basic_chat": {
+            "enabled": True,
+            "display_name": "AI Chat Assistant",
+            "description": "Basic AI chat for querying email evidence and documents",
+            "category": "assistant",
+            "provider": "gemini",
+            "model": "gemini-2.0-flash",
+            "max_tokens": 4000,
+            "temperature": 0.3,
+            "max_duration_seconds": 60,
+            "fallback_chain": [
+                ("bedrock", "amazon.nova-lite-v1:0"),
+                ("openai", "gpt-4o-mini"),
+                ("gemini", "gemini-2.0-flash"),
+            ],
+            "features": {
+                "streaming": True,
+                "context_window": 32000,
+                "web_search": False,
+            },
+        },
+        # ------------------------------------------------------------------
+        # VERICASE ANALYSIS - Flagship multi-agent legal research platform
+        # ------------------------------------------------------------------
+        "vericase_analysis": {
+            "enabled": True,
+            "display_name": "VeriCase Analysis",
+            "description": "Flagship multi-agent legal research with DAG planning, "
+            "semantic search, timeline & delay analysis",
+            "category": "flagship",
+            "provider": "anthropic",
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 8000,
+            "temperature": 0.2,
+            "max_duration_seconds": 600,
+            "fallback_chain": [
+                ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
+                ("anthropic", "claude-sonnet-4-20250514"),
+                ("openai", "gpt-4o"),
+            ],
+            "agents": {
+                "planner": {
+                    "provider": "anthropic",
+                    "model": "claude-sonnet-4-20250514",
+                    "description": "Creates DAG research strategy",
+                },
+                "searcher": {
+                    "provider": "bedrock",
+                    "model": "amazon.nova-micro-v1:0",
+                    "description": "Fast semantic search with 4-vector retrieval",
+                },
+                "researcher": {
+                    "provider": "openai",
+                    "model": "gpt-4o",
+                    "description": "Deep evidence investigation",
+                },
+                "synthesizer": {
+                    "provider": "openai",
+                    "model": "gpt-4o",
+                    "description": "Report synthesis and thematic analysis",
+                },
+                "validator": {
+                    "provider": "anthropic",
+                    "model": "claude-sonnet-4-20250514",
+                    "description": "Quality assurance and hallucination detection",
+                },
+            },
+            "features": {
+                "multi_vector_search": True,
+                "cross_encoder_reranking": True,
+                "mmr_diversity": True,
+                "timeline_analysis": True,
+                "delay_analysis": True,
+                "parallel_execution": True,
+            },
+        },
+        # ------------------------------------------------------------------
+        # DEEP RESEARCH - DAG-structured multi-agent investigation (legacy)
+        # ------------------------------------------------------------------
+        "deep_research": {
+            "enabled": True,
+            "display_name": "Deep Research",
+            "description": "Multi-agent investigation with DAG planning (original name for VeriCase)",
+            "category": "research",
+            "provider": "anthropic",
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 8000,
+            "temperature": 0.2,
+            "max_duration_seconds": 600,
+            "fallback_chain": [
+                ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
+                ("anthropic", "claude-sonnet-4-20250514"),
+                ("openai", "gpt-4o"),
+            ],
+            "agents": {
+                "planner": {
+                    "provider": "anthropic",
+                    "model": "claude-sonnet-4-20250514",
+                },
+                "researcher": {"provider": "openai", "model": "gpt-4o"},
+                "synthesizer": {"provider": "openai", "model": "gpt-4o"},
+                "validator": {
+                    "provider": "anthropic",
+                    "model": "claude-sonnet-4-20250514",
+                },
+            },
+            "features": {
+                "dag_planning": True,
+                "parallel_execution": True,
+                "validation": True,
+            },
+        },
+        # ------------------------------------------------------------------
+        # AI REFINEMENT - Intelligent evidence filtering with questions
+        # ------------------------------------------------------------------
+        "ai_refinement": {
+            "enabled": True,
+            "display_name": "AI Refinement Wizard",
+            "description": "Multi-stage evidence refinement with intelligent questioning",
+            "category": "refinement",
+            "provider": "anthropic",
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 4000,
+            "temperature": 0.2,
+            "max_duration_seconds": 300,
+            "fallback_chain": [
+                ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
+                ("anthropic", "claude-sonnet-4-20250514"),
+                ("openai", "gpt-4o"),
+                ("gemini", "gemini-2.0-flash"),
+            ],
+            "stages": [
+                "initial_analysis",
+                "project_cross_reference",
+                "spam_detection",
+                "people_validation",
+                "topic_filtering",
+                "domain_questions",
+                "final_review",
+            ],
+            "features": {
+                "spam_detection": True,
+                "duplicate_detection": True,
+                "project_cross_reference": True,
+                "progressive_questions": True,
+            },
+        },
+        # ------------------------------------------------------------------
+        # CHRONOLOGY BUILDER - Timeline generation from evidence
+        # ------------------------------------------------------------------
+        "chronology_builder": {
+            "enabled": True,
+            "display_name": "Chronology Builder",
+            "description": "AI-powered timeline generation from emails and documents",
+            "category": "timeline",
+            "provider": "openai",
+            "model": "gpt-4o",
+            "max_tokens": 8000,
+            "temperature": 0.1,
+            "max_duration_seconds": 300,
+            "fallback_chain": [
+                ("bedrock", "amazon.nova-pro-v1:0"),
+                ("openai", "gpt-4o"),
+                ("anthropic", "claude-sonnet-4-20250514"),
+            ],
+            "features": {
+                "event_extraction": True,
+                "date_normalization": True,
+                "significance_scoring": True,
+                "milestone_detection": True,
+            },
+        },
+        # ------------------------------------------------------------------
+        # DELAY ANALYSIS - Causation analysis for construction disputes
+        # ------------------------------------------------------------------
+        "delay_analysis": {
+            "enabled": True,
+            "display_name": "Delay Analysis",
+            "description": "AI-powered delay causation and entitlement analysis",
+            "category": "analysis",
+            "provider": "anthropic",
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 8000,
+            "temperature": 0.1,
+            "max_duration_seconds": 300,
+            "fallback_chain": [
+                ("anthropic", "claude-sonnet-4-20250514"),
+                ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
+                ("openai", "gpt-4o"),
+            ],
+            "agents": {
+                "causation_analyzer": {
+                    "provider": "anthropic",
+                    "model": "claude-sonnet-4-20250514",
+                    "description": "Cause-effect reasoning for delays",
+                },
+                "impact_quantifier": {
+                    "provider": "openai",
+                    "model": "gpt-4o",
+                    "description": "Numerical impact calculations",
+                },
+                "narrative_generator": {
+                    "provider": "anthropic",
+                    "model": "claude-sonnet-4-20250514",
+                    "description": "Claims narrative generation",
+                },
+            },
+            "features": {
+                "causation_chains": True,
+                "concurrent_delay_detection": True,
+                "entitlement_calculation": True,
+                "claims_narrative": True,
+            },
+        },
+        # ------------------------------------------------------------------
+        # NATURAL LANGUAGE QUERY - AI-powered email search
+        # ------------------------------------------------------------------
+        "natural_language_query": {
+            "enabled": True,
+            "display_name": "Natural Language Search",
+            "description": "Search emails using natural language queries",
+            "category": "search",
+            "provider": "gemini",
+            "model": "gemini-2.0-flash",
+            "max_tokens": 2000,
+            "temperature": 0.1,
+            "max_duration_seconds": 30,
+            "fallback_chain": [
+                ("bedrock", "amazon.nova-micro-v1:0"),
+                ("gemini", "gemini-2.0-flash"),
+                ("openai", "gpt-4o-mini"),
+            ],
+            "features": {
+                "query_expansion": True,
+                "semantic_search": True,
+                "filter_generation": True,
+            },
+        },
+        # ------------------------------------------------------------------
+        # AUTO CLASSIFICATION - Document categorization
+        # ------------------------------------------------------------------
+        "auto_classification": {
+            "enabled": True,
+            "display_name": "Auto Classification",
+            "description": "Automatic document and email categorization",
+            "category": "classification",
+            "provider": "gemini",
+            "model": "gemini-2.0-flash",
+            "max_tokens": 1000,
+            "temperature": 0.0,
+            "max_duration_seconds": 30,
+            "fallback_chain": [
+                ("bedrock", "amazon.nova-micro-v1:0"),
+                ("gemini", "gemini-2.0-flash"),
+                ("openai", "gpt-4o-mini"),
+            ],
+            "features": {
+                "category_prediction": True,
+                "confidence_scores": True,
+                "batch_processing": True,
+            },
+        },
+        # ------------------------------------------------------------------
+        # DATASET INSIGHTS - AI analysis of email datasets
+        # ------------------------------------------------------------------
+        "dataset_insights": {
+            "enabled": True,
+            "display_name": "Dataset Insights",
+            "description": "AI-powered analysis of email dataset patterns",
+            "category": "analysis",
+            "provider": "openai",
+            "model": "gpt-4o",
+            "max_tokens": 4000,
+            "temperature": 0.2,
+            "max_duration_seconds": 120,
+            "fallback_chain": [
+                ("openai", "gpt-4o"),
+                ("anthropic", "claude-sonnet-4-20250514"),
+                ("bedrock", "amazon.nova-pro-v1:0"),
+            ],
+            "features": {
+                "pattern_detection": True,
+                "key_player_identification": True,
+                "topic_clustering": True,
+                "timeline_overview": True,
+            },
+        },
+        # ------------------------------------------------------------------
+        # EVIDENCE SUMMARY - Quick document summarization
+        # ------------------------------------------------------------------
+        "evidence_summary": {
+            "enabled": True,
+            "display_name": "Evidence Summary",
+            "description": "Quick AI summaries of evidence items",
+            "category": "summary",
+            "provider": "gemini",
+            "model": "gemini-2.0-flash",
+            "max_tokens": 2000,
+            "temperature": 0.1,
+            "max_duration_seconds": 60,
+            "fallback_chain": [
+                ("bedrock", "amazon.nova-lite-v1:0"),
+                ("gemini", "gemini-2.0-flash"),
+                ("openai", "gpt-4o-mini"),
+            ],
+            "features": {
+                "key_points": True,
+                "entity_extraction": True,
+                "sentiment_analysis": False,
+            },
+        },
+        # ------------------------------------------------------------------
+        # MULTI-MODEL ORCHESTRATION - Cross-model collaboration
+        # ------------------------------------------------------------------
+        "multi_model_orchestration": {
+            "enabled": True,
+            "display_name": "Multi-Model Orchestration",
+            "description": "Execute tasks across multiple AI models with voting/consensus",
+            "category": "orchestration",
+            "provider": "anthropic",
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 4000,
+            "temperature": 0.2,
+            "max_duration_seconds": 300,
+            "models": [
+                ("anthropic", "claude-sonnet-4-20250514"),
+                ("openai", "gpt-4o"),
+                ("gemini", "gemini-2.0-flash"),
+            ],
+            "selection_methods": [
+                "first_success",
+                "fastest",
+                "quality_score",
+                "voting",
+            ],
+            "collaboration_patterns": [
+                "draft_refine",
+                "generate_validate",
+                "parallel_compete",
+            ],
+        },
+    }
+
     # Default function configurations (cost-aware defaults)
+    # Maps internal function names to their configurations
     DEFAULT_FUNCTION_CONFIGS: dict[str, dict[str, Any]] = {
         "quick_search": {
             "provider": "gemini",
-            "model": "gemini-2.0-flash",  # Budget tier
+            "model": "gemini-2.0-flash",
             "thinking_enabled": False,
             "max_duration_seconds": 30,
             "fallback_chain": [
@@ -59,9 +414,9 @@ class AISettings:
         },
         "deep_analysis": {
             "provider": "anthropic",
-            "model": "claude-sonnet-4-20250514",  # Correct Anthropic model ID
+            "model": "claude-sonnet-4-20250514",
             "thinking_enabled": True,
-            "thinking_budget_tokens": 5000,  # Reduced for cost efficiency
+            "thinking_budget_tokens": 5000,
             "max_duration_seconds": 300,
             "orchestration": {
                 "enabled": False,
@@ -461,6 +816,190 @@ class AISettings:
             db.rollback()
             return False
 
+    # ==========================================================================
+    # AI TOOL CONFIGURATION METHODS
+    # ==========================================================================
+
+    @classmethod
+    def get_tool_config(
+        cls, tool_name: str, db: Session | None = None
+    ) -> dict[str, Any]:
+        """
+        Get configuration for a specific AI tool.
+
+        Args:
+            tool_name: Name of the tool (e.g., 'vericase_analysis', 'ai_refinement')
+            db: Database session
+
+        Returns:
+            Tool configuration dict including provider, model, features, etc.
+        """
+        key = f"ai_tool_{tool_name}"
+
+        # Try to get from database/cache (admin overrides)
+        config_json = cls.get(key, db)
+        if config_json:
+            try:
+                # Merge with defaults to ensure all fields present
+                defaults = cls.DEFAULT_TOOL_CONFIGS.get(tool_name, {}).copy()
+                saved = json.loads(config_json)
+                defaults.update(saved)
+                return defaults
+            except json.JSONDecodeError:
+                logger.warning(f"Invalid JSON for {key}, using defaults")
+
+        # Return default config
+        return cls.DEFAULT_TOOL_CONFIGS.get(tool_name, {})
+
+    @classmethod
+    def set_tool_config(
+        cls, tool_name: str, config: dict[str, Any], db: Session
+    ) -> bool:
+        """
+        Save configuration for a specific AI tool.
+
+        Args:
+            tool_name: Name of the tool
+            config: Configuration dict
+            db: Database session
+
+        Returns:
+            True if saved successfully
+        """
+        key = f"ai_tool_{tool_name}"
+        try:
+            config_json = json.dumps(config)
+
+            setting = db.query(AppSetting).filter(AppSetting.key == key).first()
+            if setting:
+                setting.value = config_json
+            else:
+                setting = AppSetting(key=key, value=config_json)
+                db.add(setting)
+
+            db.commit()
+            cls._cache[key] = config_json
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to save tool config {tool_name}: {e}")
+            db.rollback()
+            return False
+
+    @classmethod
+    def is_tool_enabled(cls, tool_name: str, db: Session | None = None) -> bool:
+        """
+        Check if a specific AI tool is enabled.
+
+        Args:
+            tool_name: Name of the tool
+            db: Database session
+
+        Returns:
+            True if tool is enabled
+        """
+        config = cls.get_tool_config(tool_name, db)
+        return config.get("enabled", True)
+
+    @classmethod
+    def get_tool_provider_model(
+        cls, tool_name: str, db: Session | None = None
+    ) -> tuple[str, str]:
+        """
+        Get the provider and model for a specific AI tool.
+
+        Args:
+            tool_name: Name of the tool
+            db: Database session
+
+        Returns:
+            Tuple of (provider, model)
+        """
+        config = cls.get_tool_config(tool_name, db)
+        provider = config.get("provider", "gemini")
+        model = config.get("model", cls.DEFAULT_MODELS.get(provider, ""))
+        return provider, model
+
+    @classmethod
+    def get_tool_fallback_chain(
+        cls, tool_name: str, db: Session | None = None
+    ) -> list[tuple[str, str]]:
+        """
+        Get the fallback chain for a specific AI tool.
+
+        Args:
+            tool_name: Name of the tool
+            db: Database session
+
+        Returns:
+            List of (provider, model) tuples
+        """
+        config = cls.get_tool_config(tool_name, db)
+        fallback_chain = config.get("fallback_chain", [])
+        return [(str(p), str(m)) for p, m in fallback_chain]
+
+    @classmethod
+    def get_tool_agent_config(
+        cls, tool_name: str, agent_name: str, db: Session | None = None
+    ) -> dict[str, Any]:
+        """
+        Get configuration for a specific agent within a tool.
+
+        Args:
+            tool_name: Name of the tool (e.g., 'vericase_analysis')
+            agent_name: Name of the agent (e.g., 'planner', 'researcher')
+            db: Database session
+
+        Returns:
+            Agent configuration dict
+        """
+        config = cls.get_tool_config(tool_name, db)
+        agents = config.get("agents", {})
+        return agents.get(agent_name, {})
+
+    @classmethod
+    def get_all_tool_configs(
+        cls, db: Session | None = None
+    ) -> dict[str, dict[str, Any]]:
+        """
+        Get configurations for all AI tools.
+
+        Args:
+            db: Database session
+
+        Returns:
+            Dict of tool_name -> configuration
+        """
+        result = {}
+        for tool_name in cls.DEFAULT_TOOL_CONFIGS:
+            result[tool_name] = cls.get_tool_config(tool_name, db)
+        return result
+
+    @classmethod
+    def get_enabled_tools(cls, db: Session | None = None) -> list[dict[str, Any]]:
+        """
+        Get list of all enabled AI tools with their configurations.
+
+        Args:
+            db: Database session
+
+        Returns:
+            List of enabled tool configurations
+        """
+        enabled = []
+        for tool_name, config in cls.get_all_tool_configs(db).items():
+            if config.get("enabled", True):
+                tool_info = {
+                    "name": tool_name,
+                    "display_name": config.get("display_name", tool_name),
+                    "description": config.get("description", ""),
+                    "category": config.get("category", "general"),
+                    "provider": config.get("provider"),
+                    "model": config.get("model"),
+                }
+                enabled.append(tool_info)
+        return enabled
+
     @classmethod
     def get_orchestration_settings(cls, db: Session | None = None) -> dict[str, Any]:
         """
@@ -721,6 +1260,52 @@ def get_agent_config(agent_name: str, db: Session | None = None) -> dict[str, An
 def get_orchestration_settings(db: Session | None = None) -> dict[str, Any]:
     """Get global orchestration settings"""
     return AISettings.get_orchestration_settings(db)
+
+
+# =============================================================================
+# AI TOOL CONFIGURATION CONVENIENCE FUNCTIONS
+# =============================================================================
+
+
+def get_tool_config(tool_name: str, db: Session | None = None) -> dict[str, Any]:
+    """Get configuration for an AI tool (vericase_analysis, ai_refinement, etc.)"""
+    return AISettings.get_tool_config(tool_name, db)
+
+
+def is_tool_enabled(tool_name: str, db: Session | None = None) -> bool:
+    """Check if a specific AI tool is enabled"""
+    return AISettings.is_tool_enabled(tool_name, db)
+
+
+def get_tool_provider_model(
+    tool_name: str, db: Session | None = None
+) -> tuple[str, str]:
+    """Get the provider and model for a specific AI tool"""
+    return AISettings.get_tool_provider_model(tool_name, db)
+
+
+def get_tool_fallback_chain(
+    tool_name: str, db: Session | None = None
+) -> list[tuple[str, str]]:
+    """Get the fallback chain for a specific AI tool"""
+    return AISettings.get_tool_fallback_chain(tool_name, db)
+
+
+def get_tool_agent_config(
+    tool_name: str, agent_name: str, db: Session | None = None
+) -> dict[str, Any]:
+    """Get configuration for a specific agent within a tool"""
+    return AISettings.get_tool_agent_config(tool_name, agent_name, db)
+
+
+def get_all_tool_configs(db: Session | None = None) -> dict[str, dict[str, Any]]:
+    """Get configurations for all AI tools"""
+    return AISettings.get_all_tool_configs(db)
+
+
+def get_enabled_tools(db: Session | None = None) -> list[dict[str, Any]]:
+    """Get list of all enabled AI tools with their configurations"""
+    return AISettings.get_enabled_tools(db)
 
 
 def get_pinned_model(
