@@ -4,7 +4,6 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import RLock
-from uuid import uuid4
 from fastapi import FastAPI, Depends, HTTPException, Query, Body, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -91,9 +90,11 @@ from .favorites import router as favorites_router
 from .versioning import router as versioning_router
 from .ai_intelligence import router as ai_router
 from .ai_orchestrator import router as orchestrator_router
-from .ai_chat import router as ai_chat_router
-from .admin_approval import router as admin_approval_router
-from .admin_settings import router as admin_settings_router
+from .ai_chat import router as ai_chat_router  # AI Chat with multi-model research
+from .admin_approval import (
+    router as admin_approval_router,
+)  # Admin user approval system
+from .admin_settings import router as admin_settings_router  # Admin settings management
 from .deployment_tools import router as deployment_router  # SSH deployment tools
 from .intelligent_config import router as intelligent_config_router
 from .cases import router as cases_router
@@ -110,14 +111,20 @@ from .ai_refinement import (
 from .auth_enhanced import router as auth_enhanced_router  # Enhanced authentication
 from .evidence_repository import router as evidence_router  # Evidence repository
 from .ocr_feedback import router as ocr_feedback_router  # OCR feedback
-from .deep_research import router as deep_research_router  # Deep Research (Correspondence tab)
-from .vericase_analysis import router as vericase_analysis_router  # VeriCase Analysis (flagship)
+from .deep_research import (
+    router as deep_research_router,
+)  # Deep Research (Correspondence tab)
+from .vericase_analysis import (
+    router as vericase_analysis_router,
+)  # VeriCase Analysis (flagship orchestrator)
 from .claims_module import (
     router as claims_router,
 )  # Contentious Matters and Heads of Claim
 from .dashboard_api import router as dashboard_router  # Master Dashboard API
 from .timeline import router as timeline_router  # Project Timeline (Event + Chronology)
-from .chronology import router as chronology_router  # Standalone Chronology CRUD - disabled until AG Grid stable
+from .chronology import (
+    router as chronology_router,
+)  # Standalone Chronology CRUD - disabled until AG Grid stable
 from .delay_analysis import router as delay_analysis_router  # Delay Analysis AI agents
 from .collaboration import router as collaboration_router  # Collaboration features
 from .enhanced_api_routes import (
@@ -151,8 +158,7 @@ def verify_csrf_token(
     creds: HTTPAuthorizationCredentials = Depends(bearer),
 ) -> None:
     """
-    Verify CSRF token for state-changing requests.
-    Requires valid authentication credentials.
+    Verify CSRF token for state-changing requests. Requires valid authentication credentials.
     """
     if not creds:
         raise HTTPException(
@@ -224,6 +230,7 @@ except Exception:
     # Tracing should never block API startup.
     pass
 
+
 # Custom HTTPS Redirect Middleware that excludes health checks
 # Standard HTTPSRedirectMiddleware breaks Kubernetes liveness/readiness probes
 class HTTPSRedirectExcludeHealthMiddleware(BaseHTTPMiddleware):
@@ -262,14 +269,14 @@ class HTTPSRedirectExcludeHealthMiddleware(BaseHTTPMiddleware):
 if os.getenv("AWS_EXECUTION_ENV") or os.getenv("USE_AWS_SERVICES") == "true":
     # Use custom middleware that excludes health endpoints
     app.add_middleware(HTTPSRedirectExcludeHealthMiddleware)
-    print("[STARTUP] HTTPS Redirect Middleware enabled (health checks excluded)")
+    logger.info("[STARTUP] HTTPS Redirect Middleware enabled (health checks excluded)")
     # Trust headers from AWS Load Balancer
     # Note: Uvicorn proxy_headers=True handles X-Forwarded-Proto, but this ensures redirect
 
     # Restrict Host header if domain is known (optional, good for security)
     # app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*.elb.amazonaws.com", "vericase.yourdomain.com", "localhost"])
 else:
-    print("[STARTUP] HTTPS Redirect Middleware DISABLED (local development mode)")
+    logger.info("[STARTUP] HTTPS Redirect Middleware DISABLED (local development mode)")
 
 # Startup Event: Run Migrations
 
@@ -281,8 +288,8 @@ _ui_candidates = [
     _base_dir / "ui",
     _base_dir.parent / "ui",
 ]
-print(f"[STARTUP] Looking for UI directory. Candidates: {_ui_candidates}")
-logger.info(f"Looking for UI directory. Candidates: {_ui_candidates}")
+logger.info(f"[STARTUP] Looking for UI directory. Candidates: {_ui_candidates}")
+
 UI_DIR = next((c for c in _ui_candidates if c.exists()), None)
 # Mount assets directory for static files (logos, images, etc.)
 _assets_candidates = [
@@ -291,7 +298,7 @@ _assets_candidates = [
 ]
 ASSETS_DIR = next((c for c in _assets_candidates if c.exists()), None)
 if ASSETS_DIR:
-    print(f"[STARTUP] [OK] Assets directory found: {ASSETS_DIR}")
+    logger.info(f"[STARTUP] [OK] Assets directory found: {ASSETS_DIR}")
     logger.info(f"[OK] Assets directory found and mounting at /assets: {ASSETS_DIR}")
     try:
         assets_path = ASSETS_DIR.resolve()
@@ -300,20 +307,20 @@ if ASSETS_DIR:
             StaticFiles(directory=str(assets_path), check_dir=False),
             name="static_assets",
         )
-        print("[STARTUP] [OK] Assets mount complete at /assets")
+        logger.info("[STARTUP] [OK] Assets mount complete at /assets")
     except Exception as e:
         logger.error(f"Failed to mount assets: {e}")
-        print(f"[STARTUP] [ERROR] Failed to mount assets: {e}")
+        logger.error(f"[STARTUP] [ERROR] Failed to mount assets: {e}")
 else:
-    print("[STARTUP] [WARNING] Assets directory not found")
+    logger.warning("[STARTUP] [WARNING] Assets directory not found")
 
 if UI_DIR:
-    print(f"[STARTUP] [OK] UI directory found: {UI_DIR}")
+    logger.info(f"[STARTUP] [OK] UI directory found: {UI_DIR}")
     logger.info(f"[OK] UI directory found and mounting at /ui: {UI_DIR}")
     try:
         # Ensure the path is absolute
         ui_path = UI_DIR.resolve()
-        print(f"[STARTUP] Resolving to absolute path: {ui_path}")
+        logger.info(f"[STARTUP] Resolving to absolute path: {ui_path}")
 
         # Mount with explicit settings - try with check_dir=False first
         app.mount(
@@ -323,10 +330,10 @@ if UI_DIR:
         )
 
         logger.info("[OK] UI mount complete")
-        print("[STARTUP] [OK] UI mount complete at /ui")
+        logger.info("[STARTUP] [OK] UI mount complete at /ui")
     except Exception as e:
         logger.error(f"Failed to mount UI: {e}")
-        print(f"[STARTUP] [ERROR] Failed to mount UI: {e}")
+        logger.error(f"[STARTUP] [ERROR] Failed to mount UI: {e}")
         import traceback
 
         traceback.print_exc()
@@ -334,7 +341,7 @@ else:
     logger.warning(
         "UI directory not found in candidates %s; /ui mount disabled", _ui_candidates
     )
-    print("[STARTUP] [WARNING] UI directory not found")
+    logger.warning("[STARTUP] [WARNING] UI directory not found")
 
 # Include routers
 app.include_router(users_router)
@@ -363,15 +370,21 @@ app.include_router(auth_enhanced_router)  # Enhanced authentication endpoints
 app.include_router(evidence_router)  # Evidence repository
 app.include_router(ocr_feedback_router)  # OCR feedback
 app.include_router(deep_research_router)  # Deep Research (Correspondence tab)
-app.include_router(vericase_analysis_router)  # VeriCase Analysis (flagship orchestrator)
+app.include_router(
+    vericase_analysis_router
+)  # VeriCase Analysis (flagship orchestrator)
 app.include_router(claims_router)  # Contentious Matters and Heads of Claim
 app.include_router(dashboard_router)  # Master Dashboard API
 app.include_router(aws_router)  # AWS AI Services (Bedrock, Textract, Comprehend, etc.)
 app.include_router(ai_models_router)  # 2025 AI Models API
 app.include_router(timeline_router)  # Project Timeline (Event + Chronology)
-app.include_router(chronology_router)  # Standalone Chronology CRUD - disabled until AG Grid stable
+app.include_router(
+    chronology_router
+)  # Standalone Chronology CRUD - disabled until AG Grid stable
 app.include_router(delay_analysis_router)  # Delay Analysis AI agents
-app.include_router(collaboration_router)  # Collaboration features (comments, annotations, activity)
+app.include_router(
+    collaboration_router
+)  # Collaboration features (comments, annotations, activity)
 
 # Import and include unified router
 from .correspondence import unified_router
@@ -661,128 +674,170 @@ def startup():
 
         # Run schema migrations for BigInt support
         with engine.connect() as conn:
-                logger.info("Running schema migrations for Large File support...")
+            logger.info("Running schema migrations for Large File support...")
 
-                # 1. Documents
-                try:
-                    conn.execute(text("ALTER TABLE documents ALTER COLUMN size TYPE BIGINT"))
+            # 1. Documents
+            try:
+                conn.execute(
+                    text("ALTER TABLE documents ALTER COLUMN size TYPE BIGINT")
+                )
+                conn.commit()
+            except Exception as e:
+                logger.warning(f"Migration skipped for documents: {e}")
+                conn.rollback()
+
+            # 2. PST Files
+            try:
+                conn.execute(
+                    text(
+                        "ALTER TABLE pst_files ALTER COLUMN file_size_bytes TYPE BIGINT"
+                    )
+                )
+                conn.commit()
+            except Exception as e:
+                logger.warning(f"Migration skipped for pst_files: {e}")
+                conn.rollback()
+
+            try:
+                conn.execute(
+                    text(
+                        "ALTER TABLE pst_files ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()"
+                    )
+                )
+                conn.commit()
+            except Exception as e:
+                logger.warning(f"Migration skipped for pst_files uploaded_at: {e}")
+                conn.rollback()
+
+            # 3. Email Attachments
+            try:
+                conn.execute(
+                    text(
+                        "ALTER TABLE email_attachments ALTER COLUMN file_size_bytes TYPE BIGINT"
+                    )
+                )
+                conn.commit()
+            except Exception as e:
+                logger.warning(f"Migration skipped for email_attachments: {e}")
+                conn.rollback()
+
+            # 4. Evidence Items
+            try:
+                conn.execute(
+                    text(
+                        "ALTER TABLE evidence_items ALTER COLUMN file_size TYPE BIGINT"
+                    )
+                )
+                conn.commit()
+            except Exception as e:
+                logger.warning(f"Migration skipped for evidence_items: {e}")
+                conn.rollback()
+
+            # 5. Ensure Default Data (Robust Seeding)
+            try:
+                # Get admin user ID for ownership
+                result = conn.execute(
+                    text(
+                        "SELECT id FROM users WHERE email = 'admin@vericase.com' LIMIT 1"
+                    )
+                )
+                admin_row = result.fetchone()
+
+                if admin_row:
+                    admin_id = str(admin_row[0])
+                    # Default Case (with owner_id)
+                    conn.execute(
+                        text(
+                            """
+                        INSERT INTO cases (id, name, case_number, description, owner_id, created_at, updated_at)
+                        VALUES ('dca0d854-1655-4498-97f3-399b47a4d65f', 'Default Case', 'DEFAULT-001', 'Auto-generated default case', :owner_id, NOW(), NOW())
+                        ON CONFLICT (id) DO NOTHING;
+                    """
+                        ),
+                        {"owner_id": admin_id},
+                    )
+
+                    # Default Project (linked to Default Case, with owner)
+                    conn.execute(
+                        text(
+                            """
+                        INSERT INTO projects (id, project_name, description, owner_user_id, created_at, updated_at)
+                        VALUES ('dbae0b15-8b63-46f7-bb2e-1b5a4de13ed8', 'Default Project', 'Auto-generated default project', :owner_id, NOW(), NOW())
+                        ON CONFLICT (id) DO NOTHING;
+                    """
+                        ),
+                        {"owner_id": admin_id},
+                    )
                     conn.commit()
-                except Exception as e:
-                    logger.warning(f"Migration skipped for documents: {e}")
-                    conn.rollback()
+                    logger.info("Verified/Created default Case and Project")
+                else:
+                    logger.warning(
+                        "Admin user not found, skipping default data seeding"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to seed default data: {e}")
+                conn.rollback()
 
-                # 2. PST Files
-                try:
-                    conn.execute(text("ALTER TABLE pst_files ALTER COLUMN file_size_bytes TYPE BIGINT"))
-                    conn.commit()
-                except Exception as e:
-                    logger.warning(f"Migration skipped for pst_files: {e}")
-                    conn.rollback()
+            # 5. Evidence Sources
+            try:
+                conn.execute(
+                    text(
+                        "ALTER TABLE evidence_sources ALTER COLUMN original_size TYPE BIGINT"
+                    )
+                )
+                conn.commit()
+            except Exception as e:
+                logger.warning(f"Migration skipped for evidence_sources: {e}")
+                conn.rollback()
 
-                try:
-                    conn.execute(text("ALTER TABLE pst_files ADD COLUMN IF NOT EXISTS uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()"))
-                    conn.commit()
-                except Exception as e:
-                    logger.warning(f"Migration skipped for pst_files uploaded_at: {e}")
-                    conn.rollback()
+            logger.info("Schema migration attempts completed")
 
-                # 3. Email Attachments
-                try:
-                    conn.execute(text("ALTER TABLE email_attachments ALTER COLUMN file_size_bytes TYPE BIGINT"))
-                    conn.commit()
-                except Exception as e:
-                    logger.warning(f"Migration skipped for email_attachments: {e}")
-                    conn.rollback()
+            # AUTO-SYNC: Add any missing columns from SQLAlchemy models
+            logger.info("Running auto-schema-sync for missing columns...")
+            try:
+                from sqlalchemy import inspect
 
-                # 4. Evidence Items
-                try:
-                    conn.execute(text("ALTER TABLE evidence_items ALTER COLUMN file_size TYPE BIGINT"))
-                    conn.commit()
-                except Exception as e:
-                    logger.warning(f"Migration skipped for evidence_items: {e}")
-                    conn.rollback()
+                inspector = inspect(engine)
 
-                # 5. Ensure Default Data (Robust Seeding)
-                try:
-                    # Get admin user ID for ownership
-                    result = conn.execute(text("SELECT id FROM users WHERE email = 'admin@vericase.com' LIMIT 1"))
-                    admin_row = result.fetchone()
-                    if admin_row:
-                        admin_id = str(admin_row[0])
-                        # Default Case (with owner_id)
-                        conn.execute(text("""
-                            INSERT INTO cases (id, name, case_number, description, owner_id, created_at, updated_at)
-                            VALUES ('dca0d854-1655-4498-97f3-399b47a4d65f', 'Default Case', 'DEFAULT-001', 'Auto-generated default case', :owner_id, NOW(), NOW())
-                            ON CONFLICT (id) DO NOTHING;
-                        """), {"owner_id": admin_id})
+                # Get all model classes from Base
+                for table_name, table in Base.metadata.tables.items():
+                    try:
+                        existing_columns = {
+                            col["name"] for col in inspector.get_columns(table_name)
+                        }
+                        model_columns = {col.name for col in table.columns}
+                        missing_columns = model_columns - existing_columns
 
-                        # Default Project (linked to Default Case, with owner)
-                        conn.execute(text("""
-                            INSERT INTO projects (id, project_name, description, owner_user_id, created_at, updated_at)
-                            VALUES ('dbae0b15-8b63-46f7-bb2e-1b5a4de13ed8', 'Default Project', 'Auto-generated default project', :owner_id, NOW(), NOW())
-                            ON CONFLICT (id) DO NOTHING;
-                        """), {"owner_id": admin_id})
-                        conn.commit()
-                        logger.info("Verified/Created default Case and Project")
-                    else:
-                        logger.warning("Admin user not found, skipping default data seeding")
-                except Exception as e:
-                    logger.warning(f"Failed to seed default data: {e}")
-                    conn.rollback()
+                        for col_name in missing_columns:
+                            col = table.columns[col_name]
+                            # Build column type string
+                            col_type = str(col.type)
+                            nullable = "NULL" if col.nullable else "NOT NULL"
+                            default = ""
+                            if col.default is not None:
+                                if hasattr(col.default, "arg"):
+                                    default_val = col.default.arg
+                                    if callable(default_val):
+                                        default = ""  # Skip callable defaults
+                                    elif isinstance(default_val, bool):
+                                        default = f"DEFAULT {str(default_val).upper()}"
+                                    elif isinstance(default_val, str):
+                                        default = f"DEFAULT '{default_val}'"
+                                    else:
+                                        default = f"DEFAULT {default_val}"
 
-                # 5. Evidence Sources
-                try:
-                    conn.execute(text("ALTER TABLE evidence_sources ALTER COLUMN original_size TYPE BIGINT"))
-                    conn.commit()
-                except Exception as e:
-                    logger.warning(f"Migration skipped for evidence_sources: {e}")
-                    conn.rollback()
+                            sql = f'ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS "{col_name}" {col_type} {default}'
+                            logger.info(f"  Adding column: {table_name}.{col_name}")
+                            conn.execute(text(sql))
+                            conn.commit()
+                    except Exception as col_err:
+                        logger.debug(f"Column sync skipped for {table_name}: {col_err}")
+                        conn.rollback()
 
-                logger.info("Schema migration attempts completed")
-
-                # AUTO-SYNC: Add any missing columns from SQLAlchemy models
-                logger.info("Running auto-schema-sync for missing columns...")
-                try:
-                    from sqlalchemy import inspect
-                    inspector = inspect(engine)
-
-                    # Get all model classes from Base
-                    for table_name, table in Base.metadata.tables.items():
-                        try:
-                            existing_columns = {col['name'] for col in inspector.get_columns(table_name)}
-                            model_columns = {col.name for col in table.columns}
-                            missing_columns = model_columns - existing_columns
-
-                            for col_name in missing_columns:
-                                col = table.columns[col_name]
-                                # Build column type string
-                                col_type = str(col.type)
-                                nullable = "NULL" if col.nullable else "NOT NULL"
-                                default = ""
-                                if col.default is not None:
-                                    if hasattr(col.default, 'arg'):
-                                        default_val = col.default.arg
-                                        if callable(default_val):
-                                            default = ""  # Skip callable defaults
-                                        elif isinstance(default_val, bool):
-                                            default = f"DEFAULT {str(default_val).upper()}"
-                                        elif isinstance(default_val, str):
-                                            default = f"DEFAULT '{default_val}'"
-                                        else:
-                                            default = f"DEFAULT {default_val}"
-
-                                sql = f'ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS "{col_name}" {col_type} {default}'
-                                logger.info(f"  Adding column: {table_name}.{col_name}")
-                                conn.execute(text(sql))
-                                conn.commit()
-                        except Exception as col_err:
-                            logger.debug(f"Column sync skipped for {table_name}: {col_err}")
-                            conn.rollback()
-
-                    logger.info("Auto-schema-sync completed")
-                except Exception as sync_err:
-                    logger.warning(f"Auto-schema-sync failed: {sync_err}")
-                    conn.rollback()
+                logger.info("Auto-schema-sync completed")
+            except Exception as sync_err:
+                logger.warning(f"Auto-schema-sync failed: {sync_err}")
+                conn.rollback()
 
     except Exception as e:
         logger.warning(f"Database initialization skipped: {e}")
@@ -1243,6 +1298,7 @@ def admin_trigger_pst(
 
     # Check if PST file already exists in pst_files table
     from .models import PSTFile
+
     existing = db.query(PSTFile).filter(PSTFile.s3_key == s3_key).first()
 
     if existing:
@@ -1271,7 +1327,7 @@ def admin_trigger_pst(
         "app.process_pst_forensic",
         args=[pst_file_id, settings.S3_BUCKET, s3_key],
         kwargs={"project_id": project_id},
-        queue=settings.CELERY_QUEUE,
+        queue=settings.CELERY_PST_QUEUE,
     )
 
     return {

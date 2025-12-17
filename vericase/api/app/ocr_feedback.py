@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any, Annotated
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Body, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
 from .db import get_db
 from .auth import current_user
-from .models import User, OcrCorrection, Document, EmailMessage, Project, Case
+from .models import User, OcrCorrection
 
 router = APIRouter(prefix="/api/ocr", tags=["OCR Feedback"])
 
@@ -77,7 +77,9 @@ def create_ocr_correction(
         "source_id": correction.doc_id,
         "original_text": correction.original_text,
         "corrected_text": correction.corrected_text,
-        "created_at": correction.created_at.isoformat() if correction.created_at else "",
+        "created_at": (
+            correction.created_at.isoformat() if correction.created_at else ""
+        ),
         "created_by": str(correction.created_by) if correction.created_by else None,
     }
 

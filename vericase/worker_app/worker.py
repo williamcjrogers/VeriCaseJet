@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 def _running_under_celery_cli() -> bool:
     argv = " ".join(sys.argv).lower()
-    return "celery" in argv and any(cmd in argv for cmd in (" worker", " beat", " flower"))
+    return "celery" in argv and any(
+        cmd in argv for cmd in (" worker", " beat", " flower")
+    )
 
 
 _TRACING_ON = False
@@ -474,7 +476,9 @@ def ocr_and_index(doc_id: str):
     return {"id": doc_id, "chars": len(text or "")}
 
 
-@celery_app.task(name="worker_app.worker.process_pst_file", queue=settings.CELERY_QUEUE)
+@celery_app.task(
+    name="worker_app.worker.process_pst_file", queue=settings.CELERY_PST_QUEUE
+)
 def process_pst_file(
     doc_id: str, case_id: str | None = None, company_id: str | None = None
 ):
@@ -529,6 +533,7 @@ def process_pst_file(
             # Process PST - use case_id and project_id from the pst_file record
             stats = processor.process_pst(
                 pst_s3_key=pst_file["s3_key"],
+                pst_s3_bucket=pst_file.get("bucket"),
                 document_id=doc_id,
                 case_id=pst_file.get("case_id"),
                 company_id=pst_file.get(
@@ -558,13 +563,15 @@ def process_pst_file(
         _update_pst_status(doc_id, "failed", error_msg=str(e))
         raise
 
+
 # Import forensic processor to register its Celery task (optional)
 # Path is /code/app in Docker container
-import sys
+
 sys.path.insert(0, "/code")
 
 try:
     from app.pst_forensic_processor import process_pst_forensic
+
     print("Forensic PST task module imported in worker - ready for execution")
 except ImportError as e:
     print(f"Forensic PST processor not available: {e}")
@@ -574,5 +581,7 @@ except ImportError as e:
 def s3_key_from_db(doc_id: str) -> str:
     """Helper to get s3_key from pst_files for fallback"""
     with engine.begin() as conn:
-        row = conn.execute(text("SELECT s3_key FROM pst_files WHERE id::text=:i"), {"i": doc_id}).scalar()
+        row = conn.execute(
+            text("SELECT s3_key FROM pst_files WHERE id::text=:i"), {"i": doc_id}
+        ).scalar()
         return row if row else ""

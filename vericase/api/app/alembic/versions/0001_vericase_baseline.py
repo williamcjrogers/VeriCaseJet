@@ -29,4 +29,3 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Baseline revision has no downgrade steps."""
     pass
-

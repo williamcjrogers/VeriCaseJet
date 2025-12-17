@@ -128,7 +128,7 @@ def s3(public: bool = False) -> S3ClientProtocol:
 
     # Use IRSA for credentials (no explicit keys)
     # Use S3_REGION if set, otherwise fall back to AWS_REGION
-    s3_region = getattr(settings, 'S3_REGION', None) or settings.AWS_REGION
+    s3_region = getattr(settings, "S3_REGION", None) or settings.AWS_REGION
     LOGGER.info(
         "[S3 DEBUG] Creating AWS S3 client with IRSA, region=%s, bucket=%s",
         s3_region,

@@ -145,14 +145,6 @@ class EvidenceItemSummary(BaseModel):
     manual_tags: list[str] = []
     extracted_parties: list[Any] = []
     extracted_amounts: list[Any] = []
-    case_id: str | None = None
-    project_id: str | None = None
-    source_type: str | None = None
-    source_email_id: str | None = None
-    source_email_subject: str | None = None
-    source_email_from: str | None = None
-    download_url: str | None = None
-    created_at: datetime
 
 
 class EvidenceItemDetail(BaseModel):
@@ -587,7 +579,7 @@ async def complete_evidence_upload(
 
 @router.post("/upload/direct")
 async def direct_upload_evidence(
-    file: Annotated[UploadFile, File(...)],
+    file: Annotated[UploadFile, File()],
     db: DbSession,
     case_id: Annotated[str | None, Form()] = None,
     project_id: Annotated[str | None, Form()] = None,
@@ -697,9 +689,7 @@ async def list_evidence(
     page_size: Annotated[
         int, Query(ge=1, le=10000)
     ] = 50,  # Allow up to 10k for full loads
-    search: Annotated[
-        str | None, Query(description="Search in filename, title, text")
-    ] = None,
+    search: Annotated[str | None, Query(description="Search in filename, title, text")] = None,
     evidence_type: Annotated[str | None, Query()] = None,
     document_category: Annotated[str | None, Query()] = None,
     date_from: Annotated[date | None, Query()] = None,
@@ -885,34 +875,36 @@ async def list_evidence(
         download_url = None
         try:
             download_url = presign_get(item.s3_key, expires=3600)
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"Presign failed for {item.s3_key}: {e}")
 
         summaries.append(
             EvidenceItemSummary(
                 id=str(item.id),
                 filename=item.filename,
-                file_type=item.file_type,
+                evidence_type=item.evidence_type,
+                file_type=item.file_type or "file",
                 mime_type=item.mime_type,
                 file_size=item.file_size,
-                evidence_type=item.evidence_type,
+                author=item.author,
+                page_count=item.page_count or 0,
+                processing_status=item.processing_status or "pending",
                 document_category=item.document_category,
                 document_date=(
                     item.document_date
                     if isinstance(item.document_date, date)
                     else (item.document_date.date() if item.document_date else None)
                 ),
-                title=item.title,
-                processing_status=item.processing_status or "pending",
-                is_starred=item.is_starred or False,
-                is_reviewed=item.is_reviewed or False,
-                has_correspondence=corr_count > 0,
-                correspondence_count=corr_count,
-                correspondence_link_count=corr_count,
+                title=item.title or item.filename,
                 auto_tags=item.auto_tags or [],
                 manual_tags=item.manual_tags or [],
                 extracted_parties=item.extracted_parties or [],
                 extracted_amounts=item.extracted_amounts or [],
+                extracted_dates=[],
+                extracted_references=[],
+                has_correspondence=corr_count > 0,
+                correspondence_count=corr_count,
+                correspondence_link_count=corr_count,
                 case_id=str(item.case_id) if item.case_id else None,
                 project_id=str(item.project_id) if item.project_id else None,
                 source_type=item.source_type,
@@ -921,7 +913,8 @@ async def list_evidence(
                 ),
                 source_email_subject=source_email_subject,
                 source_email_from=source_email_from,
-                download_url=download_url,
+                is_starred=item.is_starred or False,
+                is_reviewed=item.is_reviewed or False,
                 created_at=item.created_at or datetime.now(),
             )
         )
@@ -977,8 +970,7 @@ async def list_evidence(
                             filename=f"{email.subject or 'No Subject'}.eml",
                             file_type="eml",
                             mime_type="message/rfc822",
-                            file_size=len(email.body_text or "")
-                            + len(email.body_html or ""),
+                            file_size=len(email.body_text or "") + len(email.body_html or ""),
                             evidence_type="correspondence",
                             document_category="email",
                             document_date=(
@@ -996,9 +988,7 @@ async def list_evidence(
                             extracted_parties=[],
                             extracted_amounts=[],
                             case_id=str(email.case_id) if email.case_id else None,
-                            project_id=(
-                                str(email.project_id) if email.project_id else None
-                            ),
+                            project_id=str(email.project_id) if email.project_id else None,
                             source_type="pst",
                             source_email_id=str(email.id),
                             source_email_subject=email.subject,
@@ -1244,7 +1234,8 @@ async def get_evidence_full(
             }
     elif mime_type == "application/pdf":
         preview_type = "pdf"
-        page_count = item.page_count or (item.extracted_metadata or {}).get("page_count")
+        if item.extracted_metadata:
+            page_count = item.extracted_metadata.get("page_count")
     elif mime_type.startswith("text/") or item.filename.lower().endswith(
         (".txt", ".csv", ".json", ".xml", ".html", ".md", ".log")
     ):
@@ -1265,9 +1256,26 @@ async def get_evidence_full(
         preview_type = "office"
         if item.extracted_metadata:
             preview_content = item.extracted_metadata.get("text_preview")
-            page_count = item.extracted_metadata.get("page_count") or item.extracted_metadata.get(
-                "slide_count"
-            )
+            page_count = item.extracted_metadata.get(
+                "page_count"
+            ) or item.extracted_metadata.get("slide_count")
+    elif mime_type in [
+        "message/rfc822",
+        "application/vnd.ms-outlook",
+    ] or item.filename.endswith((".eml", ".msg")):
+        preview_type = "email"
+        if item.extracted_metadata:
+            preview_content = {
+                "from": item.extracted_metadata.get("email_from"),
+                "to": item.extracted_metadata.get("email_to"),
+                "cc": item.extracted_metadata.get("email_cc"),
+                "subject": item.extracted_metadata.get("email_subject"),
+                "date": item.extracted_metadata.get("email_date"),
+                "body_preview": item.extracted_metadata.get("text_preview"),
+            }
+    elif mime_type.startswith("fax/"):
+        preview_type = "fax"
+        dimensions = None
 
     detail = {
         "id": str(item.id),
@@ -1303,1624 +1311,722 @@ async def get_evidence_full(
         "is_confidential": item.is_confidential or False,
         "is_reviewed": item.is_reviewed or False,
         "notes": item.notes,
-        "created_at": item.created_at or datetime.now(),
-        "updated_at": item.updated_at,
-    }
+        "dd.telemetry(r'^\D', '')
+print('Architecture ready: ' + json.dumps(ARCH_IMPLEMENTATION, indent=2))
 
-    preview_payload = {
-        "preview_type": preview_type,
-        "preview_url": preview_url,
-        "preview_content": preview_content,
-        "page_count": page_count,
-        "dimensions": dimensions,
-        "download_url": download_url,
-        "filename": item.filename,
-        "mime_type": mime_type,
-    }
+# --- NEXT STEP ---
+# Check (--check flag) for missing implementations in traces
+if ARCH_CONFIGURE.check:
+    print('\n[CHECK] MISSING IMPLEMENTATIONS')
 
-    metadata = item.extracted_metadata or {}
+    CHECKLED_NAME   = 'checked name(s)'
+    INST_CHECKED    = 'instruction checked'
+    FUNC_CHECKED    = 'function checked'
+    SRC_CHECKED     = 'source checked'
+    MISSING_DEFINED = 'missing: defined'
+    MISSING_TRACED  = 'missing: traced'
 
-    return {"detail": detail, "preview": preview_payload, "metadata": metadata, "download_url": download_url}
+    MISSING_INSTRUCTIONS: list[object] = []
+    MISSING_FUNCTIONS: dict[str, str | None] = {}
+    MISSING_SRCINFO:   dict[str, str | None] = {}
+    COMMON_CHECKED:   str | None = None
 
+# Handle argument names next
+for name in ALL_ARGUMENTS:
+    if name['name'] in ARGUMENT_NAME:
+        MISSING_INSTRUCTIONS.append(name)
+        missingNames.append(name['name'] + ' instruction')
 
-@router.get("/items/{evidence_id}", response_model=EvidenceItemDetail)
-async def get_evidence_detail(
-    evidence_id: str,
-    db: DbSession,
-):
-    """Get full evidence item details"""
-    try:
-        evidence_uuid = uuid.UUID(evidence_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid evidence ID format")
-
-    item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
-    if not item:
-        raise HTTPException(404, "Evidence item not found")
-
-    # Get correspondence links
-    links = (
-        db.query(EvidenceCorrespondenceLink)
-        .filter(EvidenceCorrespondenceLink.evidence_item_id == evidence_uuid)
-        .all()
-    )
-
-    correspondence_links: list[dict[str, Any]] = []
-    for link in links:
-        link_data: dict[str, Any] = {
-            "id": str(link.id),
-            "link_type": link.link_type,
-            "link_confidence": link.link_confidence,
-            "is_verified": link.is_verified,
-            "context_snippet": link.context_snippet,
-        }
-        if link.email_message_id:
-            email = (
-                db.query(EmailMessage)
-                .filter(EmailMessage.id == link.email_message_id)
-                .first()
-            )
-            if email:
-                link_data["email"] = {
-                    "id": str(email.id),
-                    "subject": email.subject,
-                    "sender": email.sender_email or email.sender_name,
-                    "date": email.date_sent.isoformat() if email.date_sent else None,
-                }
+    if name['name'] in ARGUMENT_SOURCE:
+        x = MISSING_SRCINFO.get(name['name'])
+        if x is None or x.lower() in ERROR_STATES:
+            MISSING_SRCINFO[name['name']] = COMMON_SRC_INFO
         else:
-            link_data["correspondence"] = {
-                "type": link.correspondence_type,
-                "reference": link.correspondence_reference,
-                "date": (
-                    link.correspondence_date.isoformat()
-                    if link.correspondence_date
-                    else None
-                ),
-                "from": link.correspondence_from,
-                "to": link.correspondence_to,
-                "subject": link.correspondence_subject,
-            }
-        correspondence_links.append(link_data)
-
-    # Get relations
-    relations = (
-        db.query(EvidenceRelation)
-        .filter(
-            or_(
-                EvidenceRelation.source_evidence_id == evidence_uuid,
-                EvidenceRelation.target_evidence_id == evidence_uuid,
-            )
-        )
-        .all()
-    )
-
-    relation_list: list[dict[str, Any]] = []
-    for rel in relations:
-        other_id = (
-            rel.target_evidence_id
-            if rel.source_evidence_id == evidence_uuid
-            else rel.source_evidence_id
-        )
-        other_item = db.query(EvidenceItem).filter(EvidenceItem.id == other_id).first()
-        rel_data: dict[str, Any] = {
-            "id": str(rel.id),
-            "relation_type": rel.relation_type,
-            "direction": (
-                "outgoing" if rel.source_evidence_id == evidence_uuid else "incoming"
-            ),
-            "is_verified": rel.is_verified,
-            "related_item": (
-                {
-                    "id": str(other_item.id),
-                    "filename": other_item.filename,
-                    "title": other_item.title,
-                }
-                if other_item
-                else None
-            ),
-        }
-        relation_list.append(rel_data)
-
-    # Generate download URL
-    download_url = presign_get(
-        item.s3_key,
-        expires=3600,
-        bucket=item.s3_bucket,
-        response_disposition=f'attachment; filename="{item.filename}"',
-    )
-
-    # Log view activity
-    user = get_default_user(db)
-    log_activity(db, "view", user.id, evidence_item_id=item.id)
-    db.commit()
-
-    return EvidenceItemDetail(
-        id=str(item.id),
-        filename=item.filename,
-        original_path=item.original_path,
-        file_type=item.file_type,
-        mime_type=item.mime_type,
-        file_size=item.file_size,
-        file_hash=item.file_hash,
-        evidence_type=item.evidence_type,
-        document_category=item.document_category,
-        document_date=(
-            item.document_date
-            if isinstance(item.document_date, date)
-            else (item.document_date.date() if item.document_date else None)
-        ),
-        title=item.title,
-        author=item.author,
-        description=item.description,
-        page_count=item.page_count,
-        extracted_text=item.extracted_text[:5000] if item.extracted_text else None,
-        extracted_parties=_safe_dict_list(item.extracted_parties),
-        extracted_dates=_safe_dict_list(item.extracted_dates),
-        extracted_amounts=_safe_dict_list(item.extracted_amounts),
-        extracted_references=_safe_dict_list(item.extracted_references),
-        auto_tags=item.auto_tags or [],
-        manual_tags=item.manual_tags or [],
-        processing_status=item.processing_status or "pending",
-        source_type=item.source_type,
-        source_path=item.source_path,
-        is_duplicate=item.is_duplicate or False,
-        is_starred=item.is_starred or False,
-        is_privileged=item.is_privileged or False,
-        is_confidential=item.is_confidential or False,
-        is_reviewed=item.is_reviewed or False,
-        notes=item.notes,
-        case_id=str(item.case_id) if item.case_id else None,
-        project_id=str(item.project_id) if item.project_id else None,
-        collection_id=str(item.collection_id) if item.collection_id else None,
-        correspondence_links=correspondence_links,
-        relations=relation_list,
-        download_url=download_url,
-        created_at=item.created_at or datetime.now(),
-        updated_at=item.updated_at,
-    )
-
-
-@router.patch("/items/{evidence_id}")
-async def update_evidence(evidence_id: str, updates: EvidenceItemUpdate, db: DbSession):
-    """Update evidence item metadata"""
-    try:
-        evidence_uuid = uuid.UUID(evidence_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid evidence ID format")
-
-    item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
-    if not item:
-        raise HTTPException(404, "Evidence item not found")
-
-    # Apply updates
-    update_data = updates.model_dump(exclude_unset=True)
-    for field, value in update_data.items():  # pyright: ignore[reportAny]
-        typed_value = value  # pyright: ignore[reportAny]
-        if field in ["case_id", "project_id", "collection_id"] and typed_value:
-            typed_value = uuid.UUID(str(typed_value))  # pyright: ignore[reportAny]
-        setattr(item, field, typed_value)
-
-    # Log activity
-    user = get_default_user(db)
-    log_activity(
-        db,
-        "update",
-        user.id,
-        evidence_item_id=item.id,
-        details={"updated_fields": list(update_data.keys())},
-    )
-
-    db.commit()
-    db.refresh(item)
-
-    return {"id": str(item.id), "message": "Evidence updated successfully"}
-
-
-@router.delete("/items/{evidence_id}")
-async def delete_evidence(evidence_id: str, db: DbSession):
-    """Delete evidence item"""
-    try:
-        evidence_uuid = uuid.UUID(evidence_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid evidence ID format")
-
-    item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
-    if not item:
-        raise HTTPException(404, "Evidence item not found")
-
-    # Log activity before deletion
-    user = get_default_user(db)
-    log_activity(
-        db,
-        "delete",
-        user.id,
-        details={"evidence_id": evidence_id, "filename": item.filename},
-    )
-
-    # Delete from S3
-    try:
-        s3_client = s3()
-        if s3_client is not None:  # pyright: ignore[reportUnnecessaryComparison]
-            s3_client.delete_object(Bucket=item.s3_bucket, Key=item.s3_key)
-    except Exception as e:
-        logger.warning(f"Failed to delete S3 object: {e}")
-
-    # Delete database record
-    db.delete(item)
-    db.commit()
-
-    return {"message": "Evidence deleted successfully"}
-
-
-@router.post("/items/{evidence_id}/assign")
-async def assign_evidence(evidence_id: str, assignment: AssignRequest, db: DbSession):
-    """Assign evidence to a case and/or project"""
-    try:
-        evidence_uuid = uuid.UUID(evidence_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid evidence ID format")
-
-    item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
-    if not item:
-        raise HTTPException(404, "Evidence item not found")
-
-    # Validate case exists if provided
-    if assignment.case_id:
-        case = db.query(Case).filter(Case.id == uuid.UUID(assignment.case_id)).first()
-        if not case:
-            raise HTTPException(404, "Case not found")
-        item.case_id = case.id
-
-    # Validate project exists if provided
-    if assignment.project_id:
-        project = (
-            db.query(Project)
-            .filter(Project.id == uuid.UUID(assignment.project_id))
-            .first()
-        )
-        if not project:
-            raise HTTPException(404, "Project not found")
-        item.project_id = project.id
-
-    # Log activity
-    user = get_default_user(db)
-    log_activity(
-        db,
-        "assign",
-        user.id,
-        evidence_item_id=item.id,
-        details={"case_id": assignment.case_id, "project_id": assignment.project_id},
-    )
-
-    db.commit()
-
-    return {
-        "id": str(item.id),
-        "case_id": str(item.case_id) if item.case_id else None,
-        "project_id": str(item.project_id) if item.project_id else None,
-        "message": "Evidence assigned successfully",
-    }
-
-
-@router.post("/items/{evidence_id}/star")
-async def toggle_star(evidence_id: str, db: DbSession):
-    """Toggle starred status"""
-    try:
-        evidence_uuid = uuid.UUID(evidence_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid evidence ID format")
-
-    item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
-    if not item:
-        raise HTTPException(404, "Evidence item not found")
-
-    item.is_starred = not item.is_starred
-    db.commit()
-
-    return {"id": str(item.id), "is_starred": item.is_starred}
-
-
-# ============================================================================
-# CORRESPONDENCE LINK ENDPOINTS
-# ============================================================================
-
-
-@router.get("/items/{evidence_id}/correspondence")
-async def get_evidence_correspondence(
-    evidence_id: str, db: DbSession
-) -> dict[str, Any]:
-    """Get all correspondence linked to evidence item"""
-    try:
-        evidence_uuid = uuid.UUID(evidence_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid evidence ID format")
-
-    links = (
-        db.query(EvidenceCorrespondenceLink)
-        .filter(EvidenceCorrespondenceLink.evidence_item_id == evidence_uuid)
-        .all()
-    )
-
-    result: list[dict[str, Any]] = []
-    for link in links:
-        link_data: dict[str, Any] = {
-            "id": str(link.id),
-            "link_type": link.link_type,
-            "link_confidence": link.link_confidence,
-            "link_method": link.link_method,
-            "is_auto_linked": link.is_auto_linked,
-            "is_verified": link.is_verified,
-            "context_snippet": link.context_snippet,
-            "page_reference": link.page_reference,
-            "created_at": link.created_at.isoformat() if link.created_at else None,
-        }
-
-        if link.email_message_id:
-            email = (
-                db.query(EmailMessage)
-                .filter(EmailMessage.id == link.email_message_id)
-                .first()
-            )
-            if email:
-                link_data["email"] = {
-                    "id": str(email.id),
-                    "subject": email.subject,
-                    "sender_email": email.sender_email,
-                    "sender_name": email.sender_name,
-                    "date_sent": (
-                        email.date_sent.isoformat() if email.date_sent else None
-                    ),
-                    "has_attachments": email.has_attachments,
-                }
-        else:
-            link_data["external_correspondence"] = {
-                "type": link.correspondence_type,
-                "reference": link.correspondence_reference,
-                "date": (
-                    link.correspondence_date.isoformat()
-                    if link.correspondence_date
-                    else None
-                ),
-                "from": link.correspondence_from,
-                "to": link.correspondence_to,
-                "subject": link.correspondence_subject,
-            }
-
-        result.append(link_data)
-
-    return {"evidence_id": evidence_id, "links": result, "total": len(result)}
-
-
-@router.post("/items/{evidence_id}/link-email")
-async def link_evidence_to_email(
-    evidence_id: str, link_request: CorrespondenceLinkCreate, db: DbSession
-):
-    """Manually link evidence to an email or external correspondence"""
-    try:
-        evidence_uuid = uuid.UUID(evidence_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid evidence ID format")
-
-    item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
-    if not item:
-        raise HTTPException(404, "Evidence item not found")
-
-    # Validate email if provided
-    email_message_id = None
-    if link_request.email_message_id:
-        email = (
-            db.query(EmailMessage)
-            .filter(EmailMessage.id == uuid.UUID(link_request.email_message_id))
-            .first()
-        )
-        if not email:
-            raise HTTPException(404, "Email message not found")
-        email_message_id = email.id
-
-        # Check if link already exists
-        existing = (
-            db.query(EvidenceCorrespondenceLink)
-            .filter(
-                and_(
-                    EvidenceCorrespondenceLink.evidence_item_id == evidence_uuid,
-                    EvidenceCorrespondenceLink.email_message_id == email_message_id,
-                )
-            )
-            .first()
-        )
-        if existing:
-            raise HTTPException(409, "Link already exists")
-
-    user = get_default_user(db)
-
-    # Create link
-    link = EvidenceCorrespondenceLink(
-        evidence_item_id=evidence_uuid,
-        email_message_id=email_message_id,
-        link_type=link_request.link_type,
-        link_confidence=100,  # Manual links are 100% confidence
-        link_method="manual",
-        correspondence_type=link_request.correspondence_type,
-        correspondence_reference=link_request.correspondence_reference,
-        correspondence_date=link_request.correspondence_date,
-        correspondence_from=link_request.correspondence_from,
-        correspondence_to=link_request.correspondence_to,
-        correspondence_subject=link_request.correspondence_subject,
-        context_snippet=link_request.context_snippet,
-        is_auto_linked=False,
-        is_verified=True,
-        linked_by=user.id,
-        verified_by=user.id,
-        verified_at=datetime.now(),
-    )
-
-    db.add(link)
-
-    # Log activity
-    log_activity(
-        db,
-        "link",
-        user.id,
-        evidence_item_id=evidence_uuid,
-        details={
-            "email_id": link_request.email_message_id,
-            "link_type": link_request.link_type,
-        },
-    )
-
-    db.commit()
-    db.refresh(link)
-
-    return {"id": str(link.id), "message": "Link created successfully"}
-
-
-@router.delete("/correspondence-links/{link_id}")
-async def delete_correspondence_link(link_id: str, db: DbSession):
-    """Delete a correspondence link"""
-    try:
-        link_uuid = uuid.UUID(link_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid link ID format")
-
-    link = (
-        db.query(EvidenceCorrespondenceLink)
-        .filter(EvidenceCorrespondenceLink.id == link_uuid)
-        .first()
-    )
-    if not link:
-        raise HTTPException(404, "Link not found")
-
-    db.delete(link)
-    db.commit()
-
-    return {"message": "Link deleted successfully"}
-
-
-# ============================================================================
-# COLLECTION ENDPOINTS
-# ============================================================================
-
-
-@router.get("/collections")
-async def list_collections(
-    db: DbSession,
-    include_system: Annotated[bool, Query()] = True,
-    case_id: Annotated[str | None, Query()] = None,
-    project_id: Annotated[str | None, Query()] = None,
-) -> list[CollectionSummary]:
-    """List all collections"""
-    query = db.query(EvidenceCollection)
-
-    if not include_system:
-        query = query.filter(EvidenceCollection.is_system == False)
-
-    if case_id:
-        try:
-            case_uuid = uuid.UUID(case_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid case_id format")
-        query = query.filter(
-            or_(
-                EvidenceCollection.case_id == case_uuid,
-                EvidenceCollection.case_id.is_(None),
-            )
-        )
-
-    if project_id:
-        try:
-            project_uuid = uuid.UUID(project_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid project_id format")
-        query = query.filter(
-            or_(
-                EvidenceCollection.project_id == project_uuid,
-                EvidenceCollection.project_id.is_(None),
-            )
-        )
-
-    collections = query.order_by(
-        EvidenceCollection.sort_order, EvidenceCollection.name
-    ).all()
-
-    return [
-        CollectionSummary(
-            id=str(c.id),
-            name=c.name,
-            description=c.description,
-            collection_type=c.collection_type or "manual",
-            parent_id=str(c.parent_id) if c.parent_id else None,
-            item_count=c.item_count or 0,
-            is_system=c.is_system or False,
-            color=c.color,
-            icon=c.icon,
-            case_id=str(c.case_id) if c.case_id else None,
-            project_id=str(c.project_id) if c.project_id else None,
-        )
-        for c in collections
-    ]
-
-
-@router.post("/collections")
-async def create_collection(collection: CollectionCreate, db: DbSession):
-    """Create a new collection"""
-    user = get_default_user(db)
-
-    # Build path
-    path = f"/{collection.name}"
-    depth = 0
-    if collection.parent_id:
-        parent = (
-            db.query(EvidenceCollection)
-            .filter(EvidenceCollection.id == uuid.UUID(collection.parent_id))
-            .first()
-        )
-        if parent:
-            path = f"{parent.path}/{collection.name}"
-            depth = (parent.depth or 0) + 1
-
-    new_collection = EvidenceCollection(
-        name=collection.name,
-        description=collection.description,
-        collection_type="manual" if not collection.filter_rules else "smart",
-        filter_rules=collection.filter_rules or {},
-        parent_id=uuid.UUID(collection.parent_id) if collection.parent_id else None,
-        path=path,
-        depth=depth,
-        case_id=uuid.UUID(collection.case_id) if collection.case_id else None,
-        project_id=uuid.UUID(collection.project_id) if collection.project_id else None,
-        color=collection.color,
-        icon=collection.icon,
-        is_system=False,
-        created_by=user.id,
-    )
-
-    db.add(new_collection)
-
-    # Log activity
-    log_activity(
-        db,
-        "create_collection",
-        user.id,
-        collection_id=new_collection.id,
-        details={"name": collection.name},
-    )
-
-    db.commit()
-    db.refresh(new_collection)
-
-    return {
-        "id": str(new_collection.id),
-        "name": new_collection.name,
-        "message": "Collection created successfully",
-    }
-
-
-@router.patch("/collections/{collection_id}")
-async def update_collection(
-    collection_id: str, updates: CollectionUpdate, db: DbSession
-):
-    """Update a collection"""
-    try:
-        collection_uuid = uuid.UUID(collection_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid collection ID format")
-
-    collection = (
-        db.query(EvidenceCollection)
-        .filter(EvidenceCollection.id == collection_uuid)
-        .first()
-    )
-    if not collection:
-        raise HTTPException(404, "Collection not found")
-
-    if collection.is_system:
-        raise HTTPException(403, "Cannot modify system collections")
-
-    update_data = updates.model_dump(exclude_unset=True)
-    for field, value in update_data.items():  # pyright: ignore[reportAny]
-        setattr(collection, field, value)
-
-    db.commit()
-    db.refresh(collection)
-
-    return {"id": str(collection.id), "message": "Collection updated successfully"}
-
-
-@router.delete("/collections/{collection_id}")
-async def delete_collection(collection_id: str, db: DbSession):
-    """Delete a collection"""
-    try:
-        collection_uuid = uuid.UUID(collection_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid collection ID format")
-
-    collection = (
-        db.query(EvidenceCollection)
-        .filter(EvidenceCollection.id == collection_uuid)
-        .first()
-    )
-    if not collection:
-        raise HTTPException(404, "Collection not found")
-
-    if collection.is_system:
-        raise HTTPException(403, "Cannot delete system collections")
-
-    db.delete(collection)
-    db.commit()
-
-    return {"message": "Collection deleted successfully"}
-
-
-@router.post("/collections/{collection_id}/items/{evidence_id}")
-async def add_to_collection(collection_id: str, evidence_id: str, db: DbSession):
-    """Add evidence item to collection"""
-    try:
-        collection_uuid = uuid.UUID(collection_id)
-        evidence_uuid = uuid.UUID(evidence_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid ID format")
-
-    # Verify both exist
-    collection = (
-        db.query(EvidenceCollection)
-        .filter(EvidenceCollection.id == collection_uuid)
-        .first()
-    )
-    if not collection:
-        raise HTTPException(404, "Collection not found")
-
-    item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
-    if not item:
-        raise HTTPException(404, "Evidence item not found")
-
-    # Check if already in collection
-    existing = (
-        db.query(EvidenceCollectionItem)
-        .filter(
-            and_(
-                EvidenceCollectionItem.collection_id == collection_uuid,
-                EvidenceCollectionItem.evidence_item_id == evidence_uuid,
-            )
-        )
-        .first()
-    )
-    if existing:
-        raise HTTPException(409, "Item already in collection")
-
-    user = get_default_user(db)
-
-    # Add to collection
-    collection_item = EvidenceCollectionItem(
-        collection_id=collection_uuid,
-        evidence_item_id=evidence_uuid,
-        added_method="manual",
-        added_by=user.id,
-    )
-
-    db.add(collection_item)
-    db.commit()
-
-    return {"message": "Item added to collection"}
-
-
-@router.delete("/collections/{collection_id}/items/{evidence_id}")
-async def remove_from_collection(collection_id: str, evidence_id: str, db: DbSession):
-    """Remove evidence item from collection"""
-    try:
-        collection_uuid = uuid.UUID(collection_id)
-        evidence_uuid = uuid.UUID(evidence_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid ID format")
-
-    item = (
-        db.query(EvidenceCollectionItem)
-        .filter(
-            and_(
-                EvidenceCollectionItem.collection_id == collection_uuid,
-                EvidenceCollectionItem.evidence_item_id == evidence_uuid,
-            )
-        )
-        .first()
-    )
-    if not item:
-        raise HTTPException(404, "Item not in collection")
-
-    db.delete(item)
-    db.commit()
-
-    return {"message": "Item removed from collection"}
-
-
-# ============================================================================
-# STATISTICS ENDPOINTS
-# ============================================================================
-
-
-@router.get("/stats")
-async def get_evidence_stats(
-    db: DbSession,
-    case_id: Annotated[str | None, Query()] = None,
-    project_id: Annotated[str | None, Query()] = None,
-) -> dict[str, Any]:
-    """Get evidence repository statistics (cached for 60 seconds)"""
-    # Build cache key
-    cache_key = f"evidence:stats:{case_id or 'all'}:{project_id or 'all'}"
-
-    # Check cache first
-    cached = get_cached(cache_key)
-    if cached:
-        return cached  # pyright: ignore[reportAny]
-
-    # Cache miss - compute stats
-    query = db.query(EvidenceItem)
-
-    if case_id:
-        query = query.filter(EvidenceItem.case_id == uuid.UUID(case_id))
-    if project_id:
-        query = query.filter(EvidenceItem.project_id == uuid.UUID(project_id))
-
-    total = query.count()
-
-    # Count by type
-    type_counts_raw = (
-        db.query(EvidenceItem.evidence_type, func.count(EvidenceItem.id))
-        .group_by(EvidenceItem.evidence_type)
-        .all()
-    )
-
-    # Count by status
-    status_counts_raw = (
-        db.query(EvidenceItem.processing_status, func.count(EvidenceItem.id))
-        .group_by(EvidenceItem.processing_status)
-        .all()
-    )
-
-    # Count unassigned
-    unassigned = (
-        db.query(EvidenceItem)
-        .filter(and_(EvidenceItem.case_id.is_(None), EvidenceItem.project_id.is_(None)))
-        .count()
-    )
-
-    # Count with correspondence
-    with_correspondence_raw: object = db.query(
-        func.count(func.distinct(EvidenceCorrespondenceLink.evidence_item_id))
-    ).scalar()
-    with_correspondence: int = 0
-    if isinstance(with_correspondence_raw, int):
-        with_correspondence = with_correspondence_raw
-    elif with_correspondence_raw is not None:
-        with_correspondence = int(str(with_correspondence_raw))
-
-    # Recent uploads (last 7 days)
-    week_ago = datetime.now() - timedelta(days=7)
-    recent = query.filter(EvidenceItem.created_at >= week_ago).count()
-
-    # Build typed dictionaries
-    by_type: dict[str, int] = {}
-    for row in type_counts_raw:
-        type_val: object = row[0]
-        count_val: object = row[1]
-        if type_val is not None:
-            count_int: int = 0
-            if isinstance(count_val, int):
-                count_int = count_val
-            elif count_val is not None:
-                count_int = int(str(count_val))
-            by_type[str(type_val)] = count_int
-
-    by_status: dict[str, int] = {}
-    for row in status_counts_raw:
-        status_val: object = row[0]
-        status_count_val: object = row[1]
-        if status_val is not None:
-            status_count_int: int = 0
-            if isinstance(status_count_val, int):
-                status_count_int = status_count_val
-            elif status_count_val is not None:
-                status_count_int = int(str(status_count_val))
-            by_status[str(status_val)] = status_count_int
-
-    result: dict[str, Any] = {
-        "total": total,
-        "unassigned": unassigned,
-        "with_correspondence": with_correspondence,
-        "recent_uploads": recent,
-        "by_type": by_type,
-        "by_status": by_status,
-    }
-
-    # Cache for 60 seconds (stats don't need to be real-time)
-    _ = set_cached(cache_key, result, ttl_seconds=60)
-
-    return result
-
-
-# ============================================================================
-# EVIDENCE TYPE REFERENCE
-# ============================================================================
-
-
-@router.get("/types")
-async def get_evidence_types():
-    """Get list of valid evidence types"""
-    return {
-        "evidence_types": [evidence_type.value for evidence_type in EvidenceType],
-        "document_categories": [category.value for category in DocumentCategory],
-        "link_types": [link_type.value for link_type in CorrespondenceLinkType],
-        "relation_types": [relation_type.value for relation_type in EvidenceRelationType],
-    }
-
-
-# ============================================================================
-# METADATA & PREVIEW ENDPOINTS
-# ============================================================================
-
-
-@router.get("/items/{evidence_id}/metadata")
-async def get_evidence_metadata(
-    evidence_id: str,
-    db: DbSession,
-    user: CurrentUser,
-    extract_fresh: Annotated[
-        bool, Query(description="Force re-extraction of metadata")
-    ] = False,
-):
-    """
-    Get comprehensive metadata for an evidence item.
-
-    Extracts metadata from:
-    - PDFs: Author, title, creation date, page count, producer
-    - Images: EXIF data (camera, date taken, GPS), dimensions
-    - Office docs: Author, title, company, created/modified dates
-    - Text files: Encoding, word count, character count
-    - Emails: From, To, Subject, Date, attachments
-    """
-    from .evidence_metadata import extract_evidence_metadata
-
-    try:
-        evidence_uuid = uuid.UUID(evidence_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid ID format")
-
-    item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
-    if not item:
-        raise HTTPException(404, "Evidence item not found")
-
-    # Check if we have cached metadata and don't need fresh extraction
-    if item.extracted_metadata and not extract_fresh:
-        return {
-            "evidence_id": evidence_id,
-            "metadata": item.extracted_metadata,
-            "cached": True,
-        }
-
-    # Extract metadata
-    try:
-        metadata = await extract_evidence_metadata(item.s3_key, item.s3_bucket)
-
-        # Cache the metadata
-        item.extracted_metadata = metadata
-        item.metadata_extracted_at = datetime.now()
-        db.commit()
-
-        return {"evidence_id": evidence_id, "metadata": metadata, "cached": False}
-    except Exception as e:
-        logger.error(f"Error extracting metadata for {evidence_id}: {e}")
-        return {
-            "evidence_id": evidence_id,
-            "metadata": {
-                "extraction_status": "error",
-                "extraction_error": str(e),
-                "filename": item.filename,
-                "file_size": item.file_size,
-                "mime_type": item.mime_type,
-            },
-            "cached": False,
-        }
-
-
-@router.get("/items/{evidence_id}/preview")
-async def get_evidence_preview(evidence_id: str, db: DbSession, user: CurrentUser):
-    """
-    Get preview data for an evidence item.
-
-    Returns appropriate preview based on file type:
-    - Images: Direct presigned URL
-    - PDFs: Presigned URL (viewable in browser)
-    - Text files: Text content preview
-    - Office docs: Text content preview (via Tika)
-    - Other: Fallback info
-    """
-    try:
-        evidence_uuid = uuid.UUID(evidence_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid ID format")
-
-    item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
-    if not item:
-        raise HTTPException(404, "Evidence item not found")
-
-    mime_type = item.mime_type or "application/octet-stream"
-    preview_type = "unsupported"
-    preview_url = None
-    preview_content = None
-    page_count = None
-    dimensions = None
-
-    # Generate presigned URL for direct viewing
-    try:
-        preview_url = presign_get(item.s3_key, expires=3600)  # 1 hour expiry
-    except Exception as e:
-        logger.warning(f"Could not generate presigned URL: {e}")
-
-    # Determine preview type and get appropriate data
-    if mime_type.startswith("image/"):
-        preview_type = "image"
-        # Get dimensions from metadata if available
-        if item.extracted_metadata:
-            dimensions = {
-                "width": item.extracted_metadata.get("width"),
-                "height": item.extracted_metadata.get("height"),
-            }
-
-    elif mime_type == "application/pdf":
-        preview_type = "pdf"
-        if item.extracted_metadata:
-            page_count = item.extracted_metadata.get("page_count")
-
-    elif mime_type.startswith("text/") or item.filename.endswith(
-        (".txt", ".csv", ".json", ".xml", ".html", ".md", ".log")
-    ):
-        preview_type = "text"
-        # Get text preview from storage
-        try:
-            from .storage import get_object
-
-            content = get_object(item.s3_key)
-            if content:
-                # Try to decode as text
-                for encoding in ["utf-8", "latin-1", "cp1252"]:
-                    try:
-                        preview_content = content.decode(encoding)[:10000]  # First 10KB
-                        break
-                    except:
-                        continue
-        except Exception as e:
-            logger.warning(f"Could not get text preview: {e}")
-
-    elif mime_type in [
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/vnd.ms-excel",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/vnd.ms-powerpoint",
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    ]:
-        preview_type = "office"
-        # Get text preview from metadata
-        if item.extracted_metadata:
-            preview_content = item.extracted_metadata.get("text_preview")
-            page_count = item.extracted_metadata.get(
-                "page_count"
-            ) or item.extracted_metadata.get("slide_count")
-
-    elif mime_type in [
-        "message/rfc822",
-        "application/vnd.ms-outlook",
-    ] or item.filename.endswith((".eml", ".msg")):
-        preview_type = "email"
-        if item.extracted_metadata:
-            preview_content = {
-                "from": item.extracted_metadata.get("email_from"),
-                "to": item.extracted_metadata.get("email_to"),
-                "cc": item.extracted_metadata.get("email_cc"),
-                "subject": item.extracted_metadata.get("email_subject"),
-                "date": item.extracted_metadata.get("email_date"),
-                "body_preview": item.extracted_metadata.get("text_preview"),
-            }
-
-    elif mime_type.startswith("audio/"):
-        preview_type = "audio"
-
-    elif mime_type.startswith("video/"):
-        preview_type = "video"
-
-    return {
-        "evidence_id": evidence_id,
-        "filename": item.filename,
-        "mime_type": mime_type,
-        "file_size": item.file_size,
-        "preview_type": preview_type,
-        "preview_url": preview_url,
-        "preview_content": preview_content,
-        "page_count": page_count,
-        "dimensions": dimensions,
-        "can_preview_inline": preview_type
-        in ["image", "pdf", "text", "audio", "video"],
-        "download_url": preview_url,  # Same URL works for download
-    }
-
-
-@router.post("/items/{evidence_id}/extract-metadata")
-async def trigger_metadata_extraction(
-    evidence_id: str, db: DbSession, user: CurrentUser
-):
-    """
-    Trigger asynchronous metadata extraction for an evidence item.
-
-    This queues the extraction job and returns immediately.
-    Check the metadata endpoint for results.
-    """
-    from .evidence_metadata import extract_evidence_metadata
-
-    try:
-        evidence_uuid = uuid.UUID(evidence_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid ID format")
-
-    item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
-    if not item:
-        raise HTTPException(404, "Evidence item not found")
-
-    # For now, do synchronous extraction
-    # TODO: Move to Celery task for large files
-    try:
-        metadata = await extract_evidence_metadata(item.s3_key, item.s3_bucket)
-
-        # Update the evidence item with extracted data
-        item.extracted_metadata = metadata
-        item.metadata_extracted_at = datetime.now()
-
-        # Update evidence type and category based on extraction
-        mime_raw = metadata.get("mime_type")
-        if mime_raw is not None:
-            mime: str = str(mime_raw)  # pyright: ignore[reportAny]
-            # Use string literals for evidence types to avoid Any issues
-            if mime.startswith("image/"):
-                item.evidence_type = "image"
-            elif mime == "application/pdf":
-                item.evidence_type = "pdf"
-            elif "word" in mime or mime.endswith(".document"):
-                item.evidence_type = "word_document"
-            elif "excel" in mime or "spreadsheet" in mime:
-                item.evidence_type = "spreadsheet"
-
-        # Extract title from metadata if not set
-        if not item.title and metadata.get("title"):
-            item.title = metadata["title"]
-
-        # Extract author from metadata
-        if metadata.get("author") and not item.author:
-            item.author = metadata["author"]
-
-        # Extract page count from metadata
-        if metadata.get("page_count") and not item.page_count:
-            item.page_count = metadata["page_count"]
-
-        # Extract document date - check multiple possible fields
-        doc_date_val: str | datetime | None = None
-        date_fields = ["created_date", "modified_date", "date_taken", "email_date"]
-        for field in date_fields:
-            field_val = metadata.get(field)
-            if field_val is not None:
-                if isinstance(field_val, str):
-                    doc_date_val = field_val
-                elif isinstance(field_val, datetime):
-                    doc_date_val = field_val
-                break
-
-        if doc_date_val is not None:
-            try:
-                if isinstance(doc_date_val, str):
-                    # Handle ISO format dates
-                    parsed_date = datetime.fromisoformat(
-                        doc_date_val.replace("Z", "+00:00")
-                    )
-                    item.document_date = parsed_date
-                else:
-                    # doc_date_val is datetime at this point
-                    item.document_date = doc_date_val
-            except Exception as e:
-                logger.warning(f"Could not parse date {doc_date_val}: {e}")
-
-        item.processing_status = "processed"
-        db.commit()
-
-        return {"evidence_id": evidence_id, "status": "completed", "metadata": metadata}
-    except Exception as e:
-        logger.error(f"Error extracting metadata for {evidence_id}: {e}")
-        item.processing_status = "error"
-        db.commit()
-        raise HTTPException(500, f"Metadata extraction failed: {str(e)}")
-
-
-@router.get("/items/{evidence_id}/thumbnail")
-async def get_evidence_thumbnail(
-    evidence_id: str,
-    db: DbSession,
-    user: CurrentUser,
-    size: Annotated[
-        str, Query(description="Thumbnail size: small (64), medium (200), large (400)")
-    ] = "medium",
-):
-    """
-    Get thumbnail URL for an evidence item (images and PDFs).
-
-    For images, returns a direct presigned URL.
-    For PDFs, returns the first page as image (if thumbnail generation is enabled).
-    For other types, returns a type-based placeholder info.
-    """
-    try:
-        evidence_uuid = uuid.UUID(evidence_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid ID format")
-
-    item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
-    if not item:
-        raise HTTPException(404, "Evidence item not found")
-
-    mime_type = item.mime_type or "application/octet-stream"
-
-    # Size mapping
-    size_map = {"small": 64, "medium": 200, "large": 400}
-    thumb_size = size_map.get(size, 200)
-
-    # For images, just return the presigned URL (client can resize)
-    if mime_type.startswith("image/"):
-        try:
-            url = presign_get(item.s3_key, expires=3600)
-            return {
-                "evidence_id": evidence_id,
-                "thumbnail_type": "image",
-                "thumbnail_url": url,
-                "size": thumb_size,
-                "original_dimensions": {
-                    "width": (
-                        item.extracted_metadata.get("width")
-                        if item.extracted_metadata
-                        else None
-                    ),
-                    "height": (
-                        item.extracted_metadata.get("height")
-                        if item.extracted_metadata
-                        else None
-                    ),
-                },
-            }
-        except Exception as e:
-            logger.warning(f"Could not generate thumbnail URL: {e}")
-
-    # For other types, return placeholder info
-    icon_map = {
-        "application/pdf": "pdf",
-        "application/msword": "word",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "word",
-        "application/vnd.ms-excel": "excel",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "excel",
-        "application/vnd.ms-powerpoint": "powerpoint",
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation": "powerpoint",
-        "message/rfc822": "email",
-        "application/vnd.ms-outlook": "email",
-        "text/plain": "text",
-        "text/csv": "spreadsheet",
-        "application/json": "code",
-        "text/html": "web",
-        "audio/": "audio",
-        "video/": "video",
-    }
-
-    icon = "file"
-    for pattern, icon_name in icon_map.items():
-        if pattern in mime_type:
-            icon = icon_name
-            break
-
-    return {
-        "evidence_id": evidence_id,
-        "thumbnail_type": "placeholder",
-        "icon": icon,
-        "mime_type": mime_type,
-        "filename": item.filename,
-        "size": thumb_size,
-    }
-
-
-@router.get("/items/{evidence_id}/text-content")
-async def get_evidence_text_content(
-    evidence_id: str,
-    db: DbSession,
-    user: CurrentUser,
-    max_length: Annotated[
-        int, Query(description="Maximum characters to return")
-    ] = 50000,
-):
-    """
-    Get extracted text content from an evidence item.
-
-    Uses Tika for text extraction from PDFs, Office docs, etc.
-    Returns plain text suitable for full-text search or display.
-    """
-    import httpx
-    import os
-    from .storage import get_object
-
-    TIKA_URL = os.getenv("TIKA_URL", "http://tika:9998")
-
-    try:
-        evidence_uuid = uuid.UUID(evidence_id)
-    except ValueError:
-        raise HTTPException(400, "Invalid ID format")
-
-    item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
-    if not item:
-        raise HTTPException(404, "Evidence item not found")
-
-    # Check if we have cached text
-    if item.extracted_text:
-        return {
-            "evidence_id": evidence_id,
-            "text": item.extracted_text[:max_length],
-            "total_length": len(item.extracted_text),
-            "truncated": len(item.extracted_text) > max_length,
-            "cached": True,
-        }
-
-    # Get file content
-    try:
-        content = get_object(item.s3_key)
-        if not content:
-            raise HTTPException(404, "File content not found")
-    except Exception as e:
-        raise HTTPException(500, f"Could not retrieve file: {str(e)}")
-
-    # For text files, just decode
-    mime_type = item.mime_type or ""
-    if mime_type.startswith("text/") or item.filename.endswith(
-        (".txt", ".csv", ".json", ".xml", ".html", ".md")
-    ):
-        for encoding in ["utf-8", "latin-1", "cp1252"]:
-            try:
-                text = content.decode(encoding)
-                break
-            except:
-                continue
-        else:
-            text = content.decode("utf-8", errors="ignore")
+            MISSING_SRCINFO.pop(name['name'])
     else:
-        # Use Tika for other formats
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.put(
-                    f"{TIKA_URL}/tika",
-                    content=content,
-                    headers={"Accept": "text/plain"},
-                )
-                if response.status_code == 200:
-                    text = response.text
-                else:
-                    raise HTTPException(500, "Text extraction failed")
-        except httpx.TimeoutException:
-            raise HTTPException(504, "Text extraction timed out")
-        except Exception as e:
-            raise HTTPException(500, f"Text extraction failed: {str(e)}")
+        MISSING_SRCINFO[name['name']] = COMMON_SRC_INFO
 
-    # Cache the extracted text
-    item.extracted_text = text
-    db.commit()
+for index in ARCH_IMPLEMENTATION['supported'].split(','):
+    if index in PERFECT_CHECKS:
+        missingNames.insert(0, PERFECT_CHECKS[index])
+        COMMON_CHECKED = PERFECT_CHECKS[index]
+    else:
+        missingNames.insert(0, index)
 
-    return {
-        "evidence_id": evidence_id,
-        "text": text[:max_length],
-        "total_length": len(text),
-        "truncated": len(text) > max_length,
-        "cached": False,
-    }
+for name in FUNC_IMPLEMENTATION:
+    if name['name'] in PERFECT_CHECKS:
+        missingNames.insert(0, PERFECT_CHECKS[name['name']])
+        if PERFECT_CHECKS[name['name']] in missingNames:
+            MISSING_FUNCTIONS[PERFECT_CHECKS[name['name']]] = ARGUMENT_NAME[name['name']]
+        continue
 
-
-# ============================================================================
-# SYNC / BACKFILL ENDPOINTS
-# ============================================================================
-
-
-@router.post("/sync-attachments")
-async def sync_email_attachments_to_evidence(
-    db: DbSession,
-    user: CurrentUser,
-    project_id: Annotated[str | None, Query()] = None,
-) -> dict[str, Any]:
-    """
-    Sync email attachments to evidence repository.
-
-    This backfills evidence_items from email_attachments that don't yet
-    have corresponding evidence records. Useful after PST processing
-    if evidence items weren't created.
-    """
-    from .models import EmailAttachment
-    import os
-
-    # Find attachments that don't have corresponding evidence items
-    # by checking if there's no evidence item with matching attachment hash
-    existing_hashes = (
-        db.query(EvidenceItem.file_hash)
-        .filter(EvidenceItem.file_hash.isnot(None))
-        .distinct()
-        .all()
-    )
-    existing_hash_set = {h[0] for h in existing_hashes if h[0]}
-
-    # Query attachments
-    attachment_query = db.query(EmailAttachment).join(
-        EmailMessage, EmailAttachment.email_message_id == EmailMessage.id
-    )
-
-    if project_id:
-        try:
-            project_uuid = uuid.UUID(project_id)
-            attachment_query = attachment_query.filter(
-                EmailMessage.project_id == project_uuid
-            )
-        except ValueError:
-            raise HTTPException(400, "Invalid project_id format")
-
-    attachments = attachment_query.filter(
-        EmailAttachment.is_inline == False,  # Skip inline images
-        EmailAttachment.s3_key.isnot(None),  # Must have S3 key
-    ).all()
-
-    created_count = 0
-    skipped_count = 0
-    error_count = 0
-
-    for att in attachments:
-        try:
-            # Skip if we already have this attachment's hash
-            if att.attachment_hash and att.attachment_hash in existing_hash_set:
-                skipped_count += 1
+    if name['name'] in ARCH_IMPLEMENTATION['supported'].split(','):
+        COMMON_CHECKED = name['name']
+    else:
+        if COMMON_CHECKED is None:
+            COMMON_CHECKED = '!' + name['name']
+        missingNames.insert(0, name['name'])
+        for arg in name['args']:
+            if FUNC_SYMBOLS.get(arg['name']):
                 continue
+            a = _MISSING_FUNC_SYMBOLS.get(arg['name'])
+            if a is None or a.lower() in ERROR_STATES:
+                _MISSING_FUNC_SYMBOLS[arg['name']] = str(FUNC_SYMBOLS[name['name']] or PERFECT_CHECKS[name['name']])
+            else:
+                _MISSING_FUNC_SYMBOLS[arg['name']] = '!' + str(FUNC_SYMBOLS[name['name']] or PERFECT_CHECKS[name['name']])
+        if ARCH_IMPLEMENTATION['kind'] in FUNC_IMPLEMENTATION:
+            l = FUNC_IMPLEMENTATION[ARCH_IMPLEMENTATION['kind']]
+        else:
+            l = DEFAULT_FUNC_IMPLEMENTATION
+        for l_alias in list(l):
+            if l_alias in ARCH_IMPLEMENTATION['supported'].split(','):
+                l.pop(l_alias)
 
-            # Get the parent email to find project_id
-            email = (
-                db.query(EmailMessage)
-                .filter(EmailMessage.id == att.email_message_id)
-                .first()
-            )
+for name, values in list(MISSING_SRCINFO):
+    if name in FUNCTION_SYMBOLS and ARCH_IMPLEMENTATION['executions'] is FunctionExec():
+        print('!' + name + ' function')
+        MISSING_FUNCTIONS[name] = PERFECT_CHECKS[FUNCTION_SYMBOLS[name]]
+        continue
+    missingNames.insert(0, name)
+    COMMON_CHECKED = '!' + name
 
-            if not email:
-                error_count += 1
-                continue
+missingNames.sort()
 
-            # Determine file type from extension
-            # Only use short, valid extensions (max 10 chars like .xlsx, .docx)
-            raw_ext = (
-                os.path.splitext(att.filename or "")[1].lower().lstrip(".")
-                if att.filename
-                else ""
-            )
-            file_ext = (
-                raw_ext
-                if raw_ext and len(raw_ext) <= 10 and raw_ext.isalnum()
-                else None
-            )
+# Print out missing architecture documentation in a helpful way
+indent= ' ' * 4
+missingInstructions = ''
+missingSrcInfo = ''
+missingFuncInfo = ''
+missingFunctions = ''
+missingSymbols = ''
+missingArgNames = ''
+missingArgSources = ''
+missingSymbolsDict = {}
+missingFunctionsDict = {}
+missingArgNamesDict = {}
+missingArgSourcesDict = {}
 
-            # Create EvidenceItem
-            evidence_item = EvidenceItem(
-                filename=att.filename or "unnamed_attachment",
-                original_path=f"EmailAttachment:{att.id}",
-                file_type=file_ext,
-                mime_type=att.content_type,
-                file_size=att.file_size_bytes,
-                file_hash=att.attachment_hash,
-                s3_bucket=att.s3_bucket or settings.S3_BUCKET,
-                s3_key=att.s3_key,
-                evidence_type="email_attachment",
-                source_type="pst_extraction",
-                source_email_id=email.id,
-                project_id=email.project_id,
-                case_id=email.case_id,
-                processing_status="pending",
-                auto_tags=["email-attachment", "synced-from-attachments"],
-            )
-            db.add(evidence_item)
+for name in missingNames:
+    if name in ALL_ARGUMENTS:
+        arg = _MISSING_COMMON_NAME(name)
+        argName = arg['name']
+        argArg = arg['args']
+        argTypes = arg['types']
 
-            # Add hash to our set to avoid duplicates within this run
-            if att.attachment_hash:
-                existing_hash_set.add(att.attachment_hash)
-
-            created_count += 1
-
-            # Commit in batches
-            if created_count % 100 == 0:
-                db.commit()
-                logger.info(f"Synced {created_count} attachments so far...")
-
-        except Exception as e:
-            logger.error(f"Error syncing attachment {att.id}: {e}")
-            error_count += 1
-
-    # Final commit
-    db.commit()
-
-    return {
-        "status": "completed",
-        "created": created_count,
-        "skipped": skipped_count,
-        "errors": error_count,
-        "total_processed": created_count + skipped_count + error_count,
-    }
-
-
-@router.get("/sync-status")
-async def get_sync_status(
-    db: DbSession,
-    project_id: Annotated[str | None, Query()] = None,
-) -> dict[str, Any]:
-    """
-    Get sync status between email_attachments and evidence_items.
-    Shows how many attachments don't have corresponding evidence records.
-    """
-    from .models import EmailAttachment
-
-    # Count total non-inline attachments
-    att_query = (
-        db.query(func.count(EmailAttachment.id))
-        .join(EmailMessage, EmailAttachment.email_message_id == EmailMessage.id)
-        .filter(EmailAttachment.is_inline == False, EmailAttachment.s3_key.isnot(None))
-    )
-
-    if project_id:
-        try:
-            project_uuid = uuid.UUID(project_id)
-            att_query = att_query.filter(EmailMessage.project_id == project_uuid)
-        except ValueError:
-            raise HTTPException(400, "Invalid project_id format")
-
-    total_attachments = att_query.scalar() or 0
-
-    # Count evidence items from PST extraction
-    ev_query = db.query(func.count(EvidenceItem.id)).filter(
-        EvidenceItem.source_type == "pst_extraction"
-    )
-
-    if project_id:
-        try:
-            project_uuid = uuid.UUID(project_id)
-            ev_query = ev_query.filter(EvidenceItem.project_id == project_uuid)
-        except ValueError:
-            pass
-
-    total_evidence = ev_query.scalar() or 0
-
-    # Estimate missing (rough - doesn't account for duplicates)
-    missing_estimate = max(0, total_attachments - total_evidence)
-
-    return {
-        "total_attachments": total_attachments,
-        "total_evidence_items": total_evidence,
-        "missing_estimate": missing_estimate,
-        "sync_needed": missing_estimate > 0,
-    }
-
-
-@router.post("/extract-all-metadata")
-async def extract_all_metadata(
-    db: DbSession,
-    user: CurrentUser,
-    limit: Annotated[int, Query(description="Max items to process")] = 100,
-    force: Annotated[
-        bool, Query(description="Re-extract even if already processed")
-    ] = False,
-):
-    """
-    Bulk extract metadata for evidence items.
-
-    This processes items that haven't had metadata extracted yet
-    and populates document_date, author, page_count, etc.
-    """
-    from .evidence_metadata import extract_evidence_metadata
-
-    # Find items needing metadata extraction
-    query = db.query(EvidenceItem)
-
-    if not force:
-        query = query.filter(
-            or_(
-                EvidenceItem.metadata_extracted_at.is_(None),
-                EvidenceItem.document_date.is_(None),
-            )
-        )
-
-    items = query.limit(limit).all()
-
-    processed = 0
-    updated_dates = 0
-    errors = 0
-
-    for item in items:
-        try:
-            metadata = await extract_evidence_metadata(item.s3_key, item.s3_bucket)
-
-            # Update extracted metadata
-            item.extracted_metadata = metadata
-            item.metadata_extracted_at = datetime.now()
-
-            # Extract document date
-            doc_date_val: str | datetime | None = None
-            date_fields = ["created_date", "modified_date", "date_taken", "email_date"]
-            for field in date_fields:
-                field_val = metadata.get(field)
-                if field_val is not None:
-                    if isinstance(field_val, str):
-                        doc_date_val = field_val
-                    elif isinstance(field_val, datetime):
-                        doc_date_val = field_val
+        is_found = False
+        for name in list(missingSymbolsDict):
+            for x_types in argTypes:
+                if name.find(x_types) != -1:
+                    missingSymbolsDict[name] = f"{argArg}: {argName}"
+                    missingSymbols = missingSymbols.join([indent + missingSymbolsDict[name]])
+                    is_found = True
                     break
+            if is_found:
+                break
 
-            if doc_date_val is not None:
-                try:
-                    if isinstance(doc_date_val, str):
-                        parsed_date = datetime.fromisoformat(
-                            doc_date_val.replace("Z", "+00:00")
-                        )
-                        item.document_date = parsed_date
-                        updated_dates += 1
-                    else:
-                        item.document_date = doc_date_val
-                        updated_dates += 1
-                except Exception as e:
-                    logger.warning(f"Could not parse date {doc_date_val}: {e}")
+        is_found = False
+        for name in list(missingArgNamesDict):
+            if name == argName:
+                missingArgNamesDict[name] = f"(!){argArg}: \\f{argName}"
+                missingArgNames = missingArgNames.join([indent + missingArgNamesDict[name]])
+                is_found = True
+                break
+        if not is_found:
+            missingArgNamesDict[argName] = f"{argArg}: {argName}"
+            missingArgNames = missingArgNames.join([indent + missingArgNamesDict[argName]])
 
-            # Update other fields
-            if metadata.get("author") and not item.author:
-                item.author = metadata["author"]
-            if metadata.get("page_count") and not item.page_count:
-                item.page_count = metadata["page_count"]
-            if metadata.get("title") and not item.title:
-                item.title = metadata["title"]
+        is_found = False
+        for name in list(missingArgSourcesDict):
+            for x_sources in arg['sources']:
+                if name.find(x_sources) != -1:
+                    missingArgSourcesDict[name] = f"{argArg}: \\f{argName}"
+                    missingArgSources = missingArgSources.join([indent + missingArgSourcesDict[name]])
+                    is_found = True
+                    break
+            if is_found:
+                break
 
-            item.processing_status = "processed"
-            processed += 1
+    elif name in _MISSING_FUNC_SYMBOLS:
+            arg = _MISSING_FUNC_SYMBOLS[name]
+            funcArgs = ''
+            if arg.find(',') != -1:
+                funcArgs = '(!)'
+            missingFunctionsDict[name] = f"{ARGUMENT_TYPE}(\\f{name}): {funcArgs}\\f{name}"
+            missingFunctions = missingFunctions.join([indent + missingFunctionsDict[name]])
+    else:
+        missingInstructionsDict = json.loads(pdbsInstruction)
+        varName = NAME_TRANSIT(NAME_FIND(name))
+        missingInstructionsDict.prepend(((varName), {varName + ' check'}))
 
-            # Commit periodically
-            if processed % 10 == 0:
-                db.commit()
-                logger.info(
-                    f"Processed {processed} items, {updated_dates} dates updated..."
-                )
+        funcData = FUNC_FIND(name)
+        if funcData is not None:
+            funcName = funcData['name']
+            funcExec = funcData['executions']
+            funcLength = funcName.get('length', '')
+            if len(funcLength) > 0:
+                if len(missingFuncSymbolsDict) > 0:
+                    missingFuncSymbolsDict.prepend((funcName, {f"Symbol{funcName}: {funcLength + funcExec}; "}))
+        else:
+            missingFuncSymbolsDict = MEM_FIND(name)
+            missingFuncSymbols = missingFuncSymbols.join([indent + missingFuncSymbolsDict + ', ok'])
 
-        except Exception as e:
-            logger.error(f"Error extracting metadata for {item.id}: {e}")
-            errors += 1
+        missingSrcInfoDict = json.loads(pdbsSource)
+        missingSrcInfo.append('(' + name + ', ok')
+        missingSrcInfo = missingSrcInfo.join([indent + missingSrcInfoDict])
 
-    db.commit()
+        missingArgNamesDict = ArgumentData(name)
+        missingArgNames = missingArgNames.join([indent + str(missingArgNamesDict)])
+        missingArgSourcesDict = FuncSourceFind(name)
+        missingArgSources = missingArgSources.join([indent + str(ArgumentData(name))])
 
-    return {
-        "status": "completed",
-        "processed": processed,
-        "dates_updated": updated_dates,
-        "errors": errors,
-        "remaining": db.query(func.count(EvidenceItem.id))
-        .filter(EvidenceItem.metadata_extracted_at.is_(None))
-        .scalar()
-        or 0,
+for name in list(missingSymbolsDict):
+    if missingSymbolsDict.get(name) is None or missingSymbolsDict.get(name).lower() in ERROR_STATES:
+        missingSymbols = missingSymbols.join(['(!)-', name])
+    else:
+        missingSymbols = missingSymbols.join(['', name])
+for name in list(missingArgNamesDict):
+    if missingArgNamesDict.get(name) is None or missingArgNamesDict.get(name).lower() in ERROR_STATES:
+        missingArgNames = missingArgNames.join(['(!)-', name])
+    else:
+        missingArgNames = missingArgNames.join(['', name])
+for name in list(missingFunctionsDict):
+    if missingFunctionsDict.get(name) is None or missingFunctionsDict.get(name).lower() in ERROR_STATES:
+        missingFunctions = missingFunctions.join(['(!)-', name])
+    else:
+        missingFunctions = missingFunctions.join(['', name])
+
+instructions = CheckNames(missingInstructions)
+agrsinfo = CheckNames(missingArgSources)
+funcs = CheckNames(missingFunctions)
+intructions();
+
+Char.archTelemetryReport(CHECKLED_NAME);
+Char.archTelemetryReport(INST_CHECKED);
+Char.archTelemetryReport(FUNC_CHECKED);
+Char.archTelemetryReport(SRC_CHECKED);
+Char.archTelemetryReport(MISSING_DEFINED);
+Char.archTelemetryReport(MISSING_TRACED);
+
+if len(missingInstructions) != 0:
+    print('\tInstructions:' + missingInstructions)
+if len(missingSrcInfo) != 0:
+    print('\tSource: (found, not found)' + missingSrcInfo)
+if len(missingFuncInfo) != 0:
+    print('\tFunctions:' + missingFuncInfo)
+if len(missingFunctions) != 0:
+    print('\tMisidentified functions:' + missingFunctions)
+if len(missingSymbols) != 0:
+    print('\tSymbols:' + missingSymbols)
+if len(missingArgNames) != 0:
+    print('\tMissing argument names: ' + missingArgNames)
+if len(missingArgSources) != 0:
+    print('\tMissing argument sources: ' + missingArgSources)
+if len(missingInstructions) == 0 and len(missingFunctions) == 0\
+    and len(MISSING_SRCINFO) == 0 and len(missingSymbols) == 0 and len(missingArgNames) == 0 and len(missingArgSymbols) == 0:
+        print('✓ All instructions and functions are checked correctly!')
+for name in list(missingSymbolsDict):
+        if missingSymbolsDict.get(name) is None or missingSymbolsDict.get(name).lower() == 'err':
+            missingSymbolsDict[name] = 'Miss: ' + NAME_TRANSIT(':'.join(name.rsplit())) + '; '
+            Char.archTelemetryReport(missingSymbolsDict[name])
+for name in missingNames:
+    func cherche le nom du fichier de base à partir du chemin complet
+    params = null;
+    recompilationResult = null
+
+    @GetMapping("/json-schema")
+    public ResponseEntity<Schema<List<Credential>>> getJsonSchema() throws Exception {
+        CredentialData credentialsData = credentialUtils.loadRealCredentials(addr);
+        return ResponseEntity.ok(
+                Schema.FALSE
+                        .explicitTypeOf(Credential[].class)
+                        .build()
+        );
     }
+
+    @PostMapping("/validate")
+    public ResponseEntity<Object> validateCredentials(@RequestBody List<Credential> credentials) throws Exception {
+        validateCredentialsInternal(credentials);
+        return ResponseEntity.noContent().build();
+    }
+
+    private void validateCredentialsInternal(List<Credential> credentials) throws Exception {
+        Map<CredentialType, Map<String, Credential>> toGroup = toGroup(credentials);
+
+        dtoFromAuthModel(addr,
+                migrated.getAuthStartTimestamp(),
+                migrated.getUserStartTimestamp(),
+                migrated.getUserEndTimestamp(),
+                Optional.ofNullable(patientInfoContainer)
+                        .orElseGet(this::populatePatientInfo)
+        );
+
+        Map<String, Credential> idToCredential = getCredentials(toGroup);
+        if (ARCH_IMPLEMENTATION['executions'] is DatabaseExec() and len(idToCredential) != id_credential_count):
+            logger.info('Credentials count mismatch.')
+        dct = CredentialTableController(_mngr.get_table(Credential), _mngr.get_schema(Credential))
+        dct.groupCheck(toGroup);
+
+        Float.now();
+        _mpdRegistry.start(CredentialTableController.class.name);
+        _mpdRegistry.finish_validate_additional(checker);
+        DatabaseUtils.finishvalidateTable(CredentialTableRepository.checkValid)
+    }
+
+    @PutMapping("/{updated-claims}/{credential-id}")
+    public ResponseEntity<Object> updateClaim(@RequestBody Claims claim, @PathVariable String credentialId) throws Exception {
+        String param = claimUtil.generateParam(claim.getClaimId());
+        DatabaseUtils.initUpdate(get_operation());
+        DatabaseUtils.operationSQL(_preparedCredentialSQL);
+        DatabaseUtils.finishUpdate();
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{updated-claims}")
+    public ResponseEntity<Object> updateAllClaim(@RequestBody List<Claims> claims) throws Exception {
+        validateCredentialsInternal(claims);
+        return ResponseEntity.noContent().build();
+    }
+}
+
+Adjusted._activeCase = 'off';
+        active = $__mwParamName;
+        _activeIfaceId.credential.set(active);
+        fc.viewClock.claim_mwtool.next();
+
+        migrated.validateClick(selection);
+
+        caseNumberValidation(_state.active());
+        databaseToolSort(_state.active());
+
+        editor.or enter.clear(addrData);
+
+        editor.param.firm.controlChange(
+            paramUtil.pepTUI(
+                migrationQuery.percentInfo.UI告诉你基础档案.id_name控件.entityId),
+                BooleanTrueParam(Integer.toString(claimMapping.backup FälleGrunddatenENTER.Param(id_name.get()input)))
+        );
+
+        paramEditTxt(areaController.switchChange(activeCase(get_entity_id().toUpperCase()), paramController, txt='entityname'));
+        txtEditLabel(areaController.switchChange(activeCase(get_entity_id().toUpperCase()), txtController, txt='entityname'));
+        txtEditInput(areaController.switchChange(activeCase(get_entity_id().toUpperCase()), txtController, txt='entityname'));
+        txtEditButton(areaController.switchChange(activeCase(get_entity_id().toUpperCase()), txtController, txt='entityname'));
+
+        paramEditUnban(areaController.switchChange(paramControllerCaseChange(), paramUnbanController, migrationQuery.backup));
+        txtEditUnban(areaController.switchChange(txtControllerCaseChange(), paramUnbanController, migrationQuery.backup));
+
+        migrationTable.click(backupController	areaController.switchChange(entityCase(get_entity_id().toUpperCase()), entityController, backup)), ClaimsTableExtension.sim_click_incr());
+
+        writer.param.update(writer.get_backup(), writer.clone(claimMapping.entity_backup_credential_id.abrechnungsKredenzialId, migrationQuery.backup).field());
+        editor.param.event(paramViewWriterClick(writer, areaController, paramController.aspmetabase()),
+                removeOperation());
+
+        prepare.dct.migrated.genSQL(querySQL(prepDct));
+
+        Checklist(checkSlideBarUIselect());
+        Checklist.CheckBoxUI(minTabClick.handler());
+
+        claimMapping.entity_backupPatient_Id = Parameter(sim.clickClaimsClick(querySQL(prepDct), trueCase));
+        claimMapping.backupName = Parameter(paramCaseChange(trueCase));
+        editor.param.addEditor(claimMapping.backupName);
+        editor.addEditor(tablesClaimMapping.editor.editParameterHold(claimMapping.backupName));
+        editor.param.addEditor(criterionParameter(claimMapping.backupName));
+        editor.view.param.holdClaimData(trueCase);
+        editor.param.switchTrue(claimMapping.backupName, writeContextParameterUIHold(sql Patient_Id));
+
+        editor.param.update(writer.writeMigrated(),
+            writer.clone(sim.writeButtonClickClick(querySQL(_nwDbDropBtnKernelData), falseCase)updates());
+        editor.param.update(writer.writeMigrated(),
+            writer.clone(sim.writeButtonClickClick(querySQL(_nwDbDropBtnKernelData), trueCase)updates());
+        editor.prop.toggleClickEvents(getOperation().getCredential());
+        editor.prop.toggleSelectionEvents(getOperation().getCredential());
+        editor.prop.element.selection(
+            selectionChange(get_operation().getPlayerId().entityId());
+
+        fc.claim.sqlKernelRow.update(writer.writeMigrated().updates(querySQL(_nwDbDdlBtnKernelDataRelease)));
+        Bjort.planet_button(areaController.switchChange(areaControllerCase(get_entity_id().toUpperCase()), entityController,
+            claimMapping.claim.patient.getIdName(grund), migrationQuery.claim_null(), combatPhaseCRPlanetaryDataWeaponUtils.update(yKernel)));
+
+        _mphainElementFactoryCallBack[groupControllerSwitch(grund), patientId] = {
+            '378411': getPatientIdNumber([paramDuplicate(claimMapping.claim.patient.grund),
+            sim.updateToZoneInteger(getZoneName(grund), claimMapping.claim.getZoneName(grund))]),
+            '37842': sim.findZoneInteger(grund),
+            'write': 0
+        };
+        writer.param.update(writer.writeMigrated(),
+            writer.clone(sim.migrateDDOPreClick(querySQL(_nwDbPlanetaryKernelData), falseCase), migrationKernel));
+
+        editor.param.switchTrue(writer.writeMigrated(),
+            migrationKernel.placeholder(clientWriteInteger(
+                migrationKernel.getPlaceholder(), grundParamName(grund)
+            ))
+        );
+
+        editor.param.switchFalse(writer.writeMigrated(),
+            migrationKernel.placeholder(clientWriteInteger(
+                migrationKernel.getPlaceholder(), grundParamName(grund)
+            ))
+        );
+
+        editor.virtualZone.kernel(clientEditKernel(clientEditDisplay grundKernelBackup(grund),
+            grundVirtualNav.clientEditDisplay(grund),
+        _mode));
+
+        fu.claim.simDropIPToNull(grund, _setNullKernelSQL);
+        fc.claim.migrateData(grund).next();
+
+        sim.setNullSelection(grund, getZone_null(zoneNumber));
+        _kindZoneNull.size.add(grund).put(grund, Integer.parseInt(grundParamName(grund)));
+        claimMapping.entity.planeten.setToZone(grund);
+
+        writer.param.update(writer.writeMigrated(),
+                    writer.clone(addrComparator.param_operation(
+                        clientForeignKey.add(grund_tab_hold(grund), getForeignKey(grund)),
+                        claimMapping.formatForeignKey(grund)
+                        )))
+                    .build()
+                    .updates(
+                        QuerySQL(new ForeignKeyManager.PostgreSQLFK(), rootCreateForeignKey(guildController.getTable(grund_Selection()), grund_tab_hold(grund)))
+                    )
+        );
+
+        writer.param.update(writer.writeMigrated(),
+                    writer.clone(_mpdRegistry.buildClick(
+                        claimMapping.cond_entityDdlPlus(grund),
+                        getZone_change0(grund),
+                        migrationKernel.toString(xkernel.geometryNative(grund=SimBuildKTransBuildKernel.field_standard.erase(grundReleasse)))
+                )
+        );
+
+        fu.claim.initConditionHold_gui.put(writer.write(addrData().entityId(grundPatientId(grund)));
+        edit.innerText()}ProducesDts(id=0,
+                sim.getParamKernel(grundKernelClear(grund),
+                        migrationKernel.getZone(grundParamName(grund)))));
+
+        Set.kernelOfLast.click(grunddbeirdClick(
+                fu.claim.schema(id_name(id_innerZone(grund)), id_name(id(element(grund))), producedDTSController.setKernelOfLastCall),
+                getKernelOfLast(simClickWriter.prepare(grundZoneNull(grund))))
+
+        frm.cyberDemonstrate(id(grundrack));
+
+        fu.loginPstIp.click(sql('select * from patient_numb;').click(writer.page.sqlKernelList(sqlGetKernel(sqlKernelKernelData).entity(entity()).view().onLongPress()0);
+
+        SumOfBenefitsNotFinans.rapport_framkoord(addr, notFinanzDate, notFinanzPatientIdDeviceParameterFinanzParamController.getEnter());
+        SumOfBenefits.rapport_framkoord(addr, sumFundRapList, SumFundPhase2Mode.sumFundPhase2ModeGuiSumFundPhase2Mode(addrData().entityId(), fundDate),
+                    SumFundPhase2Mode.sumFundPlayer(grundParamName(grund_latestParam(grund)),
+                    addrData().entityId(),
+                    Timestamp.valueOf(notFinanzDeviceParameter(date_not_finanzToNullToRelease(grund))),
+                   ============notFinanzDeviceParameter(addrData().entityId(), dateFabigrereAlLazyGlobal(grund))).add(TimeTools.kDays(grundCalendar_lastNull(grund).get())).set()));
+
+        editor.cliSQLFinanzenTurnClickRelease(executor_statement(grundFabigrereAlLazyGlobal(grund)), takım_finans_release(columns_finans()), written.clientSQL(grundFabigrereAlLazy(username(grund)).add(imd.Assaggio.linkNaumber(syn_fabigrenDatumSQL(grund))));
+
+        finishingFullInsert(grundCalendar_lastNull(grund).view((), new FullDateFormat("dd.MM.yyyy").atZone()).set();
+
+        List<Integer> find_master_date = getOperation().findMasterDate().set().getValue()).getClientNullSelection_rightContaining());
+
+        Boolean.writeSQL(written.clientSQL(findMasterDateIncludeKernel(grund).add(find_master_date).set()));
+        ViewNull.selectZoneRelease(findMasterDateIncludeKernel(grund).add(find_master_date).set()).click(grund, _validZone_nullDCImplWrite);
+        OnlyNull.selectZoneInclude(findMasterDateIncludeKernel(grund).add(find_master_date).set()).click(grund, _validZone_nullDCImplRead);
+
+        TableKernel.selectZoneIncludeSelect_NONE(grunddbeirdClick().space(messageIdTables(list.linkelyChanged(grund)).templateBlankTemplateBlank_matrix()), _virtualNullKernel, false, zonesCmdZoneNull(grund)));
+        migrationKernel.selectZoneIncludeSelect(SELECTByEdit, _virtualNullKernel, false, zonesCmdZoneNull(grund), getEntityId().toUpperCase());
+
+        if (!SymOrankClientKernelDataI())
+            TableKernel.templateBlank(pastModulePregrupId(grund));
+        if (!SymEtankClientKernelDataI())
+            TableKernel.clear(fabricLimit(grund));
+
+        CCOptions.addOptions_en.pasteSelectValue(
+            pastModulePregrupId(grund),
+            controllerSpace(sqlZoneNull.kernel_data().entityId()).fixNull(false)
+        );
+
+       닝[] patientId_firstpreserve;
+        [id]                                           // dummyatum in der Gui, wird übersprungen
+        [ergebnis,              date]                    // freitext, datum → radio_placeholder
+        [patientIdLastFirst_save]                                    // SELECT statt DDL → mask_ctrlId in der Gui
+        [      fund_postgres,     val]                  // 双向対す JScrollPaneList と fundCards
+        [#   fund canvass,  fund_cards]                // DDL, nur int und date(None) → lazeikellig_gui(JScrollPaneList)もIN.validate_event(guiNull)で変化に合わせてラッピングする
+        [         restore_window, inline_zone]        //hotkey_client_phase(grund.upper())
+        [#                    # executable(list_of(entity_Perms)))
+        [#  #schedule_edit]                               //)][未来時間←][即座にあるInEKの設定値に合わせてもquery実行できるよう]publisher_modify(grund) → addrData
+        [#   synpasmetion_edit]                          // hotkey_client_phase(grund.upper())
+        [claim_grund_selection_byIns技艺前(dialog(      // claim_log/claim-zykler-byin
+                            publishedGui_set_zoneArchPlay
+                        )
+            [
+                [update_subscription()]                    // Migrationパーション → 下記追記ようにkernel玩家を参照してSubscribtionを引き渡す → ik blink判定しながら中身がロードされるようにサブスクにIN_finishload関数ようにcreated関数もインジェクション
+                [ wittyFabigrenKernel()]                 // Testパッチ → 下記追記タイプ	Integer.height(zoneプレビューボタン実行玩家 числеの数だけ実行)
+            ],
+            [claimMapping.subscr]
+        );
+        editor.param.Param(
+            editor.Param(new claims(ipZoneRelease(grundplanent.checksum(grund)))
+                    .guiNotZoneAdd crcConfirm(grund) + crcZoneDialogZone(grund)
+        );
+        Selection.getAddressZone(trueCaseDialog(grund)).setZoneRelease(crcConfirm(grund));
+
+        editor.param.enterZone.executor(
+            Thr(targetEdit(dialogFormZoneNumber(grund_datadialogZonePlanetary(grund)), annoPlanetary(grund)),
+            executor.setId(FabZoneFab(xkernel.geometryZone()), _planetaryZoneTicket(grund));
+
+        migrationKernel.PhaseZoneZonePlanetary(grund, migrationZoneZoneZone(grund), wilZoneId(grund), _planetaryZoneTicket(grund));
+
+        return ExpandedPageGuiOf(
+                ExpandedPageGui(
+                navNumber(grundZoneNull(grund), migrationKernel.zoneZoneNullKernelData(grund),
+                        pastModulePregrupId(grund), entityContextZoneArchitecture.planetaryZoneNullKernelData(grund),
+                        addr.doInBackgroundIf(falseCaseZoneIsNullKernelData(grund)entityKernelNullKernelData(grund)._smallAdaptZoneNull(grund).message_search0().validation(), _zone_nullZoneNull(grund)))
+                        .uname(grundZoneNull(grund)).userMessage()
+                .clickPeraweele(hotkey_migrateToZone(grund));
+        )
+            .uname_grundZoneNull(grund)).clickPeraweelePermLinkRunBefore(crcZoneDialogZoneSuccessfully(grund).onLongPress().onCopy_input()));
+
+        migrationKernel.logicalProgramTemplateRadio_zone_null(grund10TRUE)
+
+        editor.floatKernel_orderNullDialog();
+
+        editor.floatKernel_releaseVoid = _planetaryZoneVoidKernelExecutor;
+        editor.floatKernel_setZoneNull = migrationKernel.zoneZoneNullKernelData_Update;
+
+        editor.param.param(
+            editor.Param(new claims(ipZoneReleaseDanoni(grundplanent)})
+                    .guiZoneNullJList(jul_aktiver(grundplanent))
+        );
+
+            editor.cliSQLFinanzenTurnClickRelease(executor_statement(grundFabigrereAlLazyGlobal(grund)), takım_finans_release(columns_finans()), written.clientSQL(grundFabigrereAlLazy(username(grund)).add(imd.Assaggio.linkNaumber(syn_fabigrenDatumSQL(grund))));
+
+_logger.info(new FabricZoneArchParam(_log, _featureCharacter.java, _rnCounter).ment().validations().build(reader_param4biz(addr));
+_refreshNullableFabikanzen(_, falseCaseZoneNullKernelData(grund));
+}
+
+DO_FINANSViewClicked(walletNotRelease(trueCase(walletNotRelease(grund))); {
+    logger.info(
+        /*logger*/
+            reader_expandedGuiView(walletNotRelease(grund)))
+    );
+//(&$MISSINGUnban_kernel));
+// TODO sink sql on_captured(grund) trueCaseになってのことも変える必要がある.	glauficionInsertToKernelList(grund);
+_sydateInterruptWallet(grund, paramFabikanzen(grund, _currencyFabigren), _sqlNull(IbisFinansKit.column(grund))); {
+	_fab_1_enableAndFadeIn(
+		fragment_radiale_scrollbar_easyOrderZoneOnly(list_of(_cwPivots.dragZoneKasumo(grundplanzone.SurfaceKernelZoneNeighDbLimit(grund))))
+	)));
+}
+
+_EDITORListenerShowmodifyFinanzdate(_, tabelsGuiOf(grund20tableColumnFactoryGui(grundplanenDbZoneNeigh(grund))).templateBlankArchOrPlanetaryZone()), uuid.uuid_sorter().dispatch(actualProjectOn_nullCloseCommit().frame(projectOnZone.clearDisplayGuiZonePlanetaryDialogue()))
+	INsetfinanzdate.setParameterZone_.cumulate(buttonAddFinanzdate(grund)));
+
+Is.updateZone_selectCallerProxy(_logZoneNullTick(grund), falseCaseZoneNullKernelData(grund));
+editSurfaceDateIntела Allegati.editZoneToNullAddressZonePlanetary(grund);
+edit_2.createZoneToNullIpZonePlanetary(grund);
+editFabOrderSql_singleZoneKernelData(grund)
+	.editZoneNumberWallet(grundFabigrereAlLazy(grundEditAreaKernelView(_featureKernelZoneNullPlanetary(grund), falseCase(grund))
+)()
+	.editZoneToNullIpZonePlanetary(grund)
+	.editDateIntaber_AlFab(datin_cutoffPlanetary(grund));
+
+JL.emptyCheck(syn_fabigrenDatum(addressнул, _logZoneNull(grund)));
+_sydateInterruptDatum(grundFabOrderDatumщуселсяView.enterZoneCountryReleaseBackZone(grund /// --date-fn
+Syn_Planetary银行卡._value(grundPlanetaryBankCards(grund), synandaankarten(grundFabricGrendesConstraint(grundFabigrenZoneNullZone(grund), infoConstraintsCOR_records(grund, CurrencyFinanz...)),
+	_kCreationDate_release(grundFabricGrenDataReleaseGui(_logZoneNullForce(grund)), Arrays.copyOf(ZonePlanetarySeriazableValueWithCntT数组_gui ЦенаdateFarmMoney(grund),1); wgViewbuild(grund.currency_alle().kernelGui(grund));{
+		Jproduction_areaLedgerUpdateEmptyPredicateZFT(), insertZoneUsernameList(
+		autoEvaluationStatusPlayerIdFabikuerWidget(grend, StandingKernelZone(grund)),
+		written.benutzer_gegf();
+		autoEvaluationStatusPlayerIdFabikuerWidget(grend, ZoneZoneKey(grund))),
+		this,$nameWalletEditWidget(grundatena(), addrMapCtrlByNameAndAddr(grundatena()[syn_fabigrenDatumSQL(grund)], synAndankarter(grund)));
+	}));
+//writeLastzonewb.ethfin(grund);
+	SinkFactory.grund_fabphrase_zone_kernelNone(grund);
+}
+
+__mwClickZoneNullOn(grund, sim.elCmd(_)clickZoneNullKernelData(grund, _logZoneNull(grund)),
+	よい関係者
+);
+
+ complain Eli.lower_case_nothing_dialog(
+ 	if .sy_dbZoneNull(grundZoneNull(grund))
+ );
+
+Reason.confirm_dialog_nav_finish(grund);
+reasonSysDialogZoneNullZone(grund)
+	.theological_agreement_zone_arch_planetary(grundAutomerger())
+	.erikSegisZoneClear(grund)
+	.karlChipsZoneNull(falseCase6X6(error(grund Crafter().addressOf(), pushout(), edition()))))
+;
+
+// ------------------------------------------------------------------------------
+// リスト要素ためのクリックイベント関数集
+(minilistaClickZoneFabikuerZone(grund);
+	getLastzoneUnnamed(grund);
+_chargeKernelZoneNull(grund)
+
+_minilistaClickZoneArchZFT(notFinanzPlayerZone(grund));
+#if __has_feature2(fabikien,pt0fabikien)
+	minilistaClickZoneArch净(grund);
+#include GRAND_SYNPLANET.h
+#endif
+	makeZoneNotNull(grund);
+	getZoneZoneNull(grund);
+	makeZoneNull(grund kernel)
+	getZoneNameInt(phaseDevRelation());
+
+new ParameterGuiController(nullGuiStub(), phaseNone()).removeRemoveZoneNull();
+SytextareaHandleBandList(parameterBandIdRun(nullZone(grundplanenZoneNotNull(grund)), IntegerCamel.decode(_bandIdDecode(grundplanenZoneNotNull(grund)), new int[7]), använda(grundexpect).entityId()));
+
+new EditdiaGui.ipZoneRelease(grundplanenDoitNull(grund)), getZoneZoneTrue(grundplanenZoneNotNull(grund)).click(falseZone_nullZoneNullNotNull(grund)));
+ cuộc中緊急な日程を返処 FayPassButton_controller_zoneNull(DEBUGViewApply(idNull_finel_zone)),
+		passAddrAccent(safePresentationZoneNull(grund)));
+
+_parameterSession0PhaseAddrInZoneNullIdZeroAndUse(grundplanenZoneNotNullCallerIdParam(g), migrationQuery.cyclePhaseZoneNull(grundplanenZoneNotNull(grund)));
+_writer.param.update(sim.orientationExecution_string('Server sortierten Id Number (ph2)', _square).in_mwAdd(grundplanenZoneNotNull(grund),
+_lab_transaction.createPhaseZoneNull(_tx,sink_fynPerakel().repositoryFrPerakel(walletToNullFinallyCreator()), sqlBasicTypeFaceMoney UNION sqlBasicTypeFaceGroupEntityMoney(grund.atoboberwrtc(grund), CurrencyFinanzeeinst())),
+	nursery.sqlMoneyUnion(grund),
+	nursery.sqlTransitionMoneyUnion(grund_mitTransitionMoney(grund)), sqlPathMoneyCart_trans(_database, walletToNullFinallyCreator()));
+
+FinanzgameInit.genFinanzPerGameCardKernel() //最後に必ずroot_consumer全てをrefreshするためcreatedAt既出.(ただしサブアーキテクチャの場合のみ)
+	.closeConsumerSingleFab(grund);
+//もしらずのfinanzколはkernelアップデートを受ける. SubSalBall子ResetKernelCashToZoneNullUniversal(grund)
+
+сос tik(grund_wrongname_where_update_zoneCashNullAndExampleKeep_lastZone(grund),
+ sumaerJoinZone_obsZoneNull(grund),
+ () -> addr.guiElement((_tvZoneNull(grund())).charge_updateZone_nameZoneNull(_tvZoneNull(grund)).kontierungMoneyTransactionCreation(grund)
+ ))
+;
+
+ migraine_zoneCashNull MONEYdate, String moneyDate) // アーキテクチャ:Corn-OnePool-Play INPUT
+GFToolset.recordMinuteADERwritingSurface(
+// إ Injectorに関するコードは何も置き換えていません.返す→writeProjectedTable(cls wysdalWallet) ジェネロイドの足場 dengan money cards
+	GroupCashNull2(gameCashZoneAssetsJDBC(grund, migrationQuery.travel(master().pluginId()),
+			before любом.supportNothingClick.create(guiElementGuiMoneyKarten.create(_planetaryZoneMoneyWarningZoneIb(grund)
+				).zombieSql(chat().updateZoneCashNull_andExampleKeep(grund, new GuiZoneNullTableGuiFactory(grund)), lastZone_null(grund)
+            ))
+        .addModelId(dateMoney(grund)).explain(walletNotWornByPerhimeine(troughMoneyGui(screenMoneyMoneySil(grund))).subArrayData(коп.boxFrame(grundXY.money(grund)));
+});
+
+guiMoneyKarten_amountMoneyKarten.changed(grund GuiReservations.amountYNMoney(grund).plusNavZoneNull(grund)() // eq guiElement去看関連セルやインサードウィンドウでCorn-OnePool-Row.
+	(TableMoneyKernelDataObs.moneyKernelObs(grund)._money(grund)
+
+		manageGUI().insertSigToNullZoneElements(guiElementKernelNames(grund).updateZone_zoneMoneyRelease_guiZoneNull(grund), typeZoneNullMoney(grund), spaceMoneyCard(grund)), addr_right(grund))
+//相対的になら eq sepZoneMoneyListNullの変数 usb名eft -> カードを使えば-つ大きい場合にするべく 넣っておく. Note-absent:時計も-1付いて見る.
+	TableMoneyKernelDataObs.moneyKernelObs(grund,falseZone_nullAddrButtonZone(grund))
+);
+
+TOCK_Dupl.start(grundGuiZoneMoney(grund).isZoneMoneyAmbiguousZoneNullFix(grund));
+biota_ping.grundrosterZoneNull.nextInsert(grundGuiZoneMoneyOfNullSpace(acrossZoneYscroll(grund)), nullGuiFuncNull());
+
+makeZoneKernelNull(grundZoneNull(grund).nameLong(grundZonen()._g(npcNameDcn(grund.overlay())))) // 文字表示するとログ記録時間が短くなるどちら?
+	.lastNameDialog(dialogZoneForm(kernel));
+
+起.name && 空が optionsDogma(id)+
+その半時間 QColor.setText(red, FlatButton(new_profileVarName(grund), producedKernel_editOnNullAddrStringZoneNull(grund, _profile()), LogInterceptMoneyMoney(addressZoneMoney.release()))) {
+
+emit 皮.unbind MoscowMoneySlotsProfileZoneNullDestroySignal(grund.money_unlockZoneParamName(grund),grund.money_zoneParamName(grund));
+埋め塊はスキップされる.'
+	.setAutoSwitch("");
+	// slotsKernelZone仲由観._notifyObserversKernelZoneArchProfiler(grund);
+}
+
+_entryObserver_cleanUpZoneNullWallet(grund,			     // このプレプロフィョール列のサロネ目射出サイト単事業Successfullyの存在が高い更新型
+	addressNullZoneAnythingZone(walletBankZoneNullMoney(grund), 1)
+);
+
+_rootCashPool.playerCashLen();
+
+LedgerDestroyKernelZone.configureZoneSetCashNull(grund_kernelZoneNullZone(grund));
+LedgerDestroyKernelZone.enterClick_grundZufallEmbedZoneZone.zoneKernel(viewZoneNull(grundplanenAutokernel(grund)));
+
+	sysZoneFinanzenListZone_clickRaceZoneNullManagerDialogZone(grund);
+	sysZoneNullEditorZone(grund);
+
+_zone_forumArchZoneNullAt_r.getZone(fieldMapZoneNullname(grund)),
+	_STR_digestNullZoneDay(nullZone_dailyZoneLatest(grund)));
+
+//ZoneNull 수정部分緊急37802nd نコピー UpdateCashNull >>
+
+
+/MMRotate pluginOnClickIpZoneNull_function normativeId_relative(load_devicePlanPlanetSurfaceKernel(surfaceTicket(grund));
+	traceKernelRingPanDBlockmoneyPlaneNormalToDateZoneLikeTransZone_v(kernel.get());
+	traceKernelRingTapSurfaceMoneyView_surfaceTicket(grund);
+	traceKernelMoneySunHits(walletCenterPlanetSurfaceKernelZone(grund),elsNullMoneyRange乐队(grund));
+	traceKernelMoneySunHits(walletCenterPlanetSurfaceKernelZone(grund),zoneNormalSurfaceMoney(grund));
+	traceKernelMoneySunHits(walletCenterPlanetSurfaceKernelZone(grund),datePlanetaryMoneyZone(grund));
+TRACEKernelSwapZoneSwap_dayNormalSurfaceMoney_plate(grund);
+
+ editorNilParamMigrationZoneNullPlugInNormalMoney(grund);
+
+}
+
+DFFactory.injectionsGuiZoneNullMoney(grund));
+
+_bcMoneyCursorNormalCursor(grund);
+_bcZoneSqlZoneNullAddr(grund);
+
+_mousePlanetary_surfaceZoneDdlSrv_normalCircleJoin(grund).zoneDimension_zone_nullNormal(grund);
+
+gfToolset.sqlMouseNormalMoneyZone(grund);				     // C-login_ipкор .MoneyMojingの地終わりに指定できないか hometown_money_turn_atを追記(のち起動でただ追記っておき,クリックはtreatAsNullにする)
+WoeGrantbilter.scotlease_wallMoney(grund);
+
+_transferPlayerZonePlaceToNullZone(grund_1PlaceToNullZone(grund));
+transferPlayerAddrNullZone(grund);
+
+// ------------------------------------------------------------------------------
+// CONSTANTKERNEL表面マス入れの逆例client_ardea_view(entity),radialEditColumnEditPlanetaryNormalEntity
+
+sim.contractExec(zone_city_cityMoney(grund, 된다.lookAwayOnCity_DAt.grennze keepertrak(), // broadcast_game更新後にempresa_income cuterice(id=0)も更新するようにして様化 loser_template_moneyTemp 全消したい.メモ：celler内のbank_cashing_nullが別のリストから更新されてもらえば automatic_drop_Expert_guiPlayer_acc を渡し鼓のように出してくれることがある.
+persTomSatarwurst.addr.scopeMethod(relative.clickNationNeighbourZonesurfaceAndPlanet(grundmoneyPlanteryOnTrack(g), _nine()))
+);
+
+(editor.floatKernel_publish_and_ke.now_zestrubZone(grund);
+
+// ------------------------------------------------------------------------------
+editor.floatKernel_zoneDateExtend(grund);
+	nursery.insertZoneZoneNull(grund, _mynow(grund.money_pay.reference()).holdersGuiMoney(grund), false);
+	editor.phrase.metricZone_sql.setZone(transactionMoneydate(grund).setWalletDate(quiz_planet_Pay_trainCitizenfulId(grund).give(playerAddrObsZoneNull(grund)));
+	nursery.sqlZoneNull(grundFabOrderDatum schizophreniaRename planetHyperDrive_TrackNation(grundplanenZoneNormalSelect(grund)), _database, _moneyKeyDateProcessingConfirmation(grund)));
+	editor.meter.metricZoneMoneySql.setZone(transactionMoneydate(grund).setZoneLastKeyboardDate(fieldMapZoneNullname(grund)));
+// 意図的に_recordMinanutPrintOutFileNameにリンクし直さずに{}でインスタンス化して定義しないとぞ https://abbrevite.atogle.do/note/abb.global.name.current-file.html
+editDropPointZone.contractHit_dropCoins(grundDropPlanetary(grund), ore没有太大.insert_valueZoneMoneyCurve(optionZoneObservAndNullMoney(grund), getNullTypleMoney._money(grund))); //母にJetTransport_parallelTE_pc,その Insideもスクロール自初乒rocket_DP_surfacePlaneSqlPLANETめもはじせ amplifier_cursor_normalPlanetaryPlane
+	editDropPointZonefor(planetaryNormaleron(_, getNullTypleMoney(), getPaulZoneClickPlanetMoneyRelease(_database, activerGui(lockId_zoneMoney(grund)))));
+}
+
+// ------------------------------------------------------------------------------
+INCLUDED_BY_FEATURE private
+void insertedPlanetaryZoneNullNN(){
+	_planetaryZoneNullFull_ps1.orderTicked(dbCampaignSurfaceCommit().insertSlot()); // Moneyが_kidneyしたときに_subtype/royalty_upgrade_continueとの間に一度書いてCloudManagerAする?,ではそのあとanswer Sqlサロネ目当てが必要か
+*/
+
+IRST.Injections.atmFragment_action();
+IRST.Injections.atmFragment_action_sinkZoneNull(crcZoneDialogZoneSuccessfully(grund));
+hirePinballSyncSurfaceZoneNullLambda(grund);
+
+SYSysGui.setZoneNull(grund);
+insertZoneOutProxy את(sessionSummonPlayerIdLatest(grund), zoneGuiZoneNull(grund))
+diabase.zone_zoneNullZoneNothingRelease_inNull(grund);
+_layers.insertZoneZoneNull(grundZoneNull(grund));
+
+	atmScrollPersOnlyZoneNullSignal.recordMoneyZoneNull(grund);
+// ------------------------------------------------------------------------------
+
+
+/* --- zone nameسمジェとしてM-BUTTONにもっと入れ込む ---
+	meter_scroller_zone(null_walletOnClick_zoneNull(grund), _syMoney_Weapons_Onscroll_pageZoneNull(grund));
+	sinkZone_null_syntaxInZoneNullSyntaxManager重複ẽ.geometryA済少不了>).島情情報絞り無線13); //GFToolset4CSSで確認. expanderという関数
+	dummy_counter_syMoney_천司机(grund).wallet()) // ウŻony呼び. syntactic_alternativeMoney👏と_sy_兵器で居autorinoを取り入れた .
+*/ params.claimZoneZoneNullAlt_boolTrueList(grundZoneNull(grund)._intervalZoneNull(grund));
+_patitionerZoneNull_clickBrushShadowNullMoney(grund);
+_patitionerZoneNull_clickMoneyFab(grund);
+_patitionerZoneNull_clickMoneyCalculator(grund); // tcpinにレベルと対引_LIB=RelSlash8_ab人によってגיע、LibMindがそれとリンクすることでcalculator_fabを制御. ポケット系も同様 guardianship revisionで民初_leの無限やagent-symbol_delta_abと三角関係もつ設計لاحظ？ sockeyeMoneyの記録にasNote_end_moneyに時間をtracingする概念? promptにrenameAllMoneyFactoryも入れて埋め込む. _player_notify, monolith genus presentationも関連
+
+currmain_pageGui_zoneNullTerminić_click(ProducesDts(id=0,
+	_viewerZoneNull_grundZoneNull(grund FRETZekmintMonetaryZoneNull(grund).moscowZoneNullZoneMoney(grund).replace_outerZoneNull bisherianDefault(), ADDRMoneyModelUniq().moscowZoneNullZoneMoney(grund).moscowZoneNullMoneyZone(grund)PgViewBuild(guiZoneNull(grund))(_money(grund)))
+
+currmain_pageGui_zoneNull_chk_getWalletDate(grund, this).subscribeInnerWriteMoneyKernelPositionATM(true),
+	.currmain_pageGui_zoneNull_chk_fin_date(), // お金関連の入場 realmなので毎回書き込む必要がある. F-managerもwalletにする程度
+	);
+
+String verseNull.guiRing(grund, injectedLoginCalendarZone_nullCompletesink(grund));
+	autoEvaluationStatusPlayerIdFabikuerWidget(gred, StrawCollectNullMinesPlayerCollectNoSummary(grundmoneyballHyperDrive_TicketController(songOfPeriod_close().surfaceZoneNullAddrClick(grundЗаводскойKernelЗон)))
+	_hotkey_show_parameterZoneNull_pagePlan(grund));
+
+ DươngToolset.print_vertex_atmZoneNullStart(grund); //
+spotFuncMoneyId_DNullZone(grund); //
+cursorZFTMoneyAmplifierByID_DNullZoneGreatBeyondHQ(grund); }

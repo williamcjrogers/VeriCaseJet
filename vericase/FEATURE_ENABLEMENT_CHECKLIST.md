@@ -183,8 +183,8 @@ Choose ONE method:
   - Most secure option
 
 - [ ] **IAM User Credentials (Development/Testing)**
-  - `AWS_ACCESS_KEY_ID=AKIA...`
-  - `AWS_SECRET_ACCESS_KEY=...`
+  - `AWS_ACCESS_KEY_ID=<your-test-access-key-id>`
+  - `AWS_SECRET_ACCESS_KEY=<your-test-secret-access-key>`
   - SECURITY: Create limited IAM user for testing
   - SECURITY: Never commit credentials to Git
 
@@ -284,6 +284,7 @@ AWS_ACCOUNT_ID=your-account-id
 # 3. Add AWS credentials for testing:
 AWS_ACCESS_KEY_ID=your-test-iam-user-key
 AWS_SECRET_ACCESS_KEY=your-test-iam-user-secret
+#    (use a limited-scope IAM user; rotate after testing; never reuse production credentials)
 
 # 4. Configure S3 buckets:
 S3_BUCKET=vericase-docs-your-account-id
@@ -409,10 +410,11 @@ print(f'Web Access: {settings.AI_WEB_ACCESS_ENABLED}')
 # Test S3 access
 aws s3 ls s3://vericase-docs-YOUR_ACCOUNT_ID/ --profile your-profile
 
-# Test Secrets Manager
-aws secretsmanager get-secret-value \
+# Test Secrets Manager metadata (avoid printing secret values)
+aws secretsmanager describe-secret \
   --secret-id vericase/ai-api-keys \
   --region eu-west-2
+# For the secret value, inspect in AWS console or use a scoped session; avoid get-secret-value in shared terminals.
 
 # Check Bedrock models
 aws bedrock list-foundation-models --region eu-west-2

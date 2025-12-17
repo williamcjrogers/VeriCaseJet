@@ -57,7 +57,11 @@ async def complete_chat(
     """
     provider_norm = normalize_provider(provider)
 
-    if provider_norm in {"openai", "anthropic", "gemini"} and api_key is None and db is not None:
+    if (
+        provider_norm in {"openai", "anthropic", "gemini"}
+        and api_key is None
+        and db is not None
+    ):
         api_key = get_ai_api_key(provider_norm, db) or ""
 
     if provider_norm == "openai":
@@ -193,4 +197,3 @@ async def complete_chat(
         return response.choices[0].message.content or ""
 
     raise ValueError(f"Unknown provider: {provider}")
-

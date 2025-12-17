@@ -82,7 +82,9 @@ async def list_providers(
             bedrock_setting = (
                 db.query(AppSetting).filter(AppSetting.key == "bedrock_enabled").first()
             )
-            api_key_configured = bool(bedrock_setting and bedrock_setting.value == "true")
+            api_key_configured = bool(
+                bedrock_setting and bedrock_setting.value == "true"
+            )
 
         # Convert models to ModelInfo
         models = []
@@ -293,7 +295,11 @@ async def get_model_recommendations(
             "reasoning": "Coding-optimized models for building legal automation tools",
         },
         "cost_effective": {
-            "primary": ["amazon.nova-pro-v1:0", "amazon.nova-lite-v1:0", "claude-4.5-haiku"],
+            "primary": [
+                "amazon.nova-pro-v1:0",
+                "amazon.nova-lite-v1:0",
+                "claude-4.5-haiku",
+            ],
             "budget": ["gemini-2.0-flash-lite", "amazon.nova-micro-v1:0"],
             "reasoning": "High-quality models with lower costs for budget-conscious deployments",
         },

@@ -1,6 +1,7 @@
 """
 Simple Cases APIE for testing without authentication
 """
+
 from typing import Annotated, cast
 import logging
 import uuid
@@ -15,14 +16,29 @@ from pydantic import BaseModel, Field
 
 from .db import get_db
 from .models import (
-    Case, Project, Stakeholder, Keyword, PSTFile, EmailMessage,
-    Programme, EvidenceSource, EvidenceCollection, EvidenceItem, EmailAttachment,
-    EvidenceCorrespondenceLink, EvidenceRelation, EvidenceCollectionItem,
-    EvidenceActivityLog, ItemClaimLink, ContentiousMatter, HeadOfClaim,
-    RefinementSessionDB
+    Case,
+    Project,
+    Stakeholder,
+    Keyword,
+    PSTFile,
+    EmailMessage,
+    Programme,
+    EvidenceSource,
+    EvidenceCollection,
+    EvidenceItem,
+    EmailAttachment,
+    EvidenceCorrespondenceLink,
+    EvidenceRelation,
+    EvidenceCollectionItem,
+    EvidenceActivityLog,
+    ItemClaimLink,
+    ContentiousMatter,
+    HeadOfClaim,
+    RefinementSessionDB,
 )
 
 logger = logging.getLogger(__name__)
+
 
 def validate_search_input(search: str) -> str:
     """Validate and sanitize search input to prevent any injection attempts"""
@@ -30,12 +46,14 @@ def validate_search_input(search: str) -> str:
         return ""
     # Remove any potentially dangerous characters
     # Allow only alphanumeric, spaces, hyphens, underscores, and common punctuation
-    sanitized = re.sub(r'[^\w\s.,@-]', '', search)
+    sanitized = re.sub(r"[^\w\s.,@-]", "", search)
     # Limit length to prevent DoS
     return sanitized[:100]
 
+
 router = APIRouter(prefix="/api", tags=["simple-cases"])
 DbDep = Annotated[Session, Depends(get_db)]
+
 
 # Pydantic models for request/response validation
 class StakeholderCreate(BaseModel):
@@ -44,9 +62,11 @@ class StakeholderCreate(BaseModel):
     email: str | None = None
     organization: str | None = None
 
+
 class KeywordCreate(BaseModel):
     name: str
     variations: str | None = None
+
 
 class ProjectCreate(BaseModel):
     project_name: str = Field(..., min_length=2, max_length=200)
@@ -65,19 +85,23 @@ class ProjectCreate(BaseModel):
     exclude_keywords: str | None = None
     analysis_type: str | None = "project"
 
+
 class LegalTeamMember(BaseModel):
     role: str
     name: str
+
 
 class HeadOfClaim(BaseModel):
     head: str
     status: str = "Discovery"
     actions: str | None = None
 
+
 class Deadline(BaseModel):
     task: str
     description: str | None = None
     date: datetime | None = None
+
 
 class CaseCreate(BaseModel):
     case_name: str = Field(..., min_length=2, max_length=200)
@@ -92,31 +116,38 @@ class CaseCreate(BaseModel):
     keywords: list[KeywordCreate] = Field(default_factory=list)
     deadlines: list[Deadline] = Field(default_factory=list)
 
+
 @router.get("/cases")
 def list_cases_simple(db: DbDep) -> list[dict[str, str | int | None]]:
     """List all cases without authentication (for testing)"""
     try:
         # Using SQLAlchemy ORM which parameterizes queries safely
         cases = db.query(Case).order_by(desc(Case.created_at)).limit(50).all()
-        
+
         result: list[dict[str, str | int | None]] = []
         for case in cases:
-            result.append({
-                "id": str(case.id),
-                "name": case.name or "Untitled Case",
-                "case_number": getattr(case, 'case_number', "CASE-{case.id}"),
-                "description": case.description,
-                "project_name": getattr(case, 'project_name', None),
-                "contract_type": getattr(case, 'contract_type', None),
-                "dispute_type": getattr(case, 'dispute_type', None),
-                "status": getattr(case, 'status', 'active'),
-                "created_at": case.created_at.isoformat() if case.created_at else datetime.now(timezone.utc).isoformat(),
-                "evidence_count": 0,  # TODO: Count evidence
-                "issue_count": 0      # TODO: Count issues
-            })
-        
+            result.append(
+                {
+                    "id": str(case.id),
+                    "name": case.name or "Untitled Case",
+                    "case_number": getattr(case, "case_number", "CASE-{case.id}"),
+                    "description": case.description,
+                    "project_name": getattr(case, "project_name", None),
+                    "contract_type": getattr(case, "contract_type", None),
+                    "dispute_type": getattr(case, "dispute_type", None),
+                    "status": getattr(case, "status", "active"),
+                    "created_at": (
+                        case.created_at.isoformat()
+                        if case.created_at
+                        else datetime.now(timezone.utc).isoformat()
+                    ),
+                    "evidence_count": 0,  # TODO: Count evidence
+                    "issue_count": 0,  # TODO: Count issues
+                }
+            )
+
         return result
-        
+
     except Exception:
         # Return mock data if database fails
         return [
@@ -131,9 +162,10 @@ def list_cases_simple(db: DbDep) -> list[dict[str, str | int | None]]:
                 "status": "active",
                 "created_at": "2024-11-01T10:00:00Z",
                 "evidence_count": 0,
-                "issue_count": 0
+                "issue_count": 0,
             }
         ]
+
 
 # Project endpoints
 @router.post("/projects")
@@ -142,10 +174,14 @@ def create_project(project_data: ProjectCreate, db: DbDep) -> dict[str, str]:
     try:
         # Check if project code already exists
         # Using SQLAlchemy ORM with parameterized query (safe from SQL injection)
-        existing_project = db.query(Project).filter(Project.project_code == project_data.project_code).first()
+        existing_project = (
+            db.query(Project)
+            .filter(Project.project_code == project_data.project_code)
+            .first()
+        )
         if existing_project:
             raise HTTPException(status_code=400, detail="Project code already exists")
-        
+
         # Create project
         project = Project(
             id=uuid.uuid4(),
@@ -161,11 +197,11 @@ def create_project(project_data: ProjectCreate, db: DbDep) -> dict[str, str]:
             exclude_people=project_data.exclude_people,
             project_terms=project_data.project_terms,
             exclude_keywords=project_data.exclude_keywords,
-            owner_user_id=uuid.uuid4()  # Mock user ID for testing
+            owner_user_id=uuid.uuid4(),  # Mock user ID for testing
         )
-        
+
         db.add(project)
-        
+
         # Create stakeholders
         for stakeholder_data in project_data.stakeholders:
             stakeholder = Stakeholder(
@@ -176,10 +212,14 @@ def create_project(project_data: ProjectCreate, db: DbDep) -> dict[str, str]:
                 name=stakeholder_data.name,
                 email=stakeholder_data.email,
                 organization=stakeholder_data.organization or stakeholder_data.name,
-                email_domain=stakeholder_data.email.split('@')[1] if stakeholder_data.email and '@' in stakeholder_data.email else None
+                email_domain=(
+                    stakeholder_data.email.split("@")[1]
+                    if stakeholder_data.email and "@" in stakeholder_data.email
+                    else None
+                ),
             )
             db.add(stakeholder)
-        
+
         # Create keywords
         for keyword_data in project_data.keywords:
             keyword = Keyword(
@@ -187,20 +227,24 @@ def create_project(project_data: ProjectCreate, db: DbDep) -> dict[str, str]:
                 project_id=project.id,
                 case_id=None,
                 keyword_name=keyword_data.name,
-                variations=keyword_data.variations
+                variations=keyword_data.variations,
             )
             db.add(keyword)
         db.commit()
         db.refresh(project)
-        
+
         return {
             "id": str(project.id),
             "project_name": project.project_name,
             "project_code": project.project_code,
             "status": "active",
-            "created_at": project.created_at.isoformat() if project.created_at else datetime.now(timezone.utc).isoformat()
+            "created_at": (
+                project.created_at.isoformat()
+                if project.created_at
+                else datetime.now(timezone.utc).isoformat()
+            ),
         }
-        
+
     except IntegrityError as e:
         db.rollback()
         logger.warning(f"Integrity error creating project: {e}")
@@ -208,7 +252,10 @@ def create_project(project_data: ProjectCreate, db: DbDep) -> dict[str, str]:
     except Exception as e:
         db.rollback()
         logger.exception(f"Error creating project: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create project: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to create project: {str(e)}"
+        )
+
 
 @router.get("/projects")
 def list_projects(db: DbDep) -> list[dict[str, str | None]]:
@@ -216,22 +263,34 @@ def list_projects(db: DbDep) -> list[dict[str, str | None]]:
     try:
         # Using SQLAlchemy ORM which parameterizes queries safely
         projects = db.query(Project).order_by(desc(Project.created_at)).limit(50).all()
-        
+
         result: list[dict[str, str | None]] = []
         for project in projects:
-            result.append({
-                "id": str(project.id),
-                "project_name": project.project_name,
-                "project_code": project.project_code,
-                "start_date": project.start_date.isoformat() if project.start_date else None,
-                "completion_date": project.completion_date.isoformat() if project.completion_date else None,
-                "contract_type": project.contract_type,
-                "analysis_type": project.analysis_type or "project",
-                "created_at": project.created_at.isoformat() if project.created_at else datetime.now(timezone.utc).isoformat()
-            })
-        
+            result.append(
+                {
+                    "id": str(project.id),
+                    "project_name": project.project_name,
+                    "project_code": project.project_code,
+                    "start_date": (
+                        project.start_date.isoformat() if project.start_date else None
+                    ),
+                    "completion_date": (
+                        project.completion_date.isoformat()
+                        if project.completion_date
+                        else None
+                    ),
+                    "contract_type": project.contract_type,
+                    "analysis_type": project.analysis_type or "project",
+                    "created_at": (
+                        project.created_at.isoformat()
+                        if project.created_at
+                        else datetime.now(timezone.utc).isoformat()
+                    ),
+                }
+            )
+
         return result
-        
+
     except Exception:
         # Return mock data if database fails
         return [
@@ -243,16 +302,19 @@ def list_projects(db: DbDep) -> list[dict[str, str | None]]:
                 "completion_date": "2024-06-30T00:00:00Z",
                 "contract_type": "JCT",
                 "analysis_type": "retrospective",
-                "created_at": "2024-11-01T10:00:00Z"
+                "created_at": "2024-11-01T10:00:00Z",
             }
         ]
 
+
 @router.get("/stakeholder-suggestions")
-def get_stakeholder_suggestions(db: DbDep, search: str | None = None) -> list[dict[str, str]]:
+def get_stakeholder_suggestions(
+    db: DbDep, search: str | None = None
+) -> list[dict[str, str]]:
     """Get autocomplete suggestions for stakeholders"""
     try:
         query = db.query(Stakeholder.name, Stakeholder.organization).distinct()
-        
+
         if search:
             # Sanitize search input
             safe_search = validate_search_input(search)
@@ -260,12 +322,12 @@ def get_stakeholder_suggestions(db: DbDep, search: str | None = None) -> list[di
                 query = query.filter(
                     or_(
                         Stakeholder.name.ilike(f"%{safe_search}%"),
-                        Stakeholder.organization.ilike(f"%{safe_search}%")
+                        Stakeholder.organization.ilike(f"%{safe_search}%"),
                     )
                 )
-        
+
         results = cast(list[tuple[str | None, str | None]], query.limit(20).all())
-        
+
         suggestions: list[dict[str, str]] = []
         for raw_name, raw_org in results:
             name_val = str(raw_name) if raw_name else None
@@ -274,17 +336,18 @@ def get_stakeholder_suggestions(db: DbDep, search: str | None = None) -> list[di
                 suggestions.append({"value": name_val, "type": "name"})
             if org_val and org_val != name_val:
                 suggestions.append({"value": org_val, "type": "organization"})
-        
+
         return suggestions
-        
+
     except Exception:
         # Return mock suggestions
         return [
             {"value": "United Living", "type": "organization"},
             {"value": "Calfordseaden", "type": "organization"},
             {"value": "John Smith", "type": "name"},
-            {"value": "NHBC", "type": "organization"}
+            {"value": "NHBC", "type": "organization"},
         ]
+
 
 @router.get("/keyword-suggestions")
 def get_keyword_suggestions() -> list[dict[str, str]]:
@@ -293,9 +356,13 @@ def get_keyword_suggestions() -> list[dict[str, str]]:
     return [
         {"name": "Relevant Event", "variations": ""},
         {"name": "Relevant Matter", "variations": ""},
-        {"name": "Section 278", "variations": "Section 278, Highways Agreement, Section 106"},
+        {
+            "name": "Section 278",
+            "variations": "Section 278, Highways Agreement, Section 106",
+        },
         {"name": "Delay", "variations": "delays, delayed, postpone, postponement"},
     ]
+
 
 class ProjectUpdate(BaseModel):
     project_name: str = Field(..., min_length=2, max_length=200)
@@ -303,8 +370,11 @@ class ProjectUpdate(BaseModel):
     description: str | None = None
     contract_type: str | None = None
 
+
 @router.put("/projects/{project_id}")
-def update_project(project_id: str, project_data: ProjectUpdate, db: DbDep) -> dict[str, str]:
+def update_project(
+    project_id: str, project_data: ProjectUpdate, db: DbDep
+) -> dict[str, str]:
     """Update a project's details"""
     try:
         # Find the project
@@ -313,13 +383,22 @@ def update_project(project_id: str, project_data: ProjectUpdate, db: DbDep) -> d
             raise HTTPException(status_code=404, detail="Project not found")
 
         # Check if new project code conflicts with another project
-        if project_data.project_code and project_data.project_code != project.project_code:
-            existing = db.query(Project).filter(
-                Project.project_code == project_data.project_code,
-                Project.id != uuid.UUID(project_id)
-            ).first()
+        if (
+            project_data.project_code
+            and project_data.project_code != project.project_code
+        ):
+            existing = (
+                db.query(Project)
+                .filter(
+                    Project.project_code == project_data.project_code,
+                    Project.id != uuid.UUID(project_id),
+                )
+                .first()
+            )
             if existing:
-                raise HTTPException(status_code=400, detail="Project code already exists")
+                raise HTTPException(
+                    status_code=400, detail="Project code already exists"
+                )
 
         # Update fields
         project.project_name = project_data.project_name
@@ -338,7 +417,7 @@ def update_project(project_id: str, project_data: ProjectUpdate, db: DbDep) -> d
             "project_name": project.project_name,
             "project_code": project.project_code,
             "status": "success",
-            "message": "Project updated successfully"
+            "message": "Project updated successfully",
         }
 
     except HTTPException:
@@ -346,7 +425,10 @@ def update_project(project_id: str, project_data: ProjectUpdate, db: DbDep) -> d
     except Exception as e:
         db.rollback()
         logger.exception(f"Error updating project: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to update project: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to update project: {str(e)}"
+        )
+
 
 @router.delete("/projects/{project_id}")
 def delete_project(project_id: str, db: DbDep) -> dict[str, str]:
@@ -362,23 +444,43 @@ def delete_project(project_id: str, db: DbDep) -> dict[str, str]:
         # Delete all related records in order (children first to respect FK constraints)
 
         # Get IDs needed for cascading deletes
-        pst_file_ids = [pst.id for pst in db.query(PSTFile).filter(PSTFile.project_id == project_uuid).all()]
-        email_ids = [e.id for e in db.query(EmailMessage).filter(EmailMessage.project_id == project_uuid).all()]
-        evidence_item_ids = [e.id for e in db.query(EvidenceItem).filter(EvidenceItem.project_id == project_uuid).all()]
-        evidence_collection_ids = [e.id for e in db.query(EvidenceCollection).filter(EvidenceCollection.project_id == project_uuid).all()]
+        pst_file_ids = [
+            pst.id
+            for pst in db.query(PSTFile)
+            .filter(PSTFile.project_id == project_uuid)
+            .all()
+        ]
+        email_ids = [
+            e.id
+            for e in db.query(EmailMessage)
+            .filter(EmailMessage.project_id == project_uuid)
+            .all()
+        ]
+        evidence_item_ids = [
+            e.id
+            for e in db.query(EvidenceItem)
+            .filter(EvidenceItem.project_id == project_uuid)
+            .all()
+        ]
+        evidence_collection_ids = [
+            e.id
+            for e in db.query(EvidenceCollection)
+            .filter(EvidenceCollection.project_id == project_uuid)
+            .all()
+        ]
 
         # Delete ItemClaimLinks for correspondence (email_messages) in this project
         if email_ids:
             db.query(ItemClaimLink).filter(
-                ItemClaimLink.item_type == 'correspondence',
-                ItemClaimLink.item_id.in_(email_ids)
+                ItemClaimLink.item_type == "correspondence",
+                ItemClaimLink.item_id.in_(email_ids),
             ).delete(synchronize_session=False)
 
         # Delete ItemClaimLinks for evidence items in this project
         if evidence_item_ids:
             db.query(ItemClaimLink).filter(
-                ItemClaimLink.item_type == 'evidence',
-                ItemClaimLink.item_id.in_(evidence_item_ids)
+                ItemClaimLink.item_type == "evidence",
+                ItemClaimLink.item_id.in_(evidence_item_ids),
             ).delete(synchronize_session=False)
 
         # Delete EvidenceCorrespondenceLinks (references evidence_items and email_messages)
@@ -427,42 +529,64 @@ def delete_project(project_id: str, db: DbDep) -> dict[str, str]:
 
         # Delete email attachments (references email_messages)
         if email_ids:
-            db.query(EmailAttachment).filter(EmailAttachment.email_message_id.in_(email_ids)).delete(synchronize_session=False)
+            db.query(EmailAttachment).filter(
+                EmailAttachment.email_message_id.in_(email_ids)
+            ).delete(synchronize_session=False)
 
         # Delete email messages
-        db.query(EmailMessage).filter(EmailMessage.project_id == project_uuid).delete(synchronize_session=False)
+        db.query(EmailMessage).filter(EmailMessage.project_id == project_uuid).delete(
+            synchronize_session=False
+        )
 
         # Delete PST files
-        db.query(PSTFile).filter(PSTFile.project_id == project_uuid).delete(synchronize_session=False)
+        db.query(PSTFile).filter(PSTFile.project_id == project_uuid).delete(
+            synchronize_session=False
+        )
 
         # Delete evidence items
-        db.query(EvidenceItem).filter(EvidenceItem.project_id == project_uuid).delete(synchronize_session=False)
+        db.query(EvidenceItem).filter(EvidenceItem.project_id == project_uuid).delete(
+            synchronize_session=False
+        )
 
         # Delete evidence collections
-        db.query(EvidenceCollection).filter(EvidenceCollection.project_id == project_uuid).delete(synchronize_session=False)
+        db.query(EvidenceCollection).filter(
+            EvidenceCollection.project_id == project_uuid
+        ).delete(synchronize_session=False)
 
         # Delete evidence sources
-        db.query(EvidenceSource).filter(EvidenceSource.project_id == project_uuid).delete(synchronize_session=False)
+        db.query(EvidenceSource).filter(
+            EvidenceSource.project_id == project_uuid
+        ).delete(synchronize_session=False)
 
         # Delete programmes
-        db.query(Programme).filter(Programme.project_id == project_uuid).delete(synchronize_session=False)
+        db.query(Programme).filter(Programme.project_id == project_uuid).delete(
+            synchronize_session=False
+        )
 
         # Delete associated stakeholders
-        db.query(Stakeholder).filter(Stakeholder.project_id == project_uuid).delete(synchronize_session=False)
+        db.query(Stakeholder).filter(Stakeholder.project_id == project_uuid).delete(
+            synchronize_session=False
+        )
 
         # Delete associated keywords
-        db.query(Keyword).filter(Keyword.project_id == project_uuid).delete(synchronize_session=False)
+        db.query(Keyword).filter(Keyword.project_id == project_uuid).delete(
+            synchronize_session=False
+        )
 
         # Delete heads of claim (has CASCADE but be explicit)
         # Note: project_id column may not exist in older schemas, so wrap in try/except
         try:
-            db.query(HeadOfClaim).filter(HeadOfClaim.project_id == project_uuid).delete(synchronize_session=False)
+            db.query(HeadOfClaim).filter(HeadOfClaim.project_id == project_uuid).delete(
+                synchronize_session=False
+            )
         except Exception:
             pass  # Column may not exist yet
 
         # Delete contentious matters (has CASCADE but be explicit)
         try:
-            db.query(ContentiousMatter).filter(ContentiousMatter.project_id == project_uuid).delete(synchronize_session=False)
+            db.query(ContentiousMatter).filter(
+                ContentiousMatter.project_id == project_uuid
+            ).delete(synchronize_session=False)
         except Exception:
             pass  # Column may not exist yet
 
@@ -473,7 +597,7 @@ def delete_project(project_id: str, db: DbDep) -> dict[str, str]:
         return {
             "id": str(project_id),
             "status": "success",
-            "message": "Project deleted successfully"
+            "message": "Project deleted successfully",
         }
 
     except HTTPException:
@@ -481,7 +605,10 @@ def delete_project(project_id: str, db: DbDep) -> dict[str, str]:
     except Exception as e:
         db.rollback()
         logger.exception(f"Error deleting project: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to delete project: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to delete project: {str(e)}"
+        )
+
 
 @router.post("/cases")
 def create_case(case_data: CaseCreate, db: DbDep) -> dict[str, str]:
@@ -493,18 +620,18 @@ def create_case(case_data: CaseCreate, db: DbDep) -> dict[str, str]:
             case_number=case_data.case_id or f"CASE-{uuid.uuid4().hex[:8].upper()}",
             description=f"Dispute case: {case_data.case_name}",
             status=case_data.case_status,
-            created_at=datetime.now(timezone.utc)
+            created_at=datetime.now(timezone.utc),
         )
-        
-        if hasattr(Case, 'claimant'):
+
+        if hasattr(Case, "claimant"):
             case.claimant = case_data.claimant
-        if hasattr(Case, 'defendant'):
+        if hasattr(Case, "defendant"):
             case.defendant = case_data.defendant
-        if hasattr(Case, 'client'):
+        if hasattr(Case, "client"):
             case.client = case_data.client
-        
+
         db.add(case)
-        
+
         # Create keywords for the case
         for keyword_data in case_data.keywords:
             keyword = Keyword(
@@ -512,28 +639,33 @@ def create_case(case_data: CaseCreate, db: DbDep) -> dict[str, str]:
                 case_id=case.id,
                 project_id=None,
                 keyword_name=keyword_data.name,
-                variations=keyword_data.variations
+                variations=keyword_data.variations,
             )
             db.add(keyword)
-        
+
         # TODO: Store legal team, heads of claim, and deadlines in appropriate tables
         # For now, we'll store them in the case's metadata or related tables when available
-        
+
         db.commit()
         db.refresh(case)
-        
+
         return {
             "id": str(case.id),
             "case_name": case.name,
             "case_number": case.case_number,
             "status": "active",
-            "created_at": case.created_at.isoformat() if case.created_at else datetime.now(timezone.utc).isoformat()
+            "created_at": (
+                case.created_at.isoformat()
+                if case.created_at
+                else datetime.now(timezone.utc).isoformat()
+            ),
         }
 
     except Exception as e:
         db.rollback()
         logger.exception(f"Error creating case: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create case: {str(e)}")
+
 
 @router.delete("/cases/{case_id}")
 def delete_case(case_id: str, db: DbDep) -> dict[str, str]:
@@ -554,7 +686,7 @@ def delete_case(case_id: str, db: DbDep) -> dict[str, str]:
         return {
             "id": str(case_id),
             "status": "success",
-            "message": "Case deleted successfully"
+            "message": "Case deleted successfully",
         }
 
     except HTTPException:

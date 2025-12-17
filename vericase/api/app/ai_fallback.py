@@ -6,6 +6,7 @@ alternative providers in a configured order until one succeeds.
 
 Supports 4 providers: OpenAI, Anthropic, Gemini, Amazon Bedrock
 """
+
 from __future__ import annotations
 
 import logging
@@ -59,58 +60,61 @@ class AIFallbackChain:
     # All 6 providers available: bedrock, openai, anthropic, gemini, xai, perplexity
     FALLBACK_CHAINS: dict[str, list[tuple[str, str]]] = {
         "quick_search": [
-            ("bedrock", "amazon.nova-micro-v1:0"),      # Primary: fastest, cheapest
-            ("bedrock", "amazon.nova-lite-v1:0"),       # Fallback 1
-            ("xai", "grok-4.1-fast"),                   # External: 2M context, cheap
-            ("gemini", "gemini-2.5-flash-lite"),        # External: fast, cheap
-            ("anthropic", "claude-4.5-haiku"),          # External fallback
+            ("bedrock", "amazon.nova-micro-v1:0"),  # Primary: fastest, cheapest
+            ("bedrock", "amazon.nova-lite-v1:0"),  # Fallback 1
+            ("xai", "grok-4.1-fast"),  # External: 2M context, cheap
+            ("gemini", "gemini-2.5-flash-lite"),  # External: fast, cheap
+            ("anthropic", "claude-4.5-haiku"),  # External fallback
         ],
         "deep_analysis": [
-            ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),  # Primary: Claude via Bedrock
-            ("bedrock", "amazon.nova-pro-v1:0"),        # Fallback 1: Nova Pro
+            (
+                "bedrock",
+                "anthropic.claude-3-5-sonnet-20241022-v2:0",
+            ),  # Primary: Claude via Bedrock
+            ("bedrock", "amazon.nova-pro-v1:0"),  # Fallback 1: Nova Pro
             ("anthropic", "claude-sonnet-4-20250514"),  # External fallback
-            ("openai", "gpt-4o"),                       # External fallback
-            ("xai", "grok-4.1-fast-reason"),            # External: reasoning mode
+            ("openai", "gpt-4o"),  # External fallback
+            ("xai", "grok-4.1-fast-reason"),  # External: reasoning mode
         ],
         "narrative": [
             ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),  # Primary
-            ("bedrock", "amazon.nova-pro-v1:0"),        # Fallback 1
+            ("bedrock", "amazon.nova-pro-v1:0"),  # Fallback 1
             ("anthropic", "claude-sonnet-4-20250514"),  # External fallback
-            ("openai", "gpt-4o"),                       # External fallback
+            ("openai", "gpt-4o"),  # External fallback
         ],
         "pattern_recognition": [
-            ("bedrock", "amazon.nova-pro-v1:0"),        # Primary
-            ("bedrock", "amazon.nova-lite-v1:0"),       # Fallback 1
-            ("gemini", "gemini-2.5-flash"),             # External fallback
-            ("xai", "grok-4.1-fast"),                   # External: large context
+            ("bedrock", "amazon.nova-pro-v1:0"),  # Primary
+            ("bedrock", "amazon.nova-lite-v1:0"),  # Fallback 1
+            ("gemini", "gemini-2.5-flash"),  # External fallback
+            ("xai", "grok-4.1-fast"),  # External: large context
         ],
         "gap_analysis": [
-            ("bedrock", "amazon.nova-pro-v1:0"),        # Primary
-            ("bedrock", "amazon.nova-lite-v1:0"),       # Fallback 1
+            ("bedrock", "amazon.nova-pro-v1:0"),  # Primary
+            ("bedrock", "amazon.nova-lite-v1:0"),  # Fallback 1
             ("anthropic", "claude-sonnet-4-20250514"),  # External fallback
-            ("openai", "gpt-4o"),                       # External fallback
+            ("openai", "gpt-4o"),  # External fallback
         ],
         "chat": [
-            ("bedrock", "amazon.nova-pro-v1:0"),        # Primary for copilot
-            ("bedrock", "amazon.nova-lite-v1:0"),       # Fallback 1
+            ("bedrock", "amazon.nova-pro-v1:0"),  # Primary for copilot
+            ("bedrock", "amazon.nova-lite-v1:0"),  # Fallback 1
             ("anthropic", "claude-sonnet-4-20250514"),  # External fallback
-            ("openai", "gpt-4o"),                       # External fallback
-            ("xai", "grok-4.1-fast"),                   # External: cheap premium
+            ("openai", "gpt-4o"),  # External fallback
+            ("xai", "grok-4.1-fast"),  # External: cheap premium
         ],
         "refinement": [
-            ("bedrock", "amazon.nova-lite-v1:0"),       # Primary: cost-effective
-            ("bedrock", "amazon.nova-micro-v1:0"),      # Fallback 1: fastest
-            ("gemini", "gemini-2.5-flash-lite"),        # External: ultra-fast
-            ("anthropic", "claude-4.5-haiku"),          # External fallback
+            ("bedrock", "amazon.nova-lite-v1:0"),  # Primary: cost-effective
+            ("bedrock", "amazon.nova-micro-v1:0"),  # Fallback 1: fastest
+            ("gemini", "gemini-2.5-flash-lite"),  # External: ultra-fast
+            ("anthropic", "claude-4.5-haiku"),  # External fallback
         ],
         "web_search": [
-            ("perplexity", "sonar-pro"),                # Primary: real-time web
-            ("perplexity", "sonar"),                    # Fallback: lighter web
-            ("xai", "grok-4.1-fast"),                   # Fallback: X integration
-            ("openai", "gpt-4o"),                       # Fallback if no web needed
+            ("perplexity", "sonar-pro"),  # Primary: real-time web
+            ("perplexity", "sonar"),  # Fallback: lighter web
+            ("xai", "grok-4.1-fast"),  # Fallback: X integration
+            ("openai", "gpt-4o"),  # Fallback if no web needed
         ],
         "legal_research": [
-            ("perplexity", "sonar-pro"),                # Primary: real-time citations
+            ("perplexity", "sonar-pro"),  # Primary: real-time citations
             ("anthropic", "claude-sonnet-4-20250514"),  # Fallback: deep reasoning
             ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
             ("openai", "gpt-4o"),

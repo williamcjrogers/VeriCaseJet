@@ -20,7 +20,7 @@ import logging
 import uuid
 import json
 from datetime import datetime, timezone
-from typing import Annotated, Any, Callable, NotRequired, TypedDict, cast
+from typing import Annotated, Any, NotRequired, TypedDict, cast
 from enum import Enum
 from dataclasses import dataclass
 
@@ -37,7 +37,12 @@ except ImportError:  # pragma: no cover - runtime fallback if redis-py not insta
 from .models import User, EmailMessage, Project, EvidenceItem
 from .db import get_db
 from .security import current_user
-from .ai_settings import get_ai_api_key, get_ai_model, is_bedrock_enabled, get_bedrock_region
+from .ai_settings import (
+    get_ai_api_key,
+    get_ai_model,
+    is_bedrock_enabled,
+    get_bedrock_region,
+)
 from .settings import settings
 from .ai_providers import BedrockProvider, bedrock_available
 from .ai_runtime import complete_chat
@@ -1254,7 +1259,9 @@ Perform a thorough validation and output as JSON:
                 "overall_score": 0.5,
                 "validation_passed": True,  # Default to pass if parsing fails
                 "confidence": "low",
-                "recommendations": ["Validation parsing failed - manual review recommended"],
+                "recommendations": [
+                    "Validation parsing failed - manual review recommended"
+                ],
                 "raw_response": response[:1000],
             }
 
@@ -1288,12 +1295,14 @@ Perform a thorough validation and output as JSON:
 
             evidence = evidence_lookup.get(citation_id)
             if not evidence:
-                results.append({
-                    "claim": claim,
-                    "citation_id": citation_id,
-                    "status": "not_found",
-                    "reason": "Citation ID not found in evidence"
-                })
+                results.append(
+                    {
+                        "claim": claim,
+                        "citation_id": citation_id,
+                        "status": "not_found",
+                        "reason": "Citation ID not found in evidence",
+                    }
+                )
                 continue
 
             # Use LLM to verify claim matches evidence
@@ -1312,7 +1321,9 @@ Respond with JSON:
 }}"""
 
             try:
-                verify_response = await self._call_llm(verify_prompt, "You are a fact-checker.")
+                verify_response = await self._call_llm(
+                    verify_prompt, "You are a fact-checker."
+                )
 
                 json_str = verify_response
                 if "```json" in verify_response:
@@ -1323,7 +1334,9 @@ Respond with JSON:
                 result = json.loads(json_str.strip())
                 result["claim"] = claim
                 result["citation_id"] = citation_id
-                result["status"] = "verified" if result.get("verified") else "unverified"
+                result["status"] = (
+                    "verified" if result.get("verified") else "unverified"
+                )
 
                 if result.get("verified"):
                     verified_count += 1
@@ -1331,12 +1344,14 @@ Respond with JSON:
                 results.append(result)
             except Exception as e:
                 logger.warning(f"Citation verification failed: {e}")
-                results.append({
-                    "claim": claim,
-                    "citation_id": citation_id,
-                    "status": "error",
-                    "reason": str(e)
-                })
+                results.append(
+                    {
+                        "claim": claim,
+                        "citation_id": citation_id,
+                        "status": "error",
+                        "reason": str(e),
+                    }
+                )
 
         return {
             "verified": verified_count,
@@ -1358,8 +1373,7 @@ Respond with JSON:
             return {"score": 1.0, "issues": []}
 
         sections_text = "\n\n---\n\n".join(
-            f"SECTION: {title}\n{content[:1000]}"
-            for title, content in sections.items()
+            f"SECTION: {title}\n{content[:1000]}" for title, content in sections.items()
         )
 
         prompt = f"""Analyze these report sections for coherence and consistency.
@@ -1429,7 +1443,10 @@ Be objective and provide clear justifications for rankings."""
         if cls._cross_encoder is None:
             try:
                 from sentence_transformers import CrossEncoder
-                cls._cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+
+                cls._cross_encoder = CrossEncoder(
+                    "cross-encoder/ms-marco-MiniLM-L-6-v2"
+                )
                 logger.info("RerankerAgent: Cross-encoder model loaded")
             except Exception as e:
                 logger.warning(f"RerankerAgent: Could not load cross-encoder: {e}")
@@ -1459,7 +1476,11 @@ Be objective and provide clear justifications for rankings."""
             candidate_answers[0]["rerank_score"] = 1.0
             return candidate_answers
 
-        criteria_str = ", ".join(criteria) if criteria else "accuracy, completeness, clarity, citation quality"
+        criteria_str = (
+            ", ".join(criteria)
+            if criteria
+            else "accuracy, completeness, clarity, citation quality"
+        )
 
         # Build comparison prompt
         candidates_text = "\n\n---\n\n".join(
@@ -1507,7 +1528,9 @@ Score each candidate from 0.0 to 1.0 and rank them. Output as JSON:
                 idx = ranking.get("candidate", 1) - 1
                 if 0 <= idx < len(candidate_answers):
                     candidate_answers[idx]["rerank_score"] = ranking.get("score", 0.5)
-                    candidate_answers[idx]["rerank_justification"] = ranking.get("justification", "")
+                    candidate_answers[idx]["rerank_justification"] = ranking.get(
+                        "justification", ""
+                    )
 
             # Sort by score descending
             candidate_answers.sort(key=lambda x: x.get("rerank_score", 0), reverse=True)
@@ -1611,10 +1634,7 @@ Output as JSON:
 
         try:
             # Create query-document pairs
-            pairs = [
-                (query, r.get("content", r.get("text", str(r))))
-                for r in results
-            ]
+            pairs = [(query, r.get("content", r.get("text", str(r)))) for r in results]
 
             # Score all pairs
             scores = cross_encoder.predict(pairs)
@@ -1793,7 +1813,9 @@ class MasterAgent:
 
         self.session.final_report = report
         self.session.key_themes = themes
-        self.session.models_used["synthesizer"] = self.synthesizer.synthesizer_model or "default"
+        self.session.models_used["synthesizer"] = (
+            self.synthesizer.synthesizer_model or "default"
+        )
         self.session.updated_at = datetime.now(timezone.utc)
 
         return report
@@ -1829,8 +1851,12 @@ class MasterAgent:
 
         # Store validation results
         self.session.validation_result = validation_result
-        self.session.validation_passed = validation_result.get("validation_passed", True)
-        self.session.models_used["validator"] = "claude"  # Validator uses powerful model
+        self.session.validation_passed = validation_result.get(
+            "validation_passed", True
+        )
+        self.session.models_used["validator"] = (
+            "claude"  # Validator uses powerful model
+        )
         self.session.updated_at = datetime.now(timezone.utc)
 
         # Log validation outcome
@@ -1914,16 +1940,16 @@ async def build_evidence_context(
 
     # Get emails - exclude spam-filtered/hidden
     email_query = db.query(EmailMessage)
-    
+
     # Filter out hidden emails (spam-filtered)
     email_query = email_query.filter(
         or_(
             EmailMessage.meta.is_(None),
-            EmailMessage.meta.op('->>')('spam').is_(None),
-            EmailMessage.meta.op('->')('spam').op('->>')('is_hidden') != "true",
+            EmailMessage.meta.op("->>")("spam").is_(None),
+            EmailMessage.meta.op("->")("spam").op("->>")("is_hidden") != "true",
         )
     )
-    
+
     if project_id:
         email_query = email_query.filter(EmailMessage.project_id == project_id)
     elif case_id:
@@ -1976,8 +2002,8 @@ async def build_evidence_context(
     evidence_query = db.query(EvidenceItem).filter(
         or_(
             EvidenceItem.meta.is_(None),
-            EvidenceItem.meta.op('->>')('spam').is_(None),
-            EvidenceItem.meta.op('->')('spam').op('->>')('is_hidden') != "true",
+            EvidenceItem.meta.op("->>")("spam").is_(None),
+            EvidenceItem.meta.op("->")("spam").op("->>")("is_hidden") != "true",
         )
     )
     if project_id:
@@ -2052,7 +2078,7 @@ async def start_research(
     def sync_run_planning():
         import asyncio
         from .db import SessionLocal
-        
+
         async def run_planning():
             # Create fresh DB session for background task
             task_db = SessionLocal()
@@ -2295,7 +2321,9 @@ async def list_research_sessions(
             list(_research_sessions.values())
             + [
                 load_session(
-                    key.decode().split(":")[-1] if isinstance(key, (bytes, bytearray)) else str(key).split(":")[-1]
+                    key.decode().split(":")[-1]
+                    if isinstance(key, (bytes, bytearray))
+                    else str(key).split(":")[-1]
                 )
                 for key in (
                     _get_redis().scan_iter("deep_research:session:*")

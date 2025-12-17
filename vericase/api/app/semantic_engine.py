@@ -84,10 +84,10 @@ MULTI_VECTOR_ENABLED = getattr(settings, "MULTI_VECTOR_ENABLED", True)
 
 # Default fusion weights for multi-vector search
 DEFAULT_FUSION_WEIGHTS = {
-    "content": 0.5,      # Semantic content is primary
+    "content": 0.5,  # Semantic content is primary
     "participant": 0.25,  # Who's involved
-    "temporal": 0.15,     # When it happened
-    "attachment": 0.10,   # What's attached
+    "temporal": 0.15,  # When it happened
+    "attachment": 0.10,  # What's attached
 }
 
 # Temporal encoding reference year (for linear year distance)
@@ -125,10 +125,10 @@ class MultiVectorEmbeddings(TypedDict, total=False):
     - attachment_vec: What's attached (file types, categories)
     """
 
-    content_vec: list[float]      # 1024 dims - semantic content
-    participant_vec: list[float]   # 1024 dims - people/orgs involved
-    temporal_vec: list[float]      # 1024 dims - time encoding
-    attachment_vec: list[float]    # 1024 dims - attachment context
+    content_vec: list[float]  # 1024 dims - semantic content
+    participant_vec: list[float]  # 1024 dims - people/orgs involved
+    temporal_vec: list[float]  # 1024 dims - time encoding
+    attachment_vec: list[float]  # 1024 dims - attachment context
 
 
 class EmailContext(TypedDict, total=False):
@@ -196,7 +196,9 @@ class BedrockEmbeddingClient:
     - amazon.titan-embed-text-v1: 1536 dimensions, alternative
     """
 
-    def __init__(self, region: str = BEDROCK_REGION, model_id: str = BEDROCK_EMBEDDING_MODEL):
+    def __init__(
+        self, region: str = BEDROCK_REGION, model_id: str = BEDROCK_EMBEDDING_MODEL
+    ):
         self.region = region
         self.model_id = model_id
         self._client: Any = None
@@ -260,14 +262,19 @@ class BedrockEmbeddingClient:
             elif "titan" in self.model_id:
                 return response_body["embedding"]
             else:
-                return response_body.get("embedding", response_body.get("embeddings", [[]])[0])
+                return response_body.get(
+                    "embedding", response_body.get("embeddings", [[]])[0]
+                )
 
         except Exception as e:
             logger.error(f"Bedrock embedding failed: {e}")
             raise
 
     def embed_texts(
-        self, texts: list[str], input_type: str = "search_document", batch_size: int = 96
+        self,
+        texts: list[str],
+        input_type: str = "search_document",
+        batch_size: int = 96,
     ) -> list[list[float]]:
         """
         Generate embeddings for multiple texts using Bedrock.
@@ -355,7 +362,9 @@ class ModelRegistry:
     def get_bedrock_client(cls) -> BedrockEmbeddingClient:
         """Get or create Bedrock embedding client"""
         if cls._bedrock_client is None:
-            logger.info(f"Initializing Bedrock embedding client: {BEDROCK_EMBEDDING_MODEL}")
+            logger.info(
+                f"Initializing Bedrock embedding client: {BEDROCK_EMBEDDING_MODEL}"
+            )
             cls._bedrock_client = BedrockEmbeddingClient(
                 region=BEDROCK_REGION,
                 model_id=BEDROCK_EMBEDDING_MODEL,
@@ -370,7 +379,9 @@ class ModelRegistry:
             try:
                 from sentence_transformers import SentenceTransformer
 
-                logger.info(f"Loading sentence-transformer model: {SENTENCE_TRANSFORMER_MODEL}")
+                logger.info(
+                    f"Loading sentence-transformer model: {SENTENCE_TRANSFORMER_MODEL}"
+                )
                 cls._embedding_model = SentenceTransformer(SENTENCE_TRANSFORMER_MODEL)
                 logger.info("Sentence-transformer model loaded successfully")
             except ImportError:
@@ -852,7 +863,9 @@ class EmbeddingService:
             try:
                 return self.bedrock_client.embed_text(text, input_type)
             except Exception as e:
-                logger.warning(f"Bedrock embedding failed, falling back to sentence-transformers: {e}")
+                logger.warning(
+                    f"Bedrock embedding failed, falling back to sentence-transformers: {e}"
+                )
                 # Fall back to sentence-transformers
                 embedding = self.model.encode(text, convert_to_numpy=True)
                 return embedding.tolist()
@@ -869,7 +882,10 @@ class EmbeddingService:
         return self.embed_text(query, input_type="search_query")
 
     def embed_texts(
-        self, texts: list[str], batch_size: int = 32, input_type: str = "search_document"
+        self,
+        texts: list[str],
+        batch_size: int = 32,
+        input_type: str = "search_document",
     ) -> list[list[float]]:
         """
         Generate embeddings for multiple texts (batched for efficiency).
@@ -910,7 +926,9 @@ class EmbeddingService:
         )
 
         # Reconstruct full list with zeros for empty texts
-        result: list[list[float]] = [[0.0] * SENTENCE_TRANSFORMER_DIMENSION] * len(texts)
+        result: list[list[float]] = [[0.0] * SENTENCE_TRANSFORMER_DIMENSION] * len(
+            texts
+        )
         for (orig_idx, _), embedding in zip(valid_texts, valid_embeddings):
             result[orig_idx] = embedding.tolist()
 
@@ -997,9 +1015,7 @@ class MultiVectorEmbeddingService:
         """All 4 vectors have same dimension"""
         return self._embedder.dimension
 
-    def generate_multi_vectors(
-        self, context: EmailContext
-    ) -> MultiVectorEmbeddings:
+    def generate_multi_vectors(self, context: EmailContext) -> MultiVectorEmbeddings:
         """
         Generate all 4 vectors for an email.
 
@@ -1126,17 +1142,23 @@ class MultiVectorEmbeddingService:
 
         # Create base temporal features (9 values)
         temporal_features = [
-            month_sin, month_cos,
-            day_sin, day_cos,
-            weekday_sin, weekday_cos,
+            month_sin,
+            month_cos,
+            day_sin,
+            day_cos,
+            weekday_sin,
+            weekday_cos,
             year_linear,
-            quarter_sin, quarter_cos,
+            quarter_sin,
+            quarter_cos,
         ]
 
         # For k-NN to work, we need same dimension as other vectors
         # Approach: Create temporal description and embed it
         temporal_text = self._format_temporal_description(sent_date)
-        temporal_embedding = self._embedder.embed_text(temporal_text, input_type="search_document")
+        temporal_embedding = self._embedder.embed_text(
+            temporal_text, input_type="search_document"
+        )
 
         # Inject raw temporal features into first positions (they're more precise)
         for i, val in enumerate(temporal_features):
@@ -1219,12 +1241,27 @@ class MultiVectorEmbeddingService:
     def _format_temporal_description(self, dt: datetime) -> str:
         """Create natural language temporal description for embedding"""
         month_names = [
-            "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
         ]
         weekday_names = [
-            "Monday", "Tuesday", "Wednesday", "Thursday",
-            "Friday", "Saturday", "Sunday"
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
         ]
 
         month_name = month_names[dt.month - 1]
@@ -1394,7 +1431,9 @@ class VectorIndexService:
 
         try:
             if self.client.indices.exists(index=index_name):
-                logger.info(f"Vector index {index_name} already exists (dim={EMBEDDING_DIMENSION})")
+                logger.info(
+                    f"Vector index {index_name} already exists (dim={EMBEDDING_DIMENSION})"
+                )
                 return True
 
             # Create index with k-NN settings
@@ -1544,7 +1583,9 @@ class VectorIndexService:
                 "section_type": chunk.metadata.get("section_type"),
                 "chunk_index": chunk.metadata.get("chunk_index"),
                 "total_chunks": chunk.metadata.get("total_chunks"),
-                "embedding_model": chunk.metadata.get("embedding_model", EMBEDDING_MODEL),
+                "embedding_model": chunk.metadata.get(
+                    "embedding_model", EMBEDDING_MODEL
+                ),
                 "embedding_provider": EMBEDDING_PROVIDER,
                 "case_id": case_id,
                 "project_id": project_id,
@@ -1697,7 +1738,9 @@ class MultiVectorIndexService:
         """Create the multi-vector index if it doesn't exist"""
         try:
             if self.client.indices.exists(index=MULTI_VECTOR_INDEX_NAME):
-                logger.info(f"Multi-vector index {MULTI_VECTOR_INDEX_NAME} already exists")
+                logger.info(
+                    f"Multi-vector index {MULTI_VECTOR_INDEX_NAME} already exists"
+                )
                 return True
 
             # k-NN vector field template
@@ -1790,9 +1833,13 @@ class MultiVectorIndexService:
         doc = {
             # Vectors
             "content_vec": vectors.get("content_vec", [0.0] * EMBEDDING_DIMENSION),
-            "participant_vec": vectors.get("participant_vec", [0.0] * EMBEDDING_DIMENSION),
+            "participant_vec": vectors.get(
+                "participant_vec", [0.0] * EMBEDDING_DIMENSION
+            ),
             "temporal_vec": vectors.get("temporal_vec", [0.0] * EMBEDDING_DIMENSION),
-            "attachment_vec": vectors.get("attachment_vec", [0.0] * EMBEDDING_DIMENSION),
+            "attachment_vec": vectors.get(
+                "attachment_vec", [0.0] * EMBEDDING_DIMENSION
+            ),
             # Content
             "text": context.get("body_text", ""),
             "subject": context.get("subject", ""),
@@ -1802,14 +1849,25 @@ class MultiVectorIndexService:
             # Participants
             "sender": context.get("sender", ""),
             "sender_name": context.get("sender_name", ""),
-            "recipients": (context.get("recipients_to", []) or []) + (context.get("recipients_cc", []) or []),
+            "recipients": (context.get("recipients_to", []) or [])
+            + (context.get("recipients_cc", []) or []),
             "mentioned_people": context.get("mentioned_people", []),
             "mentioned_orgs": context.get("mentioned_orgs", []),
             # Temporal
-            "sent_date": context.get("sent_date").isoformat() if context.get("sent_date") else None,
+            "sent_date": (
+                context.get("sent_date").isoformat()
+                if context.get("sent_date")
+                else None
+            ),
             "year": context.get("sent_date").year if context.get("sent_date") else None,
-            "month": context.get("sent_date").month if context.get("sent_date") else None,
-            "quarter": ((context.get("sent_date").month - 1) // 3 + 1) if context.get("sent_date") else None,
+            "month": (
+                context.get("sent_date").month if context.get("sent_date") else None
+            ),
+            "quarter": (
+                ((context.get("sent_date").month - 1) // 3 + 1)
+                if context.get("sent_date")
+                else None
+            ),
             # Attachments
             "attachment_count": len(context.get("attachment_names", [])),
             "attachment_types": context.get("attachment_types", []),
@@ -1899,9 +1957,18 @@ class MultiVectorIndexService:
             query: dict[str, Any] = {
                 "size": k * 2,  # Get more for fusion
                 "query": {"knn": {field_name: {"vector": vec, "k": k * 2}}},
-                "_source": ["email_id", "subject", "text", "sender", "sent_date",
-                           "recipients", "attachment_types", "has_attachments",
-                           "case_id", "project_id"],
+                "_source": [
+                    "email_id",
+                    "subject",
+                    "text",
+                    "sender",
+                    "sent_date",
+                    "recipients",
+                    "attachment_types",
+                    "has_attachments",
+                    "case_id",
+                    "project_id",
+                ],
             }
 
             if filter_clauses:
@@ -1950,20 +2017,22 @@ class MultiVectorIndexService:
                 for wk in ["content", "participant", "temporal", "attachment"]
             )
 
-            final_results.append({
-                "id": doc_id,
-                "email_id": result["data"].get("email_id"),
-                "score": rrf_score,
-                "weighted_score": weighted_score,
-                "component_scores": result["scores"],
-                "subject": result["data"].get("subject"),
-                "text": result["data"].get("text", "")[:500],  # Truncate
-                "sender": result["data"].get("sender"),
-                "sent_date": result["data"].get("sent_date"),
-                "recipients": result["data"].get("recipients", []),
-                "has_attachments": result["data"].get("has_attachments"),
-                "attachment_types": result["data"].get("attachment_types", []),
-            })
+            final_results.append(
+                {
+                    "id": doc_id,
+                    "email_id": result["data"].get("email_id"),
+                    "score": rrf_score,
+                    "weighted_score": weighted_score,
+                    "component_scores": result["scores"],
+                    "subject": result["data"].get("subject"),
+                    "text": result["data"].get("text", "")[:500],  # Truncate
+                    "sender": result["data"].get("sender"),
+                    "sent_date": result["data"].get("sent_date"),
+                    "recipients": result["data"].get("recipients", []),
+                    "has_attachments": result["data"].get("has_attachments"),
+                    "attachment_types": result["data"].get("attachment_types", []),
+                }
+            )
 
         # Sort by RRF score
         final_results.sort(key=lambda x: x["score"], reverse=True)
@@ -2020,7 +2089,9 @@ class SemanticIngestionService:
     def multi_vector_index(self) -> MultiVectorIndexService:
         """Lazy-load multi-vector index service"""
         if self._multi_vector_index is None:
-            self._multi_vector_index = MultiVectorIndexService(self.vector_index._client)
+            self._multi_vector_index = MultiVectorIndexService(
+                self.vector_index._client
+            )
         return self._multi_vector_index
 
     def ensure_ready(self) -> bool:

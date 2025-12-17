@@ -27,38 +27,54 @@ def upgrade() -> None:
         "ocr_corrections",
         sa.Column("id", sa.BigInteger, primary_key=True, autoincrement=True),
         sa.Column("doc_id", sa.String(255), nullable=False),
-        sa.Column("source_type", sa.String(50), nullable=False),  # document, email_attachment, etc.
+        sa.Column(
+            "source_type", sa.String(50), nullable=False
+        ),  # document, email_attachment, etc.
         sa.Column("page", sa.Integer, nullable=True),
         sa.Column("bbox", JSONB, nullable=True),
-        sa.Column("field_type", sa.String(50), nullable=True),  # date, amount, party, etc.
+        sa.Column(
+            "field_type", sa.String(50), nullable=True
+        ),  # date, amount, party, etc.
         sa.Column("original_text", sa.Text, nullable=False),
         sa.Column("corrected_text", sa.Text, nullable=False),
         sa.Column("ocr_engine", sa.String(50), nullable=True),
         sa.Column("ocr_confidence", sa.Float, nullable=True),
         sa.Column("scope", sa.String(50), server_default="project", nullable=False),
-        sa.Column("project_id", UUID(as_uuid=True), sa.ForeignKey("projects.id"), nullable=True),
-        sa.Column("case_id", UUID(as_uuid=True), sa.ForeignKey("cases.id"), nullable=True),
-        sa.Column("created_by", UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=True),
-        sa.Column("approved_by", UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now()),
+        sa.Column(
+            "project_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("projects.id"),
+            nullable=True,
+        ),
+        sa.Column(
+            "case_id", UUID(as_uuid=True), sa.ForeignKey("cases.id"), nullable=True
+        ),
+        sa.Column(
+            "created_by", UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=True
+        ),
+        sa.Column(
+            "approved_by", UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=True
+        ),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            onupdate=sa.func.now(),
+        ),
     )
 
     # Indexes for fast lookup and analysis
     op.create_index(
-        "idx_ocr_corrections_doc",
-        "ocr_corrections",
-        ["doc_id", "source_type"]
+        "idx_ocr_corrections_doc", "ocr_corrections", ["doc_id", "source_type"]
     )
     op.create_index(
-        "idx_ocr_corrections_lookup",
-        "ocr_corrections",
-        ["original_text", "field_type"]
+        "idx_ocr_corrections_lookup", "ocr_corrections", ["original_text", "field_type"]
     )
     op.create_index(
-        "idx_ocr_corrections_project",
-        "ocr_corrections",
-        ["scope", "project_id"]
+        "idx_ocr_corrections_project", "ocr_corrections", ["scope", "project_id"]
     )
 
 

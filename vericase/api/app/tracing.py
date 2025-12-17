@@ -46,7 +46,10 @@ def setup_tracing(default_service_name: str) -> bool:
         from opentelemetry import trace
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+        from opentelemetry.sdk.trace.export import (
+            BatchSpanProcessor,
+            ConsoleSpanExporter,
+        )
 
         if endpoint:
             from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
@@ -57,7 +60,9 @@ def setup_tracing(default_service_name: str) -> bool:
         else:
             exporter = ConsoleSpanExporter()
 
-        provider = TracerProvider(resource=Resource.create({"service.name": service_name}))
+        provider = TracerProvider(
+            resource=Resource.create({"service.name": service_name})
+        )
         provider.add_span_processor(BatchSpanProcessor(exporter))
 
         # Avoid hard failures if something else already configured tracing.

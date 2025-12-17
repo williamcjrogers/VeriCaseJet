@@ -12,7 +12,6 @@ It is designed to work in both:
 from __future__ import annotations
 
 from logging.config import fileConfig
-from typing import Any
 
 from alembic import context
 from sqlalchemy import create_engine, pool
@@ -86,4 +85,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-

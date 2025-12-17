@@ -40,19 +40,32 @@ import time
 
 logger = logging.getLogger(__name__)
 
-def debug_log(hypothesis_id: str, message: str, data: TypingDict[str, Any] | None = None, line_num: int | None = None) -> None:
-    log_path = r"c:\Users\William\Documents\Projects\VeriCase Analysis\.cursor\debug.log"
+
+def debug_log(
+    hypothesis_id: str,
+    message: str,
+    data: TypingDict[str, Any] | None = None,
+    line_num: int | None = None,
+) -> None:
+    log_path = (
+        r"c:\Users\William\Documents\Projects\VeriCase Analysis\.cursor\debug.log"
+    )
     # region agent log self-test
     try:
-        _ = int(time.time()*1000)
-        test_entry = {"id": "self_test", "message": f"debug_log called for {hypothesis_id}", "data": {}, "timestamp": _}
+        _ = int(time.time() * 1000)
+        test_entry = {
+            "id": "self_test",
+            "message": f"debug_log called for {hypothesis_id}",
+            "data": {},
+            "timestamp": _,
+        }
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(test_entry, default=str) + "\n")
     except Exception as e:
         print(f"DEBUG LOG SELF-TEST FAIL: {e} - cannot write to {log_path}")
     # endregion
 
-    _ = int(time.time()*1000)
+    _ = int(time.time() * 1000)
     entry_id = f"log_{_}_{int(time.time()) % 10000}"
     timestamp = _
     location = f"dashboard_api.py:{line_num or 'unknown'}"
@@ -64,13 +77,14 @@ def debug_log(hypothesis_id: str, message: str, data: TypingDict[str, Any] | Non
         "data": data or {},
         "sessionId": "debug-session",
         "runId": "run1",
-        "hypothesisId": hypothesis_id
+        "hypothesisId": hypothesis_id,
     }
     try:
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, default=str) + "\n")
     except Exception as e:
         print(f"DEBUG LOG WRITE FAIL for {hypothesis_id}: {e}")
+
 
 # Module level log to confirm import
 debug_log("F", "Module dashboard_api.py loaded successfully", {}, 30)
@@ -89,7 +103,17 @@ CACHE_TTL_SECONDS = 30  # Cache dashboard data for 30 seconds
 def _get_cached(key: str) -> dict[str, Any] | None:
     """Get value from Redis cache"""
     result = get_cached(f"dashboard:{key}")
-    debug_log("C", "dashboard cache get", {"key": key, "type": str(type(result)), "is_none": result is None, "is_truthy": bool(result)}, 43)
+    debug_log(
+        "C",
+        "dashboard cache get",
+        {
+            "key": key,
+            "type": str(type(result)),
+            "is_none": result is None,
+            "is_truthy": bool(result),
+        },
+        43,
+    )
     if result:
         logger.debug(f"Dashboard cache HIT: {key}")
     return result
@@ -192,8 +216,18 @@ def get_user_cases(db: Session, user: User) -> list[Case]:
     else:
         # Users see cases they own or are assigned to
         # region agent log A
-        assigned_count = db.query(func.count(CaseUser.case_id)).filter(CaseUser.user_id == user.id).scalar() or 0
-        debug_log("A", "assigned case count", {"user_id": str(user.id), "count": assigned_count}, 145)
+        assigned_count = (
+            db.query(func.count(CaseUser.case_id))
+            .filter(CaseUser.user_id == user.id)
+            .scalar()
+            or 0
+        )
+        debug_log(
+            "A",
+            "assigned case count",
+            {"user_id": str(user.id), "count": assigned_count},
+            145,
+        )
         # endregion
         return (
             db.query(Case)
@@ -202,7 +236,7 @@ def get_user_cases(db: Session, user: User) -> list[Case]:
                     Case.owner_id == user.id,
                     Case.id.in_(
                         select(CaseUser.case_id).where(CaseUser.user_id == user.id)
-                    )
+                    ),
                 )
             )
             .order_by(desc(Case.created_at))
@@ -338,15 +372,19 @@ def get_user_role_on_case(db: Session, user: User, case_id: UUID) -> str:
 
 @router.get("/overview", response_model=DashboardOverviewResponse)
 async def get_dashboard_overview(
-    db: DbDep,
-    user: Annotated[User, Depends(current_user)]
+    db: DbDep, user: Annotated[User, Depends(current_user)]
 ) -> DashboardOverviewResponse:
     """
     Get complete dashboard overview for the current user.
     Returns aggregated projects, cases, statistics, and recent activity.
     """
     try:
-        debug_log("E", "get_dashboard_overview entered", {"user_id": str(user.id), "role": user.role.value}, 292)
+        debug_log(
+            "E",
+            "get_dashboard_overview entered",
+            {"user_id": str(user.id), "role": user.role.value},
+            292,
+        )
         # Gather projects and cases
         projects = get_user_projects(db, user)
         cases = get_user_cases(db, user)
@@ -464,15 +502,26 @@ async def get_dashboard_overview(
             if w.updated_at or w.created_at:
                 ts_val = w.updated_at or w.created_at
                 # region agent log D
-                debug_log("D", "timestamp formatting", {"item_id": w.id, "ts_none": ts_val is None, "ts_type": str(type(ts_val)) if ts_val else None}, 412)
+                debug_log(
+                    "D",
+                    "timestamp formatting",
+                    {
+                        "item_id": w.id,
+                        "ts_none": ts_val is None,
+                        "ts_type": str(type(ts_val)) if ts_val else None,
+                    },
+                    412,
+                )
                 # endregion
-                recent_activity.append({
-                    "type": "updated",
-                    "item_type": w.type,
-                    "item_id": w.id,
-                    "item_name": w.name,
-                    "timestamp": ts_val.isoformat() if ts_val else None,
-                })
+                recent_activity.append(
+                    {
+                        "type": "updated",
+                        "item_type": w.type,
+                        "item_id": w.id,
+                        "item_name": w.name,
+                        "timestamp": ts_val.isoformat() if ts_val else None,
+                    }
+                )
 
         return DashboardOverviewResponse(
             user={
@@ -500,7 +549,12 @@ async def get_dashboard_overview_public(db: DbDep) -> dict[str, Any]:
     """
     # Check cache first
     cached = _get_cached("dashboard_public")
-    debug_log("E", "get_dashboard_overview_public entered", {"cache_hit": cached is not None}, 446)
+    debug_log(
+        "E",
+        "get_dashboard_overview_public entered",
+        {"cache_hit": cached is not None},
+        446,
+    )
     if cached is not None:
         return cached
 
@@ -565,8 +619,12 @@ async def get_dashboard_overview_public(db: DbDep) -> dict[str, Any]:
                     "name": case.name,
                     "description": case.description,
                     "status": case.status or "active",
-                    "created_at": case.created_at.isoformat() if case.created_at else None,
-                    "updated_at": case.updated_at.isoformat() if case.updated_at else None,
+                    "created_at": (
+                        case.created_at.isoformat() if case.created_at else None
+                    ),
+                    "updated_at": (
+                        case.updated_at.isoformat() if case.updated_at else None
+                    ),
                     "case_number": case.case_number,
                     "contract_type": case.contract_type,
                     "email_count": stats["email_count"],

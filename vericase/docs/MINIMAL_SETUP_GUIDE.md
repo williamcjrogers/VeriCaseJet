@@ -1,5 +1,7 @@
 # VeriCase Analysis - Minimal Setup Guide
 
+**Legacy/Archived:** This guide references an older `pst-analysis-engine` layout and App Runner flow. For current local dev use `vericase/docs/deployment/LOCAL_DEVELOPMENT.md`; for deployment use `.github/DEPLOYMENT.md` (GitHub OIDC + digest). Set your own credentials via `.env` and rotate them regularly—do not use the sample defaults below.
+
 ## 🚀 Quick Start (Local Development)
 
 This guide will help you run VeriCase Analysis locally with the absolute minimum requirements.
@@ -15,7 +17,7 @@ This guide will help you run VeriCase Analysis locally with the absolute minimum
 ### Step 1: Navigate to Project Directory
 
 ```bash
-cd "c:\Users\William\Documents\Projects\VeriCase Analysis\pst-analysis-engine"
+cd vericase
 ```
 
 ### Step 2: Start All Services with Docker Compose
@@ -47,19 +49,19 @@ docker-compose exec api python /code/api/apply_migrations.py
 docker-compose exec api python /code/api/init_admin.py
 ```
 
-This creates an admin user:
-- **Email**: admin@vericase.com
-- **Password**: admin123 (change this after first login!)
+This creates an admin user (values come from your `.env`):
+- **Email**: value from `ADMIN_EMAIL`
+- **Password**: value from `ADMIN_PASSWORD` (choose a strong, unique password)
 
 ### Step 5: Access the Application
 
 Open your browser to:
 - **Main Application**: http://localhost:8010/ui/dashboard.html
-- **MinIO Console**: http://localhost:9003 (login: admin/changeme123)
+- **MinIO Console**: http://localhost:9003 (login with `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` from `.env`; do not use defaults)
 
 ---
 
-## 🎯 Minimal AWS Setup (If You Want Cloud Deployment)
+## 🎯 Minimal AWS Setup (Legacy App Runner — prefer EKS in .github/DEPLOYMENT.md)
 
 Based on your current AWS setup, you only have S3. Here's the absolute minimum:
 
@@ -71,15 +73,15 @@ Based on your current AWS setup, you only have S3. Here's the absolute minimum:
 
 ### To Deploy to AWS (Optional):
 
-1. **Fix App Runner Service** (if needed):
+1. **(Legacy) Fix App Runner Service** (if needed):
 ```bash
-aws apprunner delete-service --service-arn arn:aws:apprunner:us-east-1:526015377510:service/VeriCase-analysis/48424463c4ca476b825692ca41a05c5e
+aws apprunner delete-service --service-arn arn:aws:apprunner:<region>:<your-account-id>:service/<your-service-name>/<service-id>
 ```
 
-2. **Deploy Fresh App Runner**:
+2. **(Legacy) Deploy Fresh App Runner** (prefer EKS workflow instead):
 ```bash
-cd "c:\Users\William\Documents\Projects\VeriCase Analysis"
-.\deploy-apprunner.sh
+cd vericase
+./deploy-apprunner.sh
 ```
 
 ---
@@ -187,9 +189,7 @@ docker-compose logs postgres
 
 ## ✅ You're Ready!
 
-Your minimal setup is now running. Open http://localhost:8010/ui/dashboard.html and log in with:
-- Email: admin@vericase.com
-- Password: admin123
+Your minimal setup is now running. Open http://localhost:8010/ui/dashboard.html and log in with the admin email/password you set in `.env` (do not use shared defaults).
 
 **Next Steps:**
 1. Change the admin password

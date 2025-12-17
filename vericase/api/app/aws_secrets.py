@@ -2,6 +2,7 @@
 AWS Secrets Manager Integration
 Loads AI API keys and configuration from AWS Secrets Manager
 """
+
 import json
 import logging
 from typing import Any
@@ -42,7 +43,9 @@ class AWSSecretsManager:
             if secret_string:
                 _secrets_cache = json.loads(secret_string)
                 _cache_valid = True
-                logger.info(f"Loaded AI keys from AWS Secrets Manager: {self.secret_name}")
+                logger.info(
+                    f"Loaded AI keys from AWS Secrets Manager: {self.secret_name}"
+                )
                 return _secrets_cache
             else:
                 logger.error("No SecretString found in AWS Secrets Manager response")
@@ -51,7 +54,9 @@ class AWSSecretsManager:
         except ClientError as e:
             error_code = e.response["Error"]["Code"]
             if error_code == "ResourceNotFoundException":
-                logger.warning(f"Secret {self.secret_name} not found in AWS Secrets Manager")
+                logger.warning(
+                    f"Secret {self.secret_name} not found in AWS Secrets Manager"
+                )
             elif error_code == "AccessDeniedException":
                 logger.warning(f"Access denied to secret {self.secret_name}")
             else:

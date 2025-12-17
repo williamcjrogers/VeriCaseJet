@@ -39,6 +39,8 @@ class Settings:
     REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
     # Default queue name matches the worker's default binding ("celery")
     CELERY_QUEUE = os.getenv("CELERY_QUEUE", "celery")
+    # Dedicated queue for PST processing (kept separate for scalability)
+    CELERY_PST_QUEUE = os.getenv("CELERY_PST_QUEUE", "pst_processing")
     TIKA_URL = os.getenv("TIKA_URL", "http://tika:9998")
 
 

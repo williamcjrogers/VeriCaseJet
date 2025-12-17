@@ -16,12 +16,12 @@ The router supports:
 - Admin pinning/overrides
 - Geographic routing for Bedrock
 """
+
 from __future__ import annotations
 
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from typing import Any, Callable, Awaitable
 from enum import Enum
 
@@ -35,7 +35,6 @@ from .ai_settings import (
     get_bedrock_region,
     AISettings,
 )
-from .ai_fallback import AIFallbackChain, FallbackResult
 from .ai_pricing import get_cost_tier
 from .ai_runtime import complete_chat
 
@@ -44,6 +43,7 @@ logger = logging.getLogger(__name__)
 
 class RoutingStrategy(str, Enum):
     """Available routing strategies."""
+
     PERFORMANCE = "performance"  # Best performing model based on metrics
     COST = "cost"  # Cheapest model that meets quality threshold
     LATENCY = "latency"  # Fastest responding model
@@ -56,6 +56,7 @@ class RoutingStrategy(str, Enum):
 @dataclass
 class RoutingConfig:
     """Configuration for routing decisions."""
+
     strategy: RoutingStrategy = RoutingStrategy.BALANCED
     max_latency_ms: int = 5000  # Max acceptable latency
     min_quality_score: float = 0.6  # Min acceptable quality
@@ -64,18 +65,23 @@ class RoutingConfig:
     quality_weight: float = 0.5  # Weight for quality
     prefer_bedrock: bool = True  # Prefer Bedrock for cost savings
     enable_fallback: bool = True  # Enable fallback on failure
-    pinned_models: dict[str, tuple[str, str]] = field(default_factory=dict)  # task_type -> (provider, model)
+    pinned_models: dict[str, tuple[str, str]] = field(
+        default_factory=dict
+    )  # task_type -> (provider, model)
 
 
 @dataclass
 class RoutingDecision:
     """Result of a routing decision."""
+
     provider: str
     model_id: str
     strategy_used: RoutingStrategy
     reason: str
     confidence: float = 1.0  # How confident in this decision
-    alternatives: list[tuple[str, str]] = field(default_factory=list)  # Fallback options
+    alternatives: list[tuple[str, str]] = field(
+        default_factory=list
+    )  # Fallback options
     expected_latency_ms: int = 0
     expected_quality: float = 0.5
 
@@ -169,7 +175,12 @@ class AdaptiveModelRouter:
         # For now, check for specific settings keys
         try:
             # Check for per-function pinned models
-            for task_type in ["quick_search", "deep_analysis", "synthesis", "validation"]:
+            for task_type in [
+                "quick_search",
+                "deep_analysis",
+                "synthesis",
+                "validation",
+            ]:
                 pinned = AISettings.get(f"ai_function_{task_type}_model", self.db)
                 if pinned:
                     # Parse format: "provider:model_id"
@@ -242,7 +253,9 @@ class AdaptiveModelRouter:
                     strategy_used=RoutingStrategy.PINNED,
                     reason=f"Admin pinned model for {task_type}",
                     confidence=1.0,
-                    alternatives=self._get_alternatives(task_type, exclude=(provider, model_id)),
+                    alternatives=self._get_alternatives(
+                        task_type, exclude=(provider, model_id)
+                    ),
                 )
 
         # Route based on strategy
@@ -276,7 +289,11 @@ class AdaptiveModelRouter:
                 provider=provider,
                 model_id=model_id,
                 strategy_used=RoutingStrategy.PERFORMANCE,
-                reason=f"Best performing model (score: {metrics.overall_score:.2f})" if metrics else "Best performing",
+                reason=(
+                    f"Best performing model (score: {metrics.overall_score:.2f})"
+                    if metrics
+                    else "Best performing"
+                ),
                 confidence=0.9 if metrics and metrics.total_calls > 10 else 0.5,
                 alternatives=self._get_alternatives(task_type, exclude=best),
                 expected_latency_ms=int(metrics.avg_latency_ms) if metrics else 0,
@@ -291,13 +308,13 @@ class AdaptiveModelRouter:
         # Cost ordering (cheapest first)
         cost_order = [
             ("bedrock", "amazon.nova-micro-v1:0"),  # ~$0.035/1M
-            ("bedrock", "amazon.nova-lite-v1:0"),   # ~$0.06/1M
-            ("gemini", "gemini-2.0-flash"),          # ~$0.35/1M
-            ("bedrock", "amazon.nova-pro-v1:0"),    # ~$0.8/1M
-            ("openai", "gpt-4o-mini"),              # ~$0.15/1M
+            ("bedrock", "amazon.nova-lite-v1:0"),  # ~$0.06/1M
+            ("gemini", "gemini-2.0-flash"),  # ~$0.35/1M
+            ("bedrock", "amazon.nova-pro-v1:0"),  # ~$0.8/1M
+            ("openai", "gpt-4o-mini"),  # ~$0.15/1M
             ("anthropic", "claude-4.5-haiku"),  # ~$0.30/1M
-            ("openai", "gpt-4o"),                   # ~$5/1M
-            ("anthropic", "claude-sonnet-4-20250514"),   # ~$3/1M
+            ("openai", "gpt-4o"),  # ~$5/1M
+            ("anthropic", "claude-sonnet-4-20250514"),  # ~$3/1M
         ]
 
         for provider, model_id in cost_order:
@@ -314,7 +331,9 @@ class AdaptiveModelRouter:
                 strategy_used=RoutingStrategy.COST,
                 reason="Cheapest available model meeting quality threshold",
                 confidence=0.8,
-                alternatives=self._get_alternatives(task_type, exclude=(provider, model_id)),
+                alternatives=self._get_alternatives(
+                    task_type, exclude=(provider, model_id)
+                ),
             )
 
         # Fall back to defaults
@@ -327,7 +346,9 @@ class AdaptiveModelRouter:
 
         if rankings:
             # Sort by latency (ascending)
-            ranked_by_latency = sorted(rankings, key=lambda x: x.get("avg_latency_ms", float("inf")))
+            ranked_by_latency = sorted(
+                rankings, key=lambda x: x.get("avg_latency_ms", float("inf"))
+            )
 
             for model_info in ranked_by_latency:
                 provider = model_info["provider"]
@@ -345,7 +366,9 @@ class AdaptiveModelRouter:
                     strategy_used=RoutingStrategy.LATENCY,
                     reason=f"Fastest model ({model_info.get('avg_latency_ms', 0)}ms avg)",
                     confidence=0.85,
-                    alternatives=self._get_alternatives(task_type, exclude=(provider, model_id)),
+                    alternatives=self._get_alternatives(
+                        task_type, exclude=(provider, model_id)
+                    ),
                     expected_latency_ms=int(model_info.get("avg_latency_ms", 0)),
                 )
 
@@ -364,7 +387,9 @@ class AdaptiveModelRouter:
                     strategy_used=RoutingStrategy.LATENCY,
                     reason="Default fast model",
                     confidence=0.6,
-                    alternatives=self._get_alternatives(task_type, exclude=(provider, model_id)),
+                    alternatives=self._get_alternatives(
+                        task_type, exclude=(provider, model_id)
+                    ),
                 )
 
         return self._route_by_fallback(task_type)
@@ -390,13 +415,17 @@ class AdaptiveModelRouter:
                     strategy_used=RoutingStrategy.QUALITY,
                     reason="Highest quality model available",
                     confidence=0.9,
-                    alternatives=self._get_alternatives(task_type, exclude=(provider, model_id)),
+                    alternatives=self._get_alternatives(
+                        task_type, exclude=(provider, model_id)
+                    ),
                     expected_quality=metrics.avg_quality_score if metrics else 0.85,
                 )
 
         return self._route_by_fallback(task_type)
 
-    def _route_balanced(self, task_type: str, context: dict[str, Any]) -> RoutingDecision:
+    def _route_balanced(
+        self, task_type: str, context: dict[str, Any]
+    ) -> RoutingDecision:
         """Route using balanced scoring of all factors."""
         # Get registry rankings
         rankings = self.registry.get_model_ranking(task_type, top_k=10)
@@ -419,10 +448,10 @@ class AdaptiveModelRouter:
                 cost_score = 1 - (cost_tier / 5)  # Normalize 0-5 tier to 0-1
 
                 balanced = (
-                    quality_score * self.config.quality_weight +
-                    latency_score * self.config.latency_weight +
-                    cost_score * self.config.cost_weight +
-                    reliability * 0.1  # Small reliability bonus
+                    quality_score * self.config.quality_weight
+                    + latency_score * self.config.latency_weight
+                    + cost_score * self.config.cost_weight
+                    + reliability * 0.1  # Small reliability bonus
                 )
 
                 scored.append((balanced, model_info))
@@ -438,8 +467,7 @@ class AdaptiveModelRouter:
                     reason=f"Best balanced score ({best_score:.2f})",
                     confidence=0.85,
                     alternatives=[
-                        (m["provider"], m["model_id"])
-                        for _, m in scored[1:4]
+                        (m["provider"], m["model_id"]) for _, m in scored[1:4]
                     ],
                     expected_latency_ms=int(best_model.get("avg_latency_ms", 0)),
                     expected_quality=best_model.get("avg_quality", 0.5),
@@ -460,7 +488,9 @@ class AdaptiveModelRouter:
                     strategy_used=RoutingStrategy.FALLBACK,
                     reason="Fallback chain default",
                     confidence=0.7,
-                    alternatives=self._get_alternatives(task_type, exclude=(provider, model_id)),
+                    alternatives=self._get_alternatives(
+                        task_type, exclude=(provider, model_id)
+                    ),
                 )
 
         # Last resort - any available provider
@@ -623,7 +653,9 @@ class AdaptiveModelRouter:
                         # Update decision to reflect actual model used
                         decision.provider = alt_provider
                         decision.model_id = alt_model
-                        decision.reason = f"Fallback after primary failure: {str(e)[:50]}"
+                        decision.reason = (
+                            f"Fallback after primary failure: {str(e)[:50]}"
+                        )
 
                         return response, decision
 

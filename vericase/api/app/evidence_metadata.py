@@ -168,12 +168,14 @@ class FileMetadata:
             # It's a rational/fraction type
             try:
                 return float(value)
-            except:
+            except (ValueError, TypeError, AttributeError) as e:
+                logger.debug(f"Parse failed for rational: {e}")
                 return self._sanitize_string(str(value))
         # Last resort: convert to string
         try:
             return self._sanitize_string(str(value))
-        except:
+        except (ValueError, TypeError, AttributeError) as e:
+            logger.debug(f"String conversion failed: {e}")
             return None
 
     def _sanitize_string(self, s: str) -> str:
@@ -324,8 +326,8 @@ class MetadataExtractor:
                             else float(str(dpi[1]))
                         )
                         metadata.dpi = (int(dpi_x), int(dpi_y))
-                except:
-                    pass
+                except (ValueError, TypeError, AttributeError) as e:
+                    logger.debug(f"DPI parse failed: {e}")
 
             # Extract EXIF data
             exif_data = img._getexif()
@@ -347,8 +349,8 @@ class MetadataExtractor:
                                 metadata.date_taken = datetime.strptime(
                                     str(value), "%Y:%m:%d %H:%M:%S"
                                 )
-                            except:
-                                pass
+                            except (ValueError, TypeError) as e:
+                                logger.debug(f"DateTimeOriginal parse failed: {e}")
                         elif tag == "ExposureTime":
                             # Convert to float safely (handles IFDRational)
                             fval = (
@@ -387,8 +389,8 @@ class MetadataExtractor:
                             if gps:
                                 metadata.gps_latitude = gps.get("latitude")
                                 metadata.gps_longitude = gps.get("longitude")
-                    except Exception as tag_error:
-                        logger.debug(f"Could not parse EXIF tag {tag}: {tag_error}")
+                    except (ValueError, TypeError, AttributeError) as e:
+                        logger.debug(f"EXIF tag {tag} parse failed: {e}")
 
             img.close()
         except Exception as e:
@@ -475,7 +477,8 @@ class MetadataExtractor:
             # Remove timezone info for simplicity
             date_str = date_str[:14]
             return datetime.strptime(date_str, "%Y%m%d%H%M%S")
-        except:
+        except ValueError as e:
+            logger.debug(f"Could not parse PDF date: {e}")
             return None
 
     async def _extract_word_metadata(
@@ -532,8 +535,8 @@ class MetadataExtractor:
 
                 try:
                     metadata.email_date = parsedate_to_datetime(date_str)
-                except:
-                    pass
+                except (ValueError, TypeError, AttributeError) as e:
+                    logger.debug(f"Could not parse {date_str}: {e}")
 
             # Check for attachments
             metadata.has_attachments = msg.is_multipart()
@@ -559,7 +562,8 @@ class MetadataExtractor:
                     text = content.decode(encoding)
                     metadata.encoding = encoding
                     break
-                except:
+                except (ValueError, TypeError, AttributeError) as e:
+                    logger.debug(f"Could not decode {encoding}: {e}")
                     continue
             else:
                 text = content.decode("utf-8", errors="ignore")
@@ -609,8 +613,8 @@ class MetadataExtractor:
                                 metadata.created_date = datetime.fromisoformat(
                                     created.replace("Z", "+00:00")
                                 )
-                            except:
-                                pass
+                            except (ValueError, TypeError) as e:
+                                logger.debug(f"Could not parse {created}: {e}")
                     if not metadata.modified_date:
                         modified = tika_meta.get("dcterms:modified") or tika_meta.get(
                             "Last-Modified"
@@ -620,8 +624,8 @@ class MetadataExtractor:
                                 metadata.modified_date = datetime.fromisoformat(
                                     modified.replace("Z", "+00:00")
                                 )
-                            except:
-                                pass
+                            except (ValueError, TypeError) as e:
+                                logger.debug(f"Could not parse {modified}: {e}")
 
                     # Office-specific
                     if not metadata.company:
@@ -633,15 +637,15 @@ class MetadataExtractor:
                         if rev:
                             try:
                                 metadata.revision = int(rev)
-                            except:
-                                pass
+                            except (ValueError, TypeError) as e:
+                                logger.debug(f"Could not parse revision {rev}: {e}")
                     if not metadata.word_count:
                         wc = tika_meta.get("meta:word-count")
                         if wc:
                             try:
                                 metadata.word_count = int(wc)
-                            except:
-                                pass
+                            except (ValueError, TypeError) as e:
+                                logger.debug(f"Could not parse word count {wc}: {e}")
                     if not metadata.page_count:
                         pc = tika_meta.get("xmpTPg:NPages") or tika_meta.get(
                             "meta:page-count"
@@ -649,8 +653,8 @@ class MetadataExtractor:
                         if pc:
                             try:
                                 metadata.page_count = int(pc)
-                            except:
-                                pass
+                            except (ValueError, TypeError) as e:
+                                logger.debug(f"Could not parse page count {pc}: {e}")
 
                     # Language detection
                     metadata.language = tika_meta.get("language")

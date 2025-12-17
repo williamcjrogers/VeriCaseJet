@@ -14,7 +14,11 @@ if TEST_ROOT not in sys.path:
     sys.path.insert(0, TEST_ROOT)
 
 
-from api.app.ai_router import AdaptiveModelRouter, RoutingConfig, RoutingStrategy  # noqa: E402
+from api.app.ai_router import (
+    AdaptiveModelRouter,
+    RoutingConfig,
+    RoutingStrategy,
+)  # noqa: E402
 from api.app.ai_fallback import AIFallbackChain  # noqa: E402
 from api.app.ai_settings import AISettings  # noqa: E402
 
@@ -53,7 +57,9 @@ class TestAIRoutingAndFallback(unittest.TestCase):
 
     def test_router_falls_back_to_static_defaults(self):
         # No fallback_chain in config -> should use TASK_DEFAULTS.
-        AISettings.get_function_config = classmethod(lambda cls, function_name, db=None: {})
+        AISettings.get_function_config = classmethod(
+            lambda cls, function_name, db=None: {}
+        )
 
         router = AdaptiveModelRouter(
             db=None,
@@ -85,4 +91,3 @@ class TestAIRoutingAndFallback(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

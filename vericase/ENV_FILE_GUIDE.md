@@ -47,7 +47,7 @@ cp .env.aws.example .env.aws
 
 **Key Features:**
 - `USE_AWS_SERVICES=true` - Uses real AWS S3
-- `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for local testing
+- `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for local testing only (for CI, prefer GitHub OIDC instead of long-lived keys)
 - Bedrock, Textract, and other AWS AI services enabled
 - Can mix local database with AWS storage
 
@@ -103,7 +103,7 @@ docker-compose up -d
 ```bash
 cp .env.aws.example .env.aws
 # Edit .env.aws with your AWS details
-docker-compose -f docker-compose.yml -f docker-compose.aws.yml up -d
+docker compose --env-file .env.aws up -d
 ```
 
 ### Production Deployment

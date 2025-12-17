@@ -927,7 +927,7 @@
         <i class="fas fa-cloud-arrow-up"></i>
         <span class="btn-text">Upload</span>
       </button>
-      <button class="btn btn-gold" onclick="window.location.href = 'deep-research.html'"
+      <button class="btn btn-gold" onclick="window.location.href = 'vericase-analysis.html'"
         title="Deep Research & Analysis">
         <i class="fas fa-microscope"></i>
         <span class="btn-text">Research</span>
@@ -1090,7 +1090,7 @@
         <p>Identify causes and quantify impacts</p>
       </div>
 
-      <div class="action-card pastel-amber" onclick="manageStakeholders()">
+      <div class="action-card pastel-gold" onclick="manageStakeholders()">
         <div class="icon icon--gold">
           <i class="fas fa-user-group"></i>
         </div>
@@ -1822,7 +1822,7 @@
               selectedProject.name ||
               "Unnamed Project";
             localStorage.setItem("currentProjectId", profileId);
-            localStorage.setItem("vericase_current_project", profileId);
+            localStorage.setItem("vericase_current_project", profileId); // Standardized key for nav-shell
             localStorage.setItem("profileType", "project");
             localStorage.setItem("currentProjectName", selectedName);
             localStorage.setItem("vericase_current_project_name", selectedName);
@@ -2258,8 +2258,7 @@
       // Populate stakeholders
       const stakeholders =
         data["project-stakeholders"]?.stakeholders ||
-        data["case-legal-team"]?.legalTeam ||
-        [];
+        data["case-legal-team"]?.legalTeam || [];
       const stakeholdersContainer = document.getElementById(
         "stakeholdersContent",
       );
@@ -2282,8 +2281,7 @@
       // Update keywords count
       const keywords =
         data["project-stakeholders"]?.keywords ||
-        data["case-heads-keywords"]?.keywords ||
-        [];
+        data["case-heads-keywords"]?.keywords || [];
       document.getElementById("keywordCount").textContent = keywords.length;
 
       // Populate heads of claim for cases

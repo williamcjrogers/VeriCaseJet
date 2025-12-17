@@ -11,7 +11,6 @@ import logging
 import tempfile
 import os
 import re
-import asyncio
 from datetime import datetime
 from typing import Any
 from email.utils import parseaddr
@@ -27,13 +26,20 @@ from .tasks import celery_app  # Import Celery app for task registration
 
 import json
 import time
+
 logger = logging.getLogger(__name__)
+
+
 # region agent log helper
-def agent_log(hypothesis_id: str, message: str, data: dict = None, run_id: str = "run1") -> None:
-    log_path = r"c:\Users\William\Documents\Projects\VeriCase Analysis\.cursor\debug.log"
+def agent_log(
+    hypothesis_id: str, message: str, data: dict = None, run_id: str = "run1"
+) -> None:
+    log_path = (
+        r"c:\Users\William\Documents\Projects\VeriCase Analysis\.cursor\debug.log"
+    )
     payload = {
         "id": f"log_{int(time.time()*1000)}_{hash(message) % 10000}",
-        "timestamp": int(time.time()*1000),
+        "timestamp": int(time.time() * 1000),
         "location": "pst_forensic_processor.py",
         "message": message,
         "data": data or {},
@@ -62,7 +68,10 @@ def agent_log(hypothesis_id: str, message: str, data: dict = None, run_id: str =
         urllib.request.urlopen(req, timeout=2)
     except Exception:
         pass
+
+
 # endregion agent log helper
+
 
 class ForensicPSTProcessor:
     """
@@ -83,14 +92,28 @@ class ForensicPSTProcessor:
         self.processed_count = 0
         self.total_count = 0
         self.attachment_hashes = {}  # For deduplication
-        self.upload_executor = ThreadPoolExecutor(max_workers=50)  # Parallel uploads
+        cpu_based_default = max(8, (os.cpu_count() or 4) * 4)
+        max_workers = (
+            getattr(settings, "PST_UPLOAD_WORKERS", cpu_based_default)
+            or cpu_based_default
+        )
+        max_workers = min(max_workers, 64)
+        self.upload_executor = ThreadPoolExecutor(
+            max_workers=max_workers
+        )  # Parallel uploads
         self.upload_futures = []
+        self.attach_bucket = (
+            getattr(settings, "S3_ATTACHMENTS_BUCKET", None) or settings.S3_BUCKET
+        )
+        self.pst_bucket_fallback = (
+            getattr(settings, "S3_PST_BUCKET", None) or settings.S3_BUCKET
+        )
 
     def _stream_pst_to_temp(self, s3_bucket: str, s3_key: str) -> str:
         tmp = tempfile.NamedTemporaryFile(suffix=".pst", delete=False)
         try:
             logger.info("Streaming PST from s3://%s/%s", s3_bucket, s3_key)
-            download_file_streaming(s3_bucket, s3_key, tmp)
+            download_file_streaming(s3_bucket or self.pst_bucket_fallback, s3_key, tmp)
             tmp.flush()
             return tmp.name
         except Exception as e:
@@ -107,7 +130,9 @@ class ForensicPSTProcessor:
             stakeholder_query = self.db.query(Stakeholder)
             keyword_query = self.db.query(Keyword)
             if pst_file.case_id:
-                stakeholder_query = stakeholder_query.filter_by(case_id=pst_file.case_id)
+                stakeholder_query = stakeholder_query.filter_by(
+                    case_id=pst_file.case_id
+                )
                 keyword_query = keyword_query.filter_by(case_id=pst_file.case_id)
             elif pst_file.project_id:
                 stakeholder_query = stakeholder_query.filter_by(
@@ -133,7 +158,11 @@ class ForensicPSTProcessor:
             agent_log("H2", "PST opened successfully with pypff", {"path": pst_path})
             root = pst.get_root_folder()
         except Exception as e:
-            agent_log("H2", "Failed to open PST with pypff", {"path": pst_path, "error": str(e)})
+            agent_log(
+                "H2",
+                "Failed to open PST with pypff",
+                {"path": pst_path, "error": str(e)},
+            )
             raise
         # endregion agent log H2 pst open
         self.total_count = self._count_emails_recursive(root)
@@ -204,7 +233,16 @@ class ForensicPSTProcessor:
             # region agent log H1 pst streamed
             if pst_path:
                 size = os.path.getsize(pst_path)
-                agent_log("H1", "PST file streamed from S3", {"path": pst_path, "size_bytes": size, "s3_bucket": s3_bucket, "s3_key": s3_key})
+                agent_log(
+                    "H1",
+                    "PST file streamed from S3",
+                    {
+                        "path": pst_path,
+                        "size_bytes": size,
+                        "s3_bucket": s3_bucket,
+                        "s3_key": s3_key,
+                    },
+                )
             else:
                 agent_log("H1", "PST stream failed, path is None")
             # endregion agent log H1 pst streamed
@@ -227,7 +265,9 @@ class ForensicPSTProcessor:
                 )
 
                 if self.project_id:
-                    logger.info(f"Queueing semantic indexing for project {self.project_id}")
+                    logger.info(
+                        f"Queueing semantic indexing for project {self.project_id}"
+                    )
                     index_project_emails_semantic.delay(str(self.project_id))
                     logger.info(f"Queueing spam filter for project {self.project_id}")
                     apply_spam_filter_batch.delay(project_id=str(self.project_id))
@@ -275,7 +315,15 @@ class ForensicPSTProcessor:
         num_messages = folder.get_number_of_sub_messages()
         num_sub_folders = folder.get_number_of_sub_folders()
         # region agent log H3 folder start
-        agent_log("H3", "Starting to process folder", {"folder_path": folder_path, "num_messages": num_messages, "num_sub_folders": num_sub_folders})
+        agent_log(
+            "H3",
+            "Starting to process folder",
+            {
+                "folder_path": folder_path,
+                "num_messages": num_messages,
+                "num_sub_folders": num_sub_folders,
+            },
+        )
         # endregion agent log H3 folder start
         processed_messages = 0
         for i in range(num_messages):
@@ -304,7 +352,15 @@ class ForensicPSTProcessor:
                 logger.error(f"Error extracting email at index {i}: {e}")
                 stats["errors"].append(f"Email {i}: {str(e)}")
         # region agent log H4 messages processed
-        agent_log("H4", "Finished processing messages in folder", {"folder_path": folder_path, "attempted": num_messages, "successful": processed_messages})
+        agent_log(
+            "H4",
+            "Finished processing messages in folder",
+            {
+                "folder_path": folder_path,
+                "attempted": num_messages,
+                "successful": processed_messages,
+            },
+        )
         # endregion agent log H4 messages processed
 
         # Process subfolders
@@ -324,7 +380,11 @@ class ForensicPSTProcessor:
                 logger.error(f"Error processing subfolder {i}: {e}")
                 stats["errors"].append(f"Subfolder {i}: {str(e)}")
         # region agent log H3 folder complete
-        agent_log("H3", "Finished processing folder and subfolders", {"folder_path": folder_path, "sub_folders_processed": processed_folders})
+        agent_log(
+            "H3",
+            "Finished processing folder and subfolders",
+            {"folder_path": folder_path, "sub_folders_processed": processed_folders},
+        )
         # endregion agent log H3 folder complete
 
     def _extract_email_message(
@@ -351,8 +411,9 @@ class ForensicPSTProcessor:
             # Fallback: Exchange often returns display names, extract SMTP from headers
             if not sender_email_addr or "@" not in sender_email_addr:
                 from_match = re.search(
-                    r'From:.*?([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
-                    transport_headers, re.IGNORECASE | re.DOTALL
+                    r"From:.*?([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)",
+                    transport_headers,
+                    re.IGNORECASE | re.DOTALL,
                 )
                 if from_match:
                     sender_email_addr = from_match.group(1)
@@ -397,7 +458,15 @@ class ForensicPSTProcessor:
             num_attachments = message.get_number_of_attachments()
             has_attachments = num_attachments > 0
             # region agent log H5 attachments start
-            agent_log("H5", "Message attachments check", {"message_offset": message_offset, "folder_path": folder_path, "num_attachments": num_attachments})
+            agent_log(
+                "H5",
+                "Message attachments check",
+                {
+                    "message_offset": message_offset,
+                    "folder_path": folder_path,
+                    "num_attachments": num_attachments,
+                },
+            )
             # endregion agent log H5 attachments start
 
             # Auto-tag: Match stakeholders and keywords
@@ -424,9 +493,7 @@ class ForensicPSTProcessor:
                 canonical_body = body_text
                 # Quick split on reply markers
                 try:
-                    reply_split_pattern = (
-                        r"(?mi)^On .+ wrote:|^From:\s|^Sent:\s|^-----Original Message-----"
-                    )
+                    reply_split_pattern = r"(?mi)^On .+ wrote:|^From:\s|^Sent:\s|^-----Original Message-----"
                     parts = re.split(reply_split_pattern, canonical_body, maxsplit=1)
                     canonical_body = parts[0] if parts else canonical_body
                     canonical_body = re.sub(r"\s+", " ", canonical_body).strip()
@@ -451,13 +518,15 @@ class ForensicPSTProcessor:
                 elif pst_file.case_id:
                     body_full_s3_key = f"case_{pst_file.case_id}/email_bodies/{message_id or message_offset}.txt"
                 else:
-                    body_full_s3_key = f"email_bodies/{message_id or message_offset}.txt"
+                    body_full_s3_key = (
+                        f"email_bodies/{message_id or message_offset}.txt"
+                    )
                 try:
                     put_object(
                         body_full_s3_key,
                         canonical_body.encode("utf-8"),
                         "text/plain; charset=utf-8",
-                        bucket=settings.S3_BUCKET,
+                        bucket=self.attach_bucket,
                     )
                     # region agent log H9 body offload success
                     agent_log(
@@ -467,8 +536,14 @@ class ForensicPSTProcessor:
                             "body_len": len(canonical_body),
                             "body_preview_len": len(body_preview),
                             "s3_key": body_full_s3_key,
-                            "project_id": str(pst_file.project_id) if pst_file.project_id else None,
-                            "case_id": str(pst_file.case_id) if pst_file.case_id else None,
+                            "project_id": (
+                                str(pst_file.project_id)
+                                if pst_file.project_id
+                                else None
+                            ),
+                            "case_id": (
+                                str(pst_file.case_id) if pst_file.case_id else None
+                            ),
                         },
                         run_id="pre-fix",
                     )
@@ -542,7 +617,15 @@ class ForensicPSTProcessor:
                         logger.error(f"Error extracting attachment {i}: {e}")
                         stats["errors"].append(f"Attachment {i}: {str(e)}")
                 # region agent log H5 attachments complete
-                agent_log("H5", "Finished extracting attachments for message", {"message_offset": message_offset, "attempted": num_attachments, "successful": processed_attach})
+                agent_log(
+                    "H5",
+                    "Finished extracting attachments for message",
+                    {
+                        "message_offset": message_offset,
+                        "attempted": num_attachments,
+                        "successful": processed_attach,
+                    },
+                )
                 # endregion agent log H5 attachments complete
 
             # Index in OpenSearch (if enabled)
@@ -597,25 +680,16 @@ class ForensicPSTProcessor:
             if seen_before:
                 logger.debug(f"Duplicate attachment detected: {filename}")
                 # Still create a record, but link to existing S3 file
-                existing_s3_key = self.attachment_hashes[file_hash]
-                s3_key = existing_s3_key
-                s3_bucket = (
-                    getattr(settings, "S3_ATTACHMENTS_BUCKET", None)
-                    or settings.S3_BUCKET
-                )
+                s3_key = self.attachment_hashes[file_hash]
+                s3_bucket = self.attach_bucket
             else:
                 # Upload new attachment to S3
-                s3_bucket = (
-                    getattr(settings, "S3_ATTACHMENTS_BUCKET", None)
-                    or settings.S3_BUCKET
-                )
+                s3_bucket = self.attach_bucket
                 # Support both projects and cases
                 if email_msg.project_id:
                     s3_key = f"project_{email_msg.project_id}/attachments/{email_msg.id}/{filename}"
                 elif email_msg.case_id:
-                    s3_key = (
-                        f"case_{email_msg.case_id}/attachments/{email_msg.id}/{filename}"
-                    )
+                    s3_key = f"case_{email_msg.case_id}/attachments/{email_msg.id}/{filename}"
                 else:
                     s3_key = f"attachments/{email_msg.id}/{filename}"
 
@@ -685,7 +759,9 @@ class ForensicPSTProcessor:
         match = re.search(pattern, headers, re.IGNORECASE | re.MULTILINE)
         value = match.group(1).strip() if match else None
         # region agent log H7 header parse
-        value_hash = hashlib.sha1(value.encode("utf-8")).hexdigest()[:8] if value else None
+        value_hash = (
+            hashlib.sha1(value.encode("utf-8")).hexdigest()[:8] if value else None
+        )
         agent_log(
             "H7",
             "Extract header attempted",
@@ -726,23 +802,30 @@ class ForensicPSTProcessor:
                     if not email or "@" not in email:
                         email = addr  # Keep original as fallback
                     recipients.append({"name": name or addr, "email": email})
-            
+
             # Fallback: If no valid emails found, extract from transport headers
-            if transport_headers and (not recipients or not any(r.get("email") and "@" in r["email"] for r in recipients)):
+            if transport_headers and (
+                not recipients
+                or not any(r.get("email") and "@" in r["email"] for r in recipients)
+            ):
                 header_map = {"to": "To", "cc": "Cc", "bcc": "Bcc"}
                 header_name = header_map.get(recipient_type)
                 if header_name:
                     pattern = f"{header_name}:\\s*(.+?)(?:\\r?\\n(?!\\s)|$)"
-                    match = re.search(pattern, transport_headers, re.IGNORECASE | re.MULTILINE)
+                    match = re.search(
+                        pattern, transport_headers, re.IGNORECASE | re.MULTILINE
+                    )
                     if match:
                         header_value = match.group(1).strip()
                         # Extract all emails from header
                         email_matches = re.findall(
-                            r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)',
-                            header_value
+                            r"([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)",
+                            header_value,
                         )
                         if email_matches:
-                            recipients = [{"name": e, "email": e} for e in email_matches]
+                            recipients = [
+                                {"name": e, "email": e} for e in email_matches
+                            ]
         except Exception as e:
             logger.warning(f"Error parsing {recipient_type} recipients: {e}")
 
@@ -884,7 +967,15 @@ class ForensicPSTProcessor:
         else:
             emails = query.filter_by(case_id=entity_id).all()
         # region agent log H6 threading start
-        agent_log("H6", "Loaded emails for threading", {"entity_id": entity_id, "is_project": is_project, "num_emails": len(emails)})
+        agent_log(
+            "H6",
+            "Loaded emails for threading",
+            {
+                "entity_id": entity_id,
+                "is_project": is_project,
+                "num_emails": len(emails),
+            },
+        )
         # endregion agent log H6 threading start
         # Build message_id to email map
         message_id_map: dict[str, EmailMessage] = {}
@@ -912,7 +1003,15 @@ class ForensicPSTProcessor:
         for thread_emails in threads.values():
             thread_emails.sort(key=lambda e: e.date_sent or datetime.min)
         # region agent log H6 threading complete
-        agent_log("H6", "Email threads built", {"entity_id": entity_id, "num_threads": len(threads), "total_emails": sum(len(t) for t in threads.values())})
+        agent_log(
+            "H6",
+            "Email threads built",
+            {
+                "entity_id": entity_id,
+                "num_threads": len(threads),
+                "total_emails": sum(len(t) for t in threads.values()),
+            },
+        )
         # endregion agent log H6 threading complete
         logger.info(f"Built {len(threads)} email threads from {len(emails)} emails")
 
@@ -949,18 +1048,20 @@ class ForensicPSTProcessor:
 @celery_app.task(bind=True, name="app.process_pst_forensic")
 def process_pst_forensic(
     self,
-    pst_file_id: str, 
-    s3_bucket: str, 
-    s3_key: str, 
+    pst_file_id: str,
+    s3_bucket: str,
+    s3_key: str,
     case_id: str = None,
-    project_id: str = None
+    project_id: str = None,
 ) -> dict[str, Any]:
     """
     Sync Celery task wrapper for forensic PST processing
     Uses sync call for worker compatibility
     """
     # region agent log H11 task start early
-    agent_log("H11", "Forensic PST task started - sync entry", {"pst_file_id": pst_file_id})
+    agent_log(
+        "H11", "Forensic PST task started - sync entry", {"pst_file_id": pst_file_id}
+    )
     # endregion agent log H11 task start early
     from .db import SessionLocal
     import uuid
@@ -982,12 +1083,20 @@ def process_pst_forensic(
         db.commit()
         result = processor.process_pst_file(pst_file_id, s3_bucket, s3_key)  # Sync call
         # region agent log H11 task success
-        agent_log("H11", "Forensic PST task completed successfully", {"pst_file_id": pst_file_id, "stats": result})
+        agent_log(
+            "H11",
+            "Forensic PST task completed successfully",
+            {"pst_file_id": pst_file_id, "stats": result},
+        )
         # endregion agent log H11 task success
         return result
     except Exception as e:
         # region agent log H11 task error
-        agent_log("H11", "Forensic PST task failed", {"pst_file_id": pst_file_id, "error": str(e)})
+        agent_log(
+            "H11",
+            "Forensic PST task failed",
+            {"pst_file_id": pst_file_id, "error": str(e)},
+        )
         # endregion agent log H11 task error
         logger.error(f"Forensic PST task failed for {pst_file_id}: {e}", exc_info=True)
         if self.request.retries < 3:

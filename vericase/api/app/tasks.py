@@ -18,7 +18,9 @@ celery_app = Celery(
 
 def _running_under_celery_cli() -> bool:
     argv = " ".join(sys.argv).lower()
-    return "celery" in argv and any(cmd in argv for cmd in (" worker", " beat", " flower"))
+    return "celery" in argv and any(
+        cmd in argv for cmd in (" worker", " beat", " flower")
+    )
 
 
 # Optional OpenTelemetry tracing (disabled by default)
@@ -42,10 +44,10 @@ if _running_under_celery_cli():
 
 # Configure Celery
 celery_app.conf.update(
-    task_serializer='json',
-    accept_content=['json'],
-    result_serializer='json',
-    timezone='UTC',
+    task_serializer="json",
+    accept_content=["json"],
+    result_serializer="json",
+    timezone="UTC",
     enable_utc=True,
     task_track_started=True,
     task_time_limit=3600,  # 1 hour max per task
@@ -55,35 +57,36 @@ celery_app.conf.update(
 def cascade_spam_to_evidence(db, entity_id: str, entity_type: str) -> dict[str, int]:
     """
     Bulk cascade spam classification from emails to their evidence items.
-    
+
     When an email is marked as spam/hidden, its attachments (evidence items)
     should also be hidden. When an email is restored, its evidence should be restored.
-    
+
     Args:
         db: Database session
         entity_id: Project or case UUID
         entity_type: "project" or "case"
-    
+
     Returns:
         Dict with 'updated' (hidden) and 'restored' counts
     """
     from sqlalchemy import text
     import uuid
-    
+
     stats = {"updated": 0, "restored": 0}
-    
+
     try:
         entity_uuid = uuid.UUID(entity_id)
-        
+
         # Determine the filter column
         if entity_type == "project":
             filter_clause = "ei.project_id = :entity_id"
         else:
             filter_clause = "ei.case_id = :entity_id"
-        
+
         # 1. Mark evidence as hidden where parent email is hidden
         # Only update if not already marked with same spam info
-        update_hidden_sql = text(f"""
+        update_hidden_sql = text(
+            f"""
             UPDATE evidence_items ei
             SET meta = jsonb_set(
                 COALESCE(meta, '{{}}'),
@@ -104,14 +107,16 @@ def cascade_spam_to_evidence(db, entity_id: str, entity_type: str) -> dict[str, 
                   OR ei.meta->'spam'->>'is_hidden' IS NULL 
                   OR ei.meta->'spam'->>'is_hidden' != 'true'
               )
-        """)
-        
+        """
+        )
+
         result = db.execute(update_hidden_sql, {"entity_id": entity_uuid})
         stats["updated"] = result.rowcount
-        
+
         # 2. Restore evidence where parent email is no longer hidden
         # Only restore if it was inherited (not manually hidden)
-        restore_sql = text(f"""
+        restore_sql = text(
+            f"""
             UPDATE evidence_items ei
             SET meta = meta - 'spam'
             FROM email_messages em
@@ -123,22 +128,25 @@ def cascade_spam_to_evidence(db, entity_id: str, entity_type: str) -> dict[str, 
                   OR em.meta->'spam'->>'is_hidden' = 'false'
               )
               AND ei.meta->'spam'->>'is_hidden' = 'true'
-        """)
-        
+        """
+        )
+
         result = db.execute(restore_sql, {"entity_id": entity_uuid})
         stats["restored"] = result.rowcount
-        
+
         db.commit()
-        
+
     except Exception as e:
         logger.warning(f"Evidence cascade failed: {e}")
         db.rollback()
-    
+
     return stats
 
 
 @celery_app.task(bind=True, name="index_project_emails_semantic")
-def index_project_emails_semantic(self, project_id: str, batch_size: int = 50) -> dict[str, Any]:
+def index_project_emails_semantic(
+    self, project_id: str, batch_size: int = 50
+) -> dict[str, Any]:
     """
     Background task to semantically index all emails in a project.
 
@@ -216,13 +224,13 @@ def index_project_emails_semantic(self, project_id: str, batch_size: int = 50) -
                     # Extract attachment info for multi-vector indexing
                     attachment_names: list[str] = []
                     attachment_types: list[str] = []
-                    if hasattr(email, 'attachments') and email.attachments:
+                    if hasattr(email, "attachments") and email.attachments:
                         for att in email.attachments:
-                            if hasattr(att, 'filename') and att.filename:
+                            if hasattr(att, "filename") and att.filename:
                                 attachment_names.append(att.filename)
                                 # Extract file extension
-                                if '.' in att.filename:
-                                    ext = att.filename.rsplit('.', 1)[-1].lower()
+                                if "." in att.filename:
+                                    ext = att.filename.rsplit(".", 1)[-1].lower()
                                     attachment_types.append(ext)
 
                     semantic_service.process_email(
@@ -233,7 +241,9 @@ def index_project_emails_semantic(self, project_id: str, batch_size: int = 50) -
                         recipients=email.recipients_to or [],
                         case_id=str(email.case_id) if email.case_id else None,
                         project_id=str(email.project_id) if email.project_id else None,
-                        sent_date=email.sent_date if hasattr(email, 'sent_date') else None,
+                        sent_date=(
+                            email.sent_date if hasattr(email, "sent_date") else None
+                        ),
                         attachment_names=attachment_names,
                         attachment_types=attachment_types,
                     )
@@ -249,13 +259,13 @@ def index_project_emails_semantic(self, project_id: str, batch_size: int = 50) -
             # Update task progress
             progress = int((offset / total_count) * 100)
             self.update_state(
-                state='PROGRESS',
+                state="PROGRESS",
                 meta={
-                    'current': offset,
-                    'total': total_count,
-                    'percent': progress,
-                    'indexed': stats["indexed"],
-                }
+                    "current": offset,
+                    "total": total_count,
+                    "percent": progress,
+                    "indexed": stats["indexed"],
+                },
             )
 
         logger.info(
@@ -280,7 +290,9 @@ def index_project_emails_semantic(self, project_id: str, batch_size: int = 50) -
 
 
 @celery_app.task(bind=True, name="index_case_emails_semantic")
-def index_case_emails_semantic(self, case_id: str, batch_size: int = 50) -> dict[str, Any]:
+def index_case_emails_semantic(
+    self, case_id: str, batch_size: int = 50
+) -> dict[str, Any]:
     """
     Background task to semantically index all emails in a case.
 
@@ -355,13 +367,13 @@ def index_case_emails_semantic(self, case_id: str, batch_size: int = 50) -> dict
                     # Extract attachment info for multi-vector indexing
                     attachment_names: list[str] = []
                     attachment_types: list[str] = []
-                    if hasattr(email, 'attachments') and email.attachments:
+                    if hasattr(email, "attachments") and email.attachments:
                         for att in email.attachments:
-                            if hasattr(att, 'filename') and att.filename:
+                            if hasattr(att, "filename") and att.filename:
                                 attachment_names.append(att.filename)
                                 # Extract file extension
-                                if '.' in att.filename:
-                                    ext = att.filename.rsplit('.', 1)[-1].lower()
+                                if "." in att.filename:
+                                    ext = att.filename.rsplit(".", 1)[-1].lower()
                                     attachment_types.append(ext)
 
                     semantic_service.process_email(
@@ -372,7 +384,9 @@ def index_case_emails_semantic(self, case_id: str, batch_size: int = 50) -> dict
                         recipients=email.recipients_to or [],
                         case_id=str(email.case_id) if email.case_id else None,
                         project_id=str(email.project_id) if email.project_id else None,
-                        sent_date=email.sent_date if hasattr(email, 'sent_date') else None,
+                        sent_date=(
+                            email.sent_date if hasattr(email, "sent_date") else None
+                        ),
                         attachment_names=attachment_names,
                         attachment_types=attachment_types,
                     )
@@ -388,13 +402,13 @@ def index_case_emails_semantic(self, case_id: str, batch_size: int = 50) -> dict
             # Update task progress
             progress = int((offset / total_count) * 100)
             self.update_state(
-                state='PROGRESS',
+                state="PROGRESS",
                 meta={
-                    'current': offset,
-                    'total': total_count,
-                    'percent': progress,
-                    'indexed': stats["indexed"],
-                }
+                    "current": offset,
+                    "total": total_count,
+                    "percent": progress,
+                    "indexed": stats["indexed"],
+                },
             )
 
         logger.info(
@@ -420,7 +434,10 @@ def index_case_emails_semantic(self, case_id: str, batch_size: int = 50) -> dict
 
 @celery_app.task(bind=True, name="apply_spam_filter_batch")
 def apply_spam_filter_batch(
-    self, project_id: str | None = None, case_id: str | None = None, batch_size: int = 100
+    self,
+    project_id: str | None = None,
+    case_id: str | None = None,
+    batch_size: int = 100,
 ) -> dict[str, Any]:
     """
     Background task to apply spam filter to all emails in a project or case.
@@ -471,9 +488,7 @@ def apply_spam_filter_batch(
 
         # Get total count
         total_count = (
-            db.query(func.count(EmailMessage.id))
-            .filter(base_filter)
-            .scalar()
+            db.query(func.count(EmailMessage.id)).filter(base_filter).scalar()
         ) or 0
 
         stats["total_emails"] = total_count
@@ -537,14 +552,14 @@ def apply_spam_filter_batch(
             # Update task progress
             progress = int((offset / total_count) * 100)
             self.update_state(
-                state='PROGRESS',
+                state="PROGRESS",
                 meta={
-                    'current': offset,
-                    'total': total_count,
-                    'percent': progress,
-                    'spam_detected': stats["spam_detected"],
-                    'hidden': stats["hidden"],
-                }
+                    "current": offset,
+                    "total": total_count,
+                    "percent": progress,
+                    "spam_detected": stats["spam_detected"],
+                    "hidden": stats["hidden"],
+                },
             )
 
         logger.info(

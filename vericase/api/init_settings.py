@@ -97,7 +97,9 @@ def init_default_settings():
                     description=setting_data["description"],
                 )
                 db.add(setting)
-                print(f"Created default setting: {setting_data['key']} = {setting_data['value']}")
+                print(
+                    f"Created default setting: {setting_data['key']} = {setting_data['value']}"
+                )
             else:
                 print(f"Setting {setting_data['key']} already exists")
 
@@ -119,12 +121,14 @@ def sync_ai_keys_from_env():
     db = SessionLocal()
     try:
         synced = 0
-        
+
         # Sync API keys from environment
         for env_var, setting_key in ENV_TO_SETTING.items():
             env_value = os.environ.get(env_var)
             if env_value and env_value.strip():
-                existing = db.query(AppSetting).filter(AppSetting.key == setting_key).first()
+                existing = (
+                    db.query(AppSetting).filter(AppSetting.key == setting_key).first()
+                )
                 if not existing:
                     # Create new setting from env var
                     setting = AppSetting(
@@ -140,28 +144,37 @@ def sync_ai_keys_from_env():
                     existing.value = env_value.strip()
                     print(f"✓ Updated {setting_key} from {env_var}")
                     synced += 1
-        
+
         # Set optimal models for providers that have API keys
         for provider, config in AI_OPTIMAL_MODELS.items():
             # Check if this provider has an API key configured
             key_setting = f"{provider}_api_key"
-            has_key = db.query(AppSetting).filter(
-                AppSetting.key == key_setting,
-                AppSetting.value.isnot(None),
-                AppSetting.value != ""
-            ).first()
-            
+            has_key = (
+                db.query(AppSetting)
+                .filter(
+                    AppSetting.key == key_setting,
+                    AppSetting.value.isnot(None),
+                    AppSetting.value != "",
+                )
+                .first()
+            )
+
             # Also check Bedrock (uses IAM, not API key)
             if provider == "bedrock":
-                bedrock_enabled = db.query(AppSetting).filter(
-                    AppSetting.key == "bedrock_enabled",
-                    AppSetting.value == "true"
-                ).first()
+                bedrock_enabled = (
+                    db.query(AppSetting)
+                    .filter(
+                        AppSetting.key == "bedrock_enabled", AppSetting.value == "true"
+                    )
+                    .first()
+                )
                 has_key = bedrock_enabled or os.environ.get("BEDROCK_ENABLED") == "true"
-            
+
             if has_key or os.environ.get(f"{provider.upper()}_API_KEY"):
                 model_key = f"{provider}_model"
-                existing_model = db.query(AppSetting).filter(AppSetting.key == model_key).first()
+                existing_model = (
+                    db.query(AppSetting).filter(AppSetting.key == model_key).first()
+                )
                 if not existing_model:
                     setting = AppSetting(
                         key=model_key,
@@ -171,13 +184,13 @@ def sync_ai_keys_from_env():
                     db.add(setting)
                     print(f"✓ Set optimal model for {provider}: {config['model']}")
                     synced += 1
-        
+
         db.commit()
         if synced > 0:
             print(f"Successfully synced {synced} AI settings from environment")
         else:
             print("No new AI settings to sync")
-            
+
     except Exception as e:
         print(f"Error syncing AI settings: {e}")
         db.rollback()

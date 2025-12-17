@@ -1,6 +1,6 @@
-# VeriCase EKS Deployment Guide - Enable All AI/AWS Features
+﻿# VeriCase EKS Deployment Guide - Enable All AI/AWS Features
 
-## 🚀 Quick Deploy - Apply Updated Configuration to EKS
+## ðŸš€ Quick Deploy - Apply Updated Configuration to EKS
 
 ```bash
 # 1. Connect to your EKS cluster
@@ -26,7 +26,7 @@ kubectl logs -n vericase -l app=vericase-api --tail=100 | grep -i "secret\|confi
 
 ---
 
-## ✅ Pre-Deployment Checklist
+## âœ… Pre-Deployment Checklist
 
 ### 1. AWS Secrets Manager Setup
 
@@ -44,11 +44,11 @@ aws secretsmanager create-secret \
   --description "VeriCase AI Provider API Keys" \
   --region eu-west-2 \
   --secret-string '{
-    "GEMINI_API_KEY": "AIzaSyCNfRrYZHyRxAXl92Y9k-lj-oOWQgX1Nns",
-    "CLAUDE_API_KEY": "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",
-    "OPENAI_API_KEY": "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",
-    "GROK_API_KEY": "xai-bx7NLmXWPvMy6TAq6W2s3ruIRsOAolfNS3aTSdebGg4slXwIo4eoI9iYiiaQ4TplSwy1mOMBx51fxFrG",
-    "PERPLEXITY_API_KEY": "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",
+    "GEMINI_API_KEY": "<your-gemini-key>",
+    "CLAUDE_API_KEY": "<your-claude-key>",
+    "OPENAI_API_KEY": "<your-openai-key>",
+    "GROK_API_KEY": "<your-grok-key>",
+    "PERPLEXITY_API_KEY": "<your-perplexity-key>",
     "BEDROCK_ENABLED": "true",
     "BEDROCK_REGION": "eu-west-2"
   }'
@@ -60,11 +60,11 @@ aws secretsmanager update-secret \
   --secret-id vericase/ai-api-keys \
   --region eu-west-2 \
   --secret-string '{
-    "GEMINI_API_KEY": "AIzaSyCNfRrYZHyRxAXl92Y9k-lj-oOWQgX1Nns",
-    "CLAUDE_API_KEY": "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",
-    "OPENAI_API_KEY": "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",
-    "GROK_API_KEY": "xai-bx7NLmXWPvMy6TAq6W2s3ruIRsOAolfNS3aTSdebGg4slXwIo4eoI9iYiiaQ4TplSwy1mOMBx51fxFrG",
-    "PERPLEXITY_API_KEY": "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",
+    "GEMINI_API_KEY": "<your-gemini-key>",
+    "CLAUDE_API_KEY": "<your-claude-key>",
+    "OPENAI_API_KEY": "<your-openai-key>",
+    "GROK_API_KEY": "<your-grok-key>",
+    "PERPLEXITY_API_KEY": "<your-perplexity-key>",
     "BEDROCK_ENABLED": "true",
     "BEDROCK_REGION": "eu-west-2"
   }'
@@ -154,13 +154,13 @@ aws bedrock list-foundation-models --region eu-west-2
 ```
 
 Required models:
-- ✅ Anthropic Claude 3 Sonnet
-- ✅ Amazon Titan Embeddings
-- ✅ Cohere Embed English v3
+- âœ… Anthropic Claude 3 Sonnet
+- âœ… Amazon Titan Embeddings
+- âœ… Cohere Embed English v3
 
 ---
 
-## 📋 Complete Deployment Steps
+## ðŸ“‹ Complete Deployment Steps
 
 ### Step 1: Verify Prerequisites
 
@@ -270,9 +270,9 @@ kubectl logs -n vericase -l app=vericase-api --tail=200 | grep -i "secret\|confi
 # Look for these lines:
 # [config_production] Should load AI keys from Secrets Manager: True
 # [config_production] Loading AI keys from Secrets Manager...
-# [config_production] ✓ Loaded GEMINI_API_KEY from Secrets Manager
-# [config_production] ✓ Loaded CLAUDE_API_KEY from Secrets Manager
-# [config_production] ✓ Loaded OPENAI_API_KEY from Secrets Manager
+# [config_production] âœ“ Loaded GEMINI_API_KEY from Secrets Manager
+# [config_production] âœ“ Loaded CLAUDE_API_KEY from Secrets Manager
+# [config_production] âœ“ Loaded OPENAI_API_KEY from Secrets Manager
 # Successfully loaded X AI API keys from Secrets Manager
 ```
 
@@ -300,7 +300,7 @@ print(f'Use Comprehend: {settings.USE_COMPREHEND}')
 
 ---
 
-## 🔧 Troubleshooting
+## ðŸ”§ Troubleshooting
 
 ### Issue: Pods Not Starting
 
@@ -326,7 +326,7 @@ aws iam get-role --role-name vericase-eks-pod-role
 aws iam list-attached-role-policies --role-name vericase-eks-pod-role
 
 # Test Secrets Manager access from pod
-kubectl exec -n vericase <pod-name> -- aws secretsmanager get-secret-value \
+kubectl exec -n vericase <pod-name> -- aws secretsmanager describe-secret \
   --secret-id vericase/ai-api-keys \
   --region eu-west-2
 ```
@@ -341,11 +341,9 @@ kubectl logs -n vericase <pod-name> | grep -A 20 -B 20 "config_production"
 kubectl exec -n vericase <pod-name> -- env | grep AWS_SECRETS_MANAGER
 
 # Verify secret exists
-aws secretsmanager get-secret-value \
+aws secretsmanager describe-secret \
   --secret-id vericase/ai-api-keys \
   --region eu-west-2 \
-  --query SecretString \
-  --output text | jq .
 ```
 
 ### Issue: Features Not Working
@@ -373,7 +371,7 @@ print(json.dumps(config, indent=2))
 
 ---
 
-## 🎯 What Was Changed
+## ðŸŽ¯ What Was Changed
 
 ### Environment Variables Added to K8s Deployment:
 
@@ -402,7 +400,7 @@ print(json.dumps(config, indent=2))
 
 ---
 
-## 📊 Verification Checklist
+## ðŸ“Š Verification Checklist
 
 After deployment, verify each feature:
 
@@ -422,7 +420,7 @@ After deployment, verify each feature:
 
 ---
 
-## 🚨 Critical Next Steps
+## ðŸš¨ Critical Next Steps
 
 1. **Apply the K8s deployment** - Run the kubectl apply command above
 2. **Restart pods** - Force pods to pick up new environment variables
@@ -433,7 +431,7 @@ After deployment, verify each feature:
 
 ---
 
-## 📝 Quick Command Reference
+## ðŸ“ Quick Command Reference
 
 ```bash
 # Full deployment in one go
@@ -448,3 +446,4 @@ kubectl logs -n vericase -l app=vericase-api --tail=100 | grep -i "secret\|AI"
 kubectl get pods -n vericase && \
 kubectl exec -n vericase deployment/vericase-api -- env | grep -E "ENABLE_|USE_|BEDROCK|AI_"
 ```
+

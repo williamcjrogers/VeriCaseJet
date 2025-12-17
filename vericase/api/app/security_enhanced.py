@@ -87,7 +87,7 @@ def rate_limit(max_attempts: int = 10, window: int = 3600) -> Callable[
     """Rate limiting decorator"""
 
     def decorator(
-        func: Callable[Concatenate[Request, P], Awaitable[T]]
+        func: Callable[Concatenate[Request, P], Awaitable[T]],
     ) -> Callable[Concatenate[Request, P], Awaitable[T]]:
         @wraps(func)
         async def wrapper(request: Request, *args: P.args, **kwargs: P.kwargs) -> T:

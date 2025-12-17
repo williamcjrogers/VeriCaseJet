@@ -17,6 +17,7 @@ Architecture:
 - Integration Synthesizer: Combines all findings into unified report
 - Cross-analysis Validator: Ensures consistency across analyses
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -31,11 +32,10 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .models import User, Case, ChronologyItem, Project
+from .models import User, Case, ChronologyItem
 from .db import get_db
 from .security import current_user
 from .ai_router import AdaptiveModelRouter, RoutingStrategy
-from .ai_model_registry import record_model_call
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ router = APIRouter(prefix="/api/vericase-analysis", tags=["vericase-analysis"])
 
 class AnalysisStatus(str, Enum):
     """Status of a VeriCase analysis."""
+
     PENDING = "pending"
     PLANNING = "planning"
     RUNNING_TIMELINE = "running_timeline"
@@ -57,6 +58,7 @@ class AnalysisStatus(str, Enum):
 
 class AnalysisScope(str, Enum):
     """Scope of analysis to perform."""
+
     FULL = "full"  # All analyses
     TIMELINE_ONLY = "timeline_only"
     DELAY_ONLY = "delay_only"
@@ -67,6 +69,7 @@ class AnalysisScope(str, Enum):
 @dataclass
 class AnalysisComponent:
     """Result from a single analysis component."""
+
     name: str
     status: str = "pending"
     result: dict[str, Any] = field(default_factory=dict)
@@ -78,6 +81,7 @@ class AnalysisComponent:
 @dataclass
 class VeriCaseSession:
     """Session state for a VeriCase analysis."""
+
     id: str
     user_id: str
     case_id: str
@@ -89,9 +93,15 @@ class VeriCaseSession:
     identified_angles: list[str] = field(default_factory=list)
 
     # Component results
-    timeline_result: AnalysisComponent = field(default_factory=lambda: AnalysisComponent("timeline"))
-    delay_result: AnalysisComponent = field(default_factory=lambda: AnalysisComponent("delay"))
-    research_result: AnalysisComponent = field(default_factory=lambda: AnalysisComponent("research"))
+    timeline_result: AnalysisComponent = field(
+        default_factory=lambda: AnalysisComponent("timeline")
+    )
+    delay_result: AnalysisComponent = field(
+        default_factory=lambda: AnalysisComponent("delay")
+    )
+    research_result: AnalysisComponent = field(
+        default_factory=lambda: AnalysisComponent("research")
+    )
 
     # Integration results
     integrated_report: str | None = None
@@ -122,6 +132,7 @@ _vericase_sessions: dict[str, VeriCaseSession] = {}
 
 class StartAnalysisRequest(BaseModel):
     """Request to start a VeriCase analysis."""
+
     case_id: str
     scope: AnalysisScope = AnalysisScope.FULL
     focus_areas: list[str] = Field(default_factory=list)
@@ -133,6 +144,7 @@ class StartAnalysisRequest(BaseModel):
 
 class AnalysisStatusResponse(BaseModel):
     """Status response for a VeriCase analysis."""
+
     session_id: str
     status: str
     progress: dict[str, Any] = Field(default_factory=dict)
@@ -146,6 +158,7 @@ class AnalysisStatusResponse(BaseModel):
 
 class AnalysisReportResponse(BaseModel):
     """Full analysis report response."""
+
     session_id: str
     case_id: str
     executive_summary: str | None = None
@@ -222,6 +235,7 @@ Write in a professional, authoritative tone."""
         4. Validation - Cross-check for consistency
         """
         import time
+
         start_time = time.time()
 
         try:
@@ -295,6 +309,7 @@ Create an analysis plan as JSON:
         # Parse plan
         try:
             import json
+
             plan_str = response
             if "```json" in response:
                 plan_str = response.split("```json")[1].split("```")[0]
@@ -312,7 +327,6 @@ Create an analysis plan as JSON:
 
     async def _run_parallel_analyses(self, case_data: dict[str, Any]) -> None:
         """Phase 2: Run timeline, delay, and research analyses in parallel."""
-        import time
 
         tasks = []
 
@@ -335,6 +349,7 @@ Create an analysis plan as JSON:
     async def _run_timeline_analysis(self, case_data: dict[str, Any]) -> None:
         """Run timeline generation analysis."""
         import time
+
         start_time = time.time()
 
         self.session.status = AnalysisStatus.RUNNING_TIMELINE
@@ -342,9 +357,13 @@ Create an analysis plan as JSON:
 
         try:
             # Get chronology items from database
-            chronology_items = self.db.query(ChronologyItem).filter(
-                ChronologyItem.case_id == self.session.case_id
-            ).order_by(ChronologyItem.event_date).limit(500).all()
+            chronology_items = (
+                self.db.query(ChronologyItem)
+                .filter(ChronologyItem.case_id == self.session.case_id)
+                .order_by(ChronologyItem.event_date)
+                .limit(500)
+                .all()
+            )
 
             if not chronology_items:
                 # Generate timeline from emails and documents
@@ -374,16 +393,21 @@ Create a chronological timeline as JSON:
                     strategy=RoutingStrategy.BALANCED,
                 )
 
-                self.session.models_used["timeline"] = f"{decision.provider}/{decision.model_id}"
+                self.session.models_used["timeline"] = (
+                    f"{decision.provider}/{decision.model_id}"
+                )
                 self.session.timeline_result.model_used = decision.model_id
 
                 # Parse response
                 import json
+
                 try:
                     timeline_str = response
                     if "```json" in response:
                         timeline_str = response.split("```json")[1].split("```")[0]
-                    self.session.timeline_result.result = json.loads(timeline_str.strip())
+                    self.session.timeline_result.result = json.loads(
+                        timeline_str.strip()
+                    )
                 except Exception:
                     self.session.timeline_result.result = {"raw_timeline": response}
 
@@ -391,7 +415,11 @@ Create a chronological timeline as JSON:
                 # Use existing chronology items
                 events = [
                     {
-                        "date": item.event_date.isoformat() if item.event_date else "Unknown",
+                        "date": (
+                            item.event_date.isoformat()
+                            if item.event_date
+                            else "Unknown"
+                        ),
                         "event": item.description or "No description",
                         "significance": item.significance or "medium",
                     }
@@ -410,11 +438,14 @@ Create a chronological timeline as JSON:
             self.session.timeline_result.error = str(e)
 
         finally:
-            self.session.timeline_result.duration_ms = int((time.time() - start_time) * 1000)
+            self.session.timeline_result.duration_ms = int(
+                (time.time() - start_time) * 1000
+            )
 
     async def _run_delay_analysis(self, case_data: dict[str, Any]) -> None:
         """Run delay and causation analysis."""
         import time
+
         start_time = time.time()
 
         self.session.status = AnalysisStatus.RUNNING_DELAY
@@ -458,11 +489,14 @@ Analyze delays and causation as JSON:
                 strategy=RoutingStrategy.QUALITY,
             )
 
-            self.session.models_used["delay"] = f"{decision.provider}/{decision.model_id}"
+            self.session.models_used["delay"] = (
+                f"{decision.provider}/{decision.model_id}"
+            )
             self.session.delay_result.model_used = decision.model_id
 
             # Parse response
             import json
+
             try:
                 delay_str = response
                 if "```json" in response:
@@ -479,11 +513,14 @@ Analyze delays and causation as JSON:
             self.session.delay_result.error = str(e)
 
         finally:
-            self.session.delay_result.duration_ms = int((time.time() - start_time) * 1000)
+            self.session.delay_result.duration_ms = int(
+                (time.time() - start_time) * 1000
+            )
 
     async def _run_research_analysis(self, case_data: dict[str, Any]) -> None:
         """Run deep research analysis on liability and claims."""
         import time
+
         start_time = time.time()
 
         self.session.status = AnalysisStatus.RUNNING_RESEARCH
@@ -491,11 +528,14 @@ Analyze delays and causation as JSON:
 
         try:
             # Use analysis plan to focus research
-            key_questions = self.session.analysis_plan.get("key_questions", [
-                "What are the key liability issues?",
-                "What evidence supports each party's position?",
-                "What are the quantum implications?",
-            ])
+            key_questions = self.session.analysis_plan.get(
+                "key_questions",
+                [
+                    "What are the key liability issues?",
+                    "What evidence supports each party's position?",
+                    "What are the quantum implications?",
+                ],
+            )
 
             prompt = f"""Conduct deep research on these questions for the case:
 
@@ -534,11 +574,14 @@ Provide research findings as JSON:
                 strategy=RoutingStrategy.QUALITY,
             )
 
-            self.session.models_used["research"] = f"{decision.provider}/{decision.model_id}"
+            self.session.models_used["research"] = (
+                f"{decision.provider}/{decision.model_id}"
+            )
             self.session.research_result.model_used = decision.model_id
 
             # Parse response
             import json
+
             try:
                 research_str = response
                 if "```json" in response:
@@ -555,14 +598,20 @@ Provide research findings as JSON:
             self.session.research_result.error = str(e)
 
         finally:
-            self.session.research_result.duration_ms = int((time.time() - start_time) * 1000)
+            self.session.research_result.duration_ms = int(
+                (time.time() - start_time) * 1000
+            )
 
     async def _run_integration_phase(self) -> None:
         """Phase 3: Integrate all analysis results into unified report."""
         # Compile results
-        timeline_summary = self.session.timeline_result.result.get("timeline_summary", "")
+        timeline_summary = self.session.timeline_result.result.get(
+            "timeline_summary", ""
+        )
         delay_summary = self.session.delay_result.result.get("entitlement_summary", "")
-        research_summary = self.session.research_result.result.get("liability_assessment", {})
+        research_summary = self.session.research_result.result.get(
+            "liability_assessment", {}
+        )
 
         prompt = f"""Integrate these analysis results into a comprehensive case assessment:
 
@@ -596,10 +645,13 @@ Output as JSON:
             strategy=RoutingStrategy.QUALITY,
         )
 
-        self.session.models_used["integrator"] = f"{decision.provider}/{decision.model_id}"
+        self.session.models_used["integrator"] = (
+            f"{decision.provider}/{decision.model_id}"
+        )
 
         # Parse integration results
         import json
+
         try:
             integration_str = response
             if "```json" in response:
@@ -647,10 +699,13 @@ Output as JSON:
             strategy=RoutingStrategy.QUALITY,
         )
 
-        self.session.models_used["validator"] = f"{decision.provider}/{decision.model_id}"
+        self.session.models_used["validator"] = (
+            f"{decision.provider}/{decision.model_id}"
+        )
 
         # Parse validation
         import json
+
         try:
             validation_str = response
             if "```json" in response:
@@ -711,6 +766,7 @@ async def start_vericase_analysis(
 
     def sync_run():
         import asyncio
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
@@ -754,11 +810,13 @@ async def get_analysis_status(
         timeline_status=session.timeline_result.status,
         delay_status=session.delay_result.status,
         research_status=session.research_result.status,
-        integration_ready=all([
-            session.timeline_result.status == "completed",
-            session.delay_result.status == "completed",
-            session.research_result.status == "completed",
-        ]),
+        integration_ready=all(
+            [
+                session.timeline_result.status == "completed",
+                session.delay_result.status == "completed",
+                session.research_result.status == "completed",
+            ]
+        ),
         report_available=session.integrated_report is not None,
         error_message=session.error_message,
     )
@@ -778,7 +836,9 @@ async def get_analysis_report(
         raise HTTPException(403, "Not authorized")
 
     if session.status != AnalysisStatus.COMPLETED:
-        raise HTTPException(400, f"Analysis not complete. Status: {session.status.value}")
+        raise HTTPException(
+            400, f"Analysis not complete. Status: {session.status.value}"
+        )
 
     return AnalysisReportResponse(
         session_id=session_id,

@@ -1,4 +1,4 @@
-# VeriCase AI Configuration Guide
+﻿﻿# VeriCase AI Configuration Guide
 
 ## Overview
 VeriCase includes advanced AI features powered by multiple AI models:
@@ -10,6 +10,9 @@ VeriCase includes advanced AI features powered by multiple AI models:
 
 ## Security Update
 The API keys have been removed from `apprunner.yaml` for security. They now need to be configured in AWS Secrets Manager.
+
+> Note: This document is primarily App Runner-oriented and may be legacy. Current production deployment for this repo is EKS.
+> See: `vericase/docs/deployment/DEPLOYMENT.md`.
 
 ## Setup Instructions
 
@@ -32,11 +35,11 @@ This script will:
 5. Replace the placeholder values with your actual API keys:
    ```json
    {
-     "OPENAI_API_KEY": "sk-proj-YOUR-ACTUAL-KEY",
-     "ANTHROPIC_API_KEY": "sk-ant-YOUR-ACTUAL-KEY", 
-     "GEMINI_API_KEY": "AIzaSy-YOUR-ACTUAL-KEY",
-     "GROK_API_KEY": "xai-YOUR-ACTUAL-KEY",
-     "PERPLEXITY_API_KEY": "pplx-YOUR-ACTUAL-KEY"
+    "OPENAI_API_KEY": "<your-openai-key>",
+    "ANTHROPIC_API_KEY": "<your-claude-key>",
+    "GEMINI_API_KEY": "<your-gemini-key>",
+    "GROK_API_KEY": "<your-grok-key>",
+    "PERPLEXITY_API_KEY": "<your-perplexity-key>"
    }
    ```
 6. Save the secret
@@ -116,7 +119,7 @@ Expected output:
 ### View Logs
 In App Runner console, check application logs for:
 - "Loading AI API keys from AWS Secrets Manager"
-- "✓ Loaded OPENAI_API_KEY from Secrets Manager"
+- "âœ“ Loaded OPENAI_API_KEY from Secrets Manager"
 
 ### Common Issues
 1. **403 Forbidden on Secrets Manager**: The IAM role needs the policy attached
@@ -133,3 +136,4 @@ After configuration:
 1. Test the refinement wizard with a PST upload
 2. Try the AI chat features
 3. Monitor usage and costs
+

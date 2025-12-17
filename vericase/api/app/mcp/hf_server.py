@@ -122,8 +122,12 @@ def main() -> None:
         default="stdio",
         help="MCP transport to use",
     )
-    parser.add_argument("--host", default="127.0.0.1", help="Host for SSE/HTTP transports")
-    parser.add_argument("--port", type=int, default=8011, help="Port for SSE/HTTP transports")
+    parser.add_argument(
+        "--host", default="127.0.0.1", help="Host for SSE/HTTP transports"
+    )
+    parser.add_argument(
+        "--port", type=int, default=8011, help="Port for SSE/HTTP transports"
+    )
     args = parser.parse_args()
 
     if args.transport != "stdio":

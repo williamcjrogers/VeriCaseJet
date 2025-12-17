@@ -11,7 +11,6 @@ This is a multi-stage, conversational refinement process that
 learns from each answer to ask increasingly targeted questions.
 """
 
-import asyncio
 import logging
 import uuid
 import json
@@ -35,7 +34,12 @@ from .models import (
     User,
     RefinementSessionDB,
 )
-from .ai_settings import get_ai_api_key, get_ai_model, is_bedrock_enabled, get_bedrock_region
+from .ai_settings import (
+    get_ai_api_key,
+    get_ai_model,
+    is_bedrock_enabled,
+    get_bedrock_region,
+)
 from .ai_providers import BedrockProvider, bedrock_available
 
 logger = logging.getLogger(__name__)
@@ -1307,8 +1311,14 @@ Only include references that appear to be OTHER projects (is_other_project: true
                         question_type="multi_select",
                         context="Select the domains that should be INCLUDED in your analysis.",
                         options=[
-                            {"value": "include_selected", "label": "Include only selected domains"},
-                            {"value": "include_all", "label": "Include all domains shown"},
+                            {
+                                "value": "include_selected",
+                                "label": "Include only selected domains",
+                            },
+                            {
+                                "value": "include_all",
+                                "label": "Include all domains shown",
+                            },
                             {"value": "review_later", "label": "Skip for now"},
                         ],
                         detected_items=detected_domains,
@@ -1326,8 +1336,14 @@ Only include references that appear to be OTHER projects (is_other_project: true
                     question_type="multi_select",
                     context=f"Your project is '{self.project.project_name}'. These appear to be different projects.",
                     options=[
-                        {"value": "exclude_all", "label": "Exclude all other project emails"},
-                        {"value": "select_individual", "label": "Let me select which to exclude"},
+                        {
+                            "value": "exclude_all",
+                            "label": "Exclude all other project emails",
+                        },
+                        {
+                            "value": "select_individual",
+                            "label": "Let me select which to exclude",
+                        },
                         {"value": "keep_all", "label": "Keep all (might be related)"},
                     ],
                     detected_items=detected_projects,
@@ -1346,8 +1362,14 @@ Only include references that appear to be OTHER projects (is_other_project: true
                     question_type="multi_select",
                     context="These contain marketing language, unsubscribe links, or come from bulk mail services.",
                     options=[
-                        {"value": "exclude_all", "label": f"Remove all {total_spam_count} spam emails"},
-                        {"value": "select_individual", "label": "Let me review each source"},
+                        {
+                            "value": "exclude_all",
+                            "label": f"Remove all {total_spam_count} spam emails",
+                        },
+                        {
+                            "value": "select_individual",
+                            "label": "Let me review each source",
+                        },
                         {"value": "keep_all", "label": "Keep all"},
                     ],
                     detected_items=detected_spam,
@@ -1366,8 +1388,14 @@ Only include references that appear to be OTHER projects (is_other_project: true
                     question_type="multi_select",
                     context="Duplicate emails have identical content. Removing keeps one copy of each.",
                     options=[
-                        {"value": "remove_all", "label": f"Remove all {total_dup_count} duplicates (keep originals)"},
-                        {"value": "select_individual", "label": "Let me review the duplicate groups"},
+                        {
+                            "value": "remove_all",
+                            "label": f"Remove all {total_dup_count} duplicates (keep originals)",
+                        },
+                        {
+                            "value": "select_individual",
+                            "label": "Let me review the duplicate groups",
+                        },
                         {"value": "keep_all", "label": "Keep all including duplicates"},
                     ],
                     detected_items=detected_duplicates,
