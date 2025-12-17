@@ -199,7 +199,6 @@ def send_reply_notification(
         return False
 
     claim_name = claim.name if claim else "a discussion"
-    claim_ref = claim.reference_number if claim else None
     replier_name = replier.display_name or replier.email
     claim_id = str(claim.id) if claim else ""
     discussion_link = f"{FRONTEND_URL}/ui/contentious-matters.html?claim={claim_id}"

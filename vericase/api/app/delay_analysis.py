@@ -479,10 +479,6 @@ class DelayAnalysisOrchestrator:
         4. Calculate entitlements
         5. Generate claims narrative
         """
-        import time
-
-        start_time = time.time()
-
         self.session.status = "analyzing"
 
         try:
