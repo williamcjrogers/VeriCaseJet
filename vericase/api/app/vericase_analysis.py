@@ -154,6 +154,9 @@ class AnalysisSession(BaseModel):
     validation_result: dict[str, Any] = Field(default_factory=dict)
     validation_passed: bool = True
 
+    # Evidence tracking - records which evidence/attachments were used in analysis
+    evidence_used: list[dict[str, Any]] = Field(default_factory=list)
+
     # Metadata
     total_sources_analyzed: int = 0
     processing_time_seconds: float = 0
@@ -289,6 +292,10 @@ class AnalysisReportResponse(BaseModel):
     timeline_summary: dict[str, Any] = Field(default_factory=dict)
     delay_summary: dict[str, Any] = Field(default_factory=dict)
     research_summary: dict[str, Any] = Field(default_factory=dict)
+    evidence_used: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Evidence and attachments referenced in the analysis",
+    )
     validation_score: float = 0.0
     validation_passed: bool = True
     models_used: list[str] = Field(default_factory=list)
@@ -1169,9 +1176,17 @@ Write in a professional, authoritative tone suitable for legal proceedings."""
     synthesizer_model: str | None = None
 
     async def synthesize(
-        self, plan: ResearchPlan, question_analyses: dict[str, dict[str, Any]]
-    ) -> tuple[str, list[str]]:
-        """Synthesize all findings into a comprehensive report"""
+        self,
+        plan: ResearchPlan,
+        question_analyses: dict[str, dict[str, Any]],
+        evidence_items: list[dict[str, Any]] | None = None,
+    ) -> tuple[str, list[str], list[dict[str, Any]]]:
+        """
+        Synthesize all findings into a comprehensive report.
+
+        Returns:
+            tuple of (report_text, themes, evidence_used)
+        """
 
         # First, identify themes
         themes = await self._identify_themes(plan, question_analyses)
@@ -1179,10 +1194,90 @@ Write in a professional, authoritative tone suitable for legal proceedings."""
         # Generate report sections
         sections = await self._generate_sections(plan, question_analyses, themes)
 
-        # Assemble final report
-        report = self._assemble_report(plan, sections, themes)
+        # Collect evidence used from question analyses
+        evidence_used = self._collect_evidence_used(question_analyses, evidence_items)
 
-        return report, themes
+        # Assemble final report with evidence references
+        report = self._assemble_report(plan, sections, themes, evidence_used)
+
+        return report, themes, evidence_used
+
+    def _collect_evidence_used(
+        self,
+        question_analyses: dict[str, dict[str, Any]],
+        evidence_items: list[dict[str, Any]] | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Collect all evidence items that were referenced during analysis.
+        Deduplicates and enriches with metadata.
+        """
+        evidence_map: dict[str, dict[str, Any]] = {}
+
+        # Collect evidence IDs referenced in question analyses
+        for q_id, analysis in question_analyses.items():
+            # Check for cited sources
+            sources = analysis.get("sources", [])
+            for source in sources:
+                if isinstance(source, dict):
+                    source_id = source.get("id") or source.get("source_id")
+                    if source_id and source_id not in evidence_map:
+                        evidence_map[source_id] = {
+                            "id": source_id,
+                            "type": source.get("type", "evidence"),
+                            "title": source.get("title")
+                            or source.get("name", "Unknown"),
+                            "date": source.get("date"),
+                            "relevance": source.get("relevance", "cited"),
+                        }
+
+            # Check for evidence_ids field
+            evidence_ids = analysis.get("evidence_ids", [])
+            for eid in evidence_ids:
+                if eid and eid not in evidence_map:
+                    evidence_map[eid] = {
+                        "id": eid,
+                        "type": "evidence",
+                        "relevance": "analyzed",
+                    }
+
+        # Enrich with full evidence item data if available
+        if evidence_items:
+            for item in evidence_items:
+                item_id = item.get("id") or item.get("evidence_id")
+                if item_id:
+                    if item_id in evidence_map:
+                        # Enrich existing entry
+                        evidence_map[item_id].update(
+                            {
+                                "title": item.get("title")
+                                or item.get("name")
+                                or evidence_map[item_id].get("title"),
+                                "type": item.get("type")
+                                or item.get("evidence_type")
+                                or evidence_map[item_id].get("type"),
+                                "date": item.get("date")
+                                or item.get("created_at")
+                                or evidence_map[item_id].get("date"),
+                                "filename": item.get("filename")
+                                or item.get("file_name"),
+                                "attachment_type": item.get("attachment_type")
+                                or item.get("mime_type"),
+                            }
+                        )
+                    elif len(evidence_map) < 100:  # Add primary evidence up to limit
+                        evidence_map[item_id] = {
+                            "id": item_id,
+                            "type": item.get("type")
+                            or item.get("evidence_type", "evidence"),
+                            "title": item.get("title") or item.get("name", "Unknown"),
+                            "date": item.get("date") or item.get("created_at"),
+                            "filename": item.get("filename") or item.get("file_name"),
+                            "attachment_type": item.get("attachment_type")
+                            or item.get("mime_type"),
+                            "relevance": "primary",
+                        }
+
+        return list(evidence_map.values())
 
     async def _identify_themes(
         self, plan: ResearchPlan, analyses: dict[str, dict[str, Any]]
@@ -1279,9 +1374,13 @@ Write in professional legal report style."""
         return sections
 
     def _assemble_report(
-        self, plan: ResearchPlan, sections: dict[str, str], themes: list[str]
+        self,
+        plan: ResearchPlan,
+        sections: dict[str, str],
+        themes: list[str],
+        evidence_used: list[dict[str, Any]] | None = None,
     ) -> str:
-        """Assemble the final report"""
+        """Assemble the final report with evidence references"""
 
         report_parts = [
             f"# VeriCase Analysis Report: {plan.topic}",
@@ -1308,6 +1407,50 @@ Write in professional legal report style."""
         )
         for q in plan.questions:
             report_parts.append(f"- {q.question}\n")
+
+        # Add Evidence & Attachments Referenced section
+        if evidence_used:
+            report_parts.append("\n---\n")
+            report_parts.append("\n## Evidence & Attachments Referenced\n")
+            report_parts.append(
+                f"\nThis analysis referenced {len(evidence_used)} evidence items:\n\n"
+            )
+
+            # Group by type
+            by_type: dict[str, list[dict[str, Any]]] = {}
+            for item in evidence_used:
+                item_type = item.get("type", "Other")
+                if item_type not in by_type:
+                    by_type[item_type] = []
+                by_type[item_type].append(item)
+
+            for evidence_type, items in sorted(by_type.items()):
+                type_label = evidence_type.replace("_", " ").title()
+                report_parts.append(f"\n### {type_label} ({len(items)})\n\n")
+                for item in items:
+                    title = (
+                        item.get("title")
+                        or item.get("filename")
+                        or item.get("id", "Unknown")
+                    )
+                    date = item.get("date", "")
+                    if date:
+                        if hasattr(date, "strftime"):
+                            date = f" ({date.strftime('%Y-%m-%d')})"
+                        elif isinstance(date, str) and len(date) >= 10:
+                            date = f" ({date[:10]})"
+                        else:
+                            date = ""
+                    filename = item.get("filename", "")
+                    if filename:
+                        filename = f" - `{filename}`"
+                    report_parts.append(f"- **{title}**{date}{filename}\n")
+
+            report_parts.append("\n---\n")
+            report_parts.append(
+                "\n*Note: This evidence listing reflects materials analyzed during the research process. "
+                "Original documents should be consulted for verification.*\n"
+            )
 
         return "\n".join(report_parts)
 
@@ -1688,20 +1831,26 @@ Analyze delays and causation as JSON:
             logger.exception(f"Delay analysis failed: {e}")
             self.session.delay_result = {"error": str(e), "status": "failed"}
 
-    async def run_synthesis_phase(self) -> str:
-        """Phase 3: Synthesize findings into report"""
+    async def run_synthesis_phase(
+        self, evidence_context: EvidenceContext | None = None
+    ) -> str:
+        """Phase 3: Synthesize findings into report with evidence tracking"""
         if not self.session.plan:
             raise ValueError("No plan available")
 
         self.session.status = AnalysisStatus.SYNTHESIZING
         self.session.updated_at = datetime.now(timezone.utc)
 
-        report, themes = await self.synthesizer.synthesize(
-            self.session.plan, self.session.question_analyses
+        # Pass evidence items for tracking in the report
+        evidence_items = evidence_context.items if evidence_context else None
+
+        report, themes, evidence_used = await self.synthesizer.synthesize(
+            self.session.plan, self.session.question_analyses, evidence_items
         )
 
         self.session.final_report = report
         self.session.key_themes = themes
+        self.session.evidence_used = evidence_used  # Track which evidence was used
         self.session.models_used["synthesizer"] = (
             self.synthesizer.synthesizer_model or "default"
         )
@@ -1788,8 +1937,8 @@ Analyze delays and causation as JSON:
                     return_exceptions=True,
                 )
 
-            # Phase 3: Synthesis
-            report = await self.run_synthesis_phase()
+            # Phase 3: Synthesis (with evidence tracking)
+            report = await self.run_synthesis_phase(evidence_context)
 
             # Phase 4: Validation (optional)
             validation_result = {}
@@ -2163,7 +2312,7 @@ async def approve_analysis_plan(
                         return_exceptions=True,
                     )
 
-                await master.run_synthesis_phase()
+                await master.run_synthesis_phase(evidence_context)
 
                 # Run validation
                 await master.run_validation_phase(evidence_context)
@@ -2225,6 +2374,7 @@ async def get_analysis_report(
         timeline_summary=session.timeline_result,
         delay_summary=session.delay_result,
         research_summary={"questions_analyzed": len(session.question_analyses)},
+        evidence_used=session.evidence_used,  # Include evidence/attachments referenced
         validation_score=session.validation_result.get("overall_score", 0.0),
         validation_passed=session.validation_passed,
         models_used=list(session.models_used.values()),
