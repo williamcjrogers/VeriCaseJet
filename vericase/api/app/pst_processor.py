@@ -81,6 +81,98 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# Spam Detection Patterns (applied during ingestion)
+# =============================================================================
+
+# Generic spam/marketing patterns - HIGH CONFIDENCE (+3 points each)
+SPAM_HIGH_CONFIDENCE = [
+    "unsubscribe from this",
+    "click here to unsubscribe",
+    "view in browser",
+    "view this email in your browser",
+    "email preferences",
+    "manage your subscription",
+    "% off",
+    "discount code",
+    "limited time offer",
+]
+
+# Medium confidence spam indicators (+1 point each)
+SPAM_MEDIUM_CONFIDENCE = [
+    "weekly digest",
+    "daily digest",
+    "monthly newsletter",
+]
+
+# Marketing/automation domains (+3 points)
+SPAM_DOMAINS = [
+    "sendgrid.net",
+    "constantcontact.com",
+    "mailchimp.com",
+    "hubspot.com",
+    "marketo.com",
+    "pardot.com",
+    "mailgun.org",
+    "eventbrite.com",
+    "surveymonkey.com",
+    "linkedin.com",
+]
+
+# Automated notification subjects (+3 points)
+SPAM_AUTOMATED_SUBJECTS = [
+    "person is noticing",
+    "person noticed",
+    "people viewed your profile",
+    "your weekly linkedin",
+    "invitation to connect",
+    "accepted your invitation",
+]
+
+# Other Projects (definitively irrelevant) - 92% confidence
+# These are known non-related projects that should be flagged
+OTHER_PROJECT_PATTERNS = [
+    # Project names and locations
+    r"abbey road",
+    r"peabody",
+    r"merrick place",
+    r"southall",
+    r"network homes",
+    r"oxlow lane",
+    r"dagenham",
+    r"befirst",
+    r"roxwell road",
+    r"kings crescent",
+    r"peckham library",
+    r"flaxyard",
+    r"loxford",
+    r"seven kings",
+    r"redbridge living",
+    r"frank towell court",
+    r"lisson arches",
+    r"beaulieu park",
+    r"chelmsford",
+    r"islay wharf",
+    r"victory place",
+    r"earlham grove",
+    r"canons park",
+    r"rayners lane",
+    r"clapham park",
+    r"\bmtvh\b",
+    r"osier way",
+    r"pocket living",
+    r"moreland gardens",
+    r"ashley road",
+    r"buckland",
+    r"south thames college",
+    r"robert whyte house",
+    r"bromley",
+    r"camley street",
+    r"\blsa\b",
+    r"honeywell",
+]
+
+
 # region agent log helper
 def agent_log(
     hypothesis_id: str, message: str, data: dict | None = None, run_id: str = "run1"
@@ -684,6 +776,74 @@ class UltimatePSTProcessor:
 
         return text.strip()
 
+    def _calculate_spam_score(
+        self,
+        subject: str | None,
+        body: str | None,
+        sender_email: str | None,
+    ) -> dict[str, Any]:
+        """
+        Calculate spam score for an email during ingestion.
+
+        Returns a dict with:
+        - spam_score: int (0-100, higher = more likely spam)
+        - is_spam: bool (True if score >= 5)
+        - spam_reasons: list[str] (detected indicators)
+        - other_project: str | None (detected project name if any)
+        """
+        score = 0
+        reasons: list[str] = []
+        other_project: str | None = None
+
+        subject_lower = (subject or "").lower()
+        body_lower = (body or "").lower()[:5000]  # Limit body scan for performance
+        sender_lower = (sender_email or "").lower()
+        sender_domain = sender_lower.split("@")[-1] if "@" in sender_lower else ""
+
+        # Check HIGH confidence spam (+3 points each)
+        for pattern in SPAM_HIGH_CONFIDENCE:
+            if pattern in body_lower or pattern in subject_lower:
+                score += 3
+                reasons.append(f"high:{pattern[:30]}")
+
+        # Check MEDIUM confidence spam (+1 point each)
+        for pattern in SPAM_MEDIUM_CONFIDENCE:
+            if pattern in body_lower or pattern in subject_lower:
+                score += 1
+                reasons.append(f"medium:{pattern[:30]}")
+
+        # Check spam domains (+3 points)
+        for domain in SPAM_DOMAINS:
+            if domain in sender_domain:
+                score += 3
+                reasons.append(f"domain:{domain}")
+
+        # Check automated subjects (+3 points)
+        for pattern in SPAM_AUTOMATED_SUBJECTS:
+            if pattern in subject_lower:
+                score += 3
+                reasons.append(f"auto:{pattern[:30]}")
+
+        # Check OTHER PROJECTS patterns (+5 points, 92% confidence)
+        # These are definitively irrelevant to the current project
+        combined_text = f"{subject_lower} {body_lower}"
+        for pattern in OTHER_PROJECT_PATTERNS:
+            if re.search(pattern, combined_text, re.IGNORECASE):
+                score += 5
+                # Extract the matched project name
+                match = re.search(pattern, combined_text, re.IGNORECASE)
+                if match:
+                    other_project = match.group(0).strip()
+                reasons.append(f"other_project:{pattern[:30]}")
+                break  # Only count once per email
+
+        return {
+            "spam_score": min(score, 100),
+            "is_spam": score >= 5,
+            "spam_reasons": reasons[:5],  # Limit to 5 reasons
+            "other_project": other_project,
+        }
+
     def _safe_get_attr(
         self, obj: Any, attr_name: str, default: Any | None = None
     ) -> Any:
@@ -955,6 +1115,9 @@ class UltimatePSTProcessor:
         except Exception as hash_error:
             logger.debug("Failed to compute content_hash: %s", hash_error)
 
+        # Calculate spam score during ingestion (no AI, pure pattern matching)
+        spam_info = self._calculate_spam_score(subject, canonical_body, from_email)
+
         # Create EmailMessage record
         email_message = EmailMessage(
             pst_file_id=pst_file_record.id,
@@ -990,6 +1153,11 @@ class UltimatePSTProcessor:
                     self.body_offload_bucket if offloaded_body_key else None
                 ),
                 "body_offload_key": offloaded_body_key,
+                # Spam classification (computed at ingestion time)
+                "spam_score": spam_info["spam_score"],
+                "is_spam": spam_info["is_spam"],
+                "spam_reasons": spam_info["spam_reasons"],
+                "other_project": spam_info["other_project"],
             },
         )
 
