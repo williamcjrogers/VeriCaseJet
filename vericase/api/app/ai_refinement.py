@@ -43,7 +43,7 @@ from .ai_settings import (
     get_tool_fallback_chain,
 )
 from .ai_providers import BedrockProvider, bedrock_available
-from sqlalchemy import or_, and_, not_
+from sqlalchemy import or_, and_
 
 logger = logging.getLogger(__name__)
 
@@ -55,20 +55,24 @@ def _exclude_spam_filter(email_model: type[EmailMessage]) -> Any:
     Filters out emails where meta contains:
     - is_spam = True
     - is_hidden = True
-    - other_project is not null
+    - other_project is not null/empty
 
     Returns a filter condition that can be used with .filter()
+
+    Note: Uses explicit NULL checks because accessing a non-existent JSON key
+    returns NULL, and NULL comparisons require special handling.
     """
-    # PostgreSQL JSON operators for meta field filtering
-    # meta->>'is_spam' = 'true' OR meta->>'is_hidden' = 'true' OR meta->>'other_project' IS NOT NULL
+    # Include row if: meta IS NULL OR key doesn't exist (NULL) OR key != 'true'
     return and_(
         or_(
             email_model.meta.is_(None),
-            not_(email_model.meta["is_spam"].astext == "true"),
+            email_model.meta["is_spam"].astext.is_(None),
+            email_model.meta["is_spam"].astext != "true",
         ),
         or_(
             email_model.meta.is_(None),
-            not_(email_model.meta["is_hidden"].astext == "true"),
+            email_model.meta["is_hidden"].astext.is_(None),
+            email_model.meta["is_hidden"].astext != "true",
         ),
         or_(
             email_model.meta.is_(None),
