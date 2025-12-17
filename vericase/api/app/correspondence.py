@@ -1609,15 +1609,8 @@ async def get_emails_server_side(
     else:
         query = db.query(EmailMessage)
 
-    # Filter out excluded emails by default - only show non-tagged emails
-    status_field = cast(EmailMessage.meta["status"], String)
-    query = query.filter(
-        or_(
-            EmailMessage.meta.is_(None),
-            status_field.is_(None),
-            status_field == "active",
-        )
-    )
+    # Note: Removed status_field filter that was causing issues with JSONB NULL handling
+    # Hidden emails can be filtered via is_hidden in meta if needed via AG Grid filters
 
     # Apply AG Grid filters
     for col_id, filter_data in request.filterModel.items():
