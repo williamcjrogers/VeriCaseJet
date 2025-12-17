@@ -331,9 +331,14 @@ class AIRefinementEngine:
         self.db = db
         self.project = project
 
-        # Load tool configuration
-        self.tool_config = get_tool_config(self.TOOL_NAME, db)
-        self.fallback_chain = get_tool_fallback_chain(self.TOOL_NAME, db)
+        # Load tool configuration with defensive fallbacks
+        try:
+            self.tool_config = get_tool_config(self.TOOL_NAME, db)
+            self.fallback_chain = get_tool_fallback_chain(self.TOOL_NAME, db)
+        except Exception as e:
+            logger.warning(f"Failed to load tool config, using defaults: {e}")
+            self.tool_config = {}
+            self.fallback_chain = []
 
         # API keys for all providers
         self.openai_key = get_ai_api_key("openai", db)
@@ -341,8 +346,13 @@ class AIRefinementEngine:
         self.gemini_key = get_ai_api_key("gemini", db)
 
         # Bedrock uses IAM credentials, not API keys
-        self.bedrock_enabled = is_bedrock_enabled(db) and bedrock_available()
-        self.bedrock_region = get_bedrock_region(db)
+        try:
+            self.bedrock_enabled = is_bedrock_enabled(db) and bedrock_available()
+            self.bedrock_region = get_bedrock_region(db)
+        except Exception as e:
+            logger.warning(f"Bedrock check failed: {e}")
+            self.bedrock_enabled = False
+            self.bedrock_region = "us-east-1"
         self._bedrock_provider: BedrockProvider | None = None
 
         # Load models from tool config or fall back to provider defaults
@@ -1489,10 +1499,10 @@ async def start_ai_analysis(
     if not emails:
         raise HTTPException(400, "No emails found in project")
 
-    # Run AI analysis
-    engine = AIRefinementEngine(db, project)
-
     try:
+        # Initialize AI analysis engine (inside try for error handling)
+        engine = AIRefinementEngine(db, project)
+
         # Run analysis tasks
         detected_projects = []
         detected_spam = []
