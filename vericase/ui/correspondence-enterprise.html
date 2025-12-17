@@ -4218,17 +4218,14 @@
 
         const config = JSON.parse(saved);
 
-        // Apply column state (order, width, visibility, pinned)
-        if (config.columnState) {
-          gridApi.applyColumnState({ state: config.columnState, applyOrder: true });
-        }
-
-        // Apply filter model
+        // Only re-apply filters; always keep the default column preset (date, from, to, cc, subject, attachments)
+        // Column state overrides have been a source of corrupted mappings (e.g., subject showing body text),
+        // so we intentionally ignore any persisted column order/visibility here.
         if (config.filterModel && Object.keys(config.filterModel).length > 0) {
           gridApi.setFilterModel(config.filterModel);
         }
 
-        console.log('[Correspondence] Grid configuration loaded from', config.savedAt);
+        console.log('[Correspondence] Grid configuration loaded (filters applied, columns kept default) from', config.savedAt);
       } catch (e) {
         console.error('Failed to load grid configuration:', e);
       }

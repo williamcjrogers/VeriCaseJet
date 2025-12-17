@@ -13,7 +13,7 @@ import os
 import re
 from datetime import datetime
 from typing import Any
-from email.utils import parseaddr
+from email.utils import parseaddr, getaddresses
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -779,9 +779,9 @@ class ForensicPSTProcessor:
 
     def _extract_recipients(
         self, message: Any, recipient_type: str, transport_headers: str = ""
-    ) -> list[dict[str, str]]:
-        """Extract recipients as list of {name, email} dicts"""
-        recipients = []
+    ) -> list[str]:
+        """Extract recipients as list of email addresses (no display names)."""
+        recipients: list[str] = []
 
         try:
             if recipient_type == "to":
@@ -830,6 +830,71 @@ class ForensicPSTProcessor:
             logger.warning(f"Error parsing {recipient_type} recipients: {e}")
 
         return recipients
+
+    # Override with email-address-only extraction (no display names)
+    def _extract_recipients(
+        self, message: Any, recipient_type: str, transport_headers: str = ""
+    ) -> list[str]:
+        """Extract recipients as list of email addresses (no display names)."""
+        recipients: list[str] = []
+
+        try:
+            if recipient_type == "to":
+                recipient_str = message.get_recipient_string() or ""
+            elif recipient_type == "cc":
+                recipient_str = message.get_cc_string() or ""
+            elif recipient_type == "bcc":
+                recipient_str = message.get_bcc_string() or ""
+            else:
+                return recipients
+
+            parsed = [addr for _, addr in getaddresses([recipient_str]) if addr]
+            if parsed:
+                recipients.extend(parsed)
+            else:
+                for addr in recipient_str.split(";"):
+                    addr = addr.strip()
+                    if addr:
+                        name, email = parseaddr(addr)
+                        if email:
+                            recipients.append(email)
+
+            if transport_headers and not recipients:
+                header_map = {"to": "To", "cc": "Cc", "bcc": "Bcc"}
+                header_name = header_map.get(recipient_type)
+                if header_name:
+                    pattern = f"{header_name}:\\s*(.+?)(?:\\r?\\n(?!\\s)|$)"
+                    match = re.search(
+                        pattern, transport_headers, re.IGNORECASE | re.MULTILINE
+                    )
+                    if match:
+                        header_value = match.group(1).strip()
+                        parsed_header = [
+                            addr for _, addr in getaddresses([header_value]) if addr
+                        ]
+                        if parsed_header:
+                            recipients.extend(parsed_header)
+                        else:
+                            email_matches = re.findall(
+                                r"([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+)",
+                                header_value,
+                            )
+                            if email_matches:
+                                recipients.extend(email_matches)
+        except Exception as e:
+            logger.warning(f"Error parsing {recipient_type} recipients: {e}")
+
+        # Normalize to lower-case and unique
+        unique_emails: list[str] = []
+        seen: set[str] = set()
+        for email in recipients:
+            if not email:
+                continue
+            email_lower = email.lower()
+            if email_lower not in seen:
+                seen.add(email_lower)
+                unique_emails.append(email_lower)
+        return unique_emails
 
     def _match_stakeholders(
         self,

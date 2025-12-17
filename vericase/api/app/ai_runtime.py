@@ -27,6 +27,12 @@ def normalize_provider(provider: str) -> str:
     return p
 
 
+def _is_o_series_model(model_id: str) -> bool:
+    """Detect OpenAI o-series models that require max_completion_tokens."""
+    mid = (model_id or "").lower()
+    return mid.startswith(("o1", "o3", "o4", "o5"))
+
+
 async def complete_chat(
     provider: str,
     model_id: str,
@@ -75,7 +81,7 @@ async def complete_chat(
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        is_o_series = model_id.startswith(("o1", "o3", "o4", "o5"))
+        is_o_series = _is_o_series_model(model_id)
         if is_o_series:
             response = await client.chat.completions.create(
                 model=model_id,
@@ -165,12 +171,21 @@ async def complete_chat(
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        response = await client.chat.completions.create(
-            model=model_id,
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
+        is_o_series = _is_o_series_model(model_id)
+        if is_o_series:
+            response = await client.chat.completions.create(
+                model=model_id,
+                messages=messages,
+                max_completion_tokens=max_tokens,
+                temperature=temperature,
+            )
+        else:
+            response = await client.chat.completions.create(
+                model=model_id,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
         return response.choices[0].message.content or ""
 
     # Perplexity Sonar — OpenAI-compatible API
@@ -188,12 +203,21 @@ async def complete_chat(
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        response = await client.chat.completions.create(
-            model=model_id,
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
+        is_o_series = _is_o_series_model(model_id)
+        if is_o_series:
+            response = await client.chat.completions.create(
+                model=model_id,
+                messages=messages,
+                max_completion_tokens=max_tokens,
+                temperature=temperature,
+            )
+        else:
+            response = await client.chat.completions.create(
+                model=model_id,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
         return response.choices[0].message.content or ""
 
     raise ValueError(f"Unknown provider: {provider}")
