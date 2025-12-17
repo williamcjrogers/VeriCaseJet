@@ -43,8 +43,40 @@ from .ai_settings import (
     get_tool_fallback_chain,
 )
 from .ai_providers import BedrockProvider, bedrock_available
+from sqlalchemy import or_, and_, not_
 
 logger = logging.getLogger(__name__)
+
+
+def _exclude_spam_filter(email_model: type[EmailMessage]) -> Any:
+    """
+    Build SQLAlchemy filter to exclude spam/hidden/other-project emails.
+
+    Filters out emails where meta contains:
+    - is_spam = True
+    - is_hidden = True
+    - other_project is not null
+
+    Returns a filter condition that can be used with .filter()
+    """
+    # PostgreSQL JSON operators for meta field filtering
+    # meta->>'is_spam' = 'true' OR meta->>'is_hidden' = 'true' OR meta->>'other_project' IS NOT NULL
+    return and_(
+        or_(
+            email_model.meta.is_(None),
+            not_(email_model.meta["is_spam"].astext == "true"),
+        ),
+        or_(
+            email_model.meta.is_(None),
+            not_(email_model.meta["is_hidden"].astext == "true"),
+        ),
+        or_(
+            email_model.meta.is_(None),
+            email_model.meta["other_project"].astext.is_(None),
+            email_model.meta["other_project"].astext == "",
+        ),
+    )
+
 
 router = APIRouter(prefix="/api/ai-refinement", tags=["ai-refinement"])
 
@@ -486,16 +518,21 @@ class AIRefinementEngine:
     # Batch Processing Methods for Mass Email Analysis
     # =========================================================================
 
-    def get_email_count(self) -> int:
-        """Get total count of emails in project (fast COUNT query)"""
-        return (
-            self.db.query(EmailMessage)
-            .filter(EmailMessage.project_id == str(self.project.id))
-            .count()
+    def get_email_count(self, include_spam: bool = False) -> int:
+        """Get total count of relevant emails in project (excludes spam/hidden by default)"""
+        query = self.db.query(EmailMessage).filter(
+            EmailMessage.project_id == str(self.project.id)
         )
+        if not include_spam:
+            query = query.filter(_exclude_spam_filter(EmailMessage))
+        return query.count()
 
     def stream_emails_in_batches(
-        self, batch_size: int = 10000, max_emails: int = 0
+        self,
+        batch_size: int = 10000,
+        max_emails: int = 0,
+        exclude_ids: set[str] | None = None,
+        include_spam: bool = False,
     ) -> Generator[list[EmailMessage], None, None]:
         """
         Stream emails in memory-efficient batches using cursor pagination.
@@ -504,6 +541,8 @@ class AIRefinementEngine:
         Args:
             batch_size: Number of emails per batch (default 10,000)
             max_emails: Maximum total emails to process (0 = unlimited)
+            exclude_ids: Optional set of email IDs to skip (pre-filtered)
+            include_spam: If False (default), excludes spam/hidden/other_project emails
 
         Yields:
             Lists of EmailMessage objects, batch_size at a time
@@ -513,13 +552,19 @@ class AIRefinementEngine:
 
         while True:
             # Build query with offset-based pagination
-            query = (
-                self.db.query(EmailMessage)
-                .filter(EmailMessage.project_id == str(self.project.id))
-                .order_by(EmailMessage.id)  # Stable ordering for pagination
-                .offset(offset)
-                .limit(batch_size)
+            query = self.db.query(EmailMessage).filter(
+                EmailMessage.project_id == str(self.project.id)
             )
+
+            # Exclude spam/hidden/other_project emails by default
+            if not include_spam:
+                query = query.filter(_exclude_spam_filter(EmailMessage))
+
+            query = query.order_by(EmailMessage.id).offset(offset).limit(batch_size)
+
+            # Filter out pre-excluded emails if specified
+            if exclude_ids:
+                query = query.filter(~EmailMessage.id.in_(exclude_ids))
 
             batch = query.all()
 
@@ -2153,10 +2198,11 @@ async def start_ai_analysis(
     if not project:
         raise HTTPException(404, "Project not found")
 
-    # Get email count to determine processing strategy
+    # Get email count to determine processing strategy (excluding spam/hidden/other_project)
     email_count = (
         db.query(EmailMessage)
         .filter(EmailMessage.project_id == request.project_id)
+        .filter(_exclude_spam_filter(EmailMessage))
         .count()
     )
 
@@ -2227,10 +2273,11 @@ async def start_ai_analysis(
     try:
         engine = AIRefinementEngine(db, project)
 
-        # Load emails directly for small datasets
+        # Load emails directly for small datasets (excluding spam/hidden/other_project)
         emails = (
             db.query(EmailMessage)
             .filter(EmailMessage.project_id == request.project_id)
+            .filter(_exclude_spam_filter(EmailMessage))
             .order_by(EmailMessage.date_sent.desc())
             .limit(max_emails)
             .all()
@@ -2433,9 +2480,11 @@ async def apply_refinement(
     duplicate_removed_count = 0
     rules = session.exclusion_rules
 
+    # Fetch emails excluding pre-tagged spam/hidden/other_project
     emails = (
         db.query(EmailMessage)
         .filter(EmailMessage.project_id == session.project_id)
+        .filter(_exclude_spam_filter(EmailMessage))
         .all()
     )
 

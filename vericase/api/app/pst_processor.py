@@ -899,6 +899,72 @@ class UltimatePSTProcessor:
             > 0,
         }
 
+        # =====================================================================
+        # EARLY SPAM DETECTION - Skip full ingestion for spam/hidden/other_project
+        # Only store minimal metadata to save storage and processing time
+        # =====================================================================
+        spam_info = self._calculate_spam_score(
+            subject, None, from_email
+        )  # Subject-only check first
+
+        if spam_info.get("is_hidden") or spam_info.get("other_project"):
+            # Create minimal EmailMessage record - NO body content, NO attachments
+            email_message = EmailMessage(
+                pst_file_id=pst_file_record.id,
+                case_id=case_id,
+                project_id=project_id,
+                message_id=message_id,
+                in_reply_to=in_reply_to,
+                email_references=references,
+                conversation_index=conversation_index,
+                subject=subject,
+                sender_email=from_email,
+                sender_name=sender_name,
+                recipients_to=to_recipients if to_recipients else None,
+                recipients_cc=cc_recipients if cc_recipients else None,
+                recipients_bcc=bcc_recipients if bcc_recipients else None,
+                date_sent=email_date,
+                date_received=email_date,
+                body_text=None,  # Skip body - not needed for excluded emails
+                body_html=None,
+                body_text_clean=None,
+                body_preview=f"[EXCLUDED: {spam_info.get('spam_reasons', ['spam'])[0] if spam_info.get('spam_reasons') else 'spam'}]",
+                has_attachments=email_data.get("has_attachments", False),
+                importance=self._safe_get_attr(message, "importance", None),
+                pst_message_path=folder_path,
+                meta={
+                    "thread_topic": thread_topic,
+                    "excluded": True,  # Flag for UI to show as excluded
+                    "spam_score": spam_info["spam_score"],
+                    "is_spam": spam_info["is_spam"],
+                    "is_hidden": spam_info.get("is_hidden", False),
+                    "spam_reasons": spam_info["spam_reasons"],
+                    "other_project": spam_info["other_project"],
+                    "attachments_skipped": email_data.get("has_attachments", False),
+                },
+            )
+            self.db.add(email_message)
+            self.db.flush()
+
+            # Track for threading (still needed for reference)
+            if message_id:
+                thread_info: ThreadInfo = {
+                    "email_message": email_message,
+                    "in_reply_to": in_reply_to,
+                    "references": references,
+                    "date": email_date,
+                    "subject": subject or "",
+                    "content": "",
+                    "email_data": email_data,
+                }
+                self.threads_map[message_id] = thread_info
+
+            return email_message  # EARLY RETURN - skip body/attachment processing
+
+        # =====================================================================
+        # FULL PROCESSING - Only for relevant, non-spam emails
+        # =====================================================================
+
         # Extract body content (prefer HTML, fallback to plain text)
         # pypff returns bytes, need to decode properly
         def _decode_body(raw: Any) -> str | None:
