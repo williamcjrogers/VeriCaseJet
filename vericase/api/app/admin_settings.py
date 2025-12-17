@@ -22,6 +22,8 @@ from .ai_settings import (
     get_function_config,
     is_bedrock_enabled,
     get_bedrock_region,
+    get_tool_config,
+    get_all_tool_configs,
 )
 from .ai_models_2025 import AI_MODELS_2025, get_models_by_provider, get_provider_info
 from .ai_providers import BedrockProvider, bedrock_available
@@ -783,3 +785,124 @@ async def _fetch_perplexity_models(api_key: str) -> dict[str, Any]:
             "models": chat_models,
             "total_models": len(models),
         }
+
+
+# =============================================================================
+# AI Tool Registry Endpoints (all 10 tools from DEFAULT_TOOL_CONFIGS)
+# =============================================================================
+
+
+class AIToolConfigUpdate(BaseModel):
+    """Update request for AI tool config"""
+
+    enabled: bool | None = None
+    provider: str | None = None
+    model: str | None = None
+    max_tokens: int | None = None
+    temperature: float | None = None
+    max_duration_seconds: int | None = None
+
+
+@router.get("/ai/tools")
+def get_ai_tools(
+    db: DbSession,
+    admin: AdminDep,
+) -> dict[str, Any]:
+    """
+    Get configuration for ALL AI tools (10 tools from DEFAULT_TOOL_CONFIGS)
+    """
+    all_configs = get_all_tool_configs(db)
+
+    return {
+        "tools": all_configs,
+        "tool_count": len(all_configs),
+        "available_tools": list(all_configs.keys()),
+    }
+
+
+@router.get("/ai/tools/{tool_name}")
+def get_ai_tool_config(
+    tool_name: str,
+    db: DbSession,
+    admin: AdminDep,
+) -> dict[str, Any]:
+    """
+    Get configuration for a specific AI tool
+    """
+    all_tools = get_all_tool_configs(db)
+
+    if tool_name not in all_tools:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Tool '{tool_name}' not found. Available: {', '.join(all_tools.keys())}",
+        )
+
+    return {
+        "tool": tool_name,
+        "config": all_tools[tool_name],
+    }
+
+
+@router.put("/ai/tools/{tool_name}")
+def update_ai_tool_config(
+    tool_name: str,
+    db: DbSession,
+    admin: AdminDep,
+    update: Annotated[AIToolConfigUpdate, Body(...)],
+) -> dict[str, Any]:
+    """
+    Update configuration for an AI tool
+    """
+    all_tools = get_all_tool_configs(db)
+
+    if tool_name not in all_tools:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Tool '{tool_name}' not found. Available: {', '.join(all_tools.keys())}",
+        )
+
+    # Build partial config update (only include non-None fields)
+    config_update: dict[str, Any] = {}
+
+    if update.enabled is not None:
+        config_update["enabled"] = update.enabled
+    if update.provider is not None:
+        if update.provider not in RUNTIME_SUPPORTED_PROVIDERS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid provider: {update.provider}. Supported: {', '.join(RUNTIME_SUPPORTED_PROVIDERS)}",
+            )
+        config_update["provider"] = update.provider
+    if update.model is not None:
+        config_update["model"] = update.model
+    if update.max_tokens is not None:
+        config_update["max_tokens"] = update.max_tokens
+    if update.temperature is not None:
+        config_update["temperature"] = update.temperature
+    if update.max_duration_seconds is not None:
+        config_update["max_duration_seconds"] = update.max_duration_seconds
+
+    if not config_update:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    # Save to database
+    success = AISettings.set_tool_config(tool_name, config_update, db)
+
+    if not success:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to save tool config for {tool_name}",
+        )
+
+    logger.info(
+        f"Admin {admin.email} updated AI tool config for '{tool_name}': {config_update}"
+    )
+
+    # Return updated config
+    updated_config = get_tool_config(tool_name, db)
+
+    return {
+        "success": True,
+        "tool": tool_name,
+        "config": updated_config,
+    }

@@ -1180,130 +1180,16 @@
         <div class="settings-section">
           <div class="section-title">
             <i class="fas fa-cogs" style="color: var(--vericase-teal)"></i>
-            Function Configuration
+            AI Tool Registry
           </div>
           <p class="section-description">
-            Configure AI models and parameters for specific functions
+            Configure AI models and parameters for all VeriCase AI tools
           </p>
 
-          <!-- Quick Search Function -->
-          <div class="function-card">
-            <div class="function-header">
-              <div class="function-title">
-                <i class="fas fa-search" style="color: var(--vericase-blue)"></i>
-                Quick Search
-              </div>
-              <button class="btn btn-primary" onclick="saveFunctionConfig('quick_search')">
-                <i class="fas fa-save"></i> Save Configuration
-              </button>
-            </div>
-            <p class="section-description" style="margin-bottom: 1rem">
-              Fast searches across evidence with quick AI analysis. Optimized for speed.
-            </p>
-            <div class="function-grid">
-              <div class="function-field">
-                <label>Provider</label>
-                <select id="fn_quick_search_provider" class="setting-input">
-                  <option value="openai">OpenAI</option>
-                  <option value="anthropic">Anthropic</option>
-                  <option value="gemini" selected>Gemini</option>
-                  <option value="bedrock">Bedrock</option>
-                </select>
-              </div>
-              <div class="function-field">
-                <label>Model</label>
-                <select id="fn_quick_search_model" class="setting-input">
-                  <!-- Populated based on provider -->
-                </select>
-              </div>
-              <div class="function-field">
-                <label>Max Duration (seconds)</label>
-                <input
-                  type="number"
-                  id="fn_quick_search_duration"
-                  class="setting-input"
-                  min="5"
-                  max="120"
-                  value="30"
-                />
-              </div>
-              <div class="function-field">
-                <label>Extended Thinking</label>
-                <select id="fn_quick_search_thinking" class="setting-input">
-                  <option value="false" selected>Disabled</option>
-                  <option value="true">Enabled</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <!-- Deep Analysis Function -->
-          <div class="function-card">
-            <div class="function-header">
-              <div class="function-title">
-                <i class="fas fa-microscope" style="color: #8b5cf6"></i>
-                Deep Analysis
-              </div>
-              <button class="btn btn-primary" onclick="saveFunctionConfig('deep_analysis')">
-                <i class="fas fa-save"></i> Save Configuration
-              </button>
-            </div>
-            <p class="section-description" style="margin-bottom: 1rem">
-              Comprehensive analysis with extended reasoning. Used for legal research and complex queries.
-            </p>
-            <div class="function-grid">
-              <div class="function-field">
-                <label>Provider</label>
-                <select id="fn_deep_analysis_provider" class="setting-input">
-                  <option value="openai">OpenAI</option>
-                  <option value="anthropic" selected>Anthropic</option>
-                  <option value="gemini">Gemini</option>
-                  <option value="bedrock">Bedrock</option>
-                </select>
-              </div>
-              <div class="function-field">
-                <label>Model</label>
-                <select id="fn_deep_analysis_model" class="setting-input">
-                  <!-- Populated based on provider -->
-                </select>
-              </div>
-              <div class="function-field">
-                <label>Max Duration (seconds)</label>
-                <input
-                  type="number"
-                  id="fn_deep_analysis_duration"
-                  class="setting-input"
-                  min="30"
-                  max="600"
-                  value="300"
-                />
-              </div>
-              <div class="function-field">
-                <label>Extended Thinking</label>
-                <select id="fn_deep_analysis_thinking" class="setting-input">
-                  <option value="false">Disabled</option>
-                  <option value="true" selected>Enabled</option>
-                </select>
-              </div>
-              <div class="function-field">
-                <label>Thinking Budget (tokens)</label>
-                <input
-                  type="number"
-                  id="fn_deep_analysis_thinking_budget"
-                  class="setting-input"
-                  min="1000"
-                  max="50000"
-                  step="1000"
-                  value="5000"
-                />
-              </div>
-            </div>
-            <div class="info-box">
-              <i class="fas fa-lightbulb"></i>
-              <div>
-                <strong>Extended Thinking:</strong> When enabled, the AI spends more time reasoning before responding.
-                Higher thinking budget allows more complex reasoning but increases cost and latency.
-              </div>
+          <!-- Dynamic tool cards container -->
+          <div id="ai-tools-container">
+            <div class="loading-indicator" style="text-align: center; padding: 2rem;">
+              <i class="fas fa-spinner fa-spin"></i> Loading AI tools...
             </div>
           </div>
         </div>
@@ -2152,11 +2038,206 @@
         }
       }
 
+      // ====== AI Tool Registry ======
+      const TOOL_ICONS = {
+        basic_chat: { icon: "fa-comments", color: "var(--vericase-blue)" },
+        vericase_analysis: { icon: "fa-scale-balanced", color: "var(--vericase-teal)" },
+        deep_research: { icon: "fa-microscope", color: "#8b5cf6" },
+        ai_refinement: { icon: "fa-filter", color: "#f59e0b" },
+        chronology_builder: { icon: "fa-timeline", color: "#10b981" },
+        delay_analysis: { icon: "fa-clock", color: "#ef4444" },
+        natural_language_query: { icon: "fa-search", color: "#3b82f6" },
+        auto_classification: { icon: "fa-tags", color: "#6366f1" },
+        dataset_insights: { icon: "fa-chart-bar", color: "#ec4899" },
+        evidence_summary: { icon: "fa-file-alt", color: "#14b8a6" },
+      };
+
+      const TOOL_CATEGORIES = {
+        flagship: ["vericase_analysis"],
+        research: ["deep_research", "ai_refinement"],
+        analysis: ["chronology_builder", "delay_analysis", "evidence_summary"],
+        assistant: ["basic_chat", "natural_language_query"],
+        automation: ["auto_classification", "dataset_insights"],
+      };
+
+      async function loadAIToolConfigs() {
+        const container = document.getElementById("ai-tools-container");
+
+        try {
+          const response = await fetch(`${API_BASE}/api/admin/settings/ai/tools`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (!response.ok) {
+            container.innerHTML = `<div class="info-box" style="background: #fef2f2; border-color: #fecaca;">
+              <i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i>
+              <div>Failed to load AI tools. Status: ${response.status}</div>
+            </div>`;
+            return;
+          }
+
+          const data = await response.json();
+          const tools = data.tools || {};
+
+          // Render tool cards
+          container.innerHTML = "";
+
+          for (const [toolName, config] of Object.entries(tools)) {
+            const card = renderAIToolCard(toolName, config);
+            container.appendChild(card);
+          }
+
+        } catch (error) {
+          console.error("Error loading AI tools:", error);
+          container.innerHTML = `<div class="info-box" style="background: #fef2f2; border-color: #fecaca;">
+            <i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i>
+            <div>Error loading AI tools: ${error.message}</div>
+          </div>`;
+        }
+      }
+
+      function renderAIToolCard(toolName, config) {
+        const card = document.createElement("div");
+        card.className = "function-card";
+        card.id = `tool-card-${toolName}`;
+
+        const iconInfo = TOOL_ICONS[toolName] || { icon: "fa-cog", color: "#6b7280" };
+        const displayName = config.display_name || toolName.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+        const description = config.description || "";
+        const category = config.category || "general";
+        const isEnabled = config.enabled !== false;
+
+        card.innerHTML = `
+          <div class="function-header">
+            <div class="function-title">
+              <i class="fas ${iconInfo.icon}" style="color: ${iconInfo.color}"></i>
+              ${displayName}
+              <span class="category-badge" style="background: ${isEnabled ? 'var(--vericase-teal)' : '#9ca3af'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; margin-left: 8px;">
+                ${category}
+              </span>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem;">
+                <input type="checkbox" id="tool_${toolName}_enabled" ${isEnabled ? "checked" : ""}
+                  onchange="toggleToolEnabled('${toolName}', this.checked)" />
+                Enabled
+              </label>
+              <button class="btn btn-primary" onclick="saveToolConfig('${toolName}')">
+                <i class="fas fa-save"></i> Save
+              </button>
+            </div>
+          </div>
+          <p class="section-description" style="margin-bottom: 1rem; font-size: 0.85rem; color: var(--text-secondary);">
+            ${description}
+          </p>
+          <div class="function-grid">
+            <div class="function-field">
+              <label>Provider</label>
+              <select id="tool_${toolName}_provider" class="setting-input" onchange="updateToolModelOptions('${toolName}')">
+                <option value="openai" ${config.provider === "openai" ? "selected" : ""}>OpenAI</option>
+                <option value="anthropic" ${config.provider === "anthropic" ? "selected" : ""}>Anthropic</option>
+                <option value="gemini" ${config.provider === "gemini" ? "selected" : ""}>Gemini</option>
+                <option value="bedrock" ${config.provider === "bedrock" ? "selected" : ""}>Bedrock</option>
+                <option value="xai" ${config.provider === "xai" ? "selected" : ""}>xAI (Grok)</option>
+                <option value="perplexity" ${config.provider === "perplexity" ? "selected" : ""}>Perplexity</option>
+              </select>
+            </div>
+            <div class="function-field">
+              <label>Model</label>
+              <input type="text" id="tool_${toolName}_model" class="setting-input"
+                value="${config.model || ""}" placeholder="Model ID" />
+            </div>
+            <div class="function-field">
+              <label>Max Tokens</label>
+              <input type="number" id="tool_${toolName}_max_tokens" class="setting-input"
+                value="${config.max_tokens || 4000}" min="100" max="100000" />
+            </div>
+            <div class="function-field">
+              <label>Temperature</label>
+              <input type="number" id="tool_${toolName}_temperature" class="setting-input"
+                value="${config.temperature || 0.3}" min="0" max="2" step="0.1" />
+            </div>
+            <div class="function-field">
+              <label>Max Duration (sec)</label>
+              <input type="number" id="tool_${toolName}_duration" class="setting-input"
+                value="${config.max_duration_seconds || 60}" min="5" max="600" />
+            </div>
+          </div>
+          ${config.fallback_chain && config.fallback_chain.length > 0 ? `
+            <div class="info-box" style="margin-top: 1rem;">
+              <i class="fas fa-random"></i>
+              <div>
+                <strong>Fallback Chain:</strong>
+                ${config.fallback_chain.map(f => `${f[0]}/${f[1]}`).join(" → ")}
+              </div>
+            </div>
+          ` : ""}
+        `;
+
+        return card;
+      }
+
+      function toggleToolEnabled(toolName, enabled) {
+        // Visual feedback - just update the badge for now
+        const card = document.getElementById(`tool-card-${toolName}`);
+        if (card) {
+          const badge = card.querySelector(".category-badge");
+          if (badge) {
+            badge.style.background = enabled ? "var(--vericase-teal)" : "#9ca3af";
+          }
+        }
+      }
+
+      function updateToolModelOptions(toolName) {
+        // Could populate model dropdown based on provider if needed
+        // For now, just allow free-form model ID input
+      }
+
+      async function saveToolConfig(toolName) {
+        const enabled = document.getElementById(`tool_${toolName}_enabled`)?.checked;
+        const provider = document.getElementById(`tool_${toolName}_provider`)?.value;
+        const model = document.getElementById(`tool_${toolName}_model`)?.value;
+        const maxTokens = parseInt(document.getElementById(`tool_${toolName}_max_tokens`)?.value) || null;
+        const temperature = parseFloat(document.getElementById(`tool_${toolName}_temperature`)?.value) || null;
+        const duration = parseInt(document.getElementById(`tool_${toolName}_duration`)?.value) || null;
+
+        const update = {};
+        if (enabled !== undefined) update.enabled = enabled;
+        if (provider) update.provider = provider;
+        if (model) update.model = model;
+        if (maxTokens) update.max_tokens = maxTokens;
+        if (temperature !== null) update.temperature = temperature;
+        if (duration) update.max_duration_seconds = duration;
+
+        try {
+          const response = await fetch(`${API_BASE}/api/admin/settings/ai/tools/${toolName}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(update),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            showToast(errorData.detail || `Failed to save ${toolName}`, "error");
+            return;
+          }
+
+          showToast(`${toolName.replace(/_/g, " ")} configuration saved!`);
+        } catch (error) {
+          console.error("Error saving tool config:", error);
+          showToast("Failed to save configuration", "error");
+        }
+      }
+
       // ====== Initialize ======
       async function init() {
         await loadAIModels();
         await loadSettings();
         await loadFunctionConfigs();
+        await loadAIToolConfigs();
       }
 
       init();
