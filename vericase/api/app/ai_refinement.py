@@ -431,22 +431,42 @@ class AIRefinementEngine:
 
     async def _call_llm(self, prompt: str, system_prompt: str = "") -> str:
         """Call the best available LLM (4 providers) - Bedrock first for cost optimization"""
+        errors: list[str] = []
+
         # Try Bedrock FIRST - uses AWS billing, more cost effective
         if self.bedrock_enabled:
             try:
                 return await self._call_bedrock(prompt, system_prompt)
             except Exception as e:
                 logger.warning(f"Bedrock call failed, trying fallback: {e}")
+                errors.append(f"Bedrock: {e}")
 
-        # Fallback to external APIs
+        # Fallback to external APIs - each with error handling
         if self.anthropic_key:
-            return await self._call_anthropic(prompt, system_prompt)
+            try:
+                return await self._call_anthropic(prompt, system_prompt)
+            except Exception as e:
+                logger.warning(f"Anthropic call failed: {e}")
+                errors.append(f"Anthropic: {e}")
 
         if self.openai_key:
-            return await self._call_openai(prompt, system_prompt)
+            try:
+                return await self._call_openai(prompt, system_prompt)
+            except Exception as e:
+                logger.warning(f"OpenAI call failed: {e}")
+                errors.append(f"OpenAI: {e}")
 
         if self.gemini_key:
-            return await self._call_gemini(prompt, system_prompt)
+            try:
+                return await self._call_gemini(prompt, system_prompt)
+            except Exception as e:
+                logger.warning(f"Gemini call failed: {e}")
+                errors.append(f"Gemini: {e}")
+
+        # If we got here, all providers failed or none configured
+        if errors:
+            error_summary = "; ".join(errors)
+            raise HTTPException(500, f"All AI providers failed: {error_summary}")
 
         raise HTTPException(
             500, "No AI providers configured. Please add API keys in Admin Settings."
