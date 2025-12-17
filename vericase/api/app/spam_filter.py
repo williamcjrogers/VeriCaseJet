@@ -46,6 +46,25 @@ class SpamClassifier:
     # HIGH CONFIDENCE patterns - auto-hide these
     HIGH_CONFIDENCE_PATTERNS: list[PatternGroup] = [
         PatternGroup(
+            category="non_email",
+            patterns=[
+                # Outlook message classes - not actual emails
+                r"^IPM\.Activity$",
+                r"^IPM\.Appointment",
+                r"^IPM\.Task",
+                r"^IPM\.Contact",
+                r"^IPM\.StickyNote",
+                r"^IPM\.Schedule",
+                r"^IPM\.DistList",
+                r"^IPM\.Post",
+                # Empty/null subjects that indicate system items
+                r"^-$",
+                r"^$",
+            ],
+            confidence=100,
+            auto_hide=True,
+        ),
+        PatternGroup(
             category="marketing",
             patterns=[
                 r"\bwebinar\b",
