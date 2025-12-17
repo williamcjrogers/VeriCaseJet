@@ -126,12 +126,10 @@ kubectl get ingress -n vericase
 ### Check 2: Are AI keys in Secrets Manager?
 
 ```bash
-# Check if secret exists
-aws secretsmanager get-secret-value \
+# Check if the secret exists (this does NOT print the secret value)
+aws secretsmanager describe-secret \
   --secret-id vericase/ai-api-keys \
-  --region eu-west-2 \
-  --query SecretString \
-  --output text
+  --region eu-west-2
 
 # If error "ResourceNotFoundException", create it with YOUR keys (do NOT hardcode in docs):
 aws secretsmanager create-secret \
@@ -149,10 +147,10 @@ aws secretsmanager create-secret \
 ### Check 3: Do you have IAM permissions?
 
 ```bash
-# Check if pod can read Secrets Manager
+# Check if the pod's IAM role can access the secret (this does NOT print the secret value)
 POD=$(kubectl get pod -n vericase -l app=vericase-api -o jsonpath="{.items[0].metadata.name}")
 
-kubectl exec -n vericase $POD -- aws secretsmanager get-secret-value \
+kubectl exec -n vericase $POD -- aws secretsmanager describe-secret \
   --secret-id vericase/ai-api-keys \
   --region eu-west-2
 

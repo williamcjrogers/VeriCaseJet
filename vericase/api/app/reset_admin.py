@@ -2,6 +2,9 @@ import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from .security import hash_password
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Database URL inside container
 DATABASE_URL = os.getenv(
@@ -10,7 +13,7 @@ DATABASE_URL = os.getenv(
 
 
 def reset_admin_password():
-    print(f"Connecting to database: {DATABASE_URL}")
+    logger.info(f"Connecting to database: {DATABASE_URL}")
     engine = create_engine(DATABASE_URL)
     Session = sessionmaker(bind=engine)
     session = Session()
@@ -27,7 +30,9 @@ def reset_admin_password():
         user = result.fetchone()
 
         if user:
-            print(f"Found user {email}. Reseting password and UNLOCKING account...")
+            logger.info(
+                f"Found user {email}. Resetting password and UNLOCKING account..."
+            )
             # Reset password AND clear lockout fields
             _ = session.execute(
                 text(
@@ -42,9 +47,9 @@ def reset_admin_password():
                 {"new_hash": new_hash, "email": email},
             )
             session.commit()
-            print(f"✅ Account UNLOCKED. Password reset to: {new_password}")
+            logger.info(f"✅ Account UNLOCKED. Password reset to: {new_password}")
         else:
-            print(f"❌ User {email} not found! Creating it...")
+            logger.warning(f"❌ User {email} not found! Creating it...")
             # Create admin user
             _ = session.execute(
                 text(
@@ -56,10 +61,10 @@ def reset_admin_password():
                 {"email": email, "hash": new_hash},
             )
             session.commit()
-            print(f"✅ Admin user created: {email} / {new_password}")
+            logger.info(f"✅ Admin user created: {email} / {new_password}")
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        logger.error(f"❌ Error: {e}")
         session.rollback()
     finally:
         session.close()

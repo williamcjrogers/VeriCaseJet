@@ -347,7 +347,9 @@ class BedrockProvider:
         """Build request body for Meta Llama models"""
         full_prompt = prompt
         if system_prompt:
-            full_prompt = f"<s>[INST] <<SYS>>\n{system_prompt}\n<</SYS>>\n\n{prompt} [/INST]"
+            full_prompt = (
+                f"<s>[INST] <<SYS>>\n{system_prompt}\n<</SYS>>\n\n{prompt} [/INST]"
+            )
         else:
             full_prompt = f"<s>[INST] {prompt} [/INST]"
 

@@ -5,9 +5,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from api.app.db import SessionLocal
-from api.app.models import User
-from api.app.security import hash_password
+from app.db import SessionLocal
+from app.models import User
+from app.security import hash_password
 
 
 def create_admin():

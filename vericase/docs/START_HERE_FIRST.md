@@ -1,28 +1,29 @@
 # 🚀 START HERE - VeriCase Is Ready!
 
+**Legacy/Archived:** This starter referenced the old `pst-analysis-engine` scripts. For current local dev use `vericase/docs/deployment/LOCAL_DEVELOPMENT.md`; for deployment see `.github/DEPLOYMENT.md` (GitHub OIDC + digest). Set admin credentials in `.env` and avoid shared defaults.
+
 ## ✅ Everything is configured and ready to run!
 
 ### Quick Start (30 seconds):
 
 1. **Open PowerShell in this folder**
-2. **Run:**
+2. **Run (current local dev path):**
    ```cmd
-   cd pst-analysis-engine
-   START_DOCKER.bat
+   cd vericase
+   docker compose up -d --build
    ```
 3. **Wait 30 seconds**
 4. **Open:** http://localhost:8010
-5. **Login:** admin@vericase.com / admin123
+5. **Login:** use `ADMIN_EMAIL` / `ADMIN_PASSWORD` from your `.env` (choose a strong, unique password)
 
 ---
 
 ## 📚 Full Documentation
 
-All setup guides are in `pst-analysis-engine/`:
+Prefer the current guides:
 
-- **[READY_TO_RUN.md](pst-analysis-engine/READY_TO_RUN.md)** ← What's been fixed & how to start
-- **[EASY_SETUP.md](pst-analysis-engine/EASY_SETUP.md)** ← Complete setup guide  
-- **[DOCKER_QUICKSTART.md](pst-analysis-engine/DOCKER_QUICKSTART.md)** ← Docker reference
+- **[Local Development](vericase/docs/deployment/LOCAL_DEVELOPMENT.md)**
+- **[Deployment Guide](.github/DEPLOYMENT.md)**
 
 ---
 

@@ -13,10 +13,19 @@ from datetime import datetime
 from typing import Annotated, Any, Optional
 
 from boto3.s3.transfer import TransferConfig
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+)
 from pydantic import BaseModel, field_validator
 from pydantic.fields import Field
-from sqlalchemy import Boolean, String, and_, cast, func, or_, select
+from sqlalchemy import String, and_, cast, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -354,7 +363,9 @@ async def upload_pst_file(
         file.file.seek(0, os.SEEK_END)
         file_size = file.file.tell()
     except Exception as exc:  # pragma: no cover - defensive
-        logger.warning("Could not determine PST file size for %s: %s", file.filename, exc)
+        logger.warning(
+            "Could not determine PST file size for %s: %s", file.filename, exc
+        )
     finally:
         try:
             file.file.seek(0)
@@ -423,7 +434,9 @@ async def upload_pst_file(
                         s3_client.abort_multipart_upload(
                             Bucket=s3_bucket, Key=s3_key, UploadId=upload_id
                         )
-                    except Exception as abort_exc:  # pragma: no cover - best effort cleanup
+                    except (
+                        Exception
+                    ) as abort_exc:  # pragma: no cover - best effort cleanup
                         logger.warning(
                             "Failed to abort multipart upload for %s: %s",
                             s3_key,
@@ -485,8 +498,9 @@ async def upload_pst_file(
 
     return {
         "pst_file_id": pst_file_id,
-        "message": "PST uploaded successfully" + (" and processing started" if task_id else " (processing pending)"),
-        "task_id": task_id
+        "message": "PST uploaded successfully"
+        + (" and processing started" if task_id else " (processing pending)"),
+        "task_id": task_id,
     }
 
 
@@ -890,7 +904,9 @@ async def list_pst_files(
 async def get_email_count(
     case_id: Annotated[str | None, Query(description="Case ID")] = None,
     project_id: Annotated[str | None, Query(description="Project ID")] = None,
-    include_excluded: Annotated[bool, Query(description="Include AI-excluded emails")] = False,
+    include_excluded: Annotated[
+        bool, Query(description="Include AI-excluded emails")
+    ] = False,
     db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
 ):
     """
@@ -950,8 +966,7 @@ async def get_excluded_emails(
     # Group by status tag in metadata
     reason_counts = {}
     reasons_query = db.query(
-        status_field.label("reason"),
-        func.count(EmailMessage.id).label("count")
+        status_field.label("reason"), func.count(EmailMessage.id).label("count")
     ).filter(
         status_field.is_not(None),
         status_field != "active",
@@ -969,7 +984,12 @@ async def get_excluded_emails(
 
     # Get paginated emails
     offset = (page - 1) * page_size
-    emails = query.order_by(EmailMessage.date_sent.desc()).offset(offset).limit(page_size).all()
+    emails = (
+        query.order_by(EmailMessage.date_sent.desc())
+        .offset(offset)
+        .limit(page_size)
+        .all()
+    )
 
     return {
         "total": total,
@@ -1030,10 +1050,14 @@ async def list_emails(
     date_from: Annotated[datetime | None, Query(description="Date range start")] = None,
     date_to: Annotated[datetime | None, Query(description="Date range end")] = None,
     status_filter: Annotated[
-        str | None, Query(description="Filter by status tag in metadata (spam, other_project, not_relevant, empty)")
+        str | None,
+        Query(
+            description="Filter by status tag in metadata (spam, other_project, not_relevant, empty)"
+        ),
     ] = None,
     include_hidden: Annotated[
-        bool, Query(description="Include ALL emails including filtered (default: False)")
+        bool,
+        Query(description="Include ALL emails including filtered (default: False)"),
     ] = False,
     db: Session = Depends(get_db),  # type: ignore[reportCallInDefaultInitializer]
 ):
@@ -1569,7 +1593,9 @@ async def get_emails_server_side(
     def _join_recipients(recipients: list[str] | None) -> str:
         if not recipients:
             return ""
-        return ", ".join([r.strip() for r in recipients if isinstance(r, str) and r.strip()])
+        return ", ".join(
+            [r.strip() for r in recipients if isinstance(r, str) and r.strip()]
+        )
 
     start_row = request.startRow
     end_row = request.endRow
@@ -1693,9 +1719,7 @@ async def get_emails_server_side(
     stakeholders_by_name: dict[str, dict] = {}
     if project_uuid is not None:
         stakeholders = (
-            db.query(Stakeholder)
-            .filter(Stakeholder.project_id == project_uuid)
-            .all()
+            db.query(Stakeholder).filter(Stakeholder.project_id == project_uuid).all()
         )
         for s in stakeholders:
             stakeholders_by_name[s.name] = {
@@ -1801,16 +1825,21 @@ async def get_emails_server_side(
                 "date_sent": e.date_sent.isoformat() if e.date_sent else None,
                 "email_to": _join_recipients(e.recipients_to),
                 "email_cc": _join_recipients(e.recipients_cc),
-                "has_attachments": len(attachment_list) > 0 or (e.has_attachments or False),
+                "has_attachments": len(attachment_list) > 0
+                or (e.has_attachments or False),
                 "attachment_count": len(attachment_list) or 0,
                 "attachments": attachment_list,
-                "keywords": ",".join(e.matched_keywords) if e.matched_keywords else None,
+                "keywords": (
+                    ",".join(e.matched_keywords) if e.matched_keywords else None
+                ),
                 "matched_keywords": e.matched_keywords,
                 "matched_stakeholders": matched_stakeholders,
                 "matched_stakeholders_details": matched_stakeholders_details,
                 "stakeholder_role": stakeholder_role,
                 "importance": getattr(e, "importance", "normal"),
-                "thread_id": str(e.thread_id) if getattr(e, "thread_id", None) else None,
+                "thread_id": (
+                    str(e.thread_id) if getattr(e, "thread_id", None) else None
+                ),
                 "email_body": e.body_text_clean or e.body_text or "",
                 "body_text": e.body_text or "",
                 "body_text_clean": e.body_text_clean or "",
@@ -2216,12 +2245,15 @@ class ProjectCreateRequest(BaseModel):
     @classmethod
     def _code_format(cls, v: str) -> str:
         if not _re_module.fullmatch(r"[A-Za-z0-9._-]+", v.strip()):
-            raise ValueError("Project code can only contain letters, numbers, dot, underscore, or dash")
+            raise ValueError(
+                "Project code can only contain letters, numbers, dot, underscore, or dash"
+            )
         return v.strip()
 
 
 class ProjectUpdateRequest(BaseModel):
     """Update project details"""
+
     project_name: str | None = None
     project_code: str | None = None
     # Add other fields as needed for flexibility
@@ -2256,7 +2288,9 @@ class CaseCreateRequest(BaseModel):
     @classmethod
     def _case_number_format(cls, v: str) -> str:
         if not _re_module.fullmatch(r"[A-Za-z0-9._-]+", v.strip()):
-            raise ValueError("Case number can only contain letters, numbers, dot, underscore, or dash")
+            raise ValueError(
+                "Case number can only contain letters, numbers, dot, underscore, or dash"
+            )
         return v.strip()
 
 
@@ -2383,6 +2417,7 @@ async def get_project_stakeholders(
 
 class StakeholderCreate(BaseModel):
     """Model for creating a single stakeholder"""
+
     name: str
     role: str
     email: Optional[str] = None
@@ -2415,7 +2450,7 @@ async def create_project_stakeholder(
         email=stakeholder_data.email,
         organization=stakeholder_data.organization,
     )
-    
+
     db.add(new_stakeholder)
     db.commit()
     db.refresh(new_stakeholder)
@@ -2442,11 +2477,14 @@ async def delete_project_stakeholder(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid ID format")
 
-    stakeholder = db.query(Stakeholder).filter(
-        Stakeholder.id == stakeholder_uuid,
-        Stakeholder.project_id == project_uuid
-    ).first()
-    
+    stakeholder = (
+        db.query(Stakeholder)
+        .filter(
+            Stakeholder.id == stakeholder_uuid, Stakeholder.project_id == project_uuid
+        )
+        .first()
+    )
+
     if not stakeholder:
         raise HTTPException(status_code=404, detail="Stakeholder not found")
 
@@ -2856,23 +2894,41 @@ async def delete_project(
 
     try:
         # Get IDs needed for cascading deletes
-        pst_file_ids = [pst.id for pst in db.query(PSTFile).filter(PSTFile.project_id == p_uuid).all()]
-        email_ids = [e.id for e in db.query(EmailMessage).filter(EmailMessage.project_id == p_uuid).all()]
-        evidence_item_ids = [e.id for e in db.query(EvidenceItem).filter(EvidenceItem.project_id == p_uuid).all()]
-        evidence_collection_ids = [e.id for e in db.query(EvidenceCollection).filter(EvidenceCollection.project_id == p_uuid).all()]
+        pst_file_ids = [
+            pst.id
+            for pst in db.query(PSTFile).filter(PSTFile.project_id == p_uuid).all()
+        ]
+        email_ids = [
+            e.id
+            for e in db.query(EmailMessage)
+            .filter(EmailMessage.project_id == p_uuid)
+            .all()
+        ]
+        evidence_item_ids = [
+            e.id
+            for e in db.query(EvidenceItem)
+            .filter(EvidenceItem.project_id == p_uuid)
+            .all()
+        ]
+        evidence_collection_ids = [
+            e.id
+            for e in db.query(EvidenceCollection)
+            .filter(EvidenceCollection.project_id == p_uuid)
+            .all()
+        ]
 
         # Delete ItemClaimLinks for correspondence (email_messages) in this project
         if email_ids:
             db.query(ItemClaimLink).filter(
-                ItemClaimLink.item_type == 'correspondence',
-                ItemClaimLink.item_id.in_(email_ids)
+                ItemClaimLink.item_type == "correspondence",
+                ItemClaimLink.item_id.in_(email_ids),
             ).delete(synchronize_session=False)
 
         # Delete ItemClaimLinks for evidence items in this project
         if evidence_item_ids:
             db.query(ItemClaimLink).filter(
-                ItemClaimLink.item_type == 'evidence',
-                ItemClaimLink.item_id.in_(evidence_item_ids)
+                ItemClaimLink.item_type == "evidence",
+                ItemClaimLink.item_id.in_(evidence_item_ids),
             ).delete(synchronize_session=False)
 
         # Delete EvidenceCorrespondenceLinks (references evidence_items and email_messages)
@@ -2971,9 +3027,9 @@ async def delete_project(
         )
 
         # Delete contentious matters
-        db.query(ContentiousMatter).filter(ContentiousMatter.project_id == p_uuid).delete(
-            synchronize_session=False
-        )
+        db.query(ContentiousMatter).filter(
+            ContentiousMatter.project_id == p_uuid
+        ).delete(synchronize_session=False)
 
         # Delete the project itself
         db.delete(project)
@@ -2989,8 +3045,7 @@ async def delete_project(
         db.rollback()
         logger.exception(f"Failed to delete project {project_id}: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to delete project: {str(e)}"
+            status_code=500, detail=f"Failed to delete project: {str(e)}"
         )
 
 
@@ -3226,7 +3281,11 @@ async def upload_evidence(
 
         # If missing or invalid UUID, fallback to default project
         use_default = False
-        if not target_profile_id or target_profile_id == "null" or target_profile_id == "undefined":
+        if (
+            not target_profile_id
+            or target_profile_id == "null"
+            or target_profile_id == "undefined"
+        ):
             use_default = True
         else:
             try:
@@ -3235,12 +3294,16 @@ async def upload_evidence(
                 if profileType == "project":
                     stmt = select(Project).where(Project.id == target_profile_id)
                     if not db.execute(stmt).scalar_one_or_none():
-                        logger.warning(f"Project {target_profile_id} not found, falling back")
+                        logger.warning(
+                            f"Project {target_profile_id} not found, falling back"
+                        )
                         use_default = True
                 elif profileType == "case":
                     stmt = select(Case).where(Case.id == target_profile_id)
                     if not db.execute(stmt).scalar_one_or_none():
-                        logger.warning(f"Case {target_profile_id} not found, falling back")
+                        logger.warning(
+                            f"Case {target_profile_id} not found, falling back"
+                        )
                         use_default = True
             except ValueError:
                 logger.warning(f"Invalid UUID {target_profile_id}, falling back")
@@ -3253,21 +3316,22 @@ async def upload_evidence(
             # Ensure it exists (it should from startup)
             stmt = select(Project).where(Project.id == default_project_id)
             if not db.execute(stmt).scalar_one_or_none():
-                 # Create it if missing (safety net)
-                 logger.warning("Default project missing in DB, creating on fly")
-                 default_project = _get_or_create_default_project(db, user)
-                 target_profile_id = str(default_project.id)
+                # Create it if missing (safety net)
+                logger.warning("Default project missing in DB, creating on fly")
+                default_project = _get_or_create_default_project(db, user)
+                target_profile_id = str(default_project.id)
             else:
-                 target_profile_id = default_project_id
+                target_profile_id = default_project_id
             profileType = "project"
 
         # Use the resolved ID
         profileId = target_profile_id
         profile_uuid = uuid.UUID(profileId)
 
-        logger.info(f"Upload context resolved: User={user.id}, Profile={profileId} ({profileType})")
+        logger.info(
+            f"Upload context resolved: User={user.id}, Profile={profileId} ({profileType})"
+        )
         # -------------------------------------------------------
-
 
         if not file or not file.filename:
             raise HTTPException(status_code=400, detail="Missing file")
@@ -4091,7 +4155,9 @@ async def create_stakeholder_role(
 
     # Check if this is a project or case
     project = db.query(Project).filter(Project.id == entity_uuid).first()
-    case = db.query(Case).filter(Case.id == entity_uuid).first() if not project else None
+    case = (
+        db.query(Case).filter(Case.id == entity_uuid).first() if not project else None
+    )
 
     if not project and not case:
         raise HTTPException(status_code=404, detail="Project or case not found")
@@ -4156,9 +4222,7 @@ async def update_stakeholder_role(
 
     # Prevent editing system roles (name only - colors can be customized)
     if role.is_system and role_data.name and role_data.name != role.name:
-        raise HTTPException(
-            status_code=400, detail="Cannot rename system roles"
-        )
+        raise HTTPException(status_code=400, detail="Cannot rename system roles")
 
     # Update fields if provided
     if role_data.name is not None:
@@ -4227,7 +4291,9 @@ async def initialize_project_roles(
 
     # Check if this is a project or case
     project = db.query(Project).filter(Project.id == entity_uuid).first()
-    case = db.query(Case).filter(Case.id == entity_uuid).first() if not project else None
+    case = (
+        db.query(Case).filter(Case.id == entity_uuid).first() if not project else None
+    )
 
     if not project and not case:
         raise HTTPException(status_code=404, detail="Project or case not found")
@@ -4287,6 +4353,7 @@ async def initialize_project_roles(
 # Data Management & Background Tasks
 # ============================================================================
 
+
 @router.delete("/projects/{project_id}/clear-emails")
 async def clear_project_emails(
     project_id: str,
@@ -4300,15 +4367,21 @@ async def clear_project_emails(
         proj_uuid = uuid.UUID(project_id)
 
         # Delete all email messages for this project
-        deleted_emails = db.query(EmailMessage).filter(EmailMessage.project_id == proj_uuid).delete()
+        deleted_emails = (
+            db.query(EmailMessage).filter(EmailMessage.project_id == proj_uuid).delete()
+        )
 
         # Delete all email attachments for this project
-        deleted_attachments = db.query(EmailAttachment).filter(
-            EmailAttachment.project_id == proj_uuid
-        ).delete()
+        deleted_attachments = (
+            db.query(EmailAttachment)
+            .filter(EmailAttachment.project_id == proj_uuid)
+            .delete()
+        )
 
         # Delete all PST files for this project
-        deleted_psts = db.query(PSTFile).filter(PSTFile.project_id == proj_uuid).delete()
+        deleted_psts = (
+            db.query(PSTFile).filter(PSTFile.project_id == proj_uuid).delete()
+        )
 
         db.commit()
 
@@ -4324,7 +4397,7 @@ async def clear_project_emails(
                 "emails": deleted_emails,
                 "attachments": deleted_attachments,
                 "pst_files": deleted_psts,
-            }
+            },
         }
 
     except Exception as e:
@@ -4350,13 +4423,14 @@ async def trigger_semantic_indexing_project(
 
         # Queue the indexing task
         from .tasks import index_project_emails_semantic
+
         task = index_project_emails_semantic.delay(project_id)
 
         return {
             "status": "queued",
             "task_id": task.id,
             "message": "Semantic indexing task queued",
-            "check_status_url": f"/api/correspondence/tasks/{task.id}/status"
+            "check_status_url": f"/api/correspondence/tasks/{task.id}/status",
         }
 
     except HTTPException:
@@ -4383,13 +4457,14 @@ async def trigger_semantic_indexing_case(
 
         # Queue the indexing task
         from .tasks import index_case_emails_semantic
+
         task = index_case_emails_semantic.delay(case_id)
 
         return {
             "status": "queued",
             "task_id": task.id,
             "message": "Semantic indexing task queued",
-            "check_status_url": f"/api/correspondence/tasks/{task.id}/status"
+            "check_status_url": f"/api/correspondence/tasks/{task.id}/status",
         }
 
     except HTTPException:
@@ -4414,36 +4489,30 @@ async def get_task_status(task_id: str):
 
         task = AsyncResult(task_id, app=celery_app)
 
-        if task.state == 'PENDING':
+        if task.state == "PENDING":
+            response = {"status": task.state, "message": "Task is waiting to start"}
+        elif task.state == "PROGRESS":
             response = {
-                'status': task.state,
-                'message': 'Task is waiting to start'
+                "status": task.state,
+                "current": task.info.get("current", 0),
+                "total": task.info.get("total", 0),
+                "percent": task.info.get("percent", 0),
+                "indexed": task.info.get("indexed", 0),
             }
-        elif task.state == 'PROGRESS':
+        elif task.state == "SUCCESS":
             response = {
-                'status': task.state,
-                'current': task.info.get('current', 0),
-                'total': task.info.get('total', 0),
-                'percent': task.info.get('percent', 0),
-                'indexed': task.info.get('indexed', 0),
+                "status": task.state,
+                "result": task.result,
+                "message": "Task completed successfully",
             }
-        elif task.state == 'SUCCESS':
+        elif task.state == "FAILURE":
             response = {
-                'status': task.state,
-                'result': task.result,
-                'message': 'Task completed successfully'
-            }
-        elif task.state == 'FAILURE':
-            response = {
-                'status': task.state,
-                'error': str(task.info),
-                'message': 'Task failed'
+                "status": task.state,
+                "error": str(task.info),
+                "message": "Task failed",
             }
         else:
-            response = {
-                'status': task.state,
-                'info': str(task.info)
-            }
+            response = {"status": task.state, "info": str(task.info)}
 
         return response
 
@@ -4471,15 +4540,18 @@ async def trigger_spam_filter(
         raise HTTPException(404, "Project not found")
 
     # Count emails
-    email_count = db.query(func.count(EmailMessage.id)).filter(
-        EmailMessage.project_id == project_id
-    ).scalar() or 0
+    email_count = (
+        db.query(func.count(EmailMessage.id))
+        .filter(EmailMessage.project_id == project_id)
+        .scalar()
+        or 0
+    )
 
     if email_count == 0:
         return {
             "status": "skipped",
             "message": "No emails to classify",
-            "email_count": 0
+            "email_count": 0,
         }
 
     # Trigger background task
@@ -4489,7 +4561,7 @@ async def trigger_spam_filter(
         "status": "started",
         "task_id": task.id,
         "email_count": email_count,
-        "message": f"Spam filter started for {email_count} emails"
+        "message": f"Spam filter started for {email_count} emails",
     }
 
 
@@ -4511,12 +4583,16 @@ async def get_spam_stats(
         raise HTTPException(404, "Project not found")
 
     # Get total email count
-    total_count = db.query(func.count(EmailMessage.id)).filter(
-        EmailMessage.project_id == project_id
-    ).scalar() or 0
+    total_count = (
+        db.query(func.count(EmailMessage.id))
+        .filter(EmailMessage.project_id == project_id)
+        .scalar()
+        or 0
+    )
 
     # Get spam counts by category using raw SQL for JSONB querying
-    spam_query = text("""
+    spam_query = text(
+        """
         SELECT
             metadata->'spam'->>'category' as category,
             COUNT(*) as count,
@@ -4525,7 +4601,8 @@ async def get_spam_stats(
         WHERE project_id = :project_id
           AND metadata->'spam'->>'is_spam' = 'true'
         GROUP BY metadata->'spam'->>'category'
-    """)
+    """
+    )
 
     result = db.execute(spam_query, {"project_id": project_id})
     by_category = {}
@@ -4546,5 +4623,7 @@ async def get_spam_stats(
         "total_spam": total_spam,
         "total_hidden": total_hidden,
         "by_category": by_category,
-        "spam_percentage": round((total_spam / total_count * 100) if total_count > 0 else 0, 2)
+        "spam_percentage": round(
+            (total_spam / total_count * 100) if total_count > 0 else 0, 2
+        ),
     }

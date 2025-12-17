@@ -11,12 +11,12 @@ This module provides comprehensive metrics collection for all AI model calls:
 Metrics are stored in Redis (if available) for time-series analysis
 and can be exported to external monitoring systems.
 """
+
 from __future__ import annotations
 
 import json
 import logging
-import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from typing import Any
 from collections import defaultdict
@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 # Try to import Redis
 try:
     from redis import Redis
+
     REDIS_AVAILABLE = True
 except ImportError:
     Redis = None  # type: ignore
@@ -37,6 +38,7 @@ except ImportError:
 @dataclass
 class AICallMetric:
     """Metrics for a single AI call."""
+
     timestamp: datetime
     provider: str
     model_id: str
@@ -93,6 +95,7 @@ class AICallMetric:
 @dataclass
 class AggregatedMetrics:
     """Aggregated metrics for a time period."""
+
     period_start: datetime
     period_end: datetime
     period_type: str  # minute, hour, day
@@ -343,8 +346,7 @@ class MetricsCollector:
 
         # Filter metrics
         relevant = [
-            m for m in self._recent_metrics
-            if start_time <= m.timestamp <= end_time
+            m for m in self._recent_metrics if start_time <= m.timestamp <= end_time
         ]
 
         if not relevant:
@@ -383,12 +385,17 @@ class MetricsCollector:
             avg_latency_ms=sum(latencies) / len(latencies),
             p50_latency_ms=latencies[len(latencies) // 2],
             p95_latency_ms=latencies[int(len(latencies) * 0.95)],
-            p99_latency_ms=latencies[int(len(latencies) * 0.99)] if len(latencies) >= 100 else latencies[-1],
+            p99_latency_ms=(
+                latencies[int(len(latencies) * 0.99)]
+                if len(latencies) >= 100
+                else latencies[-1]
+            ),
             max_latency_ms=max(latencies),
             total_tokens=sum(m.tokens_total for m in relevant),
             avg_tokens_per_call=sum(m.tokens_total for m in relevant) / total_calls,
             avg_quality_score=sum(m.quality_score for m in relevant) / total_calls,
-            validation_pass_rate=sum(1 for m in relevant if m.validation_passed) / total_calls,
+            validation_pass_rate=sum(1 for m in relevant if m.validation_passed)
+            / total_calls,
             total_cost_usd=sum(m.estimated_cost_usd for m in relevant),
             by_provider=dict(by_provider),
             by_model=dict(by_model),

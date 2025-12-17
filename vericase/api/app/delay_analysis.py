@@ -16,13 +16,13 @@ Uses specialized AI agents optimized for delay analysis:
 Architecture aligns with the AI Orchestration Blueprint's
 Delay Analysis function specification.
 """
+
 from __future__ import annotations
 
-import asyncio
 import logging
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -30,11 +30,10 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .models import User, Case, DelayEvent, ChronologyItem, Project
+from .models import User, Case
 from .db import get_db
 from .security import current_user
 from .ai_router import AdaptiveModelRouter, RoutingStrategy
-from .ai_model_registry import record_model_call
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +42,7 @@ router = APIRouter(prefix="/api/delay-analysis", tags=["delay-analysis"])
 
 class DelayType(str, Enum):
     """Types of delays."""
+
     EMPLOYER = "employer"
     CONTRACTOR = "contractor"
     NEUTRAL = "neutral"
@@ -52,6 +52,7 @@ class DelayType(str, Enum):
 
 class DelayImpactType(str, Enum):
     """Types of delay impacts."""
+
     TIME_ONLY = "time_only"
     COST_ONLY = "cost_only"
     TIME_AND_COST = "time_and_cost"
@@ -61,6 +62,7 @@ class DelayImpactType(str, Enum):
 @dataclass
 class CausationLink:
     """A single link in a causation chain."""
+
     cause_event: str
     effect_event: str
     relationship: str  # caused, contributed, led_to, resulted_in
@@ -71,6 +73,7 @@ class CausationLink:
 @dataclass
 class CausationChain:
     """A complete causation chain from trigger to impact."""
+
     id: str
     trigger_event: str
     links: list[CausationLink] = field(default_factory=list)
@@ -83,6 +86,7 @@ class CausationChain:
 @dataclass
 class DelayEventAnalysis:
     """Analysis of a single delay event."""
+
     event_id: str
     description: str
     event_date: datetime | None = None
@@ -113,6 +117,7 @@ class DelayEventAnalysis:
 @dataclass
 class DelayAnalysisSession:
     """Session state for delay analysis."""
+
     id: str
     user_id: str
     case_id: str
@@ -159,6 +164,7 @@ _delay_sessions: dict[str, DelayAnalysisSession] = {}
 
 class StartDelayAnalysisRequest(BaseModel):
     """Request to start delay analysis."""
+
     case_id: str
     focus_on_critical_path: bool = True
     include_cost_impact: bool = True
@@ -167,6 +173,7 @@ class StartDelayAnalysisRequest(BaseModel):
 
 class DelayEventInput(BaseModel):
     """Input for a delay event to analyze."""
+
     description: str
     event_date: str | None = None
     planned_date: str | None = None
@@ -177,12 +184,14 @@ class DelayEventInput(BaseModel):
 
 class AnalyzeDelaysRequest(BaseModel):
     """Request to analyze specific delay events."""
+
     session_id: str
     delay_events: list[DelayEventInput]
 
 
 class DelayAnalysisResponse(BaseModel):
     """Response with delay analysis results."""
+
     session_id: str
     status: str
     delay_events: list[dict[str, Any]] = Field(default_factory=list)
@@ -262,6 +271,7 @@ Trace the causation chain and output as JSON:
 
         # Parse response
         import json
+
         try:
             result_str = response
             if "```json" in response:
@@ -347,6 +357,7 @@ Quantify impact as JSON:
 
         # Parse response
         import json
+
         try:
             result_str = response
             if "```json" in response:
@@ -387,16 +398,18 @@ Write for a legal/arbitration audience."""
     ) -> str:
         """Generate a claims narrative from analyses."""
         # Compile analyses summary
-        analyses_text = "\n\n".join([
-            f"""DELAY EVENT: {a.description}
+        analyses_text = "\n\n".join(
+            [
+                f"""DELAY EVENT: {a.description}
 Root Cause: {a.root_cause}
 Delay Days: {a.delay_days}
 Responsible Party: {a.delay_type.value}
 Impact: {a.impact_type.value}
 Critical Path: {a.critical_path_impact}
 Supporting Evidence: {', '.join(a.supporting_evidence[:3])}"""
-            for a in delay_analyses
-        ])
+                for a in delay_analyses
+            ]
+        )
 
         prompt = f"""Write a professional claims narrative for these delay events:
 
@@ -467,6 +480,7 @@ class DelayAnalysisOrchestrator:
         5. Generate claims narrative
         """
         import time
+
         start_time = time.time()
 
         self.session.status = "analyzing"
@@ -494,9 +508,11 @@ class DelayAnalysisOrchestrator:
                 "prolongation": self.session.prolongation_claim,
                 "disruption": self.session.disruption_claim,
             }
-            self.session.claims_narrative = await self.narrative_generator.generate_narrative(
-                self.session.delay_events_analyzed,
-                entitlements,
+            self.session.claims_narrative = (
+                await self.narrative_generator.generate_narrative(
+                    self.session.delay_events_analyzed,
+                    entitlements,
+                )
             )
 
             # Step 6: Generate summary
@@ -537,7 +553,9 @@ class DelayAnalysisOrchestrator:
 
         if event_data.get("planned_date"):
             try:
-                analysis.planned_date = datetime.fromisoformat(event_data["planned_date"])
+                analysis.planned_date = datetime.fromisoformat(
+                    event_data["planned_date"]
+                )
             except ValueError:
                 pass
 
@@ -611,10 +629,7 @@ class DelayAnalysisOrchestrator:
     async def _analyze_concurrent_delays(self) -> None:
         """Identify and analyze concurrent delays."""
         # Sort by date
-        dated_events = [
-            a for a in self.session.delay_events_analyzed
-            if a.event_date
-        ]
+        dated_events = [a for a in self.session.delay_events_analyzed if a.event_date]
         dated_events.sort(key=lambda a: a.event_date)
 
         # Find overlapping delays
@@ -685,6 +700,7 @@ Output as JSON:
 
         # Parse response
         import json
+
         try:
             result_str = response
             if "```json" in response:

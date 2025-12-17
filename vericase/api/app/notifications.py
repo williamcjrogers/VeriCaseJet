@@ -11,9 +11,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timezone
 from typing import List, Optional
-from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -32,7 +30,7 @@ def parse_mentions(content: str) -> List[str]:
     mentions = []
 
     # Pattern for @email format
-    email_pattern = r'@([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'
+    email_pattern = r"@([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})"
     email_matches = re.findall(email_pattern, content)
     mentions.extend(email_matches)
 
@@ -43,18 +41,16 @@ def parse_mentions(content: str) -> List[str]:
 
     # Pattern for @username (alphanumeric, no spaces)
     # Exclude emails already captured
-    simple_pattern = r'@([a-zA-Z][a-zA-Z0-9_]{2,})'
+    simple_pattern = r"@([a-zA-Z][a-zA-Z0-9_]{2,})"
     simple_matches = re.findall(simple_pattern, content)
     for match in simple_matches:
-        if '@' not in match and match not in mentions:
+        if "@" not in match and match not in mentions:
             mentions.append(match)
 
     return list(set(mentions))  # Remove duplicates
 
 
-def resolve_mentioned_users(
-    db: Session, mentions: List[str]
-) -> List[User]:
+def resolve_mentioned_users(db: Session, mentions: List[str]) -> List[User]:
     """
     Resolve mention identifiers to User objects.
     Looks up by email or display_name.
@@ -90,7 +86,9 @@ def send_mention_notification(
     Returns True if notification was sent successfully.
     """
     if not mentioned_user.email:
-        logger.warning(f"Cannot send mention notification - user {mentioned_user.id} has no email")
+        logger.warning(
+            f"Cannot send mention notification - user {mentioned_user.id} has no email"
+        )
         return False
 
     # Build context
@@ -327,13 +325,15 @@ def process_comment_notifications(
 
     # Process reply notification
     if comment.parent_comment_id:
-        parent = db.query(ItemComment).filter(
-            ItemComment.id == comment.parent_comment_id
-        ).first()
+        parent = (
+            db.query(ItemComment)
+            .filter(ItemComment.id == comment.parent_comment_id)
+            .first()
+        )
         if parent and parent.created_by:
-            original_author = db.query(User).filter(
-                User.id == parent.created_by
-            ).first()
+            original_author = (
+                db.query(User).filter(User.id == parent.created_by).first()
+            )
             if original_author:
                 success = send_reply_notification(
                     db, original_author, author, parent, comment, claim

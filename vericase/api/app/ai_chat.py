@@ -26,8 +26,6 @@ from .ai_settings import (
     is_bedrock_enabled,
     get_bedrock_region,
     is_fallback_enabled,
-    is_fallback_logging_enabled,
-    get_effective_provider,
     get_function_config,
 )
 from .ai_models import (
@@ -790,7 +788,9 @@ Provide a critical analysis identifying gaps and suggesting what's needed."""
 
             from .ai_runtime import complete_chat
 
-            actual_model = model_override or self.bedrock_model or "amazon.nova-pro-v1:0"
+            actual_model = (
+                model_override or self.bedrock_model or "amazon.nova-pro-v1:0"
+            )
             response_text = await complete_chat(
                 provider="bedrock",
                 model_id=actual_model,
@@ -894,9 +894,7 @@ async def _augment_query_with_kb(query: str) -> tuple[str, list[KBSource]]:
         kb_sources = [KBSource(**r) for r in kb_results[:5] if r.get("content")]
         context = "\n".join(s.content for s in kb_sources if s.content)
         if context:
-            augmented = (
-                f"{query}\n\nRelevant legal knowledge base context:\n{context}"
-            )
+            augmented = f"{query}\n\nRelevant legal knowledge base context:\n{context}"
             return augmented, kb_sources
         return query, kb_sources
     except Exception as e:
@@ -1071,9 +1069,7 @@ async def ai_evidence_query_enhanced(
             kb_sources=kb_sources,
             chronology_events=[],
             key_findings=all_findings[:10],
-            processing_time=(
-                datetime.now(timezone.utc) - start_time
-            ).total_seconds(),
+            processing_time=(datetime.now(timezone.utc) - start_time).total_seconds(),
             timestamp=datetime.now(timezone.utc),
         )
 
@@ -1095,8 +1091,8 @@ async def _get_relevant_emails(
         query = query.filter(
             or_(
                 EmailMessage.meta.is_(None),
-                EmailMessage.meta.op('->>')('spam').is_(None),
-                EmailMessage.meta.op('->')('spam').op('->>')('is_hidden') != "true",
+                EmailMessage.meta.op("->>")("spam").is_(None),
+                EmailMessage.meta.op("->")("spam").op("->>")("is_hidden") != "true",
             )
         )
 
@@ -1232,7 +1228,10 @@ async def test_ai_provider(
             if not orchestrator.bedrock_enabled:
                 return {"success": False, "error": "Amazon Bedrock not enabled"}
             if not orchestrator.bedrock_provider:
-                return {"success": False, "error": "Bedrock provider initialization failed"}
+                return {
+                    "success": False,
+                    "error": "Bedrock provider initialization failed",
+                }
             # Test Bedrock connection
             test_result = await orchestrator.bedrock_provider.test_connection()
             if test_result.get("success"):
@@ -1245,7 +1244,10 @@ async def test_ai_provider(
                     "response_preview": test_result.get("response", "OK")[:100],
                 }
             else:
-                return {"success": False, "error": test_result.get("error", "Bedrock test failed")}
+                return {
+                    "success": False,
+                    "error": test_result.get("error", "Bedrock test failed"),
+                }
 
         elif provider == "xai":
             if not orchestrator.xai_key:
@@ -1274,7 +1276,10 @@ async def test_ai_provider(
             model = orchestrator.perplexity_model or "sonar-pro"
 
         else:
-            return {"success": False, "error": f"Unknown provider: {provider}. Supported: openai, anthropic, gemini, bedrock, xai, perplexity"}
+            return {
+                "success": False,
+                "error": f"Unknown provider: {provider}. Supported: openai, anthropic, gemini, bedrock, xai, perplexity",
+            }
 
         elapsed = int((time.time() - start_time) * 1000)
 
@@ -1389,7 +1394,9 @@ async def ai_health_check(
     # Calculate overall health
     healthy_count = sum(1 for r in results.values() if r.get("healthy"))
     total_configured = sum(
-        1 for r in results.values() if r.get("error") != "Not configured" and r.get("error") != "Not enabled"
+        1
+        for r in results.values()
+        if r.get("error") != "Not configured" and r.get("error") != "Not enabled"
     )
 
     # Get fallback and routing settings

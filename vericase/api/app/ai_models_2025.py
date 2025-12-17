@@ -662,6 +662,7 @@ def get_models_by_type(model_type: str) -> list[dict[str, Any]]:
 # Friendly-name resolution (compat layer)
 # ---------------------------------------------------------------------------
 
+
 def normalize_provider(provider: str) -> str:
     """Normalize provider keys to canonical names."""
     p = (provider or "").lower().strip()

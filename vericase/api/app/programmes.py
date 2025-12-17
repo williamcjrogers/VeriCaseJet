@@ -56,7 +56,7 @@ def _parse_task_element(task: Any) -> dict[str, Any]:
 
 
 def _calculate_project_dates(
-    activities: list[dict[str, Any]]
+    activities: list[dict[str, Any]],
 ) -> tuple[str | None, str | None]:
     """Calculate project start/finish from activities if not provided"""
     if not activities:
@@ -625,6 +625,7 @@ from typing import Optional
 
 class DelayEventCreate(BaseModel):
     """Create a new delay event"""
+
     activity_name: str
     delay_days: int = 0
     delay_type: str = "critical"  # critical, non_critical
@@ -641,14 +642,14 @@ async def create_delay(
     case_id: int,
     delay_data: DelayEventCreate,
     db: Session = Depends(get_db),
-    user: "User" = Depends(current_user)
+    user: "User" = Depends(current_user),
 ):
     """Create a new delay event for a case"""
     # Verify case exists
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
-    
+
     # Parse dates
     planned = None
     actual = None
@@ -662,7 +663,7 @@ async def create_delay(
             actual = date_parser.parse(delay_data.actual_finish).replace(tzinfo=None)
         except Exception:
             pass
-    
+
     delay = DelayEvent(
         case_id=case_id,
         activity_name=delay_data.activity_name,
@@ -675,11 +676,11 @@ async def create_delay(
         notes=delay_data.notes,
         description=delay_data.description,
     )
-    
+
     db.add(delay)
     db.commit()
     db.refresh(delay)
-    
+
     return {
         "id": delay.id,
         "activity_name": delay.activity_name,
@@ -687,10 +688,14 @@ async def create_delay(
         "delay_type": delay.delay_type,
         "delay_cause": delay.delay_cause,
         "is_on_critical_path": delay.is_on_critical_path,
-        "planned_finish": delay.planned_finish.isoformat() if delay.planned_finish else None,
-        "actual_finish": delay.actual_finish.isoformat() if delay.actual_finish else None,
+        "planned_finish": (
+            delay.planned_finish.isoformat() if delay.planned_finish else None
+        ),
+        "actual_finish": (
+            delay.actual_finish.isoformat() if delay.actual_finish else None
+        ),
         "notes": delay.notes,
-        "message": "Delay event created successfully"
+        "message": "Delay event created successfully",
     }
 
 

@@ -187,14 +187,16 @@ class Settings(BaseSettings):
     # extra flags
     CELERY_QUEUE: str = "celery"
     # Dedicated queue for PST processing (can be same as CELERY_QUEUE)
-    CELERY_PST_QUEUE: str = "celery"
+    CELERY_PST_QUEUE: str = "pst_processing"
     TIKA_URL: str = "http://tika:9998"
 
     # PST ingestion performance
     # When true (default), pre-traverse the PST to count total messages for progress %
     # tracking. Disable to avoid the extra full pass on very large PSTs.
-    PST_PRECOUNT_MESSAGES: bool = True
-    
+    PST_PRECOUNT_MESSAGES: bool = (
+        False  # Skip full pre-pass; better for very large PSTs
+    )
+
     # PST processing optimization settings
     PST_BATCH_COMMIT_SIZE: int = 2500  # Messages per DB commit batch
     PST_UPLOAD_WORKERS: int = 50  # Parallel S3 upload threads
@@ -247,7 +249,6 @@ class Settings(BaseSettings):
     STAGING_KEY_PATH: str = ""
     PRODUCTION_HOST: str = ""
     PRODUCTION_KEY_PATH: str = ""
-
 
     # AWS Lambda function names (for Step Functions)
     LAMBDA_TEXTRACT_PROCESSOR: str = "vericase-textract-processor"
@@ -347,9 +348,13 @@ class Settings(BaseSettings):
     ENABLE_AI_AUTO_CLASSIFY: bool = True
     ENABLE_AI_DATASET_INSIGHTS: bool = True
     ENABLE_AI_NATURAL_LANGUAGE_QUERY: bool = True
-    AI_DEFAULT_MODEL: str = "gemini"  # gemini | openai | anthropic | bedrock | xai | perplexity
+    AI_DEFAULT_MODEL: str = (
+        "gemini"  # gemini | openai | anthropic | bedrock | xai | perplexity
+    )
     AI_WEB_ACCESS_ENABLED: bool = False
-    AI_TASK_COMPLEXITY_DEFAULT: str = "basic"  # basic | moderate | deep_research | advanced
+    AI_TASK_COMPLEXITY_DEFAULT: str = (
+        "basic"  # basic | moderate | deep_research | advanced
+    )
     AI_MODEL_PREFERENCES: dict[str, str] = Field(default_factory=dict)
 
     # =========================================================================
@@ -357,7 +362,9 @@ class Settings(BaseSettings):
     # =========================================================================
     AI_FALLBACK_ENABLED: bool = True
     AI_FALLBACK_LOG_ATTEMPTS: bool = True
-    AI_ROUTING_STRATEGY: str = "balanced"  # performance | cost | latency | quality | balanced | pinned | fallback
+    AI_ROUTING_STRATEGY: str = (
+        "balanced"  # performance | cost | latency | quality | balanced | pinned | fallback
+    )
     AI_PREFER_BEDROCK: bool = True
     AI_ENABLE_MULTI_MODEL: bool = False
     AI_ENABLE_VALIDATION: bool = True

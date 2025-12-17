@@ -314,7 +314,9 @@ class DocumentComment(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     document_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True),
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
     )
     parent_comment_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -359,7 +361,9 @@ class DocumentAnnotation(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     document_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True),
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
     )
     page_number: Mapped[int] = mapped_column(Integer, nullable=False)
     x: Mapped[float] = mapped_column(Float, nullable=False)
@@ -2416,7 +2420,9 @@ class CommentReaction(Base):
     __table_args__ = (
         Index("idx_comment_reactions_comment", "comment_id"),
         Index("idx_comment_reactions_user", "user_id"),
-        sa.UniqueConstraint("comment_id", "user_id", "emoji", name="uq_comment_reaction"),
+        sa.UniqueConstraint(
+            "comment_id", "user_id", "emoji", name="uq_comment_reaction"
+        ),
     )
 
 
@@ -2478,8 +2484,12 @@ class UserNotificationPreferences(Base):
     # Email notification toggles
     email_mentions: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     email_replies: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    email_claim_updates: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    email_daily_digest: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    email_claim_updates: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+    email_daily_digest: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
 
     # Timestamps
     created_at: Mapped[datetime | None] = mapped_column(

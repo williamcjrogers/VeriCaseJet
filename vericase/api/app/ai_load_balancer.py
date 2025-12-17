@@ -8,6 +8,7 @@ This module provides:
 - Circuit breaker patterns for fault tolerance
 - Request queuing and prioritization
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,7 +20,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from enum import Enum
 from typing import Any, Callable, TypeVar
-from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +30,10 @@ T = TypeVar("T")
 # Circuit Breaker
 # ============================================================================
 
+
 class CircuitState(Enum):
     """Circuit breaker states."""
+
     CLOSED = "closed"  # Normal operation
     OPEN = "open"  # Blocking calls
     HALF_OPEN = "half_open"  # Testing recovery
@@ -44,6 +46,7 @@ class CircuitBreaker:
 
     Opens when error threshold is exceeded, prevents cascade failures.
     """
+
     name: str
     failure_threshold: int = 5
     recovery_timeout: float = 30.0
@@ -125,8 +128,11 @@ class CircuitBreaker:
             "state": self.state.value,
             "failure_count": self.failure_count,
             "last_failure": (
-                datetime.fromtimestamp(self.last_failure_time, tz=timezone.utc).isoformat()
-                if self.last_failure_time else None
+                datetime.fromtimestamp(
+                    self.last_failure_time, tz=timezone.utc
+                ).isoformat()
+                if self.last_failure_time
+                else None
             ),
         }
 
@@ -135,6 +141,7 @@ class CircuitBreaker:
 # Rate Limiter
 # ============================================================================
 
+
 @dataclass
 class RateLimiter:
     """
@@ -142,6 +149,7 @@ class RateLimiter:
 
     Controls request rate per provider to avoid hitting API limits.
     """
+
     name: str
     max_tokens: int = 60  # Max requests per window
     refill_rate: float = 1.0  # Tokens per second
@@ -199,9 +207,11 @@ class RateLimiter:
 # Semantic Cache
 # ============================================================================
 
+
 @dataclass
 class CacheEntry:
     """A cached result with metadata."""
+
     key: str
     value: Any
     created_at: datetime
@@ -315,7 +325,9 @@ class SemanticCache:
         for key in sorted_keys[:num_to_remove]:
             del self._cache[key]
 
-    async def invalidate(self, query: str, context: dict[str, Any] | None = None) -> None:
+    async def invalidate(
+        self, query: str, context: dict[str, Any] | None = None
+    ) -> None:
         """Invalidate a specific cache entry."""
         async with self._lock:
             key = self._generate_key(query, context)
@@ -343,9 +355,11 @@ class SemanticCache:
 # Parallel Executor
 # ============================================================================
 
+
 @dataclass
 class ExecutionResult:
     """Result of a parallel execution."""
+
     success: bool
     value: Any | None
     error: str | None
@@ -563,31 +577,37 @@ class ParallelExecutor:
             processed_results = []
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
-                    processed_results.append(ExecutionResult(
-                        success=False,
-                        value=None,
-                        error=str(result),
-                        latency_ms=0,
-                        provider=tasks[i][0],
-                    ))
+                    processed_results.append(
+                        ExecutionResult(
+                            success=False,
+                            value=None,
+                            error=str(result),
+                            latency_ms=0,
+                            provider=tasks[i][0],
+                        )
+                    )
                 else:
                     processed_results.append(result)
 
             return processed_results
 
         except asyncio.TimeoutError:
-            return [ExecutionResult(
-                success=False,
-                value=None,
-                error="Timeout",
-                latency_ms=int(timeout_seconds * 1000),
-                provider=p,
-            ) for p, _ in tasks]
+            return [
+                ExecutionResult(
+                    success=False,
+                    value=None,
+                    error="Timeout",
+                    latency_ms=int(timeout_seconds * 1000),
+                    provider=p,
+                )
+                for p, _ in tasks
+            ]
 
 
 # ============================================================================
 # Load Balancer
 # ============================================================================
+
 
 class LoadBalancer:
     """
@@ -709,12 +729,10 @@ class LoadBalancer:
         """Get load balancer status."""
         return {
             "circuit_breakers": {
-                name: cb.get_status()
-                for name, cb in self.circuit_breakers.items()
+                name: cb.get_status() for name, cb in self.circuit_breakers.items()
             },
             "rate_limiters": {
-                name: rl.get_status()
-                for name, rl in self.rate_limiters.items()
+                name: rl.get_status() for name, rl in self.rate_limiters.items()
             },
             "cache": self.cache.get_stats() if self.cache else None,
         }

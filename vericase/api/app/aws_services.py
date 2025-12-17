@@ -836,15 +836,25 @@ class AWSServicesManager:
 
         if any("construction" in label or "building" in label for label in label_names):
             categories.append("construction_site")
-        if any("document" in label or "text" in label or "paper" in label for label in label_names):
+        if any(
+            "document" in label or "text" in label or "paper" in label
+            for label in label_names
+        ):
             categories.append("document")
-        if any("person" in label or "people" in label or "worker" in label for label in label_names):
+        if any(
+            "person" in label or "people" in label or "worker" in label
+            for label in label_names
+        ):
             categories.append("people_present")
         if any(
-            "machinery" in label or "equipment" in label or "crane" in label for label in label_names
+            "machinery" in label or "equipment" in label or "crane" in label
+            for label in label_names
         ):
             categories.append("heavy_equipment")
-        if any("damage" in label or "crack" in label or "broken" in label for label in label_names):
+        if any(
+            "damage" in label or "crack" in label or "broken" in label
+            for label in label_names
+        ):
             categories.append("potential_defect")
 
         return categories if categories else ["general"]
@@ -1234,8 +1244,7 @@ class AWSServicesManager:
             return []
         try:
             start_time = int(
-                (datetime.now(timezone.utc) - timedelta(hours=hours)).timestamp()
-                * 1000
+                (datetime.now(timezone.utc) - timedelta(hours=hours)).timestamp() * 1000
             )
             response = await self._run_in_executor(
                 self.logs.filter_log_events,
@@ -1292,9 +1301,7 @@ class AWSServicesManager:
                     resp.get("Datapoints", []),
                     key=lambda d: d.get("Timestamp", end_time),
                 )
-                results[metric] = (
-                    datapoints[-1].get("Average") if datapoints else None
-                )
+                results[metric] = datapoints[-1].get("Average") if datapoints else None
             except Exception as e:
                 logger.debug(f"RDS metric {metric} failed: {e}")
                 results[metric] = None
@@ -1338,9 +1345,7 @@ class AWSServicesManager:
         if not name:
             return {"status": "unknown", "node_count": None, "pod_count": None}
         try:
-            desc = await self._run_in_executor(
-                self.eks.describe_cluster, name=name
-            )
+            desc = await self._run_in_executor(self.eks.describe_cluster, name=name)
             cluster = desc.get("cluster", {}) if isinstance(desc, dict) else {}
             status = cluster.get("status", "UNKNOWN")
 
@@ -1362,9 +1367,7 @@ class AWSServicesManager:
                         else {}
                     )
                     node_count += int(
-                        scaling.get("desiredSize")
-                        or scaling.get("maxSize")
-                        or 0
+                        scaling.get("desiredSize") or scaling.get("maxSize") or 0
                     )
             except Exception:
                 node_count = None

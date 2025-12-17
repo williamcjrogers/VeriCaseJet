@@ -1,17 +1,20 @@
-<img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png" style="height:64px;margin-right:32px"/>
+﻿# VeriCase AI Notes (Legacy / Unverified)
 
-# Can you triple check and also include perplexity and xai for their models and give me a table
+Last reviewed: 2025-12-17
 
-Perfect! Now I have all the current December 2025 information. Let me create a comprehensive comparison table with **triple-checked authoritative model IDs**:
+> This file appears to contain an AI-generated model comparison snapshot and may be outdated or incorrect.
+> Prefer these docs for current setup:
+> - `vericase/AI_KEY_MANAGEMENT.md`
+> - `vericase/docs/AI_CONFIGURATION_GUIDE.md`
 
-# **Complete AI Model Reference - December 12, 2025** ✅
+## Archived snapshot: AI model reference (2025-12-12)
 
 ## **All Major Providers - Triple-Verified**
 
 
 ***
 
-## **📊 Master Model Comparison Table**
+## **ðŸ“Š Master Model Comparison Table**
 
 | **Provider** | **Model ID** | **Context Window** | **Knowledge Cutoff** | **Best For** | **API Cost (per 1M tokens)** | **Released** |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
@@ -60,7 +63,7 @@ Perfect! Now I have all the current December 2025 information. Let me create a c
 
 ***
 
-## **🎯 Key Provider Highlights (December 2025)**
+## **ðŸŽ¯ Key Provider Highlights (December 2025)**
 
 ### **OpenAI - GPT-5.2**[^1][^2][^3][^4][^5]
 
@@ -139,7 +142,7 @@ Perfect! Now I have all the current December 2025 information. Let me create a c
 
 ***
 
-## **🚀 VeriCaseJet Recommended Configuration (December 12, 2025)**
+## **ðŸš€ VeriCaseJet Recommended Configuration (December 12, 2025)**
 
 ```python
 # PRIMARY MODELS - DECEMBER 2025
@@ -220,7 +223,7 @@ REALTIME_MODELS = {
 
 ***
 
-## **💰 Cost Comparison (Per 1M Tokens)**
+## **ðŸ’° Cost Comparison (Per 1M Tokens)**
 
 | **Use Case** | **Cheapest** | **Best Value** | **Highest Quality** |
 | :-- | :-- | :-- | :-- |
@@ -232,7 +235,7 @@ REALTIME_MODELS = {
 
 ***
 
-## **⚡ Performance Highlights**
+## **âš¡ Performance Highlights**
 
 **Fastest Response:**
 
@@ -260,10 +263,10 @@ REALTIME_MODELS = {
 
 ***
 
-**This is your complete, triple-verified, December 12, 2025 model registry.** Ready to implement in VeriCaseJet! 🎯
+**This is your complete, triple-verified, December 12, 2025 model registry.** Ready to implement in VeriCaseJet! ðŸŽ¯
 <span style="display:none">[^26][^27][^28][^29][^30][^31][^32][^33][^34][^35][^36][^37][^38][^39][^40][^41][^42][^43]</span>
 
-<div align="center">⁂</div>
+<div align="center">â‚</div>
 
 [^1]: https://venturebeat.com/ai/openais-gpt-5-2-is-here-what-enterprises-need-to-know
 
@@ -350,4 +353,5 @@ REALTIME_MODELS = {
 [^42]: https://docs.perplexity.ai/getting-started/models/models/sonar-deep-research
 
 [^43]: https://platform.openai.com/docs/models/gpt-5.2
+
 

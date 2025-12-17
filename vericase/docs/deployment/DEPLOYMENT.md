@@ -36,7 +36,7 @@ git push origin main  →  Build image  →  Push to registries  →  Deploy to 
 
 ## CI/CD Pipeline
 
-### Single Workflow: `deploy-eks.yml`
+### Primary workflow: `deploy-eks.yml`
 
 **Trigger:** Push to `main` affecting `vericase/**` files, or manual dispatch
 
@@ -47,21 +47,29 @@ git push origin main  →  Build image  →  Push to registries  →  Deploy to 
 3. Push to GHCR (`ghcr.io/williamcjrogers/vericase-api`)
 4. Deploy to EKS cluster
 
-**Image tags:**
+> Important: the EKS deployment step updates workloads by **image digest** (`...@sha256:...`) to avoid stale-tag deployments.
+> Tags are still published for convenience/rollback, but the running workload is pinned by digest.
+
+**Published tags (for reference):**
 
 - `latest` - most recent build
 - `{commit-sha}` - for rollback/pinning
 - `YYYYMMDD-HHmmss` - timestamp
+
+### Optional manual workflow: `deploy-eks-secure.yml`
+
+This workflow is manual-only (`workflow_dispatch`) and exists as a manual deploy path. It also uses GitHub OIDC and deploys by digest.
 
 ### Required GitHub Secrets
 
 | Secret                  | Description                      |
 | ----------------------- | -------------------------------- |
 | `DOCKER_PAT`            | Docker Hub personal access token |
-| `AWS_ACCESS_KEY_ID`     | AWS IAM access key               |
-| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key               |
+| `AWS_ROLE_TO_ASSUME`    | AWS IAM role ARN for GitHub OIDC (recommended; avoids long-lived AWS keys) |
 
 ---
+
+> **Recommended:** Configure GitHub OpenID Connect (OIDC) to assume the AWS role instead of storing long-lived access keys in GitHub Secrets.
 
 ## EKS Production Environment
 

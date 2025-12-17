@@ -16,14 +16,13 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, desc, func
+from sqlalchemy import or_, desc, func
 
 from .db import get_db
 from .models import (
     User,
     Document,
     Case,
-    UserRole,
     DocumentComment,
     DocumentAnnotation,
     CollaborationActivity,
@@ -39,6 +38,7 @@ router = APIRouter(prefix="/api/collaboration", tags=["collaboration"])
 # ============================================================================
 # Pydantic Models
 # ============================================================================
+
 
 class CommentCreate(BaseModel):
     content: str
@@ -353,9 +353,7 @@ async def get_document_comments(
 
     # Replies count map
     reply_counts = dict(
-        db.query(
-            DocumentComment.parent_comment_id, func.count(DocumentComment.id)
-        )
+        db.query(DocumentComment.parent_comment_id, func.count(DocumentComment.id))
         .filter(
             DocumentComment.document_id == doc.id,
             DocumentComment.parent_comment_id.is_not(None),
@@ -508,7 +506,10 @@ async def create_annotation(
         resource_type="document",
         resource_id=doc.id,
         user_id=user.id,
-        details={"annotation_id": str(db_annotation.id), "page": annotation.page_number},
+        details={
+            "annotation_id": str(db_annotation.id),
+            "page": annotation.page_number,
+        },
     )
     db.commit()
     db.refresh(db_annotation)
@@ -681,12 +682,13 @@ async def delete_annotation(
 # Case Sharing
 # ============================================================================
 
+
 @router.post("/cases/{case_id}/share")
 async def share_case(
     case_id: str,
     share_req: CaseShareRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(current_user)
+    user: User = Depends(current_user),
 ) -> CaseShareResponse:
     """Share a case with another user"""
     try:
@@ -712,10 +714,12 @@ async def share_case(
 
     # Create or update case user
     from .models import CaseUser
-    existing = db.query(CaseUser).filter(
-        CaseUser.case_id == case.id,
-        CaseUser.user_id == target.id
-    ).first()
+
+    existing = (
+        db.query(CaseUser)
+        .filter(CaseUser.case_id == case.id, CaseUser.user_id == target.id)
+        .first()
+    )
 
     share_id = str(uuid4())
     if existing:
@@ -723,11 +727,7 @@ async def share_case(
         existing.updated_at = datetime.now(timezone.utc)
         share_id = str(existing.id)
     else:
-        case_user = CaseUser(
-            case_id=case.id,
-            user_id=target.id,
-            role=share_req.role
-        )
+        case_user = CaseUser(case_id=case.id, user_id=target.id, role=share_req.role)
         db.add(case_user)
         db.flush()
         share_id = str(case_user.id)
@@ -743,15 +743,13 @@ async def share_case(
         user_email=target.email,
         role=share_req.role,
         shared_by=user.display_name or user.email,
-        shared_at=datetime.now(timezone.utc)
+        shared_at=datetime.now(timezone.utc),
     )
 
 
 @router.get("/cases/{case_id}/shares")
 async def list_case_shares(
-    case_id: str,
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user)
+    case_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)
 ) -> List[CaseShareResponse]:
     """List all users with access to a case"""
     try:
@@ -768,21 +766,24 @@ async def list_case_shares(
         raise HTTPException(403, "Only case owner can view shares")
 
     from .models import CaseUser
+
     case_users = db.query(CaseUser).filter(CaseUser.case_id == case.id).all()
 
     result = []
     for cu in case_users:
         shared_user = db.get(User, cu.user_id)
         if shared_user:
-            result.append(CaseShareResponse(
-                id=str(cu.id),
-                case_id=case_id,
-                case_name=case.name or "Untitled",
-                user_email=shared_user.email,
-                role=cu.role,
-                shared_by=user.display_name or user.email,
-                shared_at=cu.created_at or datetime.now(timezone.utc)
-            ))
+            result.append(
+                CaseShareResponse(
+                    id=str(cu.id),
+                    case_id=case_id,
+                    case_name=case.name or "Untitled",
+                    user_email=shared_user.email,
+                    role=cu.role,
+                    shared_by=user.display_name or user.email,
+                    shared_at=cu.created_at or datetime.now(timezone.utc),
+                )
+            )
 
     return result
 
@@ -791,12 +792,13 @@ async def list_case_shares(
 # Activity Stream
 # ============================================================================
 
+
 @router.get("/activity")
 async def get_activity_stream(
     limit: int = Query(default=50, le=100),
     resource_type: Optional[str] = None,
     db: Session = Depends(get_db),
-    user: User = Depends(current_user)
+    user: User = Depends(current_user),
 ) -> List[ActivityResponse]:
     """Get activity stream for user's accessible resources"""
     # This is a simplified version - ideally you'd have an activities table
@@ -806,15 +808,17 @@ async def get_activity_stream(
 
     # Get user's documents
     from .models import DocumentShare
+
     recent_docs = (
         db.query(Document)
         .filter(
             or_(
                 Document.owner_user_id == user.id,
                 Document.id.in_(
-                    db.query(DocumentShare.document_id)
-                    .filter(DocumentShare.shared_with == user.id)
-                )
+                    db.query(DocumentShare.document_id).filter(
+                        DocumentShare.shared_with == user.id
+                    )
+                ),
             )
         )
         .order_by(desc(Document.created_at))
@@ -824,17 +828,19 @@ async def get_activity_stream(
 
     for doc in recent_docs:
         owner = db.get(User, doc.owner_user_id)
-        activities.append(ActivityResponse(
-            id=str(uuid4()),
-            action='created' if doc.created_at == doc.updated_at else 'updated',
-            resource_type='document',
-            resource_id=str(doc.id),
-            resource_name=doc.filename,
-            actor_id=str(doc.owner_user_id),
-            actor_name=owner.display_name or owner.email if owner else "Unknown",
-            timestamp=doc.updated_at or doc.created_at,
-            details={'size': doc.size, 'type': doc.content_type}
-        ))
+        activities.append(
+            ActivityResponse(
+                id=str(uuid4()),
+                action="created" if doc.created_at == doc.updated_at else "updated",
+                resource_type="document",
+                resource_id=str(doc.id),
+                resource_name=doc.filename,
+                actor_id=str(doc.owner_user_id),
+                actor_name=owner.display_name or owner.email if owner else "Unknown",
+                timestamp=doc.updated_at or doc.created_at,
+                details={"size": doc.size, "type": doc.content_type},
+            )
+        )
 
     # Sort by timestamp
     activities.sort(key=lambda x: x.timestamp, reverse=True)
@@ -846,12 +852,9 @@ async def get_activity_stream(
 # Helper Functions
 # ============================================================================
 
+
 def _create_mention_notifications(
-    db: Session,
-    mentioned_ids: List[str],
-    author: User,
-    doc_id: str,
-    content: str
+    db: Session, mentioned_ids: List[str], author: User, doc_id: str, content: str
 ):
     """Create notifications for mentioned users"""
     # This would populate a notifications table

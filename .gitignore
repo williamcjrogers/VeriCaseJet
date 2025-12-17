@@ -101,3 +101,5 @@ vericase/CLEAR_DATA_INSTRUCTIONS.md
 .venv/
 venv/
 ENV/
+security-rotation.md
+DEPLOY_NOW.md

@@ -22,8 +22,46 @@ See **[vericase/docs/deployment/DEPLOYMENT.md](vericase/docs/deployment/DEPLOYME
 | Secret | Description |
 |--------|-------------|
 | `DOCKER_PAT` | Docker Hub personal access token |
-| `AWS_ACCESS_KEY_ID` | AWS IAM access key |
-| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key |
+| `AWS_ROLE_TO_ASSUME` | AWS IAM Role ARN for GitHub OIDC (recommended; avoids long-lived AWS keys) |
+
+> Configure these in GitHub: **Settings → Secrets and variables → Actions**.
+> `GITHUB_TOKEN` is provided automatically for GHCR access.
+
+### AWS auth via GitHub OIDC (recommended)
+
+This avoids storing long-lived AWS access keys in GitHub.
+
+1. Create (or verify) the AWS IAM OIDC provider for GitHub Actions:
+   - URL: `https://token.actions.githubusercontent.com`
+   - Audience: `sts.amazonaws.com`
+2. Create an IAM role trusted for your repo, attach the minimum permissions needed to deploy to EKS.
+3. Set GitHub Secret `AWS_ROLE_TO_ASSUME` to the role ARN.
+4. Remove any legacy `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` GitHub Secrets.
+
+Example trust policy (replace placeholders):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": "repo:<OWNER>/<REPO>:ref:refs/heads/main"
+        }
+      }
+    }
+  ]
+}
+```
 
 ## Access Points (Local)
 

@@ -49,7 +49,9 @@ class VeriCaseAPIConfig:
 
 
 class VeriCaseAPIClient:
-    def __init__(self, config: VeriCaseAPIConfig, *, client: httpx.AsyncClient | None = None):
+    def __init__(
+        self, config: VeriCaseAPIConfig, *, client: httpx.AsyncClient | None = None
+    ):
         self._config = config
         self._owned_client = client is None
 
@@ -89,9 +91,15 @@ class VeriCaseAPIClient:
         return await self._request_json("GET", path, params=params)
 
     async def post_json(
-        self, path: str, *, json_body: Any | None = None, params: dict[str, Any] | None = None
+        self,
+        path: str,
+        *,
+        json_body: Any | None = None,
+        params: dict[str, Any] | None = None,
     ) -> Any:
-        return await self._request_json("POST", path, json_body=json_body, params=params)
+        return await self._request_json(
+            "POST", path, json_body=json_body, params=params
+        )
 
     async def _request_json(
         self,
@@ -113,7 +121,10 @@ class VeriCaseAPIClient:
                     json=json_body,
                 )
 
-                if resp.status_code in (429, 502, 503, 504) and attempt < self._config.max_retries:
+                if (
+                    resp.status_code in (429, 502, 503, 504)
+                    and attempt < self._config.max_retries
+                ):
                     await self._sleep_backoff(resp, attempt)
                     continue
 
@@ -126,7 +137,11 @@ class VeriCaseAPIClient:
                     return None
                 return resp.json()
 
-            except (httpx.ConnectError, httpx.ReadTimeout, httpx.RemoteProtocolError) as e:
+            except (
+                httpx.ConnectError,
+                httpx.ReadTimeout,
+                httpx.RemoteProtocolError,
+            ) as e:
                 last_exc = e
                 if attempt >= self._config.max_retries:
                     break
@@ -144,7 +159,9 @@ class VeriCaseAPIClient:
 
         raise VeriCaseAPIError(f"VeriCase API request failed: {last_exc}")
 
-    async def _sleep_backoff(self, response: httpx.Response | None, attempt: int) -> None:
+    async def _sleep_backoff(
+        self, response: httpx.Response | None, attempt: int
+    ) -> None:
         retry_after_s: float | None = None
         if response is not None:
             ra = response.headers.get("retry-after")

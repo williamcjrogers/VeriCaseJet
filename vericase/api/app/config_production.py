@@ -59,10 +59,9 @@ def load_ai_keys_from_secrets_manager() -> bool:
             if value and str(value).strip():
                 os.environ[env_key] = str(value).strip()
                 loaded_count += 1
-                print(
-                    f"[config_production] ✓ Loaded {env_key} from " f"Secrets Manager"
+                logger.info(
+                    f"[config_production] ✓ Loaded {env_key} from Secrets Manager"
                 )
-                logger.info(f"✓ Loaded {env_key} from Secrets Manager")
 
         if loaded_count > 0:
             logger.info(
@@ -75,14 +74,13 @@ def load_ai_keys_from_secrets_manager() -> bool:
             return False
 
     except ImportError:
-        print("[config_production] ERROR: boto3 not available")
         logger.warning("boto3 not available - cannot load from Secrets Manager")
         return False
     except ClientError as e:
         error_code: Any = e.response.get("Error", {}).get(
             "Code", ""
         )  # type: ignore[reportPossiblyUnboundVariable]
-        print(f"[config_production] ERROR: ClientError {error_code}: {e}")
+        logger.error(f"[config_production] ClientError {error_code}: {e}")
         if error_code == "ResourceNotFoundException":
             logger.warning(f"Secret {secret_name} not found in Secrets Manager")
         elif error_code == "AccessDeniedException":
@@ -93,11 +91,11 @@ def load_ai_keys_from_secrets_manager() -> bool:
             logger.error(f"Failed to load AI keys from Secrets Manager: {e}")
         return False
     except json.JSONDecodeError as e:
-        print(f"[config_production] ERROR: Invalid JSON: {e}")
+        logger.error(f"[config_production] Invalid JSON: {e}")
         logger.error(f"Invalid JSON in secret {secret_name}: {e}")
         return False
     except Exception as e:
-        print(f"[config_production] ERROR: Unexpected: {e}")
+        logger.error(f"[config_production] Unexpected: {e}")
         logger.error(f"Unexpected error loading AI keys: {e}")
         return False
 
@@ -154,15 +152,15 @@ _should_load = (
     or os.getenv("USE_AWS_SERVICES", "").lower() == "true"
     or os.getenv("AWS_SECRETS_MANAGER_AI_KEYS")
 )
-print(
-    f"[config_production] Should load AI keys from Secrets Manager: " f"{_should_load}"
+logger.info(
+    f"[config_production] Should load AI keys from Secrets Manager: {_should_load}"
 )
-print(
+logger.info(
     f"[config_production] AWS_REGION={os.getenv('AWS_REGION')}, "
     f"USE_AWS_SERVICES={os.getenv('USE_AWS_SERVICES')}"
 )
 if _should_load:
-    print("[config_production] Loading AI keys from Secrets Manager...")
+    logger.info("[config_production] Loading AI keys from Secrets Manager...")
     _ = load_ai_keys_from_secrets_manager()
 else:
-    print("[config_production] Skipping Secrets Manager (local development mode)")
+    logger.info("[config_production] Skipping Secrets Manager (local development mode)")

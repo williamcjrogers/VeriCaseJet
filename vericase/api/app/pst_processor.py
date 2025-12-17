@@ -137,9 +137,15 @@ class UltimatePSTProcessor:
         self.attachment_hashes: dict[str, Any] = {}  # For Document deduplication
         self.evidence_item_hashes: dict[str, Any] = {}  # For EvidenceItem deduplication
 
-        # Parallel upload executor (increased for multi-PST throughput)
-        self.upload_executor = ThreadPoolExecutor(max_workers=50)
+        # Parallel upload executor (tunable for multi-PST throughput)
+        cpu_based_default = max(8, (os.cpu_count() or 4) * 4)
+        max_workers = getattr(settings, "PST_UPLOAD_WORKERS", cpu_based_default) or cpu_based_default
+        max_workers = min(max_workers, 64)  # hard ceiling to avoid runaway threads
+        self.upload_executor = ThreadPoolExecutor(max_workers=max_workers)
         self.upload_futures = []
+        self.commit_batch_size = getattr(settings, "PST_BATCH_COMMIT_SIZE", 2500) or 2500
+        self.attach_bucket = getattr(settings, "S3_ATTACHMENTS_BUCKET", None) or settings.S3_BUCKET
+        self.pst_bucket_fallback = getattr(settings, "S3_PST_BUCKET", None) or settings.S3_BUCKET
 
         # Initialize semantic processing for deep research acceleration
         self.semantic_service: Any = None
@@ -152,9 +158,32 @@ class UltimatePSTProcessor:
                     f"Semantic service initialization failed (non-fatal): {e}"
                 )
 
+    def _update_redis_progress(
+        self, pst_file_id: str, processed_emails: int, total_emails: int, status: str
+    ) -> None:
+        """Best-effort progress publish for /pst/{id}/status endpoint."""
+        try:
+            import redis
+
+            client = redis.Redis.from_url(settings.REDIS_URL)
+            redis_key = f"pst:{pst_file_id}"
+            client.hset(
+                redis_key,
+                mapping={
+                    "processed_emails": processed_emails,
+                    "total_chunks": total_emails or 0,
+                    "completed_chunks": processed_emails,
+                    "status": status,
+                },
+            )
+        except Exception:
+            # Do not fail ingestion if Redis is unavailable
+            pass
+
     def process_pst(
         self,
         pst_s3_key: str,
+        pst_s3_bucket: str | None = None,
         document_id: UUID | str,
         case_id: UUID | str | None = None,
         company_id: UUID | str | None = None,
@@ -243,7 +272,7 @@ class UltimatePSTProcessor:
                     filename=document.filename,
                     case_id=case_id,
                     project_id=project_id,
-                    s3_bucket=settings.S3_BUCKET,
+                    s3_bucket=bucket_for_pst,
                     s3_key=pst_s3_key,
                     file_size_bytes=document.size,
                     uploaded_by=uploader,
@@ -279,11 +308,16 @@ class UltimatePSTProcessor:
         # Download PST from S3 to temp file
         with tempfile.NamedTemporaryFile(suffix=".pst", delete=False) as tmp:
             try:
+                bucket_for_pst = (
+                    pst_s3_bucket
+                    or getattr(pst_file_record, "s3_bucket", None)
+                    or self.pst_bucket_fallback
+                )
                 logger.info(
-                    f"Downloading PST from s3://{settings.S3_BUCKET}/{pst_s3_key}"
+                    f"Downloading PST from s3://{bucket_for_pst}/{pst_s3_key}"
                 )
                 self.s3.download_fileobj(
-                    Bucket=settings.S3_BUCKET, Key=pst_s3_key, Fileobj=tmp
+                    Bucket=bucket_for_pst, Key=pst_s3_key, Fileobj=tmp
                 )
                 pst_path = tmp.name
                 # region agent log H11 download
@@ -291,7 +325,7 @@ class UltimatePSTProcessor:
                 agent_log(
                     "H11",
                     "PST downloaded to temp",
-                    {"path": pst_path, "size_bytes": size_bytes, "bucket": settings.S3_BUCKET, "key": pst_s3_key},
+                    {"path": pst_path, "size_bytes": size_bytes, "bucket": bucket_for_pst, "key": pst_s3_key},
                     run_id="pre-fix",
                 )
                 # endregion agent log H11 download
@@ -444,6 +478,12 @@ class UltimatePSTProcessor:
             pst_file.close()
 
             logger.info(f"PST processing completed: {stats}")
+            self._update_redis_progress(
+                str(pst_file_record.id),
+                stats.get("processed_emails", self.processed_count),
+                stats.get("total_emails", self.total_count),
+                "completed",
+            )
 
         except Exception as e:
             logger.error(f"PST processing failed: {e}", exc_info=True)
@@ -459,6 +499,15 @@ class UltimatePSTProcessor:
                 pst_file_record.error_message = str(e)
                 pst_file_record.processing_completed_at = datetime.now(timezone.utc)
             self.db.commit()
+            try:
+                self._update_redis_progress(
+                    str(pst_file_record.id),
+                    self.processed_count,
+                    self.total_count,
+                    "failed",
+                )
+            except Exception:
+                pass
             stats["errors"].append(str(e))
             raise
 
@@ -514,9 +563,6 @@ class UltimatePSTProcessor:
         )
         logger.info("Processing folder: %s (%d messages)", current_path, num_messages)
 
-        # Process messages in this folder
-        COMMIT_BATCH_SIZE = 2500  # Commit every N messages for performance (optimized for large PST files)
-
         for i in range(num_messages):
             try:
                 message = folder.get_sub_message(i)
@@ -534,8 +580,8 @@ class UltimatePSTProcessor:
                 stats["total_emails"] += 1
                 self.processed_count += 1
 
-                # Commit every COMMIT_BATCH_SIZE messages for performance
-                if self.processed_count % COMMIT_BATCH_SIZE == 0:
+                # Commit every configured batch size for performance
+                if self.processed_count % self.commit_batch_size == 0:
                     try:
                         self.db.commit()
                     except Exception as commit_error:
@@ -557,6 +603,13 @@ class UltimatePSTProcessor:
                             "Progress: %d emails processed (total unknown)",
                             self.processed_count,
                         )
+                    # Publish best-effort progress for status endpoint
+                    self._update_redis_progress(
+                        str(pst_file_record.id),
+                        self.processed_count,
+                        self.total_count or 0,
+                        "processing",
+                    )
 
             except (
                 AttributeError,
@@ -1257,16 +1310,16 @@ class UltimatePSTProcessor:
                         file_hash[:8],
                         att_doc_id,
                     )
-                else:
-                    # Upload to S3 (Parallelized)
-                    try:
-                        future = self.upload_executor.submit(
-                            self.s3.put_object,
-                            Bucket=settings.S3_BUCKET,
-                            Key=s3_key,
-                            Body=attachment_data,
-                            ContentType=content_type,
-                            Metadata={
+                    else:
+                        # Upload to S3 (Parallelized)
+                        try:
+                            future = self.upload_executor.submit(
+                                self.s3.put_object,
+                                Bucket=self.attach_bucket,
+                                Key=s3_key,
+                                Body=attachment_data,
+                                ContentType=content_type,
+                                Metadata={
                                 "original_filename": filename,
                                 "file_hash": file_hash,
                                 "case_id": str(case_id) if case_id else "",
@@ -1285,7 +1338,7 @@ class UltimatePSTProcessor:
                         filename=safe_filename,
                         content_type=content_type,
                         size=size,
-                        bucket=settings.S3_BUCKET,
+                        bucket=self.attach_bucket,
                         s3_key=s3_key,
                         status=DocStatus.NEW,  # Set to NEW so OCR can process it
                         owner_user_id=(
@@ -1332,7 +1385,7 @@ class UltimatePSTProcessor:
                     filename=safe_filename,
                     content_type=content_type,
                     file_size_bytes=size,
-                    s3_bucket=settings.S3_BUCKET,
+                    s3_bucket=self.attach_bucket,
                     s3_key=s3_key,
                     attachment_hash=file_hash,
                     is_inline=is_inline,
@@ -1368,7 +1421,7 @@ class UltimatePSTProcessor:
                             mime_type=content_type,
                             file_size=size,
                             file_hash=file_hash,
-                            s3_bucket=settings.S3_BUCKET,
+                            s3_bucket=self.attach_bucket,
                             s3_key=s3_key,
                             evidence_type="email_attachment",
                             source_type="pst_extraction",

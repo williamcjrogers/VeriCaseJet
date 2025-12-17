@@ -3,14 +3,17 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.pool import QueuePool
 from .config import settings
 import os
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 try:
     # DEBUG: Print environment variables (only in debug mode)
     if os.getenv("DEBUG", "false").lower() == "true":
-        print("=" * 80)
-        print("DEBUG: Environment Variables")
-        print("=" * 80)
+        logger.debug("=" * 80)
+        logger.debug("DEBUG: Environment Variables")
+        logger.debug("=" * 80)
         for key, value in sorted(os.environ.items()):
             if "DATABASE" in key or "POSTGRES" in key or "RAILWAY" in key:
                 # Mask sensitive parts of the value
@@ -20,13 +23,13 @@ try:
                         if len(value) > 6
                         else "*" * len(value)
                     )
-                    print(f"{key} = {masked_value}")
+                    logger.debug(f"{key} = {masked_value}")
                 else:
-                    print(f"{key} = {value}")
-        print("=" * 80)
-        print(f"DEBUG: settings.DATABASE_URL = '{settings.DATABASE_URL}'")
-        print(f"DEBUG: Length of DATABASE_URL: {len(settings.DATABASE_URL)}")
-        print("=" * 80)
+                    logger.debug(f"{key} = {value}")
+        logger.debug("=" * 80)
+        logger.debug(f"DEBUG: settings.DATABASE_URL = '{settings.DATABASE_URL}'")
+        logger.debug(f"DEBUG: Length of DATABASE_URL: {len(settings.DATABASE_URL)}")
+        logger.debug("=" * 80)
 
     # Optimized connection pooling for high-performance
     engine = create_engine(
@@ -40,9 +43,7 @@ try:
         echo=False,  # Disable SQL logging for performance
     )
 except Exception as e:
-    import logging
-
-    logging.error(f"Failed to create database engine: {e}")
+    logger.error(f"Failed to create database engine: {e}")
     # Re-raise the exception as this is critical
     raise
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

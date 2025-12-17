@@ -20,47 +20,67 @@ depends_on = None
 def column_exists(table: str, column: str) -> bool:
     """Check if a column exists in a table."""
     conn = op.get_bind()
-    result = conn.execute(sa.text("""
+    result = conn.execute(
+        sa.text(
+            """
         SELECT EXISTS (
             SELECT 1 FROM information_schema.columns 
             WHERE table_name = :table AND column_name = :column
         )
-    """), {"table": table, "column": column})
+    """
+        ),
+        {"table": table, "column": column},
+    )
     return result.scalar()
 
 
 def index_exists(index_name: str) -> bool:
     """Check if an index exists."""
     conn = op.get_bind()
-    result = conn.execute(sa.text("""
+    result = conn.execute(
+        sa.text(
+            """
         SELECT EXISTS (
             SELECT 1 FROM pg_indexes WHERE indexname = :index_name
         )
-    """), {"index_name": index_name})
+    """
+        ),
+        {"index_name": index_name},
+    )
     return result.scalar()
 
 
 def constraint_exists(constraint_name: str) -> bool:
     """Check if a constraint exists."""
     conn = op.get_bind()
-    result = conn.execute(sa.text("""
+    result = conn.execute(
+        sa.text(
+            """
         SELECT EXISTS (
             SELECT 1 FROM information_schema.table_constraints 
             WHERE constraint_name = :constraint_name
         )
-    """), {"constraint_name": constraint_name})
+    """
+        ),
+        {"constraint_name": constraint_name},
+    )
     return result.scalar()
 
 
 def table_exists(table_name: str) -> bool:
     """Check if a table exists."""
     conn = op.get_bind()
-    result = conn.execute(sa.text("""
+    result = conn.execute(
+        sa.text(
+            """
         SELECT EXISTS (
             SELECT 1 FROM information_schema.tables 
             WHERE table_name = :table_name
         )
-    """), {"table_name": table_name})
+    """
+        ),
+        {"table_name": table_name},
+    )
     return result.scalar()
 
 
@@ -128,7 +148,9 @@ def upgrade() -> None:
                 sa.DateTime(timezone=True),
                 server_default=sa.func.now(),
             ),
-            sa.UniqueConstraint("comment_id", "user_id", "emoji", name="uq_comment_reaction"),
+            sa.UniqueConstraint(
+                "comment_id", "user_id", "emoji", name="uq_comment_reaction"
+            ),
         )
     if not index_exists("idx_comment_reactions_comment"):
         op.create_index(
@@ -243,7 +265,9 @@ def upgrade() -> None:
 def downgrade() -> None:
     # Drop tables in reverse order (idempotent)
     if index_exists("idx_notification_prefs_user"):
-        op.drop_index("idx_notification_prefs_user", table_name="user_notification_preferences")
+        op.drop_index(
+            "idx_notification_prefs_user", table_name="user_notification_preferences"
+        )
     if table_exists("user_notification_preferences"):
         op.drop_table("user_notification_preferences")
 
@@ -265,7 +289,9 @@ def downgrade() -> None:
     if index_exists("idx_item_comments_pinned"):
         op.drop_index("idx_item_comments_pinned", table_name="item_comments")
     if constraint_exists("fk_item_comments_pinned_by"):
-        op.drop_constraint("fk_item_comments_pinned_by", "item_comments", type_="foreignkey")
+        op.drop_constraint(
+            "fk_item_comments_pinned_by", "item_comments", type_="foreignkey"
+        )
     if column_exists("item_comments", "pinned_by"):
         op.drop_column("item_comments", "pinned_by")
     if column_exists("item_comments", "pinned_at"):

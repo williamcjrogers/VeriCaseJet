@@ -3,10 +3,9 @@ Intelligent Configuration API
 AI-powered chatbot that guides users through system configuration
 """
 
-import asyncio
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import Annotated, Any, Callable, TypeGuard, cast
+from typing import Annotated, Any, TypeGuard, cast
 from pydantic import BaseModel, Field
 import logging
 import re

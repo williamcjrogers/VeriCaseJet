@@ -11,15 +11,14 @@ enabling dynamic model selection based on:
 The registry supports the adaptive routing strategy where the best
 model for each task is selected based on live performance data.
 """
+
 from __future__ import annotations
 
 import json
 import logging
-import time
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone, timedelta
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
-from collections import deque
 
 from .ai_pricing import estimate_cost_usd
 
@@ -28,6 +27,7 @@ logger = logging.getLogger(__name__)
 # Try to import Redis for persistent metrics
 try:
     from redis import Redis
+
     REDIS_AVAILABLE = True
 except ImportError:
     Redis = None  # type: ignore
@@ -37,6 +37,7 @@ except ImportError:
 @dataclass
 class ModelMetrics:
     """Performance metrics for a single model."""
+
     provider: str
     model_id: str
 
@@ -94,9 +95,15 @@ class ModelMetrics:
                 self.recent_quality_scores.pop(0)
 
             # Update averages
-            self.avg_latency_ms = sum(self.recent_latencies) / len(self.recent_latencies)
-            self.avg_quality_score = sum(self.recent_quality_scores) / len(self.recent_quality_scores)
-            self.avg_tokens_used = (self.avg_tokens_used * (self.successful_calls - 1) + tokens_used) // self.successful_calls
+            self.avg_latency_ms = sum(self.recent_latencies) / len(
+                self.recent_latencies
+            )
+            self.avg_quality_score = sum(self.recent_quality_scores) / len(
+                self.recent_quality_scores
+            )
+            self.avg_tokens_used = (
+                self.avg_tokens_used * (self.successful_calls - 1) + tokens_used
+            ) // self.successful_calls
 
             # Update token tracking
             self.total_tokens += tokens_used
@@ -123,24 +130,32 @@ class ModelMetrics:
         success_rate = self.successful_calls / self.total_calls
 
         # Reliability: weighted by recency (recent failures hurt more)
-        recent_success = len([e for e in self.recent_errors if not e]) if self.recent_errors else self.successful_calls
-        recent_total = len(self.recent_errors) if self.recent_errors else self.total_calls
+        recent_success = (
+            len([e for e in self.recent_errors if not e])
+            if self.recent_errors
+            else self.successful_calls
+        )
+        recent_total = (
+            len(self.recent_errors) if self.recent_errors else self.total_calls
+        )
         recent_rate = recent_success / max(recent_total, 1)
 
         self.reliability_score = success_rate * 0.6 + recent_rate * 0.4
 
         # Overall score: balance of quality, speed, and reliability
         # Normalize latency (lower is better, target 2000ms)
-        latency_score = max(0, 1 - (self.avg_latency_ms / 5000)) if self.avg_latency_ms > 0 else 0.5
+        latency_score = (
+            max(0, 1 - (self.avg_latency_ms / 5000)) if self.avg_latency_ms > 0 else 0.5
+        )
 
         # Quality score is already 0-1
         quality = self.avg_quality_score if self.avg_quality_score > 0 else 0.5
 
         # Weighted combination
         self.overall_score = (
-            quality * 0.40 +          # Quality matters most
-            latency_score * 0.30 +    # Speed is important
-            self.reliability_score * 0.30  # Reliability is crucial
+            quality * 0.40  # Quality matters most
+            + latency_score * 0.30  # Speed is important
+            + self.reliability_score * 0.30  # Reliability is crucial
         )
 
     def _estimate_cost(self) -> float:
@@ -172,6 +187,7 @@ class ModelMetrics:
 @dataclass
 class TaskTypeMetrics:
     """Metrics for a specific task type across all models."""
+
     task_type: str
     model_rankings: dict[str, float] = field(default_factory=dict)  # model_key -> score
     best_model: str | None = None
@@ -182,7 +198,9 @@ class TaskTypeMetrics:
         """Update model ranking for this task type."""
         # Exponential moving average
         if model_key in self.model_rankings:
-            self.model_rankings[model_key] = self.model_rankings[model_key] * 0.7 + score * 0.3
+            self.model_rankings[model_key] = (
+                self.model_rankings[model_key] * 0.7 + score * 0.3
+            )
         else:
             self.model_rankings[model_key] = score
 
@@ -227,7 +245,9 @@ class ModelRegistry:
         self._redis: Redis | None = None
 
         # In-memory storage
-        self._model_metrics: dict[str, ModelMetrics] = {}  # provider:model_id -> metrics
+        self._model_metrics: dict[str, ModelMetrics] = (
+            {}
+        )  # provider:model_id -> metrics
         self._task_metrics: dict[str, TaskTypeMetrics] = {}  # task_type -> metrics
 
         # Initialize Redis if available
@@ -330,10 +350,7 @@ class ModelRegistry:
 
     def get_all_metrics(self) -> dict[str, dict[str, Any]]:
         """Get all model metrics as dictionaries."""
-        return {
-            key: metrics.to_dict()
-            for key, metrics in self._model_metrics.items()
-        }
+        return {key: metrics.to_dict() for key, metrics in self._model_metrics.items()}
 
     def get_best_model(
         self,
@@ -392,14 +409,16 @@ class ModelRegistry:
         for model_key, score in ranked:
             provider, model_id = model_key.split(":", 1)
             metrics = self._model_metrics.get(model_key)
-            results.append({
-                "provider": provider,
-                "model_id": model_id,
-                "score": score,
-                "avg_latency_ms": metrics.avg_latency_ms if metrics else 0,
-                "avg_quality": metrics.avg_quality_score if metrics else 0,
-                "reliability": metrics.reliability_score if metrics else 0,
-            })
+            results.append(
+                {
+                    "provider": provider,
+                    "model_id": model_id,
+                    "score": score,
+                    "avg_latency_ms": metrics.avg_latency_ms if metrics else 0,
+                    "avg_quality": metrics.avg_quality_score if metrics else 0,
+                    "reliability": metrics.reliability_score if metrics else 0,
+                }
+            )
 
         return results
 
@@ -435,7 +454,9 @@ class ModelRegistry:
 
         return status
 
-    def reset_metrics(self, provider: str | None = None, model_id: str | None = None) -> None:
+    def reset_metrics(
+        self, provider: str | None = None, model_id: str | None = None
+    ) -> None:
         """Reset metrics for a specific model or all models."""
         if provider and model_id:
             model_key = self._get_model_key(provider, model_id)

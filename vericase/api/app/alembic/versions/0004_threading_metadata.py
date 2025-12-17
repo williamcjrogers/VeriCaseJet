@@ -36,7 +36,10 @@ def upgrade() -> None:
     op.add_column(
         "email_messages",
         sa.Column(
-            "is_inclusive", sa.Boolean(), server_default=sa.sql.expression.true(), nullable=False
+            "is_inclusive",
+            sa.Boolean(),
+            server_default=sa.sql.expression.true(),
+            nullable=False,
         ),
     )
 

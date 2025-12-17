@@ -64,7 +64,11 @@ def _load_config() -> SSHConfig:
     strict_host_key_checking = _parse_bool(_env("SSH_STRICT_HOST_KEY_CHECKING"), False)
     known_hosts_path = _env("SSH_KNOWN_HOSTS_PATH")
 
-    if strict_host_key_checking and known_hosts_path and not os.path.exists(known_hosts_path):
+    if (
+        strict_host_key_checking
+        and known_hosts_path
+        and not os.path.exists(known_hosts_path)
+    ):
         raise RuntimeError(
             f"SSH_KNOWN_HOSTS_PATH does not exist: {known_hosts_path}. "
             "Prime known_hosts first (for Windows: run vericase/ops/setup-ssh.ps1)."
@@ -157,8 +161,12 @@ def main() -> None:
         default="stdio",
         help="MCP transport to use",
     )
-    parser.add_argument("--host", default="127.0.0.1", help="Host for SSE/HTTP transports")
-    parser.add_argument("--port", type=int, default=8012, help="Port for SSE/HTTP transports")
+    parser.add_argument(
+        "--host", default="127.0.0.1", help="Host for SSE/HTTP transports"
+    )
+    parser.add_argument(
+        "--port", type=int, default=8012, help="Port for SSE/HTTP transports"
+    )
     args = parser.parse_args()
 
     if args.transport != "stdio":

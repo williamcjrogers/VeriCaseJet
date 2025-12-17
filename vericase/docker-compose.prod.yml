@@ -130,6 +130,7 @@ services:
       - TIKA_URL=http://tika:9998
       - CELERY_QUEUE=vericase
       - CELERY_PST_QUEUE=pst_processing
+      - CELERY_PST_QUEUE=pst_processing
     depends_on:
       minio:
         condition: service_healthy

@@ -12,16 +12,21 @@ import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, List, Optional, Tuple, Awaitable
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .models import User, Document
 from .db import get_db
 from .security import current_user
-from .ai_settings import get_ai_api_key, get_ai_model, is_bedrock_enabled, get_bedrock_region
+from .ai_settings import (
+    get_ai_api_key,
+    get_ai_model,
+    is_bedrock_enabled,
+    get_bedrock_region,
+)
 from .ai_runtime import complete_chat
 
 router = APIRouter(prefix="/ai/orchestrator", tags=["ai-orchestrator"])
@@ -36,6 +41,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ModelResult:
     """Result from a single model execution."""
+
     provider: str
     model_id: str
     response: str
@@ -49,6 +55,7 @@ class ModelResult:
 @dataclass
 class MultiModelResult:
     """Aggregated result from multi-model execution."""
+
     best_result: ModelResult | None = None
     all_results: list[ModelResult] = field(default_factory=list)
     consensus_response: str | None = None
@@ -151,14 +158,16 @@ class MultiModelTask:
         for i, result in enumerate(results):
             provider, model_id = available_models[i]
             if isinstance(result, Exception):
-                model_results.append(ModelResult(
-                    provider=provider,
-                    model_id=model_id,
-                    response="",
-                    latency_ms=0,
-                    success=False,
-                    error=str(result),
-                ))
+                model_results.append(
+                    ModelResult(
+                        provider=provider,
+                        model_id=model_id,
+                        response="",
+                        latency_ms=0,
+                        success=False,
+                        error=str(result),
+                    )
+                )
             else:
                 model_results.append(result)
 
@@ -171,7 +180,11 @@ class MultiModelTask:
         return MultiModelResult(
             best_result=best_result,
             all_results=model_results,
-            consensus_response=self._get_consensus(model_results) if selection_method == "voting" else None,
+            consensus_response=(
+                self._get_consensus(model_results)
+                if selection_method == "voting"
+                else None
+            ),
             selection_method=selection_method,
             total_time_ms=total_time,
             models_attempted=len(model_results),
@@ -429,7 +442,9 @@ Provide an improved version:"""
             selection_method="first_success",
         )
 
-        refined = refine_result.best_result.response if refine_result.best_result else draft
+        refined = (
+            refine_result.best_result.response if refine_result.best_result else draft
+        )
 
         return {
             "success": True,
@@ -540,10 +555,13 @@ Provide validation feedback as JSON:
 
         return {
             "success": result.models_succeeded > 0,
-            "best_response": result.best_result.response if result.best_result else None,
+            "best_response": (
+                result.best_result.response if result.best_result else None
+            ),
             "best_model": (
                 f"{result.best_result.provider}/{result.best_result.model_id}"
-                if result.best_result else None
+                if result.best_result
+                else None
             ),
             "best_score": result.best_result.quality_score if result.best_result else 0,
             "all_results": [

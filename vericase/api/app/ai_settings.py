@@ -9,7 +9,6 @@ import logging
 from typing import Any
 from sqlalchemy.orm import Session
 
-from .config import settings as env_settings
 from .models import AppSetting
 
 logger = logging.getLogger(__name__)
@@ -251,6 +250,7 @@ class AISettings:
             # Use os.getenv directly - config_production.py loads secrets into os.environ
             # at startup, but env_settings Pydantic object was created before that
             import os
+
             env_value = os.getenv(env_var)
             if env_value is not None:
                 return env_value
@@ -501,9 +501,7 @@ class AISettings:
         return defaults
 
     @classmethod
-    def set_orchestration_settings(
-        cls, settings: dict[str, Any], db: Session
-    ) -> bool:
+    def set_orchestration_settings(cls, settings: dict[str, Any], db: Session) -> bool:
         """Save global orchestration settings"""
         key = "ai_orchestration_settings"
         try:
@@ -674,7 +672,9 @@ def get_ai_providers_status(
     return AISettings.get_all_configured_providers(db)
 
 
-def get_function_config(function_name: str, db: Session | None = None) -> dict[str, Any]:
+def get_function_config(
+    function_name: str, db: Session | None = None
+) -> dict[str, Any]:
     """Get configuration for an AI function (quick_search, deep_analysis)"""
     return AISettings.get_function_config(function_name, db)
 
@@ -723,6 +723,8 @@ def get_orchestration_settings(db: Session | None = None) -> dict[str, Any]:
     return AISettings.get_orchestration_settings(db)
 
 
-def get_pinned_model(function_name: str, db: Session | None = None) -> tuple[str, str] | None:
+def get_pinned_model(
+    function_name: str, db: Session | None = None
+) -> tuple[str, str] | None:
     """Get admin-pinned model for a function"""
     return AISettings.get_pinned_model(function_name, db)

@@ -1,6 +1,6 @@
-# VeriCase AI Key Management Guide
+﻿# VeriCase AI Key Management Guide
 
-## 🔑 Where Does VeriCase Load AI Keys From?
+## ðŸ”‘ Where Does VeriCase Load AI Keys From?
 
 VeriCase supports **multiple AI providers** and loads API keys in the following priority order:
 
@@ -12,7 +12,7 @@ VeriCase supports **multiple AI providers** and loads API keys in the following 
 
 ---
 
-## 🤖 Supported AI Providers
+## ðŸ¤– Supported AI Providers
 
 VeriCase supports **6 AI providers**:
 
@@ -27,7 +27,7 @@ VeriCase supports **6 AI providers**:
 
 ---
 
-## 📖 Method 1: AWS Secrets Manager (Production - RECOMMENDED)
+## ðŸ“– Method 1: AWS Secrets Manager (Production - RECOMMENDED)
 
 ### How It Works
 
@@ -111,15 +111,15 @@ Check application logs on startup:
 ```
 [config_production] Should load AI keys from Secrets Manager: True
 [config_production] Loading AI keys from Secrets Manager...
-[config_production] ✓ Loaded GEMINI_API_KEY from Secrets Manager
-[config_production] ✓ Loaded CLAUDE_API_KEY from Secrets Manager
-[config_production] ✓ Loaded OPENAI_API_KEY from Secrets Manager
+[config_production] âœ“ Loaded GEMINI_API_KEY from Secrets Manager
+[config_production] âœ“ Loaded CLAUDE_API_KEY from Secrets Manager
+[config_production] âœ“ Loaded OPENAI_API_KEY from Secrets Manager
 Successfully loaded 3 AI API keys from Secrets Manager
 ```
 
 ---
 
-## 📖 Method 2: Environment Variables (Local Development)
+## ðŸ“– Method 2: Environment Variables (Local Development)
 
 ### How It Works
 
@@ -133,11 +133,11 @@ Edit `.env.local`:
 
 ```bash
 # AI Model API Keys
-GEMINI_API_KEY=AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-CLAUDE_API_KEY=sk-ant-api03-XXXXXXXXXXXXXXXXXXXXXXXX
-OPENAI_API_KEY=sk-proj-XXXXXXXXXXXXXXXXXXXXXXXXXX
-GROK_API_KEY=xai-XXXXXXXXXXXXXXXXXXXXXXXXXXXX
-PERPLEXITY_API_KEY=pplx-XXXXXXXXXXXXXXXXXXXXXXXX
+GEMINI_API_KEY=<your-gemini-key>
+CLAUDE_API_KEY=<your-api-key>
+OPENAI_API_KEY=<your-api-key>
+GROK_API_KEY=<your-grok-key>
+PERPLEXITY_API_KEY=<your-perplexity-key>
 
 # AI Feature Flags (ENABLE ALL)
 ENABLE_AI_AUTO_CLASSIFY=true
@@ -165,7 +165,7 @@ BEDROCK_KB_ID=YOUR_KB_ID
 
 ---
 
-## 🎯 All AI Features - Complete Configuration
+## ðŸŽ¯ All AI Features - Complete Configuration
 
 ### Required Environment Variables for Full AI Enablement
 
@@ -295,7 +295,7 @@ QUICKSIGHT_DATASET_ID=your-dataset-id
 
 ---
 
-## 🚀 Quick Start: Enable All Features Now
+## ðŸš€ Quick Start: Enable All Features Now
 
 ### For Local Development
 
@@ -352,9 +352,9 @@ MACIE_ENABLED=true
 
 ---
 
-## 🔒 Security Best Practices
+## ðŸ”’ Security Best Practices
 
-### ✅ DO
+### âœ… DO
 
 - **Use AWS Secrets Manager in production**
 - **Rotate API keys every 90-180 days**
@@ -363,7 +363,7 @@ MACIE_ENABLED=true
 - **Monitor API usage and costs**
 - **Enable CloudTrail for audit logs**
 
-### ❌ DON'T
+### âŒ DON'T
 
 - **Never commit API keys to Git**
 - **Never share API keys in Slack/email**
@@ -373,7 +373,7 @@ MACIE_ENABLED=true
 
 ---
 
-## 🔍 Troubleshooting
+## ðŸ” Troubleshooting
 
 ### "No AI providers configured"
 
@@ -390,7 +390,7 @@ docker-compose exec api python -c "from app.config import settings; print(f'Gemi
 
 ```bash
 # Test from AWS environment
-aws secretsmanager get-secret-value --secret-id vericase/ai-api-keys --region eu-west-2
+aws secretsmanager describe-secret --secret-id vericase/ai-api-keys --region eu-west-2
 ```
 
 ### "AI features not working"
@@ -418,7 +418,7 @@ ENABLE_AI_NATURAL_LANGUAGE_QUERY=true
 
 ---
 
-## 📊 Cost Optimization Tips
+## ðŸ“Š Cost Optimization Tips
 
 1. **Use Gemini as default** - Most cost-effective for general tasks
 2. **Reserve Claude for complex reasoning** - More expensive but better quality
@@ -429,7 +429,7 @@ ENABLE_AI_NATURAL_LANGUAGE_QUERY=true
 
 ---
 
-## 🎓 Getting Your API Keys
+## ðŸŽ“ Getting Your API Keys
 
 ### Google Gemini
 1. Visit: https://aistudio.google.com/app/apikey
@@ -454,7 +454,7 @@ ENABLE_AI_NATURAL_LANGUAGE_QUERY=true
 
 ---
 
-## 📝 Summary
+## ðŸ“ Summary
 
 **Where VeriCase loads AI keys from:**
 
@@ -463,3 +463,4 @@ ENABLE_AI_NATURAL_LANGUAGE_QUERY=true
 3. **Fallback**: Empty (AI features disabled)
 
 **To enable all features**: Set all environment variables listed in the "All AI Features" section above!
+

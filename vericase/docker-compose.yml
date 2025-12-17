@@ -58,6 +58,7 @@ services:
       - AWS_REGION=${AWS_REGION:-eu-west-2}
       - S3_BUCKET=${S3_BUCKET:-vericase-docs}
       - MINIO_BUCKET=${MINIO_BUCKET:-vericase-docs}
+      - CELERY_PST_QUEUE=${CELERY_PST_QUEUE:-pst_processing}
     depends_on: [minio, postgres, redis, opensearch, tika]
     ports: ["8010:8000"]
     volumes:

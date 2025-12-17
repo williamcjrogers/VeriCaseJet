@@ -26,17 +26,12 @@ async def send_slack_notification(channel: str, message: str) -> bool:
     try:
         timeout = aiohttp.ClientTimeout(total=10)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(
-                settings.SLACK_WEBHOOK_URL, json=payload
-            ) as resp:
+            async with session.post(settings.SLACK_WEBHOOK_URL, json=payload) as resp:
                 if resp.status in (200, 204):
                     return True
                 body = await resp.text()
-                logger.warning(
-                    "Slack webhook returned %s: %s", resp.status, body[:200]
-                )
+                logger.warning("Slack webhook returned %s: %s", resp.status, body[:200])
     except Exception as e:
         logger.warning("Slack notification failed: %s", e)
 
     return False
-
