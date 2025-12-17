@@ -16,7 +16,7 @@ import uuid
 import json
 import re
 from datetime import datetime, timezone
-from typing import Any, Annotated, cast
+from typing import Any, Annotated, cast, Generator
 from collections import defaultdict
 from enum import Enum
 
@@ -196,17 +196,22 @@ class RefinementAnswer(BaseModel):
 
 
 class RefinementSession(BaseModel):
-    """Complete refinement session state"""
+    """Complete refinement session state with bulk processing support"""
 
     id: str
     project_id: str
     user_id: str
-    status: str = "active"  # active, completed, cancelled
+    status: str = (
+        "active"  # active, analyzing, awaiting_answers, completed, cancelled, failed
+    )
     current_stage: RefinementStage = RefinementStage.INITIAL_ANALYSIS
     questions_asked: list[RefinementQuestion] = Field(default_factory=list)
     answers_received: list[RefinementAnswer] = Field(default_factory=list)
     analysis_results: dict[str, Any] = Field(default_factory=dict)
     exclusion_rules: dict[str, Any] = Field(default_factory=dict)
+    # Bulk processing progress tracking
+    progress: dict[str, Any] = Field(default_factory=dict)
+    error_message: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -217,7 +222,23 @@ class AnalysisRequest(BaseModel):
     project_id: str
     include_spam_detection: bool = True
     include_project_detection: bool = True
-    max_emails_to_analyze: int = 50000  # Increased from 2000 to handle large datasets
+    max_emails_to_analyze: int = 0  # 0 = unlimited (process all emails)
+    batch_size: int = 10000  # Process emails in batches for memory efficiency
+    run_in_background: bool = True  # Run asynchronously for large datasets
+
+
+class BulkAnalysisProgress(BaseModel):
+    """Progress tracking for bulk analysis"""
+
+    total_emails: int = 0
+    processed_emails: int = 0
+    current_batch: int = 0
+    total_batches: int = 0
+    phase: str = "initializing"  # initializing, analyzing, detecting, finalizing
+    phase_progress: float = 0.0  # 0.0 - 1.0
+    estimated_remaining_seconds: int | None = None
+    started_at: datetime | None = None
+    last_update: datetime | None = None
 
 
 class AnalysisResponse(BaseModel):
@@ -361,10 +382,13 @@ class AIRefinementEngine:
         self.gemini_model = get_ai_model("gemini", db)
         self.bedrock_model = get_ai_model("bedrock", db)
 
-        # Tool-specific settings from config
+        # Tool-specific settings from config (no timeout for bulk processing)
         self.max_tokens = self.tool_config.get("max_tokens", 4000)
         self.temperature = self.tool_config.get("temperature", 0.2)
-        self.max_duration = self.tool_config.get("max_duration_seconds", 300)
+        # Note: No timeout - bulk processing can run indefinitely
+
+        # Batch processing settings
+        self.default_batch_size = 10000  # Process 10k emails per batch
 
         # Build project context from configuration
         self.project_context = self._build_project_context()
@@ -457,6 +481,286 @@ class AIRefinementEngine:
         context["keywords"] = keyword_list
 
         return context
+
+    # =========================================================================
+    # Batch Processing Methods for Mass Email Analysis
+    # =========================================================================
+
+    def get_email_count(self) -> int:
+        """Get total count of emails in project (fast COUNT query)"""
+        return (
+            self.db.query(EmailMessage)
+            .filter(EmailMessage.project_id == str(self.project.id))
+            .count()
+        )
+
+    def stream_emails_in_batches(
+        self, batch_size: int = 10000, max_emails: int = 0
+    ) -> Generator[list[EmailMessage], None, None]:
+        """
+        Stream emails in memory-efficient batches using cursor pagination.
+        Yields batches of emails without loading all into memory.
+
+        Args:
+            batch_size: Number of emails per batch (default 10,000)
+            max_emails: Maximum total emails to process (0 = unlimited)
+
+        Yields:
+            Lists of EmailMessage objects, batch_size at a time
+        """
+        offset = 0
+        total_yielded = 0
+
+        while True:
+            # Build query with offset-based pagination
+            query = (
+                self.db.query(EmailMessage)
+                .filter(EmailMessage.project_id == str(self.project.id))
+                .order_by(EmailMessage.id)  # Stable ordering for pagination
+                .offset(offset)
+                .limit(batch_size)
+            )
+
+            batch = query.all()
+
+            if not batch:
+                break
+
+            # Respect max_emails limit if set
+            if max_emails > 0:
+                remaining = max_emails - total_yielded
+                if remaining <= 0:
+                    break
+                if len(batch) > remaining:
+                    batch = batch[:remaining]
+
+            yield batch
+
+            total_yielded += len(batch)
+            offset += batch_size
+
+            # Check if we've hit the max
+            if max_emails > 0 and total_yielded >= max_emails:
+                break
+
+            # If batch was smaller than requested, we've reached the end
+            if len(batch) < batch_size:
+                break
+
+    async def analyze_batch_for_spam(
+        self, emails: list[EmailMessage]
+    ) -> dict[str, dict[str, Any]]:
+        """
+        Analyze a batch of emails for spam - returns aggregated stats.
+        This is a lighter-weight version optimized for batch processing.
+        """
+        spam_candidates: dict[str, dict[str, Any]] = defaultdict(
+            lambda: {
+                "count": 0,
+                "samples": [],
+                "reasons": set(),
+                "domain": None,
+                "sender": None,
+            }
+        )
+
+        for email in emails:
+            spam_score = 0
+            reasons: set[str] = set()
+
+            subject_lower = (email.subject or "").lower()
+            body_lower = (email.body_text or "").lower()
+            sender_email_addr = (email.sender_email or "").lower()
+            sender_domain = (
+                sender_email_addr.split("@")[-1] if "@" in sender_email_addr else ""
+            )
+
+            # Check HIGH CONFIDENCE spam indicators (+3 points each)
+            for word in SPAM_INDICATORS["high_confidence_words"]:
+                if word in body_lower or word in subject_lower:
+                    spam_score += 3
+                    reasons.add(f"Contains '{word}'")
+
+            # Check MEDIUM CONFIDENCE indicators (+1 point each)
+            for word in SPAM_INDICATORS["medium_confidence_words"]:
+                if word in body_lower or word in subject_lower:
+                    spam_score += 1
+                    reasons.add(f"Contains '{word}' (review suggested)")
+
+            # Check spam domains (+3 points)
+            for domain in SPAM_INDICATORS["spam_domains"]:
+                if domain in sender_domain or domain in sender_email_addr:
+                    spam_score += 3
+                    reasons.add(f"From marketing/social domain: {domain}")
+
+            # Check automated subjects (+3 points)
+            for pattern in SPAM_INDICATORS["automated_subjects"]:
+                if pattern in subject_lower:
+                    spam_score += 3
+                    reasons.add(f"Automated notification: '{pattern}'")
+
+            # Group by sender domain for bulk detection (threshold: 3)
+            if spam_score >= 3:
+                key = sender_domain or sender_email_addr
+                candidate = spam_candidates[key]
+                candidate["count"] = int(candidate.get("count") or 0) + 1
+                existing_reasons = candidate.get("reasons") or set()
+                if isinstance(existing_reasons, set):
+                    existing_reasons.update(reasons)
+                candidate["reasons"] = existing_reasons
+                candidate["domain"] = sender_domain
+                candidate["sender"] = email.sender_name or sender_email_addr
+                samples = candidate.get("samples") or []
+                if isinstance(samples, list) and len(samples) < 3:
+                    samples.append(
+                        {
+                            "subject": email.subject,
+                            "date": (
+                                email.date_sent.isoformat() if email.date_sent else None
+                            ),
+                            "sender": sender_email_addr,
+                        }
+                    )
+                    candidate["samples"] = samples
+
+        return spam_candidates
+
+    async def analyze_batch_for_duplicates(
+        self, emails: list[EmailMessage]
+    ) -> dict[str, list[dict[str, Any]]]:
+        """
+        Detect duplicates in a batch - returns signature -> email list mapping.
+        Designed to be merged across batches.
+        """
+        import hashlib
+
+        email_signatures: dict[str, list[dict[str, Any]]] = defaultdict(list)
+
+        for email in emails:
+            content = f"{(email.subject or '').strip().lower()}"
+            body_text = (email.body_text or "").strip()
+            if body_text:
+                normalized_body = " ".join(body_text.split()[:100])
+                content += f":{normalized_body}"
+
+            signature = hashlib.md5(content.encode()).hexdigest()[:16]
+
+            email_signatures[signature].append(
+                {
+                    "id": str(email.id),
+                    "subject": email.subject,
+                    "sender": email.sender_email,
+                    "date": email.date_sent,
+                    "date_str": (
+                        email.date_sent.isoformat() if email.date_sent else None
+                    ),
+                }
+            )
+
+        return email_signatures
+
+    async def analyze_batch_for_domains(
+        self, emails: list[EmailMessage]
+    ) -> dict[str, dict[str, Any]]:
+        """
+        Analyze domains in a batch - returns domain stats.
+        Designed to be merged across batches.
+        """
+        domain_stats: dict[str, dict[str, Any]] = defaultdict(
+            lambda: {"count": 0, "people": set(), "first_seen": None, "last_seen": None}
+        )
+
+        for email in emails:
+            email_sender = (email.sender_email or "").lower()
+            if "@" not in email_sender:
+                continue
+
+            domain = email_sender.split("@")[-1]
+            sender_name = email.sender_name or email_sender.split("@")[0]
+
+            dom_stat = domain_stats[domain]
+            dom_stat["count"] = int(dom_stat.get("count") or 0) + 1
+            people_set = dom_stat.get("people")
+            if isinstance(people_set, set):
+                people_set.add(sender_name)
+            dom_stat["people"] = people_set
+
+            if email.date_sent:
+                first_seen = dom_stat.get("first_seen")
+                last_seen = dom_stat.get("last_seen")
+                if not first_seen or email.date_sent < first_seen:
+                    dom_stat["first_seen"] = email.date_sent
+                if not last_seen or email.date_sent > last_seen:
+                    dom_stat["last_seen"] = email.date_sent
+
+        return domain_stats
+
+    def merge_spam_results(
+        self,
+        accumulated: dict[str, dict[str, Any]],
+        batch_result: dict[str, dict[str, Any]],
+    ) -> dict[str, dict[str, Any]]:
+        """Merge spam detection results from multiple batches."""
+        for key, data in batch_result.items():
+            if key not in accumulated:
+                accumulated[key] = data
+            else:
+                acc = accumulated[key]
+                acc["count"] = int(acc.get("count") or 0) + int(data.get("count") or 0)
+                # Merge reasons
+                acc_reasons = acc.get("reasons")
+                data_reasons = data.get("reasons")
+                if isinstance(acc_reasons, set) and isinstance(data_reasons, set):
+                    acc_reasons.update(data_reasons)
+                # Keep limited samples
+                acc_samples = acc.get("samples") or []
+                data_samples = data.get("samples") or []
+                if isinstance(acc_samples, list) and isinstance(data_samples, list):
+                    if len(acc_samples) < 3:
+                        acc_samples.extend(data_samples[: 3 - len(acc_samples)])
+                    acc["samples"] = acc_samples
+        return accumulated
+
+    def merge_duplicate_results(
+        self,
+        accumulated: dict[str, list[dict[str, Any]]],
+        batch_result: dict[str, list[dict[str, Any]]],
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Merge duplicate detection results from multiple batches."""
+        for signature, emails in batch_result.items():
+            if signature not in accumulated:
+                accumulated[signature] = emails
+            else:
+                accumulated[signature].extend(emails)
+        return accumulated
+
+    def merge_domain_results(
+        self,
+        accumulated: dict[str, dict[str, Any]],
+        batch_result: dict[str, dict[str, Any]],
+    ) -> dict[str, dict[str, Any]]:
+        """Merge domain analysis results from multiple batches."""
+        for domain, stats in batch_result.items():
+            if domain not in accumulated:
+                accumulated[domain] = stats
+            else:
+                acc = accumulated[domain]
+                acc["count"] = int(acc.get("count") or 0) + int(stats.get("count") or 0)
+                # Merge people sets
+                acc_people = acc.get("people")
+                stats_people = stats.get("people")
+                if isinstance(acc_people, set) and isinstance(stats_people, set):
+                    acc_people.update(stats_people)
+                # Update date ranges
+                stats_first = stats.get("first_seen")
+                stats_last = stats.get("last_seen")
+                acc_first = acc.get("first_seen")
+                acc_last = acc.get("last_seen")
+                if stats_first and (not acc_first or stats_first < acc_first):
+                    acc["first_seen"] = stats_first
+                if stats_last and (not acc_last or stats_last > acc_last):
+                    acc["last_seen"] = stats_last
+        return accumulated
 
     async def _call_llm(self, prompt: str, system_prompt: str = "") -> str:
         """Call the best available LLM (4 providers) - Bedrock first for cost optimization"""
@@ -1461,6 +1765,372 @@ Only include references that appear to be OTHER projects (is_other_project: true
 # =============================================================================
 
 
+async def _run_bulk_analysis_background(
+    session_id: str,
+    project_id: str,
+    user_id: str,
+    include_spam_detection: bool,
+    include_project_detection: bool,
+    max_emails: int,
+    batch_size: int,
+) -> None:
+    """
+    Background task for bulk email analysis.
+    Processes hundreds of thousands of emails in batches with progress tracking.
+    No timeout - runs until complete.
+    """
+    import time
+    from .db import SessionLocal
+
+    # Use a fresh database session for the background task
+    db = SessionLocal()
+
+    try:
+        # Get session and project
+        session = _refinement_sessions.get(session_id)
+        if not session:
+            logger.error(f"Session {session_id} not found in background task")
+            return
+
+        project = db.query(Project).filter_by(id=project_id).first()
+        if not project:
+            session.status = "failed"
+            session.error_message = "Project not found"
+            _save_session_to_db(session, db)
+            return
+
+        start_time = time.time()
+
+        # Initialize engine
+        engine = AIRefinementEngine(db, project)
+
+        # Get total email count
+        total_emails = engine.get_email_count()
+        if max_emails > 0:
+            total_emails = min(total_emails, max_emails)
+
+        if total_emails == 0:
+            session.status = "failed"
+            session.error_message = "No emails found in project"
+            _save_session_to_db(session, db)
+            return
+
+        total_batches = (total_emails + batch_size - 1) // batch_size
+
+        # Initialize progress
+        session.progress = {
+            "total_emails": total_emails,
+            "processed_emails": 0,
+            "current_batch": 0,
+            "total_batches": total_batches,
+            "phase": "analyzing",
+            "phase_progress": 0.0,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "last_update": datetime.now(timezone.utc).isoformat(),
+        }
+        _save_session_to_db(session, db)
+
+        # Accumulated results across batches
+        all_spam: dict[str, dict[str, Any]] = {}
+        all_duplicates: dict[str, list[dict[str, Any]]] = {}
+        all_domains: dict[str, dict[str, Any]] = {}
+        all_project_refs: dict[str, dict[str, Any]] = defaultdict(
+            lambda: {"count": 0, "samples": []}
+        )
+
+        processed_count = 0
+        batch_num = 0
+
+        # Process emails in batches
+        for batch in engine.stream_emails_in_batches(batch_size, max_emails):
+            batch_num += 1
+
+            logger.info(
+                f"Processing batch {batch_num}/{total_batches} ({len(batch)} emails)"
+            )
+
+            # Update progress
+            session.progress["current_batch"] = batch_num
+            session.progress["phase"] = f"analyzing_batch_{batch_num}"
+            session.progress["phase_progress"] = batch_num / total_batches
+            session.progress["last_update"] = datetime.now(timezone.utc).isoformat()
+
+            # Spam detection (fast, pattern-based)
+            if include_spam_detection:
+                batch_spam = await engine.analyze_batch_for_spam(batch)
+                all_spam = engine.merge_spam_results(all_spam, batch_spam)
+
+            # Duplicate detection (hash-based, memory efficient)
+            batch_dups = await engine.analyze_batch_for_duplicates(batch)
+            all_duplicates = engine.merge_duplicate_results(all_duplicates, batch_dups)
+
+            # Domain analysis
+            batch_domains = await engine.analyze_batch_for_domains(batch)
+            all_domains = engine.merge_domain_results(all_domains, batch_domains)
+
+            # Project reference detection (pattern-based, accumulated)
+            if include_project_detection:
+                # Build known identifiers set for this project
+                known_identifiers = {
+                    (
+                        engine.project.project_name.lower()
+                        if engine.project.project_name
+                        else ""
+                    ),
+                    (
+                        engine.project.project_code.lower()
+                        if engine.project.project_code
+                        else ""
+                    ),
+                }
+                for alias in engine.project_context.get("aliases") or []:
+                    if isinstance(alias, str):
+                        known_identifiers.add(alias.lower())
+
+                # Scan for project codes
+                for email in batch:
+                    text = f"{email.subject or ''} {email.body_text or ''}"
+                    for pattern in PROJECT_CODE_PATTERNS:
+                        matches: list[str] = re.findall(pattern, text)
+                        for match in matches:
+                            ref = match.strip()
+                            if len(ref) >= 3 and ref.lower() not in known_identifiers:
+                                ref_data = all_project_refs[ref]
+                                ref_data["count"] = int(ref_data.get("count") or 0) + 1
+                                samples = ref_data.get("samples") or []
+                                if isinstance(samples, list) and len(samples) < 3:
+                                    samples.append(
+                                        {
+                                            "subject": email.subject,
+                                            "date": (
+                                                email.date_sent.isoformat()
+                                                if email.date_sent
+                                                else None
+                                            ),
+                                            "sender": email.sender_email,
+                                        }
+                                    )
+                                    ref_data["samples"] = samples
+
+            processed_count += len(batch)
+            session.progress["processed_emails"] = processed_count
+
+            # Estimate remaining time
+            elapsed = time.time() - start_time
+            if processed_count > 0:
+                rate = processed_count / elapsed  # emails per second
+                remaining = total_emails - processed_count
+                session.progress["estimated_remaining_seconds"] = (
+                    int(remaining / rate) if rate > 0 else None
+                )
+
+            _save_session_to_db(session, db)
+
+            # Log progress periodically
+            if batch_num % 10 == 0:
+                logger.info(
+                    f"Bulk analysis progress: {processed_count}/{total_emails} "
+                    f"({100 * processed_count / total_emails:.1f}%)"
+                )
+
+        # Phase 2: Finalize results
+        session.progress["phase"] = "finalizing"
+        session.progress["phase_progress"] = 0.9
+        _save_session_to_db(session, db)
+
+        logger.info(f"Finalizing bulk analysis for {processed_count} emails")
+
+        # Convert accumulated results to DetectedItem lists
+        detected_spam: list[DetectedItem] = []
+        for key, data in sorted(
+            all_spam.items(), key=lambda x: x[1].get("count", 0), reverse=True
+        ):
+            count = int(data.get("count") or 0)
+            if count >= 2:
+                reasons = data.get("reasons") or set()
+                samples = data.get("samples") or []
+                detected_spam.append(
+                    DetectedItem(
+                        id=f"spam_{uuid.uuid4().hex[:8]}",
+                        item_type="spam_newsletter",
+                        name=data.get("sender") or key,
+                        description=f"Potential spam/newsletter from {key} ({count} emails)",
+                        sample_emails=samples[:3] if isinstance(samples, list) else [],
+                        email_count=count,
+                        confidence=(
+                            ConfidenceLevel.HIGH
+                            if count >= 5
+                            else ConfidenceLevel.MEDIUM
+                        ),
+                        ai_reasoning=f"Detected indicators: {', '.join(list(reasons)[:3]) if isinstance(reasons, set) else ''}",
+                        recommended_action="exclude" if count >= 5 else "review",
+                        metadata={
+                            "domain": data.get("domain"),
+                            "reasons": (
+                                list(reasons) if isinstance(reasons, set) else []
+                            ),
+                        },
+                    )
+                )
+        detected_spam = detected_spam[:50]  # Top 50 spam sources
+
+        # Convert duplicate results
+        detected_duplicates: list[DetectedItem] = []
+        for signature, email_list in sorted(
+            all_duplicates.items(), key=lambda x: len(x[1]), reverse=True
+        ):
+            if len(email_list) >= 2:
+                sorted_emails = sorted(
+                    email_list, key=lambda x: x.get("date") or datetime.min
+                )
+                original = sorted_emails[0]
+                duplicates = sorted_emails[1:]
+                detected_duplicates.append(
+                    DetectedItem(
+                        id=f"dup_{signature}",
+                        item_type="duplicate_email",
+                        name=original.get("subject") or "No Subject",
+                        description=f"Found {len(duplicates)} duplicate(s)",
+                        sample_emails=sorted_emails[:4],
+                        email_count=len(email_list),
+                        confidence=(
+                            ConfidenceLevel.HIGH
+                            if len(email_list) >= 3
+                            else ConfidenceLevel.MEDIUM
+                        ),
+                        ai_reasoning=f"Identical content found {len(email_list)} times",
+                        recommended_action="remove_duplicates",
+                        metadata={
+                            "signature": signature,
+                            "original_id": original.get("id"),
+                            "duplicate_ids": [e.get("id") for e in duplicates],
+                            "all_ids": [e.get("id") for e in email_list],
+                        },
+                    )
+                )
+        detected_duplicates = detected_duplicates[:100]  # Top 100 duplicate groups
+
+        # Convert domain results to unknown domains
+        include_domains_raw = engine.project_context.get("include_domains") or []
+        known_domains: set[str] = set()
+        for d in include_domains_raw:
+            if isinstance(d, str):
+                known_domains.add(d.lower())
+
+        detected_domains: list[DetectedItem] = []
+        for domain, stats in sorted(
+            all_domains.items(), key=lambda x: x[1].get("count", 0), reverse=True
+        ):
+            count = int(stats.get("count") or 0)
+            if domain not in known_domains and count >= 3:
+                people = stats.get("people") or set()
+                detected_domains.append(
+                    DetectedItem(
+                        id=f"dom_{uuid.uuid4().hex[:8]}",
+                        item_type="unknown_domain",
+                        name=domain,
+                        description=f"Domain {domain} ({count} emails, {len(people) if isinstance(people, set) else 0} senders)",
+                        sample_emails=[],
+                        email_count=count,
+                        confidence=ConfidenceLevel.MEDIUM,
+                        ai_reasoning="Not in project include_domains list",
+                        recommended_action="review",
+                        metadata={
+                            "people": (
+                                list(people)[:10] if isinstance(people, set) else []
+                            ),
+                            "first_seen": (
+                                stats.get("first_seen").isoformat()
+                                if stats.get("first_seen")
+                                else None
+                            ),
+                            "last_seen": (
+                                stats.get("last_seen").isoformat()
+                                if stats.get("last_seen")
+                                else None
+                            ),
+                        },
+                    )
+                )
+        detected_domains = detected_domains[:30]
+
+        # Convert project references (significant ones only)
+        detected_projects: list[DetectedItem] = []
+        for ref, data in sorted(
+            all_project_refs.items(), key=lambda x: x[1].get("count", 0), reverse=True
+        ):
+            count = int(data.get("count") or 0)
+            if count >= 5:  # At least 5 occurrences for significance
+                samples = data.get("samples") or []
+                detected_projects.append(
+                    DetectedItem(
+                        id=f"proj_{uuid.uuid4().hex[:8]}",
+                        item_type="other_project",
+                        name=ref,
+                        description=f"Project reference '{ref}' found {count} times",
+                        sample_emails=samples[:3] if isinstance(samples, list) else [],
+                        email_count=count,
+                        confidence=ConfidenceLevel.MEDIUM,
+                        ai_reasoning="Potential other project reference",
+                        recommended_action="review",
+                        metadata={"pattern_matches": {"count": count}},
+                    )
+                )
+        detected_projects = detected_projects[:20]
+
+        # Generate questions
+        detected_people: list[DetectedItem] = []  # People detection handled via domains
+        questions = await engine.generate_intelligent_questions(
+            session,
+            detected_projects,
+            detected_spam,
+            detected_domains,
+            detected_people,
+            detected_duplicates,
+            processed_count,
+        )
+
+        # Update session with final results
+        elapsed_total = time.time() - start_time
+        session.analysis_results = {
+            "total_emails": processed_count,
+            "processing_time_seconds": elapsed_total,
+            "batches_processed": batch_num,
+            "detected_projects": [p.model_dump() for p in detected_projects],
+            "detected_spam": [s.model_dump() for s in detected_spam],
+            "detected_domains": [d.model_dump() for d in detected_domains],
+            "detected_people": [],
+            "detected_duplicates": [d.model_dump() for d in detected_duplicates],
+        }
+        session.questions_asked = questions
+        session.status = "awaiting_answers"
+        session.current_stage = (
+            RefinementStage.PROJECT_CROSS_REF
+            if detected_projects
+            else RefinementStage.SPAM_DETECTION
+        )
+        session.progress["phase"] = "completed"
+        session.progress["phase_progress"] = 1.0
+        session.progress["last_update"] = datetime.now(timezone.utc).isoformat()
+
+        _save_session_to_db(session, db)
+
+        logger.info(
+            f"Bulk analysis completed: {processed_count} emails in {elapsed_total:.1f}s "
+            f"({processed_count / elapsed_total:.0f} emails/sec)"
+        )
+
+    except Exception as e:
+        logger.exception(f"Bulk analysis failed: {e}")
+        if session_id in _refinement_sessions:
+            session = _refinement_sessions[session_id]
+            session.status = "failed"
+            session.error_message = str(e)
+            _save_session_to_db(session, db)
+    finally:
+        db.close()
+
+
 @router.post("/analyze", response_model=AnalysisResponse)
 async def start_ai_analysis(
     request: AnalysisRequest,
@@ -1470,12 +2140,35 @@ async def start_ai_analysis(
 ):
     """
     Start AI-powered analysis of project emails.
-    Returns a session ID and first set of questions.
+
+    Supports bulk processing of hundreds of thousands of emails:
+    - Set max_emails_to_analyze=0 for unlimited
+    - Set run_in_background=true for async processing (recommended for >10k emails)
+    - Set batch_size to control memory usage (default 10,000)
+
+    Returns a session ID immediately. Poll /session/{session_id} for progress.
     """
     # Verify project
     project = db.query(Project).filter_by(id=request.project_id).first()
     if not project:
         raise HTTPException(404, "Project not found")
+
+    # Get email count to determine processing strategy
+    email_count = (
+        db.query(EmailMessage)
+        .filter(EmailMessage.project_id == request.project_id)
+        .count()
+    )
+
+    if email_count == 0:
+        raise HTTPException(400, "No emails found in project")
+
+    # Calculate actual emails to process
+    max_emails = request.max_emails_to_analyze
+    if max_emails <= 0:
+        max_emails = email_count  # Unlimited = process all
+    else:
+        max_emails = min(max_emails, email_count)
 
     # Create session
     session_id = str(uuid.uuid4())
@@ -1484,30 +2177,70 @@ async def start_ai_analysis(
         project_id=request.project_id,
         user_id=str(user.id),
         status="analyzing",
+        progress={
+            "total_emails": max_emails,
+            "processed_emails": 0,
+            "phase": "initializing",
+        },
     )
     _refinement_sessions[session_id] = session
+    _save_session_to_db(session, db)
 
-    # Get emails for analysis
-    emails = (
-        db.query(EmailMessage)
-        .filter(EmailMessage.project_id == request.project_id)
-        .order_by(EmailMessage.date_sent.desc())
-        .limit(request.max_emails_to_analyze)
-        .all()
-    )
+    # Determine if we should run in background
+    use_background = request.run_in_background or max_emails > 10000
 
-    if not emails:
-        raise HTTPException(400, "No emails found in project")
+    if use_background:
+        # Run in background for large datasets
+        logger.info(
+            f"Starting background bulk analysis: {max_emails} emails, "
+            f"batch_size={request.batch_size}"
+        )
 
+        import asyncio
+
+        # Schedule the background task
+        asyncio.create_task(
+            _run_bulk_analysis_background(
+                session_id=session_id,
+                project_id=request.project_id,
+                user_id=str(user.id),
+                include_spam_detection=request.include_spam_detection,
+                include_project_detection=request.include_project_detection,
+                max_emails=max_emails,
+                batch_size=request.batch_size,
+            )
+        )
+
+        return AnalysisResponse(
+            session_id=session_id,
+            status="analyzing",
+            message=f"Bulk analysis started for {max_emails:,} emails. Poll /session/{session_id} for progress.",
+            next_questions=[],
+            summary={
+                "total_emails": max_emails,
+                "mode": "background",
+                "batch_size": request.batch_size,
+            },
+        )
+
+    # Synchronous processing for smaller datasets
     try:
-        # Initialize AI analysis engine (inside try for error handling)
         engine = AIRefinementEngine(db, project)
 
+        # Load emails directly for small datasets
+        emails = (
+            db.query(EmailMessage)
+            .filter(EmailMessage.project_id == request.project_id)
+            .order_by(EmailMessage.date_sent.desc())
+            .limit(max_emails)
+            .all()
+        )
+
         # Run analysis tasks
-        detected_projects = []
-        detected_spam = []
-        detected_domains = []
-        detected_people = []
+        detected_projects: list[DetectedItem] = []
+        detected_spam: list[DetectedItem] = []
+        detected_domains: list[DetectedItem] = []
+        detected_people: list[DetectedItem] = []
 
         if request.include_project_detection:
             detected_projects = await engine.analyze_for_other_projects(emails)
@@ -1519,10 +2252,8 @@ async def start_ai_analysis(
             emails
         )
 
-        # Detect duplicate emails
         detected_duplicates = await engine.analyze_for_duplicates(emails)
 
-        # Generate questions
         questions = await engine.generate_intelligent_questions(
             session,
             detected_projects,
@@ -1533,7 +2264,6 @@ async def start_ai_analysis(
             len(emails),
         )
 
-        # Update session
         session.analysis_results = {
             "total_emails": len(emails),
             "detected_projects": [p.model_dump() for p in detected_projects],
@@ -1550,13 +2280,12 @@ async def start_ai_analysis(
             else RefinementStage.SPAM_DETECTION
         )
 
-        # Save session to database for persistence
         _save_session_to_db(session, db)
 
         return AnalysisResponse(
             session_id=session_id,
             status="ready",
-            message=f"Analysis complete. Analyzed {len(emails)} emails and generated {len(questions)} questions.",
+            message=f"Analysis complete. Analyzed {len(emails):,} emails and generated {len(questions)} questions.",
             next_questions=questions,
             summary={
                 "total_emails": len(emails),
@@ -1571,6 +2300,8 @@ async def start_ai_analysis(
     except Exception as e:
         logger.exception(f"AI analysis failed: {e}")
         session.status = "failed"
+        session.error_message = str(e)
+        _save_session_to_db(session, db)
         raise HTTPException(500, f"Analysis failed: {str(e)}")
 
 
@@ -1806,7 +2537,17 @@ async def get_session_status(
     user: Annotated[User, Depends(current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
-    """Get the current status of a refinement session"""
+    """
+    Get the current status of a refinement session.
+
+    For bulk analysis, includes progress tracking:
+    - progress.total_emails: Total emails being processed
+    - progress.processed_emails: Emails processed so far
+    - progress.current_batch: Current batch number
+    - progress.total_batches: Total batches
+    - progress.phase: Current phase (analyzing, finalizing, completed)
+    - progress.estimated_remaining_seconds: Estimated time remaining
+    """
     session = _get_session(session_id, db)
     if not session:
         raise HTTPException(404, "Session not found")
@@ -1814,7 +2555,7 @@ async def get_session_status(
     if session.user_id != str(user.id):
         raise HTTPException(403, "Not authorized")
 
-    return {
+    response: dict[str, Any] = {
         "session_id": session.id,
         "status": session.status,
         "current_stage": session.current_stage.value,
@@ -1823,6 +2564,26 @@ async def get_session_status(
         "analysis_summary": session.analysis_results.get("summary", {}),
         "exclusion_rules": session.exclusion_rules,
     }
+
+    # Add progress info for bulk analysis
+    if session.progress:
+        response["progress"] = session.progress
+        # Calculate percentage
+        total = session.progress.get("total_emails", 0)
+        processed = session.progress.get("processed_emails", 0)
+        if total > 0:
+            response["progress_percent"] = round(100 * processed / total, 1)
+
+    # Add error message if failed
+    if session.error_message:
+        response["error_message"] = session.error_message
+
+    # Add questions when ready
+    if session.status == "awaiting_answers" and session.questions_asked:
+        response["next_questions"] = [q.model_dump() for q in session.questions_asked]
+        response["analysis_results"] = session.analysis_results
+
+    return response
 
 
 @router.delete("/session/{session_id}")
