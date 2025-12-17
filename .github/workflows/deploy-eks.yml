@@ -1,4 +1,4 @@
-name: Deploy to EKS
+name: Build and Push
 
 on:
   push:
@@ -9,19 +9,16 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-eks-main
+  group: build-push-main
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-      id-token: write
     env:
-      AWS_REGION: eu-west-2
-      EKS_CLUSTER: vericase-cluster
       DOCKER_IMAGE: wcjrogers/vericase-api
       GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/vericase-api
       DOCKER_USER: ${{ vars.DOCKER_USER || 'wcjrogers' }}
@@ -72,52 +69,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Configure AWS
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          # Use GitHub OIDC instead of long-lived AWS keys.
-          # Create an AWS IAM role trusted for GitHub OIDC and set its ARN in GitHub Secrets as AWS_ROLE_TO_ASSUME.
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Verify AWS Identity (OIDC)
-        run: |
-          aws sts get-caller-identity
-          aws eks describe-cluster --name $EKS_CLUSTER --region $AWS_REGION --query 'cluster.status'
-
-      - name: Deploy to EKS
-        run: |
-          set -Eeuo pipefail
-
-          aws eks update-kubeconfig --name $EKS_CLUSTER --region $AWS_REGION
-          kubectl get nodes
-          kubectl apply -f vericase/k8s/k8s-deployment.yaml -n vericase
-          kubectl apply -f vericase/k8s/k8s-ingress.yaml -n vericase
-          kubectl apply -f vericase/k8s/tika-deployment.yaml -n vericase
-          # Record the commit SHA on the deployments for observability (no extra rollout)
-          kubectl annotate deployment/vericase-api vericase.com/commit-sha=${GITHUB_SHA} --overwrite -n vericase
-          kubectl annotate deployment/vericase-worker vericase.com/commit-sha=${GITHUB_SHA} --overwrite -n vericase
-          # Update deployments to use the image digest we just built (avoids any tag-caching issues)
-          DIGEST=${{ steps.build.outputs.digest }}
-          echo "Deploying image digest: ${DIGEST}"
-          kubectl set image deployment/vericase-api vericase-api=${DOCKER_IMAGE}@${DIGEST} -n vericase
-          kubectl set image deployment/vericase-worker vericase-worker=${DOCKER_IMAGE}@${DIGEST} -n vericase
-          kubectl rollout status deployment/vericase-api -n vericase --timeout=10m || { kubectl describe deployment/vericase-api -n vericase; kubectl get pods -n vericase -o wide; exit 1; }
-          kubectl rollout status deployment/vericase-worker -n vericase --timeout=10m || { kubectl describe deployment/vericase-worker -n vericase; kubectl get pods -n vericase -o wide; exit 1; }
-          echo "Deployed images (should include @sha256:...):"
-          kubectl -n vericase get deploy vericase-api -o jsonpath='{.spec.template.spec.containers[*].image}'; echo
-          kubectl -n vericase get deploy vericase-worker -o jsonpath='{.spec.template.spec.containers[*].image}'; echo
-          kubectl get pods -n vericase -o wide
-
       - name: Summary
         run: |
-          echo "## Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "## Build Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Images published to:**" >> $GITHUB_STEP_SUMMARY
           echo "- Docker Hub: \`${{ env.DOCKER_IMAGE }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- GHCR: \`${{ env.GHCR_IMAGE }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Digest: \`${{ steps.build.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Deployed to:** \`${{ env.EKS_CLUSTER }}\` (eu-west-2)" >> $GITHUB_STEP_SUMMARY
-          echo "**Deployed image (by digest):** \`${{ env.DOCKER_IMAGE }}@${{ steps.build.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To deploy to EKS, run the **Deploy to EKS** workflow manually." >> $GITHUB_STEP_SUMMARY
