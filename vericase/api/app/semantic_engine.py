@@ -1981,7 +1981,6 @@ class MultiVectorIndexService:
 
                 for rank, hit in enumerate(response["hits"]["hits"]):
                     doc_id = hit["_id"]
-                    score = hit["_score"] * weight
 
                     if doc_id not in all_results:
                         all_results[doc_id] = {

@@ -604,15 +604,6 @@ Provide research findings as JSON:
 
     async def _run_integration_phase(self) -> None:
         """Phase 3: Integrate all analysis results into unified report."""
-        # Compile results
-        timeline_summary = self.session.timeline_result.result.get(
-            "timeline_summary", ""
-        )
-        delay_summary = self.session.delay_result.result.get("entitlement_summary", "")
-        research_summary = self.session.research_result.result.get(
-            "liability_assessment", {}
-        )
-
         prompt = f"""Integrate these analysis results into a comprehensive case assessment:
 
 TIMELINE ANALYSIS:

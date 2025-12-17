@@ -91,7 +91,7 @@ class LegalTeamMember(BaseModel):
     name: str
 
 
-class HeadOfClaim(BaseModel):
+class HeadOfClaimSchema(BaseModel):
     head: str
     status: str = "Discovery"
     actions: str | None = None
@@ -112,7 +112,7 @@ class CaseCreate(BaseModel):
     case_status: str | None = "discovery"
     client: str | None = None
     legal_team: list[LegalTeamMember] = Field(default_factory=list)
-    heads_of_claim: list[HeadOfClaim] = Field(default_factory=list)
+    heads_of_claim: list[HeadOfClaimSchema] = Field(default_factory=list)
     keywords: list[KeywordCreate] = Field(default_factory=list)
     deadlines: list[Deadline] = Field(default_factory=list)
 
@@ -444,12 +444,6 @@ def delete_project(project_id: str, db: DbDep) -> dict[str, str]:
         # Delete all related records in order (children first to respect FK constraints)
 
         # Get IDs needed for cascading deletes
-        pst_file_ids = [
-            pst.id
-            for pst in db.query(PSTFile)
-            .filter(PSTFile.project_id == project_uuid)
-            .all()
-        ]
         email_ids = [
             e.id
             for e in db.query(EmailMessage)

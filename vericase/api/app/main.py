@@ -1,5 +1,6 @@
 import logging
 import uuid
+from uuid import uuid4
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -812,7 +813,7 @@ def startup():
                             col = table.columns[col_name]
                             # Build column type string
                             col_type = str(col.type)
-                            nullable = "NULL" if col.nullable else "NOT NULL"
+                            _nullable = "NULL" if col.nullable else "NOT NULL"
                             default = ""
                             if col.default is not None:
                                 if hasattr(col.default, "arg"):

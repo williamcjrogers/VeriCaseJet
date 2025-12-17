@@ -369,7 +369,7 @@ async def get_document_comments(
         .all()
     )
 
-    mention_ids: set[uuid.UUID] = set()
+    mention_ids: set[UUID] = set()
     for c in comments:
         for mid in c.mentions or []:
             try:

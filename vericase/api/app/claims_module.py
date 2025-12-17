@@ -1347,7 +1347,7 @@ async def ai_suggest_evidence(
         )
         .all()
     )
-    linked_ids = {str(l.item_id) for l in linked}
+    linked_ids = {str(link.item_id) for link in linked}
 
     # Get available evidence not yet linked
     available_evidence = (
