@@ -5,6 +5,10 @@ name: Deploy to EKS (Secure OIDC)
 on:
   workflow_dispatch:
 
+concurrency:
+  group: deploy-eks
+  cancel-in-progress: false
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
