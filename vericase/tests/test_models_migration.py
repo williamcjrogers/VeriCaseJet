@@ -242,44 +242,43 @@ def test_orm_queries():
     print("=" * 60)
 
     try:
-        from api.app.db import SessionLocal
+        # These tests should not depend on a pre-existing database schema.
+        # Instead, we validate that ORM statements can be constructed/compiled
+        # and that Mapped[] attributes behave as expected on instances.
+        from sqlalchemy import select
+        from datetime import datetime, timezone
+
+        from api.app.db import engine
         from api.app.models import User, Project, EmailMessage, EmailAttachment
 
-        db = SessionLocal()
-        try:
-            # Test basic queries
-            users = db.query(User).limit(1).all()
-            print(f"✓ User query succeeded: {len(users)} result(s)")
+        statements = {
+            "User": select(User).limit(1),
+            "Project": select(Project).limit(1),
+            "EmailMessage": select(EmailMessage).limit(1),
+            "EmailAttachment": select(EmailAttachment).limit(1),
+        }
 
-            projects = db.query(Project).limit(1).all()
-            print(f"✓ Project query succeeded: {len(projects)} result(s)")
+        for name, stmt in statements.items():
+            compiled = stmt.compile(dialect=engine.dialect)
+            _sql = str(compiled)
+            assert _sql, f"Failed to compile select for {name}"
+            print(f"✓ {name} select compiled")
 
-            emails = db.query(EmailMessage).limit(1).all()
-            print(f"✓ EmailMessage query succeeded: {len(emails)} result(s)")
+        # Validate attribute access and typing on an in-memory instance.
+        email = EmailMessage(
+            pst_file_id=uuid.uuid4(),
+            subject="Test Subject",
+            sender_email="test@example.com",
+            sender_name="Test Sender",
+            has_attachments=True,
+            date_sent=datetime.now(timezone.utc),
+        )
 
-            attachments = db.query(EmailAttachment).limit(1).all()
-            print(f"✓ EmailAttachment query succeeded: {len(attachments)} result(s)")
-
-            # Test attribute access (the main fix)
-            if emails:
-                email = emails[0]
-                # These should work without cast() now
-                subject = email.subject
-                has_attachments = email.has_attachments
-                date_sent = email.date_sent
-                sender_email = email.sender_email
-
-                print("✓ Attribute access works:")
-                print(f"  - subject: {subject[:50] if subject else None}...")
-                print(
-                    f"  - has_attachments: {has_attachments} (type: {type(has_attachments).__name__})"
-                )
-                print(f"  - date_sent: {date_sent}")
-                print(f"  - sender_email: {sender_email}")
-            else:
-                print("⚠ No emails in database to test attribute access")
-        finally:
-            db.close()
+        assert email.subject == "Test Subject"
+        assert isinstance(email.has_attachments, bool)
+        assert email.sender_email == "test@example.com"
+        assert email.date_sent is not None
+        print("✓ Attribute access works on ORM instances")
     except Exception as e:
         print(f"✗ ORM query test failed: {e}")
         import traceback
@@ -295,47 +294,47 @@ def test_relationships():
     print("=" * 60)
 
     try:
-        from api.app.db import SessionLocal
-        from api.app.models import EmailMessage, EmailAttachment, User
+        from datetime import datetime, timedelta, timezone
 
-        db = SessionLocal()
-        try:
-            # Test EmailMessage relationships
-            email = db.query(EmailMessage).first()
-            if email:
-                # Navigate to PSTFile
-                pst = email.pst_file
-                print(f"✓ email.pst_file: {pst.filename if pst else None}")
+        from api.app.models import (
+            EmailMessage,
+            EmailAttachment,
+            PSTFile,
+            User,
+            UserSession,
+        )
 
-                # Navigate to Case (optional)
-                case = email.case
-                print(f"✓ email.case: {case.name if case else None}")
+        pst_id = uuid.uuid4()
+        pst = PSTFile(id=pst_id, filename="test.pst", s3_key="uploads/test.pst")
 
-                # Navigate to Project (optional)
-                project = email.project
-                print(f"✓ email.project: {project.project_name if project else None}")
-            else:
-                print("⚠ No emails to test relationships")
+        email_id = uuid.uuid4()
+        email = EmailMessage(
+            id=email_id,
+            pst_file_id=pst_id,
+            subject="Rel Test",
+            has_attachments=False,
+            date_sent=datetime.now(timezone.utc),
+        )
+        email.pst_file = pst
 
-            # Test EmailAttachment relationships
-            attachment = db.query(EmailAttachment).first()
-            if attachment:
-                msg = attachment.email_message
-                print(
-                    f"✓ attachment.email_message: {msg.subject[:30] if msg and msg.subject else None}..."
-                )
-            else:
-                print("⚠ No attachments to test relationships")
+        assert email.pst_file is pst
+        print("✓ EmailMessage.pst_file relationship assignable")
 
-            # Test User relationships
-            user = db.query(User).first()
-            if user:
-                sessions = user.sessions
-                print(f"✓ user.sessions: {len(sessions)} session(s)")
-            else:
-                print("⚠ No users to test relationships")
-        finally:
-            db.close()
+        att = EmailAttachment(id=uuid.uuid4(), filename="x.txt")
+        att.email_message = email
+        assert att.email_message is email
+        assert att in email.attachments
+        print("✓ EmailAttachment.email_message back_populates works")
+
+        user = User(id=uuid.uuid4(), email="rel@test.com", password_hash="hash")
+        session = UserSession(
+            id=uuid.uuid4(),
+            user=user,
+            token_jti="token",
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        )
+        assert session in user.sessions
+        print("✓ User.sessions relationship assignable")
     except Exception as e:
         print(f"✗ Relationship test failed: {e}")
         import traceback
@@ -365,54 +364,44 @@ def test_pydantic_validation():
             date_sent: Optional[datetime] = None
             has_attachments: bool = False
 
-        from api.app.db import SessionLocal
+        from datetime import datetime, timezone
+
         from api.app.models import EmailMessage
 
-        db = SessionLocal()
+        # Prefer an in-memory ORM object over a DB query so this test is
+        # stable in environments without migrations applied.
+        email = EmailMessage(
+            id=uuid.uuid4(),
+            pst_file_id=uuid.uuid4(),
+            subject="Test Subject",
+            sender_email="test@test.com",
+            sender_name="Test User",
+            date_sent=datetime.now(timezone.utc),
+            has_attachments=False,
+        )
+
+        summary = TestEmailSummary(
+            id=str(email.id),
+            subject=email.subject,
+            sender_email=email.sender_email,
+            sender_name=email.sender_name,
+            date_sent=email.date_sent,
+            has_attachments=email.has_attachments,
+        )
+
+        assert summary.id
+        assert summary.subject == "Test Subject"
+        assert isinstance(summary.has_attachments, bool)
+        print("✓ Pydantic model created with ORM instance data")
+
+        # Also try to import the actual correspondence module if FastAPI is available
         try:
-            email = db.query(EmailMessage).first()
-            if email:
-                # Test that ORM data can be passed directly to Pydantic models
-                # This is the key test - we're passing Mapped[] typed attributes
-                summary = TestEmailSummary(
-                    id=str(email.id),
-                    subject=email.subject,
-                    sender_email=email.sender_email,
-                    sender_name=email.sender_name,
-                    date_sent=email.date_sent,
-                    has_attachments=email.has_attachments,
-                )
-                print("✓ Pydantic model created with ORM data")
-                print(f"  - id: {summary.id}")
-                print(
-                    f"  - subject: {summary.subject[:40] if summary.subject else None}..."
-                )
-                print(
-                    f"  - has_attachments: {summary.has_attachments} (type: {type(summary.has_attachments).__name__})"
-                )
-                print(f"  - date_sent: {summary.date_sent}")
-            else:
-                print("⚠ No emails to test Pydantic validation")
-                # Test with mock data instead
-                summary = TestEmailSummary(
-                    id=str(uuid.uuid4()),
-                    subject="Test Subject",
-                    sender_email="test@test.com",
-                    sender_name="Test User",
-                    date_sent=None,
-                    has_attachments=False,
-                )
-                print("✓ Pydantic model created with mock data")
+            from api.app.correspondence import EmailMessageSummary
 
-            # Also try to import the actual correspondence module if FastAPI is available
-            try:
-                from api.app.correspondence import EmailMessageSummary
-
-                print("✓ FastAPI correspondence module available")
-            except ImportError as e:
-                print(f"⚠ FastAPI not available (expected in test env): {e}")
-        finally:
-            db.close()
+            assert EmailMessageSummary
+            print("✓ FastAPI correspondence module available")
+        except ImportError as e:
+            print(f"⚠ FastAPI not available (expected in test env): {e}")
     except Exception as e:
         print(f"✗ Pydantic validation test failed: {e}")
         import traceback
