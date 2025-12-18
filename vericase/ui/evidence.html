@@ -869,33 +869,6 @@
         width: 100%;
       }
     }
-
-    /* Drag and Drop Styles */
-    .drag-drop-zone {
-      transition: all var(--duration-fast);
-    }
-
-    .drag-drop-zone.drag-over {
-      border: 3px dashed var(--vericase-teal);
-      background: rgba(23, 181, 163, 0.05);
-    }
-
-    .drag-drop-hint {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      text-align: center;
-      color: var(--vericase-teal);
-      font-size: 1.25rem;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity var(--duration-normal);
-    }
-
-    .drag-drop-zone.drag-over .drag-drop-hint {
-      opacity: 1;
-    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/dist/ag-grid-enterprise.min.js"></script>
 </head>
@@ -963,10 +936,6 @@
     <button class="btn btn-vericase" id="uploadBtn">
       <i class="fas fa-upload"></i>
       <span class="btn-text">Upload Evidence</span>
-    </button>
-
-    <button class="btn btn-ghost" id="processAllBtn" title="Process All Metadata">
-      <i class="fas fa-magic"></i>
     </button>
 
     <button class="btn btn-ghost" id="refreshBtn" title="Refresh">
@@ -2066,11 +2035,11 @@
                             `
             : ""
           }
-                            ${meta.page_count
+                            ${meta.page_count || detail.page_count
             ? `
                                 <div class="detail-item">
                                     <div class="detail-label">Pages</div>
-                                    <div class="detail-value">${meta.page_count}</div>
+                                    <div class="detail-value">${meta.page_count || detail.page_count}</div>
                                 </div>
                             `
             : ""
@@ -2185,7 +2154,8 @@
                                     <div class="link-card-title">${escapeHtml(link.email.subject || "No subject")}</div>
                                     <div class="link-card-meta">${escapeHtml(link.email.sender || "")} • ${formatDate(link.email.date)}</div>
                                 `
-                  : ""}
+                  : ""
+                }
                                 <div class="link-card-meta">${link.link_type} • ${link.link_confidence ? link.link_confidence + "% confidence" : "Manual link"}</div>
                             </div>
                         `,
@@ -2357,12 +2327,7 @@
       }
     }
 
-    function preventDefaults(e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-
-    function handleFileUpload(event) {
+    async function handleFileUpload(event) {
       const files = event.target.files;
       if (!files || files.length === 0) return;
 
@@ -2494,40 +2459,15 @@
       document.getElementById("uploadBtn").addEventListener("click", () => {
         document.getElementById("fileInput").click();
       });
-      document.getElementById("fileInput").addEventListener("change", handleFileUpload);
+      document
+        .getElementById("fileInput")
+        .addEventListener("change", handleFileUpload);
 
       // Refresh
       document.getElementById("refreshBtn").addEventListener("click", () => {
         VericaseUI.Toast.info("Refreshing...");
         loadAllData();
       });
-
-      // Bulk metadata processing
-      document.getElementById("processAllBtn").addEventListener("click", async () => {
-        const btn = document.getElementById("processAllBtn");
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
-        try {
-          const response = await fetch(`${apiUrl}/api/evidence/extract-all-metadata?force=true&limit=1000`, {
-            method: "POST",
-          });
-          
-          if (response.ok) {
-            const result = await response.json();
-            VericaseUI.Toast.success(`Processed ${result.processed} items`);
-            refreshGridData();
-          } else {
-            VericaseUI.Toast.error("Bulk processing failed");
-          }
-        } catch (error) {
-          VericaseUI.Toast.error("Bulk processing error");
-        } finally {
-          btn.disabled = false;
-          btn.innerHTML = '<i class="fas fa-magic"></i>';
-        }
-      });
-
       // Detail panel
       document
         .getElementById("closeDetailBtn")
@@ -2563,6 +2503,10 @@
           hideDetail();
           closePreviewModal();
         }
+      });
+      // Remove preload class after initial render
+      requestAnimationFrame(() => {
+        document.body.classList.remove("preload");
       });
     });
   </script>
