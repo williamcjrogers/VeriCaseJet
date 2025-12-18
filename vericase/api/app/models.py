@@ -1150,7 +1150,13 @@ class EmailMessage(Base):
 
     # Programme linking
     as_planned_activity: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    as_planned_finish_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     as_built_activity: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    as_built_finish_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     delay_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_critical_path: Mapped[bool | None] = mapped_column(Boolean, default=False)
 

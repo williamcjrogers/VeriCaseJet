@@ -10,6 +10,7 @@ import os
 import re as _re_module
 import uuid
 from datetime import datetime
+from email.utils import getaddresses
 from typing import Annotated, Any, Optional
 
 from boto3.s3.transfer import TransferConfig
@@ -259,6 +260,8 @@ class EmailMessageSummary(BaseModel):
     programme_activity: str | None = None
     baseline_activity: str | None = None
     as_built_activity: str | None = None
+    as_planned_finish_date: datetime | None = None
+    as_built_finish_date: datetime | None = None
     delay_days: int | None = None
     programme_variance: str | None = None
     is_critical_path: bool | None = None
@@ -1581,6 +1584,8 @@ async def list_emails(
                 ),  # Default to as-planned
                 baseline_activity=getattr(e, "as_planned_activity", None),
                 as_built_activity=getattr(e, "as_built_activity", None),
+                as_planned_finish_date=getattr(e, "as_planned_finish_date", None),
+                as_built_finish_date=getattr(e, "as_built_finish_date", None),
                 delay_days=getattr(e, "delay_days", None),
                 programme_variance=None,
                 is_critical_path=None,
@@ -1657,12 +1662,64 @@ async def get_emails_server_side(
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid project_id format")
 
-    def _join_recipients(recipients: list[str] | None) -> str:
-        if not recipients:
-            return ""
-        return ", ".join(
-            [r.strip() for r in recipients if isinstance(r, str) and r.strip()]
-        )
+    def _extract_emails(value: Any) -> list[str]:
+        """Extract email addresses from string/list/dict recipient formats.
+
+        Prefers RFC 2822 parsing (display-name aware) and falls back to regex.
+        Returns de-duplicated, lower-cased emails.
+        """
+
+        def _emails_from_text(text: str) -> list[str]:
+            parsed = [addr.strip() for _, addr in getaddresses([text]) if addr]
+            parsed = [a for a in parsed if "@" in a]
+            if not parsed:
+                parsed = _re_module.findall(
+                    r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+", text
+                )
+            return parsed
+
+        raw_list: list[Any]
+        if value is None:
+            raw_list = []
+        elif isinstance(value, list):
+            raw_list = value
+        else:
+            raw_list = [value]
+
+        out: list[str] = []
+        seen: set[str] = set()
+        for item in raw_list:
+            if not item:
+                continue
+            if isinstance(item, dict):
+                item = item.get("email") or item.get("address") or item.get("name")
+            if isinstance(item, bytes):
+                try:
+                    item = item.decode("utf-8", errors="replace")
+                except Exception:
+                    item = str(item)
+
+            text = str(item)
+            for email in _emails_from_text(text):
+                e = email.strip().lower()
+                if e and e not in seen:
+                    seen.add(e)
+                    out.append(e)
+        return out
+
+    def _join_emails(value: Any) -> str:
+        emails = _extract_emails(value)
+        return ", ".join(emails) if emails else ""
+
+    def _best_sender_email(sender_email: Any, sender_name: Any) -> str:
+        emails = _extract_emails(sender_email)
+        if emails:
+            return emails[0]
+        emails = _extract_emails(sender_name)
+        if emails:
+            return emails[0]
+        # Last resort: return original (may be display-name only)
+        return str(sender_email).strip() if sender_email else str(sender_name).strip()
 
     start_row = request.startRow
     end_row = request.endRow
@@ -1711,6 +1768,8 @@ async def get_emails_server_side(
             "email_body": EmailMessage.body_text,
             "baseline_activity": EmailMessage.as_planned_activity,
             "as_built_activity": EmailMessage.as_built_activity,
+            "as_planned_finish_date": EmailMessage.as_planned_finish_date,
+            "as_built_finish_date": EmailMessage.as_built_finish_date,
             "delay_days": EmailMessage.delay_days,
         }
 
@@ -1770,6 +1829,8 @@ async def get_emails_server_side(
                 "email_body": EmailMessage.body_text,
                 "baseline_activity": EmailMessage.as_planned_activity,
                 "as_built_activity": EmailMessage.as_built_activity,
+                "as_planned_finish_date": EmailMessage.as_planned_finish_date,
+                "as_built_finish_date": EmailMessage.as_built_finish_date,
                 "delay_days": EmailMessage.delay_days,
             }
 
@@ -1888,13 +1949,13 @@ async def get_emails_server_side(
                 "id": str(e.id),
                 "email_subject": e.subject or "(No Subject)",
                 "subject": e.subject or "(No Subject)",
-                "email_from": e.sender_email or "",
+                "email_from": _best_sender_email(e.sender_email, e.sender_name) or "",
                 "sender_name": e.sender_name or "",
-                "sender_email": e.sender_email or "",
+                "sender_email": _best_sender_email(e.sender_email, e.sender_name) or "",
                 "email_date": e.date_sent.isoformat() if e.date_sent else None,
                 "date_sent": e.date_sent.isoformat() if e.date_sent else None,
-                "email_to": _join_recipients(e.recipients_to),
-                "email_cc": _join_recipients(e.recipients_cc),
+                "email_to": _join_emails(e.recipients_to),
+                "email_cc": _join_emails(e.recipients_cc),
                 "has_attachments": len(attachment_list) > 0
                 or (e.has_attachments or False),
                 "attachment_count": len(attachment_list) or 0,
@@ -1910,8 +1971,22 @@ async def get_emails_server_side(
                 "thread_id": (
                     str(e.thread_id) if getattr(e, "thread_id", None) else None
                 ),
-                "email_body": e.body_text_clean or e.body_text or "",
-                "body_text": e.body_text or "",
+                # Prefer canonical preview; fall back to full/plain/preview/HTML-stripped.
+                "email_body": (
+                    e.body_text_clean
+                    or e.body_text
+                    or e.body_preview
+                    or (
+                        _re_module.sub(
+                            r"\s+",
+                            " ",
+                            _re_module.sub(r"<[^>]+>", " ", e.body_html or ""),
+                        ).strip()
+                        if e.body_html
+                        else ""
+                    )
+                ),
+                "body_text": e.body_text or (e.body_preview or ""),
                 "body_text_clean": e.body_text_clean or "",
                 "body_html": e.body_html,
                 "meta": {
@@ -1920,6 +1995,16 @@ async def get_emails_server_side(
                 },
                 "baseline_activity": getattr(e, "as_planned_activity", None),
                 "as_built_activity": getattr(e, "as_built_activity", None),
+                "as_planned_finish_date": (
+                    e.as_planned_finish_date.isoformat()
+                    if getattr(e, "as_planned_finish_date", None)
+                    else None
+                ),
+                "as_built_finish_date": (
+                    e.as_built_finish_date.isoformat()
+                    if getattr(e, "as_built_finish_date", None)
+                    else None
+                ),
                 "delay_days": getattr(e, "delay_days", None),
                 "priority": "Normal",
                 "status": "Open",
@@ -2049,7 +2134,19 @@ async def get_email_detail(
         recipients_cc=email.recipients_cc,
         date_sent=email.date_sent,
         date_received=email.date_received,
-        body_text=email.body_text,
+        body_text=(
+            email.body_text
+            or email.body_preview
+            or (
+                _re_module.sub(
+                    r"\s+",
+                    " ",
+                    _re_module.sub(r"<[^>]+>", " ", email.body_html or ""),
+                ).strip()
+                if email.body_html
+                else None
+            )
+        ),
         body_html=email.body_html,
         body_text_clean=email.body_text_clean,
         content_hash=email.content_hash,

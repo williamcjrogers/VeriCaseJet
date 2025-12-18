@@ -799,27 +799,64 @@ class UltimatePSTProcessor:
         subject = self._safe_get_attr(message, "subject", "")
         sender_name = self._safe_get_attr(message, "sender_name", "")
 
-        # Extract email address from transport headers
-        from_email = self._extract_email_from_headers(message)
-        if not from_email:
-            from_email = sender_name  # Fallback to sender name if no email found
+        # Sender/recipient extraction:
+        # Prefer pypff message helper methods (more reliable than transport header parsing),
+        # but fall back to transport headers when needed.
+        sender_email = self._extract_sender_email(message)
 
-        # Get recipients from transport headers (pypff doesn't have display_to/cc/bcc)
-        def _normalize_recipients(raw: str | None) -> list[str]:
+        def _normalize_address_list(raw: Any) -> list[str]:
+            """Return a stable, de-duplicated list of email addresses (lower-cased).
+
+            If no parseable emails exist, returns an empty list.
+            """
             if not raw:
                 return []
             if isinstance(raw, bytes):
                 raw = raw.decode("utf-8", errors="replace")
-            # Extract only email addresses, drop display names
-            emails = [addr for _, addr in getaddresses([raw]) if addr]
-            if emails:
-                return emails
-            # Fallback: basic split if parsing failed
-            return [part.strip() for part in re.split(r"[;,]", raw) if part.strip()]
+            text = str(raw)
 
-        to_recipients = _normalize_recipients(self._get_header(message, "To"))
-        cc_recipients = _normalize_recipients(self._get_header(message, "Cc"))
-        bcc_recipients = _normalize_recipients(self._get_header(message, "Bcc"))
+            # Primary: RFC 2822 parsing (handles display names)
+            parsed = [addr.strip() for _, addr in getaddresses([text]) if addr]
+            parsed = [a for a in parsed if "@" in a]
+
+            # Fallback: simple regex extraction (handles malformed headers)
+            if not parsed:
+                parsed = re.findall(
+                    r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+", text
+                )
+
+            # De-dup / normalize
+            uniq: list[str] = []
+            seen: set[str] = set()
+            for a in parsed:
+                a2 = a.strip().lower()
+                if a2 and a2 not in seen:
+                    seen.add(a2)
+                    uniq.append(a2)
+            return uniq
+
+        def _recipient_string(recipient_type: str) -> str | None:
+            if recipient_type == "to":
+                return self._safe_get_attr(message, "get_recipient_string", None)
+            if recipient_type == "cc":
+                return self._safe_get_attr(message, "get_cc_string", None)
+            if recipient_type == "bcc":
+                return self._safe_get_attr(message, "get_bcc_string", None)
+            return None
+
+        def _extract_recipients(recipient_type: str, header_name: str) -> list[str]:
+            # Prefer Outlook-provided recipient strings
+            rec_str = _recipient_string(recipient_type)
+            recipients = _normalize_address_list(rec_str)
+            if recipients:
+                return recipients
+            # Fall back to transport headers
+            header_val = self._get_header(message, header_name)
+            return _normalize_address_list(header_val)
+
+        to_recipients = _extract_recipients("to", "To")
+        cc_recipients = _extract_recipients("cc", "Cc")
+        bcc_recipients = _extract_recipients("bcc", "Bcc")
 
         # Get dates - pypff has delivery_time and client_submit_time
         email_date = self._safe_get_attr(message, "delivery_time", None)
@@ -852,7 +889,7 @@ class UltimatePSTProcessor:
             "references": references,
             "conversation_index": conversation_index,
             "thread_topic": thread_topic,
-            "from": from_email,
+            "from": sender_email or sender_name,
             "to": to_recipients,
             "cc": cc_recipients,
             "bcc": bcc_recipients,
@@ -871,7 +908,7 @@ class UltimatePSTProcessor:
         # Only store minimal metadata to save storage and processing time
         # =====================================================================
         spam_info = self._calculate_spam_score(
-            subject, None, from_email
+            subject, None, sender_email or sender_name
         )  # Subject-only check first
 
         if spam_info.get("is_hidden") or spam_info.get("other_project"):
@@ -897,7 +934,7 @@ class UltimatePSTProcessor:
                 email_references=references,
                 conversation_index=conversation_index,
                 subject=subject,
-                sender_email=from_email,
+                sender_email=sender_email,
                 sender_name=sender_name,
                 recipients_to=to_recipients if to_recipients else None,
                 recipients_cc=cc_recipients if cc_recipients else None,
@@ -970,9 +1007,22 @@ class UltimatePSTProcessor:
                 return raw.decode("utf-8", errors="replace")
             return str(raw)
 
-        body_html = _decode_body(self._safe_get_attr(message, "html_body", None))
-        body_plain = _decode_body(self._safe_get_attr(message, "plain_text_body", None))
-        body_rtf = _decode_body(self._safe_get_attr(message, "rtf_body", None))
+        # Prefer pypff get_*_body methods when available (often more reliable)
+        body_html = _decode_body(self._safe_get_attr(message, "get_html_body", None))
+        if body_html is None:
+            body_html = _decode_body(self._safe_get_attr(message, "html_body", None))
+
+        body_plain = _decode_body(
+            self._safe_get_attr(message, "get_plain_text_body", None)
+        )
+        if body_plain is None:
+            body_plain = _decode_body(
+                self._safe_get_attr(message, "plain_text_body", None)
+            )
+
+        body_rtf = _decode_body(self._safe_get_attr(message, "get_rtf_body", None))
+        if body_rtf is None:
+            body_rtf = _decode_body(self._safe_get_attr(message, "rtf_body", None))
 
         body_text = None
         body_html_content = None
@@ -990,28 +1040,28 @@ class UltimatePSTProcessor:
             body_text = re.sub(r"\\[a-z]+\d*\s?|\{|\}", "", body_rtf)
             body_text = re.sub(r"\s+", " ", body_text).strip()
         else:
-            body_text = f"From: {from_email}\nTo: {', '.join(to_recipients)}\nSubject: {subject}\n\n[No body content available]"
+            body_text = ""
 
-        # Build canonical body (top-message only, quotes/signatures stripped)
-        # For performance: Only create preview, store full body in PST for on-demand retrieval
-        canonical_body = ""
+        # Store FULL body (plain text), and compute a separate canonical "top message" for previews/dedupe.
+        full_body_text = body_text or ""
 
-        # Fast path: Just extract a preview from plain text (no HTML parsing during ingestion)
-        if body_text:
-            canonical_body = body_text
-            # Quick split on reply markers
+        canonical_body = full_body_text
+        if canonical_body:
+            # Quick split on reply markers to approximate the top message.
             try:
                 reply_split_pattern = (
                     r"(?mi)^On .+ wrote:|^From:\s|^Sent:\s|^-----Original Message-----"
                 )
                 parts = re.split(reply_split_pattern, canonical_body, maxsplit=1)
-                canonical_body = parts[0] if parts else canonical_body
-                canonical_body = re.sub(r"\s+", " ", canonical_body).strip()
+                candidate = (parts[0] if parts else canonical_body).strip()
+                # Avoid over-stripping: if the split yields almost nothing, keep the full text.
+                if len(candidate) >= 20 or len(canonical_body) <= 200:
+                    canonical_body = candidate
             except re.error:
                 pass
-        elif body_html:
-            # Fallback: Strip HTML tags quickly (no BeautifulSoup for speed)
-            canonical_body = re.sub(r"<[^>]+>", " ", body_html)
+
+        # Normalise whitespace for canonical body
+        if canonical_body:
             canonical_body = re.sub(r"\s+", " ", canonical_body).strip()
 
         # Calculate size saved by NOT storing the email as a file
@@ -1029,17 +1079,17 @@ class UltimatePSTProcessor:
                 f"Could not get attachment count for message in {folder_path}: {e}"
             )
 
-        preview_source = body_text or body_html_content or ""
+        preview_source = full_body_text or body_html_content or ""
         body_preview = preview_source[:10000] if preview_source else None
 
         # Clean body text - decode HTML entities and remove zero-width characters
         body_text_clean = self._clean_body_text(canonical_body)
 
-        # Optional offload of very large bodies to S3 to keep DB lean
+        # Optional offload of very large FULL bodies to S3 to keep DB lean
         offloaded_body_key = None
         if (
-            canonical_body
-            and len(canonical_body) > self.body_offload_threshold
+            full_body_text
+            and len(full_body_text) > self.body_offload_threshold
             and self.s3 is not None
             and self.body_offload_bucket
         ):
@@ -1050,13 +1100,12 @@ class UltimatePSTProcessor:
                     else f"project_{project_id}" if project_id else "no_entity"
                 )
                 offloaded_body_key = f"email-bodies/{entity_folder}/{email_date.isoformat() if email_date else 'no_date'}_{uuid.uuid4().hex}.txt"
-                body_bytes = canonical_body.encode("utf-8")
+                body_bytes = full_body_text.encode("utf-8")
                 self.s3.upload_fileobj(
                     io.BytesIO(body_bytes), self.body_offload_bucket, offloaded_body_key
                 )
-                # Keep only preview in DB
-                canonical_body = ""
-                body_text_clean = (body_preview or "")[:1000] if body_preview else None
+                # Keep only preview in DB; canonical body remains for dedupe/search preview
+                full_body_text = ""
             except Exception as e:
                 logger.warning(f"Body offload failed, keeping inline: {e}")
 
@@ -1064,7 +1113,7 @@ class UltimatePSTProcessor:
         content_hash = None
         try:
             # Normalise participants and subject/date for a stable hash
-            norm_from = (from_email or "").strip().lower()
+            norm_from = (sender_email or sender_name or "").strip().lower()
             norm_to = (
                 ",".join(sorted([r.strip().lower() for r in to_recipients]))
                 if to_recipients
@@ -1089,7 +1138,9 @@ class UltimatePSTProcessor:
             logger.debug("Failed to compute content_hash: %s", hash_error)
 
         # Calculate spam score during ingestion (no AI, pure pattern matching)
-        spam_info = self._calculate_spam_score(subject, canonical_body, from_email)
+        spam_info = self._calculate_spam_score(
+            subject, canonical_body, sender_email or sender_name
+        )
 
         spam_category = (
             spam_info.get("spam_reasons", [None])[0]
@@ -1120,6 +1171,8 @@ class UltimatePSTProcessor:
                 self.body_offload_bucket if offloaded_body_key else None
             ),
             "body_offload_key": offloaded_body_key,
+            # Backward-compatible hint for consumers expecting the explicit field.
+            "body_full_s3_key": offloaded_body_key,
             # Spam classification (computed at ingestion time)
             "spam_score": spam_info["spam_score"],
             "is_spam": spam_info["is_spam"],
@@ -1143,18 +1196,19 @@ class UltimatePSTProcessor:
             email_references=references,
             conversation_index=conversation_index,
             subject=subject,
-            sender_email=from_email,
+            sender_email=sender_email,
             sender_name=sender_name,
             recipients_to=to_recipients if to_recipients else None,
             recipients_cc=cc_recipients if cc_recipients else None,
             recipients_bcc=bcc_recipients if bcc_recipients else None,
             date_sent=email_date,
             date_received=email_date,
-            body_text=canonical_body,  # Store only the top message, not the full thread
+            body_text=full_body_text or None,
             body_html=body_html_content,
             body_text_clean=body_text_clean or None,
             content_hash=content_hash,
             body_preview=body_preview,
+            body_full_s3_key=offloaded_body_key,
             has_attachments=num_attachments > 0,
             importance=self._safe_get_attr(message, "importance", None),
             pst_message_path=folder_path,
@@ -1201,7 +1255,7 @@ class UltimatePSTProcessor:
                     email_id=str(email_message.id),
                     subject=subject,
                     body_text=body_text_clean or canonical_body,
-                    sender=from_email,
+                    sender=sender_email or sender_name,
                     recipients=to_recipients,
                     case_id=str(case_id) if case_id else None,
                     project_id=str(project_id) if project_id else None,
@@ -1987,6 +2041,45 @@ class UltimatePSTProcessor:
             pass
         return participants
 
+    def _extract_sender_email(self, message: Any) -> str | None:
+        """Best-effort sender email extraction.
+
+        Prefer pypff sender helper methods/fields when available; fall back to transport headers.
+        Returns a single email address (lower-cased) or None.
+        """
+
+        def _first_email(raw: Any) -> str | None:
+            if not raw:
+                return None
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8", errors="replace")
+            text = str(raw)
+            parsed = [addr.strip() for _, addr in getaddresses([text]) if addr]
+            for addr in parsed:
+                if "@" in addr:
+                    return addr.strip().lower()
+            # Fallback: regex search
+            match = re.search(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+", text)
+            return match.group(0).lower() if match else None
+
+        if not message:
+            return None
+
+        # Most reliable: explicit pypff accessor
+        candidate = self._safe_get_attr(message, "get_sender_email_address", None)
+        email = _first_email(candidate)
+        if email:
+            return email
+
+        # Common attribute names
+        for attr in ("sender_email_address", "sender_email"):
+            email = _first_email(self._safe_get_attr(message, attr, None))
+            if email:
+                return email
+
+        # Fall back to headers
+        return self._extract_email_from_headers(message)
+
     def _extract_email_from_headers(self, message: Any) -> str | None:
         """
         Extract email address from RFC 2822 transport headers
@@ -1995,6 +2088,15 @@ class UltimatePSTProcessor:
         try:
             if not message:
                 return None
+            from_header = self._get_header(message, "From")
+            if from_header:
+                parsed = [
+                    addr.strip() for _, addr in getaddresses([from_header]) if addr
+                ]
+                for addr in parsed:
+                    if "@" in addr:
+                        return addr.strip().lower()
+
             headers_raw = getattr(message, "transport_headers", None)
             if not headers_raw:
                 return None
@@ -2006,19 +2108,20 @@ class UltimatePSTProcessor:
             elif isinstance(headers_raw, str):
                 headers_str = headers_raw
             else:
-                # Convert to string - for pypff objects that may return other types
                 headers_str = str(headers_raw)
 
-            # Parse From: header - format is "Name <email@domain.com>" or just "email@domain.com"
+            # Fallback: search for a From: line then a raw email anywhere
             from_match = re.search(
-                r"From:\s*(?:.*?<)?([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)",
+                r"(?im)^From:\s*(?:.*?<)?([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)",
                 headers_str,
-                re.IGNORECASE,
             )
             if from_match:
-                return from_match.group(1)
+                return from_match.group(1).strip().lower()
 
-            return None
+            any_match = re.search(
+                r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+", headers_str
+            )
+            return any_match.group(0).lower() if any_match else None
         except (AttributeError, TypeError, re.error) as e:
             logger.debug("Could not extract email from headers: %s", str(e))
             return None
