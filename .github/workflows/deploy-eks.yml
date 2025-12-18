@@ -18,6 +18,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
+      id-token: write
     env:
       DOCKER_IMAGE: wcjrogers/vericase-api
       GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/vericase-api
@@ -69,25 +71,27 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Trigger Secure EKS Deploy
-        uses: actions/github-script@v7
-        permissions:
-          actions: write
+      - name: Configure AWS Credentials (OIDC Secure)
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          script: |
-            github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'deploy-eks-secure.yml',
-              ref: '${{ github.ref }}',
-              inputs: {
-                digest: '${{ steps.build.outputs.digest }}'
-              }
-            })
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-session-name: GitHubActions-${{ github.run_id }}
+          aws-region: eu-west-2
+
+      - name: Deploy to EKS + Pin Digest
+        run: |
+          aws eks update-kubeconfig --name vericase-cluster --region eu-west-2
+          kubectl get nodes
+          DIGEST=${{ steps.build.outputs.digest }}
+          echo "Pinning new digest: $DIGEST"
+          kubectl set image deployment/vericase-api vericase-api=wcjrogers/vericase-api@$DIGEST -n vericase
+          kubectl set image deployment/vericase-worker vericase-worker=wcjrogers/vericase-api@$DIGEST -n vericase
+          kubectl rollout status deployment/vericase-api -n vericase --timeout=10m
+          kubectl rollout status deployment/vericase-worker -n vericase --timeout=10m
+          kubectl get pods -n vericase -o wide
 
       - name: Summary
         run: |
-          echo "## 🚀 Build + Deploy Pipeline Complete" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Build & Push:** ${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Triggered:** Deploy to EKS (Secure OIDC)" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 Build + Secure EKS Deploy Complete" >> $GITHUB_STEP_SUMMARY
+          echo "**Digest:** `${{ steps.build.outputs.digest }}`" >> $GITHUB_STEP_SUMMARY
+          echo "**EKS:** vericase-cluster (eu-west-2 OIDC)" >> $GITHUB_STEP_SUMMARY
