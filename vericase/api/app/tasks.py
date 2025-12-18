@@ -666,3 +666,89 @@ def apply_spam_filter_batch(
         }
     finally:
         db.close()
+
+
+@celery_app.task(bind=True, name="link_emails_to_programme_activities")
+def link_emails_to_programme_activities_task(
+    self,
+    project_id: str | None = None,
+    case_id: str | None = None,
+    overwrite_existing: bool = False,
+    batch_size: int = 500,
+) -> dict[str, Any]:
+    """Background task to link emails to programme activities.
+
+    For each email, uses EmailMessage.date_sent to pick the active activity in a
+    baseline (as-planned) programme and a current (as-built/current) programme.
+
+    Persists:
+    - EmailMessage.as_planned_activity
+    - EmailMessage.as_planned_finish_date
+    - EmailMessage.as_built_activity
+    - EmailMessage.as_built_finish_date
+    - EmailMessage.delay_days (built - planned)
+
+    Notes:
+    - When project-level programmes are not present, the task attempts to infer a
+      single case_id from the project's emails and link using case-level programmes.
+    """
+
+    from .db import SessionLocal
+    from .programme_linking import link_emails_to_programme_activities
+
+    entity_type = "project" if project_id else "case"
+    entity_id = project_id or case_id
+
+    if not entity_id:
+        return {"status": "failed", "error": "Must provide project_id or case_id"}
+
+    logger.info(
+        "Starting programme-linking for %s %s (overwrite_existing=%s)",
+        entity_type,
+        entity_id,
+        overwrite_existing,
+    )
+
+    db = SessionLocal()
+    try:
+
+        def _progress(done: int, total: int) -> None:
+            if total <= 0:
+                percent = 100
+            else:
+                percent = int((done / total) * 100)
+            self.update_state(
+                state="PROGRESS",
+                meta={
+                    "current": done,
+                    "total": total,
+                    "percent": percent,
+                },
+            )
+
+        stats = link_emails_to_programme_activities(
+            db=db,
+            project_id=project_id,
+            case_id=case_id,
+            overwrite_existing=overwrite_existing,
+            batch_size=batch_size,
+            progress_cb=_progress,
+        )
+
+        logger.info(
+            "Programme-linking complete for %s %s: %s updated, %s processed",
+            entity_type,
+            entity_id,
+            stats.get("updated"),
+            stats.get("processed"),
+        )
+        return stats
+
+    except Exception as e:
+        logger.exception(
+            "Programme-linking failed for %s %s: %s", entity_type, entity_id, e
+        )
+        db.rollback()
+        return {"status": "failed", "error": str(e)}
+    finally:
+        db.close()

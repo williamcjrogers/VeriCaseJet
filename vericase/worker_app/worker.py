@@ -564,6 +564,44 @@ def process_pst_file(
         raise
 
 
+@celery_app.task(
+    name="link_emails_to_programme_activities", queue=settings.CELERY_QUEUE
+)
+def link_emails_to_programme_activities(
+    project_id: str | None = None,
+    case_id: str | None = None,
+    overwrite_existing: bool = False,
+    batch_size: int = 500,
+):
+    """Worker task wrapper for linking emails to programme activities.
+
+    The API codebase defines the shared implementation in `app.programme_linking`.
+    We register the task here so the deployed worker (Celery app: worker_app.worker)
+    can execute tasks enqueued by the API.
+    """
+
+    from sqlalchemy.orm import sessionmaker
+
+    try:
+        from app.programme_linking import link_emails_to_programme_activities as _impl
+    except Exception as exc:
+        logger.error(f"Failed to import programme linking implementation: {exc}")
+        return {"status": "failed", "error": f"Import error: {exc}"}
+
+    SessionLocal = sessionmaker(bind=engine)
+    db = SessionLocal()
+    try:
+        return _impl(
+            db=db,
+            project_id=project_id,
+            case_id=case_id,
+            overwrite_existing=overwrite_existing,
+            batch_size=batch_size,
+        )
+    finally:
+        db.close()
+
+
 # Import forensic processor to register its Celery task (optional)
 # Path is /code/app in Docker container
 
