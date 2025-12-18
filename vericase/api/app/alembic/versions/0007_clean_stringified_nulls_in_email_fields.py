@@ -54,7 +54,7 @@ def upgrade() -> None:
                 UPDATE email_messages
                 SET sender_email = NULL
                 WHERE sender_email IS NOT NULL
-                  AND btrim(lower(sender_email)) IN ('', 'none', 'null')
+                  AND trim(lower(sender_email)) IN ('', 'none', 'null')
                 """
             )
         )
@@ -66,7 +66,7 @@ def upgrade() -> None:
                 UPDATE email_messages
                 SET sender_name = NULL
                 WHERE sender_name IS NOT NULL
-                  AND btrim(lower(sender_name)) IN ('', 'none', 'null')
+                  AND trim(lower(sender_name)) IN ('', 'none', 'null')
                 """
             )
         )
