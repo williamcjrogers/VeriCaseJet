@@ -1,37 +1,41 @@
+"""Unit tests for small email classification utilities.
+
+This file previously referenced a scaffold `src.*` module. It now tests helpers that
+populate legacy metadata fields (e.g. `other_project`) used by filtering/analytics.
+"""
+
+import os
+import sys
 import unittest
-from src.core.email_processor import EmailProcessor
 
 
-class TestEmailProcessor(unittest.TestCase):
+# Provide minimal env for Settings validation during import.
+os.environ.setdefault("DATABASE_URL", "sqlite:///test.db")
+os.environ.setdefault("USE_AWS_SERVICES", "true")
+os.environ.setdefault("MINIO_BUCKET", "test-bucket")
 
-    def setUp(self):
-        self.processor = EmailProcessor()
+# Ensure `api` package is importable when running from repo root.
+TEST_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if TEST_ROOT not in sys.path:
+    sys.path.insert(0, TEST_ROOT)
 
-    def test_process_email(self):
-        email_data = {
-            "subject": "Test Email",
-            "body": "This is a test email.",
-            "attachments": [],
-        }
-        result = self.processor.process_email(email_data)
-        self.assertIsNotNone(result)
-        self.assertEqual(result["subject"], "Test Email")
-        self.assertEqual(result["body"], "This is a test email.")
 
-    def test_process_email_with_attachments(self):
-        email_data = {
-            "subject": "Email with Attachment",
-            "body": "This email has an attachment.",
-            "attachments": ["file1.txt"],
-        }
-        result = self.processor.process_email(email_data)
-        self.assertIn("attachments", result)
-        self.assertEqual(len(result["attachments"]), 1)
+from api.app.spam_filter import extract_other_project  # noqa: E402
 
-    def test_process_empty_email(self):
-        email_data = {}
-        result = self.processor.process_email(email_data)
-        self.assertIsNone(result)
+
+class TestOtherProjectExtraction(unittest.TestCase):
+
+    def test_extract_returns_none_on_empty(self):
+        self.assertIsNone(extract_other_project(None))
+        self.assertIsNone(extract_other_project(""))
+
+    def test_extract_title_cases_common_keywords(self):
+        self.assertEqual(extract_other_project("Re: peabody update"), "Peabody")
+
+    def test_extract_handles_special_casing(self):
+        self.assertEqual(extract_other_project("MTVH programme"), "MTVH")
+        self.assertEqual(extract_other_project("lsa weekly"), "LSA")
+        self.assertEqual(extract_other_project("befirst new build"), "BeFirst")
 
 
 if __name__ == "__main__":
