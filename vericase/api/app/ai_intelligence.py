@@ -1,4 +1,4 @@
-# pyright: reportMissingTypeStubs=false, reportDeprecatedType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportUnknownParameterType=false, reportUnnecessaryIsInstance=false
+# pyright: reportMissingTypeStubs=false, reportDeprecated=false, reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportUnknownParameterType=false, reportUnnecessaryIsInstance=false
 """
 AI-Powered Document Intelligence
 Provides smart classification, metadata extraction, and content insights
