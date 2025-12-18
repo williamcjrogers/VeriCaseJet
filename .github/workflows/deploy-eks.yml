@@ -69,15 +69,22 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Trigger Secure EKS Deploy
+        uses: actions/github-script@v7
+        permissions:
+          actions: write
+        with:
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'deploy-eks-secure.yml',
+              ref: '${{ github.ref }}'
+            })
+
       - name: Summary
         run: |
-          echo "## Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 Build + Deploy Pipeline Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Images published to:**" >> $GITHUB_STEP_SUMMARY
-          echo "- Docker Hub: \`${{ env.DOCKER_IMAGE }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- GHCR: \`${{ env.GHCR_IMAGE }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Digest: \`${{ steps.build.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "To deploy to EKS, run the **Deploy to EKS** workflow manually." >> $GITHUB_STEP_SUMMARY
+          echo "**Build & Push:** ${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered:** Deploy to EKS (Secure OIDC)" >> $GITHUB_STEP_SUMMARY

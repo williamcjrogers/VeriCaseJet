@@ -1,12 +1,12 @@
 name: Deploy to EKS (Secure OIDC)
 
 #
-# Manual-only: keep this separate from deploy-eks.yml to avoid duplicate deploys on push.
+# Automated secure deploy: builds, pushes with digest tags, deploys to EKS via OIDC on push to main/vericase/**
 on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-eks
+  group: deploy-eks-secure
   cancel-in-progress: false
 
 jobs:
