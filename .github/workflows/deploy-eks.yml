@@ -78,14 +78,11 @@ jobs:
           role-session-name: GitHubActions-${{ github.run_id }}
           aws-region: eu-west-2
 
-      - name: Deploy to EKS + Pin Digest
+      - name: Deploy to EKS (Always pulls :latest)
         run: |
           aws eks update-kubeconfig --name vericase-cluster --region eu-west-2
-          kubectl get nodes
-          DIGEST=${{ steps.build.outputs.digest }}
-          echo "Pinning new digest: $DIGEST"
-          kubectl set image deployment/vericase-api vericase-api=wcjrogers/vericase-api@$DIGEST -n vericase
-          kubectl set image deployment/vericase-worker vericase-worker=wcjrogers/vericase-api@$DIGEST -n vericase
+          kubectl apply -f vericase/k8s/k8s-deployment.yaml -n vericase
+          kubectl rollout restart deployment/vericase-api vericase-worker -n vericase
           kubectl rollout status deployment/vericase-api -n vericase --timeout=10m
           kubectl rollout status deployment/vericase-worker -n vericase --timeout=10m
           kubectl get pods -n vericase -o wide
