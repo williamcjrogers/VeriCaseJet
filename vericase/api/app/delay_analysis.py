@@ -242,10 +242,10 @@ EVIDENCE CONTEXT:
 {evidence_context[:5000]}
 
 Trace the causation chain and output as JSON:
-{
+{{
     "root_cause": "the triggering event or condition",
     "causation_chain": [
-        {
+        {{
             "cause": "event or action",
             "effect": "resulting event or condition",
             "relationship": "caused|contributed|led_to",
