@@ -237,7 +237,7 @@ window.VeriCaseApp = {
    * Navigate to dashboard
    */
   gotoDashboard() {
-    this.goto("dashboard.html");
+    this.goto("projectdashboard.html");
   },
 
   /**

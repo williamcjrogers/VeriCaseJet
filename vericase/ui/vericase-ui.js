@@ -259,7 +259,7 @@
     },
 
     goToDashboard() {
-      this.goTo("dashboard.html");
+      this.goTo("projectdashboard.html");
     },
     goToEvidence() {
       this.goTo("evidence.html");

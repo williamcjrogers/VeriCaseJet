@@ -1590,7 +1590,7 @@ async function submitWizard() {
 
     // Redirect to dashboard for next steps
     const redirectParam = isProject ? "projectId" : "caseId";
-    window.location.href = `dashboard.html?${redirectParam}=${result.id}&firstTime=true`;
+    window.location.href = `projectdashboard.html?${redirectParam}=${result.id}&firstTime=true`;
   } catch (error) {
     console.error("Error creating profile:", error);
     showWizardMessage(
@@ -1623,7 +1623,7 @@ async function cancel() {
   const ok = await confirmWizard(
     "Are you sure you want to cancel? Any unsaved progress will be lost.",
   );
-  if (ok) window.location.href = "dashboard.html";
+  if (ok) window.location.href = "projectdashboard.html";
 }
 
 // ----------------------------------------
@@ -2094,13 +2094,13 @@ function handleIntelligentQuickAction(action) {
   // Handle AI unavailable actions
   if (action === "Go to dashboard") {
     storeIntelligentProfileContext(intelligentFinalConfiguration);
-    let navigateUrl = "dashboard.html";
+    let navigateUrl = "projectdashboard.html";
     if (intelligentFinalConfiguration) {
       if (intelligentFinalConfiguration.project_id) {
-        navigateUrl = `dashboard.html?projectId=${intelligentFinalConfiguration.project_id}`;
+        navigateUrl = `projectdashboard.html?projectId=${intelligentFinalConfiguration.project_id}`;
         localStorage.setItem("profileType", "project");
       } else if (intelligentFinalConfiguration.case_id) {
-        navigateUrl = `dashboard.html?caseId=${intelligentFinalConfiguration.case_id}`;
+        navigateUrl = `projectdashboard.html?caseId=${intelligentFinalConfiguration.case_id}`;
         localStorage.setItem("profileType", "case");
       }
     }

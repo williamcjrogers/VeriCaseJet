@@ -283,7 +283,7 @@
     /* Quick Actions - Modernized Grid */
     .quick-actions {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 1.25rem;
       margin-bottom: 2rem;
     }
@@ -298,6 +298,11 @@
       border: 1px solid var(--border-muted);
       position: relative;
       overflow: hidden;
+    }
+
+    .action-card:focus-visible {
+      outline: 3px solid rgba(15, 157, 154, 0.22);
+      outline-offset: 2px;
     }
 
     .action-card::before {
@@ -335,6 +340,10 @@
       font-size: 1.25rem;
       margin-bottom: 1rem;
       box-shadow: 0 4px 14px rgba(15, 157, 154, 0.25);
+    }
+
+    .action-card .icon i {
+      opacity: 0.95;
     }
 
     .action-card .icon.icon--navy {
@@ -390,6 +399,10 @@
       background: linear-gradient(135deg, #f3f7f4 0%, #e5ede7 100%);
     }
 
+    .action-card.pastel-gold {
+      background: linear-gradient(135deg, #f8f4ec 0%, #eee6d8 100%);
+    }
+
     .action-card.pastel-slate {
       background: linear-gradient(135deg, #f6f7f9 0%, #e8ecef 100%);
     }
@@ -411,36 +424,43 @@
       line-height: 1.5;
     }
 
-    /* Feature Card - Special styling for VeriCase Refine */
+    /* Feature Card - Premium styling for VeriCase Refine (no "blacked out" feel) */
     .action-card.feature-card {
-      background: linear-gradient(135deg, #0f1720 0%, #0b121b 100%);
-      border: none;
-      box-shadow: 0 4px 20px rgba(15, 23, 32, 0.25);
+      background: radial-gradient(1200px 500px at 20% -10%, rgba(184, 134, 11, 0.18) 0%, transparent 55%),
+        linear-gradient(135deg, #0b1220 0%, #0f172a 55%, #101b33 100%);
+      border: 1px solid rgba(184, 134, 11, 0.25);
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22);
     }
 
     .action-card.feature-card::before {
-      display: none;
+      transform: scaleX(1);
+      background: linear-gradient(90deg, var(--vc-gold), var(--vericase-teal));
+      opacity: 0.9;
     }
 
-    .action-card.feature-card h3,
+    .action-card.feature-card h3 {
+      color: rgba(255, 255, 255, 0.96);
+    }
+
     .action-card.feature-card p {
-      color: white;
+      color: rgba(255, 255, 255, 0.78);
     }
 
     .action-card.feature-card .icon {
-      background: linear-gradient(135deg, #5a6d85 0%, #46576e 100%);
-      box-shadow: 0 4px 14px rgba(90, 109, 133, 0.35);
+      background: linear-gradient(135deg, rgba(184, 134, 11, 0.95) 0%, rgba(184, 134, 11, 0.55) 100%);
+      box-shadow: 0 10px 22px rgba(184, 134, 11, 0.22);
     }
 
     .action-card.feature-card:hover {
-      box-shadow: 0 8px 30px rgba(15, 23, 32, 0.35);
+      box-shadow: 0 14px 44px rgba(15, 23, 42, 0.28);
       transform: translateY(-3px);
+      border-color: rgba(184, 134, 11, 0.4);
     }
 
     /* Widgets Grid - Modernized */
     .widgets-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       gap: 1.25rem;
       margin-bottom: 2rem;
     }
@@ -708,13 +728,13 @@
 
     @media (max-width: 1400px) {
       .quick-actions {
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(4, 1fr);
       }
     }
 
     @media (max-width: 1200px) {
       .quick-actions {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(3, 1fr);
       }
 
       .widgets-grid {
@@ -1044,26 +1064,34 @@
     <div class="quick-actions">
       <div class="action-card pastel-teal" onclick="openPstUpload()">
         <div class="icon">
-          <i class="fas fa-file-import"></i>
+          <i class="fas fa-cloud-arrow-up"></i>
         </div>
-        <h3>Import Evidence</h3>
-        <p>Upload PST files, emails & documents for analysis</p>
+        <h3>Upload Evidence</h3>
+        <p>Import PSTs, emails, and documents into the repository</p>
+      </div>
+
+      <div class="action-card pastel-amber" onclick="viewEvidenceRepository()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();viewEvidenceRepository();}" tabindex="0" role="button">
+        <div class="icon icon--gold">
+          <i class="fas fa-folder-tree"></i>
+        </div>
+        <h3>Evidence &amp; Files</h3>
+        <p>Browse, tag, and link documents to correspondence</p>
       </div>
 
       <div class="action-card pastel-blue" onclick="viewCorrespondence()">
         <div class="icon icon--blue">
-          <i class="fas fa-comments"></i>
+          <i class="fas fa-envelope-open-text"></i>
         </div>
-        <h3>Communications</h3>
-        <p>Browse and search all project emails</p>
+        <h3>Correspondence</h3>
+        <p>Search and review all project emails</p>
       </div>
 
       <div class="action-card pastel-purple" onclick="viewTimeline()">
         <div class="icon icon--purple">
-          <i class="fas fa-timeline"></i>
+          <i class="fas fa-clock-rotate-left"></i>
         </div>
-        <h3>Timeline View</h3>
-        <p>Interactive visualization of events</p>
+        <h3>Project Timeline</h3>
+        <p>Visualize key events across the matter</p>
       </div>
 
         <div class="action-card pastel-slate" onclick="viewChronology()">
@@ -1090,17 +1118,9 @@
         <p>Identify causes and quantify impacts</p>
       </div>
 
-      <div class="action-card pastel-gold" onclick="manageStakeholders()">
-        <div class="icon icon--gold">
-          <i class="fas fa-user-group"></i>
-        </div>
-        <h3>Stakeholders</h3>
-        <p>Manage parties, contacts & relationships</p>
-      </div>
-
       <div class="action-card feature-card" onclick="openAIRefinement()">
         <div class="icon">
-          <i class="fas fa-sparkles"></i>
+          <i class="fas fa-wand-magic-sparkles"></i>
         </div>
         <h3>VeriCase Refine</h3>
         <p>AI-powered spam filtering & deduplication</p>
@@ -1135,7 +1155,13 @@
 
       <!-- Evidence & Files Widget -->
       <div class="widget" onclick="viewEvidenceRepository()" style="cursor: pointer">
-        <h3><i class="fas fa-folder-open"></i> Evidence &amp; Files</h3>
+        <h3>
+          <i class="fas fa-folder-open"></i>
+          <span>Evidence &amp; Files</span>
+          <button class="btn btn-secondary" style="margin-left: auto; padding: 6px 12px; font-size: 12px" onclick="event.stopPropagation(); viewEvidenceRepository();">
+            <i class="fas fa-arrow-up-right-from-square"></i> Open
+          </button>
+        </h3>
         <div id="evidenceFilesContent">
           <div class="empty-state">
             <i class="fas fa-file-alt"></i>
@@ -1852,6 +1878,17 @@
       localStorage.setItem("vericase_current_project", projectId); // Standardized key for nav-shell
       localStorage.setItem("profileType", "project");
 
+      // Keep URL in sync so the shell doesn't keep using the old projectId
+      // (sidebar name + built hrefs prefer URL params).
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set("projectId", projectId);
+        url.searchParams.delete("caseId");
+        window.history.replaceState({}, "", url.toString());
+      } catch {
+        // ignore
+      }
+
       // Update profile name in header
       const selector = document.getElementById("projectSelector");
       const selectedOption = selector.options[selector.selectedIndex];
@@ -1860,6 +1897,14 @@
         document.getElementById("profileName").textContent = projectName;
         localStorage.setItem("currentProjectName", projectName);
         localStorage.setItem("vericase_current_project_name", projectName);
+
+        // Sync the sidebar label + refresh nav hrefs immediately (no reload)
+        if (window.VericaseShell && typeof window.VericaseShell.setProjectContext === "function") {
+          window.VericaseShell.setProjectContext({ projectId, projectName });
+        } else {
+          const sidebarNameEl = document.getElementById("currentProjectName");
+          if (sidebarNameEl) sidebarNameEl.textContent = projectName;
+        }
 
         // Update banner title immediately (API may be slow/unauthorized)
         const welcomeTitle = document.getElementById("welcomeTitle");
