@@ -1,31 +1,50 @@
+"""Integration-level sanity checks.
+
+This file previously referenced a scaffold `src.*` package that does not exist in this
+repository. It now validates behavior of the spam/non-email classifier that drives
+batch retroactive filtering and PST ingest decisions.
+"""
+
+import os
+import sys
 import unittest
-from src.migration.migration_engine import MigrationEngine
 
 
-class TestMigrationFlow(unittest.TestCase):
+# Provide minimal env for Settings validation during import.
+os.environ.setdefault("DATABASE_URL", "sqlite:///test.db")
+os.environ.setdefault("USE_AWS_SERVICES", "true")
+os.environ.setdefault("MINIO_BUCKET", "test-bucket")
+
+# Ensure `api` package is importable when running from repo root.
+TEST_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if TEST_ROOT not in sys.path:
+    sys.path.insert(0, TEST_ROOT)
+
+
+from api.app.spam_filter import SpamClassifier  # noqa: E402
+
+
+class TestSpamFilterIntegration(unittest.TestCase):
 
     def setUp(self):
-        self.migration_engine = MigrationEngine()
+        self.classifier = SpamClassifier()
 
-    def test_migration_to_exchange(self):
-        # Simulate migration to Exchange
-        result = self.migration_engine.migrate_to_exchange("test.pst")
-        self.assertTrue(result["success"])
-        self.assertEqual(
-            result["message"], "Migration to Exchange completed successfully."
+    def test_ipm_activity_is_classified_as_non_email_and_hidden(self):
+        res = self.classifier.classify(
+            subject="IPM.Activity", sender="user@example.com"
         )
+        self.assertTrue(res["is_spam"])
+        self.assertEqual(res["category"], "non_email")
+        self.assertEqual(res["score"], 100)
+        self.assertTrue(res["is_hidden"])
 
-    def test_migration_to_imap(self):
-        # Simulate migration to IMAP
-        result = self.migration_engine.migrate_to_imap("test.pst")
-        self.assertTrue(result["success"])
-        self.assertEqual(result["message"], "Migration to IMAP completed successfully.")
-
-    def test_migration_failure(self):
-        # Simulate a migration failure
-        result = self.migration_engine.migrate_to_exchange("invalid.pst")
-        self.assertFalse(result["success"])
-        self.assertEqual(result["message"], "Migration failed due to invalid PST file.")
+    def test_other_project_is_classified_and_hidden(self):
+        res = self.classifier.classify(
+            subject="Peabody — weekly update", sender="someone@example.com"
+        )
+        self.assertTrue(res["is_spam"])
+        self.assertEqual(res["category"], "other_projects")
+        self.assertTrue(res["is_hidden"])
 
 
 if __name__ == "__main__":

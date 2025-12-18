@@ -6,6 +6,7 @@ This test suite verifies that the migration from legacy Column() syntax
 to SQLAlchemy 2.0 Mapped[] syntax is working correctly.
 """
 
+import os
 import sys
 import uuid
 from pathlib import Path
@@ -13,6 +14,11 @@ from pathlib import Path
 # Fix encoding for Windows console
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+# Provide minimal env for Settings validation during import.
+os.environ.setdefault("DATABASE_URL", "sqlite:///test.db")
+os.environ.setdefault("USE_AWS_SERVICES", "true")
+os.environ.setdefault("MINIO_BUCKET", "test-bucket")
 
 # Add the project root to the path
 project_root = Path(__file__).parent.parent
@@ -80,10 +86,9 @@ def test_model_imports():
         )
 
         print("✓ All 40+ models imported successfully")
-        return True
     except ImportError as e:
         print(f"✗ Import failed: {e}")
-        return False
+        raise AssertionError(f"Import failed: {e}") from e
 
 
 def test_model_instantiation():
@@ -144,14 +149,12 @@ def test_model_instantiation():
             filename="test.pdf", bucket="test-bucket", s3_key="docs/test.pdf"
         )
         print(f"✓ Document instantiated: filename={doc.filename}")
-
-        return True
     except Exception as e:
         print(f"✗ Instantiation failed: {e}")
         import traceback
 
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_property_aliases():
@@ -183,17 +186,15 @@ def test_property_aliases():
             att_none.file_size is None
         ), "EmailAttachment.file_size should be None when file_size_bytes is None"
         print("✓ Property aliases handle None correctly")
-
-        return True
     except AssertionError as e:
         print(f"✗ Assertion failed: {e}")
-        return False
+        raise
     except Exception as e:
         print(f"✗ Property alias test failed: {e}")
         import traceback
 
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_database_schema():
@@ -226,14 +227,12 @@ def test_database_schema():
                 print(f"✓ {table}: {len(cols)} columns found")
             else:
                 print(f"⚠ {table}: table not found (may need migration)")
-
-        return True
     except Exception as e:
         print(f"✗ Schema check failed: {e}")
         import traceback
 
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_orm_queries():
@@ -279,8 +278,6 @@ def test_orm_queries():
                 print(f"  - sender_email: {sender_email}")
             else:
                 print("⚠ No emails in database to test attribute access")
-
-            return True
         finally:
             db.close()
     except Exception as e:
@@ -288,7 +285,7 @@ def test_orm_queries():
         import traceback
 
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_relationships():
@@ -337,8 +334,6 @@ def test_relationships():
                 print(f"✓ user.sessions: {len(sessions)} session(s)")
             else:
                 print("⚠ No users to test relationships")
-
-            return True
         finally:
             db.close()
     except Exception as e:
@@ -346,7 +341,7 @@ def test_relationships():
         import traceback
 
         traceback.print_exc()
-        return False
+        raise
 
 
 def test_pydantic_validation():
@@ -416,8 +411,6 @@ def test_pydantic_validation():
                 print("✓ FastAPI correspondence module available")
             except ImportError as e:
                 print(f"⚠ FastAPI not available (expected in test env): {e}")
-
-            return True
         finally:
             db.close()
     except Exception as e:
@@ -425,7 +418,7 @@ def test_pydantic_validation():
         import traceback
 
         traceback.print_exc()
-        return False
+        raise
 
 
 def run_all_tests():
@@ -434,15 +427,23 @@ def run_all_tests():
     print("SQLAlchemy 2.0 Mapped[] Migration Verification")
     print("=" * 60)
 
-    results = {
-        "Model Imports": test_model_imports(),
-        "Model Instantiation": test_model_instantiation(),
-        "Property Aliases": test_property_aliases(),
-        "Database Schema": test_database_schema(),
-        "ORM Queries": test_orm_queries(),
-        "Relationships": test_relationships(),
-        "Pydantic Validation": test_pydantic_validation(),
+    tests = {
+        "Model Imports": test_model_imports,
+        "Model Instantiation": test_model_instantiation,
+        "Property Aliases": test_property_aliases,
+        "Database Schema": test_database_schema,
+        "ORM Queries": test_orm_queries,
+        "Relationships": test_relationships,
+        "Pydantic Validation": test_pydantic_validation,
     }
+
+    results: dict[str, bool] = {}
+    for name, fn in tests.items():
+        try:
+            fn()
+            results[name] = True
+        except Exception:
+            results[name] = False
 
     print("\n" + "=" * 60)
     print("TEST SUMMARY")
