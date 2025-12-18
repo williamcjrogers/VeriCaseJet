@@ -1,3 +1,4 @@
+# pyright: reportMissingImports=false, reportMissingModuleSource=false
 """
 Programme Management API
 Handles upload and parsing of Asta Powerproject and PDF schedules
@@ -186,6 +187,12 @@ def parse_excel_programme(file_content: bytes) -> dict[str, Any]:
     try:
         wb = openpyxl.load_workbook(io.BytesIO(file_content), data_only=True)
         ws = wb.active
+
+        if ws is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid Excel file: no active worksheet found",
+            )
 
         activities = []
         milestones = []
@@ -500,8 +507,8 @@ async def compare_programmes(
     critical_delays = []
 
     # Match activities by ID
-    planned_activities = {a["id"]: a for a in as_planned.activities}
-    built_activities = {a["id"]: a for a in as_built.activities}
+    planned_activities = {a["id"]: a for a in (as_planned.activities or [])}
+    built_activities = {a["id"]: a for a in (as_built.activities or [])}
 
     for activity_id, planned in planned_activities.items():
         built = built_activities.get(activity_id)
@@ -713,7 +720,9 @@ async def link_correspondence_to_delay(
 
     # Update linked correspondence
     current_links = delay.linked_correspondence_ids or []
-    new_links = list(set(current_links + evidence_ids))
+    current_links_str = [str(x) for x in current_links]
+    incoming_str = [str(x) for x in evidence_ids]
+    new_links = list(dict.fromkeys(current_links_str + incoming_str))
 
     delay.linked_correspondence_ids = new_links
     db.commit()

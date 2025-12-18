@@ -1,4 +1,3 @@
-# pyright: reportAny=false
 """
 Contentious Matters and Heads of Claim Module
 
@@ -97,7 +96,7 @@ class ContentiousMatterResponse(BaseModel):
     currency: str
     date_identified: Optional[datetime]
     resolution_date: Optional[datetime]
-    created_at: datetime
+    created_at: Optional[datetime]
     created_by: Optional[str]
     item_count: int = 0
     claim_count: int = 0
@@ -154,7 +153,7 @@ class HeadOfClaimResponse(BaseModel):
     response_due_date: Optional[datetime]
     determination_date: Optional[datetime]
     supporting_contract_clause: Optional[str]
-    created_at: datetime
+    created_at: Optional[datetime]
     created_by: Optional[str]
     item_count: int = 0
 
@@ -191,7 +190,7 @@ class ItemLinkResponse(BaseModel):
     relevance_score: Optional[int]
     notes: Optional[str]
     status: str
-    created_at: datetime
+    created_at: Optional[datetime]
     created_by: Optional[str]
     comment_count: int = 0
 
@@ -220,7 +219,7 @@ class CommentResponse(BaseModel):
     edited_at: Optional[datetime]
     is_pinned: bool = False
     pinned_at: Optional[datetime] = None
-    created_at: datetime
+    created_at: Optional[datetime]
     created_by: Optional[str]
     created_by_name: Optional[str] = None
     replies: List["CommentResponse"] = []
@@ -1011,31 +1010,23 @@ async def create_item_link(
         )
 
     # Check for existing link
+    target_filters = []
+    if request.contentious_matter_id:
+        target_filters.append(
+            ItemClaimLink.contentious_matter_id
+            == uuid.UUID(request.contentious_matter_id)
+        )
+    if request.head_of_claim_id:
+        target_filters.append(
+            ItemClaimLink.head_of_claim_id == uuid.UUID(request.head_of_claim_id)
+        )
+
     existing = (
         db.query(ItemClaimLink)
         .filter(
             ItemClaimLink.item_type == request.item_type,
             ItemClaimLink.item_id == uuid.UUID(request.item_id),
-            or_(
-                and_(
-                    ItemClaimLink.contentious_matter_id
-                    == (
-                        uuid.UUID(request.contentious_matter_id)
-                        if request.contentious_matter_id
-                        else None
-                    ),
-                    request.contentious_matter_id is not None,
-                ),
-                and_(
-                    ItemClaimLink.head_of_claim_id
-                    == (
-                        uuid.UUID(request.head_of_claim_id)
-                        if request.head_of_claim_id
-                        else None
-                    ),
-                    request.head_of_claim_id is not None,
-                ),
-            ),
+            or_(*target_filters),
             ItemClaimLink.status == "active",
         )
         .first()

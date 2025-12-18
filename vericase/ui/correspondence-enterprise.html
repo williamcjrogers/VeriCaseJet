@@ -2211,7 +2211,7 @@
         },
       },
       {
-        headerName: "Baseline Activity",
+        headerName: "As Planned Activity",
         field: "baseline_activity",
         width: 200,
         filter: "agTextColumnFilter",
@@ -2224,7 +2224,7 @@
         },
       },
       {
-        headerName: "As-Built Activity",
+        headerName: "As-Built / Current Activity",
         field: "as_built_activity",
         width: 200,
         filter: "agTextColumnFilter",
@@ -2237,7 +2237,31 @@
         },
       },
       {
-        headerName: "Slippage",
+        headerName: "Completion Date - As Planned",
+        field: "as_planned_finish_date",
+        width: 190,
+        filter: "agDateColumnFilter",
+        valueFormatter: (params) => {
+          if (!params.value) return "-";
+          const d = new Date(params.value);
+          if (isNaN(d.getTime())) return params.value;
+          return d.toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        },
+      },
+      {
+        headerName: "Completion Date - As-Built / Current",
+        field: "as_built_finish_date",
+        width: 210,
+        filter: "agDateColumnFilter",
+        valueFormatter: (params) => {
+          if (!params.value) return "-";
+          const d = new Date(params.value);
+          if (isNaN(d.getTime())) return params.value;
+          return d.toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' });
+        },
+      },
+      {
+        headerName: "Number of days delayed",
         field: "delay_days",
         width: 120,
         filter: "agNumberColumnFilter",

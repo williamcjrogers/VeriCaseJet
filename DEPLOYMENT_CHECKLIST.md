@@ -12,7 +12,8 @@
 ### 1. Wait for GitHub Actions Build
 
 The push to main triggered the GitHub Actions workflow:
-- Check status: https://github.com/williamcjrogers/VeriCaseJet/actions
+
+- Check status: [GitHub Actions](https://github.com/williamcjrogers/VeriCaseJet/actions)
 - Workflow: `.github/workflows/deploy-eks.yml`
 - This builds and pushes Docker images to Docker Hub and GHCR
 
@@ -100,6 +101,7 @@ kubectl get pods -n vericase -w
 ## 📋 Key Changes Deployed
 
 ### Claims Module (`vericase/api/app/claims_module.py`)
+
 - ✅ GET `/api/claims/matters` - List contentious matters
 - ✅ GET `/api/claims/matters/{id}` - Get single matter
 - ✅ POST `/api/claims/matters` - Create matter
@@ -109,12 +111,14 @@ kubectl get pods -n vericase -w
 - ✅ Fixed scalar queries preventing 500 errors
 
 ### AI System Enhancements
+
 - ✅ Context capping for evidence emails
 - ✅ Model fallback system
 - ✅ Cost-optimized routing
 - ✅ Enhanced configuration guide
 
 ### Email Processing
+
 - ✅ IPM message detection and hiding
 - ✅ OpenSearch reindexing script
 - ✅ Improved metadata handling
@@ -137,6 +141,7 @@ kubectl rollout undo deployment/vericase-api -n vericase --to-revision=N
 ## 📞 Support
 
 If you encounter issues:
+
 1. Check pod logs: `kubectl logs -n vericase -l app=vericase-api --tail=200`
 2. Check pod events: `kubectl describe pod -n vericase [POD_NAME]`
 3. Verify secrets: `kubectl get secrets -n vericase`
