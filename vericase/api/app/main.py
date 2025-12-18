@@ -754,8 +754,8 @@ def startup():
                     conn.execute(
                         text(
                             """
-                        INSERT INTO projects (id, project_name, description, owner_user_id, created_at, updated_at)
-                        VALUES ('dbae0b15-8b63-46f7-bb2e-1b5a4de13ed8', 'Default Project', 'Auto-generated default project', :owner_id, NOW(), NOW())
+                        INSERT INTO projects (id, project_name, project_code, description, owner_user_id, created_at, updated_at)
+                        VALUES ('dbae0b15-8b63-46f7-bb2e-1b5a4de13ed8', 'Default Project', 'DEFAULT-PROJECT', 'Auto-generated default project', :owner_id, NOW(), NOW())
                         ON CONFLICT (id) DO NOTHING;
                     """
                         ),

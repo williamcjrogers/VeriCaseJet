@@ -933,27 +933,133 @@
     }
 
     /* ============================================
-       AI Chat Bar - Compact & Always Visible
+       AI Chat Bar - Collapsible, Compact, Non-Overlapping
        ============================================ */
     #aiChatContainer {
       background: linear-gradient(135deg, #ffffff 0%, #f8fcfc 100%);
-      border-bottom: 2px solid var(--vericase-teal);
-      padding: 0.75rem 1.5rem;
+      border-bottom: 1px solid rgba(15, 157, 154, 0.25);
+      padding: 0.5rem 1rem;
       display: block !important;
+      flex: 0 0 auto;
+    }
+
+    #aiChatContainer.ai-collapsed {
+      padding: 0.35rem 1rem;
+    }
+
+    #aiChatContainer .ai-bar {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    #aiChatContainer .ai-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.6rem;
+      border-radius: 999px;
+      border: 1px solid rgba(15, 157, 154, 0.25);
+      background: rgba(15, 157, 154, 0.06);
+      color: var(--vericase-navy);
+      font-size: 0.8125rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    #aiChatContainer .ai-toggle:hover {
+      background: rgba(15, 157, 154, 0.10);
+      border-color: rgba(15, 157, 154, 0.35);
+      transform: translateY(-1px);
+    }
+
+    #aiChatContainer .ai-toggle:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.14);
+    }
+
+    #aiChatContainer .ai-bar-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      min-width: 0;
+      flex: 1;
+    }
+
+    #aiChatContainer .ai-bar-text {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      gap: 0.125rem;
+    }
+
+    #aiChatContainer .ai-title {
+      font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+      font-weight: 600;
+      font-size: 1rem;
+      letter-spacing: 0.2px;
+      color: var(--vericase-navy);
+      line-height: 1.1;
+    }
+
+    #aiChatContainer .ai-subtitle {
+      font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.2;
+    }
+
+    #aiChatContainer.ai-collapsed .ai-subtitle {
+      display: none;
+    }
+
+    #aiChatContainer .ai-bar-status {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    #aiChatContainer .ai-panel {
+      margin-top: 0.5rem;
+      overflow: hidden;
+      transition: max-height 0.22s ease, opacity 0.18s ease;
+      max-height: 60vh;
+      opacity: 1;
+    }
+
+    #aiChatContainer .ai-panel > .ai-card {
+      margin-top: 0.6rem;
+    }
+
+    #aiChatContainer.ai-collapsed .ai-panel {
+      max-height: 0;
+      opacity: 0;
+      pointer-events: none;
+      margin-top: 0;
     }
 
     #aiChatContainer .ai-compact {
       width: 100%;
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 0.75rem;
       flex-wrap: nowrap;
     }
 
     #aiChatContainer .ai-icon {
-      width: 36px;
-      height: 36px;
-      min-width: 36px;
+      width: 34px;
+      height: 34px;
+      min-width: 34px;
       background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-teal-dark));
       border-radius: 8px;
       display: flex;
@@ -971,13 +1077,24 @@
 
     #aiQuery {
       width: 100%;
-      padding: 0.625rem 1rem;
+      padding: 0.55rem 0.9rem;
       border: 1.5px solid #e5e7eb;
-      border-radius: 20px;
-      font-size: 0.875rem;
+      border-radius: 14px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      line-height: 1.35;
+      font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
       transition: all 0.2s;
       resize: none;
-      height: 42px;
+      min-height: 40px;
+      max-height: 92px;
+      height: 40px;
+      background: white;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    }
+
+    #aiQuery::placeholder {
+      color: #6b7280;
     }
 
     #aiQuery:focus {
@@ -991,6 +1108,63 @@
       gap: 0.5rem;
       align-items: center;
       flex-shrink: 0;
+    }
+
+    #aiChatContainer .ai-action-btn {
+      border: none !important;
+      border-radius: 999px !important;
+      padding: 0.45rem 0.85rem !important;
+      font-weight: 700 !important;
+      font-size: 0.8125rem !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 0.375rem !important;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.10);
+    }
+
+    #aiChatContainer .ai-action-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 14px rgba(15, 23, 42, 0.14);
+    }
+
+    #aiChatContainer .ai-action-btn:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+    }
+
+    #aiChatContainer .ai-action-btn-quick {
+      background: var(--vericase-teal);
+      color: white;
+    }
+
+    #aiChatContainer .ai-action-btn-deep {
+      background: var(--vericase-navy);
+      color: white;
+    }
+
+    #aiChatContainer .ai-card {
+      background: white;
+      border-radius: 12px;
+      border: 1px solid rgba(15, 23, 42, 0.10);
+      padding: 0.9rem 1rem;
+    }
+
+    #aiChatContainer .ai-progress {
+      background: #f9fafb;
+      border-color: rgba(15, 23, 42, 0.10);
+      max-height: min(30vh, 260px);
+      overflow: auto;
+    }
+
+    #aiChatContainer .ai-response {
+      border: 2px solid var(--vericase-teal);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+      max-height: min(42vh, 420px);
+      overflow: auto;
     }
 
     .breadcrumb-case-info {
@@ -1428,68 +1602,48 @@
 
   <!-- AI Chat Interface - Compact & Always Visible -->
   <div id="aiChatContainer">
-    <div class="ai-compact">
-      <div class="ai-icon">
-        <i class="fas fa-brain" style="color: white; font-size: 18px"></i>
+    <div class="ai-bar">
+      <button id="aiChatToggleBtn" class="ai-toggle" onclick="toggleAIChat()" aria-expanded="true" aria-controls="aiChatPanel" title="Toggle AI panel">
+        <i class="fas fa-chevron-up" id="aiChatToggleIcon"></i>
+        <span id="aiChatToggleLabel">Hide AI</span>
+      </button>
+
+      <div class="ai-bar-brand">
+        <div class="ai-icon">
+          <i class="fas fa-brain" style="color: white; font-size: 17px"></i>
+        </div>
+        <div class="ai-bar-text">
+          <div class="ai-title">VeriCase AI</div>
+          <div class="ai-subtitle">Ask about evidence • Ctrl+Enter Quick • Ctrl+Shift+Enter Deep</div>
+        </div>
       </div>
-      <div class="ai-input-wrapper">
-        <label for="aiQuery"></label><textarea id="aiQuery"
-          placeholder="Ask AI about your evidence... (Ctrl+Enter for Quick Search, Ctrl+Shift+Enter for Deep Research)"
-          onkeydown="
-            if (event.key === 'Enter' && event.ctrlKey && !event.shiftKey) { event.preventDefault(); aiQuickSearch(); }
-            else if (event.key === 'Enter' && event.ctrlKey && event.shiftKey) { event.preventDefault(); aiDeepResearch(); }
-          "></textarea>
-      </div>
-      <div class="ai-actions">
-        <button id="quickSearchBtn" onclick="aiQuickSearch()" class="btn" style="
-              background: var(--vericase-teal);
-              color: white;
-              padding: 0.5rem 1rem;
-              border: none;
-              border-radius: 20px;
-              font-weight: 600;
-              font-size: 0.8125rem;
-              cursor: pointer;
-              display: flex;
-              align-items: center;
-              gap: 0.375rem;
-              box-shadow: 0 2px 8px rgba(15, 157, 154, 0.3);
-              transition: all 0.2s;
-            " onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(15, 157, 154, 0.4)'"
-               onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 8px rgba(15, 157, 154, 0.3)'">
-          <i class="fas fa-bolt"></i> Quick
-        </button>
-        <button id="deepResearchBtn" onclick="aiDeepResearch()" class="btn" style="
-              background: var(--vericase-navy);
-              color: white;
-              padding: 0.5rem 1rem;
-              border: none;
-              border-radius: 20px;
-              font-weight: 600;
-              font-size: 0.8125rem;
-              cursor: pointer;
-              display: flex;
-              align-items: center;
-              gap: 0.375rem;
-              box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-              transition: all 0.2s;
-            " onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(0, 0, 0, 0.25)'"
-               onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 8px rgba(0, 0, 0, 0.15)'">
-          <i class="fas fa-microscope"></i> Deep
-        </button>
-        <div id="aiModelsStatus" style="font-size: 0.7rem; color: var(--text-muted); white-space: nowrap;"></div>
-      </div>
+
+      <div class="ai-bar-status" id="aiModelsStatus"></div>
     </div>
 
+    <div id="aiChatPanel" class="ai-panel">
+      <div class="ai-compact">
+        <div class="ai-input-wrapper">
+          <label for="aiQuery"></label><textarea id="aiQuery"
+            placeholder="Ask AI about your evidence…"
+            onkeydown="
+              if (event.key === 'Enter' && event.ctrlKey && !event.shiftKey) { event.preventDefault(); aiQuickSearch(); }
+              else if (event.key === 'Enter' && event.ctrlKey && event.shiftKey) { event.preventDefault(); aiDeepResearch(); }
+            "></textarea>
+        </div>
+
+        <div class="ai-actions">
+          <button id="quickSearchBtn" onclick="aiQuickSearch()" class="btn ai-action-btn ai-action-btn-quick">
+            <i class="fas fa-bolt"></i> Quick
+          </button>
+          <button id="deepResearchBtn" onclick="aiDeepResearch()" class="btn ai-action-btn ai-action-btn-deep">
+            <i class="fas fa-microscope"></i> Deep
+          </button>
+        </div>
+      </div>
+
       <!-- Research Progress -->
-      <div id="researchProgress" style="
-            display: none;
-            margin-top: 1.5rem;
-            padding: 1.5rem;
-            background: #f9fafb;
-            border-radius: 12px;
-            border: 1px solid #e5e7eb;
-          ">
+      <div id="researchProgress" class="ai-card ai-progress" style="display: none;">
         <div style="
               display: flex;
               align-items: center;
@@ -1522,15 +1676,7 @@
       </div>
 
       <!-- AI Response -->
-      <div id="aiResponse" style="
-            display: none;
-            margin-top: 1.5rem;
-            padding: 1.5rem;
-            background: white;
-            border-radius: 12px;
-            border: 2px solid var(--vericase-teal);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-          "></div>
+      <div id="aiResponse" class="ai-card ai-response" style="display: none;"></div>
     </div>
   </div>
 
@@ -6975,6 +7121,69 @@
 
     // Note: projectId and caseId are already declared at the top of the script
 
+    let aiChatCollapsed = false;
+
+    function setAIChatCollapsed(collapsed, { persist = true, focus = false } = {}) {
+      const container = document.getElementById("aiChatContainer");
+      const panel = document.getElementById("aiChatPanel");
+      const btn = document.getElementById("aiChatToggleBtn");
+      const icon = document.getElementById("aiChatToggleIcon");
+      const label = document.getElementById("aiChatToggleLabel");
+
+      if (!container || !panel) return;
+
+      aiChatCollapsed = !!collapsed;
+      container.classList.toggle("ai-collapsed", aiChatCollapsed);
+
+      if (btn) btn.setAttribute("aria-expanded", String(!aiChatCollapsed));
+      if (icon) {
+        icon.classList.toggle("fa-chevron-up", !aiChatCollapsed);
+        icon.classList.toggle("fa-chevron-down", aiChatCollapsed);
+      }
+      if (label) label.textContent = aiChatCollapsed ? "Show AI" : "Hide AI";
+
+      if (persist) {
+        try {
+          localStorage.setItem(
+            "vc_ai_chat_collapsed",
+            aiChatCollapsed ? "1" : "0",
+          );
+        } catch {
+          // ignore storage errors
+        }
+      }
+
+      if (!aiChatCollapsed && focus) {
+        const query = document.getElementById("aiQuery");
+        query?.focus?.();
+      }
+    }
+
+    window.toggleAIChat = function () {
+      setAIChatCollapsed(!aiChatCollapsed, {
+        persist: true,
+        focus: !aiChatCollapsed,
+      });
+    };
+
+    function ensureAIChatExpanded() {
+      if (aiChatCollapsed) {
+        setAIChatCollapsed(false, { persist: true, focus: false });
+      }
+    }
+
+    function autoSizeAIQuery() {
+      const el = document.getElementById("aiQuery");
+      if (!el) return;
+
+      // Reset height so scrollHeight reflects current content
+      el.style.height = "auto";
+
+      // Keep in sync with the CSS max-height
+      const maxPx = 92;
+      el.style.height = Math.min(el.scrollHeight, maxPx) + "px";
+    }
+
     /**
      * Load AI models status (called on page load)
      */
@@ -7009,6 +7218,7 @@
      * Quick AI Search (3-5 seconds)
      */
     window.aiQuickSearch = async function () {
+      ensureAIChatExpanded();
       const query = document.getElementById("aiQuery").value.trim();
       if (!query) {
         showNotification("Please enter a question", "error");
@@ -7106,7 +7316,7 @@
       } finally {
         quickBtn.disabled = false;
         deepBtn.disabled = false;
-        quickBtn.innerHTML = '<i class="fas fa-bolt"></i> Quick Search (3s)';
+        quickBtn.innerHTML = '<i class="fas fa-bolt"></i> Quick';
         progressDiv.style.display = "none";
       }
     };
@@ -7115,6 +7325,7 @@
      * Deep AI Research (30-60 seconds)
      */
     window.aiDeepResearch = async function () {
+      ensureAIChatExpanded();
       const query = document.getElementById("aiQuery").value.trim();
       if (!query) {
         showNotification("Please enter a question", "error");
@@ -7252,8 +7463,7 @@
       } finally {
         quickBtn.disabled = false;
         deepBtn.disabled = false;
-        deepBtn.innerHTML =
-          '<i class="fas fa-microscope"></i> Deep Research (60s)';
+        deepBtn.innerHTML = '<i class="fas fa-microscope"></i> Deep';
         progressDiv.style.display = "none";
       }
     };
@@ -7262,6 +7472,7 @@
      * Display AI response
      */
     function displayAIResponse(data) {
+      ensureAIChatExpanded();
       const responseDiv = document.getElementById("aiResponse");
       responseDiv.style.display = "block";
 
@@ -7326,7 +7537,7 @@
       }
 
       responseDiv.innerHTML = html;
-      responseDiv.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      // Intentionally do not auto-scroll the page; keep the correspondence grid in view.
     }
 
     /**
@@ -7368,6 +7579,21 @@
     document.addEventListener("DOMContentLoaded", () => {
       // Check if AI keys are configured
       loadAIModelsStatus();
+
+      // Restore collapsed state
+      try {
+        const saved = localStorage.getItem("vc_ai_chat_collapsed");
+        setAIChatCollapsed(saved === "1", { persist: false, focus: false });
+      } catch {
+        setAIChatCollapsed(false, { persist: false, focus: false });
+      }
+
+      // Auto-size the AI query input (classier + less wasted space)
+      const queryEl = document.getElementById("aiQuery");
+      if (queryEl) {
+        queryEl.addEventListener("input", autoSizeAIQuery);
+        autoSizeAIQuery();
+      }
     });
 
     // ==================== END AI CHAT FUNCTIONS ====================

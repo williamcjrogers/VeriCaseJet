@@ -1558,8 +1558,28 @@ async def list_emails(
             EmailMessageSummary(
                 id=str(e.id),
                 subject=e.subject,  # type: ignore[reportArgumentType]
-                sender_email=e.sender_email,  # type: ignore[reportArgumentType]
-                sender_name=e.sender_name,  # type: ignore[reportArgumentType]
+                sender_email=(
+                    None
+                    if (
+                        e.sender_email is None
+                        or (
+                            isinstance(e.sender_email, str)
+                            and e.sender_email.strip().lower() in ("", "none", "null")
+                        )
+                    )
+                    else str(e.sender_email).strip()
+                ),  # type: ignore[reportArgumentType]
+                sender_name=(
+                    None
+                    if (
+                        e.sender_name is None
+                        or (
+                            isinstance(e.sender_name, str)
+                            and e.sender_name.strip().lower() in ("", "none", "null")
+                        )
+                    )
+                    else str(e.sender_name).strip()
+                ),  # type: ignore[reportArgumentType]
                 body_text_clean=e.body_text_clean,  # type: ignore[reportArgumentType]
                 body_html=e.body_html,  # type: ignore[reportArgumentType]
                 body_text=e.body_text,  # type: ignore[reportArgumentType]
@@ -1572,7 +1592,32 @@ async def list_emails(
                 meta=email_meta,
                 # AG Grid compatibility fields
                 email_subject=e.subject,  # type: ignore[reportArgumentType]
-                email_from=e.sender_email if e.sender_email is not None else e.sender_name,  # type: ignore[reportArgumentType]
+                email_from=(
+                    (
+                        str(e.sender_email).strip()
+                        if (
+                            e.sender_email is not None
+                            and not (
+                                isinstance(e.sender_email, str)
+                                and e.sender_email.strip().lower()
+                                in ("", "none", "null")
+                            )
+                        )
+                        else None
+                    )
+                    or (
+                        str(e.sender_name).strip()
+                        if (
+                            e.sender_name is not None
+                            and not (
+                                isinstance(e.sender_name, str)
+                                and e.sender_name.strip().lower()
+                                in ("", "none", "null")
+                            )
+                        )
+                        else None
+                    )
+                ),  # type: ignore[reportArgumentType]
                 email_to=format_recipients(e.recipients_to),
                 email_cc=format_recipients(e.recipients_cc),
                 email_date=e.date_sent,  # type: ignore[reportArgumentType]
@@ -1700,6 +1745,9 @@ async def get_emails_server_side(
                     item = str(item)
 
             text = str(item)
+            # Avoid polluting output with sentinel/placeholder strings.
+            if text.strip().lower() in ("", "none", "null"):
+                continue
             for email in _emails_from_text(text):
                 e = email.strip().lower()
                 if e and e not in seen:
@@ -1718,8 +1766,21 @@ async def get_emails_server_side(
         emails = _extract_emails(sender_name)
         if emails:
             return emails[0]
-        # Last resort: return original (may be display-name only)
-        return str(sender_email).strip() if sender_email else str(sender_name).strip()
+        # Last resort: return original (may be display-name only), but never return
+        # stringified nulls like "None".
+        fallback = sender_email
+        if isinstance(fallback, str) and fallback.strip().lower() in (
+            "",
+            "none",
+            "null",
+        ):
+            fallback = None
+        if not fallback:
+            fallback = sender_name
+        if fallback is None:
+            return ""
+        text = str(fallback).strip()
+        return "" if text.lower() in ("none", "null") else text
 
     start_row = request.startRow
     end_row = request.endRow
@@ -1759,9 +1820,18 @@ async def get_emails_server_side(
             "email_subject": EmailMessage.subject,
             "sender_name": EmailMessage.sender_name,
             "sender_email": EmailMessage.sender_email,
-            "email_from": EmailMessage.sender_email,
-            "email_to": EmailMessage.recipients_to,
-            "email_cc": EmailMessage.recipients_cc,
+            # The grid shows an email-like string. Coalesce to support filtering even
+            # when sender_email is missing.
+            "email_from": func.coalesce(
+                EmailMessage.sender_email, EmailMessage.sender_name, ""
+            ),
+            # recipients_* are stored as text[]; convert to string for filtering.
+            "email_to": func.coalesce(
+                func.array_to_string(EmailMessage.recipients_to, ", "), ""
+            ),
+            "email_cc": func.coalesce(
+                func.array_to_string(EmailMessage.recipients_cc, ", "), ""
+            ),
             "date_sent": EmailMessage.date_sent,
             "has_attachments": EmailMessage.has_attachments,
             "body_text": EmailMessage.body_text,
@@ -1820,9 +1890,15 @@ async def get_emails_server_side(
                 "email_subject": EmailMessage.subject,
                 "sender_name": EmailMessage.sender_name,
                 "sender_email": EmailMessage.sender_email,
-                "email_from": EmailMessage.sender_email,
-                "email_to": EmailMessage.recipients_to,
-                "email_cc": EmailMessage.recipients_cc,
+                "email_from": func.coalesce(
+                    EmailMessage.sender_email, EmailMessage.sender_name, ""
+                ),
+                "email_to": func.coalesce(
+                    func.array_to_string(EmailMessage.recipients_to, ", "), ""
+                ),
+                "email_cc": func.coalesce(
+                    func.array_to_string(EmailMessage.recipients_cc, ", "), ""
+                ),
                 "date_sent": EmailMessage.date_sent,
                 "has_attachments": EmailMessage.has_attachments,
                 "body_text": EmailMessage.body_text,
@@ -2128,8 +2204,28 @@ async def get_email_detail(
     return EmailMessageDetail(
         id=str(email.id),
         subject=email.subject,
-        sender_email=email.sender_email,
-        sender_name=email.sender_name,
+        sender_email=(
+            None
+            if (
+                email.sender_email is None
+                or (
+                    isinstance(email.sender_email, str)
+                    and email.sender_email.strip().lower() in ("", "none", "null")
+                )
+            )
+            else str(email.sender_email).strip()
+        ),
+        sender_name=(
+            None
+            if (
+                email.sender_name is None
+                or (
+                    isinstance(email.sender_name, str)
+                    and email.sender_name.strip().lower() in ("", "none", "null")
+                )
+            )
+            else str(email.sender_name).strip()
+        ),
         recipients_to=email.recipients_to,
         recipients_cc=email.recipients_cc,
         date_sent=email.date_sent,
