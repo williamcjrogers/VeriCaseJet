@@ -79,7 +79,10 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'deploy-eks-secure.yml',
-              ref: '${{ github.ref }}'
+              ref: '${{ github.ref }}',
+              inputs: {
+                digest: '${{ steps.build.outputs.digest }}'
+              }
             })
 
       - name: Summary
