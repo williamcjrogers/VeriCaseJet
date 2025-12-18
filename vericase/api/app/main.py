@@ -573,15 +573,15 @@ def _populate_ai_settings_from_env(force_update: bool = False):
             },
             # Default models - Updated 2025 (4 providers)
             "openai_model": {
-                "default": "gpt-4o",
+                "default": "gpt-5.2-instant",
                 "description": "Default OpenAI model",
             },
             "anthropic_model": {
-                "default": "claude-sonnet-4-20250514",
+                "default": "claude-sonnet-4.5",
                 "description": "Default Anthropic model",
             },
             "gemini_model": {
-                "default": "gemini-2.0-flash",
+                "default": "gemini-2.5-flash",
                 "description": "Default Gemini model",
             },
             "bedrock_model": {
@@ -615,6 +615,10 @@ def _populate_ai_settings_from_env(force_update: bool = False):
             if "env_var" in config:
                 # Try environment variable first
                 value = os.getenv(config["env_var"])
+
+                # Also accept ANTHROPIC_API_KEY for compatibility with docs/common naming.
+                if not value and key == "anthropic_api_key":
+                    value = os.getenv("ANTHROPIC_API_KEY")
 
                 # Fall back to config settings
                 if not value and "config_attr" in config:

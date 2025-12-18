@@ -43,7 +43,7 @@ from .models import (
     EvidenceItem,
 )
 from .config import settings
-from .spam_filter import classify_email, SpamResult
+from .spam_filter import classify_email, extract_other_project, SpamResult
 
 
 class ThreadInfo(TypedDict, total=False):
@@ -719,50 +719,7 @@ class UltimatePSTProcessor:
         # Extract other_project name if this is an other_projects match
         other_project: str | None = None
         if result["category"] == "other_projects":
-            # Try to extract the matched project name from subject
-            subject_lower = (subject or "").lower()
-            # Common project names that might be detected
-            project_keywords = [
-                "abbey road",
-                "peabody",
-                "merrick place",
-                "southall",
-                "oxlow lane",
-                "dagenham",
-                "befirst",
-                "roxwell road",
-                "kings crescent",
-                "peckham library",
-                "flaxyard",
-                "loxford",
-                "seven kings",
-                "redbridge living",
-                "frank towell court",
-                "lisson arches",
-                "beaulieu park",
-                "chelmsford",
-                "islay wharf",
-                "victory place",
-                "earlham grove",
-                "canons park",
-                "rayners lane",
-                "clapham park",
-                "mtvh",
-                "osier way",
-                "pocket living",
-                "moreland gardens",
-                "buckland",
-                "south thames college",
-                "robert whyte house",
-                "bromley",
-                "camley street",
-                "lsa",
-                "honeywell",
-            ]
-            for kw in project_keywords:
-                if kw in subject_lower:
-                    other_project = kw.title()
-                    break
+            other_project = extract_other_project(subject)
 
         return {
             "spam_score": result["score"],
@@ -918,6 +875,18 @@ class UltimatePSTProcessor:
         )  # Subject-only check first
 
         if spam_info.get("is_hidden") or spam_info.get("other_project"):
+            spam_category = (
+                spam_info.get("spam_reasons", [None])[0]
+                if spam_info.get("spam_reasons")
+                else None
+            )
+            is_hidden = bool(
+                spam_info.get("is_hidden", False) or spam_info.get("other_project")
+            )
+            derived_status = (
+                "other_project" if spam_category == "other_projects" else "spam"
+            )
+
             # Create minimal EmailMessage record - NO body content, NO attachments
             email_message = EmailMessage(
                 pst_file_id=pst_file_record.id,
@@ -944,12 +913,24 @@ class UltimatePSTProcessor:
                 pst_message_path=folder_path,
                 meta={
                     "thread_topic": thread_topic,
-                    "excluded": True,  # Flag for UI to show as excluded
+                    # Correspondence visibility convention
+                    "status": derived_status,
+                    # Backward-compatible top-level flags
+                    "excluded": True,
                     "spam_score": spam_info["spam_score"],
                     "is_spam": spam_info["is_spam"],
-                    "is_hidden": spam_info.get("is_hidden", False),
+                    "is_hidden": is_hidden,
                     "spam_reasons": spam_info["spam_reasons"],
                     "other_project": spam_info["other_project"],
+                    # Canonical nested spam structure (used by evidence cascading)
+                    "spam": {
+                        "is_spam": spam_info["is_spam"],
+                        "score": spam_info["spam_score"],
+                        "category": spam_category,
+                        "is_hidden": is_hidden,
+                        "status_set_by": "spam_filter_ingest",
+                        "applied_status": derived_status,
+                    },
                     "attachments_skipped": email_data.get("has_attachments", False),
                 },
             )
@@ -1110,6 +1091,48 @@ class UltimatePSTProcessor:
         # Calculate spam score during ingestion (no AI, pure pattern matching)
         spam_info = self._calculate_spam_score(subject, canonical_body, from_email)
 
+        spam_category = (
+            spam_info.get("spam_reasons", [None])[0]
+            if spam_info.get("spam_reasons")
+            else None
+        )
+        spam_is_hidden = bool(spam_info.get("is_hidden", False))
+        derived_status = (
+            "other_project" if spam_category == "other_projects" else "spam"
+        )
+        spam_payload: dict[str, Any] = {
+            "is_spam": spam_info["is_spam"],
+            "score": spam_info["spam_score"],
+            "category": spam_category,
+            "is_hidden": spam_is_hidden,
+            "status_set_by": "spam_filter_ingest",
+        }
+        if spam_is_hidden:
+            spam_payload["applied_status"] = derived_status
+
+        meta_payload: dict[str, Any] = {
+            "thread_topic": thread_topic,
+            "attachments": [],  # Will be populated after attachments are processed
+            "has_attachments": num_attachments > 0,
+            "canonical_hash": content_hash,
+            "body_offloaded": bool(offloaded_body_key),
+            "body_offload_bucket": (
+                self.body_offload_bucket if offloaded_body_key else None
+            ),
+            "body_offload_key": offloaded_body_key,
+            # Spam classification (computed at ingestion time)
+            "spam_score": spam_info["spam_score"],
+            "is_spam": spam_info["is_spam"],
+            "is_hidden": spam_is_hidden,  # Auto-exclude from views
+            "spam_reasons": spam_info["spam_reasons"],
+            "other_project": spam_info["other_project"],
+            # Canonical nested spam structure (used by evidence cascading)
+            "spam": spam_payload,
+        }
+        if spam_is_hidden:
+            # Correspondence visibility convention
+            meta_payload["status"] = derived_status
+
         # Create EmailMessage record
         email_message = EmailMessage(
             pst_file_id=pst_file_record.id,
@@ -1135,25 +1158,7 @@ class UltimatePSTProcessor:
             has_attachments=num_attachments > 0,
             importance=self._safe_get_attr(message, "importance", None),
             pst_message_path=folder_path,
-            meta={
-                "thread_topic": thread_topic,
-                "attachments": [],  # Will be populated after attachments are processed
-                "has_attachments": num_attachments > 0,
-                "canonical_hash": content_hash,
-                "body_offloaded": bool(offloaded_body_key),
-                "body_offload_bucket": (
-                    self.body_offload_bucket if offloaded_body_key else None
-                ),
-                "body_offload_key": offloaded_body_key,
-                # Spam classification (computed at ingestion time)
-                "spam_score": spam_info["spam_score"],
-                "is_spam": spam_info["is_spam"],
-                "is_hidden": spam_info.get(
-                    "is_hidden", False
-                ),  # Auto-exclude from views
-                "spam_reasons": spam_info["spam_reasons"],
-                "other_project": spam_info["other_project"],
-            },
+            meta=meta_payload,
         )
 
         # We need to add and flush the email message first to get its ID for attachments

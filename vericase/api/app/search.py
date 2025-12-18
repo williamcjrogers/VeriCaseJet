@@ -7,6 +7,9 @@ from .config import settings
 logger = logging.getLogger(__name__)
 
 
+_EMAIL_INDEX_MAPPING_UPDATED = False
+
+
 class _OpenSearchClient:
     """Thread-safe OpenSearch client singleton"""
 
@@ -160,19 +163,24 @@ def delete_document(doc_id: str):
 
 
 def index_email_in_opensearch(
+    *,
     email_id: str,
-    case_id: str,
     subject: str,
     body_text: str,
     sender_email: str,
     sender_name: str,
     recipients: list,
-    date_sent: str = None,
+    case_id: str | None = None,
+    project_id: str | None = None,
+    thread_id: str | None = None,
+    thread_group_id: str | None = None,
+    message_id: str | None = None,
+    date_sent: str | None = None,
     has_attachments: bool = False,
-    matched_stakeholders: list = None,
-    matched_keywords: list = None,
-    body_text_clean: str = None,
-    content_hash: str = None,
+    matched_stakeholders: list | None = None,
+    matched_keywords: list | None = None,
+    body_text_clean: str | None = None,
+    content_hash: str | None = None,
 ):
     """Index email message for full-text search"""
     try:
@@ -189,7 +197,11 @@ def index_email_in_opensearch(
                         "properties": {
                             "id": {"type": "keyword"},
                             "case_id": {"type": "keyword"},
+                            "project_id": {"type": "keyword"},
                             "type": {"type": "keyword"},
+                            "thread_id": {"type": "keyword"},
+                            "thread_group_id": {"type": "keyword"},
+                            "message_id": {"type": "keyword"},
                             "subject": {"type": "text", "analyzer": "english"},
                             "body": {"type": "text", "analyzer": "english"},
                             "body_clean": {"type": "text", "analyzer": "english"},
@@ -205,19 +217,61 @@ def index_email_in_opensearch(
                     },
                 },
             )
+        else:
+            # Backwards-compatible schema evolution: add missing fields if index already exists.
+            # IMPORTANT: Avoid doing this for every single email; it can be costly during reindex.
+            global _EMAIL_INDEX_MAPPING_UPDATED
+            if not _EMAIL_INDEX_MAPPING_UPDATED:
+                try:
+                    c.indices.put_mapping(
+                        index=email_index,
+                        body={
+                            "properties": {
+                                "project_id": {"type": "keyword"},
+                                "thread_id": {"type": "keyword"},
+                                "thread_group_id": {"type": "keyword"},
+                                "message_id": {"type": "keyword"},
+                            }
+                        },
+                    )
+                except Exception as e:
+                    logger.debug("Failed to update emails index mapping: %s", e)
+                _EMAIL_INDEX_MAPPING_UPDATED = True
+
+        recipients_norm: list[str] = []
+        if recipients:
+            seen: set[str] = set()
+            for r in recipients:
+                val: str | None = None
+                if isinstance(r, str):
+                    val = r
+                elif isinstance(r, dict):
+                    # Support both {"email": ...} and other common keys.
+                    val = r.get("email") or r.get("address") or r.get("value")
+                if not val:
+                    continue
+                v = val.strip().lower()
+                if not v:
+                    continue
+                if v in seen:
+                    continue
+                seen.add(v)
+                recipients_norm.append(v)
 
         doc = {
             "id": email_id,
             "case_id": case_id,
+            "project_id": project_id,
             "type": "email",
+            "thread_id": thread_id,
+            "thread_group_id": thread_group_id,
+            "message_id": message_id,
             "subject": subject,
             "body": body_text[:50000] if body_text else "",
             "body_clean": (body_text_clean or body_text or "")[:50000],
             "sender_email": sender_email,
             "sender_name": sender_name,
-            "recipients": (
-                [r.get("email", "") for r in recipients] if recipients else []
-            ),
+            "recipients": recipients_norm,
             "date_sent": date_sent,
             "has_attachments": has_attachments,
             "matched_stakeholders": matched_stakeholders or [],

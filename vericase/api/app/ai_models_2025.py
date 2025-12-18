@@ -127,7 +127,8 @@ AI_MODELS_2025: dict[str, dict[str, Any]] = {
                 "cost_tier": "budget",
             },
         ],
-        "default": "gpt-4o",
+        # Default should favor a fast, general-purpose model.
+        "default": "gpt-5.2-instant",
     },
     "anthropic": {
         "provider_name": "Anthropic",
@@ -201,7 +202,7 @@ AI_MODELS_2025: dict[str, dict[str, Any]] = {
                 "cost_tier": "budget",
             },
         ],
-        "default": "claude-sonnet-4-20250514",
+        "default": "claude-sonnet-4.5",
     },
     "gemini": {
         "provider_name": "Google Gemini",
@@ -284,7 +285,7 @@ AI_MODELS_2025: dict[str, dict[str, Any]] = {
                 "cost_tier": "budget",
             },
         ],
-        "default": "gemini-2.0-flash",
+        "default": "gemini-2.5-flash",
     },
     "bedrock": {
         "provider_name": "Amazon Bedrock",
@@ -549,7 +550,7 @@ AI_MODELS_2025: dict[str, dict[str, Any]] = {
                 "cost_tier": "premium",
             },
         ],
-        "default": "sonar",
+        "default": "sonar-pro",
     },
 }
 
@@ -692,8 +693,10 @@ FRIENDLY_MODEL_ALIASES: dict[str, tuple[str, str]] = {
     "o3-reasoning": ("openai", "o1"),
     # Gemini
     "gemini-2-flash": ("gemini", "gemini-2.0-flash"),
-    "gemini-3-pro": ("gemini", "gemini-1.5-pro"),
-    "gemini-2-5-pro": ("gemini", "gemini-1.5-pro"),
+    # Legacy friendly names: map to the current stable Pro tier.
+    # (Historically these pointed at older 1.5 models and drifted over time.)
+    "gemini-3-pro": ("gemini", "gemini-2.5-pro"),
+    "gemini-2-5-pro": ("gemini", "gemini-2.5-pro"),
     "gemini-3-pro-preview": ("gemini", "gemini-3-pro-preview"),
     "gemini-2.5-pro": ("gemini", "gemini-2.5-pro"),
     "gemini-2.5-flash": ("gemini", "gemini-2.5-flash"),

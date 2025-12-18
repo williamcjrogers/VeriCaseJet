@@ -1,0 +1,41 @@
+# Core MCP Servers (already installed - skip these)
+# mcp-server-fetch
+# mcp-server-time
+# mcp-server-git
+# mcp-server-sqlite
+# paramiko
+# awslabs.core-mcp-server
+# awslabs.ccapi-mcp-server (SKIP - causes dependency conflicts with checkov)
+
+# AWS Labs - Compute & Container Services
+awslabs.ec2-mcp-server
+awslabs.lambda-mcp-server
+awslabs.ecs-mcp-server
+awslabs.eks-mcp-server
+awslabs-fargate-mcp-server
+
+# AWS Labs - Storage Services
+awslabs-s3-mcp-server
+awslabs-rds-mcp-server
+
+# AWS Labs - Database Services
+awslabs.dynamodb-mcp-server
+awslabs.postgres-mcp-server
+awslabs.mysql-mcp-server
+
+# AWS Labs - Monitoring & Logging
+awslabs.cloudwatch-mcp-server
+
+# AWS Labs - Infrastructure as Code
+awslabs.cdk-mcp-server
+awslabs.terraform-mcp-server
+
+# AWS Labs - Security & Identity
+awslabs.iam-mcp-server
+
+# AWS Labs - Cost Management
+awslabs.cost-explorer-mcp-server
+
+# AWS Labs - AI/ML Services
+awslabs.bedrock-kb-retrieval-mcp-server
+awslabs.sagemaker-ai-mcp-server

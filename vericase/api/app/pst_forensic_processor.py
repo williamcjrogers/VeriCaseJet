@@ -900,16 +900,53 @@ class ForensicPSTProcessor:
         self,
         sender_email: str,
         sender_name: str,
-        all_recipients: list[dict[str, str]],
+        all_recipients: list[Any],
         stakeholders: list[Stakeholder],
     ) -> list[Stakeholder]:
         """Auto-tag email with matching stakeholders"""
-        matched = []
+        matched: list[Stakeholder] = []
 
-        all_emails = [sender_email] + [
-            r["email"] for r in all_recipients if r.get("email")
-        ]
-        all_names = [sender_name] + [r["name"] for r in all_recipients if r.get("name")]
+        # Recipient extraction has existed in multiple formats over time:
+        # - list[str] (email addresses)
+        # - list[dict] with keys like {"name": ..., "email": ...}
+        emails: list[str] = []
+        names: list[str] = []
+
+        if sender_email:
+            emails.append(sender_email)
+        if sender_name:
+            names.append(sender_name)
+
+        for r in all_recipients or []:
+            if isinstance(r, dict):
+                e = (r.get("email") or "").strip()
+                n = (r.get("name") or "").strip()
+                if e:
+                    emails.append(e)
+                if n:
+                    names.append(n)
+            else:
+                # Assume string-like.
+                try:
+                    e = str(r).strip()
+                except Exception:
+                    e = ""
+                if e:
+                    emails.append(e)
+
+        # Normalize/unique (case-insensitive)
+        all_emails: list[str] = []
+        seen_emails: set[str] = set()
+        for e in emails:
+            if not e:
+                continue
+            el = e.lower()
+            if el in seen_emails:
+                continue
+            seen_emails.add(el)
+            all_emails.append(e)
+
+        all_names = [n for n in names if n]
 
         for stakeholder in stakeholders:
             # Match by email
@@ -1002,12 +1039,24 @@ class ForensicPSTProcessor:
         try:
             index_email_in_opensearch(
                 email_id=str(email_msg.id),
-                case_id=str(email_msg.case_id),
+                case_id=(
+                    str(email_msg.case_id)
+                    if getattr(email_msg, "case_id", None)
+                    else None
+                ),
+                project_id=(
+                    str(email_msg.project_id)
+                    if getattr(email_msg, "project_id", None)
+                    else None
+                ),
                 subject=email_msg.subject or "",
                 body_text=email_msg.body_text or "",
                 sender_email=email_msg.sender_email or "",
                 sender_name=email_msg.sender_name or "",
                 recipients=email_msg.recipients_to or [],
+                thread_id=getattr(email_msg, "thread_id", None),
+                thread_group_id=getattr(email_msg, "thread_group_id", None),
+                message_id=getattr(email_msg, "message_id", None),
                 date_sent=(
                     email_msg.date_sent.isoformat() if email_msg.date_sent else None
                 ),

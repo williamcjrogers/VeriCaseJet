@@ -455,7 +455,7 @@ def apply_spam_filter_batch(
     """
     from .db import SessionLocal
     from .models import EmailMessage
-    from .spam_filter import get_spam_classifier
+    from .spam_filter import extract_other_project, get_spam_classifier
     from sqlalchemy import func
     import uuid
 
@@ -520,12 +520,86 @@ def apply_spam_filter_batch(
 
                     # Update meta JSON with spam info
                     meta = email.meta or {}
-                    meta["spam"] = {
-                        "is_spam": result["is_spam"],
-                        "score": result["score"],
-                        "category": result["category"],
-                        "is_hidden": result["is_hidden"],
+
+                    # Preserve any user override so restored emails stay visible
+                    existing_spam = meta.get("spam")
+                    user_override: str | None = None
+                    if isinstance(existing_spam, dict):
+                        user_override = existing_spam.get("user_override")
+
+                    existing_status = meta.get("status")
+                    existing_applied_status: str | None = None
+                    existing_status_set_by: str | None = None
+                    if isinstance(existing_spam, dict):
+                        existing_applied_status = existing_spam.get("applied_status")
+                        existing_status_set_by = existing_spam.get("status_set_by")
+
+                    computed_is_hidden = bool(result["is_hidden"])
+                    if user_override == "visible":
+                        computed_is_hidden = False
+                    elif user_override == "hidden":
+                        computed_is_hidden = True
+
+                    result_category = result.get("category")
+                    derived_status: str | None = None
+                    if computed_is_hidden:
+                        derived_status = (
+                            "other_project"
+                            if result_category == "other_projects"
+                            else "spam"
+                        )
+
+                    spam_payload: dict[str, Any] = {
+                        "is_spam": bool(result["is_spam"]),
+                        "score": int(result["score"]),
+                        "category": result_category,
+                        "is_hidden": computed_is_hidden,
                     }
+                    if user_override:
+                        spam_payload["user_override"] = user_override
+
+                    # Align the correspondence UI visibility convention.
+                    # Only set/clear meta['status'] when we know it's ours to manage.
+                    if computed_is_hidden and derived_status:
+                        should_apply_status = (
+                            existing_status is None
+                            or existing_status == "active"
+                            or existing_status_set_by
+                            in {"spam_filter_batch", "spam_filter_ingest"}
+                        )
+                        if should_apply_status:
+                            meta["status"] = derived_status
+                            spam_payload["status_set_by"] = "spam_filter_batch"
+                            spam_payload["applied_status"] = derived_status
+                    else:
+                        # If the email was previously hidden by this batch task, restore it.
+                        if (
+                            existing_status_set_by
+                            in {"spam_filter_batch", "spam_filter_ingest"}
+                            and existing_applied_status
+                            and existing_status == existing_applied_status
+                        ):
+                            meta.pop("status", None)
+
+                    # Canonical nested spam structure (used by evidence cascading)
+                    meta["spam"] = spam_payload
+
+                    # Backward-compatible top-level flags (used by multiple subsystems)
+                    meta["is_spam"] = spam_payload["is_spam"]
+                    meta["spam_score"] = spam_payload["score"]
+                    meta["is_hidden"] = spam_payload["is_hidden"]
+                    meta["excluded"] = spam_payload["is_hidden"]
+
+                    category = spam_payload.get("category")
+                    meta["spam_reasons"] = [category] if category else []
+
+                    # Populate other_project name for downstream filtering and UI grouping
+                    if category == "other_projects":
+                        detected_project = extract_other_project(email.subject or "")
+                        if detected_project:
+                            meta["other_project"] = detected_project
+                        else:
+                            meta.setdefault("other_project", None)
                     email.meta = meta
 
                     stats["processed"] += 1
@@ -537,7 +611,7 @@ def apply_spam_filter_batch(
                             stats["by_category"].get(category, 0) + 1
                         )
 
-                        if result["is_hidden"]:
+                        if computed_is_hidden:
                             stats["hidden"] += 1
 
                 except Exception as e:

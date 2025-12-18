@@ -231,6 +231,208 @@ class CommentResponse(BaseModel):
 # =============================================================================
 
 
+def _build_matter_response(
+    db: Session, matter: ContentiousMatter
+) -> ContentiousMatterResponse:
+    """Helper to shape contentious matter responses with counts."""
+    claim_count = (
+        db.query(func.count(HeadOfClaim.id))
+        .filter(HeadOfClaim.contentious_matter_id == matter.id)
+        .scalar()
+        or 0
+    )
+
+    item_count = (
+        db.query(func.count(ItemClaimLink.id))
+        .filter(
+            ItemClaimLink.contentious_matter_id == matter.id,
+            ItemClaimLink.status == "active",
+        )
+        .scalar()
+        or 0
+    )
+
+    return ContentiousMatterResponse(
+        id=str(matter.id),
+        name=matter.name,
+        description=matter.description,
+        project_id=str(matter.project_id) if matter.project_id else None,
+        case_id=str(matter.case_id) if matter.case_id else None,
+        status=matter.status or "active",
+        priority=matter.priority or "normal",
+        estimated_value=matter.estimated_value,
+        currency=matter.currency or "GBP",
+        date_identified=matter.date_identified,
+        resolution_date=matter.resolution_date,
+        created_at=matter.created_at,
+        created_by=str(matter.created_by) if matter.created_by else None,
+        item_count=item_count,
+        claim_count=claim_count,
+    )
+
+
+@router.get("/matters")
+async def list_contentious_matters(
+    project_id: Optional[str] = Query(None),
+    case_id: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    sort_by: str = Query("created_at"),
+    sort_order: str = Query("desc"),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """List contentious matters for a project/case."""
+
+    query = db.query(ContentiousMatter)
+
+    if project_id:
+        pid = _parse_uuid(project_id, "project_id")
+        query = query.filter(ContentiousMatter.project_id == pid)
+
+    if case_id:
+        cid = _parse_uuid(case_id, "case_id")
+        query = query.filter(ContentiousMatter.case_id == cid)
+
+    if status:
+        query = query.filter(ContentiousMatter.status == status)
+
+    if sort_by == "name":
+        query = query.order_by(
+            ContentiousMatter.name.desc()
+            if sort_order == "desc"
+            else ContentiousMatter.name.asc()
+        )
+    elif sort_by == "priority":
+        query = query.order_by(
+            ContentiousMatter.priority.desc()
+            if sort_order == "desc"
+            else ContentiousMatter.priority.asc()
+        )
+    elif sort_by == "estimated_value":
+        query = query.order_by(
+            ContentiousMatter.estimated_value.desc()
+            if sort_order == "desc"
+            else ContentiousMatter.estimated_value.asc()
+        )
+    else:  # created_at default
+        query = query.order_by(
+            ContentiousMatter.created_at.desc()
+            if sort_order == "desc"
+            else ContentiousMatter.created_at.asc()
+        )
+
+    total = query.count()
+    matters = query.offset((page - 1) * page_size).limit(page_size).all()
+
+    items = [_build_matter_response(db, m) for m in matters]
+
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@router.get("/matters/{matter_id}")
+async def get_contentious_matter(
+    matter_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)
+):
+    matter = (
+        db.query(ContentiousMatter)
+        .filter(ContentiousMatter.id == _parse_uuid(matter_id, "matter_id"))
+        .first()
+    )
+
+    if not matter:
+        raise HTTPException(404, "Contentious matter not found")
+
+    return _build_matter_response(db, matter)
+
+
+@router.post("/matters")
+async def create_contentious_matter(
+    request: ContentiousMatterCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    data = request.model_dump()
+
+    if data.get("project_id"):
+        data["project_id"] = _parse_uuid(data["project_id"], "project_id")
+    if data.get("case_id"):
+        data["case_id"] = _parse_uuid(data["case_id"], "case_id")
+
+    matter = ContentiousMatter(
+        **data,
+        created_by=user.id,
+    )
+
+    db.add(matter)
+    db.commit()
+    db.refresh(matter)
+
+    return {"id": str(matter.id), "status": "created"}
+
+
+@router.put("/matters/{matter_id}")
+async def update_contentious_matter(
+    matter_id: str,
+    request: ContentiousMatterUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    matter = (
+        db.query(ContentiousMatter)
+        .filter(ContentiousMatter.id == _parse_uuid(matter_id, "matter_id"))
+        .first()
+    )
+
+    if not matter:
+        raise HTTPException(404, "Contentious matter not found")
+
+    update_data = request.model_dump(exclude_unset=True)
+
+    for key, value in update_data.items():
+        setattr(matter, key, value)
+
+    db.commit()
+
+    return {"id": str(matter.id), "status": "updated"}
+
+
+@router.delete("/matters/{matter_id}")
+async def delete_contentious_matter(
+    matter_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)
+):
+    matter_uuid = _parse_uuid(matter_id, "matter_id")
+    matter = (
+        db.query(ContentiousMatter).filter(ContentiousMatter.id == matter_uuid).first()
+    )
+
+    if not matter:
+        raise HTTPException(404, "Contentious matter not found")
+
+    # Remove linked claims and item links for a clean deletion
+    deleted_links = (
+        db.query(ItemClaimLink)
+        .filter(ItemClaimLink.contentious_matter_id == matter_uuid)
+        .delete()
+    )
+    deleted_claims = (
+        db.query(HeadOfClaim)
+        .filter(HeadOfClaim.contentious_matter_id == matter_uuid)
+        .delete()
+    )
+
+    db.delete(matter)
+    db.commit()
+
+    return {
+        "id": matter_id,
+        "status": "deleted",
+        "deleted_claims": deleted_claims,
+        "deleted_links": deleted_links,
+    }
+
+
 class TeamMemberResponse(BaseModel):
     id: str
     email: str
@@ -425,10 +627,44 @@ def _log_claim_activity(
 # =============================================================================
 
 
+@router.post("/heads-of-claim")
+async def create_head_of_claim(
+    request: HeadOfClaimCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    data = request.model_dump()
+
+    if data.get("project_id"):
+        data["project_id"] = _parse_uuid(data["project_id"], "project_id")
+    if data.get("case_id"):
+        data["case_id"] = _parse_uuid(data["case_id"], "case_id")
+    if data.get("contentious_matter_id"):
+        data["contentious_matter_id"] = _parse_uuid(
+            data["contentious_matter_id"], "contentious_matter_id"
+        )
+
+    claim = HeadOfClaim(**data, created_by=user.id)
+    db.add(claim)
+    db.commit()
+    db.refresh(claim)
+
+    _log_claim_activity(
+        db,
+        action="claim.created",
+        claim_id=claim.id,
+        user_id=user.id,
+        details={"name": claim.name},
+    )
+
+    return {"id": str(claim.id), "status": "created"}
+
+
 @router.get("/heads-of-claim")
 async def list_heads_of_claim(
     project_id: Optional[str] = Query(None),
     case_id: Optional[str] = Query(None),
+    contentious_matter_id: Optional[str] = Query(None),
     claim_type: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
@@ -447,6 +683,9 @@ async def list_heads_of_claim(
     if case_id:
         cid = _parse_uuid(case_id, "case_id")
         query = query.filter(HeadOfClaim.case_id == cid)
+    if contentious_matter_id:
+        cmid = _parse_uuid(contentious_matter_id, "contentious_matter_id")
+        query = query.filter(HeadOfClaim.contentious_matter_id == cmid)
     if claim_type:
         query = query.filter(HeadOfClaim.claim_type == claim_type)
     if status:
@@ -491,13 +730,11 @@ async def list_heads_of_claim(
 
         matter_name = None
         if c.contentious_matter_id:
-            matter = (
+            matter_name = (
                 db.query(ContentiousMatter.name)
                 .filter(ContentiousMatter.id == c.contentious_matter_id)
-                .first()
+                .scalar()
             )
-            if matter:
-                matter_name = matter.name
 
         result.append(
             HeadOfClaimResponse(
@@ -551,13 +788,11 @@ async def get_head_of_claim(
 
     matter_name = None
     if claim.contentious_matter_id:
-        matter = (
+        matter_name = (
             db.query(ContentiousMatter.name)
             .filter(ContentiousMatter.id == claim.contentious_matter_id)
-            .first()
+            .scalar()
         )
-        if matter:
-            matter_name = matter.name
 
     return HeadOfClaimResponse(
         id=str(claim.id),
@@ -713,22 +948,18 @@ async def list_item_links(
         claim_name = None
 
         if link.contentious_matter_id:
-            matter = (
+            matter_name = (
                 db.query(ContentiousMatter.name)
                 .filter(ContentiousMatter.id == link.contentious_matter_id)
-                .first()
+                .scalar()
             )
-            if matter:
-                matter_name = matter.name
 
         if link.head_of_claim_id:
-            claim = (
+            claim_name = (
                 db.query(HeadOfClaim.name)
                 .filter(HeadOfClaim.id == link.head_of_claim_id)
-                .first()
+                .scalar()
             )
-            if claim:
-                claim_name = claim.name
 
         comment_count = (
             db.query(func.count(ItemComment.id))
@@ -1285,7 +1516,7 @@ Provide a summary in no more than {request.max_length} words."""
             raise HTTPException(503, "No AI provider configured")
 
         provider = "openai" if get_ai_api_key("openai", db) else "anthropic"
-        model = "gpt-4o-mini" if provider == "openai" else "claude-sonnet-4-20250514"
+        model = "gpt-5-mini" if provider == "openai" else "claude-4.5-haiku"
 
         result = await complete_chat(
             provider=provider,
@@ -1394,7 +1625,7 @@ Suggest which evidence items should be linked to this claim and why. Format as a
             raise HTTPException(503, "No AI provider configured")
 
         provider = "openai" if get_ai_api_key("openai", db) else "anthropic"
-        model = "gpt-4o-mini" if provider == "openai" else "claude-sonnet-4-20250514"
+        model = "gpt-5-mini" if provider == "openai" else "claude-4.5-haiku"
 
         result = await complete_chat(
             provider=provider,
@@ -1477,7 +1708,7 @@ Draft a reply for the current user to post. Keep it concise but comprehensive.""
             raise HTTPException(503, "No AI provider configured")
 
         provider = "openai" if get_ai_api_key("openai", db) else "anthropic"
-        model = "gpt-4o-mini" if provider == "openai" else "claude-sonnet-4-20250514"
+        model = "gpt-5-mini" if provider == "openai" else "claude-4.5-haiku"
 
         result = await complete_chat(
             provider=provider,

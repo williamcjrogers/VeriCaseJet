@@ -34,6 +34,71 @@ class PatternGroup:
     auto_hide: bool  # Automatically hide from correspondence view
 
 
+# Canonical keyword list used to extract a human-friendly other-project name.
+#
+# Note: The classifier uses regex patterns (some with word boundaries / exclusions);
+# this list is intentionally simple substring matching and is used only to populate
+# meta fields for UI/analytics.
+OTHER_PROJECT_KEYWORDS: list[str] = [
+    "abbey road",
+    "peabody",
+    "merrick place",
+    "southall",
+    "oxlow lane",
+    "dagenham",
+    "befirst",
+    "roxwell road",
+    "kings crescent",
+    "peckham library",
+    "flaxyard",
+    "loxford",
+    "seven kings",
+    "redbridge living",
+    "frank towell court",
+    "lisson arches",
+    "beaulieu park",
+    "chelmsford",
+    "islay wharf",
+    "victory place",
+    "earlham grove",
+    "canons park",
+    "rayners lane",
+    "clapham park",
+    "mtvh",
+    "osier way",
+    "pocket living",
+    "moreland gardens",
+    "buckland",
+    "south thames college",
+    "robert whyte house",
+    "bromley",
+    "camley street",
+    "lsa",
+    "honeywell",
+]
+
+
+def extract_other_project(subject: str | None) -> str | None:
+    """Extract the matched "other project" name from a subject line.
+
+    This is a lightweight helper used to populate legacy top-level meta fields
+    (e.g. `other_project`) from the centralized spam classifier output.
+    """
+
+    def _pretty_name(keyword: str) -> str:
+        if keyword in {"mtvh", "lsa"}:
+            return keyword.upper()
+        if keyword == "befirst":
+            return "BeFirst"
+        return keyword.title()
+
+    subject_lower = (subject or "").lower()
+    for kw in OTHER_PROJECT_KEYWORDS:
+        if kw in subject_lower:
+            return _pretty_name(kw)
+    return None
+
+
 class SpamClassifier:
     """
     Pattern-based email spam classifier.

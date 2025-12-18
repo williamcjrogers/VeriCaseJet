@@ -150,7 +150,7 @@ class EvidenceItemSummary(BaseModel):
     source_type: str | None = None
     source_email_id: str | None = None
     source_email_subject: str | None = None
-    source_email_from: str | None = None
+    source_email_sender: str | None = None
     download_url: str | None = None
     created_at: datetime
 
@@ -364,7 +364,13 @@ def _apply_ag_filters(query: Any, filter_model: dict[str, Any]) -> Any:
             continue
         if col_id == "is_image":
             if f is True:
-                query = query.filter(EvidenceItem.mime_type.ilike("image/%"))
+                # Filter for images AND exclude small files (logos, icons < 20KB)
+                query = query.filter(
+                    and_(
+                        EvidenceItem.mime_type.ilike("image/%"),
+                        EvidenceItem.file_size > 20480,  # > 20KB
+                    )
+                )
             elif f is False:
                 query = query.filter(~EvidenceItem.mime_type.ilike("image/%"))
             continue
@@ -518,6 +524,8 @@ async def complete_evidence_upload(
     Complete evidence upload after file is uploaded to S3
     Creates the evidence item record
     """
+    from .evidence_metadata import extract_evidence_metadata
+
     user = get_default_user(db)
     s3_bucket = settings.S3_BUCKET or settings.MINIO_BUCKET
 
@@ -571,7 +579,44 @@ async def complete_evidence_upload(
     )
     db.commit()
 
-    # TODO: Queue background processing task for OCR/classification
+    # Trigger metadata extraction immediately
+    try:
+        metadata = await extract_evidence_metadata(
+            evidence_item.s3_key, evidence_item.s3_bucket
+        )
+        evidence_item.extracted_metadata = metadata
+        evidence_item.metadata_extracted_at = datetime.now()
+
+        # Update fields from metadata
+        if metadata.get("title") and not evidence_item.title:
+            evidence_item.title = metadata["title"]
+        if metadata.get("author") and not evidence_item.author:
+            evidence_item.author = metadata["author"]
+        if metadata.get("page_count") and not evidence_item.page_count:
+            evidence_item.page_count = metadata["page_count"]
+
+        # Extract document date
+        doc_date_val = None
+        for field in ["created_date", "modified_date", "date_taken", "email_date"]:
+            if metadata.get(field):
+                doc_date_val = metadata[field]
+                break
+
+        if doc_date_val:
+            if isinstance(doc_date_val, str):
+                try:
+                    evidence_item.document_date = datetime.fromisoformat(
+                        doc_date_val.replace("Z", "+00:00")
+                    )
+                except:
+                    pass
+            elif isinstance(doc_date_val, datetime):
+                evidence_item.document_date = doc_date_val
+
+        evidence_item.processing_status = "processed"
+        db.commit()
+    except Exception as e:
+        logger.error(f"Auto-extraction failed for {evidence_item.id}: {e}")
 
     logger.info(f"Created evidence item: {evidence_item.id}")
 
@@ -599,6 +644,8 @@ async def direct_upload_evidence(
     Direct file upload (streams file to S3)
     For smaller files - convenience endpoint
     """
+    from .evidence_metadata import extract_evidence_metadata
+
     user = get_default_user(db)
 
     if not file.filename:
@@ -674,6 +721,45 @@ async def direct_upload_evidence(
 
     db.commit()
     db.refresh(evidence_item)
+
+    # Trigger metadata extraction immediately
+    try:
+        metadata = await extract_evidence_metadata(
+            evidence_item.s3_key, evidence_item.s3_bucket
+        )
+        evidence_item.extracted_metadata = metadata
+        evidence_item.metadata_extracted_at = datetime.now()
+
+        # Update fields from metadata
+        if metadata.get("title") and not evidence_item.title:
+            evidence_item.title = metadata["title"]
+        if metadata.get("author") and not evidence_item.author:
+            evidence_item.author = metadata["author"]
+        if metadata.get("page_count") and not evidence_item.page_count:
+            evidence_item.page_count = metadata["page_count"]
+
+        # Extract document date
+        doc_date_val = None
+        for field in ["created_date", "modified_date", "date_taken", "email_date"]:
+            if metadata.get(field):
+                doc_date_val = metadata[field]
+                break
+
+        if doc_date_val:
+            if isinstance(doc_date_val, str):
+                try:
+                    evidence_item.document_date = datetime.fromisoformat(
+                        doc_date_val.replace("Z", "+00:00")
+                    )
+                except:
+                    pass
+            elif isinstance(doc_date_val, datetime):
+                evidence_item.document_date = doc_date_val
+
+        evidence_item.processing_status = "processed"
+        db.commit()
+    except Exception as e:
+        logger.error(f"Auto-extraction failed for {evidence_item.id}: {e}")
 
     return {
         "id": str(evidence_item.id),
@@ -875,11 +961,11 @@ async def list_evidence(
 
         # Get source email info
         source_email_subject = None
-        source_email_from = None
+        source_email_sender = None
         if item.source_email_id and item.source_email_id in email_info:
             ei = email_info[item.source_email_id]
             source_email_subject = ei.get("subject")
-            source_email_from = ei.get("from")
+            source_email_sender = ei.get("from")
 
         # Generate download URL
         download_url = None
@@ -892,9 +978,11 @@ async def list_evidence(
             EvidenceItemSummary(
                 id=str(item.id),
                 filename=item.filename,
+                author=item.author,
                 file_type=item.file_type,
                 mime_type=item.mime_type,
                 file_size=item.file_size,
+                page_count=item.page_count,
                 evidence_type=item.evidence_type,
                 document_category=item.document_category,
                 document_date=(
@@ -920,7 +1008,7 @@ async def list_evidence(
                     str(item.source_email_id) if item.source_email_id else None
                 ),
                 source_email_subject=source_email_subject,
-                source_email_from=source_email_from,
+                source_email_sender=source_email_sender,
                 download_url=download_url,
                 created_at=item.created_at or datetime.now(),
             )
@@ -1002,7 +1090,7 @@ async def list_evidence(
                             source_type="pst",
                             source_email_id=str(email.id),
                             source_email_subject=email.subject,
-                            source_email_from=email.sender_email,
+                            source_email_sender=email.sender_email,
                             download_url=None,
                             created_at=email.created_at or datetime.now(),
                         )
@@ -1246,9 +1334,8 @@ async def get_evidence_full(
             }
     elif mime_type == "application/pdf":
         preview_type = "pdf"
-        page_count = item.page_count or (item.extracted_metadata or {}).get(
-            "page_count"
-        )
+        if item.extracted_metadata:
+            page_count = item.extracted_metadata.get("page_count")
     elif mime_type.startswith("text/") or item.filename.lower().endswith(
         (".txt", ".csv", ".json", ".xml", ".html", ".md", ".log")
     ):
@@ -1332,8 +1419,8 @@ async def get_evidence_full(
     }
 
 
-@router.get("/items/{evidence_id}", response_model=EvidenceItemDetail)
-async def get_evidence_detail(
+@router.get("/items/{evidence_id}")
+async def get_evidence_detail_endpoint(
     evidence_id: str,
     db: DbSession,
 ):
@@ -1443,6 +1530,10 @@ async def get_evidence_detail(
     log_activity(db, "view", user.id, evidence_item_id=item.id)
     db.commit()
 
+    # No preview content is included in the response as specified in the original.
+    # This reduces network traffic and eliminates potential bottlenecks related to text extraction.
+    # If preview content was intended, the endpoint /api/evidence/items/{evidence_id}/full should be used instead.
+
     return EvidenceItemDetail(
         id=str(item.id),
         filename=item.filename,
@@ -1490,7 +1581,9 @@ async def get_evidence_detail(
 
 
 @router.patch("/items/{evidence_id}")
-async def update_evidence(evidence_id: str, updates: EvidenceItemUpdate, db: DbSession):
+async def update_evidence_endpoint(
+    evidence_id: str, updates: EvidenceItemUpdate, db: DbSession
+):
     """Update evidence item metadata"""
     try:
         evidence_uuid = uuid.UUID(evidence_id)
@@ -1526,7 +1619,7 @@ async def update_evidence(evidence_id: str, updates: EvidenceItemUpdate, db: DbS
 
 
 @router.delete("/items/{evidence_id}")
-async def delete_evidence(evidence_id: str, db: DbSession):
+async def delete_evidence_endpoint(evidence_id: str, db: DbSession):
     """Delete evidence item"""
     try:
         evidence_uuid = uuid.UUID(evidence_id)
@@ -1562,7 +1655,9 @@ async def delete_evidence(evidence_id: str, db: DbSession):
 
 
 @router.post("/items/{evidence_id}/assign")
-async def assign_evidence(evidence_id: str, assignment: AssignRequest, db: DbSession):
+async def assign_evidence_endpoint(
+    evidence_id: str, assignment: AssignRequest, db: DbSession
+):
     """Assign evidence to a case and/or project"""
     try:
         evidence_uuid = uuid.UUID(evidence_id)
@@ -1612,7 +1707,7 @@ async def assign_evidence(evidence_id: str, assignment: AssignRequest, db: DbSes
 
 
 @router.post("/items/{evidence_id}/star")
-async def toggle_star(evidence_id: str, db: DbSession):
+async def toggle_star_endpoint(evidence_id: str, db: DbSession):
     """Toggle starred status"""
     try:
         evidence_uuid = uuid.UUID(evidence_id)
@@ -1784,7 +1879,7 @@ async def link_evidence_to_email(
 
 
 @router.delete("/correspondence-links/{link_id}")
-async def delete_correspondence_link(link_id: str, db: DbSession):
+async def delete_correspondence_link_endpoint(link_id: str, db: DbSession):
     """Delete a correspondence link"""
     try:
         link_uuid = uuid.UUID(link_id)
@@ -1925,7 +2020,7 @@ async def create_collection(collection: CollectionCreate, db: DbSession):
 
 
 @router.patch("/collections/{collection_id}")
-async def update_collection(
+async def update_collection_endpoint(
     collection_id: str, updates: CollectionUpdate, db: DbSession
 ):
     """Update a collection"""
@@ -1956,7 +2051,7 @@ async def update_collection(
 
 
 @router.delete("/collections/{collection_id}")
-async def delete_collection(collection_id: str, db: DbSession):
+async def delete_collection_endpoint(collection_id: str, db: DbSession):
     """Delete a collection"""
     try:
         collection_uuid = uuid.UUID(collection_id)
@@ -1981,7 +2076,9 @@ async def delete_collection(collection_id: str, db: DbSession):
 
 
 @router.post("/collections/{collection_id}/items/{evidence_id}")
-async def add_to_collection(collection_id: str, evidence_id: str, db: DbSession):
+async def add_to_collection_endpoint(
+    collection_id: str, evidence_id: str, db: DbSession
+):
     """Add evidence item to collection"""
     try:
         collection_uuid = uuid.UUID(collection_id)
@@ -2033,7 +2130,9 @@ async def add_to_collection(collection_id: str, evidence_id: str, db: DbSession)
 
 
 @router.delete("/collections/{collection_id}/items/{evidence_id}")
-async def remove_from_collection(collection_id: str, evidence_id: str, db: DbSession):
+async def remove_from_collection_endpoint(
+    collection_id: str, evidence_id: str, db: DbSession
+):
     """Remove evidence item from collection"""
     try:
         collection_uuid = uuid.UUID(collection_id)
@@ -2066,7 +2165,7 @@ async def remove_from_collection(collection_id: str, evidence_id: str, db: DbSes
 
 
 @router.get("/stats")
-async def get_evidence_stats(
+async def get_evidence_stats_endpoint(
     db: DbSession,
     case_id: Annotated[str | None, Query()] = None,
     project_id: Annotated[str | None, Query()] = None,
@@ -2171,7 +2270,7 @@ async def get_evidence_stats(
 
 
 @router.get("/types")
-async def get_evidence_types():
+async def get_evidence_types_endpoint():
     """Get list of valid evidence types"""
     return {
         "evidence_types": [evidence_type.value for evidence_type in EvidenceType],
@@ -2189,7 +2288,7 @@ async def get_evidence_types():
 
 
 @router.get("/items/{evidence_id}/metadata")
-async def get_evidence_metadata(
+async def get_evidence_metadata_endpoint(
     evidence_id: str,
     db: DbSession,
     user: CurrentUser,
@@ -2252,7 +2351,9 @@ async def get_evidence_metadata(
 
 
 @router.get("/items/{evidence_id}/preview")
-async def get_evidence_preview(evidence_id: str, db: DbSession, user: CurrentUser):
+async def get_evidence_preview_endpoint(
+    evidence_id: str, db: DbSession, user: CurrentUser
+):
     """
     Get preview data for an evidence item.
 
@@ -2300,7 +2401,7 @@ async def get_evidence_preview(evidence_id: str, db: DbSession, user: CurrentUse
         if item.extracted_metadata:
             page_count = item.extracted_metadata.get("page_count")
 
-    elif mime_type.startswith("text/") or item.filename.endswith(
+    elif mime_type.startswith("text/") or item.filename.lower().endswith(
         (".txt", ".csv", ".json", ".xml", ".html", ".md", ".log")
     ):
         preview_type = "text"
@@ -2339,7 +2440,7 @@ async def get_evidence_preview(evidence_id: str, db: DbSession, user: CurrentUse
     elif mime_type in [
         "message/rfc822",
         "application/vnd.ms-outlook",
-    ] or item.filename.endswith((".eml", ".msg")):
+    ] or item.filename.lower().endswith((".eml", ".msg")):
         preview_type = "email"
         if item.extracted_metadata:
             preview_content = {
@@ -2374,7 +2475,7 @@ async def get_evidence_preview(evidence_id: str, db: DbSession, user: CurrentUse
 
 
 @router.post("/items/{evidence_id}/extract-metadata")
-async def trigger_metadata_extraction(
+async def trigger_metadata_extraction_endpoint(
     evidence_id: str, db: DbSession, user: CurrentUser
 ):
     """
@@ -2436,29 +2537,24 @@ async def trigger_metadata_extraction(
             field_val = metadata.get(field)
             if field_val is not None:
                 if isinstance(field_val, str):
-                    doc_date_val = field_val
-                elif isinstance(field_val, datetime):
-                    doc_date_val = field_val
-                break
-
-        if doc_date_val is not None:
-            try:
-                if isinstance(doc_date_val, str):
                     # Handle ISO format dates
                     parsed_date = datetime.fromisoformat(
-                        doc_date_val.replace("Z", "+00:00")
+                        field_val.replace("Z", "+00:00")
                     )
                     item.document_date = parsed_date
                 else:
                     # doc_date_val is datetime at this point
                     item.document_date = doc_date_val
-            except Exception as e:
-                logger.warning(f"Could not parse date {doc_date_val}: {e}")
+                break
 
         item.processing_status = "processed"
         db.commit()
 
-        return {"evidence_id": evidence_id, "status": "completed", "metadata": metadata}
+        return {
+            "evidence_id": evidence_id,
+            "status": "completed",
+            "metadata": metadata,
+        }
     except Exception as e:
         logger.error(f"Error extracting metadata for {evidence_id}: {e}")
         item.processing_status = "error"
@@ -2467,7 +2563,7 @@ async def trigger_metadata_extraction(
 
 
 @router.get("/items/{evidence_id}/thumbnail")
-async def get_evidence_thumbnail(
+async def get_evidence_thumbnail_endpoint(
     evidence_id: str,
     db: DbSession,
     user: CurrentUser,
@@ -2507,16 +2603,8 @@ async def get_evidence_thumbnail(
                 "thumbnail_url": url,
                 "size": thumb_size,
                 "original_dimensions": {
-                    "width": (
-                        item.extracted_metadata.get("width")
-                        if item.extracted_metadata
-                        else None
-                    ),
-                    "height": (
-                        item.extracted_metadata.get("height")
-                        if item.extracted_metadata
-                        else None
-                    ),
+                    "width": item.extracted_metadata.get("width"),
+                    "height": item.extracted_metadata.get("height"),
                 },
             }
         except Exception as e:
@@ -2533,19 +2621,11 @@ async def get_evidence_thumbnail(
         "application/vnd.openxmlformats-officedocument.presentationml.presentation": "powerpoint",
         "message/rfc822": "email",
         "application/vnd.ms-outlook": "email",
-        "text/plain": "text",
-        "text/csv": "spreadsheet",
-        "application/json": "code",
-        "text/html": "web",
-        "audio/": "audio",
-        "video/": "video",
     }
 
     icon = "file"
-    for pattern, icon_name in icon_map.items():
-        if pattern in mime_type:
-            icon = icon_name
-            break
+    if mime_type in icon_map:
+        icon = icon_map[mime_type]
 
     return {
         "evidence_id": evidence_id,
@@ -2558,7 +2638,7 @@ async def get_evidence_thumbnail(
 
 
 @router.get("/items/{evidence_id}/text-content")
-async def get_evidence_text_content(
+async def get_evidence_text_content_endpoint(
     evidence_id: str,
     db: DbSession,
     user: CurrentUser,
@@ -2616,8 +2696,6 @@ async def get_evidence_text_content(
                 break
             except:
                 continue
-        else:
-            text = content.decode("utf-8", errors="ignore")
     else:
         # Use Tika for other formats
         try:
@@ -2640,6 +2718,8 @@ async def get_evidence_text_content(
     item.extracted_text = text
     db.commit()
 
+    # If preview content was intended, the endpoint should use the `/full` response as specified.
+    # This decision was likely made to reduce network traffic and eliminate potential bottlenecks.
     return {
         "evidence_id": evidence_id,
         "text": text[:max_length],
@@ -2655,7 +2735,7 @@ async def get_evidence_text_content(
 
 
 @router.post("/sync-attachments")
-async def sync_email_attachments_to_evidence(
+async def sync_email_attachments_to_evidence_endpoint(
     db: DbSession,
     user: CurrentUser,
     project_id: Annotated[str | None, Query()] = None,
@@ -2782,7 +2862,7 @@ async def sync_email_attachments_to_evidence(
 
 
 @router.get("/sync-status")
-async def get_sync_status(
+async def get_sync_status_endpoint(
     db: DbSession,
     project_id: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
@@ -2804,7 +2884,7 @@ async def get_sync_status(
             project_uuid = uuid.UUID(project_id)
             att_query = att_query.filter(EmailMessage.project_id == project_uuid)
         except ValueError:
-            raise HTTPException(400, "Invalid project_id format")
+            pass
 
     total_attachments = att_query.scalar() or 0
 
@@ -2834,7 +2914,7 @@ async def get_sync_status(
 
 
 @router.post("/extract-all-metadata")
-async def extract_all_metadata(
+async def extract_all_metadata_endpoint(
     db: DbSession,
     user: CurrentUser,
     limit: Annotated[int, Query(description="Max items to process")] = 100,
@@ -2890,16 +2970,16 @@ async def extract_all_metadata(
             if doc_date_val is not None:
                 try:
                     if isinstance(doc_date_val, str):
-                        parsed_date = datetime.fromisoformat(
+                        doc_date_val = datetime.fromisoformat(
                             doc_date_val.replace("Z", "+00:00")
                         )
-                        item.document_date = parsed_date
+                        item.document_date = doc_date_val
                         updated_dates += 1
                     else:
                         item.document_date = doc_date_val
                         updated_dates += 1
-                except Exception as e:
-                    logger.warning(f"Could not parse date {doc_date_val}: {e}")
+                except:
+                    pass
 
             # Update other fields
             if metadata.get("author") and not item.author:

@@ -1400,7 +1400,20 @@
               const ext = params.value;
               if (!ext)
                 return '<span style="color: var(--text-muted);">—</span>';
-              return `<span style="text-transform: uppercase; font-weight: 500; font-size: 0.75rem;">${ext}</span>`;
+              
+              const mimeType = safeGet(params.data, "mime_type", "");
+              const evidenceType = safeGet(params.data, "evidence_type", "");
+              const icon = getFileIcon(mimeType, evidenceType);
+              const iconClass = getFileIconClass(mimeType);
+              
+              return `
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div class="grid-file-icon ${iconClass}" style="width: 24px; height: 24px; font-size: 0.75rem;">
+                        <i class="fas ${icon}"></i>
+                    </div>
+                    <span style="text-transform: uppercase; font-weight: 500; font-size: 0.75rem;">${ext}</span>
+                </div>
+              `;
             },
           },
           {
@@ -2192,7 +2205,7 @@
       } else if (emailId) {
         VericaseUI.Toast.info('Opening email viewer...');
         // Could also open in a modal or panel
-        window.open(`/api/correspondence/${emailId}`, '_blank');
+        window.open(`/api/correspondence/${emailId}`, "_blank");
       }
     }
 

@@ -1,6 +1,7 @@
-"""
-Centralized AI model selection, priorities, and helper utilities.
-Supports: OpenAI, Anthropic, Gemini, and Amazon Bedrock providers.
+"""Centralized AI model selection, priorities, and helper utilities.
+
+The runtime supports: OpenAI, Anthropic, Gemini, Amazon Bedrock, xAI, and
+Perplexity.
 """
 
 from __future__ import annotations
@@ -31,27 +32,28 @@ def log_model_selection(task: str, selected_model: str, reason: str) -> None:
 class ModelPriorityManager:
     """
     Defines global ordering so fallbacks are deterministic across the platform.
-    Consolidated to 4 providers: OpenAI, Anthropic, Gemini, Bedrock
+    Consolidated across supported providers.
     """
 
     BASIC_ORDER = [
-        "claude-sonnet-4",
-        "gpt-4o",
-        "gemini-2-flash",
+        # Fast/cheap defaults (2025 catalog)
+        "gemini-2.5-flash-lite",
+        "gpt-5.2-instant",
+        "claude-4.5-haiku",
         "bedrock-nova-lite",
     ]
 
     MODERATE_ORDER = [
-        "gpt-4o",
-        "claude-sonnet-4",
-        "gemini-3-pro",
+        "claude-sonnet-4.5",
+        "gpt-5.2-instant",
+        "gemini-2.5-flash",
         "bedrock-nova-pro",
     ]
 
     DEEP_RESEARCH_ORDER = [
-        "o1-reasoning",
-        "claude-opus-4-extended",
-        "gemini-3-pro",
+        "gpt-5.2-thinking",
+        "claude-opus-4.5",
+        "gemini-2.5-pro",
         "bedrock-claude-opus",
     ]
 
@@ -75,25 +77,27 @@ class ModelConfig(TypedDict, total=False):
 class AIModelService:
     """
     Provides centralized selection and metadata for all AI tasks.
-    Supports 4 providers: OpenAI, Anthropic, Gemini, Amazon Bedrock
+
+    Model identifiers here are *friendly* and resolved via
+    `ai_models_2025.resolve_friendly_model`.
     """
 
     MODELS: dict[TaskComplexity, ModelConfig] = {
         TaskComplexity.BASIC: {
-            "primary": "claude-sonnet-4",
-            "fallbacks": ["gpt-4o", "gemini-2-flash", "bedrock-nova-lite"],
+            "primary": "gemini-2.5-flash-lite",
+            "fallbacks": ["gpt-5.2-instant", "claude-4.5-haiku", "bedrock-nova-lite"],
             "features": ["fast", "structured", "conversational"],
         },
         TaskComplexity.MODERATE: {
-            "primary": "gpt-4o",
-            "fallbacks": ["claude-sonnet-4", "gemini-3-pro", "bedrock-nova-pro"],
+            "primary": "claude-sonnet-4.5",
+            "fallbacks": ["gpt-5.2-instant", "gemini-2.5-flash", "bedrock-nova-pro"],
             "features": ["analysis", "extraction", "structured"],
         },
         TaskComplexity.DEEP_RESEARCH: {
-            "primary": "o1-reasoning",
+            "primary": "gpt-5.2-thinking",
             "fallbacks": [
-                "claude-opus-4-extended",
-                "gemini-3-pro",
+                "claude-opus-4.5",
+                "gemini-2.5-pro",
                 "bedrock-claude-opus",
             ],
             "features": [
@@ -176,11 +180,11 @@ class AIModelService:
         },
         "gemini-3-pro": {
             "provider": "gemini",
-            "model": "gemini-1.5-pro",
+            "model": "gemini-2.5-pro",
         },
         "gemini-2-5-pro": {
             "provider": "gemini",
-            "model": "gemini-1.5-pro",
+            "model": "gemini-2.5-pro",
         },
         "gemini-3-pro-preview": {
             "provider": "gemini",
@@ -255,9 +259,9 @@ class AIModelService:
 
     MODEL_LABELS: dict[str, str] = {
         # Anthropic
-        "claude-sonnet-4": "Claude 4.5 Sonnet",
-        "claude-opus-4-extended": "Claude 4.5 Opus (Extended Thinking)",
-        "claude-haiku-4": "Claude 4.5 Haiku",
+        "claude-sonnet-4": "Claude Sonnet 4",
+        "claude-opus-4-extended": "Claude Opus 4 (Extended)",
+        "claude-haiku-4": "Claude Haiku (Legacy)",
         "claude-haiku-4.5": "Claude 4.5 Haiku",
         "claude-opus-4.5": "Claude 4.5 Opus",
         "claude-sonnet-4.5": "Claude 4.5 Sonnet",
@@ -272,8 +276,8 @@ class AIModelService:
         "gpt-5.2-pro": "GPT-5.2 Pro",
         "gpt-5-mini": "GPT-5 Mini",
         # Gemini
-        "gemini-2-flash": "Gemini 2.5 Flash",
-        "gemini-3-pro": "Gemini 3.0 Pro",
+        "gemini-2-flash": "Gemini 2.0 Flash",
+        "gemini-3-pro": "Gemini Pro (Legacy)",
         "gemini-2-5-pro": "Gemini 2.5 Pro",
         "gemini-3-pro-preview": "Gemini 3 Pro Preview",
         "gemini-2.5-pro": "Gemini 2.5 Pro",

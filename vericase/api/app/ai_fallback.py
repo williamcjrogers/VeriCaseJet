@@ -4,7 +4,7 @@ AI Fallback Chain - Automatic provider failover for resilient AI operations.
 This module provides automatic failover when AI providers fail, trying
 alternative providers in a configured order until one succeeds.
 
-Supports 4 providers: OpenAI, Anthropic, Gemini, Amazon Bedrock
+Supports providers: OpenAI, Anthropic, Gemini, Amazon Bedrock, xAI, Perplexity
 """
 
 from __future__ import annotations
@@ -67,20 +67,17 @@ class AIFallbackChain:
             ("anthropic", "claude-4.5-haiku"),  # External fallback
         ],
         "deep_analysis": [
-            (
-                "bedrock",
-                "anthropic.claude-3-5-sonnet-20241022-v2:0",
-            ),  # Primary: Claude via Bedrock
+            ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),  # Primary
             ("bedrock", "amazon.nova-pro-v1:0"),  # Fallback 1: Nova Pro
-            ("anthropic", "claude-sonnet-4-20250514"),  # External fallback
-            ("openai", "gpt-4o"),  # External fallback
+            ("anthropic", "claude-sonnet-4.5"),  # External fallback
+            ("openai", "gpt-5.2-thinking"),  # External fallback
             ("xai", "grok-4.1-fast-reason"),  # External: reasoning mode
         ],
         "narrative": [
-            ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),  # Primary
+            ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),  # Primary
             ("bedrock", "amazon.nova-pro-v1:0"),  # Fallback 1
-            ("anthropic", "claude-sonnet-4-20250514"),  # External fallback
-            ("openai", "gpt-4o"),  # External fallback
+            ("anthropic", "claude-sonnet-4.5"),  # External fallback
+            ("openai", "gpt-5.2-instant"),  # External fallback
         ],
         "pattern_recognition": [
             ("bedrock", "amazon.nova-pro-v1:0"),  # Primary
@@ -91,14 +88,14 @@ class AIFallbackChain:
         "gap_analysis": [
             ("bedrock", "amazon.nova-pro-v1:0"),  # Primary
             ("bedrock", "amazon.nova-lite-v1:0"),  # Fallback 1
-            ("anthropic", "claude-sonnet-4-20250514"),  # External fallback
-            ("openai", "gpt-4o"),  # External fallback
+            ("anthropic", "claude-sonnet-4.5"),  # External fallback
+            ("openai", "gpt-5.2-instant"),  # External fallback
         ],
         "chat": [
             ("bedrock", "amazon.nova-pro-v1:0"),  # Primary for copilot
             ("bedrock", "amazon.nova-lite-v1:0"),  # Fallback 1
-            ("anthropic", "claude-sonnet-4-20250514"),  # External fallback
-            ("openai", "gpt-4o"),  # External fallback
+            ("anthropic", "claude-sonnet-4.5"),  # External fallback
+            ("openai", "gpt-5.2-instant"),  # External fallback
             ("xai", "grok-4.1-fast"),  # External: cheap premium
         ],
         "refinement": [
@@ -115,9 +112,9 @@ class AIFallbackChain:
         ],
         "legal_research": [
             ("perplexity", "sonar-pro"),  # Primary: real-time citations
-            ("anthropic", "claude-sonnet-4-20250514"),  # Fallback: deep reasoning
-            ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
-            ("openai", "gpt-4o"),
+            ("anthropic", "claude-sonnet-4.5"),  # Fallback: deep reasoning
+            ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
+            ("openai", "gpt-5.2-thinking"),
         ],
     }
 

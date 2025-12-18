@@ -299,6 +299,39 @@ class MetadataExtractor:
 
         return metadata
 
+    def _parse_date_flexible(self, date_str: str) -> datetime | None:
+        """Try to parse date from various formats"""
+        if not date_str:
+            return None
+
+        # Clean up string
+        date_str = date_str.strip()
+
+        # Try ISO format first
+        try:
+            return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+
+        # Try common formats
+        formats = [
+            "%Y-%m-%dT%H:%M:%SZ",
+            "%Y-%m-%dT%H:%M:%S.%fZ",
+            "%Y-%m-%d %H:%M:%S",
+            "%Y:%m:%d %H:%M:%S",
+            "%d/%m/%Y %H:%M:%S",
+            "%a, %d %b %Y %H:%M:%S %z",  # RFC 2822
+            "%a, %d %b %Y %H:%M:%S GMT",
+        ]
+
+        for fmt in formats:
+            try:
+                return datetime.strptime(date_str, fmt)
+            except ValueError:
+                continue
+
+        return None
+
     async def _extract_image_metadata(
         self, content: bytes, metadata: FileMetadata
     ) -> None:
@@ -344,13 +377,21 @@ class MetadataExtractor:
                             metadata.camera_model = (
                                 str(value).replace("\x00", "").strip()
                             )
-                        elif tag == "DateTimeOriginal":
-                            try:
-                                metadata.date_taken = datetime.strptime(
-                                    str(value), "%Y:%m:%d %H:%M:%S"
-                                )
-                            except (ValueError, TypeError) as e:
-                                logger.debug(f"DateTimeOriginal parse failed: {e}")
+                        elif tag in [
+                            "DateTimeOriginal",
+                            "DateTime",
+                            "DateTimeDigitized",
+                        ]:
+                            # Try to get date from any of these tags, prioritizing Original
+                            if not metadata.date_taken or tag == "DateTimeOriginal":
+                                try:
+                                    # Handle potential null bytes
+                                    val_str = str(value).replace("\x00", "").strip()
+                                    metadata.date_taken = datetime.strptime(
+                                        val_str, "%Y:%m:%d %H:%M:%S"
+                                    )
+                                except (ValueError, TypeError) as e:
+                                    logger.debug(f"{tag} parse failed: {e}")
                         elif tag == "ExposureTime":
                             # Convert to float safely (handles IFDRational)
                             fval = (
@@ -451,9 +492,11 @@ class MetadataExtractor:
 
                 # Parse dates
                 if "/CreationDate" in info:
-                    metadata.created_date = self._parse_pdf_date(info["/CreationDate"])
+                    metadata.created_date = self._parse_pdf_date(
+                        str(info["/CreationDate"])
+                    )
                 if "/ModDate" in info:
-                    metadata.modified_date = self._parse_pdf_date(info["/ModDate"])
+                    metadata.modified_date = self._parse_pdf_date(str(info["/ModDate"]))
 
             # Check for forms
             if "/AcroForm" in pdf_reader.trailer.get("/Root", {}):
@@ -605,27 +648,22 @@ class MetadataExtractor:
                             or tika_meta.get("meta:author")
                         )
                     if not metadata.created_date:
-                        created = tika_meta.get("dcterms:created") or tika_meta.get(
-                            "Creation-Date"
+                        created = (
+                            tika_meta.get("dcterms:created")
+                            or tika_meta.get("Creation-Date")
+                            or tika_meta.get("meta:creation-date")
                         )
                         if created:
-                            try:
-                                metadata.created_date = datetime.fromisoformat(
-                                    created.replace("Z", "+00:00")
-                                )
-                            except (ValueError, TypeError) as e:
-                                logger.debug(f"Could not parse {created}: {e}")
+                            metadata.created_date = self._parse_date_flexible(created)
+
                     if not metadata.modified_date:
-                        modified = tika_meta.get("dcterms:modified") or tika_meta.get(
-                            "Last-Modified"
+                        modified = (
+                            tika_meta.get("dcterms:modified")
+                            or tika_meta.get("Last-Modified")
+                            or tika_meta.get("meta:save-date")
                         )
                         if modified:
-                            try:
-                                metadata.modified_date = datetime.fromisoformat(
-                                    modified.replace("Z", "+00:00")
-                                )
-                            except (ValueError, TypeError) as e:
-                                logger.debug(f"Could not parse {modified}: {e}")
+                            metadata.modified_date = self._parse_date_flexible(modified)
 
                     # Office-specific
                     if not metadata.company:
