@@ -1,7 +1,43 @@
+# Core MCP Servers
 mcp-server-fetch
 mcp-server-time
 mcp-server-git
 mcp-server-sqlite
+paramiko
+
+# AWS Labs MCP Servers - Core & Infrastructure (ALREADY INSTALLED)
 awslabs.core-mcp-server
 awslabs.ccapi-mcp-server
-paramiko
+
+# AWS Labs - Compute & Container Services (VERIFIED VALID)
+awslabs.ec2-mcp-server
+awslabs.lambda-mcp-server
+awslabs.ecs-mcp-server
+awslabs.eks-mcp-server
+awslabs-fargate-mcp-server
+
+# AWS Labs - Storage Services (VERIFIED VALID)
+awslabs-s3-mcp-server
+awslabs-rds-mcp-server
+
+# AWS Labs - Database Services (VERIFIED VALID)
+awslabs.dynamodb-mcp-server
+awslabs.postgres-mcp-server
+awslabs.mysql-mcp-server
+
+# AWS Labs - Monitoring & Logging (VERIFIED VALID)
+awslabs.cloudwatch-mcp-server
+
+# AWS Labs - Infrastructure as Code (VERIFIED VALID)
+awslabs.cdk-mcp-server
+awslabs.terraform-mcp-server
+
+# AWS Labs - Security & Identity (VERIFIED VALID)
+awslabs.iam-mcp-server
+
+# AWS Labs - Cost Management (VERIFIED VALID)
+awslabs.cost-explorer-mcp-server
+
+# AWS Labs - AI/ML Services (VERIFIED VALID)
+awslabs.bedrock-kb-retrieval-mcp-server
+awslabs.sagemaker-ai-mcp-server

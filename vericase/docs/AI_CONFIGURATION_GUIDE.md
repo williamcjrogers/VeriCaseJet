@@ -5,8 +5,9 @@ VeriCase includes advanced AI features powered by multiple AI models:
 - **OpenAI GPT** - For general intelligence and chronology building
 - **Anthropic Claude** - For detailed document analysis
 - **Google Gemini** - For multi-modal processing
-- **Grok** - For fast reasoning
+- **xAI (Grok)** - For fast reasoning
 - **Perplexity** - For web search and fact-checking
+- **Amazon Bedrock** - For AWS-hosted models (Nova, Claude via Bedrock)
 
 ## Security Update
 The API keys have been removed from `apprunner.yaml` for security. They now need to be configured in AWS Secrets Manager.
@@ -36,9 +37,11 @@ This script will:
    ```json
    {
     "OPENAI_API_KEY": "<your-openai-key>",
-    "ANTHROPIC_API_KEY": "<your-claude-key>",
+   "CLAUDE_API_KEY": "<your-claude-key>",
+   "ANTHROPIC_API_KEY": "<optional-alias-for-CLAUDE_API_KEY>",
     "GEMINI_API_KEY": "<your-gemini-key>",
-    "GROK_API_KEY": "<your-grok-key>",
+   "XAI_API_KEY": "<your-xai-key>",
+   "GROK_API_KEY": "<optional-alias-for-XAI_API_KEY>",
     "PERPLEXITY_API_KEY": "<your-perplexity-key>"
    }
    ```
@@ -129,7 +132,9 @@ In App Runner console, check application logs for:
 ## Cost Management
 - OpenAI: Set usage limits at https://platform.openai.com/usage
 - Monitor API usage regularly
-- Consider using GPT-3.5-turbo for development/testing
+- For development/testing, prefer smaller/cheaper models (e.g. OpenAI `gpt-5-mini`,
+  Gemini `gemini-2.5-flash-lite`, or Claude `claude-4.5-haiku`) and keep a
+  higher-quality model as a fallback.
 
 ## Next Steps
 After configuration:

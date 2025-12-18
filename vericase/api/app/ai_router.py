@@ -113,37 +113,38 @@ class AdaptiveModelRouter:
         "quick_search": [
             ("bedrock", "amazon.nova-micro-v1:0"),
             ("bedrock", "amazon.nova-lite-v1:0"),
-            ("gemini", "gemini-2.0-flash"),
+            ("gemini", "gemini-2.5-flash-lite"),
+            ("openai", "gpt-5-mini"),
         ],
         "deep_analysis": [
-            ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
-            ("anthropic", "claude-sonnet-4-20250514"),
-            ("openai", "gpt-4o"),
+            ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
+            ("anthropic", "claude-sonnet-4.5"),
+            ("openai", "gpt-5.2-thinking"),
         ],
         "synthesis": [
-            ("openai", "gpt-4o"),
-            ("anthropic", "claude-sonnet-4-20250514"),
+            ("openai", "gpt-5.2-instant"),
+            ("anthropic", "claude-sonnet-4.5"),
             ("bedrock", "amazon.nova-pro-v1:0"),
         ],
         "validation": [
-            ("anthropic", "claude-sonnet-4-20250514"),
-            ("gemini", "gemini-2.0-flash"),
-            ("openai", "gpt-4o"),
+            ("anthropic", "claude-sonnet-4.5"),
+            ("gemini", "gemini-2.5-flash-lite"),
+            ("openai", "gpt-5.2-instant"),
         ],
         "causation_analysis": [
-            ("anthropic", "claude-sonnet-4-20250514"),
-            ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
-            ("openai", "gpt-4o"),
+            ("anthropic", "claude-sonnet-4.5"),
+            ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
+            ("openai", "gpt-5.2-thinking"),
         ],
         "timeline": [
             ("bedrock", "amazon.nova-lite-v1:0"),
-            ("openai", "gpt-4o"),
-            ("gemini", "gemini-2.0-flash"),
+            ("openai", "gpt-5.2-instant"),
+            ("gemini", "gemini-2.5-flash"),
         ],
         "default": [
             ("bedrock", "amazon.nova-pro-v1:0"),
-            ("openai", "gpt-4o"),
-            ("anthropic", "claude-sonnet-4-20250514"),
+            ("openai", "gpt-5.2-instant"),
+            ("anthropic", "claude-sonnet-4.5"),
         ],
     }
 
@@ -309,12 +310,12 @@ class AdaptiveModelRouter:
         cost_order = [
             ("bedrock", "amazon.nova-micro-v1:0"),  # ~$0.035/1M
             ("bedrock", "amazon.nova-lite-v1:0"),  # ~$0.06/1M
-            ("gemini", "gemini-2.0-flash"),  # ~$0.35/1M
+            ("gemini", "gemini-2.5-flash-lite"),  # fast/budget
             ("bedrock", "amazon.nova-pro-v1:0"),  # ~$0.8/1M
-            ("openai", "gpt-4o-mini"),  # ~$0.15/1M
-            ("anthropic", "claude-4.5-haiku"),  # ~$0.30/1M
-            ("openai", "gpt-4o"),  # ~$5/1M
-            ("anthropic", "claude-sonnet-4-20250514"),  # ~$3/1M
+            ("openai", "gpt-5-mini"),
+            ("anthropic", "claude-4.5-haiku"),
+            ("openai", "gpt-5.2-instant"),
+            ("anthropic", "claude-sonnet-4.5"),
         ]
 
         for provider, model_id in cost_order:
@@ -376,7 +377,7 @@ class AdaptiveModelRouter:
         fast_models = [
             ("bedrock", "amazon.nova-micro-v1:0"),
             ("bedrock", "amazon.nova-lite-v1:0"),
-            ("gemini", "gemini-2.0-flash"),
+            ("gemini", "gemini-2.5-flash-lite"),
         ]
 
         for provider, model_id in fast_models:
@@ -398,11 +399,12 @@ class AdaptiveModelRouter:
         """Route to the highest quality model."""
         # Quality ordering (highest quality first)
         quality_order = [
-            ("anthropic", "claude-opus-4-20250514"),
-            ("openai", "gpt-4o"),
-            ("anthropic", "claude-sonnet-4-20250514"),
-            ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
-            ("gemini", "gemini-1.5-pro"),
+            ("anthropic", "claude-opus-4.5"),
+            ("openai", "gpt-5.2-pro"),
+            ("openai", "gpt-5.2-thinking"),
+            ("anthropic", "claude-sonnet-4.5"),
+            ("gemini", "gemini-2.5-pro"),
+            ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
             ("bedrock", "amazon.nova-pro-v1:0"),
         ]
 

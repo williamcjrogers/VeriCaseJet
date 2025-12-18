@@ -1018,17 +1018,63 @@ async def restore_excluded_emails(
     """
     Restore excluded emails back to the main view by removing status tag from metadata
     """
+    from sqlalchemy import text
+
     restored = 0
+    restored_evidence = 0
+
+    email_uuids: list[uuid.UUID] = []
     for email_id in email_ids:
-        email = db.query(EmailMessage).filter(EmailMessage.id == email_id).first()
-        if email and email.meta and email.meta.get("status"):
-            meta = dict(email.meta)
-            meta.pop("status", None)
-            email.meta = meta
-            restored += 1
+        try:
+            email_uuids.append(uuid.UUID(email_id))
+        except ValueError:
+            continue
+
+    if not email_uuids:
+        return {"restored": 0, "message": "No valid email IDs provided"}
+
+    emails = db.query(EmailMessage).filter(EmailMessage.id.in_(email_uuids)).all()
+    for email in emails:
+        meta = dict(email.meta or {})
+
+        # Remove status so the email appears in the default correspondence view
+        meta.pop("status", None)
+
+        # Persist user intent so background classifiers don't re-hide the email
+        spam_meta = meta.get("spam")
+        if not isinstance(spam_meta, dict):
+            spam_meta = {}
+        spam_meta["user_override"] = "visible"
+        spam_meta["is_hidden"] = False
+        meta["spam"] = spam_meta
+
+        # Keep top-level compatibility flags in sync
+        meta["is_hidden"] = False
+        meta["excluded"] = False
+
+        email.meta = meta
+        restored += 1
+
+    # Restore inherited spam-hiding on evidence items linked to these emails
+    restore_sql = text(
+        """
+        UPDATE evidence_items ei
+        SET meta = meta - 'spam'
+        WHERE ei.source_email_id = ANY(:email_ids::uuid[])
+          AND ei.meta->'spam'->>'inherited_from_email' IS NOT NULL
+          AND ei.meta->'spam'->>'is_hidden' = 'true'
+        """
+    )
+
+    result = db.execute(restore_sql, {"email_ids": [str(eid) for eid in email_uuids]})
+    restored_evidence = result.rowcount or 0
 
     db.commit()
-    return {"restored": restored, "message": f"Restored {restored} emails"}
+    return {
+        "restored": restored,
+        "restored_evidence": restored_evidence,
+        "message": f"Restored {restored} emails",
+    }
 
 
 @router.get("/emails", response_model=EmailListResponse)

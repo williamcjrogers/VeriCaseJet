@@ -1,0 +1,40 @@
+{
+  "DocumentName": "AWS-RunShellScript",
+  "InstanceIds": ["i-0913d878182fa803c"],
+  "Comment": "Hide IPM.* items in email_messages",
+  "Parameters": {
+    "commands": [
+      "set -euo pipefail",
+      "sudo yum -y install postgresql15 jq >/dev/null",
+      "SECRET_ID='rds!db-5818fc76-6f0c-4d02-8aa4-df3d01776ed3'",
+      "REGION='eu-west-2'",
+      "SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id \"$SECRET_ID\" --region \"$REGION\" --query SecretString --output text)",
+      "RDS_HOST='database-1.cv8uwu0uqr7f.eu-west-2.rds.amazonaws.com'",
+      "DB_USER=$(echo \"$SECRET_JSON\" | jq -r .username)",
+      "DB_PASSWORD=$(echo \"$SECRET_JSON\" | jq -r .password)",
+      "export PGPASSWORD=\"$DB_PASSWORD\"",
+      "echo 'Detecting database...'",
+      "DBS=$(psql \"host=$RDS_HOST user=$DB_USER dbname=postgres sslmode=require\" -t -A -v ON_ERROR_STOP=1 -c \"SELECT datname FROM pg_database WHERE datistemplate=false ORDER BY datname;\")",
+      "DB_NAME=''",
+      "for db in $DBS; do REG=$(psql \"host=$RDS_HOST user=$DB_USER dbname=$db sslmode=require\" -t -A -v ON_ERROR_STOP=1 -c \"SELECT to_regclass('public.email_messages');\" 2>/dev/null || true); if [ -n \"$REG\" ]; then DB_NAME=$db; break; fi; done",
+      "if [ -z \"$DB_NAME\" ]; then echo 'ERROR: Could not find a database containing public.email_messages' >&2; exit 2; fi",
+      "echo \"Using database: $DB_NAME\"",
+      "META_TYPE=$(psql \"host=$RDS_HOST user=$DB_USER dbname=$DB_NAME sslmode=require\" -t -A -v ON_ERROR_STOP=1 -c \"SELECT data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='email_messages' AND column_name='metadata';\")",
+      "echo \"metadata column type: ${META_TYPE:-unknown}\"",
+      "echo 'Counting IPM items...'",
+      "COUNT=$(psql \"host=$RDS_HOST user=$DB_USER dbname=$DB_NAME sslmode=require\" -t -A -v ON_ERROR_STOP=1 -c \"SELECT COUNT(*) FROM email_messages WHERE subject LIKE 'IPM.%' AND (metadata IS NULL OR metadata->>'is_hidden' IS NULL OR metadata->>'is_hidden' = 'false');\")",
+      "COUNT=${COUNT:-0}",
+      "echo \"Found $COUNT items to hide\"",
+      "if [ \"$COUNT\" -gt 0 ] 2>/dev/null; then",
+      "  echo 'Updating...'",
+      "  if [ \"${META_TYPE:-}\" = 'json' ]; then UPDATE_SQL=\"UPDATE email_messages SET metadata = (COALESCE(metadata::jsonb, '{}'::jsonb) || jsonb_build_object('is_hidden', true, 'is_spam', true, 'spam_category', 'non_email', 'spam_score', 100))::json WHERE subject LIKE 'IPM.%' AND (metadata IS NULL OR metadata->>'is_hidden' IS NULL OR metadata->>'is_hidden' = 'false');\"; else UPDATE_SQL=\"UPDATE email_messages SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('is_hidden', true, 'is_spam', true, 'spam_category', 'non_email', 'spam_score', 100) WHERE subject LIKE 'IPM.%' AND (metadata IS NULL OR metadata->>'is_hidden' IS NULL OR metadata->>'is_hidden' = 'false');\"; fi",
+      "  psql \"host=$RDS_HOST user=$DB_USER dbname=$DB_NAME sslmode=require\" -v ON_ERROR_STOP=1 -c \"$UPDATE_SQL\"",
+      "  echo 'Verifying...'",
+      "  HIDDEN=$(psql \"host=$RDS_HOST user=$DB_USER dbname=$DB_NAME sslmode=require\" -t -A -v ON_ERROR_STOP=1 -c \"SELECT COUNT(*) FROM email_messages WHERE metadata->>'is_hidden' = 'true' AND subject LIKE 'IPM.%';\")",
+      "  echo \"$HIDDEN IPM items now hidden\"",
+      "else",
+      "  echo 'No items to migrate'",
+      "fi"
+    ]
+  }
+}

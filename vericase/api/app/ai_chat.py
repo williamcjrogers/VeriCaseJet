@@ -6,14 +6,23 @@ Uses GPT-5.1, Gemini 3 Pro, Claude Opus 4.5, and Amazon Bedrock for comprehensiv
 """
 import logging
 import asyncio
+import re
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 from enum import Enum
+from html import unescape
 
 from fastapi import APIRouter, Depends, HTTPException, Body
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 from sqlalchemy import or_
+
+try:
+    # OpenSearch is optional in some deployments.
+    from .search import client as _get_opensearch_client
+except Exception:  # pragma: no cover
+    _get_opensearch_client = None  # type: ignore
 
 from .models import User, EmailMessage, Project, Case
 from .db import get_db
@@ -43,6 +52,257 @@ except Exception:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ai-chat", tags=["ai-chat"])
+
+
+# Guardrails: keep AI requests responsive even on very large projects.
+#
+# IMPORTANT: Even if you have 100k+ emails, you still cannot send them all to an LLM in
+# a single prompt. The scalable approach is retrieval: search the full corpus to select
+# the most relevant subset for the question.
+#
+# These values are *context limits* (what we send to the model), not dataset limits.
+_AI_CONTEXT_MAX_EMAILS_QUICK = 250
+_AI_CONTEXT_MAX_EMAILS_DEEP = 600
+
+# For DB-only fallback retrieval (when OpenSearch is unavailable), bound the initial
+# candidate pool to avoid loading the entire corpus into memory.
+_AI_DB_CANDIDATE_POOL_CAP = 20000
+
+# For OpenSearch retrieval, we may need to scan many hits (then filter by project_id)
+# when the email index does not contain project_id.
+_AI_OPENSEARCH_SCAN_CAP = 10000
+
+
+def _tokenize_query_for_scoring(query: str) -> list[str]:
+    """Extract lightweight tokens from user query for simple relevance scoring."""
+    if not query:
+        return []
+
+    # Keep simple, fast, and DB-agnostic: no full-text search assumptions.
+    tokens = re.findall(r"[a-zA-Z0-9]{3,}", query.lower())
+    stop = {
+        "the",
+        "and",
+        "for",
+        "with",
+        "from",
+        "that",
+        "this",
+        "what",
+        "when",
+        "where",
+        "who",
+        "why",
+        "how",
+        "about",
+        "into",
+        "over",
+        "under",
+        "between",
+        "within",
+        "their",
+        "there",
+        "which",
+        "would",
+        "could",
+        "should",
+    }
+    filtered: list[str] = []
+    seen: set[str] = set()
+    for t in tokens:
+        if t in stop:
+            continue
+        if t in seen:
+            continue
+        seen.add(t)
+        filtered.append(t)
+        if len(filtered) >= 12:
+            break
+    return filtered
+
+
+def _safe_uuid(value: str) -> uuid.UUID | None:
+    try:
+        return uuid.UUID(str(value))
+    except Exception:
+        return None
+
+
+def _strip_highlight(text: str) -> str:
+    """Remove typical OpenSearch highlight tags and decode HTML entities."""
+    if not text:
+        return ""
+    # OpenSearch typically uses <em> tags; also handle any stray HTML entities.
+    cleaned = re.sub(r"</?em>", "", text)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return unescape(cleaned)
+
+
+def _opensearch_email_candidates(
+    *,
+    query_text: str,
+    project_id: str | None,
+    case_id: str | None,
+    size: int,
+) -> list[dict[str, Any]]:
+    """Retrieve candidate email IDs (and optional snippets) from OpenSearch.
+
+    We *prefer* a project-scoped query when project_id is provided. However, older
+    deployments may have an "emails" index that lacks project_id for historical docs.
+    In that case, we transparently fall back to an unscoped OpenSearch query and
+    apply project/case filtering at the DB layer.
+    """
+    if _get_opensearch_client is None:
+        return []
+
+    query_text = (query_text or "").strip()
+    if not query_text:
+        return []
+
+    def _build_query(*, include_project_filter: bool) -> dict[str, Any]:
+        must: list[dict[str, Any]] = [
+            {
+                "multi_match": {
+                    "query": query_text,
+                    "fields": [
+                        "subject^5",
+                        "body_clean^4",
+                        "body^3",
+                        "sender_name^1",
+                    ],
+                    "type": "best_fields",
+                    "operator": "and",
+                    "fuzziness": "AUTO",
+                }
+            }
+        ]
+
+        # Phrase boosts help precision for short or exact questions.
+        should: list[dict[str, Any]] = [
+            {"match_phrase": {"subject": {"query": query_text, "slop": 2, "boost": 6}}},
+            {
+                "match_phrase": {
+                    "body_clean": {"query": query_text, "slop": 6, "boost": 3}
+                }
+            },
+        ]
+
+        # If the query contains an email address, strongly boost sender/recipient matches.
+        for addr in set(
+            re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", query_text)
+        ):
+            should.append(
+                {"term": {"sender_email": {"value": addr.lower(), "boost": 10}}}
+            )
+            should.append({"term": {"recipients": {"value": addr.lower(), "boost": 6}}})
+
+        filters: list[dict[str, Any]] = []
+        if case_id:
+            filters.append({"term": {"case_id": case_id}})
+        if include_project_filter and project_id:
+            filters.append({"term": {"project_id": project_id}})
+
+        return {
+            "size": size,
+            "track_total_hits": False,
+            "_source": [
+                "id",
+                "case_id",
+                "project_id",
+                "thread_group_id",
+                "thread_id",
+                "date_sent",
+            ],
+            "query": {
+                "function_score": {
+                    "query": {
+                        "bool": {
+                            "must": must,
+                            "filter": filters,
+                            "should": should,
+                        }
+                    },
+                    # Small recency preference without swamping relevance.
+                    "score_mode": "sum",
+                    "boost_mode": "sum",
+                    "functions": [
+                        {
+                            "gauss": {
+                                "date_sent": {
+                                    "origin": "now",
+                                    "scale": "365d",
+                                    "decay": 0.5,
+                                }
+                            },
+                            "weight": 0.15,
+                        }
+                    ],
+                }
+            },
+            "highlight": {
+                "fields": {
+                    "subject": {
+                        "fragment_size": 160,
+                        "number_of_fragments": 1,
+                        "no_match_size": 0,
+                    },
+                    "body_clean": {
+                        "fragment_size": 240,
+                        "number_of_fragments": 2,
+                        "no_match_size": 0,
+                    },
+                    "body": {
+                        "fragment_size": 240,
+                        "number_of_fragments": 2,
+                        "no_match_size": 0,
+                    },
+                },
+                "max_analyzed_offset": 1000000,
+            },
+        }
+
+    def _run(include_project_filter: bool) -> list[dict[str, Any]]:
+        client = _get_opensearch_client()
+        body = _build_query(include_project_filter=include_project_filter)
+        try:
+            res = client.search(index="emails", body=body)
+        except Exception as e:
+            # Retry without highlighting if highlighting is unsupported / fails.
+            logger.debug("OpenSearch query failed (with highlights): %s", e)
+            body.pop("highlight", None)
+            res = client.search(index="emails", body=body)
+
+        hits = (res or {}).get("hits", {}).get("hits", [])
+        out: list[dict[str, Any]] = []
+        for h in hits:
+            src = h.get("_source") or {}
+            email_id = src.get("id") or h.get("_id")
+            if not email_id:
+                continue
+
+            hl = h.get("highlight") or {}
+            fragments: list[str] = []
+            for field in ("body_clean", "body", "subject"):
+                frag_list = hl.get(field) or []
+                if frag_list:
+                    fragments.extend([_strip_highlight(f) for f in frag_list if f])
+
+            snippet = " ".join([f for f in fragments if f])[:800]
+            out.append({"id": str(email_id), "snippet": snippet})
+        return out
+
+    try:
+        # Prefer project-scoped search when project_id provided.
+        if project_id:
+            candidates = _run(include_project_filter=True)
+            if candidates:
+                return candidates
+            # Fallback: older indices may not have project_id populated.
+            return _run(include_project_filter=False)
+        return _run(include_project_filter=False)
+    except Exception as e:
+        logger.debug("OpenSearch email retrieval failed; falling back to DB: %s", e)
+        return []
 
 
 class ResearchMode(str, Enum):
@@ -443,15 +703,45 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
     def _build_evidence_context(
         self, emails: list[EmailMessage], detailed: bool = False
     ) -> str:
-        """Build evidence context from all emails - modern LLMs handle 200k+ context"""
+        """Build evidence context from emails.
+
+        NOTE: This must remain bounded. Sending tens of thousands of emails
+        into a single prompt can exceed practical context limits and can also
+        lead to upstream proxy 502s/timeouts.
+        """
         if not emails:
             return "No evidence available."
 
-        # Sort by date for chronological analysis
-        emails = sorted(emails, key=lambda e: e.date_sent or datetime.min, reverse=True)
+        total = len(emails)
+        max_emails = (
+            _AI_CONTEXT_MAX_EMAILS_DEEP if detailed else _AI_CONTEXT_MAX_EMAILS_QUICK
+        )
+
+        # Sort by date (most recent first) then cap.
+        emails = sorted(
+            emails,
+            key=lambda e: e.date_sent or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
+        )
+        if len(emails) > max_emails:
+            emails = emails[:max_emails]
 
         context_parts = []
+        if total > len(emails):
+            context_parts.append(
+                f"NOTE: Evidence truncated for performance. Using {len(emails)} of {total} emails."
+            )
+
         for i, email in enumerate(emails, 1):
+            # Prefer query-focused snippets (e.g., OpenSearch highlights) if present.
+            content = (
+                getattr(email, "_ai_retrieval_snippet", None)
+                or getattr(email, "body_preview", None)
+                or ""
+            )
+            if not content and detailed:
+                # Fall back to full text only in detailed mode; may be absent if not loaded.
+                content = getattr(email, "body_text", None) or ""
             if detailed:
                 context_parts.append(
                     f"[Email {i}]\n"
@@ -460,7 +750,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
                     f"From: {email.sender_name or email.sender_email or 'Unknown'}\n"
                     f"To: {email.recipients_to or 'Unknown'}\n"
                     f"Subject: {email.subject or 'No subject'}\n"
-                    f"Content: {(email.body_text or email.body_preview or '')[:800]}\n"
+                    f"Content: {content[:800]}\n"
                     f"Attachments: {getattr(email, 'attachment_count', 0) or 0}\n"
                     f"---"
                 )
@@ -468,7 +758,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
                 context_parts.append(
                     f"[{i}] {email.date_sent.strftime('%Y-%m-%d') if email.date_sent else 'Unknown'} | "
                     f"{email.sender_name or 'Unknown'} | {email.subject or 'No subject'} | "
-                    f"{(email.body_text or '')[:200]}"
+                    f"{content[:200]}"
                 )
 
         return "\n\n".join(context_parts)
@@ -494,7 +784,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
         try:
             from .ai_runtime import complete_chat
 
-            actual_model: str = model_name or self.gemini_model or "gemini-2.0-flash"
+            actual_model: str = model_name or self.gemini_model or "gemini-2.5-flash"
             return await complete_chat(
                 provider="gemini",
                 model_id=actual_model,
@@ -511,7 +801,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
         try:
             from .ai_runtime import complete_chat
 
-            actual_model: str = model_name or self.openai_model or "gpt-4o"
+            actual_model: str = model_name or self.openai_model or "gpt-5.2-instant"
             return await complete_chat(
                 provider="openai",
                 model_id=actual_model,
@@ -529,7 +819,7 @@ Provide a clear, concise answer citing specific emails. If the evidence doesn't 
             from .ai_runtime import complete_chat
 
             actual_model: str = (
-                model_name or self.anthropic_model or "claude-sonnet-4-20250514"
+                model_name or self.anthropic_model or "claude-sonnet-4.5"
             )
             return await complete_chat(
                 provider="anthropic",
@@ -573,7 +863,7 @@ Provide a structured chronology with dates, events, and responsible parties."""
 
             response_text = await complete_chat(
                 provider="openai",
-                model_id=model_override or "o1",
+                model_id=model_override or "gpt-5.2-thinking",
                 prompt=prompt,
                 api_key=self.openai_key,
                 max_tokens=2000,
@@ -585,7 +875,7 @@ Provide a structured chronology with dates, events, and responsible parties."""
             log_model_selection(
                 "deep_research",
                 friendly_name,
-                f"OpenAI:{model_override or 'o1-preview'}",
+                f"OpenAI:{model_override or 'gpt-5.2-thinking'}",
             )
 
             return ModelResponse(
@@ -639,7 +929,7 @@ Identify patterns that tell the story of what happened."""
 
             response_text = await complete_chat(
                 provider="gemini",
-                model_id=model_override or "gemini-1.5-pro",
+                model_id=model_override or "gemini-2.5-pro",
                 prompt=prompt,
                 api_key=self.gemini_key,
                 max_tokens=2500,
@@ -650,7 +940,7 @@ Identify patterns that tell the story of what happened."""
             log_model_selection(
                 "deep_research",
                 friendly_name,
-                f"Gemini:{model_override or 'gemini-1.5-pro'}",
+                f"Gemini:{model_override or 'gemini-2.5-pro'}",
             )
 
             return ModelResponse(
@@ -704,7 +994,7 @@ Build a narrative that explains what happened and why it matters."""
 
             response_text = await complete_chat(
                 provider="anthropic",
-                model_id=model_override or "claude-sonnet-4-20250514",
+                model_id=model_override or "claude-sonnet-4.5",
                 prompt=prompt,
                 api_key=self.anthropic_key,
                 max_tokens=4096,
@@ -715,7 +1005,7 @@ Build a narrative that explains what happened and why it matters."""
             log_model_selection(
                 "deep_research",
                 friendly_name,
-                f"Anthropic:{model_override or 'claude-opus-4-20250514'}",
+                f"Anthropic:{model_override or 'claude-sonnet-4.5'}",
             )
 
             return ModelResponse(
@@ -920,9 +1210,21 @@ async def ai_evidence_query(
         # Get orchestrator with fresh settings
         orchestrator = get_orchestrator(db)
 
-        # Get relevant emails
+        # Get relevant emails.
+        # NOTE: For very large corpora (100k+ emails), we retrieve a relevant subset.
+        context_limit = (
+            _AI_CONTEXT_MAX_EMAILS_QUICK
+            if request.mode == ResearchMode.QUICK
+            else _AI_CONTEXT_MAX_EMAILS_DEEP
+        )
         emails = await _get_relevant_emails(
-            db, user.id, request.project_id, request.case_id
+            db,
+            user.id,
+            request.project_id,
+            request.case_id,
+            query_text=request.query,
+            max_emails=context_limit,
+            include_full_text=(request.mode == ResearchMode.DEEP),
         )
 
         if not emails:
@@ -942,7 +1244,18 @@ async def ai_evidence_query(
 
         if request.mode == ResearchMode.QUICK:
             # Quick search
-            model_response = await orchestrator.quick_search(request.query, emails)
+            function_cfg = get_function_config("quick_search", db)
+            timeout_s = int(function_cfg.get("max_duration_seconds", 30) or 30)
+            try:
+                model_response = await asyncio.wait_for(
+                    orchestrator.quick_search(request.query, emails),
+                    timeout=timeout_s,
+                )
+            except asyncio.TimeoutError:
+                raise HTTPException(
+                    504,
+                    f"Quick Search timed out after {timeout_s}s. Try narrowing your question or using filters.",
+                )
 
             return ChatResponse(
                 query=request.query,
@@ -960,9 +1273,18 @@ async def ai_evidence_query(
             )
 
         else:  # Deep research
-            plan, model_responses = await orchestrator.deep_research(
-                request.query, emails
-            )
+            function_cfg = get_function_config("deep_analysis", db)
+            timeout_s = int(function_cfg.get("max_duration_seconds", 60) or 60)
+            try:
+                plan, model_responses = await asyncio.wait_for(
+                    orchestrator.deep_research(request.query, emails),
+                    timeout=timeout_s,
+                )
+            except asyncio.TimeoutError:
+                raise HTTPException(
+                    504,
+                    f"Deep Research timed out after {timeout_s}s. Try narrowing your question or reducing scope.",
+                )
 
             # Synthesize
             synthesized = orchestrator.synthesize_evidence_analysis(
@@ -1013,8 +1335,19 @@ async def ai_evidence_query_enhanced(
 
         augmented_query, kb_sources = await _augment_query_with_kb(request.query)
 
+        context_limit = (
+            _AI_CONTEXT_MAX_EMAILS_QUICK
+            if request.mode == ResearchMode.QUICK
+            else _AI_CONTEXT_MAX_EMAILS_DEEP
+        )
         emails = await _get_relevant_emails(
-            db, user.id, request.project_id, request.case_id
+            db,
+            user.id,
+            request.project_id,
+            request.case_id,
+            query_text=request.query,
+            max_emails=context_limit,
+            include_full_text=(request.mode == ResearchMode.DEEP),
         )
         if not emails:
             raise HTTPException(404, "No evidence found. Upload PST files first.")
@@ -1031,7 +1364,18 @@ async def ai_evidence_query_enhanced(
         ]
 
         if request.mode == ResearchMode.QUICK:
-            model_response = await orchestrator.quick_search(augmented_query, emails)
+            function_cfg = get_function_config("quick_search", db)
+            timeout_s = int(function_cfg.get("max_duration_seconds", 30) or 30)
+            try:
+                model_response = await asyncio.wait_for(
+                    orchestrator.quick_search(augmented_query, emails),
+                    timeout=timeout_s,
+                )
+            except asyncio.TimeoutError:
+                raise HTTPException(
+                    504,
+                    f"Quick Search timed out after {timeout_s}s. Try narrowing your question or using filters.",
+                )
             return ChatResponse(
                 query=request.query,
                 mode="quick",
@@ -1048,9 +1392,18 @@ async def ai_evidence_query_enhanced(
                 timestamp=datetime.now(timezone.utc),
             )
 
-        plan, model_responses = await orchestrator.deep_research(
-            augmented_query, emails
-        )
+        function_cfg = get_function_config("deep_analysis", db)
+        timeout_s = int(function_cfg.get("max_duration_seconds", 60) or 60)
+        try:
+            plan, model_responses = await asyncio.wait_for(
+                orchestrator.deep_research(augmented_query, emails),
+                timeout=timeout_s,
+            )
+        except asyncio.TimeoutError:
+            raise HTTPException(
+                504,
+                f"Deep Research timed out after {timeout_s}s. Try narrowing your question or reducing scope.",
+            )
         synthesized = orchestrator.synthesize_evidence_analysis(
             model_responses, request.query
         )
@@ -1081,11 +1434,42 @@ async def ai_evidence_query_enhanced(
 
 
 async def _get_relevant_emails(
-    db: Session, user_id: str, project_id: str | None, case_id: str | None
+    db: Session,
+    user_id: str,
+    project_id: str | None,
+    case_id: str | None,
+    *,
+    query_text: str | None = None,
+    max_emails: int = _AI_CONTEXT_MAX_EMAILS_QUICK,
+    include_full_text: bool = False,
 ) -> list[EmailMessage]:
-    """Get relevant emails for analysis"""
+    """Get relevant emails for analysis.
+
+    IMPORTANT: this function must remain bounded. Large projects can contain
+    tens of thousands of emails; attempting to load them all can cause request
+    timeouts and upstream 502s.
+    """
     try:
-        query = db.query(EmailMessage)
+        # Load only the fields we need for prompting.
+        load_cols = [
+            EmailMessage.id,
+            EmailMessage.project_id,
+            EmailMessage.case_id,
+            EmailMessage.thread_id,
+            EmailMessage.thread_group_id,
+            EmailMessage.message_id,
+            EmailMessage.subject,
+            EmailMessage.date_sent,
+            EmailMessage.sender_name,
+            EmailMessage.sender_email,
+            EmailMessage.recipients_to,
+            EmailMessage.body_preview,
+            EmailMessage.meta,
+        ]
+        if include_full_text:
+            load_cols.append(EmailMessage.body_text)
+
+        query = db.query(EmailMessage).options(load_only(*load_cols))
 
         # Filter out hidden/spam-filtered emails
         query = query.filter(
@@ -1116,9 +1500,106 @@ async def _get_relevant_emails(
                     filters.append(EmailMessage.case_id.in_(case_ids))
                 query = query.filter(or_(*filters))
 
-        # Get all emails ordered by date (removed limit)
-        emails = query.order_by(EmailMessage.date_sent.asc()).all()
-        return emails
+        # Prefer scalable retrieval via OpenSearch when we have a query.
+        # This allows corpora of 100k+ emails while keeping prompts bounded.
+        if query_text and query_text.strip():
+            scan_size = min(_AI_OPENSEARCH_SCAN_CAP, max(max_emails * 20, 500))
+            os_candidates = _opensearch_email_candidates(
+                query_text=query_text,
+                project_id=project_id,
+                case_id=case_id,
+                size=scan_size,
+            )
+
+            os_ids: list[str] = [c.get("id") for c in os_candidates if c.get("id")]
+            os_snippets: dict[str, str] = {
+                str(c.get("id")): str(c.get("snippet") or "")
+                for c in os_candidates
+                if c.get("id")
+            }
+
+            if os_ids:
+                # Convert IDs to UUIDs and fetch from DB, filtering to the requested scope.
+                uuid_ids: list[uuid.UUID] = []
+                for s in os_ids:
+                    u = _safe_uuid(s)
+                    if u is not None:
+                        uuid_ids.append(u)
+
+                if uuid_ids:
+                    q2 = (
+                        db.query(EmailMessage)
+                        .options(load_only(*load_cols))
+                        .filter(EmailMessage.id.in_(uuid_ids))
+                    )
+                    if project_id:
+                        q2 = q2.filter(EmailMessage.project_id == project_id)
+                    if case_id:
+                        q2 = q2.filter(EmailMessage.case_id == case_id)
+
+                    rows = q2.all()
+                    if rows:
+                        by_id = {str(r.id): r for r in rows}
+                        ordered: list[EmailMessage] = []
+                        per_thread: dict[str, int] = {}
+                        for s in os_ids:
+                            r = by_id.get(s)
+                            if r is not None:
+                                # Simple diversity: avoid letting a single long thread dominate.
+                                tg = getattr(r, "thread_group_id", None) or ""
+                                if tg:
+                                    n = per_thread.get(tg, 0)
+                                    if n >= 4:
+                                        continue
+                                    per_thread[tg] = n + 1
+
+                                snippet = os_snippets.get(s) or ""
+                                if snippet:
+                                    setattr(r, "_ai_retrieval_snippet", snippet)
+                                ordered.append(r)
+                                if len(ordered) >= max_emails:
+                                    break
+                        if ordered:
+                            # Chronological order helps the downstream prompts.
+                            return sorted(
+                                ordered, key=lambda e: e.date_sent or datetime.min
+                            )
+
+        # Fallback: pull a bounded candidate pool (still not the full corpus), then score in Python.
+        candidate_pool = min(
+            max(_AI_CONTEXT_MAX_EMAILS_QUICK * 10, max_emails * 20),
+            _AI_DB_CANDIDATE_POOL_CAP,
+        )
+        candidates = (
+            query.order_by(EmailMessage.date_sent.desc().nullslast())
+            .limit(candidate_pool)
+            .all()
+        )
+
+        if not candidates:
+            return []
+
+        tokens = _tokenize_query_for_scoring(query_text or "")
+        if not tokens:
+            return sorted(
+                candidates[:max_emails], key=lambda e: e.date_sent or datetime.min
+            )
+
+        def _score_email(e: EmailMessage) -> int:
+            hay = f"{e.subject or ''} {getattr(e, 'body_preview', '') or ''}".lower()
+            return sum(1 for t in tokens if t in hay)
+
+        candidates_sorted = sorted(
+            candidates,
+            key=lambda e: (
+                _score_email(e),
+                e.date_sent or datetime.min.replace(tzinfo=timezone.utc),
+            ),
+            reverse=True,
+        )
+
+        selected = candidates_sorted[:max_emails]
+        return sorted(selected, key=lambda e: e.date_sent or datetime.min)
 
     except Exception as e:
         logger.error(f"Error getting emails: {e}")

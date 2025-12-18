@@ -36,12 +36,13 @@ class AISettings:
     # Default models for each provider
     # Use actual API model IDs, not display names
     DEFAULT_MODELS: dict[str, str] = {
-        "openai": "gpt-4o",
-        "anthropic": "claude-sonnet-4-20250514",  # Correct Anthropic Claude Sonnet 4 model ID
-        "gemini": "gemini-2.0-flash",
+        # Updated defaults (align with ai_models_2025 catalog)
+        "openai": "gpt-5.2-instant",
+        "anthropic": "claude-sonnet-4.5",
+        "gemini": "gemini-2.5-flash",
         "bedrock": "amazon.nova-pro-v1:0",  # Amazon Nova Pro (cost-effective)
         "xai": "grok-4.1-fast",
-        "perplexity": "sonar",
+        "perplexity": "sonar-pro",
     }
 
     # ==========================================================================
@@ -61,14 +62,14 @@ class AISettings:
             "description": "Basic AI chat for querying email evidence and documents",
             "category": "assistant",
             "provider": "gemini",
-            "model": "gemini-2.0-flash",
+            "model": "gemini-2.5-flash",
             "max_tokens": 4000,
             "temperature": 0.3,
             "max_duration_seconds": 60,
             "fallback_chain": [
                 ("bedrock", "amazon.nova-lite-v1:0"),
-                ("openai", "gpt-4o-mini"),
-                ("gemini", "gemini-2.0-flash"),
+                ("openai", "gpt-5.2-instant"),
+                ("gemini", "gemini-2.5-flash"),
             ],
             "features": {
                 "streaming": True,
@@ -86,19 +87,19 @@ class AISettings:
             "semantic search, timeline & delay analysis",
             "category": "flagship",
             "provider": "anthropic",
-            "model": "claude-sonnet-4-20250514",
+            "model": "claude-sonnet-4.5",
             "max_tokens": 8000,
             "temperature": 0.2,
             "max_duration_seconds": 600,
             "fallback_chain": [
-                ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
-                ("anthropic", "claude-sonnet-4-20250514"),
-                ("openai", "gpt-4o"),
+                ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
+                ("anthropic", "claude-sonnet-4.5"),
+                ("openai", "gpt-5.2-thinking"),
             ],
             "agents": {
                 "planner": {
                     "provider": "anthropic",
-                    "model": "claude-sonnet-4-20250514",
+                    "model": "claude-sonnet-4.5",
                     "description": "Creates DAG research strategy",
                 },
                 "searcher": {
@@ -108,17 +109,17 @@ class AISettings:
                 },
                 "researcher": {
                     "provider": "openai",
-                    "model": "gpt-4o",
+                    "model": "gpt-5.2-thinking",
                     "description": "Deep evidence investigation",
                 },
                 "synthesizer": {
                     "provider": "openai",
-                    "model": "gpt-4o",
+                    "model": "gpt-5.2-instant",
                     "description": "Report synthesis and thematic analysis",
                 },
                 "validator": {
                     "provider": "anthropic",
-                    "model": "claude-sonnet-4-20250514",
+                    "model": "claude-sonnet-4.5",
                     "description": "Quality assurance and hallucination detection",
                 },
             },
@@ -140,25 +141,25 @@ class AISettings:
             "description": "Multi-agent investigation with DAG planning (original name for VeriCase)",
             "category": "research",
             "provider": "anthropic",
-            "model": "claude-sonnet-4-20250514",
+            "model": "claude-sonnet-4.5",
             "max_tokens": 8000,
             "temperature": 0.2,
             "max_duration_seconds": 600,
             "fallback_chain": [
-                ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
-                ("anthropic", "claude-sonnet-4-20250514"),
-                ("openai", "gpt-4o"),
+                ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
+                ("anthropic", "claude-sonnet-4.5"),
+                ("openai", "gpt-5.2-thinking"),
             ],
             "agents": {
                 "planner": {
                     "provider": "anthropic",
-                    "model": "claude-sonnet-4-20250514",
+                    "model": "claude-sonnet-4.5",
                 },
-                "researcher": {"provider": "openai", "model": "gpt-4o"},
-                "synthesizer": {"provider": "openai", "model": "gpt-4o"},
+                "researcher": {"provider": "openai", "model": "gpt-5.2-thinking"},
+                "synthesizer": {"provider": "openai", "model": "gpt-5.2-instant"},
                 "validator": {
                     "provider": "anthropic",
-                    "model": "claude-sonnet-4-20250514",
+                    "model": "claude-sonnet-4.5",
                 },
             },
             "features": {
@@ -176,15 +177,15 @@ class AISettings:
             "description": "Multi-stage evidence refinement with intelligent questioning",
             "category": "refinement",
             "provider": "anthropic",
-            "model": "claude-sonnet-4-20250514",
+            "model": "claude-sonnet-4.5",
             "max_tokens": 4000,
             "temperature": 0.2,
             "max_duration_seconds": 300,
             "fallback_chain": [
-                ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
-                ("anthropic", "claude-sonnet-4-20250514"),
-                ("openai", "gpt-4o"),
-                ("gemini", "gemini-2.0-flash"),
+                ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
+                ("anthropic", "claude-sonnet-4.5"),
+                ("openai", "gpt-5.2-instant"),
+                ("gemini", "gemini-2.5-flash-lite"),
             ],
             "stages": [
                 "initial_analysis",
@@ -211,14 +212,14 @@ class AISettings:
             "description": "AI-powered timeline generation from emails and documents",
             "category": "timeline",
             "provider": "openai",
-            "model": "gpt-4o",
+            "model": "gpt-5.2-thinking",
             "max_tokens": 8000,
             "temperature": 0.1,
             "max_duration_seconds": 300,
             "fallback_chain": [
                 ("bedrock", "amazon.nova-pro-v1:0"),
-                ("openai", "gpt-4o"),
-                ("anthropic", "claude-sonnet-4-20250514"),
+                ("openai", "gpt-5.2-thinking"),
+                ("anthropic", "claude-sonnet-4.5"),
             ],
             "features": {
                 "event_extraction": True,
@@ -236,29 +237,29 @@ class AISettings:
             "description": "AI-powered delay causation and entitlement analysis",
             "category": "analysis",
             "provider": "anthropic",
-            "model": "claude-sonnet-4-20250514",
+            "model": "claude-sonnet-4.5",
             "max_tokens": 8000,
             "temperature": 0.1,
             "max_duration_seconds": 300,
             "fallback_chain": [
-                ("anthropic", "claude-sonnet-4-20250514"),
-                ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
-                ("openai", "gpt-4o"),
+                ("anthropic", "claude-sonnet-4.5"),
+                ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
+                ("openai", "gpt-5.2-thinking"),
             ],
             "agents": {
                 "causation_analyzer": {
                     "provider": "anthropic",
-                    "model": "claude-sonnet-4-20250514",
+                    "model": "claude-sonnet-4.5",
                     "description": "Cause-effect reasoning for delays",
                 },
                 "impact_quantifier": {
                     "provider": "openai",
-                    "model": "gpt-4o",
+                    "model": "gpt-5.2-thinking",
                     "description": "Numerical impact calculations",
                 },
                 "narrative_generator": {
                     "provider": "anthropic",
-                    "model": "claude-sonnet-4-20250514",
+                    "model": "claude-sonnet-4.5",
                     "description": "Claims narrative generation",
                 },
             },
@@ -278,14 +279,14 @@ class AISettings:
             "description": "Search emails using natural language queries",
             "category": "search",
             "provider": "gemini",
-            "model": "gemini-2.0-flash",
+            "model": "gemini-2.5-flash-lite",
             "max_tokens": 2000,
             "temperature": 0.1,
             "max_duration_seconds": 30,
             "fallback_chain": [
                 ("bedrock", "amazon.nova-micro-v1:0"),
-                ("gemini", "gemini-2.0-flash"),
-                ("openai", "gpt-4o-mini"),
+                ("gemini", "gemini-2.5-flash-lite"),
+                ("openai", "gpt-5-mini"),
             ],
             "features": {
                 "query_expansion": True,
@@ -302,14 +303,14 @@ class AISettings:
             "description": "Automatic document and email categorization",
             "category": "classification",
             "provider": "gemini",
-            "model": "gemini-2.0-flash",
+            "model": "gemini-2.5-flash-lite",
             "max_tokens": 1000,
             "temperature": 0.0,
             "max_duration_seconds": 30,
             "fallback_chain": [
                 ("bedrock", "amazon.nova-micro-v1:0"),
-                ("gemini", "gemini-2.0-flash"),
-                ("openai", "gpt-4o-mini"),
+                ("gemini", "gemini-2.5-flash-lite"),
+                ("openai", "gpt-5-mini"),
             ],
             "features": {
                 "category_prediction": True,
@@ -326,13 +327,13 @@ class AISettings:
             "description": "AI-powered analysis of email dataset patterns",
             "category": "analysis",
             "provider": "openai",
-            "model": "gpt-4o",
+            "model": "gpt-5.2-thinking",
             "max_tokens": 4000,
             "temperature": 0.2,
             "max_duration_seconds": 120,
             "fallback_chain": [
-                ("openai", "gpt-4o"),
-                ("anthropic", "claude-sonnet-4-20250514"),
+                ("openai", "gpt-5.2-thinking"),
+                ("anthropic", "claude-sonnet-4.5"),
                 ("bedrock", "amazon.nova-pro-v1:0"),
             ],
             "features": {
@@ -351,14 +352,14 @@ class AISettings:
             "description": "Quick AI summaries of evidence items",
             "category": "summary",
             "provider": "gemini",
-            "model": "gemini-2.0-flash",
+            "model": "gemini-2.5-flash-lite",
             "max_tokens": 2000,
             "temperature": 0.1,
             "max_duration_seconds": 60,
             "fallback_chain": [
                 ("bedrock", "amazon.nova-lite-v1:0"),
-                ("gemini", "gemini-2.0-flash"),
-                ("openai", "gpt-4o-mini"),
+                ("gemini", "gemini-2.5-flash-lite"),
+                ("openai", "gpt-5-mini"),
             ],
             "features": {
                 "key_points": True,
@@ -375,14 +376,14 @@ class AISettings:
             "description": "Execute tasks across multiple AI models with voting/consensus",
             "category": "orchestration",
             "provider": "anthropic",
-            "model": "claude-sonnet-4-20250514",
+            "model": "claude-sonnet-4.5",
             "max_tokens": 4000,
             "temperature": 0.2,
             "max_duration_seconds": 300,
             "models": [
-                ("anthropic", "claude-sonnet-4-20250514"),
-                ("openai", "gpt-4o"),
-                ("gemini", "gemini-2.0-flash"),
+                ("anthropic", "claude-sonnet-4.5"),
+                ("openai", "gpt-5.2-instant"),
+                ("gemini", "gemini-2.5-flash"),
             ],
             "selection_methods": [
                 "first_success",
@@ -403,18 +404,19 @@ class AISettings:
     DEFAULT_FUNCTION_CONFIGS: dict[str, dict[str, Any]] = {
         "quick_search": {
             "provider": "gemini",
-            "model": "gemini-2.0-flash",
+            "model": "gemini-2.5-flash-lite",
             "thinking_enabled": False,
             "max_duration_seconds": 30,
             "fallback_chain": [
                 ("bedrock", "amazon.nova-micro-v1:0"),
                 ("bedrock", "amazon.nova-lite-v1:0"),
-                ("gemini", "gemini-2.0-flash"),
+                ("gemini", "gemini-2.5-flash-lite"),
+                ("openai", "gpt-5-mini"),
             ],
         },
         "deep_analysis": {
             "provider": "anthropic",
-            "model": "claude-sonnet-4-20250514",
+            "model": "claude-sonnet-4.5",
             "thinking_enabled": True,
             "thinking_budget_tokens": 5000,
             "max_duration_seconds": 300,
@@ -424,40 +426,40 @@ class AISettings:
                 "models": [],
             },
             "fallback_chain": [
-                ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
-                ("anthropic", "claude-sonnet-4-20250514"),
-                ("openai", "gpt-4o"),
+                ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
+                ("anthropic", "claude-sonnet-4.5"),
+                ("openai", "gpt-5.2-thinking"),
             ],
         },
         "synthesis": {
             "provider": "openai",
-            "model": "gpt-4o",
+            "model": "gpt-5.2-instant",
             "max_duration_seconds": 180,
             "fallback_chain": [
-                ("openai", "gpt-4o"),
-                ("anthropic", "claude-sonnet-4-20250514"),
+                ("openai", "gpt-5.2-instant"),
+                ("anthropic", "claude-sonnet-4.5"),
                 ("bedrock", "amazon.nova-pro-v1:0"),
             ],
         },
         "validation": {
             "provider": "anthropic",
-            "model": "claude-sonnet-4-20250514",
+            "model": "claude-sonnet-4.5",
             "max_duration_seconds": 120,
             "fallback_chain": [
-                ("anthropic", "claude-sonnet-4-20250514"),
-                ("gemini", "gemini-2.0-flash"),
-                ("openai", "gpt-4o"),
+                ("anthropic", "claude-sonnet-4.5"),
+                ("gemini", "gemini-2.5-flash-lite"),
+                ("openai", "gpt-5.2-instant"),
             ],
         },
         "causation_analysis": {
             "provider": "anthropic",
-            "model": "claude-sonnet-4-20250514",
+            "model": "claude-sonnet-4.5",
             "max_duration_seconds": 180,
             "description": "Delay causation analysis - Claude excels at analytical reasoning",
             "fallback_chain": [
-                ("anthropic", "claude-sonnet-4-20250514"),
-                ("bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
-                ("openai", "gpt-4o"),
+                ("anthropic", "claude-sonnet-4.5"),
+                ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
+                ("openai", "gpt-5.2-thinking"),
             ],
         },
         "timeline": {
@@ -467,8 +469,8 @@ class AISettings:
             "description": "Timeline generation - cost-effective for structured output",
             "fallback_chain": [
                 ("bedrock", "amazon.nova-lite-v1:0"),
-                ("openai", "gpt-4o"),
-                ("gemini", "gemini-2.0-flash"),
+                ("openai", "gpt-5.2-instant"),
+                ("gemini", "gemini-2.5-flash"),
             ],
         },
         "reranking": {
@@ -478,7 +480,7 @@ class AISettings:
             "description": "Fast reranking for search results",
             "fallback_chain": [
                 ("bedrock", "amazon.nova-micro-v1:0"),
-                ("gemini", "gemini-2.0-flash"),
+                ("gemini", "gemini-2.5-flash-lite"),
             ],
         },
     }
@@ -487,22 +489,22 @@ class AISettings:
     DEFAULT_AGENT_CONFIGS: dict[str, dict[str, Any]] = {
         "planner": {
             "primary_provider": "anthropic",
-            "primary_model": "claude-sonnet-4-20250514",
+            "primary_model": "claude-sonnet-4.5",
             "description": "Research planning - Claude for long-context planning",
         },
         "researcher": {
             "primary_provider": "openai",
-            "primary_model": "gpt-4o",
+            "primary_model": "gpt-5.2-thinking",
             "description": "Evidence investigation - GPT-4 for comprehension",
         },
         "synthesizer": {
             "primary_provider": "openai",
-            "primary_model": "gpt-4o",
+            "primary_model": "gpt-5.2-instant",
             "description": "Report synthesis - GPT-4 for coherent writing",
         },
         "validator": {
             "primary_provider": "anthropic",
-            "primary_model": "claude-sonnet-4-20250514",
+            "primary_model": "claude-sonnet-4.5",
             "description": "Validation - Claude for analytical checking",
         },
         "reranker": {
@@ -518,6 +520,9 @@ class AISettings:
         "claude-4.5-opus": "anthropic.claude-4.5-opus-v1:0",
         "claude-4.5-sonnet": "anthropic.claude-4.5-sonnet-v1:0",
         "claude-4.5-haiku": "anthropic.claude-haiku-4-5-20251001-v1:0",
+        # Common direct Anthropic IDs used in configuration/UI
+        "claude-opus-4.5": "anthropic.claude-opus-4-5-20251101-v1:0",
+        "claude-sonnet-4.5": "anthropic.claude-sonnet-4-5-20250929-v1:0",
         # Claude 4.1 series
         "claude-4.1-opus": "anthropic.claude-4.1-opus-v1:0",
         "claude-4.1-sonnet": "anthropic.claude-4.1-sonnet-v1:0",
@@ -607,6 +612,9 @@ class AISettings:
             import os
 
             env_value = os.getenv(env_var)
+            # Backward/forward compatibility for Anthropic key naming.
+            if env_value is None and key == "anthropic_api_key":
+                env_value = os.getenv("ANTHROPIC_API_KEY")
             if env_value is not None:
                 return env_value
 

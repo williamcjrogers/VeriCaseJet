@@ -23,6 +23,25 @@
         "-y",
         "@modelcontextprotocol/server-puppeteer"
       ]
+    },
+    "memory": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ]
+    },
+    "aws-kb-retrieval-server": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-aws-kb-retrieval"
+      ],
+      "env": {
+        "AWS_ACCESS_KEY_ID": "AKIAXU6HVWBTKU4CVBUA",
+        "AWS_SECRET_ACCESS_KEY": "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",
+        "AWS_REGION": "eu-west-2"
+      }
     }
   }
 }

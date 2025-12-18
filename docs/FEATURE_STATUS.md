@@ -134,10 +134,10 @@ GET /api/dashboard/s3             - S3 storage metrics
 GET /api/dashboard/costs/estimate - Cost breakdown
 ```
 
-### 2. Smart Document Processor (Keep)
+### 2. Smart Document Processor ⚠️ REDUNDANT
 **Location:** `vericase/api/app/smart_document_processor.py`
 
-**Status:** Retained. It may overlap with `enhanced_evidence_processor.py`, but it should not be removed.
+**Status:** Can be deleted - you already have `enhanced_evidence_processor.py` which does the same thing!
 
 ---
 
@@ -196,8 +196,9 @@ app.include_router(production_dashboard_router)
 
 3. Access at: `/api/dashboard/system-health`
 
-### Option 3: Keep as Optional Module
-Keep `vericase/api/app/smart_document_processor.py` available for Smart Document Processing workflows. If you later decide to deprecate it, do that via routing/configuration and documentation first (not deletion).
+### Option 3: Delete Redundant Code
+**Delete:** `vericase/api/app/smart_document_processor.py` 
+**Reason:** You already have `enhanced_evidence_processor.py` which does the same thing
 
 ---
 
@@ -264,7 +265,7 @@ result = await aws.query_knowledge_base(
 ## 💡 Recommendations
 
 ### Short Term (This Week)
-1. ✅ **KEEP** `smart_document_processor.py` (do not delete)
+1. ✅ **DELETE** `smart_document_processor.py` (redundant)
 2. ✅ **ADD** Production Dashboard router to main.py
 3. ✅ **TEST** existing Textract/Comprehend features
 4. ✅ **DOCUMENT** what's already available for your team
@@ -308,7 +309,7 @@ Your existing docs should highlight:
 - 🆕 Cost tracking endpoints
 
 **Action Items:**
-1. Keep `smart_document_processor.py`
+1. Delete `smart_document_processor.py`
 2. Add Production Dashboard to main.py
 3. Test your existing AWS features
 4. Create UI for dashboard (HTML provided)
