@@ -34,6 +34,7 @@ from .models import User, Case
 from .db import get_db
 from .security import current_user
 from .ai_router import AdaptiveModelRouter, RoutingStrategy
+from .deep_research import SearcherAgent
 
 logger = logging.getLogger(__name__)
 
@@ -158,8 +159,6 @@ _delay_sessions: dict[str, DelayAnalysisSession] = {}
 
 
 # =============================================================================
-# Request/Response Models
-# =============================================================================
 
 
 class StartDelayAnalysisRequest(BaseModel):
@@ -203,8 +202,6 @@ class DelayAnalysisResponse(BaseModel):
 
 
 # =============================================================================
-# Delay Analysis Agents
-# =============================================================================
 
 
 class CausationAnalyzer:
@@ -245,10 +242,10 @@ EVIDENCE CONTEXT:
 {evidence_context[:5000]}
 
 Trace the causation chain and output as JSON:
-{{
+{
     "root_cause": "the triggering event or condition",
     "causation_chain": [
-        {{
+        {
             "cause": "event or action",
             "effect": "resulting event or condition",
             "relationship": "caused|contributed|led_to",
@@ -441,8 +438,6 @@ Write approximately 1000-1500 words."""
 
 
 # =============================================================================
-# Delay Analysis Orchestrator
-# =============================================================================
 
 
 class DelayAnalysisOrchestrator:
@@ -540,6 +535,36 @@ class DelayAnalysisOrchestrator:
             delay_days=event_data.get("delay_days", 0),
         )
 
+        # Auto-retrieve evidence if context is missing or sparse
+        if not evidence_context or len(evidence_context) < 100:
+            try:
+                searcher = SearcherAgent(self.db)
+                query = f"delay event: {analysis.description}"
+                if event_data.get("event_date"):
+                    query += f" around {event_data['event_date']}"
+
+                results = await searcher.search_and_retrieve(
+                    query=query,
+                    evidence_items=[],  # No initial items, search everything
+                    top_k=10,
+                    case_id=self.session.case_id,
+                )
+
+                if results:
+                    evidence_context = "\n\n".join(
+                        [
+                            f"Source: {r.get('filename', 'Unknown')}\nContent: {r.get('content', '')[:500]}"
+                            for r in results
+                        ]
+                    )
+                    # Track evidence IDs
+                    analysis.supporting_evidence = [
+                        str(r.get("id")) for r in results if r.get("id")
+                    ]
+
+            except Exception as e:
+                logger.warning(f"Auto-evidence retrieval failed: {e}")
+
         # Parse dates
         if event_data.get("event_date"):
             try:
@@ -626,7 +651,9 @@ class DelayAnalysisOrchestrator:
         """Identify and analyze concurrent delays."""
         # Sort by date
         dated_events = [a for a in self.session.delay_events_analyzed if a.event_date]
-        dated_events.sort(key=lambda a: a.event_date)
+        dated_events.sort(
+            key=lambda a: a.event_date or datetime.min.replace(tzinfo=timezone.utc)
+        )
 
         # Find overlapping delays
         concurrent_count = 0
@@ -708,8 +735,6 @@ Output as JSON:
             self.session.executive_summary = response[:500]
 
 
-# =============================================================================
-# API Endpoints
 # =============================================================================
 
 
