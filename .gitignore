@@ -65,6 +65,9 @@ cline_mcp_settings.json
 .mcp/
 mcp-config.json
 
+# Local kubeconfigs (generated)
+.kubeconfig-vericase
+
 # OS
 .DS_Store
 Thumbs.db

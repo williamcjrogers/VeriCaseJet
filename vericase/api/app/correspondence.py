@@ -25,7 +25,7 @@ from fastapi import (
 )
 from pydantic import BaseModel, field_validator
 from pydantic.fields import Field
-from sqlalchemy import String, and_, cast, func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -900,6 +900,35 @@ async def list_pst_files(
 # ========================================
 
 
+def build_correspondence_visibility_filter():
+    """Return a SQLAlchemy filter for *visible* correspondence emails.
+
+    Visibility rules:
+    - spam.user_override == 'visible'  -> always show
+    - spam.user_override == 'hidden'   -> always hide
+    - otherwise:
+        - meta.status is NULL or 'active'
+        - meta.is_hidden is NULL or != 'true'
+
+    Notes:
+    - EmailMessage.meta is Postgres JSON (not JSONB) in production.
+      Use ->/->> operators (via .as_string() / .op) rather than JSONB-only operators.
+    """
+
+    status_field = EmailMessage.meta["status"].as_string()
+    hidden_field = EmailMessage.meta["is_hidden"].as_string()
+    override_field = EmailMessage.meta.op("->")("spam").op("->>")("user_override")
+
+    return or_(
+        override_field == "visible",
+        and_(
+            or_(override_field.is_(None), override_field != "hidden"),
+            or_(status_field.is_(None), status_field == "active"),
+            or_(hidden_field.is_(None), hidden_field != "true"),
+        ),
+    )
+
+
 @router.get("/emails/count")
 async def get_email_count(
     case_id: Annotated[str | None, Query(description="Case ID")] = None,
@@ -924,14 +953,7 @@ async def get_email_count(
 
     # Filter out excluded emails unless explicitly requested - only count non-tagged emails
     if not include_excluded:
-        status_field = cast(EmailMessage.meta["status"], String)
-        query = query.filter(
-            or_(
-                EmailMessage.meta.is_(None),
-                status_field.is_(None),
-                status_field == "active",
-            )
-        )
+        query = query.filter(build_correspondence_visibility_filter())
 
     count = query.scalar() or 0
 
@@ -950,7 +972,7 @@ async def get_excluded_emails(
     View emails that have been tagged/excluded (spam, other projects, etc.)
     """
     # Filter for emails with status tag in metadata (not active)
-    status_field = cast(EmailMessage.meta["status"], String)
+    status_field = EmailMessage.meta["status"].as_string()
     query = db.query(EmailMessage).filter(
         status_field.is_not(None),
         status_field != "active",
@@ -1160,20 +1182,15 @@ async def list_emails(
         query = query.filter(EmailMessage.date_sent <= date_to)
 
     # Filter by status tag in metadata
-    status_field = cast(EmailMessage.meta["status"], String)
+    # Use ->> semantics (text) for JSON fields; casting JSON (->) yields quoted strings.
+    status_field = EmailMessage.meta["status"].as_string()
 
     if status_filter:
         # Show only emails with specific status tag
         query = query.filter(status_field == status_filter)
     elif not include_hidden:
-        # By default, exclude emails tagged as spam/other_project/etc in metadata
-        query = query.filter(
-            or_(
-                EmailMessage.meta.is_(None),
-                status_field.is_(None),
-                status_field == "active",
-            )
-        )
+        # By default, exclude emails tagged/hidden by spam/other-project detection
+        query = query.filter(build_correspondence_visibility_filter())
         # Also exclude Outlook activity items (IPM.Activity) which are not real emails
         query = query.filter(
             or_(
@@ -1617,6 +1634,10 @@ async def get_emails_server_side(
     request: ServerSideRequest,
     project_id: Annotated[str | None, Query(description="Project ID")] = None,
     case_id: Annotated[str | None, Query(description="Case ID")] = None,
+    include_hidden: Annotated[
+        bool,
+        Query(description="Include ALL emails including hidden/spam/other-project"),
+    ] = False,
     db: Session = Depends(get_db),
 ) -> ServerSideResponse:
     """
@@ -1655,8 +1676,18 @@ async def get_emails_server_side(
     else:
         query = db.query(EmailMessage)
 
-    # Note: Removed status_field filter that was causing issues with JSONB NULL handling
-    # Hidden emails can be filtered via is_hidden in meta if needed via AG Grid filters
+    # By default, hide excluded/spam/other-project emails from the correspondence grid.
+    # This endpoint is used by the Correspondence Enterprise UI.
+    if not include_hidden:
+        query = query.filter(build_correspondence_visibility_filter())
+
+        # Also exclude Outlook activity items (IPM.*) which are not real emails
+        query = query.filter(
+            or_(
+                EmailMessage.subject.is_(None),
+                ~EmailMessage.subject.like("IPM.%"),
+            )
+        )
 
     # Apply AG Grid filters
     for col_id, filter_data in request.filterModel.items():
