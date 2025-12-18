@@ -89,13 +89,13 @@
         {
           id: "dashboard",
           label: "Project Dashboard",
-          icon: "fa-th-large",
-          url: "dashboard.html",
+          icon: "fa-gauge-high",
+          url: "projectdashboard.html",
         },
         {
           id: "evidence",
-          label: "Evidence Repository",
-          icon: "fa-folder-open",
+          label: "Evidence & Files",
+          icon: "fa-folder-tree",
           url: "evidence.html",
         },
         {
@@ -195,7 +195,7 @@
   function getCurrentPage() {
     return (
       window.location.pathname.split("/").pop().toLowerCase() ||
-      "dashboard.html"
+      "projectdashboard.html"
     );
   }
 
@@ -264,7 +264,7 @@
         const isActive = currentPage.includes(item.url.replace(".html", ""));
         const itemDisabled = needsProject && !hasProject ? "disabled" : "";
         navHtml += `
-                    <a href="${buildNavUrl(item.url)}" class="nav-item ${
+                    <a href="${buildNavUrl(item.url)}" data-base-url="${item.url}" class="nav-item ${
           isActive ? "active" : ""
         } ${itemDisabled}" data-nav="${item.id}">
                         <i class="fas ${item.icon}"></i>
@@ -589,6 +589,45 @@
   }
 
   // ==========================================
+  // Live Project Context Sync (for pages that switch projects without reload)
+  // ==========================================
+
+  function refreshNavUrls() {
+    try {
+      document.querySelectorAll("a.nav-item[data-base-url]").forEach((a) => {
+        const base = a.getAttribute("data-base-url");
+        if (!base) return;
+        a.setAttribute("href", buildNavUrl(base));
+      });
+    } catch (e) {
+      // Best-effort; never crash UI
+    }
+  }
+
+  function setProjectContext({ projectId, projectName } = {}) {
+    try {
+      if (projectId && String(projectId).trim()) {
+        localStorage.setItem("vericase_current_project", String(projectId));
+        localStorage.setItem("currentProjectId", String(projectId));
+      }
+
+      if (projectName && String(projectName).trim()) {
+        const name = String(projectName).trim();
+        localStorage.setItem("currentProjectName", name);
+        localStorage.setItem("vericase_current_project_name", name);
+
+        const el = document.getElementById("currentProjectName");
+        if (el) el.textContent = name;
+      }
+
+      // Ensure sidebar URLs match the *current* project context.
+      refreshNavUrls();
+    } catch {
+      // ignore
+    }
+  }
+
+  // ==========================================
   // Project Selector Modal
   // ==========================================
   let projectSelectorOptions = {};
@@ -752,5 +791,7 @@
     closeProjectSelector,
     confirmProjectSelection,
     renderBreadcrumbs,
+    refreshNavUrls,
+    setProjectContext,
   };
 })();
