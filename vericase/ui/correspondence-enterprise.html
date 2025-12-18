@@ -1540,47 +1540,65 @@
       <!-- Search -->
       <div class="search-box">
         <i class="fas fa-search"></i>
-        <input type="text" id="quickFilter" placeholder="Quick search emails, people, keywords... (Ctrl+K)" onkeyup="onQuickFilterChanged()" />
+        <label for="quickFilter"></label><input type="text" id="quickFilter" placeholder="Search emails... (Ctrl+K)"
+          onkeyup="onQuickFilterChanged()" />
       </div>
 
-      <!-- Simple status toggle -->
-      <div class="type-chip active" id="statusToggle" onclick="toggleExcludedEmails()" title="Toggle excluded/spam emails">
-        <i class="fas fa-eye"></i> Active
-        <span id="statusCount"></span>
+      <!-- Essential Filters -->
+      <div class="toolbar-dropdown" id="filterDropdown">
+        <button class="btn" onclick="toggleFilterDropdown()" title="Filter">
+          <i class="fas fa-filter"></i> Filter
+        </button>
+        <div class="dropdown-menu" id="filterDropdownMenu">
+          <button class="dropdown-item" onclick="showStakeholderFilter(); closeAllDropdowns()">
+            <i class="fas fa-users"></i> By Stakeholder
+          </button>
+          <button class="dropdown-item" onclick="showKeywordFilter(); closeAllDropdowns()">
+            <i class="fas fa-tags"></i> By Keyword
+          </button>
+          <div class="dropdown-divider"></div>
+          <button class="dropdown-item" onclick="toggleExcludedEmails(); closeAllDropdowns()" id="dropdownExcludedBtn">
+            <i class="fas fa-eye-slash" id="dropdownExcludedIcon"></i>
+            <span id="dropdownExcludedLabel">Show Excluded</span>
+          </button>
+        </div>
       </div>
     </div>
 
     <div class="toolbar-right">
-      <!-- View Mode - Simplified to List/Grid -->
+      <!-- View Mode -->
       <div class="btn-group view-toggle-group">
-        <button class="btn active" onclick="setViewMode('list')" data-view="list" title="List View">
-          <i class="fas fa-list"></i>
+        <button class="btn active" onclick="setViewMode('all')" data-view="all" title="All">
+          <i class="fas fa-inbox"></i>
         </button>
-        <button class="btn" onclick="setViewMode('compact')" data-view="compact" title="Compact">
-          <i class="fas fa-th-list"></i>
+        <button class="btn" onclick="setViewMode('threads')" data-view="threads" title="Threads">
+          <i class="fas fa-comments"></i>
+        </button>
+        <button class="btn" onclick="setViewMode('attachments')" data-view="attachments" title="Files">
+          <i class="fas fa-paperclip"></i>
         </button>
       </div>
 
-      <!-- AI Quick Actions -->
-      <button class="btn toolbar-ai-btn" onclick="aiQuickSearch()" title="AI Quick Analysis">
-        <i class="fas fa-bolt"></i> AI
-      </button>
-
-      <!-- Actions - Simplified -->
-      <div class="toolbar-dropdown" id="actionsDropdown">
-        <button class="btn" onclick="toggleActionsDropdown()" title="Actions">
+      <!-- Actions -->
+      <div class="toolbar-dropdown" id="moreActionsDropdown">
+        <button class="btn btn-icon" onclick="toggleMoreActionsDropdown()" title="Actions">
           <i class="fas fa-ellipsis-v"></i>
         </button>
-        <div class="dropdown-menu dropdown-menu-right" id="actionsMenu">
-          <button class="dropdown-item" onclick="exportSelected(); closeAllDropdowns()">
-            <i class="fas fa-download"></i> Export Selected
-          </button>
-          <button class="dropdown-item" onclick="bulkTagSelected(); closeAllDropdowns()">
-            <i class="fas fa-tag"></i> Bulk Tag
+        <div class="dropdown-menu dropdown-menu-right" id="moreActionsMenu">
+          <button class="dropdown-item" onclick="openProgrammeModal(); closeAllDropdowns()">
+            <i class="fas fa-project-diagram"></i> Manage Programmes
           </button>
           <div class="dropdown-divider"></div>
-          <button class="dropdown-item" onclick="resetGrid(); closeAllDropdowns()">
-            <i class="fas fa-sync-alt"></i> Reset View
+          <button class="dropdown-item" onclick="saveGridConfiguration(); closeAllDropdowns()">
+            <i class="fas fa-save"></i> Save Layout
+          </button>
+          <button class="dropdown-item" onclick="resetGridConfiguration(); closeAllDropdowns()">
+            <i class="fas fa-undo"></i> Reset Layout
+          </button>
+          <div class="dropdown-divider"></div>
+          <button class="dropdown-item" onclick="toggleCommandPalette(); closeAllDropdowns()">
+            <i class="fas fa-terminal"></i> Command Palette
+            <kbd>Ctrl+K</kbd>
           </button>
         </div>
       </div>
@@ -1772,57 +1790,115 @@
       </div>
     </div>
 
-    <!-- Context Panel - Essential Actions Only -->
+    <!-- Context Panel - Simplified Actions Only -->
     <div class="context-panel" id="contextPanel">
       <div class="context-panel-header">
-        <h3><i class="fas fa-bolt"></i> Actions</h3>
-        <button class="context-toggle-btn" onclick="toggleContextPanel()" title="Toggle panel">
+        <h3>
+          <i class="fas fa-bolt"></i>
+          <span class="context-toggle-label">Quick Actions</span>
+        </h3>
+        <button class="context-toggle-btn" onclick="toggleContextPanel()" title="Toggle">
           <i class="fas fa-chevron-right" id="contextToggleIcon"></i>
         </button>
       </div>
       <div class="context-panel-content">
-        <!-- Selection Summary -->
-        <div class="context-section">
-          <div class="context-section-header">
-            <span><i class="fas fa-check-square"></i> Selection</span>
-            <span class="selected-count-badge" id="contextSelectedCount">0</span>
+        <!-- Selection Info -->
+        <div class="context-section" id="selectionSection">
+          <div class="context-section-header" onclick="toggleContextSection('selection')">
+            <span><i class="fas fa-check-square"></i> Selected
+              <span class="selected-count-badge" id="contextSelectedCount">0</span></span>
+            <i class="fas fa-chevron-down"></i>
           </div>
-          <div class="context-section-body">
-            <div id="selectedPreview" class="selected-preview">
-              <div style="font-size: 0.875rem; opacity: 0.7;">Click emails to select</div>
+          <div class="context-section-body" id="selectionBody">
+            <div id="selectedEmailsPreview">
+              <div class="context-empty-state">
+                <i class="fas fa-mouse-pointer"></i>
+                <p>Select emails for actions</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Quick Actions -->
-        <div class="context-section">
-          <div class="context-section-header">
-            <span><i class="fas fa-magic"></i> Quick Actions</span>
+        <!-- Quick Link Section -->
+        <div class="context-section" id="quickLinkSection">
+          <div class="context-section-header" onclick="toggleContextSection('quickLink')">
+            <span><i class="fas fa-link"></i> Link to Case</span>
+            <i class="fas fa-chevron-down"></i>
           </div>
-          <div class="context-section-body" style="padding: 1rem;">
-            <button class="btn" onclick="aiQuickSearch()" style="width: 100%; margin-bottom: 0.5rem;">
-              <i class="fas fa-bolt"></i> AI Analyze Selection
-            </button>
-            <button class="btn" onclick="exportSelected()" style="width: 100%; margin-bottom: 0.5rem;">
-              <i class="fas fa-download"></i> Export Selected
-            </button>
-            <button class="btn" onclick="bulkTagSelected()" style="width: 100%;">
-              <i class="fas fa-tags"></i> Bulk Tag
+          <div class="context-section-body" id="quickLinkBody">
+            <label for="linkTypeSelect"></label><select class="quick-link-dropdown" id="linkTypeSelect"
+              onchange="onLinkTypeChange()">
+              <option value="">Select type...</option>
+              <option value="matter">Contentious Matter</option>
+              <option value="claim">Head of Claim</option>
+            </select>
+            <label for="linkTargetSelect"></label><select class="quick-link-dropdown" id="linkTargetSelect"
+              style="display: none">
+              <option value="">Select target...</option>
+            </select>
+            <button class="link-btn" id="linkSelectedBtn" onclick="linkSelectedEmails()" disabled>
+              <i class="fas fa-link"></i> Link Emails
             </button>
           </div>
         </div>
 
-        <!-- Filters -->
-        <div class="context-section">
-          <div class="context-section-header">
-            <span><i class="fas fa-filter"></i> Filters</span>
+        <!-- AI Suggestions & Insights -->
+        <div class="context-section" id="aiSuggestionsSection">
+          <div class="context-section-header" onclick="toggleContextSection('aiSuggestions')">
+            <span><i class="fas fa-robot"></i> AI Insights</span>
+            <i class="fas fa-chevron-down"></i>
           </div>
-          <div class="context-section-body" style="padding: 1rem;">
-            <div class="type-chip" onclick="showStakeholderFilter()" style="margin-bottom: 0.5rem;">
-              <i class="fas fa-users"></i> Stakeholders
+          <div class="context-section-body" id="aiSuggestionsBody">
+            <div id="aiSuggestionsList">
+              <div class="context-empty-state">
+                <i class="fas fa-robot"></i>
+                <p>Select emails for AI suggestions</p>
+              </div>
             </div>
-            <div class="type-chip" onclick="showKeywordFilter()" style="margin-bottom: 0.5rem;">
-              <i class="fas fa-tags"></i> Keywords
+          </div>
+        </div>
+
+        <!-- Smart Actions -->
+        <div class="context-section" id="smartActionsSection">
+          <div class="context-section-header" onclick="toggleContextSection('smartActions')">
+            <span><i class="fas fa-lightbulb"></i> Smart Actions</span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="context-section-body" id="smartActionsBody">
+            <div style="display: flex; flex-direction: column; gap: 0.5rem">
+              <button class="btn" onclick="showSimilarEmails()" style="justify-content: flex-start; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0;">
+                <i class="fas fa-search-plus"></i> Show Similar Emails
+              </button>
+              <button class="btn" onclick="suggestExclusion()" style="justify-content: flex-start; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;">
+                <i class="fas fa-filter"></i> Suggest Exclusion Tag
+              </button>
+              <button class="btn" onclick="analyzeSelection()" style="justify-content: flex-start; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;">
+                <i class="fas fa-chart-pie"></i> Analyze Selection
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bulk Actions -->
+        <div class="context-section" id="bulkActionsSection">
+          <div class="context-section-header" onclick="toggleContextSection('bulkActions')">
+            <span><i class="fas fa-bolt"></i> Bulk Actions</span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="context-section-body" id="bulkActionsBody">
+            <div style="display: flex; flex-direction: column; gap: 0.5rem">
+              <button class="btn" onclick="bulkSetCategory()" style="justify-content: flex-start">
+                <i class="fas fa-folder"></i> Set Category
+              </button>
+              <button class="btn" onclick="bulkAddKeywords()" style="justify-content: flex-start">
+                <i class="fas fa-tag"></i> Add Keywords
+              </button>
+              <button class="btn" onclick="markAsExcluded()" style="justify-content: flex-start; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;">
+                <i class="fas fa-ban"></i> Mark as Excluded
+              </button>
+              <button class="btn" onclick="bulkExportSelected()" style="justify-content: flex-start">
+                <i class="fas fa-download"></i> Export
+              </button>
             </div>
           </div>
         </div>
@@ -1927,26 +2003,18 @@
       },
       {
         headerName: "From",
-        field: "sender",
-        width: 220,
+        field: "email_from",
+        width: 200,
         wrapText: true,
         cellStyle: {
-          "white-space": "normal !important",
+          "white-space": "normal",
           "line-height": "1.4",
-          "padding": "8px 4px",
-          "vertical-align": "top"
-        },
-        valueGetter: (params) => {
-          const senderEmail = params.data.sender_email || params.data.email_from || '';
-          const senderName = params.data.sender_name || '';
-          if (!senderEmail) return senderName || '-';
-          return senderName ? `${senderName} <${senderEmail}>` : senderEmail;
+          "padding-top": "8px",
+          "padding-bottom": "8px",
         },
         cellRenderer: (params) => {
-          const value = params.value || '-';
-          return `<div style="font-size: 0.875rem; line-height: 1.3;" title="${value}">
-                    <strong style="color: var(--text-primary);">${value}</strong>
-                  </div>`;
+          if (!params.value) return "-";
+          return `<span style="font-weight: 500; color: var(--text-primary);">${params.value}</span>`;
         },
         filter: "agTextColumnFilter",
         filterParams: {
@@ -1957,60 +2025,48 @@
       },
       {
         headerName: "To",
-        field: "recipients_to",
-        width: 240,
+        field: "email_to",
+        width: 220,
         wrapText: true,
         cellStyle: {
-          "white-space": "normal !important",
-          "line-height": "1.3",
-          "padding": "8px 4px",
-          "vertical-align": "top",
-          "font-size": "0.85rem"
+          "white-space": "normal",
+          "line-height": "1.4",
+          "padding-top": "8px",
+          "padding-bottom": "8px",
         },
         valueGetter: (params) => {
-          let toList = params.data.recipients_to || params.data.email_to || [];
-          if (!Array.isArray(toList)) toList = toList ? [toList] : [];
-          return toList.filter(Boolean).slice(0, 5).join('; ') || '-';
+          // Use recipients_to (includes email) if available, fallback to email_to
+          const to = params.data.recipients_to || params.data.email_to;
+          if (!to || to === "-") return "-";
+          if (Array.isArray(to)) return to.join(", ");
+          return to;
         },
         cellRenderer: (params) => {
-          let toList = params.data.recipients_to || params.data.email_to || [];
-          if (!Array.isArray(toList)) toList = toList ? [toList] : [];
-          const displayList = toList.filter(Boolean).slice(0, 3);
-          const fullList = toList.filter(Boolean).join('; ');
-          const moreCount = toList.length - 3;
-          return `<div title="${escapeHtml(fullList)}" style="line-height: 1.3;">
-                    ${displayList.map(e => `<div style="color: var(--text-primary);">${escapeHtml(e)}</div>`).join('')}
-                    ${moreCount > 0 ? `<div style="color: var(--text-muted); font-size: 0.8rem;">+${moreCount} more</div>` : ''}
-                  </div>`;
+          if (!params.value || params.value === "-") return "-";
+          return `<span style="font-weight: 500; color: var(--text-primary);">${params.value}</span>`;
         },
         filter: "agTextColumnFilter",
         filterParams: {
           filterOptions: ["contains", "startsWith", "endsWith", "equals"],
-          defaulrecipients_cc",
-        width: 220,
+          defaultOption: "contains",
+          trimInput: true,
+        },
+      },
+      {
+        headerName: "CC",
+        field: "email_cc",
+        width: 200,
         wrapText: true,
         cellStyle: {
-          "white-space": "normal !important",
-          "line-height": "1.3",
-          "padding": "8px 4px",
-          "vertical-align": "top",
-          "font-size": "0.85rem"
+          "white-space": "normal",
+          "line-height": "1.4",
+          "padding-top": "8px",
+          "padding-bottom": "8px",
         },
         valueGetter: (params) => {
-          let ccList = params.data.recipients_cc || params.data.email_cc || [];
-          if (!Array.isArray(ccList)) ccList = ccList ? [ccList] : [];
-          return ccList.filter(Boolean).slice(0, 5).join('; ') || '-';
-        },
-        cellRenderer: (params) => {
-          let ccList = params.data.recipients_cc || params.data.email_cc || [];
-          if (!Array.isArray(ccList)) ccList = ccList ? [ccList] : [];
-          const displayList = ccList.filter(Boolean).slice(0, 3);
-          const fullList = ccList.filter(Boolean).join('; ');
-          const moreCount = ccList.length - 3;
-          return `<div title="${fullList}" style="line-height: 1.3;">
-                    ${displayList.map(e => `<div style="color: var(--text-primary);">${e}</div>`).join('')}
-                    ${moreCount > 0 ? `<div style="color: var(--text-muted); font-size: 0.8rem;">+${moreCount} more</div>` : ''}
-                  </div
+          // Use recipients_cc (includes email) if available, fallback to email_cc
+          const cc = params.data.recipients_cc || params.data.email_cc;
+          if (!cc || cc === "-") return "-";
           if (Array.isArray(cc)) return cc.join(", ");
           return cc;
         },
