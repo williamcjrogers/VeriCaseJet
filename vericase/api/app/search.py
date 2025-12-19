@@ -157,6 +157,98 @@ def delete_document(doc_id: str):
         logger.exception("Failed to delete document %s from OpenSearch", doc_id)
 
 
+def search_emails(
+    query: str,
+    size: int = 25,
+    case_id: str | None = None,
+    project_id: str | None = None,
+    sender: str | None = None,
+    recipient: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    has_attachments: bool | None = None,
+):
+    """
+    Full-text search for emails with advanced filtering.
+    """
+    must = [
+        {
+            "multi_match": {
+                "query": query,
+                "fields": [
+                    "subject^3",
+                    "body^2",
+                    "sender_name",
+                    "sender_email",
+                    "recipients",
+                ],
+            }
+        }
+    ]
+
+    if case_id:
+        must.append({"term": {"case_id": case_id}})
+    if project_id:
+        must.append({"term": {"project_id": project_id}})
+    if sender:
+        must.append(
+            {
+                "bool": {
+                    "should": [
+                        {"match": {"sender_email": sender}},
+                        {"match": {"sender_name": sender}},
+                    ]
+                }
+            }
+        )
+    if recipient:
+        must.append({"match": {"recipients": recipient}})
+
+    if date_from or date_to:
+        range_filter = {}
+        if date_from:
+            range_filter["gte"] = date_from
+        if date_to:
+            range_filter["lte"] = date_to
+        must.append({"range": {"date_sent": range_filter}})
+
+    if has_attachments is not None:
+        must.append({"term": {"has_attachments": has_attachments}})
+
+    dsl = {
+        "size": size,
+        "query": {"bool": {"must": must}},
+        "highlight": {
+            "fields": {
+                "subject": {},
+                "body": {
+                    "fragment_size": 150,
+                    "number_of_fragments": 3,
+                    "no_match_size": 150,
+                },
+            }
+        },
+        "sort": [{"date_sent": {"order": "desc"}}],
+    }
+
+    try:
+        return client().search(index="emails", body=dsl)
+    except Exception as e:
+        logger.error(f"Email search failed: {e}")
+        # Fallback to simple search if complex query fails
+        try:
+            simple_dsl = {
+                "size": size,
+                "query": {
+                    "multi_match": {"query": query, "fields": ["subject", "body"]}
+                },
+            }
+            return client().search(index="emails", body=simple_dsl)
+        except Exception as e2:
+            logger.error(f"Fallback email search failed: {e2}")
+            raise
+
+
 # ========================================
 # EMAIL INDEXING FOR PST ANALYSIS
 # ========================================
