@@ -1,7 +1,8 @@
 name: Deploy to EKS (Secure OIDC)
 
 #
-# Automated secure deploy: builds, pushes with digest tags, deploys to EKS via OIDC on push to main/vericase/**
+# Secure deploy via OIDC: deploys an existing image digest to EKS.
+# Note: this workflow does not build/push images; it can resolve Docker Hub :latest -> digest when no digest is provided.
 on:
   workflow_dispatch:
     inputs:

@@ -165,17 +165,47 @@ class ForensicPSTProcessor:
             )
             raise
         # endregion agent log H2 pst open
-        self.total_count = self._count_emails_recursive(root)
-        # region agent log H3 total count
-        agent_log("H3", "Total emails counted in PST", {"total": self.total_count})
-        # endregion agent log H3 total count
-        pst_file.total_emails = self.total_count
-        self.db.commit()
 
-        logger.info("PST contains %s total emails", self.total_count)
+        # Optimization: Skip pre-count if configured (default is False in settings)
+        if getattr(settings, "PST_PRECOUNT_MESSAGES", False):
+            self.total_count = self._count_emails_recursive(root)
+            # region agent log H3 total count
+            agent_log("H3", "Total emails counted in PST", {"total": self.total_count})
+            # endregion agent log H3 total count
+            pst_file.total_emails = self.total_count
+            self.db.commit()
+            logger.info("PST contains %s total emails", self.total_count)
+        else:
+            self.total_count = 0
+            logger.info("Skipping PST pre-count for performance")
 
         stakeholders, keywords = self._load_tagging_assets(pst_file)
-        self._process_folder_recursive(root, pst_file, stakeholders, keywords, stats)
+
+        # Initialize batch buffer
+        self.batch_buffer = []
+        self.BATCH_SIZE = getattr(settings, "PST_BATCH_COMMIT_SIZE", 2500)
+
+        try:
+            self._process_folder_recursive(
+                root, pst_file, stakeholders, keywords, stats
+            )
+
+            # Commit any remaining items in buffer
+            if self.batch_buffer:
+                self.db.bulk_save_objects(self.batch_buffer)
+                self.db.commit()
+                self.batch_buffer = []
+        except Exception as e:
+            # If error occurs, try to save what we have so far
+            if self.batch_buffer:
+                try:
+                    self.db.bulk_save_objects(self.batch_buffer)
+                    self.db.commit()
+                except Exception as save_err:
+                    logger.error(
+                        f"Failed to save remaining buffer on error: {save_err}"
+                    )
+            raise e
 
         pst.close()
 
@@ -192,10 +222,11 @@ class ForensicPSTProcessor:
             self.upload_futures = []
 
         entity_id = pst_file.case_id or pst_file.project_id
-        threads = self._build_email_threads(
-            entity_id, is_project=bool(pst_file.project_id)
-        )
-        stats["threads_identified"] = len(threads)
+        if entity_id:
+            threads = self._build_email_threads(
+                str(entity_id), is_project=bool(pst_file.project_id)
+            )
+            stats["threads_identified"] = len(threads)
 
     def process_pst_file(
         self, pst_file_id: str, s3_bucket: str, s3_key: str
@@ -264,18 +295,22 @@ class ForensicPSTProcessor:
                     apply_spam_filter_batch,
                 )
 
-                if self.project_id:
+                if pst_file.project_id:
                     logger.info(
-                        f"Queueing semantic indexing for project {self.project_id}"
+                        f"Queueing semantic indexing for project {pst_file.project_id}"
                     )
-                    index_project_emails_semantic.delay(str(self.project_id))
-                    logger.info(f"Queueing spam filter for project {self.project_id}")
-                    apply_spam_filter_batch.delay(project_id=str(self.project_id))
-                elif self.case_id:
-                    logger.info(f"Queueing semantic indexing for case {self.case_id}")
-                    index_case_emails_semantic.delay(str(self.case_id))
-                    logger.info(f"Queueing spam filter for case {self.case_id}")
-                    apply_spam_filter_batch.delay(case_id=str(self.case_id))
+                    index_project_emails_semantic.delay(str(pst_file.project_id))
+                    logger.info(
+                        f"Queueing spam filter for project {pst_file.project_id}"
+                    )
+                    apply_spam_filter_batch.delay(project_id=str(pst_file.project_id))
+                elif pst_file.case_id:
+                    logger.info(
+                        f"Queueing semantic indexing for case {pst_file.case_id}"
+                    )
+                    index_case_emails_semantic.delay(str(pst_file.case_id))
+                    logger.info(f"Queueing spam filter for case {pst_file.case_id}")
+                    apply_spam_filter_batch.delay(case_id=str(pst_file.case_id))
             except Exception as task_error:
                 logger.warning(f"Failed to queue post-processing tasks: {task_error}")
 
@@ -341,13 +376,18 @@ class ForensicPSTProcessor:
                 self.processed_count += 1
                 processed_messages += 1
 
-                # Commit every 2500 emails for better performance (optimized batch size)
-                if self.processed_count % 2500 == 0:
-                    pst_file.processed_emails = self.processed_count
+                # Batch commit logic
+                if len(self.batch_buffer) >= self.BATCH_SIZE:
+                    self.db.bulk_save_objects(self.batch_buffer)
                     self.db.commit()
-                    logger.info(
-                        f"Progress: {self.processed_count}/{self.total_count} emails"
-                    )
+                    self.batch_buffer = []
+
+                    # Update progress
+                    pst_file.processed_emails = self.processed_count
+                    self.db.commit()  # Commit the progress update
+
+                    total_str = f"/{self.total_count}" if self.total_count > 0 else ""
+                    logger.info(f"Progress: {self.processed_count}{total_str} emails")
             except Exception as e:
                 logger.error(f"Error extracting email at index {i}: {e}")
                 stats["errors"].append(f"Email {i}: {str(e)}")
@@ -398,6 +438,7 @@ class ForensicPSTProcessor:
         stats: dict[str, Any],
     ) -> None:
         """Extract single email message with forensic metadata"""
+        import uuid
 
         # Extract email headers and content
         try:
@@ -567,8 +608,14 @@ class ForensicPSTProcessor:
             else:
                 canonical_body_to_store = canonical_body
 
+            # Generate ID locally for batch processing
+            import uuid
+
+            email_id = uuid.uuid4()
+
             # Create email message record
             email_msg = EmailMessage(
+                id=email_id,
                 pst_file_id=pst_file.id,
                 case_id=pst_file.case_id,
                 # Threading metadata
@@ -602,8 +649,8 @@ class ForensicPSTProcessor:
                 matched_keywords=[str(k.id) for k in matched_keywords],
             )
 
-            self.db.add(email_msg)
-            self.db.flush()  # Get the email_msg.id
+            # Add to batch buffer instead of immediate commit
+            self.batch_buffer.append(email_msg)
 
             # Extract attachments
             if has_attachments:
@@ -628,18 +675,8 @@ class ForensicPSTProcessor:
                 )
                 # endregion agent log H5 attachments complete
 
-            # Index in OpenSearch (if enabled)
-            if (
-                settings.OPENSEARCH_HOST
-                and hasattr(self, "opensearch")
-                and self.opensearch
-            ):
-                try:
-                    self._index_email(email_msg)
-                except Exception as e:
-                    logger.warning(
-                        f"OpenSearch indexing failed for email {email_msg.id}: {e}"
-                    )
+            # Skip OpenSearch indexing during ingestion for speed
+            # It will be handled by background task later
 
             stats["total_emails"] += 1
 
@@ -651,6 +688,7 @@ class ForensicPSTProcessor:
         self, attachment: Any, email_msg: EmailMessage, stats: dict[str, Any]
     ) -> None:
         """Extract email attachment to S3"""
+        import uuid
 
         try:
             filename = (
@@ -730,6 +768,7 @@ class ForensicPSTProcessor:
 
             # Create attachment record
             attachment_record = EmailAttachment(
+                id=uuid.uuid4(),
                 email_message_id=email_msg.id,
                 filename=filename,
                 content_type=content_type,
@@ -743,7 +782,7 @@ class ForensicPSTProcessor:
                 is_duplicate=(file_hash in self.attachment_hashes),
             )
 
-            self.db.add(attachment_record)
+            self.batch_buffer.append(attachment_record)
             stats["total_attachments"] += 1
 
         except Exception as e:
@@ -777,61 +816,6 @@ class ForensicPSTProcessor:
         # endregion agent log H7 header parse
         return value
 
-    def _extract_recipients(
-        self, message: Any, recipient_type: str, transport_headers: str = ""
-    ) -> list[str]:
-        """Extract recipients as list of email addresses (no display names)."""
-        recipients: list[str] = []
-
-        try:
-            if recipient_type == "to":
-                recipient_str = message.get_recipient_string() or ""
-            elif recipient_type == "cc":
-                recipient_str = message.get_cc_string() or ""
-            elif recipient_type == "bcc":
-                recipient_str = message.get_bcc_string() or ""
-            else:
-                return recipients
-
-            # Parse recipient string
-            for addr in recipient_str.split(";"):
-                addr = addr.strip()
-                if addr:
-                    name, email = parseaddr(addr)
-                    # If no email extracted, it might be display name only - try to find in headers
-                    if not email or "@" not in email:
-                        email = addr  # Keep original as fallback
-                    recipients.append({"name": name or addr, "email": email})
-
-            # Fallback: If no valid emails found, extract from transport headers
-            if transport_headers and (
-                not recipients
-                or not any(r.get("email") and "@" in r["email"] for r in recipients)
-            ):
-                header_map = {"to": "To", "cc": "Cc", "bcc": "Bcc"}
-                header_name = header_map.get(recipient_type)
-                if header_name:
-                    pattern = f"{header_name}:\\s*(.+?)(?:\\r?\\n(?!\\s)|$)"
-                    match = re.search(
-                        pattern, transport_headers, re.IGNORECASE | re.MULTILINE
-                    )
-                    if match:
-                        header_value = match.group(1).strip()
-                        # Extract all emails from header
-                        email_matches = re.findall(
-                            r"([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)",
-                            header_value,
-                        )
-                        if email_matches:
-                            recipients = [
-                                {"name": e, "email": e} for e in email_matches
-                            ]
-        except Exception as e:
-            logger.warning(f"Error parsing {recipient_type} recipients: {e}")
-
-        return recipients
-
-    # Override with email-address-only extraction (no display names)
     def _extract_recipients(
         self, message: Any, recipient_type: str, transport_headers: str = ""
     ) -> list[str]:
