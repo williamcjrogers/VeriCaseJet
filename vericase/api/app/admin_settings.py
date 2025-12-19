@@ -48,6 +48,17 @@ class SettingUpdate(BaseModel):
     description: str | None = None
 
 
+class AIResetRequest(BaseModel):
+    """Request for resetting AI configuration back to in-code defaults."""
+
+    dry_run: bool = False
+    reset_api_keys: bool = True
+    reset_provider_defaults: bool = True
+    reset_function_configs: bool = True
+    reset_tool_configs: bool = True
+    reset_pinned_models: bool = True
+
+
 def _require_admin(user: Annotated[User, Depends(current_user)]) -> User:
     """Ensure user is an admin"""
     if user.role != UserRole.ADMIN:
@@ -905,4 +916,116 @@ def update_ai_tool_config(
         "success": True,
         "tool": tool_name,
         "config": updated_config,
+    }
+
+
+@router.post("/ai/reset")
+def reset_ai_configuration(
+    db: DbSession,
+    admin: AdminDep,
+    req: Annotated[AIResetRequest, Body(...)],
+) -> dict[str, Any]:
+    """
+    Reset AI configuration overrides stored in the database.
+
+    Why this exists:
+    - AI configuration is "Database > Environment > Code defaults".
+    - If older defaults were written into AppSetting rows, they will keep
+      overriding newer code defaults until cleared.
+
+    This endpoint deletes override rows so the app returns to using current
+    in-code defaults (and env/Secrets Manager for keys).
+    """
+
+    patterns: list[str] = []
+    exact_keys: list[str] = []
+
+    if req.reset_function_configs:
+        patterns.append("ai_function_%")
+    if req.reset_tool_configs:
+        patterns.append("ai_tool_%")
+    if req.reset_pinned_models:
+        patterns.append("ai_pinned_model_%")
+
+    if req.reset_provider_defaults:
+        exact_keys.extend(
+            [
+                "ai_default_provider",
+                "openai_model",
+                "anthropic_model",
+                "gemini_model",
+                "bedrock_model",
+                "bedrock_enabled",
+                "bedrock_region",
+                "bedrock_route_claude",
+                "ai_fallback_enabled",
+                "ai_fallback_log_attempts",
+                "ai_routing_strategy",
+                "ai_prefer_bedrock",
+                "ai_enable_multi_model",
+                "ai_enable_validation",
+            ]
+        )
+
+    if req.reset_api_keys:
+        exact_keys.extend(
+            [
+                "openai_api_key",
+                "anthropic_api_key",
+                "gemini_api_key",
+                "xai_api_key",
+                "perplexity_api_key",
+            ]
+        )
+
+    # Collect candidate keys to delete
+    to_delete: list[AppSetting] = []
+    for like_pattern in patterns:
+        to_delete.extend(
+            db.query(AppSetting).filter(AppSetting.key.like(like_pattern)).all()
+        )
+
+    if exact_keys:
+        to_delete.extend(
+            db.query(AppSetting).filter(AppSetting.key.in_(exact_keys)).all()
+        )
+
+    # Deduplicate by primary key
+    seen_ids: set[str] = set()
+    unique_delete: list[AppSetting] = []
+    for row in to_delete:
+        row_id = str(getattr(row, "id", row.key))
+        if row_id in seen_ids:
+            continue
+        seen_ids.add(row_id)
+        unique_delete.append(row)
+
+    deleted_keys = sorted({row.key for row in unique_delete})
+
+    if req.dry_run:
+        return {
+            "success": True,
+            "dry_run": True,
+            "deleted_count": len(deleted_keys),
+            "deleted_keys": deleted_keys,
+        }
+
+    try:
+        for row in unique_delete:
+            db.delete(row)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to reset AI config: {e}")
+
+    logger.info(
+        f"Admin {admin.email} reset AI configuration (deleted {len(deleted_keys)} keys)"
+    )
+
+    return {
+        "success": True,
+        "dry_run": False,
+        "deleted_count": len(deleted_keys),
+        "deleted_keys": deleted_keys,
+        "note": "Restart the API/worker to ensure all processes pick up defaults.",
     }
