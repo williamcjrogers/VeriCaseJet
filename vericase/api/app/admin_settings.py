@@ -203,6 +203,15 @@ class AIFunctionConfigUpdate(BaseModel):
     orchestration: dict[str, Any] | None = None
 
 
+class AIToolConfigUpdate(BaseModel):
+    enabled: bool | None = None
+    provider: str | None = None
+    model: str | None = None
+    max_tokens: int | None = None
+    temperature: float | None = None
+    max_duration_seconds: int | None = None
+
+
 @router.get("/ai/providers")
 def get_ai_providers(
     db: DbSession,
@@ -499,319 +508,53 @@ async def test_specific_model(
             }
 
 
-@router.get("/ai/fetch-models/{provider}")
-async def fetch_available_models(
+@router.post("/ai/fetch-models/{provider}")
+def fetch_models_from_provider(
     provider: str,
     db: DbSession,
     admin: AdminDep,
+    model_id: str | None = Body(None),
 ) -> dict[str, Any]:
     """
-    Fetch the list of models the user actually has access to from the provider's API.
-    This queries the provider directly to discover available models.
+    Fetch available models directly from provider API.
+    Supports: OpenAI, Anthropic (list models endpoint)
     """
-    from .ai_settings import get_ai_api_key
-
-    if provider not in RUNTIME_SUPPORTED_PROVIDERS:
-        return {
-            "success": False,
-            "error": f"Invalid provider: {provider}",
-        }
-
-    api_key = get_ai_api_key(provider, db)
-
-    if not api_key and provider != "bedrock":
-        return {
-            "success": False,
-            "error": f"{provider.title()} API key not configured",
-            "models": [],
-        }
+    api_key = AISettings.get_api_key(provider, db)
+    if not api_key:
+        raise HTTPException(status_code=400, detail=f"No {provider} API key configured")
 
     try:
         if provider == "openai":
-            return await _fetch_openai_models(api_key)
-        elif provider == "anthropic":
-            # Anthropic doesn't have a models list API, return known models
+            import openai
+
+            client = openai.OpenAI(api_key=api_key)
+            models = client.models.list(limit=100)
             return {
                 "success": True,
-                "provider": "anthropic",
+                "provider": provider,
                 "models": [
-                    {
-                        "id": "claude-sonnet-4-20250514",
-                        "name": "Claude Sonnet 4",
-                        "type": "flagship",
-                    },
-                    {
-                        "id": "claude-opus-4-20250514",
-                        "name": "Claude Opus 4",
-                        "type": "premium",
-                    },
-                    {
-                        "id": "claude-3-5-sonnet-20241022",
-                        "name": "Claude 3.5 Sonnet",
-                        "type": "flagship",
-                    },
-                    {
-                        "id": "claude-3-5-haiku-20241022",
-                        "name": "Claude 3.5 Haiku",
-                        "type": "fast",
-                    },
-                    {
-                        "id": "claude-3-opus-20240229",
-                        "name": "Claude 3 Opus",
-                        "type": "premium",
-                    },
+                    {"id": m.id, "name": getattr(m, "name", m.id)} for m in models.data
                 ],
-                "note": "Anthropic doesn't provide a models list API. These are known models - test to verify access.",
             }
-        elif provider == "gemini":
-            return await _fetch_gemini_models(api_key)
-        elif provider == "bedrock":
-            return await _fetch_bedrock_models(db)
-        elif provider == "xai":
-            return await _fetch_xai_models(api_key)
-        elif provider == "perplexity":
-            return await _fetch_perplexity_models(api_key)
+        elif provider == "anthropic":
+            import anthropic
+
+            client = anthropic.Anthropic(api_key=api_key)
+            models = client.models.list()
+            return {
+                "success": True,
+                "provider": provider,
+                "models": [
+                    {"id": m.id, "name": getattr(m, "name", m.id)} for m in models
+                ],
+            }
         else:
-            return {"success": False, "error": f"Unknown provider: {provider}"}
-
+            return {
+                "success": False,
+                "note": f"{provider} does not support dynamic model listing",
+            }
     except Exception as e:
-        logger.error(f"Failed to fetch models for {provider}: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "models": [],
-        }
-
-
-async def _fetch_openai_models(api_key: str) -> dict[str, Any]:
-    """Fetch available models from OpenAI API"""
-    import httpx
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            "https://api.openai.com/v1/models",
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=30.0,
-        )
-
-        if response.status_code != 200:
-            return {
-                "success": False,
-                "error": f"OpenAI API error: {response.status_code} - {response.text}",
-                "models": [],
-            }
-
-        data = response.json()
-        models = data.get("data", [])
-
-        # Filter to chat/completion models, sorted by ID
-        chat_models = []
-        for m in models:
-            model_id = m.get("id", "")
-            # Include GPT models and o1/o3 reasoning models
-            if any(
-                prefix in model_id
-                for prefix in ["gpt-4", "gpt-3.5", "gpt-5", "o1", "o3"]
-            ):
-                chat_models.append(
-                    {
-                        "id": model_id,
-                        "name": model_id,
-                        "owned_by": m.get("owned_by", "openai"),
-                        "created": m.get("created"),
-                    }
-                )
-
-        # Sort by ID (newer models first)
-        chat_models.sort(key=lambda x: x["id"], reverse=True)
-
-        return {
-            "success": True,
-            "provider": "openai",
-            "models": chat_models,
-            "total_models": len(models),
-            "chat_models": len(chat_models),
-        }
-
-
-async def _fetch_gemini_models(api_key: str) -> dict[str, Any]:
-    """Fetch available models from Google AI API"""
-    import httpx
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}",
-            timeout=30.0,
-        )
-
-        if response.status_code != 200:
-            return {
-                "success": False,
-                "error": f"Gemini API error: {response.status_code}",
-                "models": [],
-            }
-
-        data = response.json()
-        models = data.get("models", [])
-
-        # Filter to generative models
-        generative_models = []
-        for m in models:
-            name = m.get("name", "")
-            if "generateContent" in m.get("supportedGenerationMethods", []):
-                model_id = name.replace("models/", "")
-                generative_models.append(
-                    {
-                        "id": model_id,
-                        "name": m.get("displayName", model_id),
-                        "description": m.get("description", ""),
-                    }
-                )
-
-        return {
-            "success": True,
-            "provider": "gemini",
-            "models": generative_models,
-        }
-
-
-async def _fetch_bedrock_models(db: Session) -> dict[str, Any]:
-    """Fetch available models from AWS Bedrock"""
-    if not bedrock_available():
-        return {
-            "success": False,
-            "error": "boto3 not installed",
-            "models": [],
-        }
-
-    try:
-        import boto3
-
-        region = get_bedrock_region(db)
-        client = boto3.client("bedrock", region_name=region)
-
-        response = client.list_foundation_models()
-        models = response.get("modelSummaries", [])
-
-        # Filter to text generation models
-        text_models = []
-        for m in models:
-            if "TEXT" in m.get("outputModalities", []):
-                text_models.append(
-                    {
-                        "id": m.get("modelId"),
-                        "name": m.get("modelName"),
-                        "provider": m.get("providerName"),
-                    }
-                )
-
-        return {
-            "success": True,
-            "provider": "bedrock",
-            "region": region,
-            "models": text_models,
-        }
-
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "models": [],
-        }
-
-
-async def _fetch_xai_models(api_key: str) -> dict[str, Any]:
-    """Fetch available models from xAI (Grok) - OpenAI-compatible /models endpoint"""
-    import httpx
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            "https://api.x.ai/v1/models",
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=30.0,
-        )
-
-        if response.status_code != 200:
-            return {
-                "success": False,
-                "error": f"xAI API error: {response.status_code} - {response.text}",
-                "models": [],
-            }
-
-        data = response.json()
-        models = data.get("data", [])
-        chat_models = [
-            {
-                "id": m.get("id", ""),
-                "name": m.get("id", ""),
-                "owned_by": m.get("owned_by", "xai"),
-            }
-            for m in models
-            if isinstance(m, dict) and m.get("id")
-        ]
-        chat_models.sort(key=lambda x: x["id"], reverse=True)
-
-        return {
-            "success": True,
-            "provider": "xai",
-            "models": chat_models,
-            "total_models": len(models),
-        }
-
-
-async def _fetch_perplexity_models(api_key: str) -> dict[str, Any]:
-    """Fetch available models from Perplexity - OpenAI-compatible /models endpoint"""
-    import httpx
-
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            "https://api.perplexity.ai/models",
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=30.0,
-        )
-
-        if response.status_code != 200:
-            return {
-                "success": False,
-                "error": f"Perplexity API error: {response.status_code} - {response.text}",
-                "models": [],
-            }
-
-        data = response.json()
-        models = data.get("data", [])
-        chat_models = [
-            {
-                "id": m.get("id", ""),
-                "name": m.get("id", ""),
-                "owned_by": m.get("owned_by", "perplexity"),
-            }
-            for m in models
-            if isinstance(m, dict) and m.get("id")
-        ]
-        chat_models.sort(key=lambda x: x["id"], reverse=True)
-
-        return {
-            "success": True,
-            "provider": "perplexity",
-            "models": chat_models,
-            "total_models": len(models),
-        }
-
-
-# =============================================================================
-# AI Tool Registry Endpoints (all 10 tools from DEFAULT_TOOL_CONFIGS)
-# =============================================================================
-
-
-class AIToolConfigUpdate(BaseModel):
-    """Update request for AI tool config"""
-
-    enabled: bool | None = None
-    provider: str | None = None
-    model: str | None = None
-    max_tokens: int | None = None
-    temperature: float | None = None
-    max_duration_seconds: int | None = None
+        raise HTTPException(status_code=500, detail=f"Failed to fetch models: {str(e)}")
 
 
 @router.get("/ai/tools")

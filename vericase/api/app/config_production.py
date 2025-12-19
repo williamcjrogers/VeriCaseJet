@@ -14,9 +14,28 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-def load_ai_keys_from_secrets_manager() -> bool:
-    """Load AI API keys from AWS Secrets Manager"""
-    secret_name = os.getenv("AWS_SECRETS_MANAGER_AI_KEYS", "vericase/ai-api-keys")
+def load_ai_keys_from_secrets_manager(force_update: bool = False) -> bool:
+    """Load AI API keys from AWS Secrets Manager
+
+    Args:
+        force_update: If True, always write keys to environment even if already set
+    """
+    default_secret = "vericase/ai-api-keys"
+    raw = (os.getenv("AWS_SECRETS_MANAGER_AI_KEYS") or "").strip()
+    explicit = (os.getenv("AWS_SECRET_NAME") or "").strip()
+
+    # Backwards-compatible behavior:
+    # - Some deployments set AWS_SECRETS_MANAGER_AI_KEYS=true as a feature flag.
+    # - Others set it to the actual secret name/ARN.
+    # Prefer AWS_SECRET_NAME when provided, otherwise interpret raw.
+    if explicit:
+        secret_name = explicit
+    elif raw.lower() in {"1", "true", "yes", "on"}:
+        secret_name = default_secret
+    elif raw:
+        secret_name = raw
+    else:
+        secret_name = default_secret
     region = os.getenv("AWS_REGION", "eu-west-2")
 
     if not secret_name:
@@ -58,11 +77,15 @@ def load_ai_keys_from_secrets_manager() -> bool:
         for secret_key, env_key in key_mapping.items():
             value: Any = secrets.get(secret_key)
             if value and str(value).strip():
-                os.environ[env_key] = str(value).strip()
-                loaded_count += 1
-                logger.info(
-                    f"[config_production] ✓ Loaded {env_key} from Secrets Manager"
-                )
+                # Only set if not already set, OR if force_update is True
+                if force_update or env_key not in os.environ:
+                    os.environ[env_key] = str(value).strip()
+                    loaded_count += 1
+                    logger.info(
+                        f"[config_production] ✓ Loaded {env_key} from Secrets Manager"
+                    )
+                else:
+                    logger.debug(f"[config_production] {env_key} already set, skipping")
 
         if loaded_count > 0:
             logger.info(
@@ -149,6 +172,7 @@ _should_load = (
     os.getenv("AWS_EXECUTION_ENV")
     or os.getenv("USE_AWS_SERVICES", "").lower() == "true"
     or os.getenv("AWS_SECRETS_MANAGER_AI_KEYS")
+    or os.getenv("AWS_SECRET_NAME")
 )
 logger.info(
     f"[config_production] Should load AI keys from Secrets Manager: {_should_load}"

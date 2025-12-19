@@ -42,6 +42,15 @@
         "AWS_SECRET_ACCESS_KEY": "Ax48yjC+b8Vzi4J5xB6qljeGww6B5kWf52EdDhMm",
         "AWS_REGION": "eu-west-2"
       }
+    },
+    "amazon-qindex": {
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "C:\\Users\\William\\Documents\\Projects\\VeriCaseJet_canonical\\mcp_servers\\amazon-qindex\\run.ps1"
+      ]
     }
   }
 }

@@ -39,12 +39,12 @@ class ModelPriorityManager:
         # Fast/cheap defaults (2025 catalog)
         "gemini-2.5-flash-lite",
         "gpt-5.2-instant",
-        "claude-4.5-haiku",
+        "claude-haiku-4",
         "bedrock-nova-lite",
     ]
 
     MODERATE_ORDER = [
-        "claude-sonnet-4.5",
+        "claude-sonnet-4",
         "gpt-5.2-instant",
         "gemini-2.5-flash",
         "bedrock-nova-pro",
@@ -52,7 +52,7 @@ class ModelPriorityManager:
 
     DEEP_RESEARCH_ORDER = [
         "gpt-5.2-thinking",
-        "claude-opus-4.5",
+        "claude-opus-4-extended",
         "gemini-2.5-pro",
         "bedrock-claude-opus",
     ]
@@ -85,18 +85,18 @@ class AIModelService:
     MODELS: dict[TaskComplexity, ModelConfig] = {
         TaskComplexity.BASIC: {
             "primary": "gemini-2.5-flash-lite",
-            "fallbacks": ["gpt-5.2-instant", "claude-4.5-haiku", "bedrock-nova-lite"],
+            "fallbacks": ["gpt-5.2-instant", "claude-haiku-4", "bedrock-nova-lite"],
             "features": ["fast", "structured", "conversational"],
         },
         TaskComplexity.MODERATE: {
-            "primary": "claude-sonnet-4.5",
+            "primary": "claude-sonnet-4",
             "fallbacks": ["gpt-5.2-instant", "gemini-2.5-flash", "bedrock-nova-pro"],
             "features": ["analysis", "extraction", "structured"],
         },
         TaskComplexity.DEEP_RESEARCH: {
             "primary": "gpt-5.2-thinking",
             "fallbacks": [
-                "claude-opus-4.5",
+                "claude-opus-4-extended",
                 "gemini-2.5-pro",
                 "bedrock-claude-opus",
             ],
@@ -126,15 +126,15 @@ class AIModelService:
         },
         "claude-haiku-4.5": {
             "provider": "anthropic",
-            "model": "claude-4.5-haiku",
+            "model": "claude-3-5-haiku-20241022",
         },
         "claude-opus-4.5": {
             "provider": "anthropic",
-            "model": "claude-opus-4.5",
+            "model": "claude-opus-4-20250514",
         },
         "claude-sonnet-4.5": {
             "provider": "anthropic",
-            "model": "claude-sonnet-4.5",
+            "model": "claude-sonnet-4-20250514",
         },
         # ============ OPENAI (GPT) ============
         "gpt-4o": {
