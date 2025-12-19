@@ -1111,9 +1111,9 @@ You must distinguish between:
 MAIN PROJECT CONTEXT:
 - Project Name: {self.project.project_name}
 - Project Code: {self.project.project_code}
-- Aliases: {', '.join(str(a) for a in (self.project_context.get('aliases') or [])) or 'None'}
-- Site Address: {self.project_context.get('site_address') or 'Not specified'}
-- Key Terms: {', '.join(str(t) for t in (self.project_context.get('project_terms') or [])) or 'None'}
+- Aliases: {", ".join(str(a) for a in (self.project_context.get("aliases") or [])) or "None"}
+- Site Address: {self.project_context.get("site_address") or "Not specified"}
+- Key Terms: {", ".join(str(t) for t in (self.project_context.get("project_terms") or [])) or "None"}
 
 DETECTED REFERENCES:
 {refs_summary}

@@ -38,7 +38,7 @@ def agent_log(
         r"c:\Users\William\Documents\Projects\VeriCase Analysis\.cursor\debug.log"
     )
     payload = {
-        "id": f"log_{int(time.time()*1000)}_{hash(message) % 10000}",
+        "id": f"log_{int(time.time() * 1000)}_{hash(message) % 10000}",
         "timestamp": int(time.time() * 1000),
         "location": "pst_forensic_processor.py",
         "message": message,
@@ -755,7 +755,7 @@ class ForensicPSTProcessor:
         if not headers:
             return None
 
-        pattern = f"{re.escape(header_name)}:\s*(.+?)(?:\r?\n(?!\s)|$)"
+        pattern = rf"{re.escape(header_name)}:\s*(.+?)(?:\r?\n(?!\s)|$)"
         match = re.search(pattern, headers, re.IGNORECASE | re.MULTILINE)
         value = match.group(1).strip() if match else None
         # region agent log H7 header parse

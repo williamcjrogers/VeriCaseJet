@@ -3,6 +3,7 @@
 Case Management API
 Handles cases, evidence linking, issues, claims, and chronology
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence

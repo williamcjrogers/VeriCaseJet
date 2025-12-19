@@ -27,7 +27,6 @@ from api.app.correspondence import build_correspondence_visibility_filter  # noq
 
 
 class TestCorrespondenceVisibilityFilter(unittest.TestCase):
-
     def test_filter_compiles_with_postgres_json_operators(self):
         expr = build_correspondence_visibility_filter()
         compiled = str(

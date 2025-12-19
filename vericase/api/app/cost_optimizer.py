@@ -95,20 +95,20 @@ class CostOptimizer:
 🎯 5GB PST FILE PROCESSING COSTS:
 
 ONE-TIME PROCESSING:
-├── S3 Upload:           £{costs['s3_upload']:.2f}
-├── Textract:           £{costs['textract']:.2f}
-├── Comprehend:         £{costs['comprehend']:.2f}
-├── Bedrock Setup:      £{costs['bedrock_ingestion']:.2f}
-├── Lambda:             £{costs['lambda']:.2f}
-├── OpenSearch Setup:   £{costs['opensearch_setup']:.2f}
-└── Other Services:     £{costs['other_services']:.2f}
+├── S3 Upload:           £{costs["s3_upload"]:.2f}
+├── Textract:           £{costs["textract"]:.2f}
+├── Comprehend:         £{costs["comprehend"]:.2f}
+├── Bedrock Setup:      £{costs["bedrock_ingestion"]:.2f}
+├── Lambda:             £{costs["lambda"]:.2f}
+├── OpenSearch Setup:   £{costs["opensearch_setup"]:.2f}
+└── Other Services:     £{costs["other_services"]:.2f}
     ─────────────────────────
     TOTAL FIRST TIME:   £{one_time:.2f}
 
 MONTHLY ONGOING:
-├── S3 Storage:         £{costs['s3_monthly']:.2f}
-├── Bedrock KB:         £{costs['bedrock_monthly']:.2f}
-└── OpenSearch:         £{costs['opensearch_monthly']:.2f}
+├── S3 Storage:         £{costs["s3_monthly"]:.2f}
+├── Bedrock KB:         £{costs["bedrock_monthly"]:.2f}
+└── OpenSearch:         £{costs["opensearch_monthly"]:.2f}
     ─────────────────────────
     MONTHLY ONGOING:    £{monthly:.2f}
 

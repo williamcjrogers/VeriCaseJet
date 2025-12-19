@@ -24,7 +24,6 @@ from api.app.spam_filter import extract_other_project  # noqa: E402
 
 
 class TestOtherProjectExtraction(unittest.TestCase):
-
     def test_extract_returns_none_on_empty(self):
         self.assertIsNone(extract_other_project(None))
         self.assertIsNone(extract_other_project(""))

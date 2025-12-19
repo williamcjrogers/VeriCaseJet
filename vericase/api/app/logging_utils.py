@@ -51,7 +51,8 @@ class LogSanitizerFilter(logging.Filter):
         else:
             try:
                 record.args = tuple(
-                    sanitize_log_value(arg, self.max_length) for arg in record.args  # type: ignore[arg-type]
+                    sanitize_log_value(arg, self.max_length)
+                    for arg in record.args  # type: ignore[arg-type]
                 )
             except TypeError:
                 record.args = sanitize_log_value(record.args, self.max_length)

@@ -25,7 +25,6 @@ from api.app.spam_filter import SpamClassifier  # noqa: E402
 
 
 class TestSpamFilterIntegration(unittest.TestCase):
-
     def setUp(self):
         self.classifier = SpamClassifier()
 

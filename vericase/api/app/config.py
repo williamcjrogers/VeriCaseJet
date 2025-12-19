@@ -114,7 +114,6 @@ class Settings(BaseSettings):
                         "DATABASE_URL uses default credentials in production"
                     )
         else:
-
             # Warn in non-production environments
             if (
                 info.field_name

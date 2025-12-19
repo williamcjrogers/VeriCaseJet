@@ -298,8 +298,8 @@ If you didn't request this, please ignore this email. Your password won't be cha
                                 border-radius: 5px; padding: 20px; margin: 20px 0;">
                         <h3 style="margin-top: 0;">{alert_messages.get(alert_type)}</h3>
                         <p>Time: {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}</p>
-                        {f"<p>IP Address: {details.get('ip_address', 'Unknown')}</p>" if details.get('ip_address') else ""}
-                        {f"<p>Device: {details.get('user_agent', 'Unknown')}</p>" if details.get('user_agent') else ""}
+                        {f"<p>IP Address: {details.get('ip_address', 'Unknown')}</p>" if details.get("ip_address") else ""}
+                        {f"<p>Device: {details.get('user_agent', 'Unknown')}</p>" if details.get("user_agent") else ""}
                     </div>
                     <p>If this was you, no action is needed.</p>
                     <p>If you don't recognize this activity, please secure your account immediately.</p>

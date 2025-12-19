@@ -400,7 +400,7 @@ class MetadataExtractor:
                                 else float(str(value))
                             )
                             metadata.exposure_time = (
-                                f"1/{int(1/fval)}" if fval < 1 else str(fval)
+                                f"1/{int(1 / fval)}" if fval < 1 else str(fval)
                             )
                         elif tag == "FNumber":
                             # Convert to float safely
