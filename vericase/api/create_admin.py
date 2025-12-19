@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Create admin user for VeriCase"""
+
 import sys
 from pathlib import Path
 

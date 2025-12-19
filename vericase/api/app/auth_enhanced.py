@@ -2,6 +2,7 @@
 """
 Enhanced authentication endpoints with security features
 """
+
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Body, Path
 from sqlalchemy.orm import Session
 from sqlalchemy import and_

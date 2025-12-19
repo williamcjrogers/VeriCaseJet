@@ -528,7 +528,7 @@ async def get_evidence_comments(
             if evidence:
                 title = evidence.title or evidence.filename
                 item_name = (
-                    title[:20] + f" ({len(title)-19} chars remaining)"
+                    title[:20] + f" ({len(title) - 19} chars remaining)"
                     if len(title) > 20
                     else title
                 )
@@ -539,7 +539,7 @@ async def get_evidence_comments(
             if email:
                 subject = email.subject or ""
                 item_name = (
-                    subject[:20] + f" ({len(subject)-19} chars remaining)"
+                    subject[:20] + f" ({len(subject) - 19} chars remaining)"
                     if len(subject) > 20
                     else subject
                 )
@@ -1494,7 +1494,7 @@ Provide a concise summary highlighting:
 3. Outstanding questions or action items
 Keep the summary professional and factual."""
 
-    prompt = f"""Summarize this discussion about claim "{claim.name}" (Reference: {claim.reference_number or 'N/A'}):
+    prompt = f"""Summarize this discussion about claim "{claim.name}" (Reference: {claim.reference_number or "N/A"}):
 
 {discussion_text}
 
@@ -1596,14 +1596,14 @@ async def ai_suggest_evidence(
 Based on the claim details and discussion, suggest which evidence items would be most relevant to link."""
 
     prompt = f"""Claim: {claim.name}
-Type: {claim.claim_type or 'General'}
-Description: {claim.description or 'N/A'}
-Contract Clause: {claim.supporting_contract_clause or 'N/A'}
+Type: {claim.claim_type or "General"}
+Description: {claim.description or "N/A"}
+Contract Clause: {claim.supporting_contract_clause or "N/A"}
 
 Recent Discussion:
-{comment_text or 'No discussion yet'}
+{comment_text or "No discussion yet"}
 
-Additional Context: {request.context or 'None provided'}
+Additional Context: {request.context or "None provided"}
 
 Available Evidence (not yet linked):
 {chr(10).join(evidence_list[:20])}
@@ -1680,16 +1680,16 @@ async def ai_draft_reply(
     }
 
     system_prompt = f"""You are an assistant helping draft replies in claim discussions.
-{tone_guidance.get(request.tone, tone_guidance['professional'])}
+{tone_guidance.get(request.tone, tone_guidance["professional"])}
 Draft a thoughtful response that addresses the discussion points."""
 
     prompt = f"""Claim: {claim.name}
-Type: {claim.claim_type or 'General'}
+Type: {claim.claim_type or "General"}
 
 Recent Discussion:
-{chr(10).join(recent_discussion) or 'No prior discussion'}
+{chr(10).join(recent_discussion) or "No prior discussion"}
 
-Context for reply: {request.context or 'General response needed'}
+Context for reply: {request.context or "General response needed"}
 
 Draft a reply for the current user to post. Keep it concise but comprehensive."""
 

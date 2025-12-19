@@ -307,8 +307,8 @@ class EnhancedEvidenceProcessor:
             recommendations_query = f"""
             Based on the evidence collected for case "{case.name}" ({case.dispute_type}), 
             what are the key legal strategies and potential risks?
-            Evidence includes: {len(evidence_items)} documents spanning {len(insights['evidence_timeline'])} time periods.
-            Key parties: {list(insights['key_entities'].keys())[:5]}
+            Evidence includes: {len(evidence_items)} documents spanning {len(insights["evidence_timeline"])} time periods.
+            Key parties: {list(insights["key_entities"].keys())[:5]}
             """
 
             ai_recommendations = await self.aws.query_knowledge_base(

@@ -18,7 +18,6 @@ from api.app.ai_models import AIModelService  # noqa: E402
 
 
 class TestAIModelResolution(unittest.TestCase):
-
     def test_resolve_friendly_names(self):
         cases = {
             "claude-sonnet-4": ("anthropic", "claude-sonnet-4-20250514"),

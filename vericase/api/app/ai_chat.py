@@ -4,6 +4,7 @@ AI Evidence Assistant - Multi-Model Deep Research
 Helps users understand their evidence, build chronologies, and develop narratives
 Uses GPT-5.1, Gemini 3 Pro, Claude Opus 4.5, and Amazon Bedrock for comprehensive analysis
 """
+
 import logging
 import asyncio
 import re

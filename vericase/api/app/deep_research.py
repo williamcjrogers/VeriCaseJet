@@ -1227,7 +1227,7 @@ RESEARCH TOPIC: {plan.topic}
 
 PROBLEM STATEMENT: {plan.problem_statement}
 
-KEY ANGLES TO COVER: {', '.join(plan.key_angles)}
+KEY ANGLES TO COVER: {", ".join(plan.key_angles)}
 
 ORIGINAL RESEARCH FINDINGS:
 {findings_summary}
@@ -1335,7 +1335,7 @@ Perform a thorough validation and output as JSON:
 CLAIM: {claim}
 
 CITED EVIDENCE (ID: {citation_id}):
-{str(evidence.get('content', evidence.get('text', '')))[:1000]}
+{str(evidence.get("content", evidence.get("text", "")))[:1000]}
 
 Respond with JSON:
 {{
@@ -1508,7 +1508,7 @@ Be objective and provide clear justifications for rankings."""
 
         # Build comparison prompt
         candidates_text = "\n\n---\n\n".join(
-            f"CANDIDATE {i+1} (from {c.get('model', 'unknown')}):\n{c.get('answer', c.get('content', ''))[:1500]}"
+            f"CANDIDATE {i + 1} (from {c.get('model', 'unknown')}):\n{c.get('answer', c.get('content', ''))[:1500]}"
             for i, c in enumerate(candidate_answers)
         )
 
@@ -1593,7 +1593,7 @@ Score each candidate from 0.0 to 1.0 and rank them. Output as JSON:
             return section_candidates[0]
 
         candidates_text = "\n\n---\n\n".join(
-            f"CANDIDATE {i+1} (from {c.get('model', 'unknown')}):\n{c.get('content', '')[:2000]}"
+            f"CANDIDATE {i + 1} (from {c.get('model', 'unknown')}):\n{c.get('content', '')[:2000]}"
             for i, c in enumerate(section_candidates)
         )
 

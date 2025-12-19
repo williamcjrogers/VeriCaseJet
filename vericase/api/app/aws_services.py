@@ -288,14 +288,17 @@ class AWSServicesManager:
             )
 
             # Await all results
-            entities_response, sentiment_response, phrases_response, pii_response = (
-                await asyncio.gather(
-                    entities_task,
-                    sentiment_task,
-                    phrases_task,
-                    pii_task,
-                    return_exceptions=True,
-                )
+            (
+                entities_response,
+                sentiment_response,
+                phrases_response,
+                pii_response,
+            ) = await asyncio.gather(
+                entities_task,
+                sentiment_task,
+                phrases_task,
+                pii_task,
+                return_exceptions=True,
             )
 
             # Process results (handle exceptions gracefully)
@@ -1058,7 +1061,7 @@ class AWSServicesManager:
                 "Account"
             ]
 
-            job_name = f'vericase-scan-{datetime.utcnow().strftime("%Y%m%d-%H%M%S")}'
+            job_name = f"vericase-scan-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
 
             # Build S3 job definition
             bucket_definition = {"accountId": account_id, "buckets": [s3_bucket]}

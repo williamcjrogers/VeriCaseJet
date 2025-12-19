@@ -5,6 +5,7 @@
 Production configuration helper for AWS deployment
 This file helps map AWS environment variables to the app's expected format
 """
+
 import os
 import json
 import logging
@@ -65,8 +66,7 @@ def load_ai_keys_from_secrets_manager() -> bool:
 
         if loaded_count > 0:
             logger.info(
-                f"Successfully loaded {loaded_count} AI API keys from "
-                f"Secrets Manager"
+                f"Successfully loaded {loaded_count} AI API keys from Secrets Manager"
             )
             return True
         else:
@@ -77,15 +77,13 @@ def load_ai_keys_from_secrets_manager() -> bool:
         logger.warning("boto3 not available - cannot load from Secrets Manager")
         return False
     except ClientError as e:
-        error_code: Any = e.response.get("Error", {}).get(
-            "Code", ""
-        )  # type: ignore[reportPossiblyUnboundVariable]
+        error_code: Any = e.response.get("Error", {}).get("Code", "")  # type: ignore[reportPossiblyUnboundVariable]
         logger.error(f"[config_production] ClientError {error_code}: {e}")
         if error_code == "ResourceNotFoundException":
             logger.warning(f"Secret {secret_name} not found in Secrets Manager")
         elif error_code == "AccessDeniedException":
             logger.warning(
-                f"Access denied to secret {secret_name} - " f"check IAM permissions"
+                f"Access denied to secret {secret_name} - check IAM permissions"
             )
         else:
             logger.error(f"Failed to load AI keys from Secrets Manager: {e}")

@@ -119,10 +119,10 @@ def send_mention_notification(
             </div>
 
             <div style="background: #f8f9fa; padding: 20px; border: 1px solid #e9ecef; border-top: none;">
-                <p>Hi {mentioned_user.display_name or mentioned_user.email.split('@')[0]},</p>
+                <p>Hi {mentioned_user.display_name or mentioned_user.email.split("@")[0]},</p>
 
                 <p><strong>{author_name}</strong> mentioned you in a comment on
-                   <strong>{claim_name}</strong>{f' ({claim_ref})' if claim_ref else ''}:</p>
+                   <strong>{claim_name}</strong>{f" ({claim_ref})" if claim_ref else ""}:</p>
 
                 <div style="background: white; border-left: 4px solid #667eea; padding: 15px;
                             margin: 20px 0; border-radius: 0 4px 4px 0;">
@@ -154,9 +154,9 @@ def send_mention_notification(
     text_content = f"""
 You were mentioned in VeriCase
 
-Hi {mentioned_user.display_name or mentioned_user.email.split('@')[0]},
+Hi {mentioned_user.display_name or mentioned_user.email.split("@")[0]},
 
-{author_name} mentioned you in a comment on {claim_name}{f' ({claim_ref})' if claim_ref else ''}:
+{author_name} mentioned you in a comment on {claim_name}{f" ({claim_ref})" if claim_ref else ""}:
 
 "{comment_preview}"
 
@@ -223,7 +223,7 @@ def send_reply_notification(
             </div>
 
             <div style="background: #f8f9fa; padding: 20px; border: 1px solid #e9ecef; border-top: none;">
-                <p>Hi {original_author.display_name or original_author.email.split('@')[0]},</p>
+                <p>Hi {original_author.display_name or original_author.email.split("@")[0]},</p>
 
                 <p><strong>{replier_name}</strong> replied to your comment on
                    <strong>{claim_name}</strong>:</p>
@@ -262,7 +262,7 @@ def send_reply_notification(
     text_content = f"""
 New reply to your comment
 
-Hi {original_author.display_name or original_author.email.split('@')[0]},
+Hi {original_author.display_name or original_author.email.split("@")[0]},
 
 {replier_name} replied to your comment on {claim_name}:
 

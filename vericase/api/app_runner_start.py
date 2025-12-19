@@ -2,6 +2,7 @@
 """
 App Runner startup script with diagnostics
 """
+
 import os
 import sys
 import socket

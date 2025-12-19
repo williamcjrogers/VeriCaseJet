@@ -403,7 +403,7 @@ Delay Days: {a.delay_days}
 Responsible Party: {a.delay_type.value}
 Impact: {a.impact_type.value}
 Critical Path: {a.critical_path_impact}
-Supporting Evidence: {', '.join(a.supporting_evidence[:3])}"""
+Supporting Evidence: {", ".join(a.supporting_evidence[:3])}"""
                 for a in delay_analyses
             ]
         )
@@ -414,9 +414,9 @@ DELAY ANALYSES:
 {analyses_text}
 
 ENTITLEMENT SUMMARY:
-- EOT Entitlement: {entitlements.get('eot_days', 0)} days
-- Prolongation Claim: ${entitlements.get('prolongation', 0):,.2f}
-- Disruption Claim: ${entitlements.get('disruption', 0):,.2f}
+- EOT Entitlement: {entitlements.get("eot_days", 0)} days
+- Prolongation Claim: ${entitlements.get("prolongation", 0):,.2f}
+- Disruption Claim: ${entitlements.get("disruption", 0):,.2f}
 
 Write a comprehensive claims narrative that:
 1. Introduces the claim

@@ -1516,7 +1516,7 @@ RESEARCH TOPIC: {plan.topic}
 
 PROBLEM STATEMENT: {plan.problem_statement}
 
-KEY ANGLES TO COVER: {', '.join(plan.key_angles)}
+KEY ANGLES TO COVER: {", ".join(plan.key_angles)}
 
 ORIGINAL RESEARCH FINDINGS:
 {findings_summary}
