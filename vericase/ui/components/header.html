@@ -1,0 +1,41 @@
+<div class="header">
+  <div class="header-left">
+    <a href="dashboard.html" class="logo">
+      <i class="fas fa-layer-group"></i>
+      <span class="logo-veri">Veri</span><span class="logo-case">Case</span>
+    </a>
+    <div class="case-info">
+      <span class="case-badge">CASE</span>
+      <span id="caseNumber">LOADING...</span>
+      <span id="caseName">Loading case details...</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="breadcrumb-case-info">
+      <a href="#" id="breadcrumbProject" style="color: var(--text-muted); text-decoration: none;">Project</a>
+      <span style="color: var(--border);">/</span>
+      <span style="font-weight: 500; color: var(--text-primary);">Correspondence</span>
+    </div>
+    <div class="header-action-divider"></div>
+    <button class="btn" onclick="window.location.href='deep-research.html'" title="Open Deep Analysis" style="
+      background: linear-gradient(135deg, #0f9d9a 0%, #0a7d7a 100%);
+      color: white;
+      border: none;
+    ">
+      <i class="fas fa-microscope"></i> Deep Analysis
+    </button>
+    <div class="header-action-divider"></div>
+    <button class="btn" onclick="exportToExcel()" title="Export to Excel">
+      <i class="fas fa-file-excel"></i>
+    </button>
+    <button class="btn" onclick="printEmails()" title="Print">
+      <i class="fas fa-print"></i>
+    </button>
+    <button class="btn btn-primary" onclick="refreshData()" title="Refresh Data">
+      <i class="fas fa-sync-alt"></i>
+    </button>
+    <button class="btn btn-icon btn-ghost" onclick="toggleCommandPalette()" title="Command Palette (Ctrl+K)">
+      <i class="fas fa-terminal"></i>
+    </button>
+  </div>
+</div>

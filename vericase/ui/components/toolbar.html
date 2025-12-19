@@ -1,0 +1,97 @@
+<div class="toolbar">
+  <div class="toolbar-left">
+    <!-- Search -->
+    <div class="search-box">
+      <i class="fas fa-search"></i>
+      <label for="quickFilter"></label><input type="text" id="quickFilter" placeholder="Search emails... (Ctrl+K)"
+        onkeyup="onQuickFilterChanged()" />
+    </div>
+
+    <!-- Essential Filters -->
+    <div class="toolbar-dropdown" id="filterDropdown">
+      <button class="btn" onclick="toggleFilterDropdown()" title="Filter">
+        <i class="fas fa-filter"></i> Filter
+      </button>
+      <div class="dropdown-menu" id="filterDropdownMenu">
+        <button class="dropdown-item" onclick="showStakeholderFilter(); closeAllDropdowns()">
+          <i class="fas fa-users"></i> By Stakeholder
+        </button>
+        <button class="dropdown-item" onclick="showKeywordFilter(); closeAllDropdowns()">
+          <i class="fas fa-tags"></i> By Keyword
+        </button>
+        <div class="dropdown-divider"></div>
+        <button class="dropdown-item" onclick="toggleExcludedEmails(); closeAllDropdowns()" id="dropdownExcludedBtn">
+          <i class="fas fa-eye-slash" id="dropdownExcludedIcon"></i>
+          <span id="dropdownExcludedLabel">Show Excluded</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar-right">
+    <!-- View Mode -->
+    <div class="btn-group view-toggle-group">
+      <button class="btn active" onclick="setViewMode('all')" data-view="all" title="All">
+        <i class="fas fa-inbox"></i>
+      </button>
+      <button class="btn" onclick="setViewMode('threads')" data-view="threads" title="Threads">
+        <i class="fas fa-comments"></i>
+      </button>
+      <button class="btn" onclick="setViewMode('attachments')" data-view="attachments" title="Files">
+        <i class="fas fa-paperclip"></i>
+      </button>
+    </div>
+
+    <!-- Actions -->
+    <div class="toolbar-dropdown" id="moreActionsDropdown">
+      <button class="btn btn-icon" onclick="toggleMoreActionsDropdown()" title="Actions">
+        <i class="fas fa-ellipsis-v"></i>
+      </button>
+      <div class="dropdown-menu dropdown-menu-right" id="moreActionsMenu">
+        <button class="dropdown-item" onclick="openProgrammeModal(); closeAllDropdowns()">
+          <i class="fas fa-project-diagram"></i> Manage Programmes
+        </button>
+        <div class="dropdown-divider"></div>
+        <button class="dropdown-item" onclick="saveGridConfiguration(); closeAllDropdowns()">
+          <i class="fas fa-save"></i> Save Layout
+        </button>
+        <button class="dropdown-item" onclick="resetGridConfiguration(); closeAllDropdowns()">
+          <i class="fas fa-undo"></i> Reset Layout
+        </button>
+        <div class="dropdown-divider"></div>
+        <button class="dropdown-item" onclick="toggleCommandPalette(); closeAllDropdowns()">
+          <i class="fas fa-terminal"></i> Command Palette
+          <kbd>Ctrl+K</kbd>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Statistics Bar - Card Style -->
+<div class="stats-bar">
+  <div class="stat-item">
+    <span class="stat-label">Total Emails</span>
+    <span class="stat-value highlight" id="totalEmails">0</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-label">Excluded</span>
+    <span class="stat-value" id="excludedCount">0</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-label">Threads</span>
+    <span class="stat-value" id="uniqueThreads">0</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-label">Attachments</span>
+    <span class="stat-value" id="withAttachments">0</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-label">Date Range</span>
+    <span class="stat-value" id="dateRange">-</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-label">Selected</span>
+    <span class="stat-value" id="selectedCount">0</span>
+  </div>
+</div>
