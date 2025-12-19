@@ -1,0 +1,131 @@
+<!-- Attachment Preview Modal -->
+<div id="attachmentPreviewModal" style="
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 10000;
+      justify-content: center;
+      align-items: center;
+    ">
+  <div style="
+        background: white;
+        width: 90%;
+        height: 90%;
+        max-width: 1200px;
+        border-radius: 10px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+      ">
+    <div style="
+          padding: 15px 20px;
+          border-bottom: 1px solid #e5e7eb;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        ">
+      <h3 id="previewTitle" style="margin: 0; color: #1f2937; font-size: 1.1rem">
+        Attachment Preview
+      </h3>
+      <button onclick="closeAttachmentPreview()" style="
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+          ">
+        ✕ Close
+      </button>
+    </div>
+    <div id="previewContent" style="flex: 1; overflow: auto; padding: 20px; position: relative">
+      <!-- Preview content will be loaded here -->
+    </div>
+    <div style="
+          padding: 10px 20px;
+          border-top: 1px solid #e5e7eb;
+          display: flex;
+          justify-content: flex-end;
+          gap: 10px;
+        ">
+      <button id="downloadBtn" onclick="downloadCurrentAttachment()" style="
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+          ">
+        ⬇ Download
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Programme Upload Modal -->
+<div id="programmeModal" class="modal" style="
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+    ">
+  <div style="
+        background: white;
+        width: 500px;
+        padding: 2rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      ">
+    <h2 style="margin-bottom: 1.5rem">Manage Programmes</h2>
+
+    <div style="margin-bottom: 1.5rem">
+      <label for="programmeFileInput" style="display: block; margin-bottom: 0.5rem; font-weight: 500">Upload Programme (Asta XML or
+        Excel)</label>
+      <input type="file" id="programmeFileInput" accept=".xml,.xlsx,.xls" style="
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+          " />
+      <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #6b7280">
+        Supported formats: Asta Powerproject (.xml), Excel (.xlsx, .xls)
+      </div>
+    </div>
+
+    <div style="margin-bottom: 1.5rem">
+      <label for="programmeTypeInput" style="display: block; margin-bottom: 0.5rem; font-weight: 500">Programme Type</label>
+      <select id="programmeTypeInput" style="
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+          ">
+        <option value="baseline">Baseline / As-Planned</option>
+        <option value="as_built">As-Built / Actual</option>
+      </select>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 1rem">
+      <button class="btn" onclick="closeProgrammeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="uploadProgramme()">
+        Upload
+      </button>
+    </div>
+
+    <div id="programmeUploadStatus" style="margin-top: 1rem; font-size: 0.875rem"></div>
+  </div>
+</div>
