@@ -106,3 +106,11 @@ venv/
 ENV/
 security-rotation.md
 DEPLOY_NOW.md
+docs/VeriCase Future Blueprint Guidance.docx
+AWS_COMPLETE_COST_ANALYSIS.md
+AWS_SCALE_READY_OPTIMIZATION.md
+COST_OPTIMIZATION_REPORT.md
+fix-deployment.ps1
+investigate-10k-bill.ps1
+DEPLOYMENT_FIX_GUIDE.md
+EMERGENCY_COST_INVESTIGATION.md
