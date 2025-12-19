@@ -43,43 +43,22 @@ from .ai_settings import (
     get_tool_fallback_chain,
 )
 from .ai_providers import BedrockProvider, bedrock_available
-from sqlalchemy import or_, and_
+from .visibility import build_email_visibility_filter
 
 logger = logging.getLogger(__name__)
 
 
 def _exclude_spam_filter(email_model: type[EmailMessage]) -> Any:
     """
-    Build SQLAlchemy filter to exclude spam/hidden/other-project emails.
+    Build SQLAlchemy filter to exclude *all* excluded/hidden emails.
 
-    Filters out emails where meta contains:
-    - is_spam = True
-    - is_hidden = True
-    - other_project is not null/empty
-
-    Returns a filter condition that can be used with .filter()
-
-    Note: Uses explicit NULL checks because accessing a non-existent JSON key
-    returns NULL, and NULL comparisons require special handling.
+    This uses the same visibility convention as the Correspondence Enterprise UI
+    and the AI Evidence Assistant:
+    - Hide when meta.status is set (spam/other_project/not_relevant/etc)
+    - Hide when meta.is_hidden is true
+    - Respect spam.user_override
     """
-    # Include row if: meta IS NULL OR key doesn't exist (NULL) OR key != 'true'
-    return and_(
-        or_(
-            email_model.meta.is_(None),
-            email_model.meta["is_spam"].astext.is_(None),
-            email_model.meta["is_spam"].astext != "true",
-        ),
-        or_(
-            email_model.meta.is_(None),
-            email_model.meta["is_hidden"].astext.is_(None),
-            email_model.meta["is_hidden"].astext != "true",
-        ),
-        or_(
-            email_model.meta.is_(None),
-            email_model.meta["other_project"].astext.is_(None),
-            email_model.meta["other_project"].astext == "",
-        ),
-    )
+    return build_email_visibility_filter(email_model)
 
 
 router = APIRouter(prefix="/api/ai-refinement", tags=["ai-refinement"])

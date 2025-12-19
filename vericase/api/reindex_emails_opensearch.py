@@ -36,12 +36,13 @@ from pathlib import Path
 # Allow running as a script from the `vericase/api/` folder.
 sys.path.insert(0, str(Path(__file__).parent))
 
-from sqlalchemy import or_
+from sqlalchemy import or_, not_
 from sqlalchemy.orm import load_only
 
 from app.db import SessionLocal
 from app.models import EmailMessage
 from app.search import index_email_in_opensearch
+from app.visibility import build_email_visibility_filter
 
 
 def _parse_uuid(value: str | None) -> uuid.UUID | None:
@@ -103,12 +104,11 @@ def main() -> int:
 
         q = db.query(EmailMessage).options(load_only(*load_cols))
 
-        # Match the API behavior: skip hidden/spam-filtered messages
+        # Match the API behavior: skip excluded/hidden messages.
+        q = q.filter(build_email_visibility_filter(EmailMessage))
         q = q.filter(
             or_(
-                EmailMessage.meta.is_(None),
-                EmailMessage.meta.op("->>")("spam").is_(None),
-                EmailMessage.meta.op("->")("spam").op("->>")("is_hidden") != "true",
+                EmailMessage.subject.is_(None), not_(EmailMessage.subject.like("IPM.%"))
             )
         )
 
