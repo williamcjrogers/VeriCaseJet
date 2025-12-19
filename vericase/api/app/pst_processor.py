@@ -172,6 +172,12 @@ class UltimatePSTProcessor:
             getattr(settings, "PST_BATCH_COMMIT_SIZE", 2500) or 2500
         )
 
+        # Initialize batch buffers (Split for performance)
+        self.email_buffer = []
+        self.attachment_buffer = []
+        self.document_buffer = []
+        self.evidence_buffer = []
+
         # Initialize semantic processing for deep research acceleration
         self.semantic_service: Any = None
         if _semantic_available and _SemanticIngestionService is not None:
@@ -182,6 +188,67 @@ class UltimatePSTProcessor:
                 logger.warning(
                     f"Semantic service initialization failed (non-fatal): {e}"
                 )
+
+    def _flush_buffers(self, force: bool = False) -> None:
+        """
+        Flush all buffers to database.
+        Splits by type to maximize bulk_save_objects efficiency.
+        """
+        total_pending = (
+            len(self.email_buffer)
+            + len(self.document_buffer)
+            + len(self.attachment_buffer)
+            + len(self.evidence_buffer)
+        )
+
+        if total_pending == 0:
+            return
+
+        if force or total_pending >= self.batch_commit_size:
+            try:
+                # Flush in order of dependencies
+                if self.document_buffer:
+                    self.db.bulk_save_objects(self.document_buffer)
+                    self.document_buffer = []
+
+                if self.email_buffer:
+                    self.db.bulk_save_objects(self.email_buffer)
+                    self.email_buffer = []
+
+                if self.attachment_buffer:
+                    self.db.bulk_save_objects(self.attachment_buffer)
+                    self.attachment_buffer = []
+
+                if self.evidence_buffer:
+                    self.db.bulk_save_objects(self.evidence_buffer)
+                    self.evidence_buffer = []
+
+                self.db.commit()
+
+                # Log progress
+                if self.processed_count > 0 and self.processed_count % 500 == 0:
+                    if self.total_count > 0:
+                        progress = (self.processed_count / self.total_count) * 100
+                        logger.info(
+                            "Progress: %d/%d (%.1f%%)",
+                            self.processed_count,
+                            self.total_count,
+                            progress,
+                        )
+                    else:
+                        logger.info(
+                            "Progress: %d emails processed",
+                            self.processed_count,
+                        )
+
+            except Exception as commit_error:
+                logger.error(f"Batch commit failed: {commit_error}")
+                self.db.rollback()
+                # Clear buffers on error to prevent cascading
+                self.email_buffer = []
+                self.document_buffer = []
+                self.attachment_buffer = []
+                self.evidence_buffer = []
 
     def process_pst(
         self,
@@ -391,10 +458,23 @@ class UltimatePSTProcessor:
                 )
                 # endregion agent log H12 count skipped
 
+            # Initialize batch buffer
+            self.batch_buffer = []
+
             # Process all folders recursively
             self._process_folder(
                 root, pst_file_record, document, case_id, project_id, company_id, stats
             )
+
+            # Flush remaining buffer
+            if self.batch_buffer:
+                try:
+                    self.db.bulk_save_objects(self.batch_buffer)
+                    self.db.commit()
+                    self.batch_buffer = []
+                except Exception as commit_error:
+                    logger.error(f"Final batch commit failed: {commit_error}")
+                    self.db.rollback()
 
             # Build thread relationships after all emails are extracted (CRITICAL - USP FEATURE!)
             logger.info("Building email thread relationships...")
@@ -487,6 +567,16 @@ class UltimatePSTProcessor:
 
         except Exception as e:
             logger.error(f"PST processing failed: {e}", exc_info=True)
+            # Try to save partial results if buffer has items
+            if self.batch_buffer:
+                try:
+                    self.db.bulk_save_objects(self.batch_buffer)
+                    self.db.commit()
+                except Exception as save_err:
+                    logger.error(
+                        f"Failed to save remaining buffer on error: {save_err}"
+                    )
+
             if document is not None:
                 setattr(document, "status", DocStatus.FAILED)
                 set_processing_meta(
@@ -573,28 +663,35 @@ class UltimatePSTProcessor:
                 self.processed_count += 1
 
                 # Commit every batch_commit_size messages for performance
-                if self.processed_count % self.batch_commit_size == 0:
+                if len(self.batch_buffer) >= self.batch_commit_size:
                     try:
+                        self.db.bulk_save_objects(self.batch_buffer)
                         self.db.commit()
+                        self.batch_buffer = []
+
+                        # Log progress
+                        if self.processed_count % 100 == 0:
+                            if self.total_count > 0:
+                                progress = (
+                                    self.processed_count / self.total_count
+                                ) * 100
+                                logger.info(
+                                    "Progress: %d/%d (%.1f%%)",
+                                    self.processed_count,
+                                    self.total_count,
+                                    progress,
+                                )
+                            else:
+                                logger.info(
+                                    "Progress: %d emails processed",
+                                    self.processed_count,
+                                )
                     except Exception as commit_error:
                         logger.error(f"Batch commit failed: {commit_error}")
                         self.db.rollback()
-
-                # Log progress every 100 emails
-                if self.processed_count % 100 == 0:
-                    if self.total_count > 0:
-                        progress = (self.processed_count / self.total_count) * 100
-                        logger.info(
-                            "Progress: %d/%d (%.1f%%)",
-                            self.processed_count,
-                            self.total_count,
-                            progress,
-                        )
-                    else:
-                        logger.info(
-                            "Progress: %d emails processed (total unknown)",
-                            self.processed_count,
-                        )
+                        self.batch_buffer = (
+                            []
+                        )  # Clear buffer on error to prevent cascading
 
             except (
                 AttributeError,
@@ -608,18 +705,13 @@ class UltimatePSTProcessor:
                     f"Skipping message {i} in {current_path}: {str(e)[:100]}"
                 )
                 stats["errors"].append(f"Message {i} in {current_path}: {str(e)[:50]}")
-                # Rollback any partial changes from this message
-                try:
-                    self.db.rollback()
-                except Exception:
-                    pass
+                # Rollback any partial changes from this message - handled by transaction rollback if critical
+                # try:
+                #     self.db.rollback()
+                # except Exception:
+                #     pass
 
-        # Final commit for this folder
-        try:
-            self.db.commit()
-        except Exception as commit_error:
-            logger.error(f"Final folder commit failed: {commit_error}")
-            self.db.rollback()
+        # No final commit needed here, handled by batch flush in process_pst or next iteration
 
         # Process subfolders
         num_subfolders = int(
@@ -656,7 +748,7 @@ class UltimatePSTProcessor:
         """
         Clean body text for display:
         - Strip HTML tags and CSS
-        - Decode HTML entities (&nbsp;, &lt;, &gt;, etc.)
+        - Decode HTML entities (&nbsp;, <, >, etc.)
         - Remove zero-width characters (U+200B, U+200C, U+200D, U+FEFF)
         - Normalize whitespace
         """
@@ -925,7 +1017,9 @@ class UltimatePSTProcessor:
             )
 
             # Create minimal EmailMessage record - NO body content, NO attachments
+            email_id = uuid.uuid4()
             email_message = EmailMessage(
+                id=email_id,
                 pst_file_id=pst_file_record.id,
                 case_id=case_id,
                 project_id=project_id,
@@ -971,8 +1065,8 @@ class UltimatePSTProcessor:
                     "attachments_skipped": email_data.get("has_attachments", False),
                 },
             )
-            self.db.add(email_message)
-            self.db.flush()
+            # Add to buffer instead of immediate commit
+            self.batch_buffer.append(email_message)
 
             # Track for threading (still needed for reference)
             if message_id:
@@ -1186,8 +1280,12 @@ class UltimatePSTProcessor:
             # Correspondence visibility convention
             meta_payload["status"] = derived_status
 
+        # Generate ID explicitly for batch processing
+        email_id = uuid.uuid4()
+
         # Create EmailMessage record
         email_message = EmailMessage(
+            id=email_id,
             pst_file_id=pst_file_record.id,
             case_id=case_id,
             project_id=project_id,
@@ -1216,8 +1314,7 @@ class UltimatePSTProcessor:
         )
 
         # We need to add and flush the email message first to get its ID for attachments
-        self.db.add(email_message)
-        self.db.flush()
+        self.batch_buffer.append(email_message)
 
         # Now process attachments with the email_message ID
         if num_attachments > 0:
@@ -1567,7 +1664,9 @@ class UltimatePSTProcessor:
                         continue
 
                     # Create Document record for attachment
+                    att_doc_id = uuid.uuid4()
                     att_doc = Document(
+                        id=att_doc_id,
                         filename=safe_filename,
                         content_type=content_type,
                         size=size,
@@ -1590,12 +1689,11 @@ class UltimatePSTProcessor:
                             "company_id": str(company_id) if company_id else None,
                         },
                     )
-                    self.db.add(att_doc)
-                    self.db.flush()
-                    att_doc_id = att_doc.id
+                    # Note: We append to buffer, so flush is delayed.
+                    self.batch_buffer.append(att_doc)
 
                     # Store for deduplication
-                    self.attachment_hashes[file_hash] = att_doc.id
+                    self.attachment_hashes[file_hash] = att_doc_id
 
                     # ASYNC OCR: Queue OCR task immediately (non-blocking)
                     try:
@@ -1613,7 +1711,9 @@ class UltimatePSTProcessor:
                         )
 
                 # CREATE EmailAttachment record - THIS IS THE CRITICAL FIX!
+                email_attachment_id = uuid.uuid4()
                 email_attachment = EmailAttachment(
+                    id=email_attachment_id,
                     email_message_id=email_message.id,
                     filename=safe_filename,
                     content_type=content_type,
@@ -1625,8 +1725,7 @@ class UltimatePSTProcessor:
                     content_id=content_id,
                     is_duplicate=is_duplicate,
                 )
-                self.db.add(email_attachment)
-                self.db.flush()
+                self.batch_buffer.append(email_attachment)
 
                 # CREATE EvidenceItem record - so attachments appear in Evidence Repository!
                 # Only create for non-inline attachments (skip embedded images)
@@ -1647,7 +1746,14 @@ class UltimatePSTProcessor:
                         # exist if a previous batch was rolled back. The is_duplicate flag is sufficient.
                         evidence_is_duplicate = file_hash in self.evidence_item_hashes
 
+                        # Ensure correct categorisation for Evidence Repository (Images vs Documents)
+                        evidence_type_category = "email_attachment"
+                        if is_image:
+                            evidence_type_category = "photo"  # Images go to Media pot
+
+                        evidence_item_id = uuid.uuid4()
                         evidence_item = EvidenceItem(
+                            id=evidence_item_id,
                             filename=safe_filename,
                             original_path=f"PST:{pst_file_record.filename if pst_file_record else 'unknown'}/{safe_filename}",
                             file_type=file_ext,
@@ -1656,7 +1762,7 @@ class UltimatePSTProcessor:
                             file_hash=file_hash,
                             s3_bucket=settings.S3_BUCKET,
                             s3_key=s3_key,
-                            evidence_type="email_attachment",
+                            evidence_type=evidence_type_category,
                             source_type="pst_extraction",
                             source_email_id=email_message.id,
                             case_id=case_id,
@@ -1666,9 +1772,9 @@ class UltimatePSTProcessor:
                             processing_status="pending",
                             auto_tags=["email-attachment", "from-pst"],
                         )
-                        self.db.add(evidence_item)
-                        self.db.flush()
+                        self.batch_buffer.append(evidence_item)
                         evidence_item_id = evidence_item.id
+
                         # Store for EvidenceItem deduplication (only if not a duplicate)
                         if not evidence_is_duplicate:
                             self.evidence_item_hashes[file_hash] = evidence_item_id
@@ -1892,6 +1998,7 @@ class UltimatePSTProcessor:
             if not email_message:
                 continue
 
+            subject = thread_info.get("subject", "")
             in_reply_to = thread_info.get("in_reply_to")
             references = thread_info.get("references")
             conversation_index = email_message.conversation_index
@@ -1932,7 +2039,6 @@ class UltimatePSTProcessor:
 
             # Last resort: subject-based grouping (normalized subject) with participant overlap
             if not thread_id:
-                subject = thread_info.get("subject", "")
                 if subject:
                     # Normalize subject (remove Re:, Fwd:, etc.)
                     normalized_subject = re.sub(
