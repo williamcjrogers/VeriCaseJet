@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_, not_
+from sqlalchemy import or_, not_
 
 try:  # Optional Redis
     from redis import Redis  # type: ignore
@@ -46,6 +46,7 @@ from .ai_settings import (
 from .settings import settings
 from .ai_providers import BedrockProvider, bedrock_available
 from .ai_runtime import complete_chat
+from .visibility import build_email_visibility_filter
 
 logger = logging.getLogger(__name__)
 
@@ -1962,26 +1963,12 @@ async def build_evidence_context(
     context_parts: list[str] = []
     evidence_items: list[dict[str, Any]] = []
 
-    # Get emails - exclude spam/hidden/other_project (marked during PST ingestion)
-    email_query = db.query(EmailMessage)
-
-    # Filter out spam/hidden/other_project emails
+    # Get emails - never include excluded/hidden emails in AI evidence.
+    email_query = db.query(EmailMessage).filter(
+        build_email_visibility_filter(EmailMessage)
+    )
     email_query = email_query.filter(
-        and_(
-            or_(
-                EmailMessage.meta.is_(None),
-                not_(EmailMessage.meta["is_spam"].astext == "true"),
-            ),
-            or_(
-                EmailMessage.meta.is_(None),
-                not_(EmailMessage.meta["is_hidden"].astext == "true"),
-            ),
-            or_(
-                EmailMessage.meta.is_(None),
-                EmailMessage.meta["other_project"].astext.is_(None),
-                EmailMessage.meta["other_project"].astext == "",
-            ),
-        )
+        or_(EmailMessage.subject.is_(None), not_(EmailMessage.subject.like("IPM.%")))
     )
 
     if project_id:

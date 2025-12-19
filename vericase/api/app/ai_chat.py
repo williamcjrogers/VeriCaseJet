@@ -1451,6 +1451,8 @@ async def _get_relevant_emails(
     timeouts and upstream 502s.
     """
     try:
+        from .visibility import build_email_visibility_filter
+
         # Load only the fields we need for prompting.
         load_cols = [
             EmailMessage.id,
@@ -1472,13 +1474,13 @@ async def _get_relevant_emails(
 
         query = db.query(EmailMessage).options(load_only(*load_cols))
 
-        # Filter out hidden/spam-filtered emails
+        # Never use excluded/hidden emails as AI evidence.
+        # Reuse the same visibility convention as the Correspondence Enterprise grid.
+        query = query.filter(build_email_visibility_filter(EmailMessage))
+
+        # Also exclude Outlook activity items (IPM.*) which are not real emails.
         query = query.filter(
-            or_(
-                EmailMessage.meta.is_(None),
-                EmailMessage.meta.op("->>")("spam").is_(None),
-                EmailMessage.meta.op("->")("spam").op("->>")("is_hidden") != "true",
-            )
+            or_(EmailMessage.subject.is_(None), ~EmailMessage.subject.like("IPM.%"))
         )
 
         if project_id:
@@ -1532,6 +1534,16 @@ async def _get_relevant_emails(
                         db.query(EmailMessage)
                         .options(load_only(*load_cols))
                         .filter(EmailMessage.id.in_(uuid_ids))
+                    )
+
+                    # Apply visibility filtering again because OpenSearch may contain
+                    # historical docs that should not be exposed to AI.
+                    q2 = q2.filter(build_email_visibility_filter(EmailMessage))
+                    q2 = q2.filter(
+                        or_(
+                            EmailMessage.subject.is_(None),
+                            ~EmailMessage.subject.like("IPM.%"),
+                        )
                     )
                     if project_id:
                         q2 = q2.filter(EmailMessage.project_id == project_id)

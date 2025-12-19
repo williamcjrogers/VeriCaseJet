@@ -1037,6 +1037,21 @@ class ForensicPSTProcessor:
     def _index_email(self, email_msg: EmailMessage):
         """Index email in OpenSearch for full-text search"""
         try:
+            from .visibility import is_email_visible_meta
+
+            # Never index excluded/hidden emails into the retrieval index.
+            # (Even if the DB layer filters them, indexing them increases the risk
+            # of accidental exposure via future code changes.)
+            if not is_email_visible_meta(
+                email_msg.meta
+                if isinstance(getattr(email_msg, "meta", None), dict)
+                else None
+            ):
+                return
+
+            if (email_msg.subject or "").startswith("IPM."):
+                return
+
             index_email_in_opensearch(
                 email_id=str(email_msg.id),
                 case_id=(
