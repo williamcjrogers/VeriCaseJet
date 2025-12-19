@@ -709,18 +709,32 @@ class AISettings:
         """
         key = f"ai_function_{function_name}"
 
+        # Build defaults first (always return at least the current default schema)
+        defaults = cls.DEFAULT_FUNCTION_CONFIGS.get(
+            function_name, cls.DEFAULT_FUNCTION_CONFIGS["quick_search"]
+        ).copy()
+
         # Try to get from database/cache
         config_json = cls.get(key, db)
         if config_json:
             try:
-                return json.loads(config_json)
+                saved = json.loads(config_json)
+                if isinstance(saved, dict):
+                    # Merge with defaults to ensure new fields (e.g., fallback_chain)
+                    # are present even if an older DB entry predates them.
+                    if isinstance(defaults.get("orchestration"), dict) and isinstance(
+                        saved.get("orchestration"), dict
+                    ):
+                        merged_orchestration = defaults["orchestration"].copy()
+                        merged_orchestration.update(saved["orchestration"])
+                        saved["orchestration"] = merged_orchestration
+
+                    defaults.update(saved)
+                    return defaults
             except json.JSONDecodeError:
                 logger.warning(f"Invalid JSON for {key}, using defaults")
 
-        # Return default config
-        return cls.DEFAULT_FUNCTION_CONFIGS.get(
-            function_name, cls.DEFAULT_FUNCTION_CONFIGS["quick_search"]
-        )
+        return defaults
 
     @classmethod
     def set_function_config(
