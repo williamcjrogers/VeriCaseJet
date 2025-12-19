@@ -3,7 +3,7 @@
 #   powershell -ExecutionPolicy Bypass -File .\vericase\ops\setup-ssh.ps1
 
 param(
-    [string]$Host = "18.175.232.87",
+    [string]$SshHost = "18.175.232.87",
     [string]$User = "ec2-user",
     [int]$Port = 22,
     [string]$KeyPath = $(if ($env:SSH_KEY_PATH) { $env:SSH_KEY_PATH } else { "$env:USERPROFILE\.ssh\VeriCase-Safe.pem" }),
@@ -35,7 +35,7 @@ if (-not $SkipSshConfig) {
         $block = @"
 
 Host $SshConfigAlias
-    HostName $Host
+HostName $SshHost
     User $User
     Port $Port
     IdentityFile $resolvedKeyPath
@@ -58,7 +58,7 @@ function Invoke-PrimeHostKey([string]$strictOption) {
         "-o", "ConnectTimeout=10",
         "-o", "UserKnownHostsFile=$KnownHostsPath",
         "-o", "StrictHostKeyChecking=$strictOption",
-        "$User@$Host",
+        "$User@$SshHost",
         "exit"
     )
 
@@ -72,7 +72,7 @@ if (Invoke-PrimeHostKey "accept-new") {
     Write-Warning "Could not prime host key with accept-new (older OpenSSH?)."
     Write-Warning "Falling back to StrictHostKeyChecking=no to populate known_hosts (TOFU)."
     if (-not (Invoke-PrimeHostKey "no")) {
-        throw "Failed to connect via SSH to $User@$Host on port $Port."
+        throw "Failed to connect via SSH to $User@$SshHost on port $Port."
     }
     Write-Host "known_hosts updated (fallback). Consider verifying the host key fingerprint out-of-band."
 }
