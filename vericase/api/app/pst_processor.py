@@ -96,7 +96,7 @@ def agent_log(
         r"c:\Users\William\Documents\Projects\VeriCase Analysis\.cursor\debug.log"
     )
     payload = {
-        "id": f"log_{int(time.time()*1000)}_{hash(message) % 10000}",
+        "id": f"log_{int(time.time() * 1000)}_{hash(message) % 10000}",
         "timestamp": int(time.time() * 1000),
         "location": "pst_processor.py",
         "message": message,

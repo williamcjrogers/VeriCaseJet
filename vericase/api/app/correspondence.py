@@ -495,6 +495,11 @@ async def upload_pst_file(
             queue=settings.CELERY_PST_QUEUE,
         )
         task_id = task.id
+
+        # Mark as queued so the UI can display it immediately.
+        pst_file.processing_status = "queued"
+        pst_file.error_message = None
+        db.commit()
     except Exception as e:
         logger.warning(f"Failed to enqueue Celery task (Redis unavailable?): {e}")
         # Upload still succeeded, just no async processing
@@ -741,6 +746,11 @@ async def start_pst_processing(
         queue=settings.CELERY_PST_QUEUE,
     )
 
+    # Mark as queued so list endpoints can show the work immediately.
+    pst_file.processing_status = "queued"
+    pst_file.error_message = None
+    db.commit()
+
     logger.info(f"Enqueued PST processing task {task.id} for file {pst_file_id}")
 
     return {
@@ -846,10 +856,25 @@ async def get_pst_status(
     )
 
 
+def _parse_pst_status_filter(status: str | None) -> list[str] | None:
+    """Parse the `status` query param for PST list endpoints.
+
+    Supports comma-separated lists (e.g. "queued,processing").
+    Returns None when no filtering should be applied.
+    """
+
+    if not status:
+        return None
+    statuses = [s.strip().lower() for s in status.split(",") if s.strip()]
+    return statuses or None
+
+
 @router.get("/pst/files", response_model=PSTFileListResponse)
 async def list_pst_files(
-    project_id: Annotated[str | None, Query(description="Filter by project ID")] = None,
-    case_id: Annotated[str | None, Query(description="Filter by case ID")] = None,
+    project_id: Annotated[
+        uuid.UUID | None, Query(description="Filter by project ID")
+    ] = None,
+    case_id: Annotated[uuid.UUID | None, Query(description="Filter by case ID")] = None,
     status: Annotated[
         str | None, Query(description="Filter by processing status")
     ] = None,
@@ -866,7 +891,12 @@ async def list_pst_files(
     if case_id:
         query = query.filter(PSTFile.case_id == case_id)
     if status:
-        query = query.filter(PSTFile.processing_status == status)
+        statuses = _parse_pst_status_filter(status)
+        if statuses:
+            if len(statuses) == 1:
+                query = query.filter(PSTFile.processing_status == statuses[0])
+            else:
+                query = query.filter(PSTFile.processing_status.in_(statuses))
 
     # Get total count
     total = query.count()
@@ -906,30 +936,111 @@ async def list_pst_files(
 def build_correspondence_visibility_filter():
     """Return a SQLAlchemy filter for *visible* correspondence emails.
 
-    Visibility rules:
-    - spam.user_override == 'visible'  -> always show
-    - spam.user_override == 'hidden'   -> always hide
-    - otherwise:
-        - meta.status is NULL or 'active'
-        - meta.is_hidden is NULL or != 'true'
-
-    Notes:
-    - EmailMessage.meta is Postgres JSON (not JSONB) in production.
-      Use ->/->> operators (via .as_string() / .op) rather than JSONB-only operators.
+    Kept for backward compatibility; the canonical implementation lives in
+    `api.app.visibility.build_email_visibility_filter`.
     """
 
-    status_field = EmailMessage.meta["status"].as_string()
-    hidden_field = EmailMessage.meta["is_hidden"].as_string()
-    override_field = EmailMessage.meta.op("->")("spam").op("->>")("user_override")
+    from .visibility import build_email_visibility_filter
 
-    return or_(
-        override_field == "visible",
-        and_(
-            or_(override_field.is_(None), override_field != "hidden"),
-            or_(status_field.is_(None), status_field == "active"),
-            or_(hidden_field.is_(None), hidden_field != "true"),
-        ),
+    return build_email_visibility_filter(EmailMessage)
+
+
+def _as_bool(value: Any) -> bool:
+    if value is True:
+        return True
+    if value is False or value is None:
+        return False
+    if isinstance(value, str):
+        return value.strip().lower() in ("true", "1", "yes", "y", "t")
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return False
+
+
+def compute_correspondence_exclusion(meta: Any, subject: Any) -> dict[str, Any]:
+    """Compute human-meaningful exclusion/visibility info for a correspondence row.
+
+    This mirrors (in Python) the behavior of `build_correspondence_visibility_filter()` plus
+    the default suppression of Outlook system items like `IPM.*`.
+
+    Returns a dict suitable for embedding in API responses.
+    """
+
+    m: dict[str, Any] = meta if isinstance(meta, dict) else {}
+    subject_text = "" if subject is None else str(subject)
+
+    status = m.get("status")
+    status_text = None if status is None else str(status)
+
+    is_hidden_raw = m.get("is_hidden")
+    is_hidden_text = None if is_hidden_raw is None else str(is_hidden_raw)
+
+    spam_meta = m.get("spam")
+    spam = spam_meta if isinstance(spam_meta, dict) else {}
+    spam_user_override = spam.get("user_override")
+    override_text = None if spam_user_override is None else str(spam_user_override)
+
+    ai_excluded = _as_bool(m.get("ai_excluded"))
+    ai_exclude_reason = m.get("ai_exclude_reason")
+    ai_exclude_reason_text = (
+        None if ai_exclude_reason is None else str(ai_exclude_reason)
     )
+
+    # Determine whether this row would be hidden by default correspondence rules.
+    reasons: list[str] = []
+    excluded = False
+
+    # Outlook system/activity items are not real emails for correspondence review.
+    if subject_text.startswith("IPM."):
+        excluded = True
+        reasons.append("system_item:ipm")
+
+    if not excluded:
+        if override_text == "hidden":
+            excluded = True
+            reasons.append("spam_override:hidden")
+        elif override_text == "visible":
+            excluded = False
+        else:
+            if status_text is not None and status_text != "active":
+                excluded = True
+                reasons.append(f"status:{status_text}")
+            if is_hidden_text == "true":
+                excluded = True
+                reasons.append("is_hidden:true")
+
+    # Pick a primary label for UI display.
+    primary = reasons[0] if reasons else None
+    label = None
+    if primary:
+        if primary.startswith("system_item:"):
+            label = "System Item"
+        elif primary.startswith("spam_override:") or primary.startswith("status:spam"):
+            label = "Spam"
+        elif primary.startswith("status:other_project"):
+            label = "Other Project"
+        elif primary == "status:duplicate":
+            label = "Duplicate"
+        elif primary.startswith("status:excluded_person"):
+            label = "Excluded Person"
+        elif primary.startswith("status:"):
+            label = "Excluded"
+        elif primary.startswith("is_hidden:"):
+            label = "Hidden"
+        else:
+            label = "Excluded"
+
+    return {
+        "excluded": excluded,
+        "excluded_label": label,
+        "excluded_reason": primary,
+        "excluded_reasons": reasons,
+        "status": status_text,
+        "is_hidden": is_hidden_text,
+        "spam_user_override": override_text,
+        "ai_excluded": ai_excluded,
+        "ai_exclude_reason": ai_exclude_reason_text,
+    }
 
 
 @router.get("/emails/count")
@@ -1688,6 +1799,12 @@ async def get_emails_server_side(
         bool,
         Query(description="Include ALL emails including hidden/spam/other-project"),
     ] = False,
+    include_system_items: Annotated[
+        bool,
+        Query(
+            description="Include Outlook system/activity items like IPM.* (normally suppressed)"
+        ),
+    ] = False,
     db: Session = Depends(get_db),
 ) -> ServerSideResponse:
     """
@@ -1794,18 +1911,20 @@ async def get_emails_server_side(
     else:
         query = db.query(EmailMessage)
 
-    # By default, hide excluded/spam/other-project emails from the correspondence grid.
-    # This endpoint is used by the Correspondence Enterprise UI.
-    if not include_hidden:
-        query = query.filter(build_correspondence_visibility_filter())
-
-        # Also exclude Outlook activity items (IPM.*) which are not real emails
+    # Also exclude Outlook activity items (IPM.*) which are not real emails.
+    # Keep them suppressed even when include_hidden=true unless explicitly requested.
+    if not include_system_items:
         query = query.filter(
             or_(
                 EmailMessage.subject.is_(None),
                 ~EmailMessage.subject.like("IPM.%"),
             )
         )
+
+    # By default, hide excluded/spam/other-project emails from the correspondence grid.
+    # This endpoint is used by the Correspondence Enterprise UI.
+    if not include_hidden:
+        query = query.filter(build_correspondence_visibility_filter())
 
     # Apply AG Grid filters
     for col_id, filter_data in request.filterModel.items():
@@ -1952,6 +2071,9 @@ async def get_emails_server_side(
     # Convert to dicts with attachment info for grid display
     rows = []
     for e in emails:
+        email_meta = dict(e.meta) if e.meta and isinstance(e.meta, dict) else {}
+        exclusion_info = compute_correspondence_exclusion(email_meta, e.subject)
+
         # Combine recipients from to/cc/bcc fields
         recipients_list = []
         if e.recipients_to:
@@ -1991,7 +2113,6 @@ async def get_emails_server_side(
 
         # Fallback: Check meta field for attachments if none found in relationship
         if not attachment_list:
-            email_meta = dict(e.meta) if e.meta and isinstance(e.meta, dict) else {}
             meta_attachments = email_meta.get("attachments", [])
             if meta_attachments and isinstance(meta_attachments, list):
                 attachment_list = []
@@ -2065,9 +2186,18 @@ async def get_emails_server_side(
                 "body_text": e.body_text or (e.body_preview or ""),
                 "body_text_clean": e.body_text_clean or "",
                 "body_html": e.body_html,
+                # Explicit exclusion/visibility info for the UI
+                "excluded": exclusion_info["excluded"],
+                "excluded_label": exclusion_info["excluded_label"],
+                "excluded_reason": exclusion_info["excluded_reason"],
+                "excluded_reasons": exclusion_info["excluded_reasons"],
                 "meta": {
                     "attachments": attachment_list,
                     "keywords": e.matched_keywords or [],
+                    # Refinement/exclusion tagging used by the UI (distinct from visibility rules)
+                    "ai_excluded": exclusion_info["ai_excluded"],
+                    "ai_exclude_reason": exclusion_info["ai_exclude_reason"],
+                    "exclusion_tag": email_meta.get("exclusion_tag"),
                 },
                 "baseline_activity": getattr(e, "as_planned_activity", None),
                 "as_built_activity": getattr(e, "as_built_activity", None),
@@ -2101,8 +2231,35 @@ async def get_emails_server_side(
         elif project_uuid is not None:
             stats_query = stats_query.filter(EmailMessage.project_id == project_uuid)
 
+        # Apply the same suppression of system items used by the grid
+        if not include_system_items:
+            stats_query = stats_query.filter(
+                or_(
+                    EmailMessage.subject.is_(None),
+                    ~EmailMessage.subject.like("IPM.%"),
+                )
+            )
+
+        # Preserve a copy for excluded-count calculations (independent of include_hidden).
+        stats_base_query = stats_query
+
+        # Apply the same visibility rules used by the grid when hidden items are excluded.
+        if not include_hidden:
+            stats_query = stats_query.filter(build_correspondence_visibility_filter())
+
         # Total count
         stats["total"] = total
+
+        # Excluded count (how many are hidden by default rules)
+        try:
+            base_total = stats_base_query.count()
+            visible_total = stats_base_query.filter(
+                build_correspondence_visibility_filter()
+            ).count()
+            stats["excludedCount"] = max(base_total - visible_total, 0)
+        except Exception:
+            # Best-effort only; stats are non-critical for grid functionality.
+            stats["excludedCount"] = None
 
         # Unique threads
         thread_count = (
@@ -2119,13 +2276,9 @@ async def get_emails_server_side(
         stats["withAttachments"] = with_attachments
 
         # Date range
-        date_result = db.query(
+        date_result = stats_query.with_entities(
             func.min(EmailMessage.date_sent), func.max(EmailMessage.date_sent)
         )
-        if case_uuid is not None:
-            date_result = date_result.filter(EmailMessage.case_id == case_uuid)
-        elif project_uuid is not None:
-            date_result = date_result.filter(EmailMessage.project_id == project_uuid)
 
         min_date, max_date = date_result.first()
         if min_date and max_date:
@@ -3095,7 +3248,7 @@ async def create_project(
 
     message = "Project created successfully"
     if auto_generated:
-        message += f'. Auto-generated: {", ".join(auto_generated)}'
+        message += f". Auto-generated: {', '.join(auto_generated)}"
 
     return {
         "id": str(project_id),  # Convert UUID to string for JSON response
@@ -3413,7 +3566,7 @@ async def create_case(
 
     message = "Case created successfully"
     if auto_generated:
-        message += f'. Auto-generated: {", ".join(auto_generated)}'
+        message += f". Auto-generated: {', '.join(auto_generated)}"
 
     return {
         "id": str(case.id),
@@ -4276,7 +4429,9 @@ async def get_unified_stakeholders(
 
     # If no case stakeholders, try project
     if not stakeholders:
-        stakeholders = db.query(Stakeholder).filter(Stakeholder.project_id == entity_id).all()  # type: ignore[reportGeneralTypeIssues]
+        stakeholders = (
+            db.query(Stakeholder).filter(Stakeholder.project_id == entity_id).all()
+        )  # type: ignore[reportGeneralTypeIssues]
 
     return [
         {
