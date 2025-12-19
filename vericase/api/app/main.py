@@ -101,9 +101,8 @@ from .intelligent_config import router as intelligent_config_router
 from .cases import router as cases_router
 from .simple_cases import router as simple_cases_router
 from .programmes import router as programmes_router
-from .correspondence import (
+from .correspondence.routes import (
     router as correspondence_router,
-    wizard_router,
 )  # PST Analysis endpoints
 from .ai_refinement import (
     router as ai_refinement_router,
@@ -349,9 +348,8 @@ app.include_router(admin_approval_router)  # Admin user approval system
 app.include_router(admin_settings_router)  # Admin settings management
 app.include_router(deployment_router)  # SSH deployment tools
 app.include_router(intelligent_config_router)  # Intelligent AI-powered configuration
-app.include_router(
-    wizard_router
-)  # Wizard endpoints (must come early for /api/projects, /api/cases)
+# NOTE: wizard_router is no longer exported from correspondence; wizard endpoints
+# are served via the main router.
 app.include_router(simple_cases_router)  # Must come BEFORE cases_router to match first
 app.include_router(cases_router)
 app.include_router(programmes_router)
@@ -375,10 +373,7 @@ app.include_router(
     collaboration_router
 )  # Collaboration features (comments, annotations, activity)
 
-# Import and include unified router
-from .correspondence import unified_router
-
-app.include_router(unified_router)  # Unified endpoints for both projects and cases
+# NOTE: unified_router is no longer exported from correspondence.
 
 origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 if origins:
@@ -1395,6 +1390,210 @@ def admin_trigger_pst(
         "pst_file_id": pst_file_id,
         "status": "QUEUED",
         "message": f"PST processing queued for {filename}",
+    }
+
+
+@app.post("/api/admin/pst/cleanup")
+def admin_cleanup_pst(
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Admin endpoint to cleanup stuck/failed/duplicate PST jobs for a project/case.
+
+    This runs *inside* the production environment (same DB connectivity), avoiding the
+    need for direct RDS access from a developer machine.
+
+    Body:
+      project_id: str | None
+      case_id: str | None
+      stuck_hours: float (default 1)
+      include_failed: bool (default true)
+      include_stuck: bool (default true)
+      include_duplicates: bool (default true)
+      filename_contains: str | None  (e.g. "Paul.Walker")
+      apply: bool (default false)  -> dry-run unless true
+
+    Returns:
+      candidates_count, selected_count, summary counts.
+    """
+
+    # Simple admin check (same as trigger endpoint)
+    if not user.email.endswith("@vericase.com"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    from datetime import timedelta
+
+    project_id = body.get("project_id")
+    case_id = body.get("case_id")
+    if not project_id and not case_id:
+        raise HTTPException(status_code=400, detail="project_id or case_id required")
+
+    stuck_hours = float(body.get("stuck_hours") or 1)
+    include_failed = bool(body.get("include_failed", True))
+    include_stuck = bool(body.get("include_stuck", True))
+    include_duplicates = bool(body.get("include_duplicates", True))
+    filename_contains = body.get("filename_contains")
+    apply = bool(body.get("apply", False))
+
+    from .models import PSTFile, EmailMessage, EmailAttachment, EvidenceItem
+
+    # Load candidates for scope
+    q = db.query(PSTFile)
+    if project_id:
+        q = q.filter(PSTFile.project_id == uuid.UUID(project_id))
+    if case_id:
+        q = q.filter(PSTFile.case_id == uuid.UUID(case_id))
+
+    candidates = q.order_by(PSTFile.uploaded_at.desc()).all()
+
+    # Compute selected IDs
+    selected_ids: set[uuid.UUID] = set()
+
+    now = datetime.now(timezone.utc)
+    stuck_delta = timedelta(hours=stuck_hours)
+
+    def _as_utc(dt: datetime | None) -> datetime | None:
+        if dt is None:
+            return None
+        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+
+    if include_failed:
+        for pst in candidates:
+            if (pst.processing_status or "") == "failed":
+                selected_ids.add(pst.id)
+
+    if include_stuck:
+        for pst in candidates:
+            status = pst.processing_status or ""
+            if status not in {"processing", "queued"}:
+                continue
+            ref = _as_utc(pst.processing_started_at) or _as_utc(pst.uploaded_at)
+            if ref is None or (now - ref) > stuck_delta:
+                selected_ids.add(pst.id)
+
+    if include_duplicates:
+        # duplicates = same filename + file_size_bytes, and all have 0 emails extracted
+        groups: dict[tuple[str, int | None], list[PSTFile]] = {}
+        for pst in candidates:
+            groups.setdefault((pst.filename or "", pst.file_size_bytes), []).append(pst)
+
+        for _, group in groups.items():
+            if len(group) <= 1:
+                continue
+            if any(
+                (pst.total_emails or 0) > 0 or (pst.processed_emails or 0) > 0
+                for pst in group
+            ):
+                continue
+            group_sorted = sorted(
+                group,
+                key=lambda x: (
+                    _as_utc(x.uploaded_at) or datetime.min.replace(tzinfo=timezone.utc)
+                ),
+                reverse=True,
+            )
+            # keep newest, delete rest
+            for pst in group_sorted[1:]:
+                selected_ids.add(pst.id)
+
+    if filename_contains:
+        token = str(filename_contains).lower()
+        for pst in candidates:
+            if token in (pst.filename or "").lower():
+                selected_ids.add(pst.id)
+
+    selected = [pst for pst in candidates if pst.id in selected_ids]
+
+    # Count rows to delete
+    total_counts = {
+        "pst_files": 0,
+        "email_messages": 0,
+        "email_attachments": 0,
+        "evidence_items": 0,
+    }
+
+    def _counts_for_pst(pst_id: uuid.UUID) -> dict[str, int]:
+        email_ids = [
+            row[0]
+            for row in db.query(EmailMessage.id)
+            .filter(EmailMessage.pst_file_id == pst_id)
+            .all()
+        ]
+        att_count = (
+            db.query(EmailAttachment)
+            .filter(EmailAttachment.email_message_id.in_(email_ids))
+            .count()
+            if email_ids
+            else 0
+        )
+        ev_count = (
+            db.query(EvidenceItem)
+            .filter(EvidenceItem.source_email_id.in_(email_ids))
+            .count()
+            if email_ids
+            else 0
+        )
+        return {
+            "pst_files": 1,
+            "email_messages": len(email_ids),
+            "email_attachments": int(att_count),
+            "evidence_items": int(ev_count),
+        }
+
+    per_pst = []
+    for pst in selected:
+        c = _counts_for_pst(pst.id)
+        per_pst.append(
+            {
+                "id": str(pst.id),
+                "filename": pst.filename,
+                "status": pst.processing_status,
+                "uploaded_at": pst.uploaded_at.isoformat() if pst.uploaded_at else None,
+                "started_at": (
+                    pst.processing_started_at.isoformat()
+                    if pst.processing_started_at
+                    else None
+                ),
+                "total_emails": pst.total_emails or 0,
+                "processed_emails": pst.processed_emails or 0,
+                "counts": c,
+            }
+        )
+        for k, v in c.items():
+            total_counts[k] += v
+
+    if apply:
+        # delete in dependency order per pst
+        for pst in selected:
+            pst_id = pst.id
+            email_ids = [
+                row[0]
+                for row in db.query(EmailMessage.id)
+                .filter(EmailMessage.pst_file_id == pst_id)
+                .all()
+            ]
+            if email_ids:
+                db.query(EmailAttachment).filter(
+                    EmailAttachment.email_message_id.in_(email_ids)
+                ).delete(synchronize_session=False)
+                db.query(EvidenceItem).filter(
+                    EvidenceItem.source_email_id.in_(email_ids)
+                ).delete(synchronize_session=False)
+                db.query(EmailMessage).filter(EmailMessage.id.in_(email_ids)).delete(
+                    synchronize_session=False
+                )
+            db.query(PSTFile).filter(PSTFile.id == pst_id).delete(
+                synchronize_session=False
+            )
+        db.commit()
+
+    return {
+        "mode": "APPLY" if apply else "DRY_RUN",
+        "candidates_count": len(candidates),
+        "selected_count": len(selected),
+        "summary": total_counts,
+        "selected": per_pst,
     }
 
 
