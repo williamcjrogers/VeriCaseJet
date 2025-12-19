@@ -1,4 +1,4 @@
-# 🚀 QUICK DEPLOY GUIDE - Push Everything Now!
+# 🚀 QUICK DEPLOY GUIDE - Push Everything Now
 
 ## ✅ YES! You Can Deploy Everything Now
 
@@ -64,6 +64,11 @@ kubectl rollout restart deployment/vericase-worker -n vericase && \
 kubectl rollout status deployment/vericase-api -n vericase
 ```
 
+> Note: `vericase/k8s/k8s-deployment.yaml` pins the API/worker images by **digest** (`...@sha256:...`).
+> A rollout restart alone will **not** pick up new code unless the image reference is updated.
+> Recommended: run the GitHub Actions workflow (`.github/workflows/deploy-eks.yml`) which builds and
+> updates the deployments to the newly built digest automatically.
+
 ### Verify Deployment
 
 ```bash
@@ -114,7 +119,7 @@ sudo docker-compose logs -f api
 
 ### Access EC2 Application
 
-```
+```text
 http://18.175.232.87:8010
 ```
 
@@ -337,12 +342,12 @@ kubectl get pods -n vericase --watch
 ### For Small Changes (Config, Environment Variables)
 
 ```bash
-# Just update K8s and restart
+# Just update K8s config and restart
 kubectl apply -f vericase/k8s/k8s-deployment.yaml
 kubectl rollout restart deployment/vericase-api -n vericase
 ```
 
-**Time: 1 minute**
+#### Time: 1 minute
 
 ### For Code Changes (New Features, Bug Fixes)
 
@@ -350,10 +355,14 @@ kubectl rollout restart deployment/vericase-api -n vericase
 # Build, push, deploy
 docker build -t wcjrogers/vericase-api:latest -f vericase/api/Dockerfile vericase/
 docker push wcjrogers/vericase-api:latest
+
+# If your EKS deployment pins images by digest, you must update the deployment image reference.
+# Recommended: run the GitHub Actions workflow .github/workflows/deploy-eks.yml
+# (or use kubectl set image with the resolved digest), then rollout.
 kubectl rollout restart deployment/vericase-api -n vericase
 ```
 
-**Time: 5-10 minutes**
+#### Time: 5-10 minutes
 
 ### For Major Updates (Breaking Changes, Migrations)
 
@@ -373,7 +382,7 @@ kubectl apply -f vericase/k8s/k8s-deployment.yaml
 kubectl rollout status deployment/vericase-api -n vericase
 ```
 
-**Time: 10-15 minutes**
+#### Time: 10-15 minutes
 
 ---
 
@@ -407,7 +416,7 @@ curl https://$APP_URL/api/health
 
 ---
 
-## 🎉 YOU'RE READY TO DEPLOY!
+## 🎉 YOU'RE READY TO DEPLOY
 
 With SSH configured and Docker available, you can now:
 
@@ -434,4 +443,4 @@ With SSH configured and Docker available, you can now:
 
 ---
 
-**Happy Deploying! 🚀**
+Happy deploying. 🚀

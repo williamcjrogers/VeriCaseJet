@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
     inputs:
       digest:
-        description: 'Image digest from build workflow'
-        required: true
+        description: 'Image digest (e.g., sha256:...) to deploy. If omitted, deploys Docker Hub :latest by resolving its digest.'
+        required: false
         type: string
 
 concurrency:
@@ -28,6 +28,35 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve image digest (explicit or :latest)
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          INPUT_DIGEST='${{ inputs.digest }}'
+          if [ -n "${INPUT_DIGEST}" ]; then
+            echo "Using provided digest: ${INPUT_DIGEST}"
+            echo "digest=${INPUT_DIGEST}" >> "$GITHUB_OUTPUT"
+            echo "source=workflow_input" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "No digest provided; resolving docker.io/${DOCKER_IMAGE}:latest digest..."
+
+          sudo apt-get update -y
+          sudo apt-get install -y jq skopeo
+
+          RESOLVED_DIGEST=$(skopeo inspect "docker://docker.io/${DOCKER_IMAGE}:latest" | jq -r '.Digest')
+          if [ -z "${RESOLVED_DIGEST}" ] || [ "${RESOLVED_DIGEST}" = "null" ]; then
+            echo "Failed to resolve digest for docker.io/${DOCKER_IMAGE}:latest" >&2
+            exit 1
+          fi
+
+          echo "Resolved digest: ${RESOLVED_DIGEST}"
+          echo "digest=${RESOLVED_DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "source=dockerhub_latest" >> "$GITHUB_OUTPUT"
 
 
 
@@ -68,10 +97,10 @@ jobs:
           kubectl annotate deployment/vericase-worker vericase.com/deployed-at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" --overwrite -n vericase
           
           # Update deployments with new image digest
-          DIGEST=${{ inputs.digest }}
-          echo "Updating deployments with image digest: ${DIGEST}"
-          kubectl set image deployment/vericase-api vericase-api=${DOCKER_IMAGE}@${DIGEST} -n vericase
-          kubectl set image deployment/vericase-worker vericase-worker=${DOCKER_IMAGE}@${DIGEST} -n vericase
+          DIGEST='${{ steps.resolve.outputs.digest }}'
+          echo "Updating deployments with image digest: ${DIGEST} (source: ${{ steps.resolve.outputs.source }})"
+          kubectl set image deployment/vericase-api vericase-api=docker.io/${DOCKER_IMAGE}@${DIGEST} -n vericase
+          kubectl set image deployment/vericase-worker vericase-worker=docker.io/${DOCKER_IMAGE}@${DIGEST} -n vericase
           
           # Wait for rollout with timeout
           echo "Waiting for rollout to complete..."
@@ -108,7 +137,8 @@ jobs:
           echo "**Images:**" >> $GITHUB_STEP_SUMMARY
           echo "- Docker Hub: \`${{ env.DOCKER_IMAGE }}:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "- GHCR: \`${{ env.GHCR_IMAGE }}:latest\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Image Digest: \`${{ inputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Image Digest: \`${{ steps.resolve.outputs.digest }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Digest Source: \`${{ steps.resolve.outputs.source }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Deployed to:** \`${{ env.EKS_CLUSTER }}\` (eu-west-2)" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
