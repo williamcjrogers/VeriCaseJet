@@ -665,6 +665,19 @@ def startup():
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created")
 
+        # Keep DB-backed AI settings in sync with environment/defaults.
+        # Without this, Admin Settings UI can show stale values and runtime may
+        # continue using older DB overrides even after env/templates change.
+        try:
+            force_update_ai_keys = os.getenv("AI_FORCE_UPDATE_AI_KEYS", "").lower() in (
+                "1",
+                "true",
+                "yes",
+            )
+            _populate_ai_settings_from_env(force_update=force_update_ai_keys)
+        except Exception as ai_seed_err:
+            logger.warning(f"AI settings population skipped (non-fatal): {ai_seed_err}")
+
         # Run schema migrations for BigInt support
         with engine.connect() as conn:
             logger.info("Running schema migrations for Large File support...")
@@ -1249,6 +1262,11 @@ def complete_upload(
             kwargs={"case_id": case_id, "project_id": project_id},
             queue=settings.CELERY_PST_QUEUE,
         )
+
+        # Mark as queued so the UI can show the job immediately.
+        pst_file.processing_status = "queued"
+        pst_file.error_message = None
+        db.commit()
         return {
             "id": str(doc.id),
             "status": "PROCESSING_PST_FORENSIC",
@@ -1322,6 +1340,13 @@ def admin_trigger_pst(
         kwargs={"project_id": project_id},
         queue=settings.CELERY_PST_QUEUE,
     )
+
+    # Mark as queued so the UI can show the job immediately.
+    existing = db.query(PSTFile).filter(PSTFile.id == uuid.UUID(pst_file_id)).first()
+    if existing:
+        existing.processing_status = "queued"
+        existing.error_message = None
+        db.commit()
 
     return {
         "pst_file_id": pst_file_id,

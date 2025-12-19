@@ -2033,7 +2033,8 @@
       try {
         const params = new URLSearchParams();
         if (VeriCaseApp.projectId) params.append("project_id", VeriCaseApp.projectId);
-        params.append("status", "processing");
+        // Include queued so newly-enqueued jobs show up immediately.
+        params.append("status", "queued,processing");
         params.append("page_size", "10");
 
         const response = await fetch(

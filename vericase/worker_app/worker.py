@@ -11,6 +11,7 @@ import requests
 import subprocess
 import pytesseract
 import logging
+from kombu import Queue
 from .config import settings
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,21 @@ if _running_under_celery_cli():
 
 celery_app = Celery(
     "vericase-docs", broker=settings.REDIS_URL, backend=settings.REDIS_URL
+)
+
+# Ensure the worker consumes both the general queue and the PST queue by default.
+#
+# In some deployments (notably k8s), the worker is started without `-Q ...`.
+# Without explicit `task_queues`, Celery will only consume the default queue
+# (typically "celery"), causing PST tasks routed to `CELERY_PST_QUEUE` to
+# remain stuck indefinitely.
+celery_app.conf.update(
+    task_default_queue=settings.CELERY_QUEUE,
+    task_create_missing_queues=True,
+    task_queues=(
+        Queue(settings.CELERY_QUEUE),
+        Queue(settings.CELERY_PST_QUEUE),
+    ),
 )
 
 
