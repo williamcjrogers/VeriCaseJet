@@ -458,23 +458,27 @@ class UltimatePSTProcessor:
                 )
                 # endregion agent log H12 count skipped
 
-            # Initialize batch buffer
-            self.batch_buffer = []
+            # Initialize batch buffers
+            self.email_buffer = []
+            self.attachment_buffer = []
+            self.document_buffer = []
+            self.evidence_buffer = []
 
-            # Process all folders recursively
-            self._process_folder(
-                root, pst_file_record, document, case_id, project_id, company_id, stats
-            )
+            # Disable autoflush for maximum speed
+            with self.db.no_autoflush:
+                # Process all folders recursively
+                self._process_folder(
+                    root,
+                    pst_file_record,
+                    document,
+                    case_id,
+                    project_id,
+                    company_id,
+                    stats,
+                )
 
-            # Flush remaining buffer
-            if self.batch_buffer:
-                try:
-                    self.db.bulk_save_objects(self.batch_buffer)
-                    self.db.commit()
-                    self.batch_buffer = []
-                except Exception as commit_error:
-                    logger.error(f"Final batch commit failed: {commit_error}")
-                    self.db.rollback()
+                # Flush remaining buffers
+                self._flush_buffers(force=True)
 
             # Build thread relationships after all emails are extracted (CRITICAL - USP FEATURE!)
             logger.info("Building email thread relationships...")
@@ -567,15 +571,11 @@ class UltimatePSTProcessor:
 
         except Exception as e:
             logger.error(f"PST processing failed: {e}", exc_info=True)
-            # Try to save partial results if buffer has items
-            if self.batch_buffer:
-                try:
-                    self.db.bulk_save_objects(self.batch_buffer)
-                    self.db.commit()
-                except Exception as save_err:
-                    logger.error(
-                        f"Failed to save remaining buffer on error: {save_err}"
-                    )
+            # Try to save partial results
+            try:
+                self._flush_buffers(force=True)
+            except Exception as save_err:
+                logger.error(f"Failed to save remaining buffer on error: {save_err}")
 
             if document is not None:
                 setattr(document, "status", DocStatus.FAILED)
@@ -662,36 +662,8 @@ class UltimatePSTProcessor:
                 stats["total_emails"] += 1
                 self.processed_count += 1
 
-                # Commit every batch_commit_size messages for performance
-                if len(self.batch_buffer) >= self.batch_commit_size:
-                    try:
-                        self.db.bulk_save_objects(self.batch_buffer)
-                        self.db.commit()
-                        self.batch_buffer = []
-
-                        # Log progress
-                        if self.processed_count % 100 == 0:
-                            if self.total_count > 0:
-                                progress = (
-                                    self.processed_count / self.total_count
-                                ) * 100
-                                logger.info(
-                                    "Progress: %d/%d (%.1f%%)",
-                                    self.processed_count,
-                                    self.total_count,
-                                    progress,
-                                )
-                            else:
-                                logger.info(
-                                    "Progress: %d emails processed",
-                                    self.processed_count,
-                                )
-                    except Exception as commit_error:
-                        logger.error(f"Batch commit failed: {commit_error}")
-                        self.db.rollback()
-                        self.batch_buffer = (
-                            []
-                        )  # Clear buffer on error to prevent cascading
+                # Check buffers
+                self._flush_buffers()
 
             except (
                 AttributeError,
@@ -705,13 +677,6 @@ class UltimatePSTProcessor:
                     f"Skipping message {i} in {current_path}: {str(e)[:100]}"
                 )
                 stats["errors"].append(f"Message {i} in {current_path}: {str(e)[:50]}")
-                # Rollback any partial changes from this message - handled by transaction rollback if critical
-                # try:
-                #     self.db.rollback()
-                # except Exception:
-                #     pass
-
-        # No final commit needed here, handled by batch flush in process_pst or next iteration
 
         # Process subfolders
         num_subfolders = int(
@@ -950,14 +915,31 @@ class UltimatePSTProcessor:
         cc_recipients = _extract_recipients("cc", "Cc")
         bcc_recipients = _extract_recipients("bcc", "Bcc")
 
-        # Get dates - pypff has delivery_time and client_submit_time
-        email_date = self._safe_get_attr(message, "delivery_time", None)
-        if not email_date:
-            email_date = self._safe_get_attr(message, "client_submit_time", None)
-        if not email_date:
-            email_date = self._safe_get_attr(message, "creation_time", None)
-        if email_date and email_date.tzinfo is None:
-            email_date = email_date.replace(tzinfo=timezone.utc)
+        # Get dates - pypff has delivery_time (Received) and client_submit_time (Sent)
+        # For forensic accuracy, we must map these correctly to date_sent and date_received
+        date_sent_raw = self._safe_get_attr(message, "client_submit_time", None)
+        date_received_raw = self._safe_get_attr(message, "delivery_time", None)
+
+        # Fallbacks for missing dates
+        if not date_sent_raw and date_received_raw:
+            date_sent_raw = date_received_raw
+        if not date_received_raw and date_sent_raw:
+            date_received_raw = date_sent_raw
+
+        # Final fallback to creation time
+        if not date_sent_raw:
+            date_sent_raw = self._safe_get_attr(message, "creation_time", None)
+            if not date_received_raw:
+                date_received_raw = date_sent_raw
+
+        # Ensure timezone awareness (UTC)
+        if date_sent_raw and date_sent_raw.tzinfo is None:
+            date_sent_raw = date_sent_raw.replace(tzinfo=timezone.utc)
+        if date_received_raw and date_received_raw.tzinfo is None:
+            date_received_raw = date_received_raw.replace(tzinfo=timezone.utc)
+
+        # Standardize variable name for threading/hashing logic downstream
+        email_date = date_sent_raw
 
         # Get Outlook conversation index (binary data, convert to hex)
         conversation_index = None
@@ -1033,8 +1015,8 @@ class UltimatePSTProcessor:
                 recipients_to=to_recipients if to_recipients else None,
                 recipients_cc=cc_recipients if cc_recipients else None,
                 recipients_bcc=bcc_recipients if bcc_recipients else None,
-                date_sent=email_date,
-                date_received=email_date,
+                date_sent=date_sent_raw,
+                date_received=date_received_raw,
                 body_text=None,  # Skip body - not needed for excluded emails
                 body_html=None,
                 body_text_clean=None,
@@ -1066,7 +1048,7 @@ class UltimatePSTProcessor:
                 },
             )
             # Add to buffer instead of immediate commit
-            self.batch_buffer.append(email_message)
+            self.email_buffer.append(email_message)
 
             # Track for threading (still needed for reference)
             if message_id:
@@ -1299,8 +1281,8 @@ class UltimatePSTProcessor:
             recipients_to=to_recipients if to_recipients else None,
             recipients_cc=cc_recipients if cc_recipients else None,
             recipients_bcc=bcc_recipients if bcc_recipients else None,
-            date_sent=email_date,
-            date_received=email_date,
+            date_sent=date_sent_raw,
+            date_received=date_received_raw,
             body_text=full_body_text or None,
             body_html=body_html_content,
             body_text_clean=body_text_clean or None,
@@ -1314,7 +1296,7 @@ class UltimatePSTProcessor:
         )
 
         # We need to add and flush the email message first to get its ID for attachments
-        self.batch_buffer.append(email_message)
+        self.email_buffer.append(email_message)
 
         # Now process attachments with the email_message ID
         if num_attachments > 0:
@@ -1690,7 +1672,7 @@ class UltimatePSTProcessor:
                         },
                     )
                     # Note: We append to buffer, so flush is delayed.
-                    self.batch_buffer.append(att_doc)
+                    self.document_buffer.append(att_doc)
 
                     # Store for deduplication
                     self.attachment_hashes[file_hash] = att_doc_id
@@ -1725,7 +1707,7 @@ class UltimatePSTProcessor:
                     content_id=content_id,
                     is_duplicate=is_duplicate,
                 )
-                self.batch_buffer.append(email_attachment)
+                self.attachment_buffer.append(email_attachment)
 
                 # CREATE EvidenceItem record - so attachments appear in Evidence Repository!
                 # Only create for non-inline attachments (skip embedded images)
@@ -1772,7 +1754,7 @@ class UltimatePSTProcessor:
                             processing_status="pending",
                             auto_tags=["email-attachment", "from-pst"],
                         )
-                        self.batch_buffer.append(evidence_item)
+                        self.evidence_buffer.append(evidence_item)
                         evidence_item_id = evidence_item.id
 
                         # Store for EvidenceItem deduplication (only if not a duplicate)
