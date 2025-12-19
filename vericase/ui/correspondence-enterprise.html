@@ -1589,6 +1589,15 @@
       color: white;
       border-color: transparent;
     }
+
+    /* Excluded emails styling (shown when 'Show Excluded' is enabled) */
+    .ag-theme-vericase .row-excluded {
+      background: rgba(239, 68, 68, 0.06);
+    }
+
+    .ag-theme-vericase .row-excluded .ag-cell {
+      color: var(--text-secondary);
+    }
   </style>
   <script src="config.js"></script>
   <script src="app-state.js"></script>
@@ -1756,6 +1765,10 @@
     <div class="stat-item">
       <span class="stat-label">Total Emails</span>
       <span class="stat-value highlight" id="totalEmails">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Excluded</span>
+      <span class="stat-value" id="excludedCount">0</span>
     </div>
     <div class="stat-item">
       <span class="stat-label">Threads</span>
@@ -2103,6 +2116,7 @@
     let currentViewMode = "all";
     let showFullContent = true; // Default to showing full content
     let hideExcludedEmails = true; // Default to hiding excluded emails
+    let lastIncludeHiddenState = false;
 
     // Column Definitions with Enterprise Features
     let columnDefs = [
@@ -2320,6 +2334,42 @@
           return `<div style="display: flex; flex-wrap: wrap; align-items: center;">${attachmentLinks}</div>`;
         },
         filter: "agTextColumnFilter",
+      },
+      {
+        headerName: "Excluded",
+        field: "excluded_label",
+        width: 170,
+        valueGetter: (params) => {
+          if (!params.data || !params.data.excluded) return "";
+          return params.data.excluded_label || "Excluded";
+        },
+        cellRenderer: (params) => {
+          if (!params.data || !params.data.excluded) return "";
+          const label = params.value || "Excluded";
+          const reason = params.data.excluded_reason || "";
+          const tooltip = reason.startsWith("status:")
+            ? reason.substring("status:".length)
+            : reason;
+
+          const colorMap = {
+            "Spam": "#ef4444",
+            "Other Project": "#f59e0b",
+            "Duplicate": "#8b5cf6",
+            "Excluded Person": "#ec4899",
+            "Hidden": "#64748b",
+            "System Item": "#64748b",
+            "Excluded": "#6b7280",
+          };
+          const color = colorMap[label] || "#6b7280";
+
+          return `<span style="background:${color}; color:white; padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:600;" title="Excluded: ${tooltip}">EXCLUDED • ${label}</span>`;
+        },
+        filter: "agTextColumnFilter",
+        filterParams: {
+          filterOptions: ["contains", "equals"],
+          defaultOption: "contains",
+          trimInput: true,
+        },
       },
       {
         headerName: "Refinement",
@@ -3981,6 +4031,8 @@
             const queryParams = new URLSearchParams();
             if (projectId) queryParams.append("project_id", projectId);
             if (caseId) queryParams.append("case_id", caseId);
+            // When showing excluded emails, request hidden/spam/other-project rows from server
+            if (!hideExcludedEmails) queryParams.append("include_hidden", "true");
             if (queryParams.toString())
               apiUrl += "?" + queryParams.toString();
 
@@ -4020,6 +4072,15 @@
               document.getElementById("totalEmails").textContent = (
                 data.stats.total || 0
               ).toLocaleString();
+
+              const excludedEl = document.getElementById("excludedCount");
+              if (excludedEl && data.stats.excludedCount !== undefined) {
+                excludedEl.textContent =
+                  data.stats.excludedCount === null
+                    ? "-"
+                    : (data.stats.excludedCount || 0).toLocaleString();
+              }
+
               document.getElementById("uniqueThreads").textContent = (
                 data.stats.uniqueThreads || 0
               ).toLocaleString();
@@ -4149,6 +4210,11 @@
 
       // Row ID is required for server-side row model selection
       getRowId: (params) => params.data?.id || params.data?.correspondence_id,
+
+      // Make excluded rows visually obvious when they are included
+      rowClassRules: {
+        "row-excluded": (params) => !!params.data?.excluded,
+      },
 
       // Row selection
       rowSelection: "multiple",
@@ -4435,8 +4501,8 @@
       // Fetch stats directly for server-side mode
       fetchAndUpdateStats();
 
-      // Apply default filter to hide excluded emails
-      setTimeout(() => applyExcludedFilter(), 100);
+      // Ensure excluded toggle UI reflects current state
+      updateExcludedToggleUI();
     }
 
     // Legacy function - now using server-side row model
@@ -4492,42 +4558,32 @@
     // Toggle visibility of excluded emails
     function toggleExcludedEmails() {
       hideExcludedEmails = !hideExcludedEmails;
+      updateExcludedToggleUI();
       applyExcludedFilter();
-
-      // Update button appearance
-      const btn = document.getElementById("toggleExcludedBtn");
-      const icon = document.getElementById("excludedIcon");
-      const label = document.getElementById("excludedLabel");
-
-      if (hideExcludedEmails) {
-        if (icon) icon.className = "fas fa-eye-slash";
-        if (label) label.textContent = "Excluded Hidden";
-        if (btn) btn.classList.remove("active");
-      } else {
-        if (icon) icon.className = "fas fa-eye";
-        if (label) label.textContent = "Showing All";
-        if (btn) btn.classList.add("active");
-      }
     }
 
     // Apply filter to hide/show excluded emails
     function applyExcludedFilter() {
       if (!gridApi) return;
 
+      const includeHidden = !hideExcludedEmails;
+      if (lastIncludeHiddenState === includeHidden) return;
+      lastIncludeHiddenState = includeHidden;
+
+      // Server-side row model: refresh the datasource so the backend includes/excludes hidden rows.
+      gridApi.refreshServerSide({ purge: true });
+    }
+
+    function updateExcludedToggleUI() {
+      const dropdownIcon = document.getElementById("dropdownExcludedIcon");
+      const dropdownLabel = document.getElementById("dropdownExcludedLabel");
+
       if (hideExcludedEmails) {
-        // Filter to only show non-excluded emails
-        const filterInstance = gridApi.getFilterInstance("refinement_status");
-        if (filterInstance) {
-          filterInstance.setModel({ values: [""] });
-          gridApi.onFilterChanged();
-        }
+        if (dropdownIcon) dropdownIcon.className = "fas fa-eye-slash";
+        if (dropdownLabel) dropdownLabel.textContent = "Show Excluded";
       } else {
-        // Clear the refinement filter to show all
-        const filterInstance = gridApi.getFilterInstance("refinement_status");
-        if (filterInstance) {
-          filterInstance.setModel(null);
-          gridApi.onFilterChanged();
-        }
+        if (dropdownIcon) dropdownIcon.className = "fas fa-eye";
+        if (dropdownLabel) dropdownLabel.textContent = "Hide Excluded";
       }
     }
 
@@ -4615,11 +4671,17 @@
         const params = new URLSearchParams();
         if (pid) params.append("project_id", pid);
         if (cid) params.append("case_id", cid);
+        if (!hideExcludedEmails) params.append("include_hidden", "true");
         if (params.toString()) url += "?" + params.toString();
 
+        const token =
+          localStorage.getItem("token") || localStorage.getItem("jwt") || "";
         const response = await fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({
             startRow: 0,
             endRow: 1,
@@ -4635,6 +4697,15 @@
             document.getElementById("totalEmails").textContent = (
               data.stats.total || 0
             ).toLocaleString();
+
+            const excludedEl = document.getElementById("excludedCount");
+            if (excludedEl && data.stats.excludedCount !== undefined) {
+              excludedEl.textContent =
+                data.stats.excludedCount === null
+                  ? "-"
+                  : (data.stats.excludedCount || 0).toLocaleString();
+            }
+
             document.getElementById("uniqueThreads").textContent = (
               data.stats.uniqueThreads || 0
             ).toLocaleString();
