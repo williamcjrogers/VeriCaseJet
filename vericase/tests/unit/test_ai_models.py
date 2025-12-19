@@ -23,7 +23,8 @@ class TestAIModelResolution(unittest.TestCase):
             "claude-sonnet-4": ("anthropic", "claude-sonnet-4-20250514"),
             "gpt-4o": ("openai", "gpt-4o"),
             "gpt-5.2-thinking": ("openai", "gpt-5.2-thinking"),
-            "claude-opus-4.5": ("anthropic", "claude-opus-4.5"),
+            # Legacy friendly names should resolve to canonical, valid API IDs.
+            "claude-opus-4.5": ("anthropic", "claude-opus-4.5-20251201"),
             "gemini-2-flash": ("gemini", "gemini-2.0-flash"),
             "gemini-2.5-flash-lite": ("gemini", "gemini-2.5-flash-lite"),
             "bedrock-nova-pro": ("bedrock", "amazon.nova-pro-v1:0"),

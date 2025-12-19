@@ -135,39 +135,39 @@ AI_MODELS_2025: dict[str, dict[str, Any]] = {
         "icon": "fa-comment-dots",
         "color": "#d97706",
         "models": [
-            # Claude 4.5 Series (November 2025)
+            # Claude 4.5 Series (December 2025 - Latest)
             {
-                "id": "claude-opus-4.5",
-                "name": "Claude Opus 4.5 (Flagship)",
-                "description": "Highest-end Claude 4.5 Opus model",
+                "id": "claude-opus-4.5-20251201",
+                "name": "Claude Opus 4.5 (Latest Flagship)",
+                "description": "Most advanced Claude model with extended reasoning",
                 "type": "flagship",
                 "capabilities": ["chat", "reasoning", "analysis", "code", "research"],
                 "context_window": 200000,
                 "cost_tier": "premium",
             },
             {
-                "id": "claude-sonnet-4.5",
-                "name": "Claude Sonnet 4.5 (Workhorse)",
-                "description": "Efficient hybrid reasoning Claude 4.5 Sonnet model",
+                "id": "claude-sonnet-4.5-20251201",
+                "name": "Claude Sonnet 4.5 (Latest Workhorse)",
+                "description": "Latest balanced Claude model",
                 "type": "workhorse",
                 "capabilities": ["chat", "reasoning", "analysis", "code"],
                 "context_window": 200000,
                 "cost_tier": "standard",
             },
             {
-                "id": "claude-4.5-haiku",
-                "name": "Claude Haiku 4.5 (Fast)",
-                "description": "Fast, cost-efficient Claude 4.5 Haiku model",
+                "id": "claude-haiku-4.5-20251201",
+                "name": "Claude Haiku 4.5 (Latest Fast)",
+                "description": "Fastest Claude 4.5 model",
                 "type": "fast",
                 "capabilities": ["chat", "analysis"],
                 "context_window": 200000,
                 "cost_tier": "budget",
             },
-            # Claude 4 Series (Latest - actual API model IDs)
+            # Claude 4 Series (May 2025)
             {
                 "id": "claude-opus-4-20250514",
-                "name": "Claude Opus 4 (Flagship)",
-                "description": "Highest-end Claude model with extended thinking",
+                "name": "Claude Opus 4",
+                "description": "Claude 4 flagship with extended thinking",
                 "type": "flagship",
                 "capabilities": ["chat", "reasoning", "analysis", "code", "research"],
                 "context_window": 200000,
@@ -175,18 +175,18 @@ AI_MODELS_2025: dict[str, dict[str, Any]] = {
             },
             {
                 "id": "claude-sonnet-4-20250514",
-                "name": "Claude Sonnet 4 (Workhorse)",
-                "description": "Main workhorse model with excellent balance",
+                "name": "Claude Sonnet 4",
+                "description": "Claude 4 workhorse model",
                 "type": "workhorse",
                 "capabilities": ["chat", "reasoning", "analysis", "code"],
                 "context_window": 200000,
                 "cost_tier": "standard",
             },
-            # Claude 3.5 Series (actual API model IDs)
+            # Claude 3.5 Series (Oct 2024)
             {
                 "id": "claude-3-5-sonnet-20241022",
-                "name": "Claude 3.5 Sonnet (Oct 2024)",
-                "description": "Claude 3.5 Sonnet - fast and capable",
+                "name": "Claude 3.5 Sonnet",
+                "description": "Claude 3.5 Sonnet",
                 "type": "workhorse",
                 "capabilities": ["chat", "reasoning", "analysis", "code"],
                 "context_window": 200000,
@@ -194,7 +194,7 @@ AI_MODELS_2025: dict[str, dict[str, Any]] = {
             },
             {
                 "id": "claude-3-5-haiku-20241022",
-                "name": "Claude 3.5 Haiku (Fastest)",
+                "name": "Claude 3.5 Haiku",
                 "description": "Claude 3.5 fast model",
                 "type": "fast",
                 "capabilities": ["chat", "analysis"],
@@ -202,7 +202,8 @@ AI_MODELS_2025: dict[str, dict[str, Any]] = {
                 "cost_tier": "budget",
             },
         ],
-        "default": "claude-sonnet-4.5",
+        # Default to latest Claude 4.5 Sonnet.
+        "default": "claude-sonnet-4.5-20251201",
     },
     "gemini": {
         "provider_name": "Google Gemini",
@@ -415,6 +416,15 @@ AI_MODELS_2025: dict[str, dict[str, Any]] = {
                 "capabilities": ["chat", "analysis"],
                 "context_window": 128000,
                 "cost_tier": "standard",
+            },
+            {
+                "id": "amazon.titan-text-express-v1",
+                "name": "Amazon Titan Text Express v1",
+                "description": "Cost-effective text generation model (confirmed correct ID)",
+                "type": "workhorse",
+                "capabilities": ["chat", "analysis"],
+                "context_window": 128000,
+                "cost_tier": "budget",
             },
         ],
         "default": "amazon.nova-pro-v1:0",
@@ -674,13 +684,19 @@ def normalize_provider(provider: str) -> str:
 
 # Backward-compatible friendly aliases used across the codebase.
 FRIENDLY_MODEL_ALIASES: dict[str, tuple[str, str]] = {
-    # Anthropic direct
+    # Anthropic direct - Claude 4.5 (December 2025 latest)
+    "claude-opus-4.5": ("anthropic", "claude-opus-4.5-20251201"),
+    "claude-sonnet-4.5": ("anthropic", "claude-sonnet-4.5-20251201"),
+    "claude-haiku-4.5": ("anthropic", "claude-haiku-4.5-20251201"),
+    # Claude 4 (May 2025)
     "claude-sonnet-4": ("anthropic", "claude-sonnet-4-20250514"),
+    "claude-opus-4": ("anthropic", "claude-opus-4-20250514"),
     "claude-opus-4-extended": ("anthropic", "claude-opus-4-20250514"),
+    # Claude 3.5 (Oct 2024)
     "claude-haiku-4": ("anthropic", "claude-3-5-haiku-20241022"),
-    "claude-4.5-haiku": ("anthropic", "claude-4.5-haiku"),
-    "claude-opus-4.5": ("anthropic", "claude-opus-4.5"),
-    "claude-sonnet-4.5": ("anthropic", "claude-sonnet-4.5"),
+    "claude-4.5-haiku": ("anthropic", "claude-haiku-4.5-20251201"),
+    "claude-3.5-sonnet": ("anthropic", "claude-3-5-sonnet-20241022"),
+    "claude-3.5-haiku": ("anthropic", "claude-3-5-haiku-20241022"),
     # OpenAI
     "gpt-4o": ("openai", "gpt-4o"),
     "gpt-4o-mini": ("openai", "gpt-4o-mini"),

@@ -118,21 +118,21 @@ class AdaptiveModelRouter:
         ],
         "deep_analysis": [
             ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
-            ("anthropic", "claude-sonnet-4.5"),
+            ("anthropic", "claude-sonnet-4-20250514"),
             ("openai", "gpt-5.2-thinking"),
         ],
         "synthesis": [
             ("openai", "gpt-5.2-instant"),
-            ("anthropic", "claude-sonnet-4.5"),
+            ("anthropic", "claude-sonnet-4-20250514"),
             ("bedrock", "amazon.nova-pro-v1:0"),
         ],
         "validation": [
-            ("anthropic", "claude-sonnet-4.5"),
+            ("anthropic", "claude-sonnet-4-20250514"),
             ("gemini", "gemini-2.5-flash-lite"),
             ("openai", "gpt-5.2-instant"),
         ],
         "causation_analysis": [
-            ("anthropic", "claude-sonnet-4.5"),
+            ("anthropic", "claude-sonnet-4-20250514"),
             ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
             ("openai", "gpt-5.2-thinking"),
         ],
@@ -144,7 +144,7 @@ class AdaptiveModelRouter:
         "default": [
             ("bedrock", "amazon.nova-pro-v1:0"),
             ("openai", "gpt-5.2-instant"),
-            ("anthropic", "claude-sonnet-4.5"),
+            ("anthropic", "claude-sonnet-4-20250514"),
         ],
     }
 

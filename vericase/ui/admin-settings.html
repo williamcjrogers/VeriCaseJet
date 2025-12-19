@@ -1896,8 +1896,13 @@
           populateModelDropdown("xai_model", aiModels.xai?.models || []);
           populateModelDropdown("perplexity_model", aiModels.perplexity?.models || []);
 
-          // Setup function config model dropdowns
-          setupFunctionModelDropdowns();
+          // Setup function config model dropdowns (if the UI section exists)
+          if (
+            document.getElementById("fn_quick_search_provider") &&
+            document.getElementById("fn_deep_analysis_provider")
+          ) {
+            setupFunctionModelDropdowns();
+          }
         } catch (error) {
           console.error("Error loading AI models:", error);
         }
@@ -1914,7 +1919,9 @@
         models.forEach((model) => {
           const option = document.createElement("option");
           option.value = model.id;
-          option.textContent = model.name || model.id;
+          // Show the *actual API model ID* so admins can copy/paste it and so
+          // we don't accidentally save a display label.
+          option.textContent = model.name ? `${model.name} [${model.id}]` : model.id;
           if (model.type) {
             option.textContent += ` (${model.type})`;
           }
@@ -1932,21 +1939,32 @@
 
       // ====== Setup Function Model Dropdowns ======
       function setupFunctionModelDropdowns() {
+        const qsProviderEl = document.getElementById("fn_quick_search_provider");
+        const daProviderEl = document.getElementById("fn_deep_analysis_provider");
+        const qsModelEl = document.getElementById("fn_quick_search_model");
+        const daModelEl = document.getElementById("fn_deep_analysis_model");
+        
+        if (!qsProviderEl || !daProviderEl || !qsModelEl || !daModelEl) {
+          // This UI section is not present in the current Admin Settings page.
+          console.debug("Function model dropdowns not found, skipping setup");
+          return;
+        }
+
         // Quick search provider change
-        document.getElementById("fn_quick_search_provider").addEventListener("change", (e) => {
+        qsProviderEl.addEventListener("change", (e) => {
           const models = aiModels[e.target.value]?.models || [];
           populateModelDropdown("fn_quick_search_model", models);
         });
 
         // Deep analysis provider change
-        document.getElementById("fn_deep_analysis_provider").addEventListener("change", (e) => {
+        daProviderEl.addEventListener("change", (e) => {
           const models = aiModels[e.target.value]?.models || [];
           populateModelDropdown("fn_deep_analysis_model", models);
         });
 
         // Initialize with current provider selections
-        const qsProvider = document.getElementById("fn_quick_search_provider").value;
-        const daProvider = document.getElementById("fn_deep_analysis_provider").value;
+        const qsProvider = qsProviderEl.value;
+        const daProvider = daProviderEl.value;
 
         populateModelDropdown("fn_quick_search_model", aiModels[qsProvider]?.models || []);
         populateModelDropdown("fn_deep_analysis_model", aiModels[daProvider]?.models || []);
@@ -1955,6 +1973,12 @@
       // ====== Load Function Configs ======
       async function loadFunctionConfigs() {
         try {
+          // The function-config UI was removed/replaced by the AI Tool Registry.
+          // Only attempt to load/apply function configs if the form controls exist.
+          if (!document.getElementById("fn_quick_search_provider")) {
+            return;
+          }
+
           const response = await fetch(`${API_BASE}/api/admin/settings/ai/functions`, {
             headers: { Authorization: `Bearer ${token}` },
           });
@@ -2085,6 +2109,9 @@
           for (const [toolName, config] of Object.entries(tools)) {
             const card = renderAIToolCard(toolName, config);
             container.appendChild(card);
+
+            // Populate provider-specific model dropdowns (and preserve current selection)
+            populateToolModelDropdown(toolName, config.provider, config.model);
           }
 
         } catch (error) {
@@ -2144,8 +2171,9 @@
             </div>
             <div class="function-field">
               <label>Model</label>
-              <input type="text" id="tool_${toolName}_model" class="setting-input"
-                value="${config.model || ""}" placeholder="Model ID" />
+              <select id="tool_${toolName}_model_select" class="setting-input"></select>
+              <input type="text" id="tool_${toolName}_model_custom" class="setting-input" style="margin-top: 6px;"
+                value="" placeholder="Or enter custom model ID..." />
             </div>
             <div class="function-field">
               <label>Max Tokens</label>
@@ -2189,14 +2217,49 @@
       }
 
       function updateToolModelOptions(toolName) {
-        // Could populate model dropdown based on provider if needed
-        // For now, just allow free-form model ID input
+        const provider = document.getElementById(`tool_${toolName}_provider`)?.value;
+        populateToolModelDropdown(toolName, provider, null);
+      }
+
+      function populateToolModelDropdown(toolName, provider, currentModel) {
+        const select = document.getElementById(`tool_${toolName}_model_select`);
+        const custom = document.getElementById(`tool_${toolName}_model_custom`);
+
+        if (!select) return;
+
+        const models = (aiModels && provider && aiModels[provider] && aiModels[provider].models) ? aiModels[provider].models : [];
+
+        const existing = currentModel || "";
+        select.innerHTML = "";
+
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "-- Select model --";
+        select.appendChild(placeholder);
+
+        models.forEach((m) => {
+          const opt = document.createElement("option");
+          opt.value = m.id;
+          opt.textContent = m.name ? `${m.name} [${m.id}]` : m.id;
+          select.appendChild(opt);
+        });
+
+        const hasModel = existing && Array.from(select.options).some((o) => o.value === existing);
+        if (hasModel) {
+          select.value = existing;
+          if (custom) custom.value = "";
+        } else {
+          select.value = "";
+          if (custom) custom.value = existing;
+        }
       }
 
       async function saveToolConfig(toolName) {
         const enabled = document.getElementById(`tool_${toolName}_enabled`)?.checked;
         const provider = document.getElementById(`tool_${toolName}_provider`)?.value;
-        const model = document.getElementById(`tool_${toolName}_model`)?.value;
+        const modelFromSelect = document.getElementById(`tool_${toolName}_model_select`)?.value;
+        const modelFromCustom = document.getElementById(`tool_${toolName}_model_custom`)?.value;
+        const model = (modelFromCustom && modelFromCustom.trim()) || modelFromSelect;
         const maxTokens = parseInt(document.getElementById(`tool_${toolName}_max_tokens`)?.value) || null;
         const temperature = parseFloat(document.getElementById(`tool_${toolName}_temperature`)?.value) || null;
         const duration = parseInt(document.getElementById(`tool_${toolName}_duration`)?.value) || null;

@@ -538,6 +538,20 @@ def _populate_ai_settings_from_env(force_update: bool = False):
     """
     db = SessionLocal()
     try:
+        # If older/stale model IDs made it into the database, they can cause
+        # provider test calls to fail (e.g., 404 model not found). We auto-fix
+        # known-bad values on startup.
+        deprecated_value_replacements: dict[str, dict[str, str]] = {
+            # Anthropic: update to latest Claude 4.5 model IDs (December 2025)
+            "anthropic_model": {
+                "claude-sonnet-4.5": "claude-sonnet-4.5-20251201",
+                "claude-opus-4.5": "claude-opus-4.5-20251201",
+                "claude-haiku-4.5": "claude-haiku-4.5-20251201",
+                "claude-sonnet-4-20250514": "claude-sonnet-4.5-20251201",
+                "claude-opus-4-20250514": "claude-opus-4.5-20251201",
+            },
+        }
+
         # Map of database setting keys to environment variable names and descriptions
         ai_settings_map = {
             "openai_api_key": {
@@ -571,14 +585,14 @@ def _populate_ai_settings_from_env(force_update: bool = False):
                 "description": "AWS region for Bedrock",
                 "default": "us-east-1",
             },
-            # Default models - Updated 2025 (4 providers)
+            # Default models - Updated December 2025
             "openai_model": {
                 "default": "gpt-5.2-instant",
                 "description": "Default OpenAI model",
             },
             "anthropic_model": {
-                "default": "claude-sonnet-4.5",
-                "description": "Default Anthropic model",
+                "default": "claude-sonnet-4.5-20251201",
+                "description": "Default Anthropic model (Claude Sonnet 4.5 - December 2025)",
             },
             "gemini_model": {
                 "default": "gemini-2.5-flash",
@@ -601,13 +615,22 @@ def _populate_ai_settings_from_env(force_update: bool = False):
             # Check if setting already exists
             existing = db.query(AppSetting).filter(AppSetting.key == key).first()
 
+            # If an existing value is known-deprecated, we will replace it even
+            # when not force-updating.
+            replacement = None
+            if existing and existing.value:
+                replacement = deprecated_value_replacements.get(key, {}).get(
+                    existing.value
+                )
+
             # Skip if setting exists and has value (unless force_update for API keys)
             if existing and existing.value:
-                if not force_update:
-                    continue
-                # Only force update API keys, not model defaults
-                if not config.get("is_api_key"):
-                    continue
+                if config.get("is_api_key"):
+                    if not force_update:
+                        continue
+                else:
+                    if not replacement:
+                        continue
 
             # Get value from environment or config
             value = None
@@ -625,7 +648,7 @@ def _populate_ai_settings_from_env(force_update: bool = False):
                     value = getattr(settings, config["config_attr"], None)
             elif "default" in config:
                 # Use default value for model settings
-                value = config["default"]
+                value = replacement or config["default"]
 
             if value:
                 if existing:
@@ -665,15 +688,35 @@ def startup():
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created")
 
-        # Keep DB-backed AI settings in sync with environment/defaults.
-        # Without this, Admin Settings UI can show stale values and runtime may
-        # continue using older DB overrides even after env/templates change.
-        try:
-            force_update_ai_keys = os.getenv("AI_FORCE_UPDATE_AI_KEYS", "").lower() in (
+        # Load AI keys from AWS Secrets Manager FIRST (if configured)
+        # This ensures production gets keys from Secrets Manager before DB sync.
+        force_update_ai_keys = (
+            os.getenv("AI_FORCE_UPDATE_AI_KEYS", "").lower()
+            in (
                 "1",
                 "true",
                 "yes",
             )
+            # If AWS Secrets Manager is configured, keys should be treated as
+            # source-of-truth on each startup (rotated secrets should win).
+            or bool(
+                os.getenv("AWS_SECRETS_MANAGER_AI_KEYS") or os.getenv("AWS_SECRET_NAME")
+            )
+        )
+
+        if os.getenv("AWS_SECRETS_MANAGER_AI_KEYS") or os.getenv("AWS_SECRET_NAME"):
+            try:
+                from app.config_production import load_ai_keys_from_secrets_manager
+
+                load_ai_keys_from_secrets_manager(force_update=force_update_ai_keys)
+                logger.info("✓ AWS Secrets Manager keys loaded before AI settings sync")
+            except Exception as secrets_err:
+                logger.warning(f"AWS Secrets load skipped (non-fatal): {secrets_err}")
+
+        # Keep DB-backed AI settings in sync with environment/defaults.
+        # Without this, Admin Settings UI can show stale values and runtime may
+        # continue using older DB overrides even after env/templates change.
+        try:
             _populate_ai_settings_from_env(force_update=force_update_ai_keys)
         except Exception as ai_seed_err:
             logger.warning(f"AI settings population skipped (non-fatal): {ai_seed_err}")

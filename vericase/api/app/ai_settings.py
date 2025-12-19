@@ -36,9 +36,9 @@ class AISettings:
     # Default models for each provider
     # Use actual API model IDs, not display names
     DEFAULT_MODELS: dict[str, str] = {
-        # Updated defaults (align with ai_models_2025 catalog)
+        # Updated defaults December 2025 (align with ai_models_2025 catalog)
         "openai": "gpt-5.2-instant",
-        "anthropic": "claude-sonnet-4.5",
+        "anthropic": "claude-opus-4.5-20251201",
         "gemini": "gemini-2.5-flash",
         "bedrock": "amazon.nova-pro-v1:0",  # Amazon Nova Pro (cost-effective)
         "xai": "grok-4.1-fast",
@@ -87,19 +87,19 @@ class AISettings:
             "semantic search, timeline & delay analysis",
             "category": "flagship",
             "provider": "anthropic",
-            "model": "claude-sonnet-4.5",
+            "model": "claude-opus-4.5-20251201",
             "max_tokens": 8000,
             "temperature": 0.2,
             "max_duration_seconds": 600,
             "fallback_chain": [
                 ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
-                ("anthropic", "claude-sonnet-4.5"),
+                ("anthropic", "claude-sonnet-4-20250514"),
                 ("openai", "gpt-5.2-thinking"),
             ],
             "agents": {
                 "planner": {
                     "provider": "anthropic",
-                    "model": "claude-sonnet-4.5",
+                    "model": "claude-opus-4.5-20251201",
                     "description": "Creates DAG research strategy",
                 },
                 "searcher": {
@@ -119,7 +119,7 @@ class AISettings:
                 },
                 "validator": {
                     "provider": "anthropic",
-                    "model": "claude-sonnet-4.5",
+                    "model": "claude-opus-4.5-20251201",
                     "description": "Quality assurance and hallucination detection",
                 },
             },
@@ -141,25 +141,25 @@ class AISettings:
             "description": "Multi-agent investigation with DAG planning (original name for VeriCase)",
             "category": "research",
             "provider": "anthropic",
-            "model": "claude-sonnet-4.5",
+            "model": "claude-opus-4.5-20251201",
             "max_tokens": 8000,
             "temperature": 0.2,
             "max_duration_seconds": 600,
             "fallback_chain": [
                 ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
-                ("anthropic", "claude-sonnet-4.5"),
+                ("anthropic", "claude-sonnet-4-20250514"),
                 ("openai", "gpt-5.2-thinking"),
             ],
             "agents": {
                 "planner": {
                     "provider": "anthropic",
-                    "model": "claude-sonnet-4.5",
+                    "model": "claude-sonnet-4-20250514",
                 },
                 "researcher": {"provider": "openai", "model": "gpt-5.2-thinking"},
                 "synthesizer": {"provider": "openai", "model": "gpt-5.2-instant"},
                 "validator": {
                     "provider": "anthropic",
-                    "model": "claude-sonnet-4.5",
+                    "model": "claude-sonnet-4-20250514",
                 },
             },
             "features": {
@@ -177,13 +177,13 @@ class AISettings:
             "description": "Multi-stage evidence refinement with intelligent questioning",
             "category": "refinement",
             "provider": "anthropic",
-            "model": "claude-sonnet-4.5",
+            "model": "claude-sonnet-4-20250514",
             "max_tokens": 4000,
             "temperature": 0.2,
             "max_duration_seconds": 300,
             "fallback_chain": [
                 ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
-                ("anthropic", "claude-sonnet-4.5"),
+                ("anthropic", "claude-sonnet-4-20250514"),
                 ("openai", "gpt-5.2-instant"),
                 ("gemini", "gemini-2.5-flash-lite"),
             ],
@@ -219,7 +219,7 @@ class AISettings:
             "fallback_chain": [
                 ("bedrock", "amazon.nova-pro-v1:0"),
                 ("openai", "gpt-5.2-thinking"),
-                ("anthropic", "claude-sonnet-4.5"),
+                ("anthropic", "claude-sonnet-4-20250514"),
             ],
             "features": {
                 "event_extraction": True,
@@ -237,19 +237,19 @@ class AISettings:
             "description": "AI-powered delay causation and entitlement analysis",
             "category": "analysis",
             "provider": "anthropic",
-            "model": "claude-sonnet-4.5",
+            "model": "claude-sonnet-4-20250514",
             "max_tokens": 8000,
             "temperature": 0.1,
             "max_duration_seconds": 300,
             "fallback_chain": [
-                ("anthropic", "claude-sonnet-4.5"),
+                ("anthropic", "claude-sonnet-4-20250514"),
                 ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
                 ("openai", "gpt-5.2-thinking"),
             ],
             "agents": {
                 "causation_analyzer": {
                     "provider": "anthropic",
-                    "model": "claude-sonnet-4.5",
+                    "model": "claude-sonnet-4-20250514",
                     "description": "Cause-effect reasoning for delays",
                 },
                 "impact_quantifier": {
@@ -259,7 +259,7 @@ class AISettings:
                 },
                 "narrative_generator": {
                     "provider": "anthropic",
-                    "model": "claude-sonnet-4.5",
+                    "model": "claude-sonnet-4-20250514",
                     "description": "Claims narrative generation",
                 },
             },
@@ -333,7 +333,7 @@ class AISettings:
             "max_duration_seconds": 120,
             "fallback_chain": [
                 ("openai", "gpt-5.2-thinking"),
-                ("anthropic", "claude-sonnet-4.5"),
+                ("anthropic", "claude-sonnet-4-20250514"),
                 ("bedrock", "amazon.nova-pro-v1:0"),
             ],
             "features": {
@@ -376,12 +376,12 @@ class AISettings:
             "description": "Execute tasks across multiple AI models with voting/consensus",
             "category": "orchestration",
             "provider": "anthropic",
-            "model": "claude-sonnet-4.5",
+            "model": "claude-sonnet-4-20250514",
             "max_tokens": 4000,
             "temperature": 0.2,
             "max_duration_seconds": 300,
             "models": [
-                ("anthropic", "claude-sonnet-4.5"),
+                ("anthropic", "claude-sonnet-4-20250514"),
                 ("openai", "gpt-5.2-instant"),
                 ("gemini", "gemini-2.5-flash"),
             ],
@@ -416,7 +416,7 @@ class AISettings:
         },
         "deep_analysis": {
             "provider": "anthropic",
-            "model": "claude-sonnet-4.5",
+            "model": "claude-opus-4.5-20251201",
             "thinking_enabled": True,
             "thinking_budget_tokens": 5000,
             "max_duration_seconds": 300,
@@ -427,7 +427,7 @@ class AISettings:
             },
             "fallback_chain": [
                 ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
-                ("anthropic", "claude-sonnet-4.5"),
+                ("anthropic", "claude-sonnet-4-20250514"),
                 ("openai", "gpt-5.2-thinking"),
             ],
         },
@@ -437,27 +437,27 @@ class AISettings:
             "max_duration_seconds": 180,
             "fallback_chain": [
                 ("openai", "gpt-5.2-instant"),
-                ("anthropic", "claude-sonnet-4.5"),
+                ("anthropic", "claude-sonnet-4-20250514"),
                 ("bedrock", "amazon.nova-pro-v1:0"),
             ],
         },
         "validation": {
             "provider": "anthropic",
-            "model": "claude-sonnet-4.5",
+            "model": "claude-sonnet-4-20250514",
             "max_duration_seconds": 120,
             "fallback_chain": [
-                ("anthropic", "claude-sonnet-4.5"),
+                ("anthropic", "claude-sonnet-4-20250514"),
                 ("gemini", "gemini-2.5-flash-lite"),
                 ("openai", "gpt-5.2-instant"),
             ],
         },
         "causation_analysis": {
             "provider": "anthropic",
-            "model": "claude-sonnet-4.5",
+            "model": "claude-sonnet-4-20250514",
             "max_duration_seconds": 180,
             "description": "Delay causation analysis - Claude excels at analytical reasoning",
             "fallback_chain": [
-                ("anthropic", "claude-sonnet-4.5"),
+                ("anthropic", "claude-sonnet-4-20250514"),
                 ("bedrock", "anthropic.claude-sonnet-4-5-20250929-v1:0"),
                 ("openai", "gpt-5.2-thinking"),
             ],
@@ -489,7 +489,7 @@ class AISettings:
     DEFAULT_AGENT_CONFIGS: dict[str, dict[str, Any]] = {
         "planner": {
             "primary_provider": "anthropic",
-            "primary_model": "claude-sonnet-4.5",
+            "primary_model": "claude-sonnet-4-20250514",
             "description": "Research planning - Claude for long-context planning",
         },
         "researcher": {
@@ -504,7 +504,7 @@ class AISettings:
         },
         "validator": {
             "primary_provider": "anthropic",
-            "primary_model": "claude-sonnet-4.5",
+            "primary_model": "claude-sonnet-4-20250514",
             "description": "Validation - Claude for analytical checking",
         },
         "reranker": {
@@ -523,6 +523,7 @@ class AISettings:
         # Common direct Anthropic IDs used in configuration/UI
         "claude-opus-4.5": "anthropic.claude-opus-4-5-20251101-v1:0",
         "claude-sonnet-4.5": "anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "claude-sonnet-4-20250514": "anthropic.claude-sonnet-4-5-20250929-v1:0",
         # Claude 4.1 series
         "claude-4.1-opus": "anthropic.claude-4.1-opus-v1:0",
         "claude-4.1-sonnet": "anthropic.claude-4.1-sonnet-v1:0",
