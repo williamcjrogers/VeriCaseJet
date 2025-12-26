@@ -468,10 +468,11 @@ async def upload_programme(
         # Create document record
         document = Document(
             filename=file.filename,
-            file_size=len(content),
-            mime_type=file.content_type or "application/octet-stream",
-            uploaded_by=user.email,
+            size=len(content),
+            content_type=file.content_type or "application/octet-stream",
+            bucket="vericase-documents",
             s3_key=f"{storage_prefix}/{file.filename}",
+            owner_user_id=user.id,
         )
         db.add(document)
         db.flush()
