@@ -82,6 +82,9 @@ services:
       - AWS_REGION=${AWS_REGION:-eu-west-2}
       - S3_BUCKET=${S3_BUCKET:-vericase-docs}
       - MINIO_BUCKET=${MINIO_BUCKET:-vericase-docs}
+      # Large PST temp storage - uses host volume with plenty of space
+      - PST_TEMP_DIR=/mnt/pst-tmp
+      - PST_KEEP_TEMP_ON_ERROR=false
     depends_on: [minio, postgres, redis, opensearch, tika]
     command:
       [
@@ -97,6 +100,8 @@ services:
       - "./worker_app:/code/worker_app"
       - "./api/app:/code/app"
       - "C:/Users/William/.aws:/root/.aws:ro"
+      # Mount host directory for large PST temp files (ensure 15+ GB free)
+      - "./pst-tmp:/mnt/pst-tmp"
 
 volumes:
   pg_data:

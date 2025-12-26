@@ -17,10 +17,15 @@ from fastapi import (
     UploadFile,
     Body,
 )
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
+import io
+import csv
 from sqlalchemy.orm import Session
 
+from ..csrf import verify_csrf_token
 from ..security import current_user, get_db
-from ..models import User
+from ..models import User, EmailMessage, Stakeholder, Keyword
 from .services import (
     upload_pst_file_service,
     init_pst_upload_service,
@@ -43,13 +48,50 @@ from .utils import (
     PSTProcessingStatus,
     PSTFileListResponse,
     EmailListResponse,
+    ServerSideRequest,
+    ServerSideResponse,
+    EmailMessageDetail,
+    build_correspondence_hard_exclusion_filter,
+    build_correspondence_visibility_filter,
 )
-from ..search import search_emails
+from ..search import search_emails, client as os_client
 import logging
 
 logger = logging.getLogger("vericase")
 
 router = APIRouter(prefix="/api/correspondence", tags=["correspondence"])
+
+
+def _safe_uuid(value: str | None, label: str) -> uuid.UUID | None:
+    if not value:
+        return None
+    try:
+        return uuid.UUID(str(value))
+    except Exception:
+        raise HTTPException(status_code=400, detail=f"Invalid {label} format")
+
+
+class BulkEmailIdsRequest(BaseModel):
+    email_ids: list[str] = Field(..., min_length=1)
+    case_id: str | None = None
+    project_id: str | None = None
+
+
+class BulkExcludeRequest(BulkEmailIdsRequest):
+    excluded: bool = True
+    reason: str | None = None
+
+
+class BulkSetCategoryRequest(BulkEmailIdsRequest):
+    category: str = Field(..., min_length=1, max_length=100)
+
+
+class BulkAddKeywordsRequest(BulkEmailIdsRequest):
+    keyword_ids: list[str] = Field(..., min_length=1)
+
+
+class ExportEmailsRequest(BulkEmailIdsRequest):
+    include_body: bool = False
 
 
 @router.post("/pst/upload")
@@ -176,6 +218,40 @@ async def list_emails(
     )
 
 
+@router.post("/emails/server-side", response_model=ServerSideResponse)
+async def list_emails_server_side(
+    request: ServerSideRequest,
+    case_id: Annotated[str | None, Query(description="Case ID")] = None,
+    project_id: Annotated[str | None, Query(description="Project ID")] = None,
+    search: Annotated[
+        str | None, Query(description="Search in subject/body/sender")
+    ] = None,
+    stakeholder_id: Annotated[
+        str | None, Query(description="Filter by stakeholder (server-side)")
+    ] = None,
+    keyword_id: Annotated[
+        str | None, Query(description="Filter by keyword (server-side)")
+    ] = None,
+    include_hidden: Annotated[
+        bool, Query(description="Include excluded/hidden emails")
+    ] = False,
+    db: Session = Depends(get_db),
+):
+    # NOTE: This endpoint is used by the Correspondence Enterprise AG Grid server-side row model.
+    from .services import list_emails_server_side_service
+
+    return await list_emails_server_side_service(
+        request=request,
+        case_id=case_id,
+        project_id=project_id,
+        search=search,
+        stakeholder_id=stakeholder_id,
+        keyword_id=keyword_id,
+        include_hidden=include_hidden,
+        db=db,
+    )
+
+
 @router.get("/emails/search")
 async def search_emails_endpoint(
     query: str,
@@ -230,9 +306,379 @@ async def search_emails_endpoint(
         raise HTTPException(status_code=500, detail="Search failed")
 
 
-# NOTE: the advanced correspondence endpoints (server-side grid, thread, attachments,
-# spam filter, etc.) are currently not wired up in this slimmed-down router.
-# We keep the core PST upload/status/list + admin cleanup endpoints.
+@router.get("/stakeholders")
+async def list_stakeholders(
+    case_id: Annotated[str | None, Query(description="Case ID")] = None,
+    project_id: Annotated[str | None, Query(description="Project ID")] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """List stakeholders (id + display fields) for filter UI."""
+
+    q = db.query(Stakeholder)
+    case_uuid = _safe_uuid(case_id, "case_id")
+    project_uuid = _safe_uuid(project_id, "project_id")
+    if case_uuid:
+        q = q.filter(Stakeholder.case_id == case_uuid)
+    if project_uuid:
+        q = q.filter(Stakeholder.project_id == project_uuid)
+
+    items = q.order_by(Stakeholder.name.asc()).limit(5000).all()
+    return {
+        "items": [
+            {
+                "id": str(s.id),
+                "name": s.name,
+                "role": s.role,
+                "email": s.email,
+                "organization": s.organization,
+            }
+            for s in items
+        ]
+    }
+
+
+@router.get("/keywords")
+async def list_keywords(
+    case_id: Annotated[str | None, Query(description="Case ID")] = None,
+    project_id: Annotated[str | None, Query(description="Project ID")] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """List keywords (id + name) for filter UI."""
+
+    q = db.query(Keyword)
+    case_uuid = _safe_uuid(case_id, "case_id")
+    project_uuid = _safe_uuid(project_id, "project_id")
+    if case_uuid:
+        q = q.filter(Keyword.case_id == case_uuid)
+    if project_uuid:
+        q = q.filter(Keyword.project_id == project_uuid)
+
+    items = q.order_by(Keyword.keyword_name.asc()).limit(5000).all()
+    return {
+        "items": [
+            {
+                "id": str(k.id),
+                "name": k.keyword_name,
+                "definition": k.definition,
+                "variations": k.variations,
+                "is_regex": bool(k.is_regex),
+            }
+            for k in items
+        ]
+    }
+
+
+@router.get("/emails/{email_id}/similar")
+async def get_similar_emails(
+    email_id: str,
+    size: int = Query(25, ge=1, le=200),
+    include_hidden: Annotated[
+        bool, Query(description="Include excluded/hidden emails")
+    ] = False,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Content-based similarity using OpenSearch `more_like_this`.
+
+    We fetch candidate IDs from OpenSearch, then hydrate via DB and apply
+    visibility rules server-side.
+    """
+
+    email_uuid = _safe_uuid(email_id, "email_id")
+    if not email_uuid:
+        raise HTTPException(400, "Invalid email_id format")
+
+    # Use DB row to apply scoping filters and optionally boost duplicates.
+    email = db.query(EmailMessage).filter(EmailMessage.id == email_uuid).first()
+    if not email:
+        raise HTTPException(404, "Email not found")
+
+    filters: list[dict] = []
+    if email.case_id:
+        filters.append({"term": {"case_id": str(email.case_id)}})
+    if email.project_id:
+        filters.append({"term": {"project_id": str(email.project_id)}})
+
+    should: list[dict] = [
+        {
+            "more_like_this": {
+                "fields": ["body_clean", "subject"],
+                "like": [{"_index": "emails", "_id": str(email.id)}],
+                "min_term_freq": 1,
+                "min_doc_freq": 1,
+                "max_query_terms": 25,
+            }
+        }
+    ]
+    if email.content_hash:
+        should.append({"term": {"content_hash": email.content_hash}})
+
+    dsl = {
+        "size": min(500, max(size * 5, size)),
+        "query": {
+            "bool": {
+                "should": should,
+                "minimum_should_match": 1,
+                "filter": filters,
+                "must_not": [{"term": {"id": str(email.id)}}],
+            }
+        },
+        "_source": [
+            "id",
+            "subject",
+            "sender_email",
+            "sender_name",
+            "date_sent",
+            "has_attachments",
+            "content_hash",
+        ],
+    }
+
+    try:
+        results = os_client().search(index="emails", body=dsl)
+    except Exception as e:
+        logger.warning("Similar emails search failed (OpenSearch unavailable?): %s", e)
+        return {"items": [], "total": 0, "note": "Similarity search unavailable"}
+
+    hits = results.get("hits", {}).get("hits", [])
+    score_by_id: dict[str, float] = {}
+    for h in hits:
+        _id = str(h.get("_id"))
+        if _id:
+            score_by_id[_id] = float(h.get("_score") or 0.0)
+
+    candidate_ids = list(score_by_id.keys())
+    if not candidate_ids:
+        return {"items": [], "total": 0}
+
+    q = db.query(EmailMessage).filter(EmailMessage.id.in_(candidate_ids))
+    q = q.filter(build_correspondence_hard_exclusion_filter())
+    if not include_hidden:
+        q = q.filter(build_correspondence_visibility_filter())
+
+    # Preserve OpenSearch ordering.
+    by_id = {str(e.id): e for e in q.all()}
+    ordered = [by_id[i] for i in candidate_ids if i in by_id]
+    ordered = ordered[:size]
+
+    return {
+        "items": [
+            {
+                "id": str(e.id),
+                "score": score_by_id.get(str(e.id), 0.0),
+                "subject": e.subject,
+                "sender_email": e.sender_email,
+                "sender_name": e.sender_name,
+                "date_sent": e.date_sent.isoformat() if e.date_sent else None,
+                "has_attachments": bool(e.has_attachments),
+                "content_hash": e.content_hash,
+            }
+            for e in ordered
+        ],
+        "total": len(ordered),
+    }
+
+
+@router.post("/emails/bulk/exclude")
+async def bulk_exclude_emails(
+    payload: BulkExcludeRequest,
+    _: None = Depends(verify_csrf_token),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Bulk exclude/include selected emails by updating `meta.status`."""
+
+    email_ids = list({e for e in (payload.email_ids or []) if e})
+    if not email_ids:
+        raise HTTPException(400, "email_ids is required")
+
+    q = db.query(EmailMessage).filter(EmailMessage.id.in_(email_ids))
+    case_uuid = _safe_uuid(payload.case_id, "case_id")
+    project_uuid = _safe_uuid(payload.project_id, "project_id")
+    if case_uuid:
+        q = q.filter(EmailMessage.case_id == case_uuid)
+    if project_uuid:
+        q = q.filter(EmailMessage.project_id == project_uuid)
+
+    rows = q.all()
+    updated = 0
+    for e in rows:
+        meta = e.meta if isinstance(e.meta, dict) else {}
+        status = "excluded" if payload.excluded else "active"
+        updated_meta = {
+            **meta,
+            "status": status,
+        }
+        if payload.reason:
+            updated_meta["user_exclude_reason"] = payload.reason
+        updated_meta["user_exclude_by"] = str(user.id)
+        updated_meta["user_exclude_at"] = datetime.utcnow().isoformat()
+        e.meta = updated_meta
+        updated += 1
+
+    db.commit()
+    return {"updated": updated}
+
+
+@router.post("/emails/bulk/set-category")
+async def bulk_set_category(
+    payload: BulkSetCategoryRequest,
+    _: None = Depends(verify_csrf_token),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Bulk set a user category for selected emails (stored in `meta.user_category`)."""
+
+    email_ids = list({e for e in (payload.email_ids or []) if e})
+    if not email_ids:
+        raise HTTPException(400, "email_ids is required")
+
+    q = db.query(EmailMessage).filter(EmailMessage.id.in_(email_ids))
+    case_uuid = _safe_uuid(payload.case_id, "case_id")
+    project_uuid = _safe_uuid(payload.project_id, "project_id")
+    if case_uuid:
+        q = q.filter(EmailMessage.case_id == case_uuid)
+    if project_uuid:
+        q = q.filter(EmailMessage.project_id == project_uuid)
+
+    rows = q.all()
+    updated = 0
+    for e in rows:
+        meta = e.meta if isinstance(e.meta, dict) else {}
+        e.meta = {
+            **meta,
+            "user_category": payload.category,
+            "user_category_by": str(user.id),
+            "user_category_at": datetime.utcnow().isoformat(),
+        }
+        updated += 1
+
+    db.commit()
+    return {"updated": updated}
+
+
+@router.post("/emails/bulk/add-keywords")
+async def bulk_add_keywords(
+    payload: BulkAddKeywordsRequest,
+    _: None = Depends(verify_csrf_token),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Bulk add keyword IDs to EmailMessage.matched_keywords (JSONB array)."""
+
+    email_ids = list({e for e in (payload.email_ids or []) if e})
+    keyword_ids = [k for k in (payload.keyword_ids or []) if k]
+    if not email_ids:
+        raise HTTPException(400, "email_ids is required")
+    if not keyword_ids:
+        raise HTTPException(400, "keyword_ids is required")
+
+    q = db.query(EmailMessage).filter(EmailMessage.id.in_(email_ids))
+    case_uuid = _safe_uuid(payload.case_id, "case_id")
+    project_uuid = _safe_uuid(payload.project_id, "project_id")
+    if case_uuid:
+        q = q.filter(EmailMessage.case_id == case_uuid)
+    if project_uuid:
+        q = q.filter(EmailMessage.project_id == project_uuid)
+
+    rows = q.all()
+    updated = 0
+    for e in rows:
+        existing = e.matched_keywords if isinstance(e.matched_keywords, list) else []
+        merged = list({*existing, *keyword_ids})
+        e.matched_keywords = merged
+        updated += 1
+
+        # Track who/when in meta (optional, but useful for audit).
+        meta = e.meta if isinstance(e.meta, dict) else {}
+        e.meta = {
+            **meta,
+            "user_keywords_by": str(user.id),
+            "user_keywords_at": datetime.utcnow().isoformat(),
+        }
+
+    db.commit()
+    return {"updated": updated}
+
+
+@router.post("/emails/export")
+async def export_emails_csv(
+    payload: ExportEmailsRequest,
+    _: None = Depends(verify_csrf_token),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Export selected emails to CSV (server-generated)."""
+
+    email_ids = list({e for e in (payload.email_ids or []) if e})
+    if not email_ids:
+        raise HTTPException(400, "email_ids is required")
+
+    q = db.query(EmailMessage).filter(EmailMessage.id.in_(email_ids))
+    case_uuid = _safe_uuid(payload.case_id, "case_id")
+    project_uuid = _safe_uuid(payload.project_id, "project_id")
+    if case_uuid:
+        q = q.filter(EmailMessage.case_id == case_uuid)
+    if project_uuid:
+        q = q.filter(EmailMessage.project_id == project_uuid)
+
+    rows = q.order_by(EmailMessage.date_sent.asc().nullslast()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    headers = [
+        "id",
+        "date_sent",
+        "subject",
+        "sender_email",
+        "sender_name",
+        "recipients_to",
+        "recipients_cc",
+        "has_attachments",
+        "content_hash",
+        "user_category",
+        "status",
+    ]
+    if payload.include_body:
+        headers.append("body_text_clean")
+    writer.writerow(headers)
+
+    for e in rows:
+        meta = e.meta if isinstance(e.meta, dict) else {}
+        status = meta.get("status")
+        user_category = meta.get("user_category")
+        row = [
+            str(e.id),
+            e.date_sent.isoformat() if e.date_sent else None,
+            e.subject,
+            e.sender_email,
+            e.sender_name,
+            ", ".join(e.recipients_to or []) if e.recipients_to else None,
+            ", ".join(e.recipients_cc or []) if e.recipients_cc else None,
+            bool(e.has_attachments),
+            e.content_hash,
+            user_category,
+            status,
+        ]
+        if payload.include_body:
+            row.append(e.body_text_clean or e.body_text or "")
+        writer.writerow(row)
+
+    output.seek(0)
+
+    filename = "emails_export.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# NOTE: Some advanced correspondence endpoints are still unimplemented, but the
+# server-side email grid endpoint is wired up because the UI depends on it.
 
 
 @router.post("/pst/admin/cleanup")
@@ -282,3 +728,13 @@ async def get_notifications(
         }
         for log in logs
     ]
+
+
+@router.get("/emails/{email_id}", response_model=EmailMessageDetail)
+async def get_email_detail(
+    email_id: str,
+    db: Session = Depends(get_db),
+):
+    from .services import get_email_detail_service
+
+    return await get_email_detail_service(email_id, db)

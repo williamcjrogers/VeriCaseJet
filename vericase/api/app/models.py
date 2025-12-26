@@ -582,6 +582,13 @@ class Case(Base):
     company_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False
     )
+    # Optional link to the underlying data project (emails/evidence live primarily under Project![1766462800990](image/models/1766462800990.png)![1766462809319](image/models/1766462809319.png)![1766462821425](image/models/1766462821425.png)).
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True, index=True
+    )
+    workspace_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workspaces.id"), nullable=True, index=True
+    )
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -593,6 +600,10 @@ class Case(Base):
     )
     owner: Mapped[User] = relationship("User")
     company: Mapped[Company] = relationship("Company")
+    project: Mapped["Project | None"] = relationship("Project")
+    workspace: Mapped["Workspace | None"] = relationship(
+        "Workspace", back_populates="cases"
+    )
 
 
 class CaseUser(Base):
@@ -974,12 +985,133 @@ class Project(Base):
     owner_user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
+    workspace_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workspaces.id"), nullable=True, index=True
+    )
     owner: Mapped[User] = relationship("User")
+    workspace: Mapped["Workspace | None"] = relationship(
+        "Workspace", back_populates="projects"
+    )
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), onupdate=func.now()
+    )
+
+
+class Workspace(Base):
+    """Workspace entity that groups Projects and Cases together"""
+
+    __tablename__ = "workspaces"
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    code: Mapped[str] = mapped_column(
+        String(100), unique=True, nullable=False, index=True
+    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    contract_type: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )  # JCT, NEC, FIDIC
+    status: Mapped[str] = mapped_column(
+        String(50), default="active"
+    )  # active, archived
+    owner_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    owner: Mapped[User] = relationship("User")
+    projects: Mapped[list["Project"]] = relationship(
+        "Project", back_populates="workspace"
+    )
+    cases: Mapped[list["Case"]] = relationship("Case", back_populates="workspace")
+
+
+class WorkspaceKeyword(Base):
+    """Keywords and variants for a workspace"""
+
+    __tablename__ = "workspace_keywords"
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    keyword_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    definition: Mapped[str | None] = mapped_column(Text, nullable=True)
+    variations: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # Comma-separated variations
+    is_regex: Mapped[bool] = mapped_column(Boolean, default=False)
+    workspace: Mapped[Workspace] = relationship("Workspace")
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class WorkspaceTeamMember(Base):
+    """Project team members for a workspace"""
+
+    __tablename__ = "workspace_team_members"
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    role: Mapped[str] = mapped_column(
+        String(255), nullable=False
+    )  # Project Manager, QS, etc.
+    name: Mapped[str] = mapped_column(String(512), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    organization: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    workspace: Mapped[Workspace] = relationship("Workspace")
+    user: Mapped[User | None] = relationship("User")
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class WorkspaceKeyDate(Base):
+    """Key dates and milestones for a workspace"""
+
+    __tablename__ = "workspace_key_dates"
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    date_type: Mapped[str] = mapped_column(
+        String(100), nullable=False
+    )  # contract_start, contract_end, milestone, etc.
+    label: Mapped[str] = mapped_column(String(255), nullable=False)
+    date_value: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    workspace: Mapped[Workspace] = relationship("Workspace")
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
     )
 
 
@@ -1144,9 +1276,17 @@ class EmailMessage(Base):
     body_text_clean: Mapped[str | None] = mapped_column(
         Text, nullable=True
     )  # Top-message canonical text (quotes stripped, normalised)
+    body_text_clean_hash: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )  # Layer-2 hash of normalized canonical body
     content_hash: Mapped[str | None] = mapped_column(
         String(128), nullable=True
     )  # Hash of canonical body + key metadata
+    canonical_email_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("email_messages.id"), nullable=True
+    )
+    is_duplicate: Mapped[bool] = mapped_column(Boolean, default=False)
+    dedupe_level: Mapped[str | None] = mapped_column(String(2), nullable=True)
 
     # Programme linking
     as_planned_activity: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -1210,6 +1350,90 @@ class EmailMessage(Base):
         Index("idx_email_project_content_hash", "project_id", "content_hash"),
         Index("idx_email_thread_group", "thread_group_id"),
         Index("idx_email_thread_path", "thread_group_id", "thread_path"),
+        Index("idx_email_canonical", "canonical_email_id"),
+        Index("idx_email_is_duplicate", "is_duplicate"),
+    )
+
+
+class EmailThreadLink(Base):
+    """Deterministic parent-child threading evidence for emails."""
+
+    __tablename__ = "email_thread_links"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    child_email_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("email_messages.id"), nullable=False
+    )
+    parent_email_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("email_messages.id"), nullable=True
+    )
+
+    methods: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    evidence: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    alternatives: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    run_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    child_email: Mapped[EmailMessage] = relationship(
+        "EmailMessage", foreign_keys=[child_email_id]
+    )
+    parent_email: Mapped[EmailMessage | None] = relationship(
+        "EmailMessage", foreign_keys=[parent_email_id]
+    )
+
+    __table_args__ = (
+        Index("idx_email_thread_links_child", "child_email_id"),
+        Index("idx_email_thread_links_parent", "parent_email_id"),
+    )
+
+
+class EmailDedupeDecision(Base):
+    """Dedupe decisions for emails (winner/loser with evidence)."""
+
+    __tablename__ = "email_dedupe_decisions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    winner_email_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("email_messages.id"), nullable=False
+    )
+    loser_email_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("email_messages.id"), nullable=False
+    )
+    level: Mapped[str] = mapped_column(String(2), nullable=False)
+    match_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    strict_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    relaxed_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    quoted_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    evidence: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    alternatives: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    run_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    winner_email: Mapped[EmailMessage] = relationship(
+        "EmailMessage", foreign_keys=[winner_email_id]
+    )
+    loser_email: Mapped[EmailMessage] = relationship(
+        "EmailMessage", foreign_keys=[loser_email_id]
+    )
+
+    __table_args__ = (
+        Index("idx_email_dedupe_winner", "winner_email_id"),
+        Index("idx_email_dedupe_loser", "loser_email_id"),
+        Index("idx_email_dedupe_level", "level"),
     )
 
 
@@ -1252,6 +1476,190 @@ class EmailAttachment(Base):
     def file_size(self) -> int | None:
         """Alias for file_size_bytes for backward compatibility"""
         return self.file_size_bytes
+
+
+class MessageRaw(Base):
+    """Immutable raw message artefact with provenance data."""
+
+    __tablename__ = "message_raw"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    source_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    storage_uri: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    extraction_tool_version: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
+    extracted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    raw_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    occurrences: Mapped[list["MessageOccurrence"]] = relationship(
+        "MessageOccurrence", back_populates="raw", lazy="selectin"
+    )
+    derived: Mapped[list["MessageDerived"]] = relationship(
+        "MessageDerived", back_populates="raw", lazy="selectin"
+    )
+    attachments: Mapped[list["AttachmentRaw"]] = relationship(
+        "AttachmentRaw", back_populates="raw", lazy="selectin"
+    )
+
+    __table_args__ = (
+        Index("idx_message_raw_source_hash", "source_hash"),
+        Index("idx_message_raw_source_type", "source_type"),
+        Index("idx_message_raw_extracted_at", "extracted_at"),
+    )
+
+
+class MessageOccurrence(Base):
+    """Occurrence of a raw message within an ingest run."""
+
+    __tablename__ = "message_occurrences"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    raw_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("message_raw.id"), nullable=False
+    )
+    ingest_run_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_location: Mapped[str | None] = mapped_column(Text, nullable=True)
+    seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True
+    )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True
+    )
+
+    raw: Mapped[MessageRaw] = relationship("MessageRaw", back_populates="occurrences")
+    case: Mapped[Case | None] = relationship("Case")
+    project: Mapped[Project | None] = relationship("Project")
+
+    __table_args__ = (
+        Index("idx_message_occurrences_raw_id", "raw_id"),
+        Index("idx_message_occurrences_ingest_run", "ingest_run_id"),
+        Index("idx_message_occurrences_case", "case_id"),
+        Index("idx_message_occurrences_project", "project_id"),
+    )
+
+
+class MessageDerived(Base):
+    """Derived, versioned canonical representation of a message."""
+
+    __tablename__ = "message_derived"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    raw_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("message_raw.id"), nullable=False
+    )
+    normalizer_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    normalizer_ruleset_hash: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
+    parser_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    canonical_subject: Mapped[str | None] = mapped_column(Text, nullable=True)
+    canonical_participants: Mapped[list[str] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    canonical_body_preview: Mapped[str | None] = mapped_column(Text, nullable=True)
+    canonical_body_full: Mapped[str | None] = mapped_column(Text, nullable=True)
+    banner_stripped_body: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quote_blocks: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    user_blocks: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    content_hash_phase1: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    content_hash_phase2: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    thread_id_header: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    thread_confidence: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    qc_flags: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    derived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    raw: Mapped[MessageRaw] = relationship("MessageRaw", back_populates="derived")
+    artefacts: Mapped[list["EnrichmentArtefact"]] = relationship(
+        "EnrichmentArtefact", back_populates="derived", lazy="selectin"
+    )
+
+    __table_args__ = (
+        Index("idx_message_derived_raw_id", "raw_id"),
+        Index("idx_message_derived_hash_p1", "content_hash_phase1"),
+        Index("idx_message_derived_hash_p2", "content_hash_phase2"),
+        Index("idx_message_derived_thread_header", "thread_id_header"),
+    )
+
+
+class AttachmentRaw(Base):
+    """Raw attachment artefact linked to a raw message."""
+
+    __tablename__ = "attachment_raw"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    raw_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("message_raw.id"), nullable=False
+    )
+    attachment_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    storage_uri: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    filename_normalized: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    raw: Mapped[MessageRaw] = relationship("MessageRaw", back_populates="attachments")
+
+    __table_args__ = (
+        Index("idx_attachment_raw_message", "raw_id"),
+        Index("idx_attachment_raw_hash", "attachment_hash"),
+    )
+
+
+class EnrichmentArtefact(Base):
+    """Derived enrichment artefact with explicit versioning."""
+
+    __tablename__ = "enrichment_artefacts"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    derived_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("message_derived.id"), nullable=False
+    )
+    artefact_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    storage_uri: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    artefact_metadata: Mapped[dict[str, Any] | None] = mapped_column(
+        "metadata", JSONB, nullable=True
+    )  # Column name stays "metadata" in DB, but Python attr is "artefact_metadata"
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    derived: Mapped[MessageDerived] = relationship(
+        "MessageDerived", back_populates="artefacts"
+    )
+
+    __table_args__ = (
+        Index("idx_enrichment_artefacts_derived", "derived_id"),
+        Index("idx_enrichment_artefacts_type", "artefact_type"),
+    )
 
 
 class Stakeholder(Base):
@@ -1354,6 +1762,7 @@ class Keyword(Base):
     )
 
     keyword_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    definition: Mapped[str | None] = mapped_column(Text, nullable=True)
     variations: Mapped[str | None] = mapped_column(
         Text, nullable=True
     )  # Comma-separated variations
@@ -1373,8 +1782,8 @@ class Programme(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    case_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True
     )
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True
@@ -1719,6 +2128,9 @@ class EvidenceItem(Base):
 
     # Full-text content
     extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    normalized_text_hash: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )  # Layer-2 hash of normalized extracted_text
     text_language: Mapped[str] = mapped_column(String(10), default="en")
 
     # Entity extraction (auto-populated)
@@ -1833,6 +2245,57 @@ class EvidenceItem(Base):
         Index("idx_evidence_items_project", "project_id"),
         Index("idx_evidence_items_auto_tags", "auto_tags", postgresql_using="gin"),
         Index("idx_evidence_items_manual_tags", "manual_tags", postgresql_using="gin"),
+    )
+
+
+class EvidenceSpan(Base):
+    """Deterministic Evidence Pointer (DEP) span anchoring for forensic traceability."""
+
+    __tablename__ = "evidence_spans"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True, index=True
+    )
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True, index=True
+    )
+
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_evidence_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("evidence_items.id"), nullable=True, index=True
+    )
+    source_email_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("email_messages.id"), nullable=True, index=True
+    )
+
+    start_offset: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_offset: Mapped[int] = mapped_column(Integer, nullable=False)
+    quote: Mapped[str] = mapped_column(Text, nullable=False)
+
+    span_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    normalized_text_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    dep_uri: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
+
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+
+    case: Mapped[Case | None] = relationship("Case")
+    project: Mapped[Project | None] = relationship("Project")
+    source_evidence: Mapped[EvidenceItem | None] = relationship(
+        "EvidenceItem", foreign_keys=[source_evidence_id]
+    )
+    source_email: Mapped[EmailMessage | None] = relationship(
+        "EmailMessage", foreign_keys=[source_email_id]
+    )
+
+    __table_args__ = (
+        Index("idx_evidence_spans_case_source", "case_id", "source_type"),
+        Index("idx_evidence_spans_dep_uri", "dep_uri"),
     )
 
 
@@ -2342,6 +2805,11 @@ class ItemComment(Base):
     )  # 'correspondence', 'evidence', 'matter', 'claim'
     item_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
+    # Collaboration lane (core, counsel, expert)
+    lane: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="core", default="core"
+    )
+
     # Comment threading
     parent_comment_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -2386,6 +2854,19 @@ class ItemComment(Base):
     __table_args__ = (
         Index("idx_item_comments_link", "item_claim_link_id"),
         Index("idx_item_comments_item", "item_type", "item_id"),
+        Index(
+            "idx_item_comments_item_lane_created",
+            "item_type",
+            "item_id",
+            "lane",
+            "created_at",
+        ),
+        Index(
+            "idx_item_comments_link_lane_created",
+            "item_claim_link_id",
+            "lane",
+            "created_at",
+        ),
         Index("idx_item_comments_parent", "parent_comment_id"),
         Index("idx_item_comments_created", "created_at"),
         Index("idx_item_comments_pinned", "is_pinned"),
@@ -2559,4 +3040,138 @@ class RefinementSessionDB(Base):
         Index("idx_refinement_sessions_project", "project_id"),
         Index("idx_refinement_sessions_user", "user_id"),
         Index("idx_refinement_sessions_status", "status"),
+    )
+
+
+# =============================================================================
+# AI Optimization Tracking
+# =============================================================================
+
+
+# =============================================================================
+# Case Law Intelligence Layer
+# =============================================================================
+
+
+class CaseLaw(Base):
+    """
+    Repository of ingested case law judgments.
+    Serves as the source of truth for the AI Knowledge Base.
+    """
+
+    __tablename__ = "case_law"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+
+    # Citation & Identification
+    neutral_citation: Mapped[str] = mapped_column(
+        String(255), unique=True, nullable=False, index=True
+    )  # e.g., [2023] EWHC 123 (TCC)
+    case_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    court: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    judgment_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True
+    )
+    judge: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # Storage References
+    s3_bucket: Mapped[str] = mapped_column(String(128), nullable=False)
+    s3_key_raw: Mapped[str] = mapped_column(
+        String(2048), nullable=False
+    )  # Original PDF/XML
+    s3_key_curated: Mapped[str | None] = mapped_column(
+        String(2048), nullable=True
+    )  # Normalized Text/JSON
+
+    # Content
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    full_text_preview: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # AI & Processing Status
+    embedding_status: Mapped[str] = mapped_column(
+        String(50), default="pending"
+    )  # pending, embedded, failed
+    extraction_status: Mapped[str] = mapped_column(
+        String(50), default="pending"
+    )  # pending, extracted, failed
+    kb_ingestion_job_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    # Structured Extraction (Pattern Mining)
+    # Storing as JSONB for flexibility, can be mirrored to OpenSearch
+    extracted_analysis: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    # Schema: {
+    #   "issues": [...],
+    #   "outcome": "...",
+    #   "factors_for": [...],
+    #   "factors_against": [...],
+    #   "legal_tests": [...]
+    # }
+
+    # Metadata
+    meta: Mapped[dict[str, Any] | None] = mapped_column(JSONB, default=dict)
+
+    # Audit
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        Index("idx_case_law_citation", "neutral_citation"),
+        Index("idx_case_law_court", "court"),
+        Index("idx_case_law_date", "judgment_date"),
+    )
+
+
+class AIOptimizationEvent(Base):
+    """Track AI API calls for optimization analysis.
+
+    Records detailed metrics for each AI API call including:
+    - Provider and model used
+    - Token usage and costs
+    - Response times
+    - Success/failure status
+    - Quality assessments
+    """
+
+    __tablename__ = "ai_optimization_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    provider: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    model_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    function_name: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, index=True
+    )
+    task_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    response_time_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False, index=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quality_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # NOTE: 'metadata' is reserved in SQLAlchemy declarative models.
+    meta: Mapped[dict[str, Any] | None] = mapped_column(
+        "metadata", JSONB, nullable=True
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
+    )
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_ai_opt_provider_model", "provider", "model_id"),
+        Index("idx_ai_opt_provider_created", "provider", "created_at"),
     )

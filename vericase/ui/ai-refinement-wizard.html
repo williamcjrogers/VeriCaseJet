@@ -8,8 +8,8 @@
       rel="stylesheet"
       href="./assets/fontawesome/css/all.min.css"
     />
-    <link rel="stylesheet" href="brand-styles.css" />
-    <link rel="stylesheet" href="design-system.css" />
+    <link rel="stylesheet" href="brand-styles.css?v=6" />
+    <link rel="stylesheet" href="design-system.css?v=6" />
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
     <script src="config.js"></script>
@@ -937,6 +937,8 @@
       let analysisResults = null;
       let selectedItems = new Set();
       let selectedOption = null;
+      let contextType = "project";
+      let contextId = null;
 
       // Get API URL
       const getApiUrl = () => {
@@ -949,50 +951,125 @@
         return window.location.origin || "";
       };
       const apiUrl = getApiUrl();
+      const getContextParamName = () =>
+        contextType === "case" ? "caseId" : "projectId";
+      const buildContextQuery = (extraParams = {}) => {
+        const params = new URLSearchParams(extraParams);
+        if (contextId) {
+          params.set(getContextParamName(), contextId);
+        }
+        const query = params.toString();
+        return query ? `?${query}` : "";
+      };
+      const buildCorrespondenceUrl = (extraParams = {}) =>
+        `correspondence-enterprise.html${buildContextQuery(extraParams)}`;
 
       // Initialize
       document.addEventListener("DOMContentLoaded", async () => {
         // Inject navigation shell
         if (window.VericaseShell) {
+          const ctx =
+            typeof window.VericaseShell.getContext === "function"
+              ? window.VericaseShell.getContext()
+              : { type: "project", id: window.VericaseShell.getProjectId() };
+          const ctxType = ctx?.type === "case" ? "case" : "project";
+          const ctxLabel =
+            ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
+          const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
+          const ctxId = ctx?.id ? String(ctx.id) : "";
+          const ctxUrl = ctxId
+            ? `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+            : "dashboard.html";
+
           window.VericaseShell.inject({
-            title: 'VeriCase Refine',
+            title: '',
             breadcrumbs: [
-              { label: 'Home', url: 'master-dashboard.html', icon: 'fa-home' },
-              { label: 'Project Dashboard', url: 'dashboard.html' },
-              { label: 'VeriCase Refine' }
+              { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+              { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
+              { label: "VeriCase Refine", icon: "fa-wand-magic-sparkles" }
             ]
           });
         }
 
         const urlParams = new URLSearchParams(window.location.search);
-        let projectId = urlParams.get("projectId");
+        const urlCaseId = urlParams.get("caseId");
+        const urlProjectId = urlParams.get("projectId");
+        const shellContext =
+          window.VericaseShell &&
+          typeof window.VericaseShell.getContext === "function"
+            ? window.VericaseShell.getContext()
+            : null;
 
-        if (!projectId) {
-          projectId =
-            localStorage.getItem("currentProjectId") ||
-            localStorage.getItem("projectId") ||
-            localStorage.getItem("vericase_current_project");
+        if (urlCaseId) {
+          contextType = "case";
+          contextId = urlCaseId;
+        } else if (urlProjectId) {
+          contextType = "project";
+          contextId = urlProjectId;
+        } else if (shellContext?.id) {
+          contextType = shellContext?.type === "case" ? "case" : "project";
+          contextId = String(shellContext.id);
+        } else {
+          const storedType = localStorage.getItem("profileType");
+          if (storedType === "case") {
+            contextType = "case";
+            contextId =
+              localStorage.getItem("currentCaseId") ||
+              localStorage.getItem("caseId") ||
+              localStorage.getItem("vericase_current_case");
+          } else {
+            contextType = "project";
+            contextId =
+              localStorage.getItem("currentProjectId") ||
+              localStorage.getItem("projectId") ||
+              localStorage.getItem("vericase_current_project");
+          }
+
+          if (!contextId) {
+            const fallbackProjectId =
+              localStorage.getItem("currentProjectId") ||
+              localStorage.getItem("projectId") ||
+              localStorage.getItem("vericase_current_project");
+            const fallbackCaseId =
+              localStorage.getItem("currentCaseId") ||
+              localStorage.getItem("caseId") ||
+              localStorage.getItem("vericase_current_case");
+            if (fallbackProjectId) {
+              contextType = "project";
+              contextId = fallbackProjectId;
+            } else if (fallbackCaseId) {
+              contextType = "case";
+              contextId = fallbackCaseId;
+            }
+          }
         }
 
-        if (!projectId) {
+        if (!contextId) {
           if (window.VericaseUI?.Toast) {
-            VericaseUI.Toast.warning("No project selected. Please select a project first.");
+            VericaseUI.Toast.warning(
+              "No project or case selected. Please select one first.",
+            );
           }
           window.location.href = "dashboard.html";
           return;
         }
 
         // Update header
-        const projectName = localStorage.getItem("currentProjectName") || 
-                            localStorage.getItem("vericase_current_project_name") || 
-                            "Project";
-        document.getElementById("projectName").textContent = projectName;
+        const contextName =
+          contextType === "case"
+            ? localStorage.getItem("currentCaseName") ||
+              localStorage.getItem("vericase_current_case_name") ||
+              "Case"
+            : localStorage.getItem("currentProjectName") ||
+              localStorage.getItem("vericase_current_project_name") ||
+              "Project";
+        document.getElementById("projectName").textContent = contextName;
 
         // Start analysis
-        await startAnalysis(projectId);
+        await startAnalysis(contextId, contextType);
       });
 
-      async function startAnalysis(projectId) {
+      async function startAnalysis(targetId = contextId, targetType = contextType) {
         showLoading(
           "Analyzing your emails with AI...",
           "This may take a moment for large datasets",
@@ -1000,22 +1077,37 @@
         setActiveStep("step-analysis");
 
         try {
+          const payload = {
+            include_spam_detection: true,
+            include_project_detection: true,
+          };
+          if (targetType === "case") {
+            payload.case_id = targetId;
+          } else {
+            payload.project_id = targetId;
+          }
+
           const response = await fetch(`${apiUrl}/api/ai-refinement/analyze`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
             },
-            body: JSON.stringify({
-              project_id: projectId,
-              include_spam_detection: true,
-              include_project_detection: true,
-            }),
+            body: JSON.stringify(payload),
           });
 
           if (!response.ok) {
-            const error = await response.text();
-            throw new Error(error);
+            const errorText = await response.text();
+            let message = errorText;
+            try {
+              const parsed = JSON.parse(errorText);
+              if (parsed?.detail) {
+                message = parsed.detail;
+              }
+            } catch (e) {
+              // Non-JSON error body, fall back to raw text.
+            }
+            throw new Error(message);
           }
 
           const data = await response.json();
@@ -1365,10 +1457,7 @@
               analysisResults = null;
               selectedItems.clear();
               selectedOption = null;
-              const projectId =
-                new URLSearchParams(window.location.search).get("projectId") ||
-                localStorage.getItem("currentProjectId");
-              await startAnalysis(projectId);
+              await startAnalysis(contextId, contextType);
             }
             return;
           }
@@ -1382,7 +1471,7 @@
           answeredQuestions.pop();
           showQuestion(answeredQuestions.length);
         } else {
-          window.location.href = `correspondence-enterprise.html?projectId=${new URLSearchParams(window.location.search).get("projectId")}`;
+          window.location.href = buildCorrespondenceUrl();
         }
       }
 
@@ -1492,6 +1581,21 @@
           }
 
           const result = await response.json();
+          const cleanupNote =
+            result?.cleanup_jobs &&
+            (result.cleanup_jobs.dedupe_task_id || result.cleanup_jobs.spam_task_id)
+              ? `
+                            <div class="summary-card">
+                                <div class="summary-card-title">
+                                    <i class="fas fa-broom"></i> Cleanup Running
+                                </div>
+                                <ul class="summary-list">
+                                    <li><span>Deduping and spam/other-project filtering is running in the background.</span></li>
+                                    <li><span>Refresh correspondence in a minute or two.</span></li>
+                                </ul>
+                            </div>
+                        `
+              : "";
 
           document.getElementById("wizardContent").innerHTML = `
                     <div class="summary-container">
@@ -1523,6 +1627,7 @@
                                     </li>
                                 </ul>
                             </div>
+                            ${cleanupNote}
                         </div>
                     </div>
 
@@ -1530,7 +1635,7 @@
                         <button class="btn btn-secondary" onclick="window.location.href='dashboard.html'">
                             <i class="fas fa-home"></i> Back to Dashboard
                         </button>
-                        <button class="btn btn-primary" onclick="window.location.href='correspondence-enterprise.html?projectId=${new URLSearchParams(window.location.search).get("projectId")}&refined=true'">
+                        <button class="btn btn-primary" onclick="window.location.href='${buildCorrespondenceUrl({ refined: "true" })}'">
                             View Filtered Emails <i class="fas fa-arrow-right"></i>
                         </button>
                     </div>
@@ -1567,7 +1672,7 @@
                 </div>
 
                 <div class="actions">
-                    <button class="btn btn-primary" onclick="window.location.href='correspondence-enterprise.html?projectId=${new URLSearchParams(window.location.search).get("projectId")}'">
+                    <button class="btn btn-primary" onclick="window.location.href='${buildCorrespondenceUrl()}'">
                         <i class="fas fa-envelope"></i> View Correspondence
                     </button>
                 </div>
@@ -1587,7 +1692,7 @@
                 </div>
 
                 <div class="actions">
-                    <button class="btn btn-secondary" onclick="window.location.href='correspondence-enterprise.html?projectId=${new URLSearchParams(window.location.search).get("projectId")}'">
+                    <button class="btn btn-secondary" onclick="window.location.href='${buildCorrespondenceUrl()}'">
                         <i class="fas fa-arrow-left"></i> Back to Correspondence
                     </button>
                     <button class="btn btn-primary" onclick="location.reload()">

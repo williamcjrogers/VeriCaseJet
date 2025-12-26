@@ -23,6 +23,12 @@
   --vericase-navy-light: #1b2534;
   --vericase-navy-lighter: #223042;
 
+  /* Logo Blue - Signature Accent (used primarily in navigation) */
+  --vericase-blue: #2f86c8;
+  --vericase-blue-dark: #1f5e9e;
+  --vericase-blue-light: #5bb0e1;
+  --vericase-blue-rgb: 47, 134, 200;
+
   /* Gold - Premium Accent */
   --vericase-gold: #b59b6a;
   --vericase-gold-light: #c9b07d;
@@ -32,6 +38,12 @@
   --vericase-cream: #f6f5f2;
   --vericase-cream-dark: #ede9e3;
   --vericase-cream-warm: #f8f6f1;
+
+  /* Royal Green - Vintage/Club Aesthetic (Control Centre) */
+  --vericase-royal-green: #1A3C34;
+  --vericase-royal-green-dark: #0f2621;
+  --vericase-royal-green-light: #2c5e52;
+  --vericase-royal-green-ghost: rgba(26, 60, 52, 0.08);
 
   /* ============================================
        SEMANTIC COLORS

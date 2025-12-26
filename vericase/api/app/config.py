@@ -193,13 +193,20 @@ class Settings(BaseSettings):
     # When true (default), pre-traverse the PST to count total messages for progress %
     # tracking. Disable to avoid the extra full pass on very large PSTs.
     PST_PRECOUNT_MESSAGES: bool = (
-        False  # Skip full pre-pass; better for very large PSTs
+        True  # Enable progress-friendly total email counts (counts folders, not every message)
     )
 
     # PST processing optimization settings
     PST_BATCH_COMMIT_SIZE: int = 2500  # Messages per DB commit batch
     PST_UPLOAD_WORKERS: int = 50  # Parallel S3 upload threads
     PST_SKIP_SEMANTIC_INDEXING: bool = True  # Skip during ingestion (run in background)
+    PST_AGENT_LOG_ENABLED: bool = False  # Disable local debug logging in production
+
+    # PST local temp storage
+    # Large PSTs are downloaded locally before pypff can open them. In containers,
+    # the default temp dir may be too small for multi-GB PSTs.
+    PST_TEMP_DIR: str | None = None  # e.g. "/mnt/pst-tmp" (must be writable)
+    PST_KEEP_TEMP_ON_ERROR: bool = False  # for debugging only; can fill disk quickly
 
     # AWS Textract settings
     USE_TEXTRACT: bool = True  # Use Textract as primary, Tika as fallback
@@ -214,6 +221,8 @@ class Settings(BaseSettings):
     # Bedrock Knowledge Base ID (e.g., "VERICASE-KB-001")
     BEDROCK_KB_ID: str = ""
     BEDROCK_DS_ID: str = ""  # Bedrock Data Source ID (e.g., "VERICASE-DS-001")
+    BEDROCK_AGENT_ID: str = ""  # Bedrock Agent ID (e.g., "AGENT123456")
+    BEDROCK_AGENT_ALIAS_ID: str = ""  # Bedrock Agent Alias ID (e.g., "TSTALIASID")
     BEDROCK_EMBEDDING_MODEL: str = (
         "amazon.titan-embed-text-v1"  # Embedding model for KB
     )
@@ -323,8 +332,15 @@ class Settings(BaseSettings):
     # xAI (Grok 4.x — 2M context)
     XAI_API_KEY: str = ""
     GROK_API_KEY: str = ""  # Alias for XAI_API_KEY
-    # Perplexity (Sonar — real-time web search)
+    # Perplexity (Sonar - real-time web search)
     PERPLEXITY_API_KEY: str = ""
+    # Lex API (legislation/caselaw search)
+    LEX_API_BASE_URL: str = ""
+    LEX_API_TOKEN: str = ""
+    LEX_API_AUTH_HEADER: str = "Authorization"
+    LEX_API_AUTH_SCHEME: str = "Bearer"
+    LEX_API_TIMEOUT_S: float = 20.0
+    LEX_API_OPERATION_MAP: str = ""
 
     # =========================================================================
     # AMAZON BEDROCK (Claude via AWS, Nova, Titan, Cohere embeddings)

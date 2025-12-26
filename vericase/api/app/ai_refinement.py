@@ -15,10 +15,32 @@ import logging
 import uuid
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from typing import Any, Annotated, cast, Generator
 from collections import defaultdict
 from enum import Enum
+
+
+def _serialize_for_json(obj: Any) -> Any:
+    """
+    Recursively serialize objects for JSON storage (JSONB columns).
+    Converts datetime objects to ISO format strings.
+    """
+    if obj is None:
+        return None
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    if isinstance(obj, Enum):
+        return obj.value
+    if isinstance(obj, dict):
+        return {k: _serialize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_serialize_for_json(item) for item in obj]
+    if hasattr(obj, "model_dump"):
+        # Pydantic model - serialize with mode='json' for proper datetime handling
+        return obj.model_dump(mode="json")
+    return obj
+
 
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from pydantic import BaseModel, Field
@@ -29,6 +51,7 @@ from .security import current_user
 from .models import (
     EmailMessage,
     Project,
+    Case,
     Stakeholder,
     Keyword,
     User,
@@ -44,6 +67,7 @@ from .ai_settings import (
 )
 from .ai_providers import BedrockProvider, bedrock_available
 from .visibility import build_email_visibility_filter
+from .correspondence.utils import build_correspondence_hard_exclusion_filter
 
 logger = logging.getLogger(__name__)
 
@@ -52,13 +76,64 @@ def _exclude_spam_filter(email_model: type[EmailMessage]) -> Any:
     """
     Build SQLAlchemy filter to exclude *all* excluded/hidden emails.
 
-    This uses the same visibility convention as the Correspondence Enterprise UI
-    and the AI Evidence Assistant:
-    - Hide when meta.status is set (spam/other_project/not_relevant/etc)
-    - Hide when meta.is_hidden is true
-    - Respect spam.user_override
+    Uses the SAME hard exclusion filter as the Correspondence Enterprise UI
+    to ensure consistent email counts:
+    - Exclude duplicates (is_duplicate=True)
+    - Exclude emails with status spam/other_project/duplicate
+    - Exclude spam-marked emails (meta.spam.is_hidden=true or user_override=hidden)
+    - Exclude AI-excluded emails (ai_exclude_reason matching spam/other_project/duplicate)
+
+    This is combined with the visibility filter to handle all exclusion cases.
     """
-    return build_email_visibility_filter(email_model)
+    from sqlalchemy import and_
+
+    return and_(
+        build_correspondence_hard_exclusion_filter(),
+        build_email_visibility_filter(email_model),
+    )
+
+
+def _email_scope_filter(scope_type: str, scope_id: str) -> Any:
+    if scope_type == "case":
+        return EmailMessage.case_id == scope_id
+    return EmailMessage.project_id == scope_id
+
+
+def _resolve_refinement_scope(
+    db: Session,
+    project_id: str | None,
+    case_id: str | None,
+) -> tuple[str, str, Project | Case]:
+    if project_id and case_id:
+        raise HTTPException(400, "Provide only one of project_id or case_id")
+
+    if project_id:
+        project = db.query(Project).filter_by(id=project_id).first()
+        if not project:
+            raise HTTPException(404, "Project not found")
+        return "project", str(project.id), project
+
+    if case_id:
+        case = db.query(Case).filter_by(id=case_id).first()
+        if not case:
+            raise HTTPException(404, "Case not found")
+        return "case", str(case.id), case
+
+    raise HTTPException(400, "Project or case ID is required")
+
+
+def _resolve_refinement_scope_from_id(
+    db: Session, scope_id: str
+) -> tuple[str, str, Project | Case]:
+    project = db.query(Project).filter_by(id=scope_id).first()
+    if project:
+        return "project", str(project.id), project
+
+    case = db.query(Case).filter_by(id=scope_id).first()
+    if case:
+        return "case", str(case.id), case
+
+    raise HTTPException(404, "Project or case not found")
 
 
 router = APIRouter(prefix="/api/ai-refinement", tags=["ai-refinement"])
@@ -234,7 +309,8 @@ class RefinementSession(BaseModel):
 class AnalysisRequest(BaseModel):
     """Request to start AI analysis"""
 
-    project_id: str
+    project_id: str | None = None
+    case_id: str | None = None
     include_spam_detection: bool = True
     include_project_detection: bool = True
     max_emails_to_analyze: int = 0  # 0 = unlimited (process all emails)
@@ -274,14 +350,24 @@ def _save_session_to_db(session: RefinementSession, db: Session) -> None:
     """Save a refinement session to the database for persistence."""
     db_session = db.query(RefinementSessionDB).filter_by(id=session.id).first()
 
+    # Serialize all data properly for JSONB storage (converts datetime to ISO strings)
+    questions_data = _serialize_for_json(
+        [q.model_dump() for q in session.questions_asked]
+    )
+    answers_data = _serialize_for_json(
+        [a.model_dump() for a in session.answers_received]
+    )
+    results_data = _serialize_for_json(session.analysis_results)
+    rules_data = _serialize_for_json(session.exclusion_rules)
+
     if db_session:
         # Update existing
         db_session.status = session.status
         db_session.current_stage = session.current_stage.value
-        db_session.questions_asked = [q.model_dump() for q in session.questions_asked]
-        db_session.answers_received = [a.model_dump() for a in session.answers_received]
-        db_session.analysis_results = session.analysis_results
-        db_session.exclusion_rules = session.exclusion_rules
+        db_session.questions_asked = questions_data
+        db_session.answers_received = answers_data
+        db_session.analysis_results = results_data
+        db_session.exclusion_rules = rules_data
     else:
         # Create new
         db_session = RefinementSessionDB(
@@ -290,10 +376,10 @@ def _save_session_to_db(session: RefinementSession, db: Session) -> None:
             user_id=session.user_id,
             status=session.status,
             current_stage=session.current_stage.value,
-            questions_asked=[q.model_dump() for q in session.questions_asked],
-            answers_received=[a.model_dump() for a in session.answers_received],
-            analysis_results=session.analysis_results,
-            exclusion_rules=session.exclusion_rules,
+            questions_asked=questions_data,
+            answers_received=answers_data,
+            analysis_results=results_data,
+            exclusion_rules=rules_data,
         )
         db.add(db_session)
 
@@ -363,9 +449,24 @@ class AIRefinementEngine:
     # Tool name for configuration lookup
     TOOL_NAME = "ai_refinement"
 
-    def __init__(self, db: Session, project: Project):
+    def __init__(
+        self, db: Session, project: Project | Case, scope_type: str = "project"
+    ):
         self.db = db
         self.project = project
+        self.scope_type = scope_type
+        self.scope_id = str(project.id)
+        self.profile_name = (
+            getattr(project, "project_name", None)
+            or getattr(project, "name", None)
+            or ("Case" if scope_type == "case" else "Project")
+        )
+        self.profile_code = (
+            getattr(project, "project_code", None)
+            or getattr(project, "case_id_custom", None)
+            or getattr(project, "case_number", None)
+            or ""
+        )
 
         # Load tool configuration with defensive fallbacks
         try:
@@ -423,8 +524,8 @@ class AIRefinementEngine:
     ) -> dict[str, str | list[str] | list[dict[str, str]] | None]:
         """Build comprehensive project context from configuration"""
         context: dict[str, str | list[str] | list[dict[str, str]] | None] = {
-            "project_name": self.project.project_name,
-            "project_code": self.project.project_code,
+            "project_name": self.profile_name,
+            "project_code": self.profile_code,
             "aliases": list[str](),
             "site_address": None,
             "include_domains": list[str](),
@@ -436,40 +537,51 @@ class AIRefinementEngine:
         }
 
         # Parse project fields
-        if self.project.project_aliases:
+        project_aliases = getattr(self.project, "project_aliases", None)
+        if project_aliases:
             context["aliases"] = [
-                a.strip() for a in self.project.project_aliases.split(",") if a.strip()
+                a.strip() for a in project_aliases.split(",") if a.strip()
             ]
 
-        if self.project.site_address:
-            context["site_address"] = self.project.site_address
+        site_address = getattr(self.project, "site_address", None)
+        if site_address:
+            context["site_address"] = site_address
 
-        if self.project.include_domains:
+        include_domains = getattr(self.project, "include_domains", None)
+        if include_domains:
             context["include_domains"] = [
-                d.strip() for d in self.project.include_domains.split(",") if d.strip()
+                d.strip() for d in include_domains.split(",") if d.strip()
             ]
 
-        if self.project.exclude_people:
+        exclude_people = getattr(self.project, "exclude_people", None)
+        if exclude_people:
             context["exclude_people"] = [
-                p.strip() for p in self.project.exclude_people.split(",") if p.strip()
+                p.strip() for p in exclude_people.split(",") if p.strip()
             ]
 
-        if self.project.project_terms:
+        project_terms = getattr(self.project, "project_terms", None)
+        if project_terms:
             context["project_terms"] = [
-                t.strip() for t in self.project.project_terms.split(",") if t.strip()
+                t.strip() for t in project_terms.split(",") if t.strip()
             ]
 
-        if self.project.exclude_keywords:
+        exclude_keywords = getattr(self.project, "exclude_keywords", None)
+        if exclude_keywords:
             context["exclude_keywords"] = [
-                k.strip() for k in self.project.exclude_keywords.split(",") if k.strip()
+                k.strip() for k in exclude_keywords.split(",") if k.strip()
             ]
 
         # Get configured stakeholders
-        stakeholders = (
-            self.db.query(Stakeholder)
-            .filter(Stakeholder.project_id == str(self.project.id))
-            .all()
-        )
+        stakeholders_query = self.db.query(Stakeholder)
+        if self.scope_type == "case":
+            stakeholders_query = stakeholders_query.filter(
+                Stakeholder.case_id == self.scope_id
+            )
+        else:
+            stakeholders_query = stakeholders_query.filter(
+                Stakeholder.project_id == self.scope_id
+            )
+        stakeholders = stakeholders_query.all()
         stakeholder_list: list[dict[str, str]] = []
         for s in stakeholders:
             stakeholder_list.append(
@@ -483,15 +595,20 @@ class AIRefinementEngine:
         context["stakeholders"] = stakeholder_list
 
         # Get configured keywords
-        keywords = (
-            self.db.query(Keyword)
-            .filter(Keyword.project_id == str(self.project.id))
-            .all()
-        )
+        keywords_query = self.db.query(Keyword)
+        if self.scope_type == "case":
+            keywords_query = keywords_query.filter(Keyword.case_id == self.scope_id)
+        else:
+            keywords_query = keywords_query.filter(Keyword.project_id == self.scope_id)
+        keywords = keywords_query.all()
         keyword_list: list[dict[str, str]] = []
         for k in keywords:
             keyword_list.append(
-                {"keyword": k.keyword_name or "", "variations": k.variations or ""}
+                {
+                    "keyword": k.keyword_name or "",
+                    "definition": getattr(k, "definition", None) or "",
+                    "variations": k.variations or "",
+                }
             )
         context["keywords"] = keyword_list
 
@@ -502,9 +619,9 @@ class AIRefinementEngine:
     # =========================================================================
 
     def get_email_count(self, include_spam: bool = False) -> int:
-        """Get total count of relevant emails in project (excludes spam/hidden by default)"""
+        """Get total count of relevant emails in project/case (excludes spam/hidden by default)"""
         query = self.db.query(EmailMessage).filter(
-            EmailMessage.project_id == str(self.project.id)
+            _email_scope_filter(self.scope_type, self.scope_id)
         )
         if not include_spam:
             query = query.filter(_exclude_spam_filter(EmailMessage))
@@ -536,7 +653,7 @@ class AIRefinementEngine:
         while True:
             # Build query with offset-based pagination
             query = self.db.query(EmailMessage).filter(
-                EmailMessage.project_id == str(self.project.id)
+                _email_scope_filter(self.scope_type, self.scope_id)
             )
 
             # Exclude spam/hidden/other_project emails by default
@@ -908,8 +1025,8 @@ class AIRefinementEngine:
 
         # Build list of known project identifiers to ignore
         known_identifiers: set[str] = {
-            self.project.project_name.lower(),
-            self.project.project_code.lower(),
+            self.profile_name.lower(),
+            self.profile_code.lower(),
         }
         aliases_raw = self.project_context.get("aliases") or []
         for alias in aliases_raw:
@@ -1088,8 +1205,8 @@ You must distinguish between:
         prompt = f"""Analyze these potential project references found in emails.
 
 MAIN PROJECT CONTEXT:
-- Project Name: {self.project.project_name}
-- Project Code: {self.project.project_code}
+- Project Name: {self.profile_name}
+- Project Code: {self.profile_code}
 - Aliases: {", ".join(str(a) for a in (self.project_context.get("aliases") or [])) or "None"}
 - Site Address: {self.project_context.get("site_address") or "Not specified"}
 - Key Terms: {", ".join(str(t) for t in (self.project_context.get("project_terms") or [])) or "None"}
@@ -1098,7 +1215,7 @@ DETECTED REFERENCES:
 {refs_summary}
 
 For each reference, determine:
-1. Is this a DIFFERENT project (not a sub-project or phase of {self.project.project_name})?
+1. Is this a DIFFERENT project (not a sub-project or phase of {self.profile_name})?
 2. How confident are you? (high/medium/low)
 3. Why do you think this?
 4. What action do you recommend?
@@ -1715,7 +1832,7 @@ Only include references that appear to be OTHER projects (is_other_project: true
                     id=f"q_{uuid.uuid4().hex[:8]}",
                     question_text=f"I found references to {len(detected_projects)} other projects. Exclude emails about these?",
                     question_type="multi_select",
-                    context=f"Your project is '{self.project.project_name}'. These appear to be different projects.",
+                    context=f"Your project is '{self.profile_name}'. These appear to be different projects.",
                     options=[
                         {
                             "value": "exclude_all",
@@ -1795,7 +1912,7 @@ Only include references that appear to be OTHER projects (is_other_project: true
 
 async def _run_bulk_analysis_background(
     session_id: str,
-    project_id: str,
+    scope_id: str,
     user_id: str,
     include_spam_detection: bool,
     include_project_detection: bool,
@@ -1814,23 +1931,27 @@ async def _run_bulk_analysis_background(
     db = SessionLocal()
 
     try:
-        # Get session and project
+        # Get session and scope
         session = _refinement_sessions.get(session_id)
         if not session:
             logger.error(f"Session {session_id} not found in background task")
             return
 
-        project = db.query(Project).filter_by(id=project_id).first()
-        if not project:
+        try:
+            scope_type, scope_id, profile = _resolve_refinement_scope_from_id(
+                db, scope_id
+            )
+        except HTTPException as exc:
             session.status = "failed"
-            session.error_message = "Project not found"
+            session.error_message = str(exc.detail)
             _save_session_to_db(session, db)
             return
+        scope_label = "case" if scope_type == "case" else "project"
 
         start_time = time.time()
 
         # Initialize engine
-        engine = AIRefinementEngine(db, project)
+        engine = AIRefinementEngine(db, profile, scope_type=scope_type)
 
         # Get total email count
         total_emails = engine.get_email_count()
@@ -1839,7 +1960,7 @@ async def _run_bulk_analysis_background(
 
         if total_emails == 0:
             session.status = "failed"
-            session.error_message = "No emails found in project"
+            session.error_message = f"No emails found in {scope_label}"
             _save_session_to_db(session, db)
             return
 
@@ -1900,16 +2021,8 @@ async def _run_bulk_analysis_background(
             if include_project_detection:
                 # Build known identifiers set for this project
                 known_identifiers = {
-                    (
-                        engine.project.project_name.lower()
-                        if engine.project.project_name
-                        else ""
-                    ),
-                    (
-                        engine.project.project_code.lower()
-                        if engine.project.project_code
-                        else ""
-                    ),
+                    engine.profile_name.lower() if engine.profile_name else "",
+                    engine.profile_code.lower() if engine.profile_code else "",
                 }
                 for alias in engine.project_context.get("aliases") or []:
                     if isinstance(alias, str):
@@ -2013,13 +2126,27 @@ async def _run_bulk_analysis_background(
                 )
                 original = sorted_emails[0]
                 duplicates = sorted_emails[1:]
+                # Sanitize sample emails for JSON serialization (convert datetime to string)
+                sanitized_samples = [
+                    {
+                        "id": e.get("id"),
+                        "subject": e.get("subject"),
+                        "sender": e.get("sender"),
+                        "date": (
+                            e.get("date").isoformat()
+                            if isinstance(e.get("date"), datetime)
+                            else str(e.get("date", ""))
+                        ),
+                    }
+                    for e in sorted_emails[:4]
+                ]
                 detected_duplicates.append(
                     DetectedItem(
                         id=f"dup_{signature}",
                         item_type="duplicate_email",
                         name=original.get("subject") or "No Subject",
                         description=f"Found {len(duplicates)} duplicate(s)",
-                        sample_emails=sorted_emails[:4],
+                        sample_emails=sanitized_samples,
                         email_count=len(email_list),
                         confidence=(
                             ConfidenceLevel.HIGH
@@ -2167,7 +2294,7 @@ async def start_ai_analysis(
     db: Annotated[Session, Depends(get_db)],
 ):
     """
-    Start AI-powered analysis of project emails.
+    Start AI-powered analysis of project or case emails.
 
     Supports bulk processing of hundreds of thousands of emails:
     - Set max_emails_to_analyze=0 for unlimited
@@ -2176,21 +2303,21 @@ async def start_ai_analysis(
 
     Returns a session ID immediately. Poll /session/{session_id} for progress.
     """
-    # Verify project
-    project = db.query(Project).filter_by(id=request.project_id).first()
-    if not project:
-        raise HTTPException(404, "Project not found")
+    scope_type, scope_id, profile = _resolve_refinement_scope(
+        db, request.project_id, request.case_id
+    )
+    scope_label = "case" if scope_type == "case" else "project"
 
     # Get email count to determine processing strategy (excluding spam/hidden/other_project)
     email_count = (
         db.query(EmailMessage)
-        .filter(EmailMessage.project_id == request.project_id)
+        .filter(_email_scope_filter(scope_type, scope_id))
         .filter(_exclude_spam_filter(EmailMessage))
         .count()
     )
 
     if email_count == 0:
-        raise HTTPException(400, "No emails found in project")
+        raise HTTPException(400, f"No emails found in {scope_label}")
 
     # Calculate actual emails to process
     max_emails = request.max_emails_to_analyze
@@ -2203,7 +2330,7 @@ async def start_ai_analysis(
     session_id = str(uuid.uuid4())
     session = RefinementSession(
         id=session_id,
-        project_id=request.project_id,
+        project_id=scope_id,
         user_id=str(user.id),
         status="analyzing",
         progress={
@@ -2231,7 +2358,7 @@ async def start_ai_analysis(
         asyncio.create_task(
             _run_bulk_analysis_background(
                 session_id=session_id,
-                project_id=request.project_id,
+                scope_id=scope_id,
                 user_id=str(user.id),
                 include_spam_detection=request.include_spam_detection,
                 include_project_detection=request.include_project_detection,
@@ -2254,12 +2381,12 @@ async def start_ai_analysis(
 
     # Synchronous processing for smaller datasets
     try:
-        engine = AIRefinementEngine(db, project)
+        engine = AIRefinementEngine(db, profile, scope_type=scope_type)
 
         # Load emails directly for small datasets (excluding spam/hidden/other_project)
         emails = (
             db.query(EmailMessage)
-            .filter(EmailMessage.project_id == request.project_id)
+            .filter(_email_scope_filter(scope_type, scope_id))
             .filter(_exclude_spam_filter(EmailMessage))
             .order_by(EmailMessage.date_sent.desc())
             .limit(max_emails)
@@ -2453,10 +2580,10 @@ async def apply_refinement(
     if session.user_id != str(user.id):
         raise HTTPException(403, "Not authorized")
 
-    # Get project
-    project = db.query(Project).filter_by(id=session.project_id).first()
-    if not project:
-        raise HTTPException(404, "Project not found")
+    # Get project or case
+    scope_type, scope_id, profile = _resolve_refinement_scope_from_id(
+        db, session.project_id
+    )
 
     # Apply exclusion rules
     excluded_count = 0
@@ -2466,7 +2593,7 @@ async def apply_refinement(
     # Fetch emails excluding pre-tagged spam/hidden/other_project
     emails = (
         db.query(EmailMessage)
-        .filter(EmailMessage.project_id == session.project_id)
+        .filter(_email_scope_filter(scope_type, scope_id))
         .filter(_exclude_spam_filter(EmailMessage))
         .all()
     )
@@ -2536,23 +2663,56 @@ async def apply_refinement(
             meta["ai_excluded"] = True
             meta["ai_exclude_reason"] = exclude_reason
             meta["ai_exclude_session"] = session_id
+            if exclude_reason and exclude_reason.startswith("other_project:"):
+                # Align with visibility rules so processing/queries hide these emails.
+                meta["status"] = "other_project"
+                meta["is_hidden"] = True
+                meta["excluded"] = True
             email.meta = meta
             excluded_count += 1
 
-    # Save refinement to project
-    project_meta = dict(project.meta) if project.meta else {}
-    project_meta["ai_refinement"] = {
-        "session_id": session_id,
-        "rules": rules,
-        "applied_at": datetime.now(timezone.utc).isoformat(),
-        "excluded_count": excluded_count,
-    }
-    project.meta = project_meta
+    # Save refinement to project/case profile (fallback to linked project for cases)
+    target_profile: Project | Case | None = profile
+    if scope_type == "case" and not hasattr(profile, "meta"):
+        linked_project_id = getattr(profile, "project_id", None)
+        if linked_project_id:
+            target_profile = db.query(Project).filter_by(id=linked_project_id).first()
+
+    if target_profile is not None and hasattr(target_profile, "meta"):
+        profile_meta = dict(target_profile.meta) if target_profile.meta else {}
+        profile_meta["ai_refinement"] = {
+            "session_id": session_id,
+            "rules": rules,
+            "applied_at": datetime.now(timezone.utc).isoformat(),
+            "excluded_count": excluded_count,
+        }
+        target_profile.meta = profile_meta
 
     db.commit()
 
     session.status = "applied"
     _save_session_to_db(session, db)
+
+    cleanup_jobs: dict[str, str] = {}
+    try:
+        from .tasks import apply_email_dedupe_batch, apply_spam_filter_batch
+
+        if scope_type == "project":
+            cleanup_jobs["dedupe_task_id"] = apply_email_dedupe_batch.delay(
+                project_id=scope_id
+            ).id
+            cleanup_jobs["spam_task_id"] = apply_spam_filter_batch.delay(
+                project_id=scope_id
+            ).id
+        else:
+            cleanup_jobs["dedupe_task_id"] = apply_email_dedupe_batch.delay(
+                case_id=scope_id
+            ).id
+            cleanup_jobs["spam_task_id"] = apply_spam_filter_batch.delay(
+                case_id=scope_id
+            ).id
+    except Exception as e:
+        logger.warning("Failed to queue refinement cleanup jobs: %s", e)
 
     return {
         "success": True,
@@ -2560,6 +2720,7 @@ async def apply_refinement(
         "excluded_count": excluded_count,
         "total_emails": len(emails),
         "remaining_emails": len(emails) - excluded_count,
+        "cleanup_jobs": cleanup_jobs,
     }
 
 

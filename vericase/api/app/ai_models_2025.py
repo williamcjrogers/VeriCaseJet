@@ -507,7 +507,7 @@ AI_MODELS_2025: dict[str, dict[str, Any]] = {
                 "cost_tier": "standard",
             },
         ],
-        "default": "grok-4.1-fast",
+        "default": "grok-3-mini",
     },
     "perplexity": {
         "provider_name": "Perplexity",

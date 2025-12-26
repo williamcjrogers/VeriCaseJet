@@ -43,7 +43,7 @@ router = APIRouter(prefix="/api/collaboration", tags=["collaboration"])
 class CommentCreate(BaseModel):
     content: str
     parent_id: Optional[str] = None  # For threaded comments
-    mentions: List[str] = []  # User IDs mentioned
+    mentions: List[str] = []  # User IDs or emails mentioned
 
 
 class CommentResponse(BaseModel):
@@ -63,6 +63,12 @@ class CommentResponse(BaseModel):
 class CommentUpdate(BaseModel):
     content: str
     mentions: List[str] = []
+
+
+class MentionResolveResponse(BaseModel):
+    user_id: str
+    user_email: str
+    user_name: str
 
 
 class AnnotationCreate(BaseModel):
@@ -258,6 +264,43 @@ def _serialize_comment(
     )
 
 
+def _normalize_mentions(db: Session, mentions: List[str]) -> List[str]:
+    if not mentions:
+        return []
+
+    normalized_ids: list[UUID] = []
+    seen: set[UUID] = set()
+    emails: list[str] = []
+
+    for mention in mentions:
+        if not mention:
+            continue
+        value = str(mention).strip().lstrip("@")
+        if not value:
+            continue
+        try:
+            uid = UUID(value)
+            if uid not in seen:
+                normalized_ids.append(uid)
+                seen.add(uid)
+            continue
+        except ValueError:
+            pass
+        if "@" in value:
+            emails.append(value.lower())
+
+    if emails:
+        users = db.query(User).filter(User.email.in_(emails)).all()
+        user_by_email = {u.email.lower(): u for u in users}
+        for email in emails:
+            user = user_by_email.get(email)
+            if user and user.id not in seen:
+                normalized_ids.append(user.id)
+                seen.add(user.id)
+
+    return [str(uid) for uid in normalized_ids]
+
+
 def _has_edit_access(db: Session, doc: Document, user: User) -> bool:
     if doc.owner_user_id == user.id:
         return True
@@ -271,6 +314,35 @@ def _has_edit_access(db: Session, doc: Document, user: User) -> bool:
         .first()
     )
     return share is not None
+
+
+@router.get("/mentions/resolve")
+async def resolve_mentions(
+    emails: str = Query(..., description="Comma-separated list of emails"),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> List[MentionResolveResponse]:
+    """Resolve emails to user IDs for mentions."""
+    raw_emails = [e.strip().lower() for e in emails.split(",") if e.strip()]
+    if not raw_emails:
+        return []
+
+    users = db.query(User).filter(User.email.in_(raw_emails)).all()
+    user_by_email = {u.email.lower(): u for u in users}
+
+    results: list[MentionResolveResponse] = []
+    for email in raw_emails:
+        user_match = user_by_email.get(email)
+        if not user_match:
+            continue
+        results.append(
+            MentionResolveResponse(
+                user_id=str(user_match.id),
+                user_email=user_match.email,
+                user_name=user_match.display_name or user_match.email,
+            )
+        )
+    return results
 
 
 @router.post("/documents/{doc_id}/comments")
@@ -293,11 +365,12 @@ async def create_document_comment(
         if not parent or parent.document_id != doc.id:
             raise HTTPException(404, "Parent comment not found for this document")
 
+    normalized_mentions = _normalize_mentions(db, comment.mentions)
     db_comment = DocumentComment(
         document_id=doc.id,
         parent_comment_id=parent_uuid,
         content=comment.content,
-        mentions=comment.mentions or [],
+        mentions=normalized_mentions,
         author_id=user.id,
     )
     db.add(db_comment)
@@ -324,6 +397,11 @@ async def create_document_comment(
         else {}
     )
 
+    if mention_ids:
+        _create_mention_notifications(
+            db, [str(mid) for mid in mention_ids], user, doc_id, comment.content
+        )
+
     return _serialize_comment(db_comment, replies_count=0, mention_users=mention_users)
 
 
@@ -332,6 +410,9 @@ async def get_document_comments(
     doc_id: str,
     parent_id: Optional[str] = Query(
         None, description="Limit results to replies of this comment"
+    ),
+    include_replies: bool = Query(
+        False, description="Include replies when parent_id is not provided"
     ),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
@@ -348,7 +429,7 @@ async def get_document_comments(
         except ValueError:
             raise HTTPException(400, "Invalid parent comment ID")
         query = query.filter(DocumentComment.parent_comment_id == parent_uuid)
-    else:
+    elif not include_replies:
         query = query.filter(DocumentComment.parent_comment_id.is_(None))
 
     # Replies count map
@@ -412,8 +493,9 @@ async def update_document_comment(
     if db_comment.author_id != user.id:
         raise HTTPException(403, "Only the author can edit this comment")
 
+    normalized_mentions = _normalize_mentions(db, payload.mentions)
     db_comment.content = payload.content
-    db_comment.mentions = payload.mentions or []
+    db_comment.mentions = normalized_mentions
     db_comment.is_edited = True
     db_comment.edited_at = datetime.now(timezone.utc)
     _log_collaboration_activity(
@@ -801,16 +883,11 @@ async def get_activity_stream(
     user: User = Depends(current_user),
 ) -> List[ActivityResponse]:
     """Get activity stream for user's accessible resources"""
-    # This is a simplified version - ideally you'd have an activities table
-    # For now, we'll construct from recent document/case changes
-
-    activities = []
-
-    # Get user's documents
+    # Use CollaborationActivity as the source of truth.
     from .models import DocumentShare
 
-    recent_docs = (
-        db.query(Document)
+    doc_ids = (
+        db.query(Document.id)
         .filter(
             or_(
                 Document.owner_user_id == user.id,
@@ -821,31 +898,75 @@ async def get_activity_stream(
                 ),
             )
         )
-        .order_by(desc(Document.created_at))
-        .limit(limit)
         .all()
     )
+    accessible_doc_ids = [row[0] for row in doc_ids]
 
-    for doc in recent_docs:
-        owner = db.get(User, doc.owner_user_id)
-        activities.append(
+    query = db.query(CollaborationActivity)
+
+    if resource_type:
+        query = query.filter(CollaborationActivity.resource_type == resource_type)
+
+    if resource_type is None:
+        if accessible_doc_ids:
+            query = query.filter(
+                or_(
+                    CollaborationActivity.resource_type != "document",
+                    CollaborationActivity.resource_id.in_(accessible_doc_ids),
+                )
+            )
+        else:
+            query = query.filter(CollaborationActivity.resource_type != "document")
+    elif resource_type == "document":
+        if not accessible_doc_ids:
+            return []
+        query = query.filter(
+            CollaborationActivity.resource_type == "document",
+            CollaborationActivity.resource_id.in_(accessible_doc_ids),
+        )
+
+    activities = (
+        query.order_by(desc(CollaborationActivity.created_at)).limit(limit).all()
+    )
+
+    document_ids = [a.resource_id for a in activities if a.resource_type == "document"]
+    documents = (
+        db.query(Document).filter(Document.id.in_(document_ids)).all()
+        if document_ids
+        else []
+    )
+    doc_by_id = {d.id: d for d in documents}
+
+    actor_ids = {a.user_id for a in activities if a.user_id}
+    actors = db.query(User).filter(User.id.in_(actor_ids)).all() if actor_ids else []
+    actor_by_id = {u.id: u for u in actors}
+
+    results: list[ActivityResponse] = []
+    for activity in activities:
+        actor = actor_by_id.get(activity.user_id)
+        resource_name = "Unknown"
+        if activity.resource_type == "document":
+            doc = doc_by_id.get(activity.resource_id)
+            if doc:
+                resource_name = doc.filename
+        elif activity.details and activity.details.get("resource_name"):
+            resource_name = activity.details["resource_name"]
+
+        results.append(
             ActivityResponse(
-                id=str(uuid4()),
-                action="created" if doc.created_at == doc.updated_at else "updated",
-                resource_type="document",
-                resource_id=str(doc.id),
-                resource_name=doc.filename,
-                actor_id=str(doc.owner_user_id),
-                actor_name=owner.display_name or owner.email if owner else "Unknown",
-                timestamp=doc.updated_at or doc.created_at,
-                details={"size": doc.size, "type": doc.content_type},
+                id=str(activity.id),
+                action=activity.action,
+                resource_type=activity.resource_type,
+                resource_id=str(activity.resource_id),
+                resource_name=resource_name,
+                actor_id=str(activity.user_id) if activity.user_id else "",
+                actor_name=(actor.display_name or actor.email) if actor else "Unknown",
+                timestamp=activity.created_at or datetime.now(timezone.utc),
+                details=activity.details or {},
             )
         )
 
-    # Sort by timestamp
-    activities.sort(key=lambda x: x.timestamp, reverse=True)
-
-    return activities[:limit]
+    return results
 
 
 # ============================================================================

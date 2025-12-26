@@ -16,8 +16,8 @@
     />
 
     <!-- VeriCase Design System -->
-    <link rel="stylesheet" href="brand-styles.css" />
-    <link rel="stylesheet" href="design-system.css" />
+    <link rel="stylesheet" href="brand-styles.css?v=6" />
+    <link rel="stylesheet" href="design-system.css?v=6" />
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
     <script src="config.js"></script>
@@ -1055,6 +1055,31 @@
         color: var(--vc-teal-dark);
       }
 
+      .markdown-body pre {
+        background: var(--bg-tertiary);
+        padding: 1rem;
+        border-radius: 10px;
+        overflow-x: auto;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        margin: 1rem 0;
+      }
+
+      .markdown-body pre code {
+        background: transparent;
+        padding: 0;
+        border-radius: 0;
+        display: block;
+        color: var(--text-primary);
+        font-size: 0.8125rem;
+        line-height: 1.6;
+      }
+
+      .markdown-body a {
+        color: var(--vc-teal-dark);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+
       .markdown-body blockquote {
         border-left: 3px solid var(--vc-teal);
         padding-left: 1rem;
@@ -1352,11 +1377,14 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
       let pollInterval = null;
       let startTime = null;
       let currentProjectId = null;
+      let currentCaseId = null;
 
-      // Get project ID from URL params
+      // Get project/case ID from URL params
       const urlParams = new URLSearchParams(window.location.search);
       currentProjectId =
         urlParams.get("projectId") || urlParams.get("project_id");
+      currentCaseId =
+        urlParams.get("caseId") || urlParams.get("case_id");
 
       // DOM Elements
       const topicInput = document.getElementById("topicInput");
@@ -1375,20 +1403,40 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
       document.addEventListener("DOMContentLoaded", async () => {
         // Inject navigation shell
         if (window.VericaseShell) {
+          const ctx =
+            typeof window.VericaseShell.getContext === "function"
+              ? window.VericaseShell.getContext()
+              : { type: "project", id: window.VericaseShell.getProjectId() };
+          const ctxType = ctx?.type === "case" ? "case" : "project";
+          const ctxLabel =
+            ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
+          const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
+          const ctxId = ctx?.id ? String(ctx.id) : "";
+          const ctxUrl = ctxId
+            ? `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+            : "dashboard.html";
+
           window.VericaseShell.inject({
-            title: 'Deep Analysis',
+            title: '',
             breadcrumbs: [
-              { label: 'Home', url: 'master-dashboard.html', icon: 'fa-home' },
-              { label: 'Deep Analysis' }
+              { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+              { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
+              { label: "Deep Analysis", icon: "fa-microscope" }
             ]
           });
         }
 
         loadHistory();
         setupFocusTags();
+        
+        // If we have a caseId, first fetch the case to get its linked project
+        if (currentCaseId && !currentProjectId) {
+          await loadCaseLinkedProject();
+        }
+        
         await loadProjectSelector();
 
-        // If project ID in URL, pre-select it
+        // If project ID in URL or from case, pre-select it
         if (currentProjectId) {
           const projectSelect = document.getElementById("projectSelect");
           if (projectSelect) {
@@ -1396,12 +1444,43 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
           }
         }
       });
+      
+      // Fetch case and extract linked project_id
+      async function loadCaseLinkedProject() {
+        if (!currentCaseId) return;
+        
+        try {
+          const response = await secureApiFetch(`/api/cases/${currentCaseId}`);
+          if (!response.ok) {
+            console.warn("Could not fetch case:", response.status);
+            return;
+          }
+          
+          const caseData = await response.json();
+          if (caseData.project_id) {
+            currentProjectId = caseData.project_id;
+            console.log("Loaded project from case:", currentProjectId);
+          }
+        } catch (error) {
+          console.error("Error loading case:", error);
+        }
+      }
 
       // Load projects for selector
       async function loadProjectSelector() {
         try {
-          const response = await secureApiFetch("/api/projects");
-          if (!response.ok) return;
+          // If we have a caseId, load projects for that case
+          // Otherwise, load all projects (legacy behavior)
+          let apiUrl = "/api/projects";
+          if (currentCaseId) {
+            apiUrl = `/api/cases/${currentCaseId}/projects`;
+          }
+          
+          const response = await secureApiFetch(apiUrl);
+          if (!response.ok) {
+            console.error("Failed to load projects:", response.status);
+            return;
+          }
 
           const data = await response.json();
           const projects = data.projects || data || [];
@@ -1434,6 +1513,12 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
             }
 
             projectSelect = document.getElementById("projectSelect");
+          } else {
+            // Update existing select with new options
+            projectSelect.innerHTML = `
+              <option value="">-- Select a project --</option>
+              ${projects.map((p) => `<option value="${p.id}">${p.project_name || p.name || "Unnamed Project"}</option>`).join("")}
+            `;
           }
 
           // Update on change - with null check
@@ -1441,6 +1526,14 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
             projectSelect.addEventListener("change", (e) => {
               currentProjectId = e.target.value || null;
             });
+          }
+
+          // If only one project, auto-select it
+          if (projects.length === 1) {
+            currentProjectId = projects[0].id;
+            if (projectSelect) {
+              projectSelect.value = currentProjectId;
+            }
           }
         } catch (error) {
           console.error("Error loading projects:", error);
@@ -1699,8 +1792,14 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
         reportContainer.style.display = "block";
 
         // Meta
-        document.getElementById("reportMeta").textContent =
-          `Generated in ${data.processing_time_seconds.toFixed(1)}s`;
+        const metaParts = [];
+        if (typeof data.processing_time_seconds === "number") {
+          metaParts.push(`Generated in ${data.processing_time_seconds.toFixed(1)}s`);
+        }
+        if (Array.isArray(data.models_used) && data.models_used.length) {
+          metaParts.push(`Models: ${data.models_used.join(", ")}`);
+        }
+        document.getElementById("reportMeta").textContent = metaParts.join(" • ");
 
         // Themes
         const themesContainer = document.getElementById("reportThemes");
@@ -1714,22 +1813,174 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
           renderMarkdown(content);
       }
 
-      function renderMarkdown(text) {
-        // Simple markdown to HTML conversion
-        return text
-          .replace(/^### (.*$)/gim, "<h3>$1</h3>")
-          .replace(/^## (.*$)/gim, "<h2>$1</h2>")
-          .replace(/^# (.*$)/gim, "<h1>$1</h1>")
-          .replace(/^\* (.*$)/gim, "<li>$1</li>")
-          .replace(/^\- (.*$)/gim, "<li>$1</li>")
-          .replace(/\*\*(.*)\*\*/gim, "<strong>$1</strong>")
-          .replace(/\*(.*)\*/gim, "<em>$1</em>")
-          .replace(/\n---\n/g, "<hr>")
-          .replace(/\n\n/g, "</p><p>")
-          .replace(/^(.*)$/gim, function (match) {
-            if (match.startsWith("<")) return match;
-            return match;
-          });
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function sanitizeUrl(url) {
+        const u = String(url || "").trim();
+        if (!u) return null;
+        // Only allow safe protocols.
+        if (/^(https?:\/\/|mailto:)/i.test(u)) return u;
+        return null;
+      }
+
+      function renderInline(rawText) {
+        // Escape first (prevents HTML injection), then apply a small subset of markdown.
+        let t = escapeHtml(rawText);
+
+        // Inline code
+        t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
+
+        // Links: [text](url)
+        t = t.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, label, url) => {
+          const safe = sanitizeUrl(url);
+          if (!safe) return label;
+          return `<a href="${escapeHtml(safe)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+        });
+
+        // Bold (do before italic)
+        t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+
+        // Italic (non-greedy, avoid matching **bold**)
+        t = t.replace(/(^|[^*])\*([^*]+?)\*(?!\*)/g, "$1<em>$2</em>");
+
+        return t;
+      }
+
+      function renderMarkdown(markdown) {
+        const src = String(markdown || "").replace(/\r\n/g, "\n");
+        const lines = src.split("\n");
+
+        const out = [];
+        let inCodeBlock = false;
+        let codeLang = "";
+        let codeLines = [];
+        let listType = null; // 'ul' | 'ol' | null
+        let paragraphLines = [];
+
+        function flushParagraph() {
+          const text = paragraphLines.join(" ").trim();
+          if (text) out.push(`<p>${renderInline(text)}</p>`);
+          paragraphLines = [];
+        }
+
+        function closeList() {
+          if (listType) {
+            out.push(`</${listType}>`);
+            listType = null;
+          }
+        }
+
+        function openList(type) {
+          if (listType !== type) {
+            closeList();
+            out.push(`<${type}>`);
+            listType = type;
+          }
+        }
+
+        for (const rawLine of lines) {
+          const line = String(rawLine ?? "");
+          const trimmed = line.trim();
+
+          // Fenced code blocks
+          if (inCodeBlock) {
+            if (trimmed.startsWith("```")) {
+              const code = escapeHtml(codeLines.join("\n"));
+              const langClass = codeLang ? ` language-${escapeHtml(codeLang)}` : "";
+              out.push(`<pre><code class="${langClass.trim()}">${code}</code></pre>`);
+              inCodeBlock = false;
+              codeLang = "";
+              codeLines = [];
+            } else {
+              codeLines.push(line);
+            }
+            continue;
+          }
+
+          if (trimmed.startsWith("```")) {
+            flushParagraph();
+            closeList();
+            inCodeBlock = true;
+            codeLang = trimmed.slice(3).trim();
+            codeLines = [];
+            continue;
+          }
+
+          // Blank line => paragraph/list boundary
+          if (!trimmed) {
+            flushParagraph();
+            closeList();
+            continue;
+          }
+
+          // Horizontal rule
+          if (trimmed === "---" || trimmed === "***") {
+            flushParagraph();
+            closeList();
+            out.push("<hr>");
+            continue;
+          }
+
+          // Headings
+          const headingMatch = trimmed.match(/^(#{1,3})\s+(.+)$/);
+          if (headingMatch) {
+            flushParagraph();
+            closeList();
+            const level = headingMatch[1].length;
+            const text = headingMatch[2];
+            out.push(`<h${level}>${renderInline(text)}</h${level}>`);
+            continue;
+          }
+
+          // Blockquote (single-line)
+          const bqMatch = trimmed.match(/^>\s?(.*)$/);
+          if (bqMatch) {
+            flushParagraph();
+            closeList();
+            out.push(`<blockquote><p>${renderInline(bqMatch[1])}</p></blockquote>`);
+            continue;
+          }
+
+          // Ordered list
+          const olMatch = trimmed.match(/^(\d+)\.\s+(.+)$/);
+          if (olMatch) {
+            flushParagraph();
+            openList("ol");
+            out.push(`<li>${renderInline(olMatch[2])}</li>`);
+            continue;
+          }
+
+          // Unordered list
+          const ulMatch = trimmed.match(/^[-*]\s+(.+)$/);
+          if (ulMatch) {
+            flushParagraph();
+            openList("ul");
+            out.push(`<li>${renderInline(ulMatch[1])}</li>`);
+            continue;
+          }
+
+          // Default paragraph text
+          closeList();
+          paragraphLines.push(trimmed);
+        }
+
+        // Flush trailing content
+        if (inCodeBlock) {
+          const code = escapeHtml(codeLines.join("\n"));
+          const langClass = codeLang ? ` language-${escapeHtml(codeLang)}` : "";
+          out.push(`<pre><code class="${langClass.trim()}">${code}</code></pre>`);
+        }
+        flushParagraph();
+        closeList();
+
+        return out.join("\n");
       }
 
       // Plan actions

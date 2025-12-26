@@ -343,8 +343,13 @@ async def sync_email_attachments_to_evidence_endpoint(
     db: DbSession,
     user: CurrentUser,
     project_id: Annotated[str | None, Query()] = None,
+    extract_metadata: Annotated[
+        bool, Query(description="Extract metadata for synced attachments")
+    ] = True,
 ) -> dict[str, Any]:
-    return await sync_email_attachments_to_evidence_service(db, user, project_id)
+    return await sync_email_attachments_to_evidence_service(
+        db, user, project_id, extract_metadata
+    )
 
 
 @router.get("/sync-status")

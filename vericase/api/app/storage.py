@@ -9,6 +9,7 @@ import html
 import logging
 import os
 import time
+import threading
 from typing import Any, BinaryIO, Protocol, cast
 
 import boto3
@@ -20,6 +21,9 @@ from .config import settings
 
 
 LOGGER = logging.getLogger(__name__)
+
+_ENSURED_BUCKETS: set[str] = set()
+_ENSURE_LOCK = threading.Lock()
 
 
 class S3ClientProtocol(Protocol):
@@ -144,10 +148,12 @@ def s3(public: bool = False) -> S3ClientProtocol:
     )
 
 
-def ensure_bucket() -> None:
-    """Ensure S3 bucket exists and is accessible."""
+def ensure_bucket(bucket: str | None = None) -> None:
+    """Ensure an S3/MinIO bucket exists and is accessible."""
     # Detect AWS mode: USE_AWS_SERVICES flag or empty MINIO_ENDPOINT
     use_aws = settings.USE_AWS_SERVICES or not settings.MINIO_ENDPOINT
+
+    target_bucket = bucket or settings.MINIO_BUCKET
 
     LOGGER.info(
         "[BUCKET DEBUG] ensure_bucket called: USE_AWS_SERVICES=%s, MINIO_ENDPOINT=%s, use_aws=%s",
@@ -161,7 +167,7 @@ def ensure_bucket() -> None:
         # Just verify we can access it by attempting a head_bucket call
         try:
             client = s3()
-            client.head_bucket(Bucket=settings.MINIO_BUCKET)
+            client.head_bucket(Bucket=target_bucket)
             # Bucket exists and we have access
             return
         except ClientError as e:
@@ -169,10 +175,10 @@ def ensure_bucket() -> None:
             error_dict = cast(dict[str, Any], response.get("Error", {}))
             error_code: str = error_dict.get("Code", "")
             if error_code == "404":
-                msg = f"S3 bucket '{settings.MINIO_BUCKET}' does not exist."
+                msg = f"S3 bucket '{target_bucket}' does not exist."
                 raise S3BucketError(msg) from e
             if error_code == "403":
-                msg = f"Access denied to S3 bucket '{settings.MINIO_BUCKET}'."
+                msg = f"Access denied to S3 bucket '{target_bucket}'."
                 raise S3AccessError(msg) from e
             raise
     else:
@@ -184,20 +190,30 @@ def ensure_bucket() -> None:
                 client = s3()
                 buckets: list[dict[str, Any]] = client.list_buckets().get("Buckets", [])
                 names = [cast(str, b["Name"]) for b in buckets]
-                if settings.MINIO_BUCKET not in names:
-                    client.create_bucket(Bucket=settings.MINIO_BUCKET)
+                if target_bucket not in names:
+                    client.create_bucket(Bucket=target_bucket)
                 versioning_config = {"Status": "Enabled"}
                 client.put_bucket_versioning(
-                    Bucket=settings.MINIO_BUCKET,
+                    Bucket=target_bucket,
                     VersioningConfiguration=versioning_config,
                 )
-                ensure_cors()
+                ensure_cors(bucket=target_bucket)
                 return
             except Exception as e:  # pragma: no cover - transient connectivity
                 last_err = e
                 time.sleep(2)
         if last_err:
             raise last_err
+
+
+def ensure_bucket_once(bucket: str | None = None) -> None:
+    """Ensure a bucket exists, but only once per process (per bucket name)."""
+    target_bucket = bucket or settings.MINIO_BUCKET
+    with _ENSURE_LOCK:
+        if target_bucket in _ENSURED_BUCKETS:
+            return
+        ensure_bucket(bucket=target_bucket)
+        _ENSURED_BUCKETS.add(target_bucket)
 
 
 class S3BucketError(Exception):
@@ -208,8 +224,9 @@ class S3AccessError(Exception):
     """S3 access denied."""
 
 
-def ensure_cors() -> None:
-    """Configure CORS for S3 bucket."""
+def ensure_cors(*, bucket: str | None = None) -> None:
+    """Configure CORS for an S3/MinIO bucket."""
+    target_bucket = bucket or settings.MINIO_BUCKET
     cfg = {
         "CORSRules": [
             {
@@ -222,7 +239,7 @@ def ensure_cors() -> None:
         ]
     }
     try:
-        s3().put_bucket_cors(Bucket=settings.MINIO_BUCKET, CORSConfiguration=cfg)
+        s3().put_bucket_cors(Bucket=target_bucket, CORSConfiguration=cfg)
     except Exception:  # pragma: no cover - best effort
         pass
 
@@ -232,6 +249,7 @@ def put_object(
 ) -> None:
     """Upload object to S3 bucket."""
     target_bucket = bucket or settings.MINIO_BUCKET
+    ensure_bucket_once(target_bucket)
     safe_content_type = html.escape(content_type)
     s3().put_object(
         Bucket=target_bucket,
@@ -244,6 +262,7 @@ def put_object(
 def get_object(key: str, *, bucket: str | None = None) -> bytes:
     """Download object from S3 bucket."""
     target_bucket = bucket or settings.MINIO_BUCKET
+    ensure_bucket_once(target_bucket)
     obj = s3().get_object(Bucket=target_bucket, Key=key)
     body = obj.get("Body")
     if body is None:
@@ -257,6 +276,7 @@ def download_file_streaming(bucket: str, key: str, file_obj: BinaryIO) -> None:
     Stream download from S3/MinIO directly to file object
     Avoids loading entire file into memory
     """
+    ensure_bucket_once(bucket)
     s3().download_fileobj(bucket, key, file_obj)
 
 
@@ -268,6 +288,7 @@ def presign_put(
 ) -> str:
     """Generate presigned PUT URL for uploading to S3."""
     target_bucket = bucket or settings.MINIO_BUCKET
+    ensure_bucket_once(target_bucket)
     client = s3(public=bool(settings.MINIO_PUBLIC_ENDPOINT))
     url = client.generate_presigned_url(
         "put_object",
@@ -294,6 +315,7 @@ def presign_get(
 ) -> str:
     """Generate presigned GET URL for downloading from S3."""
     target_bucket = bucket or settings.MINIO_BUCKET
+    ensure_bucket_once(target_bucket)
     client = s3(public=bool(settings.MINIO_PUBLIC_ENDPOINT))
     url = client.generate_presigned_url(
         "get_object",
@@ -319,6 +341,7 @@ def presign_get(
 def multipart_start(key: str, content_type: str, bucket: str | None = None) -> str:
     """Start multipart upload to S3."""
     target_bucket = bucket or settings.MINIO_BUCKET
+    ensure_bucket_once(target_bucket)
     resp = s3().create_multipart_upload(
         Bucket=target_bucket,
         Key=key,
@@ -336,6 +359,7 @@ def presign_part(
 ) -> str:
     """Generate presigned URL for uploading a part in multipart upload."""
     target_bucket = bucket or settings.MINIO_BUCKET
+    ensure_bucket_once(target_bucket)
     use_public = bool(settings.MINIO_PUBLIC_ENDPOINT)
     LOGGER.info(
         "[PRESIGN DEBUG] presign_part: MINIO_PUBLIC_ENDPOINT=%s, use_public=%s",
@@ -376,6 +400,7 @@ def multipart_complete(
 ) -> dict[str, Any]:
     """Complete multipart upload to S3."""
     target_bucket = bucket or settings.MINIO_BUCKET
+    ensure_bucket_once(target_bucket)
     return s3().complete_multipart_upload(
         Bucket=target_bucket,
         Key=key,
@@ -387,6 +412,7 @@ def multipart_complete(
 def delete_object(key: str, *, bucket: str | None = None) -> None:
     """Delete object from S3 bucket."""
     target_bucket = bucket or settings.MINIO_BUCKET
+    ensure_bucket_once(target_bucket)
     client = s3()
     try:
         client.delete_object(Bucket=target_bucket, Key=key)

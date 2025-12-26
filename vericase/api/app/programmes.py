@@ -4,7 +4,15 @@ Programme Management API
 Handles upload and parsing of Asta Powerproject and PDF schedules
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    UploadFile,
+    File,
+    Form,
+    BackgroundTasks,
+)
 from sqlalchemy.orm import Session
 from typing import Any
 import xml.etree.ElementTree as ET
@@ -12,11 +20,20 @@ from datetime import datetime, timezone
 import io
 import uuid
 import openpyxl
+import PyPDF2
+import json
 from dateutil import parser as date_parser
 
 from .db import get_db
 from .models import Programme, DelayEvent, Case, Document, User
 from .security import current_user
+from .ai_runtime import complete_chat
+from .ai_settings import get_ai_api_key
+from .delay_analysis import (
+    DelayAnalysisOrchestrator,
+    DelayAnalysisSession,
+    _delay_sessions,
+)
 
 router = APIRouter()
 
@@ -161,22 +178,105 @@ def parse_asta_date(date_str: str | None) -> str | None:
     return date_str  # Return as-is if can't parse
 
 
-def parse_pdf_schedule(pdf_content: bytes) -> dict[str, Any]:
+async def parse_pdf_schedule(pdf_content: bytes, db: Session) -> dict[str, Any]:
     """
-    Extract schedule data from PDF
-    Uses Apache Tika for text extraction
+    Extract schedule data from PDF using LLM
     """
-    # TODO: Implement PDF parsing using Tika
-    # For now, return placeholder structure
-    return {
-        "activities": [],
-        "critical_path": [],
-        "milestones": [],
-        "project_start": None,
-        "project_finish": None,
-        "total_activities": 0,
-        "note": "PDF parsing requires manual activity extraction or OCR",
-    }
+    try:
+        # Extract text from PDF
+        pdf_file = io.BytesIO(pdf_content)
+        reader = PyPDF2.PdfReader(pdf_file)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() + "\n"
+
+        if not text.strip():
+            return {
+                "activities": [],
+                "critical_path": [],
+                "milestones": [],
+                "project_start": None,
+                "project_finish": None,
+                "total_activities": 0,
+                "note": "Could not extract text from PDF (scanned?)",
+            }
+
+        # Use LLM to parse activities
+        prompt = f"""Extract construction schedule activities from this text.
+        Return a JSON object with this structure:
+        {{
+            "activities": [
+                {{
+                    "id": "activity_id",
+                    "name": "activity_name",
+                    "start_date": "YYYY-MM-DD",
+                    "finish_date": "YYYY-MM-DD",
+                    "is_milestone": boolean
+                }}
+            ],
+            "project_start": "YYYY-MM-DD",
+            "project_finish": "YYYY-MM-DD"
+        }}
+
+        Text:
+        {text[:10000]}  # Limit context
+        """
+
+        api_key = get_ai_api_key("openai", db) or get_ai_api_key("anthropic", db)
+        if not api_key:
+            return {
+                "activities": [],
+                "critical_path": [],
+                "milestones": [],
+                "project_start": None,
+                "project_finish": None,
+                "total_activities": 0,
+                "note": "AI service not configured for PDF parsing",
+            }
+
+        provider = "openai" if get_ai_api_key("openai", db) else "anthropic"
+        model = "gpt-4o" if provider == "openai" else "claude-3-5-sonnet-20240620"
+
+        response = await complete_chat(
+            provider=provider,
+            model_id=model,
+            prompt=prompt,
+            system_prompt="You are a data extraction assistant. Extract schedule data accurately.",
+            db=db,
+            max_tokens=4000,
+        )
+
+        # Parse JSON response
+        json_str = response
+        if "```json" in response:
+            json_str = response.split("```json")[1].split("```")[0]
+        elif "```" in response:
+            json_str = response.split("```")[1].split("```")[0]
+
+        data = json.loads(json_str.strip())
+
+        return {
+            "activities": data.get("activities", []),
+            "critical_path": [],
+            "milestones": [
+                a for a in data.get("activities", []) if a.get("is_milestone")
+            ],
+            "project_start": data.get("project_start"),
+            "project_finish": data.get("project_finish"),
+            "total_activities": len(data.get("activities", [])),
+            "note": "Parsed via AI from PDF",
+        }
+
+    except Exception as e:
+        return {
+            "activities": [],
+            "critical_path": [],
+            "milestones": [],
+            "project_start": None,
+            "project_finish": None,
+            "total_activities": 0,
+            "note": f"PDF parsing failed: {str(e)}",
+        }
 
 
 def parse_excel_programme(file_content: bytes) -> dict[str, Any]:
@@ -294,8 +394,10 @@ def parse_excel_programme(file_content: bytes) -> dict[str, Any]:
 
 @router.post("/api/programmes/upload")
 async def upload_programme(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    case_id: int = Form(...),
+    case_id: uuid.UUID | None = Form(None),
+    project_id: uuid.UUID | None = Form(None),
     programme_type: str = Form(...),  # as_planned, as_built, interim
     programme_date: str = Form(...),
     version_number: str | None = Form(None),
@@ -310,10 +412,27 @@ async def upload_programme(
     - .pp (Asta Powerproject - requires XML export first)
     - .pdf (PDF schedule - limited parsing)
     """
-    # Verify case exists
-    case = db.query(Case).filter(Case.id == case_id).first()
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
+    from .models import Project
+
+    # Ensure at least one context is provided
+    if not case_id and not project_id:
+        raise HTTPException(
+            status_code=400, detail="Either case_id or project_id is required"
+        )
+
+    # Verify context exists
+    _context_id = case_id or project_id  # noqa: F841
+    if case_id:
+        case = db.query(Case).filter(Case.id == case_id).first()
+        if not case:
+            raise HTTPException(status_code=404, detail="Case not found")
+        # If case has a project, use that project_id
+        if not project_id and hasattr(case, "project_id") and case.project_id:
+            project_id = case.project_id
+    elif project_id:
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
 
     # Read file content
     content = await file.read()
@@ -335,7 +454,7 @@ async def upload_programme(
     elif filename_lower.endswith(".xlsx") or filename_lower.endswith(".xls"):
         parsed_data = parse_excel_programme(content)
     elif filename_lower.endswith(".pdf"):
-        parsed_data = parse_pdf_schedule(content)
+        parsed_data = await parse_pdf_schedule(content, db)
     else:
         raise HTTPException(
             status_code=400,
@@ -343,13 +462,16 @@ async def upload_programme(
         )
 
     try:
+        # Determine storage key prefix based on context
+        storage_prefix = f"programmes/{case_id or project_id}"
+
         # Create document record
         document = Document(
             filename=file.filename,
             file_size=len(content),
             mime_type=file.content_type or "application/octet-stream",
             uploaded_by=user.email,
-            s3_key=f"programmes/{case_id}/{file.filename}",
+            s3_key=f"{storage_prefix}/{file.filename}",
         )
         db.add(document)
         db.flush()
@@ -357,6 +479,7 @@ async def upload_programme(
         # Create programme record
         programme = Programme(
             case_id=case_id,
+            project_id=project_id,
             programme_name=file.filename,
             programme_type=programme_type,
             programme_date=(
@@ -381,7 +504,7 @@ async def upload_programme(
             notes=f"Uploaded by {user.email}. {parsed_data['total_activities']} activities parsed.",
             filename=file.filename,
             s3_bucket="vericase-programmes",
-            s3_key=f"programmes/{case_id}/{file.filename}",
+            s3_key=f"{storage_prefix}/{file.filename}",
             file_format=file.filename.split(".")[-1].upper(),
             uploaded_by=user.id,
         )
@@ -395,6 +518,24 @@ async def upload_programme(
         raise HTTPException(status_code=500, detail="Failed to save programme data")
     db.refresh(programme)
 
+    # Auto-trigger email-to-activity linking in background
+    # This populates as_planned_activity, as_built_activity, delay_days in EmailMessage
+    if parsed_data["total_activities"] > 0:
+        from .tasks import link_emails_to_programme_activities_task
+
+        if project_id:
+            background_tasks.add_task(
+                link_emails_to_programme_activities_task.delay,
+                project_id=str(project_id),
+                overwrite_existing=False,
+            )
+        elif case_id:
+            background_tasks.add_task(
+                link_emails_to_programme_activities_task.delay,
+                case_id=str(case_id),
+                overwrite_existing=False,
+            )
+
     return {
         "programme_id": programme.id,
         "document_id": document.id,
@@ -403,12 +544,104 @@ async def upload_programme(
         "milestones": len(parsed_data["milestones"]),
         "project_start": parsed_data.get("project_start"),
         "project_finish": parsed_data.get("project_finish"),
+        "linking_triggered": parsed_data["total_activities"] > 0,
+    }
+
+
+@router.post("/api/projects/{project_id}/programmes/link-emails")
+async def trigger_project_email_linking(
+    project_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    overwrite: bool = False,
+    db: Session = Depends(get_db),
+    user: "User" = Depends(current_user),
+):
+    """
+    Manually trigger email-to-programme activity linking for a project.
+
+    This links each email to its corresponding programme activity based on date,
+    populating as_planned_activity, as_built_activity, and delay_days fields.
+    """
+    from .models import Project
+    from .tasks import link_emails_to_programme_activities_task
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Check if there are programmes to link against
+    programme_count = (
+        db.query(Programme).filter(Programme.project_id == project_id).count()
+    )
+    if programme_count == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No programmes found for this project. Upload a programme first.",
+        )
+
+    # Trigger background task
+    background_tasks.add_task(
+        link_emails_to_programme_activities_task.delay,
+        project_id=str(project_id),
+        overwrite_existing=overwrite,
+    )
+
+    return {
+        "status": "triggered",
+        "project_id": str(project_id),
+        "programmes_available": programme_count,
+        "overwrite_existing": overwrite,
+        "message": "Email linking task queued. Check correspondence for updated activity fields.",
+    }
+
+
+@router.post("/api/cases/{case_id}/programmes/link-emails")
+async def trigger_case_email_linking(
+    case_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    overwrite: bool = False,
+    db: Session = Depends(get_db),
+    user: "User" = Depends(current_user),
+):
+    """
+    Manually trigger email-to-programme activity linking for a case.
+
+    This links each email to its corresponding programme activity based on date,
+    populating as_planned_activity, as_built_activity, and delay_days fields.
+    """
+    from .tasks import link_emails_to_programme_activities_task
+
+    case = db.query(Case).filter(Case.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Check if there are programmes to link against
+    programme_count = db.query(Programme).filter(Programme.case_id == case_id).count()
+    if programme_count == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No programmes found for this case. Upload a programme first.",
+        )
+
+    # Trigger background task
+    background_tasks.add_task(
+        link_emails_to_programme_activities_task.delay,
+        case_id=str(case_id),
+        overwrite_existing=overwrite,
+    )
+
+    return {
+        "status": "triggered",
+        "case_id": str(case_id),
+        "programmes_available": programme_count,
+        "overwrite_existing": overwrite,
+        "message": "Email linking task queued. Check correspondence for updated activity fields.",
     }
 
 
 @router.get("/api/programmes/{programme_id}")
 async def get_programme(
-    programme_id: int,
+    programme_id: uuid.UUID,
     db: Session = Depends(get_db),
     user: "User" = Depends(current_user),
 ):
@@ -449,7 +682,9 @@ async def get_programme(
 
 @router.get("/api/cases/{case_id}/programmes")
 async def list_case_programmes(
-    case_id: int, db: Session = Depends(get_db), user: "User" = Depends(current_user)
+    case_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: "User" = Depends(current_user),
 ):
     """List all programmes for a case"""
     programmes = (
@@ -462,6 +697,7 @@ async def list_case_programmes(
     return [
         {
             "id": p.id,
+            "programme_name": p.programme_name,
             "programme_type": p.programme_type,
             "programme_date": (
                 p.programme_date.isoformat() if p.programme_date else None
@@ -477,10 +713,56 @@ async def list_case_programmes(
     ]
 
 
+@router.get("/api/projects/{project_id}/programmes")
+async def list_project_programmes(
+    project_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: "User" = Depends(current_user),
+):
+    """List all programmes for a project (including those from linked cases)"""
+    from sqlalchemy import or_
+
+    programmes = (
+        db.query(Programme)
+        .filter(
+            or_(
+                Programme.project_id == project_id,
+                # Also include programmes from cases linked to this project
+                Programme.case_id.in_(
+                    db.query(Case.id).filter(Case.project_id == project_id)
+                ),
+            )
+        )
+        .order_by(Programme.programme_date.desc())
+        .all()
+    )
+
+    return [
+        {
+            "id": p.id,
+            "programme_name": p.programme_name,
+            "programme_type": p.programme_type,
+            "programme_date": (
+                p.programme_date.isoformat() if p.programme_date else None
+            ),
+            "version_number": p.version_number,
+            "total_activities": len(p.activities) if p.activities else 0,
+            "project_start": p.project_start.isoformat() if p.project_start else None,
+            "project_finish": (
+                p.project_finish.isoformat() if p.project_finish else None
+            ),
+            "case_id": str(p.case_id) if p.case_id else None,
+            "project_id": str(p.project_id) if p.project_id else None,
+        }
+        for p in programmes
+    ]
+
+
 @router.post("/api/programmes/compare")
 async def compare_programmes(
-    as_planned_id: int,
-    as_built_id: int,
+    as_planned_id: uuid.UUID,
+    as_built_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: "User" = Depends(current_user),
 ):
@@ -569,11 +851,50 @@ async def compare_programmes(
                             description="Auto-detected from programme comparison",
                         )
                         db.add(delay_event)
-
             except (ValueError, TypeError):
                 continue
 
     db.commit()
+
+    # Auto-trigger delay analysis for significant critical delays
+    significant_delays = [d for d in critical_delays if d["delay_days"] > 5]
+    if significant_delays:
+        try:
+            # Create session
+            session_id = str(uuid.uuid4())
+            session = DelayAnalysisSession(
+                id=session_id,
+                user_id=str(user.id),
+                case_id=str(as_planned.case_id),
+                status="pending",
+            )
+            _delay_sessions[session_id] = session
+
+            # Prepare events for analysis
+            events_to_analyze = []
+            for d in significant_delays[:5]:  # Limit to top 5
+                events_to_analyze.append(
+                    {
+                        "description": f"Delay to {d['activity_name']} (ID: {d['activity_id']})",
+                        "event_date": d.get("actual_finish"),
+                        "planned_date": d.get("planned_finish"),
+                        "actual_date": d.get("actual_finish"),
+                        "delay_days": d["delay_days"],
+                        "evidence_ids": [],
+                    }
+                )
+
+            # Run in background
+            async def run_analysis():
+                orchestrator = DelayAnalysisOrchestrator(db, session)
+                await orchestrator.analyze_delays(events_to_analyze)
+
+            background_tasks.add_task(run_analysis)
+
+        except Exception as e:
+            import logging
+
+            logging.error(f"Failed to auto-trigger delay analysis: {e}")
 
     return {
         "case_id": as_planned.case_id,
@@ -597,7 +918,9 @@ async def compare_programmes(
 
 @router.get("/api/cases/{case_id}/delays")
 async def list_delays(
-    case_id: int, db: Session = Depends(get_db), user: "User" = Depends(current_user)
+    case_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: "User" = Depends(current_user),
 ):
     """List all delay events for a case"""
     delays = (
@@ -646,7 +969,7 @@ class DelayEventCreate(BaseModel):
 
 @router.post("/api/cases/{case_id}/delays")
 async def create_delay(
-    case_id: int,
+    case_id: uuid.UUID,
     delay_data: DelayEventCreate,
     db: Session = Depends(get_db),
     user: "User" = Depends(current_user),
@@ -736,7 +1059,7 @@ async def link_correspondence_to_delay(
 
 @router.get("/api/programmes/{programme_id}/active-activities")
 async def get_active_activities(
-    programme_id: int,
+    programme_id: uuid.UUID,
     date: str,
     db: Session = Depends(get_db),
     user: "User" = Depends(current_user),

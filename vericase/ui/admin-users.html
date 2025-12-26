@@ -11,8 +11,8 @@
       href="./assets/fontawesome/css/all.min.css"
     />
     <!-- VeriCase Design System -->
-    <link rel="stylesheet" href="brand-styles.css" />
-    <link rel="stylesheet" href="design-system.css" />
+    <link rel="stylesheet" href="brand-styles.css?v=6" />
+    <link rel="stylesheet" href="design-system.css?v=6" />
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
     <script src="security.js"></script>
@@ -447,7 +447,11 @@
       // Inject navigation shell
       document.addEventListener("DOMContentLoaded", () => {
         VericaseShell.inject({
-          title: "User Management",
+          title: '',
+          breadcrumbs: [
+            { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+            { label: "User Management", icon: "fa-users" },
+          ],
           headerActions: '<span id="currentUser" style="color: var(--text-muted); font-size: 14px;"></span>',
         });
 

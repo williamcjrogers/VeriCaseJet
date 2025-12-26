@@ -114,6 +114,68 @@
       target.search = window.location.search;
       target.hash = window.location.hash;
 
+      // Context guard: this dashboard should only load with an explicit projectId/caseId
+      // (or a previously selected context in localStorage). This prevents silently
+      // defaulting to a different profile type.
+      try {
+        const params = new URLSearchParams(target.search);
+        const urlCaseId = params.get("caseId");
+        const urlProjectId = params.get("projectId");
+
+        let contextType = urlCaseId ? "case" : urlProjectId ? "project" : null;
+        let contextId = urlCaseId || urlProjectId;
+
+        const cleanId = (v) => {
+          const s = (v || "").trim();
+          if (!s || s === "null" || s === "undefined") return null;
+          return s;
+        };
+
+        if (!contextId) {
+          const storedProfileType = (localStorage.getItem("profileType") || "").trim();
+          const storedProjectId = cleanId(
+            localStorage.getItem("vericase_current_project") ||
+              localStorage.getItem("currentProjectId") ||
+              localStorage.getItem("projectId"),
+          );
+          const storedCaseId = cleanId(
+            localStorage.getItem("currentCaseId") || localStorage.getItem("caseId"),
+          );
+
+          if (storedProfileType === "case" && storedCaseId) {
+            contextType = "case";
+            contextId = storedCaseId;
+          } else if (storedProfileType === "project" && storedProjectId) {
+            contextType = "project";
+            contextId = storedProjectId;
+          } else if (storedProjectId) {
+            contextType = "project";
+            contextId = storedProjectId;
+          } else if (storedCaseId) {
+            contextType = "case";
+            contextId = storedCaseId;
+          }
+
+          if (contextType && contextId) {
+            // Preserve any other query params (token, firstTime, etc.), just add context.
+            if (contextType === "case") {
+              params.set("caseId", contextId);
+              params.delete("projectId");
+            } else {
+              params.set("projectId", contextId);
+              params.delete("caseId");
+            }
+            target.search = params.toString();
+          } else {
+            // No context to restore — send user to the chooser.
+            window.location.replace("master-dashboard.html");
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn("[ProjectDashboard] Context guard error:", e);
+      }
+
       // Update fallback link to preserve params
       const fallback = document.getElementById("fallbackLink");
       if (fallback) fallback.href = target.toString();

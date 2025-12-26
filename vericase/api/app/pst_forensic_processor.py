@@ -7,33 +7,69 @@ This is the core differentiation - exceptional PST parsing with forensic integri
 
 import pypff  # type: ignore[import-not-found]
 import hashlib
+import uuid
 import logging
 import tempfile
 import os
 import re
-from datetime import datetime
+import shutil
 from typing import Any
 from email.utils import parseaddr, getaddresses
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from .models import PSTFile, EmailMessage, EmailAttachment, Stakeholder, Keyword
+from .models import (
+    PSTFile,
+    EmailMessage,
+    EmailAttachment,
+    Stakeholder,
+    Keyword,
+    MessageRaw,
+    MessageOccurrence,
+    MessageDerived,
+)
+from .email_threading import build_email_threads, ThreadingStats
+from .email_dedupe import dedupe_emails
 from .storage import put_object, download_file_streaming
 from .config import settings
 from .search import index_email_in_opensearch
+from .email_normalizer import (
+    NORMALIZER_RULESET_HASH,
+    NORMALIZER_VERSION,
+    build_content_hash,
+    clean_body_text,
+    strip_footer_noise,
+)
+from .spam_filter import classify_email
+from .project_scoping import ScopeMatcher, build_scope_matcher
+
+try:
+    from .email_normalizer import build_source_hash
+except (ImportError, AttributeError):
+
+    def build_source_hash(payload: dict[str, object]) -> str:
+        serialized = json.dumps(
+            payload, sort_keys=True, ensure_ascii=False, default=str
+        )
+        return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
 from .tasks import celery_app  # Import Celery app for task registration
 
 import json
 import time
 
 logger = logging.getLogger(__name__)
+_AGENT_LOG_ENABLED = bool(getattr(settings, "PST_AGENT_LOG_ENABLED", False))
 
 
 # region agent log helper
 def agent_log(
     hypothesis_id: str, message: str, data: dict = None, run_id: str = "run1"
 ) -> None:
+    if not _AGENT_LOG_ENABLED:
+        return
     log_path = (
         r"c:\Users\William\Documents\Projects\VeriCase Analysis\.cursor\debug.log"
     )
@@ -91,7 +127,9 @@ class ForensicPSTProcessor:
         self.db = db
         self.processed_count = 0
         self.total_count = 0
+        self.scope_matcher: ScopeMatcher | None = None
         self.attachment_hashes = {}  # For deduplication
+        self.ingest_run_id: str | None = None
         cpu_based_default = max(8, (os.cpu_count() or 4) * 4)
         max_workers = (
             getattr(settings, "PST_UPLOAD_WORKERS", cpu_based_default)
@@ -109,8 +147,38 @@ class ForensicPSTProcessor:
             getattr(settings, "S3_PST_BUCKET", None) or settings.S3_BUCKET
         )
 
+    def _strip_footer_noise(self, text: str | None) -> str:
+        """
+        Remove boilerplates/disclaimers/banners while leaving the message content intact.
+        """
+        return strip_footer_noise(text)
+
     def _stream_pst_to_temp(self, s3_bucket: str, s3_key: str) -> str:
-        tmp = tempfile.NamedTemporaryFile(suffix=".pst", delete=False)
+        temp_dir = getattr(settings, "PST_TEMP_DIR", None) or None
+        if temp_dir:
+            try:
+                os.makedirs(temp_dir, exist_ok=True)
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to create PST_TEMP_DIR={temp_dir}: {e}"
+                ) from e
+
+        # Preflight: best-effort free-space check
+        try:
+            usage = shutil.disk_usage(temp_dir or tempfile.gettempdir())
+            free_bytes = int(usage.free)
+            # Require at least 2GB free for safety; large PSTs are much larger and will fail anyway.
+            if free_bytes < 2 * 1024 * 1024 * 1024:
+                raise RuntimeError(
+                    "Insufficient temp disk space for PST download. "
+                    f"Free {free_bytes / (1024**3):.2f} GB in {(temp_dir or tempfile.gettempdir())}. "
+                    "Set PST_TEMP_DIR to a larger writable volume."
+                )
+        except Exception as e:
+            logger.error("PST temp disk preflight failed: %s", e)
+            raise
+
+        tmp = tempfile.NamedTemporaryFile(suffix=".pst", delete=False, dir=temp_dir)
         try:
             logger.info("Streaming PST from s3://%s/%s", s3_bucket, s3_key)
             download_file_streaming(s3_bucket or self.pst_bucket_fallback, s3_key, tmp)
@@ -223,10 +291,18 @@ class ForensicPSTProcessor:
 
         entity_id = pst_file.case_id or pst_file.project_id
         if entity_id:
-            threads = self._build_email_threads(
+            thread_stats = self._build_email_threads(
                 str(entity_id), is_project=bool(pst_file.project_id)
             )
-            stats["threads_identified"] = len(threads)
+            stats["threads_identified"] = thread_stats.threads_identified
+
+            dedupe_stats = dedupe_emails(
+                self.db,
+                case_id=None if pst_file.project_id else pst_file.case_id,
+                project_id=pst_file.project_id,
+                run_id="pst_forensic",
+            )
+            stats["dedupe_duplicates"] = dedupe_stats.duplicates_found
 
     def process_pst_file(
         self, pst_file_id: str, s3_bucket: str, s3_key: str
@@ -243,6 +319,14 @@ class ForensicPSTProcessor:
         if not pst_file:
             raise ValueError("PST file {pst_file_id} not found")
 
+        try:
+            self.scope_matcher = build_scope_matcher(
+                self.db, case_id=pst_file.case_id, project_id=pst_file.project_id
+            )
+        except Exception as exc:
+            logger.warning("Failed to build scope matcher (continuing): %s", exc)
+            self.scope_matcher = None
+
         # Update status
         pst_file.processing_status = "processing"
         pst_file.processing_started_at = func.now()
@@ -257,6 +341,8 @@ class ForensicPSTProcessor:
             "keywords_matched": 0,
             "errors": [],
         }
+
+        self.ingest_run_id = f"pst_forensic:{pst_file_id}:{uuid.uuid4().hex}"
 
         pst_path = None
         try:
@@ -480,6 +566,177 @@ class ForensicPSTProcessor:
             date_sent = message.get_delivery_time()
             date_received = message.get_client_submit_time()
 
+            ingest_run_id = (
+                self.ingest_run_id or f"pst_forensic:{pst_file.id}:{uuid.uuid4().hex}"
+            )
+            self.ingest_run_id = ingest_run_id
+            raw_payload = {
+                "source_type": "pst",
+                "pst_file_id": str(pst_file.id),
+                "pst_s3_bucket": pst_file.s3_bucket,
+                "pst_s3_key": pst_file.s3_key,
+                "folder_path": folder_path,
+                "message_id": message_id,
+                "conversation_index": conv_index,
+                "subject": subject,
+                "date_sent": date_sent.isoformat() if date_sent else None,
+                "message_offset": message_offset,
+            }
+            raw_hash = build_source_hash(raw_payload)
+            storage_uri = None
+            if pst_file.s3_bucket and pst_file.s3_key:
+                storage_uri = f"s3://{pst_file.s3_bucket}/{pst_file.s3_key}"
+            raw_id = uuid.uuid4()
+            self.batch_buffer.append(
+                MessageRaw(
+                    id=raw_id,
+                    source_hash=raw_hash,
+                    storage_uri=storage_uri,
+                    source_type="pst",
+                    extraction_tool_version="pypff",
+                    extracted_at=date_sent,
+                    raw_metadata=raw_payload,
+                )
+            )
+            self.batch_buffer.append(
+                MessageOccurrence(
+                    raw_id=raw_id,
+                    ingest_run_id=ingest_run_id,
+                    source_location=folder_path,
+                    case_id=pst_file.case_id,
+                    project_id=pst_file.project_id,
+                )
+            )
+
+            # ============================================================
+            # EARLY EXCLUSION GATE (spam + other project)
+            # - Store minimal metadata only
+            # - Never extract attachments/evidence for excluded emails
+            # ============================================================
+            scope_allow_current = not bool(getattr(settings, "PST_SCOPE_STRICT", False))
+
+            def _detect_other_project(body_preview: str | None = None) -> str | None:
+                if self.scope_matcher is None:
+                    return None
+                try:
+                    return self.scope_matcher.detect_other_project(
+                        subject,
+                        folder_path,
+                        body_preview,
+                        allow_current_terms=scope_allow_current,
+                    )
+                except Exception:
+                    return None
+
+            def _buffer_excluded_email(
+                other_project_value: str | None,
+                spam_result: dict[str, Any],
+                num_attachments: int,
+            ) -> None:
+                derived_status = "other_project" if other_project_value else "spam"
+                spam_category = (
+                    "other_project"
+                    if other_project_value
+                    else spam_result.get("category")
+                )
+                body_label = spam_category or derived_status
+
+                participants = self._build_canonical_participants(
+                    sender_email_addr, recipients_to, recipients_cc, recipients_bcc
+                )
+                derived_hash = build_content_hash(
+                    None,
+                    sender_email_addr,
+                    sender_name,
+                    recipients_to,
+                    subject,
+                    date_sent,
+                )
+                self.batch_buffer.append(
+                    MessageDerived(
+                        raw_id=raw_id,
+                        normalizer_version=NORMALIZER_VERSION,
+                        normalizer_ruleset_hash=NORMALIZER_RULESET_HASH,
+                        parser_version="pypff",
+                        canonical_subject=subject,
+                        canonical_participants=participants,
+                        canonical_body_preview=None,
+                        canonical_body_full=None,
+                        banner_stripped_body=None,
+                        content_hash_phase1=derived_hash,
+                        thread_id_header=message_id,
+                        thread_confidence="header" if message_id else None,
+                        qc_flags={"excluded": True, "reason": derived_status},
+                    )
+                )
+
+                email_msg = EmailMessage(
+                    id=uuid.uuid4(),
+                    pst_file_id=pst_file.id,
+                    case_id=pst_file.case_id,
+                    project_id=pst_file.project_id,
+                    message_id=message_id,
+                    in_reply_to=in_reply_to,
+                    email_references=references_header,
+                    conversation_index=conv_index,
+                    subject=subject,
+                    sender_email=sender_email_addr,
+                    sender_name=sender_name,
+                    recipients_to=recipients_to or None,
+                    recipients_cc=recipients_cc or None,
+                    recipients_bcc=recipients_bcc or None,
+                    date_sent=date_sent,
+                    date_received=date_received,
+                    body_text=None,
+                    body_html=None,
+                    body_text_clean=None,
+                    body_preview=f"[EXCLUDED: {body_label}]",
+                    has_attachments=num_attachments > 0,
+                    importance=None,
+                    pst_message_path=folder_path,
+                    meta={
+                        "normalizer_version": NORMALIZER_VERSION,
+                        "normalizer_ruleset_hash": NORMALIZER_RULESET_HASH,
+                        "status": derived_status,
+                        "excluded": True,
+                        "is_hidden": True,
+                        "is_spam": bool(spam_result.get("is_spam")),
+                        "spam_score": int(spam_result.get("score") or 0),
+                        "spam_reasons": [spam_category] if spam_category else [],
+                        "other_project": other_project_value,
+                        "spam": {
+                            "is_spam": bool(spam_result.get("is_spam")),
+                            "score": int(spam_result.get("score") or 0),
+                            "category": spam_category,
+                            "is_hidden": True,
+                            "status_set_by": "spam_filter_ingest",
+                            "applied_status": derived_status,
+                        },
+                        "attachments_skipped": num_attachments > 0,
+                        "attachments_skipped_reason": derived_status,
+                    },
+                )
+                self.batch_buffer.append(email_msg)
+
+            other_project_label = _detect_other_project()
+            spam_result = classify_email(
+                subject=subject,
+                sender=sender_email_addr or sender_name,
+                body=None,
+            )
+
+            if bool(spam_result.get("is_spam")) or other_project_label:
+                num_attachments = 0
+                try:
+                    num_attachments = int(message.get_number_of_attachments() or 0)
+                except Exception:
+                    num_attachments = 0
+
+                _buffer_excluded_email(
+                    other_project_label, spam_result, num_attachments
+                )
+                return
+
             # Get body text and HTML
             body_text = message.get_plain_text_body() or ""
             body_html = message.get_html_body() or ""
@@ -544,6 +801,55 @@ class ForensicPSTProcessor:
                 # Fallback: Strip HTML tags quickly (no BeautifulSoup for speed)
                 canonical_body = re.sub(r"<[^>]+>", " ", body_html)
                 canonical_body = re.sub(r"\s+", " ", canonical_body).strip()
+
+            body_text_clean = clean_body_text(canonical_body)
+            if body_text_clean is not None:
+                canonical_body = body_text_clean
+
+            canonical_body_for_hash = (
+                re.sub(r"\s+", " ", canonical_body).strip() if canonical_body else ""
+            )
+            scope_preview = (
+                canonical_body_for_hash[:4000] if canonical_body_for_hash else None
+            )
+            other_project_label = _detect_other_project(scope_preview)
+            if other_project_label:
+                _buffer_excluded_email(
+                    other_project_label, spam_result, num_attachments
+                )
+                return
+
+            content_hash = build_content_hash(
+                canonical_body_for_hash,
+                sender_email_addr,
+                sender_name,
+                recipients_to,
+                subject,
+                date_sent,
+            )
+
+            participants = self._build_canonical_participants(
+                sender_email_addr, recipients_to, recipients_cc, recipients_bcc
+            )
+            preview_text = canonical_body.strip() if canonical_body else ""
+            self.batch_buffer.append(
+                MessageDerived(
+                    raw_id=raw_id,
+                    normalizer_version=NORMALIZER_VERSION,
+                    normalizer_ruleset_hash=NORMALIZER_RULESET_HASH,
+                    parser_version="pypff",
+                    canonical_subject=subject,
+                    canonical_participants=participants,
+                    canonical_body_preview=(
+                        preview_text[:8000] if preview_text else None
+                    ),
+                    canonical_body_full=None,
+                    banner_stripped_body=canonical_body or None,
+                    content_hash_phase1=content_hash,
+                    thread_id_header=message_id,
+                    thread_confidence="header" if message_id else None,
+                )
+            )
 
             # Storage optimization: Large emails go to S3
             body_preview = None
@@ -639,6 +945,8 @@ class ForensicPSTProcessor:
                 body_html=(
                     body_html[:20000] if body_html else None
                 ),  # Limit HTML to 20KB
+                body_text_clean=body_text_clean or None,
+                content_hash=content_hash,
                 body_preview=body_preview,
                 body_full_s3_key=body_full_s3_key,
                 # Flags
@@ -647,6 +955,10 @@ class ForensicPSTProcessor:
                 # Tagging
                 matched_stakeholders=[str(s.id) for s in matched_stakeholders],
                 matched_keywords=[str(k.id) for k in matched_keywords],
+                meta={
+                    "normalizer_version": NORMALIZER_VERSION,
+                    "normalizer_ruleset_hash": NORMALIZER_RULESET_HASH,
+                },
             )
 
             # Add to batch buffer instead of immediate commit
@@ -830,7 +1142,7 @@ class ForensicPSTProcessor:
             elif recipient_type == "bcc":
                 recipient_str = message.get_bcc_string() or ""
             else:
-                return recipients
+                recipient_str = ""
 
             parsed = [addr for _, addr in getaddresses([recipient_str]) if addr]
             if parsed:
@@ -838,10 +1150,11 @@ class ForensicPSTProcessor:
             else:
                 for addr in recipient_str.split(";"):
                     addr = addr.strip()
-                    if addr:
-                        name, email = parseaddr(addr)
-                        if email:
-                            recipients.append(email)
+                    if not addr:
+                        continue
+                    _, email = parseaddr(addr)
+                    if email:
+                        recipients.append(email)
 
             if transport_headers and not recipients:
                 header_map = {"to": "To", "cc": "Cc", "bcc": "Bcc"}
@@ -879,6 +1192,28 @@ class ForensicPSTProcessor:
                 seen.add(email_lower)
                 unique_emails.append(email_lower)
         return unique_emails
+
+    def _build_canonical_participants(
+        self,
+        sender_email: str | None,
+        recipients_to: list[str] | None,
+        recipients_cc: list[str] | None,
+        recipients_bcc: list[str] | None,
+    ) -> list[str] | None:
+        participants: list[str] = []
+        for addr in [
+            sender_email,
+            *(recipients_to or []),
+            *(recipients_cc or []),
+            *(recipients_bcc or []),
+        ]:
+            if not addr:
+                continue
+            cleaned = addr.strip().lower()
+            if cleaned:
+                participants.append(cleaned)
+        unique = sorted(set(participants))
+        return unique or None
 
     def _match_stakeholders(
         self,
@@ -965,14 +1300,21 @@ class ForensicPSTProcessor:
         """Auto-tag email with matching keywords"""
         matched = []
 
-        search_text = "{subject} {body_text}".lower()
+        search_text = f"{subject or ''} {body_text or ''}".lower()
 
         for keyword in keywords:
             # Build search terms (keyword + variations)
-            search_terms = [keyword.keyword_name.lower()]
+            keyword_name = (keyword.keyword_name or "").strip()
+            if not keyword_name:
+                continue
+            search_terms = [keyword_name.lower()]
 
             if keyword.variations:
-                variations = [v.strip().lower() for v in keyword.variations.split(",")]
+                variations = [
+                    v.strip().lower()
+                    for v in keyword.variations.split(",")
+                    if v and v.strip()
+                ]
                 search_terms.extend(variations)
 
             # Check if any term matches
@@ -1070,15 +1412,8 @@ class ForensicPSTProcessor:
 
     def _build_email_threads(
         self, entity_id: str, is_project: bool = False
-    ) -> list[dict[str, Any]]:
-        """Build email threads using Message-ID and In-Reply-To headers"""
-
-        # Get all emails for the case or project
-        query = self.db.query(EmailMessage)
-        if is_project:
-            emails = query.filter_by(project_id=entity_id).all()
-        else:
-            emails = query.filter_by(case_id=entity_id).all()
+    ) -> ThreadingStats:
+        """Build deterministic email threads with evidence attribution."""
         # region agent log H6 threading start
         agent_log(
             "H6",
@@ -1086,49 +1421,32 @@ class ForensicPSTProcessor:
             {
                 "entity_id": entity_id,
                 "is_project": is_project,
-                "num_emails": len(emails),
             },
         )
         # endregion agent log H6 threading start
-        # Build message_id to email map
-        message_id_map: dict[str, EmailMessage] = {}
-        for email in emails:
-            try:
-                message_identifier = email.message_id
-                if message_identifier:
-                    message_id_map[message_identifier] = email
-            except (AttributeError, TypeError):
-                continue
-
-        # Build threads
-        threads = {}
-
-        for email in emails:
-            # Find root of thread
-            root_id = self._find_thread_root(email, message_id_map)
-
-            if root_id not in threads:
-                threads[root_id] = []
-
-            threads[root_id].append(email)
-
-        # Sort emails within each thread by date
-        for thread_emails in threads.values():
-            thread_emails.sort(key=lambda e: e.date_sent or datetime.min)
+        stats = build_email_threads(
+            self.db,
+            case_id=None if is_project else entity_id,
+            project_id=entity_id if is_project else None,
+            run_id="pst_forensic",
+        )
         # region agent log H6 threading complete
         agent_log(
             "H6",
             "Email threads built",
             {
                 "entity_id": entity_id,
-                "num_threads": len(threads),
-                "total_emails": sum(len(t) for t in threads.values()),
+                "num_threads": stats.threads_identified,
+                "total_emails": stats.emails_total,
             },
         )
         # endregion agent log H6 threading complete
-        logger.info(f"Built {len(threads)} email threads from {len(emails)} emails")
-
-        return [{"root_id": k, "emails": v} for k, v in threads.items()]
+        logger.info(
+            "Built %d email threads from %d emails",
+            stats.threads_identified,
+            stats.emails_total,
+        )
+        return stats
 
     def _find_thread_root(
         self, email: EmailMessage, message_id_map: dict[str, EmailMessage]
@@ -1162,14 +1480,13 @@ class ForensicPSTProcessor:
 def process_pst_forensic(
     self,
     pst_file_id: str,
-    s3_bucket: str,
-    s3_key: str,
-    case_id: str = None,
-    project_id: str = None,
+    s3_bucket: str | None = None,
+    s3_key: str | None = None,
+    case_id: str | None = None,
+    project_id: str | None = None,
 ) -> dict[str, Any]:
     """
-    Sync Celery task wrapper for forensic PST processing
-    Uses sync call for worker compatibility
+    Compatibility Celery task wrapper (routes to canonical PST processor).
     """
     # region agent log H11 task start early
     agent_log(
@@ -1184,7 +1501,23 @@ def process_pst_forensic(
         # region agent log H19 session created
         agent_log("H19", "DB session created in task", {"pst_file_id": pst_file_id})
         # endregion agent log H19 session created
-        processor = ForensicPSTProcessor(db)
+        from .pst_processor import UltimatePSTProcessor
+        from .storage import s3 as s3_client
+
+        try:
+            from .opensearch_client import get_opensearch_client
+        except Exception:
+            get_opensearch_client = None  # type: ignore[assignment]
+
+        opensearch_client = None
+        if get_opensearch_client:
+            try:
+                opensearch_client = get_opensearch_client()
+            except Exception:
+                opensearch_client = None
+        processor = UltimatePSTProcessor(
+            db=db, s3_client=s3_client(), opensearch_client=opensearch_client
+        )
         # Update PST record with case/project if provided
         pst_file = db.query(PSTFile).filter_by(id=pst_file_id).first()
         if not pst_file:
@@ -1193,8 +1526,23 @@ def process_pst_forensic(
             pst_file.case_id = uuid.UUID(case_id)
         if project_id:
             pst_file.project_id = uuid.UUID(project_id)
+        if s3_bucket:
+            pst_file.s3_bucket = s3_bucket
+        if s3_key:
+            pst_file.s3_key = s3_key
         db.commit()
-        result = processor.process_pst_file(pst_file_id, s3_bucket, s3_key)  # Sync call
+        pst_s3_bucket = s3_bucket or pst_file.s3_bucket
+        pst_s3_key = s3_key or pst_file.s3_key
+        if not pst_s3_key:
+            raise ValueError(f"PST file {pst_file_id} is missing s3_key")
+        result = processor.process_pst(
+            pst_s3_key=pst_s3_key,
+            document_id=pst_file_id,
+            case_id=str(pst_file.case_id) if pst_file.case_id else None,
+            project_id=str(pst_file.project_id) if pst_file.project_id else None,
+            company_id=None,
+            pst_s3_bucket=pst_s3_bucket,
+        )
         # region agent log H11 task success
         agent_log(
             "H11",

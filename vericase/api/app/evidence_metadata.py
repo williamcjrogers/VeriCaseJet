@@ -27,6 +27,11 @@ import PyPDF2
 
 from .storage import get_object
 from .config import settings
+from .email_normalizer import (
+    NORMALIZER_RULESET_HASH,
+    NORMALIZER_VERSION,
+    clean_body_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +115,8 @@ class FileMetadata:
     email_date: datetime | None = None
     has_attachments: bool | None = None
     attachment_count: int | None = None
+    normalizer_version: str | None = None
+    normalizer_ruleset_hash: str | None = None
 
     # Text content preview
     text_preview: str | None = None
@@ -208,6 +215,20 @@ class MetadataExtractor:
             logger.warning(f"Tika server not available: {e}")
             return False
 
+    def _normalize_email_metadata(self, metadata: FileMetadata) -> None:
+        metadata.normalizer_version = NORMALIZER_VERSION
+        metadata.normalizer_ruleset_hash = NORMALIZER_RULESET_HASH
+
+        if not metadata.text_preview:
+            return
+
+        cleaned = clean_body_text(metadata.text_preview)
+        if cleaned is None:
+            return
+
+        metadata.text_preview = cleaned[:2000]
+        metadata.text_length = len(cleaned)
+
     async def extract_metadata(
         self, s3_key: str, bucket: str | None = None
     ) -> FileMetadata:
@@ -285,6 +306,12 @@ class MetadataExtractor:
             # Use Tika for additional extraction if available
             if self.tika_available:
                 await self._extract_tika_metadata(file_content, metadata)
+
+            if mime_type in [
+                "application/vnd.ms-outlook",
+                "message/rfc822",
+            ] or extension in [".msg", ".eml"]:
+                self._normalize_email_metadata(metadata)
 
             # Extract construction-specific references
             self._extract_construction_references(metadata)
@@ -557,25 +584,23 @@ class MetadataExtractor:
     ) -> None:
         """Extract metadata from .eml email files"""
         import email
+        from email import policy
+        from email.utils import getaddresses, parsedate_to_datetime
 
         try:
-            msg = email.message_from_bytes(content)
+            msg = email.message_from_bytes(content, policy=policy.default)
             metadata.email_from = msg.get("From")
             metadata.email_to = [
-                addr.strip() for addr in (msg.get("To") or "").split(",")
+                addr for _, addr in getaddresses([msg.get("To", "")]) if addr
             ]
             metadata.email_cc = [
-                addr.strip()
-                for addr in (msg.get("Cc") or "").split(",")
-                if addr.strip()
+                addr for _, addr in getaddresses([msg.get("Cc", "")]) if addr
             ]
             metadata.email_subject = msg.get("Subject")
 
             # Parse date
             date_str = msg.get("Date")
             if date_str:
-                from email.utils import parsedate_to_datetime
-
                 try:
                     metadata.email_date = parsedate_to_datetime(date_str)
                 except (ValueError, TypeError, AttributeError) as e:
@@ -590,6 +615,54 @@ class MetadataExtractor:
                     if part.get_content_disposition() == "attachment"
                 )
                 metadata.attachment_count = attachment_count
+
+            def _decode_payload(payload: bytes, charset: str | None) -> str | None:
+                if not payload:
+                    return None
+                for encoding in [charset, "utf-8", "latin-1", "cp1252"]:
+                    if not encoding:
+                        continue
+                    try:
+                        return payload.decode(encoding)
+                    except (UnicodeDecodeError, LookupError):
+                        continue
+                return payload.decode("utf-8", errors="replace")
+
+            def _get_part_text(part: email.message.Message) -> str | None:
+                try:
+                    content = part.get_content()
+                    if isinstance(content, str):
+                        return content
+                except Exception:
+                    pass
+                payload = part.get_payload(decode=True)
+                if payload is None:
+                    return None
+                return _decode_payload(payload, part.get_content_charset())
+
+            body_text = None
+            if msg.is_multipart():
+                for part in msg.walk():
+                    if part.get_content_disposition() == "attachment":
+                        continue
+                    if part.get_content_type() == "text/plain":
+                        body_text = _get_part_text(part)
+                        if body_text:
+                            break
+                if not body_text:
+                    for part in msg.walk():
+                        if part.get_content_disposition() == "attachment":
+                            continue
+                        if part.get_content_type() == "text/html":
+                            body_text = _get_part_text(part)
+                            if body_text:
+                                break
+            else:
+                body_text = _get_part_text(msg)
+
+            if body_text:
+                metadata.text_preview = body_text[:4000]
+                metadata.text_length = len(body_text)
 
         except Exception as e:
             logger.warning(f"Error extracting EML metadata: {e}")

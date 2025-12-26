@@ -12,6 +12,7 @@
 
   <!-- AG-Grid Enterprise CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-grid.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-theme-alpine.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-theme-quartz.css" />
   <link rel="stylesheet" href="ag-theme-vericase.css" />
 
@@ -19,20 +20,32 @@
   <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
 
   <!-- VeriCase Design System -->
-  <link rel="stylesheet" href="brand-styles.css" />
-  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="brand-styles.css?v=6" />
+  <link rel="stylesheet" href="design-system.css?v=6" />
+  <script src="config.js"></script>
   <script src="vericase-ui.js"></script>
   <script src="nav-shell.js"></script>
 
   <style>
     body {
       background: var(--bg-primary);
-      overflow: hidden;
+      /* Let the shell/content manage scrolling; hiding body overflow can clip the grid entirely. */
+      overflow: auto;
+    }
+
+    /* When wrapped by nav-shell, make the injected content a proper flex column so the grid can size correctly. */
+    .app-content.evidence-page {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      padding: 0; /* use full width; page has its own spacing */
     }
 
     .evidence-layout {
       display: flex;
-      height: calc(100vh - 64px);
+      /* Fill remaining height under the tabs/toolbar/stats within the shell's content area. */
+      flex: 1;
+      min-height: 0;
       overflow: hidden;
     }
 
@@ -145,6 +158,11 @@
       flex: 1;
     }
 
+    .toolbar-actions {
+      display: flex;
+      gap: 8px;
+    }
+
     /* Stats Bar - VeriCase Branding */
     .stats-bar {
       padding: 12px 24px;
@@ -244,13 +262,60 @@
       flex-shrink: 0;
     }
 
+    .sidebar-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--gray-200);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
     .sidebar-section-title {
-      padding: 16px 16px 8px;
       font-size: 0.6875rem;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--text-muted);
+    }
+
+    .sidebar-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: space-between;
+    }
+
+    .auto-categorize-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      user-select: none;
+    }
+
+    .auto-categorize-toggle input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: var(--vericase-teal);
+    }
+
+    .auto-categorize-toggle .toggle-label {
+      font-size: 0.75rem;
+    }
+
+    .collection-item.nested {
+      padding-left: 32px;
+    }
+
+    .collection-item.nested-2 {
+      padding-left: 48px;
+    }
+
+    .collection-item.nested-3 {
+      padding-left: 64px;
     }
 
     .collection-list {
@@ -313,6 +378,7 @@
       display: flex;
       flex-direction: column;
       min-width: 0;
+      min-height: 0;
       background: var(--gray-50);
       position: relative;
     }
@@ -321,6 +387,7 @@
       flex: 1;
       padding: 16px;
       overflow: hidden;
+      min-height: 0;
     }
 
     #evidenceGrid {
@@ -411,9 +478,10 @@
     .file-name {
       font-weight: 500;
       color: var(--text-primary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+      word-break: break-word;
     }
 
     .file-meta {
@@ -541,6 +609,315 @@
       overflow-y: auto;
       display: flex;
       flex-direction: column;
+    }
+
+    .vericase-suggestions-panel {
+      border-top: 1px solid var(--gray-200);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: var(--gray-50);
+    }
+
+    .suggestions-panel-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .suggestions-panel-header h4 {
+      margin: 0;
+      font-size: 0.875rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-primary);
+    }
+
+    .suggestions-panel-header i {
+      color: var(--vericase-teal);
+    }
+
+    .suggestions-panel-body {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .suggestions-empty-state,
+    .suggestions-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+      text-align: center;
+      color: var(--text-muted);
+      gap: 8px;
+    }
+
+    .suggestions-empty-state i,
+    .suggestions-loading i {
+      font-size: 1.5rem;
+      opacity: 0.5;
+    }
+
+    .suggestions-empty-state p,
+    .suggestions-loading span {
+      font-size: 0.8125rem;
+    }
+
+    .suggestion-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .suggestion-group-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+    }
+
+    .suggestion-group-header i {
+      color: var(--vericase-teal);
+      font-size: 0.6875rem;
+    }
+
+    .suggestion-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .suggestion-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px;
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      transition: all var(--duration-fast);
+    }
+
+    .suggestion-item:hover {
+      border-color: var(--vericase-teal);
+      box-shadow: 0 2px 8px rgba(31, 111, 120, 0.1);
+    }
+
+    .suggestion-item-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .suggestion-item-title {
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .suggestion-item-title i {
+      color: var(--vericase-teal);
+      font-size: 0.75rem;
+    }
+
+    .suggestion-item-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .suggestion-item-meta i {
+      font-size: 0.6875rem;
+    }
+
+    .suggestion-item-context {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-top: 4px;
+      font-style: italic;
+    }
+
+    .collab-panel {
+      border-top: 1px solid var(--gray-200);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .collab-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .collab-panel-header h4 {
+      margin: 0;
+      font-size: 0.875rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .collab-panel-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .lane-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .lane-tab {
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: 1px solid var(--gray-200);
+      border-radius: 999px;
+      background: white;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all var(--duration-fast);
+    }
+
+    .lane-tab.active {
+      background: var(--vericase-teal);
+      border-color: var(--vericase-teal);
+      color: white;
+    }
+
+    .collab-thread {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+
+    .collab-section-title {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin: 6px 0;
+    }
+
+    .collab-comment {
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      font-size: 0.8125rem;
+    }
+
+    .collab-comment.reply {
+      margin-left: 18px;
+      border-left: 3px solid var(--vericase-teal);
+    }
+
+    .collab-comment-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .collab-input {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+
+    .collab-input textarea {
+      flex: 1;
+      min-height: 70px;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      padding: 8px 10px;
+      font-size: 0.8125rem;
+      resize: vertical;
+    }
+
+    .collab-input textarea:focus {
+      outline: none;
+      border-color: var(--vericase-teal);
+      box-shadow: 0 0 0 2px rgba(23, 181, 163, 0.15);
+    }
+
+    .collab-empty {
+      border: 1px dashed var(--gray-200);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.8125rem;
+    }
+
+    .lane-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.625rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      background: var(--gray-100);
+      color: var(--text-muted);
+    }
+
+    .lane-badge.core {
+      background: rgba(15, 157, 154, 0.12);
+      color: #0f766e;
+    }
+
+    .lane-badge.counsel {
+      background: rgba(59, 130, 246, 0.12);
+      color: #1d4ed8;
+    }
+
+    .lane-badge.expert {
+      background: rgba(245, 158, 11, 0.16);
+      color: #b45309;
+    }
+
+    .collab-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .collab-toggle input {
+      width: 14px;
+      height: 14px;
     }
 
     /* Preview Section */
@@ -932,6 +1309,21 @@
 
     <div class="toolbar-spacer"></div>
 
+    <div class="toolbar-actions">
+      <button class="btn btn-ghost" id="columnsBtn" title="Columns">
+        <i class="fas fa-columns"></i>
+      </button>
+      <button class="btn btn-ghost" id="saveGridBtn" title="Save layout">
+        <i class="fas fa-save"></i>
+      </button>
+      <button class="btn btn-ghost" id="resetGridBtn" title="Reset layout">
+        <i class="fas fa-undo"></i>
+      </button>
+      <button class="btn btn-ghost" id="autofitBtn" title="Auto-fit columns">
+        <i class="fas fa-arrows-alt-h"></i>
+      </button>
+    </div>
+
     <input type="file" id="fileInput" multiple style="display: none" />
     <button class="btn btn-vericase" id="uploadBtn">
       <i class="fas fa-upload"></i>
@@ -971,7 +1363,18 @@
   <div class="evidence-layout">
     <!-- Collections Sidebar -->
     <div class="collections-sidebar">
-      <div class="sidebar-section-title">Collections</div>
+      <div class="sidebar-header">
+        <div class="sidebar-section-title">Collections</div>
+        <div class="sidebar-header-actions">
+          <label class="auto-categorize-toggle" title="Enable intelligent auto-categorization">
+            <input type="checkbox" id="autoCategorizeToggle" />
+            <span class="toggle-label">Auto-categorize</span>
+          </label>
+          <button class="btn btn-sm btn-ghost" id="createSubfolderBtn" title="Create Subfolder">
+            <i class="fas fa-plus"></i>
+          </button>
+        </div>
+      </div>
       <div class="collection-list" id="collectionList">
         <div class="collection-item active" data-id="">
           <i class="fas fa-folder"></i>
@@ -994,7 +1397,7 @@
             <button class="btn btn-ghost btn-icon btn-sm" id="extractMetadataBtn" title="Extract Metadata">
               <i class="fas fa-magic"></i>
             </button>
-            <button class="close-btn" id="closeDetailBtn" title="Close">
+            <button class="close-btn" id="closeDetailBtn" title="Close" type="button" onclick="hideDetail()">
               <i class="fas fa-times"></i>
             </button>
           </div>
@@ -1009,8 +1412,47 @@
           <div class="metadata-content" id="metadataContent">
             <!-- Populated dynamically -->
           </div>
+          <div class="vericase-suggestions-panel" id="vericaseSuggestionsPanel">
+            <div class="suggestions-panel-header">
+              <h4><i class="fas fa-lightbulb"></i> VeriCase Suggestions</h4>
+            </div>
+            <div class="suggestions-panel-body" id="vericaseSuggestionsBody">
+              <div class="suggestions-empty-state">
+                <i class="fas fa-lightbulb"></i>
+                <p>Select an evidence item to see AI-powered suggestions</p>
+              </div>
+            </div>
+          </div>
+          <div class="collab-panel" id="evidenceCollabPanel">
+            <div class="collab-panel-header">
+              <h4><i class="fas fa-comments"></i> Evidence Notes</h4>
+              <div class="collab-panel-controls">
+                <label class="collab-toggle">
+                  <input type="checkbox" id="includeLinkedNotes" onchange="toggleLinkedNotes()">
+                  Include claim-linked notes
+                </label>
+                <div class="lane-tabs" id="evidenceLaneTabs">
+                  <button class="lane-tab active" data-lane="core" onclick="setEvidenceLane('core')">Core</button>
+                  <button class="lane-tab" data-lane="counsel" onclick="setEvidenceLane('counsel')">Counsel</button>
+                  <button class="lane-tab" data-lane="expert" onclick="setEvidenceLane('expert')">Expert</button>
+                </div>
+              </div>
+            </div>
+            <div class="collab-thread" id="evidenceCommentThread">
+              <div class="collab-empty">Select an item to view notes.</div>
+            </div>
+            <div class="collab-input">
+              <textarea id="evidenceCommentInput" placeholder="Add a note for this evidence item..."></textarea>
+              <button class="btn btn-vericase btn-sm" id="evidenceCommentSend" onclick="postEvidenceNote()">
+                <i class="fas fa-paper-plane"></i>
+              </button>
+            </div>
+          </div>
         </div>
         <div class="detail-actions">
+          <button class="btn btn-ghost" id="viewItemBtn">
+            <i class="fas fa-eye"></i> View
+          </button>
           <button class="btn btn-vericase" id="downloadBtn">
             <i class="fas fa-download"></i> Download
           </button>
@@ -1051,10 +1493,17 @@
     // CONFIGURATION v1.0.1 - Cache bust
     // ============================================
 
-    // Set AG Grid License Key
-    agGrid.LicenseManager.setLicenseKey(
-      "Using_this_{AG_Charts_and_AG_Grid}_Enterprise_key_{AG-113929}_in_excess_of_the_licence_granted_is_not_permitted___Please_report_misuse_to_legal@ag-grid.com___For_help_with_changing_this_key_please_contact_info@ag-grid.com___{Quantum_Commercial_Solutions}_is_granted_a_{Single_Application}_Developer_License_for_the_application_{VeriCase}_only_for_{1}_Front-End_JavaScript_developer___All_Front-End_JavaScript_developers_working_on_{VeriCase}_need_to_be_licensed___{VeriCase}_has_been_granted_a_Deployment_License_Add-on_for_{1}_Production_Environment___This_key_works_with_{AG_Charts_and_AG_Grid}_Enterprise_versions_released_before_{2_December_2026}____[v3]_[0102]_MTc5NjE2OTYwMDAwMA==3028fd492276b13c54c2a50715493e19"
-    );
+    // Set AG Grid License Key (centralized)
+    try {
+      const agKey = window.VeriCaseConfig
+        ? window.VeriCaseConfig.agGridLicenseKey
+        : window.VERICASE_AG_GRID_LICENSE_KEY;
+      if (agKey && window.agGrid && agGrid.LicenseManager) {
+        agGrid.LicenseManager.setLicenseKey(agKey);
+      }
+    } catch (e) {
+      console.warn("AG Grid license key init failed:", e);
+    }
 
     const apiUrl = window.VeriCaseConfig
       ? window.VeriCaseConfig.apiUrl
@@ -1094,13 +1543,155 @@
     let adminGridConfig = {};
 
     let gridApi = null;
+    let columnApi = null;
     let selectedEvidence = null;
     let currentPreviewData = null;
+    let evidenceLane = "core";
+    let includeLinkedNotes = false;
     let projectId = null;
     let caseId = null;
     let currentCategory = "documents";
     let loadAllDataPromise = null; // Prevent infinite loops
     let serverSideFilterModel = {};
+    let gridStateApplied = false;
+    let gridStateKey = "";
+    let columnsPanelOpen = false;
+    let collectionsCache = [];
+
+    function updateEvidenceLaneButtons() {
+      const buttons = document.querySelectorAll("#evidenceLaneTabs .lane-tab");
+      buttons.forEach(btn => {
+        if (btn.dataset.lane === evidenceLane) {
+          btn.classList.add("active");
+        } else {
+          btn.classList.remove("active");
+        }
+      });
+    }
+
+    function setEvidenceLane(lane) {
+      evidenceLane = lane;
+      updateEvidenceLaneButtons();
+      updateEvidenceNotePlaceholder();
+      loadEvidenceNotes();
+    }
+
+    function toggleLinkedNotes() {
+      const checkbox = document.getElementById("includeLinkedNotes");
+      includeLinkedNotes = checkbox ? checkbox.checked : false;
+      loadEvidenceNotes();
+    }
+
+    function updateEvidenceNotePlaceholder() {
+      const input = document.getElementById("evidenceCommentInput");
+      if (!input) return;
+      const placeholders = {
+        core: "Record working position. (facts, evidence points, next steps)",
+        counsel: "Record submissions. (legal test, pleadings framing, authorities)",
+        expert: "Record expert analysis. (methodology, assumptions, conclusions)",
+      };
+      input.placeholder = placeholders[evidenceLane] || "Add a note for this evidence item...";
+    }
+
+    function renderEvidenceNote(comment, isReply = false) {
+      const author = comment.created_by_name || "User";
+      const time = comment.created_at ? formatTimeAgo(new Date(comment.created_at)) : "";
+      const laneValue = (comment.lane || evidenceLane || "core").toLowerCase();
+      const laneBadge = `<span class="lane-badge ${laneValue}">${laneValue}</span>`;
+      const linkBadge = comment.item_claim_link_id ? `<span class="lane-badge">linked</span>` : "";
+      const replies = comment.replies || [];
+
+      return `
+        <div class="collab-comment ${isReply ? "reply" : ""}">
+          <div class="collab-comment-meta">${escapeHtml(author)}${time ? ` • ${time}` : ""} ${laneBadge} ${linkBadge}</div>
+          <div>${escapeHtml(comment.content)}</div>
+          ${replies.length > 0 ? replies.map(r => renderEvidenceNote(r, true)).join("") : ""}
+        </div>
+      `;
+    }
+
+    async function loadEvidenceNotes() {
+      const thread = document.getElementById("evidenceCommentThread");
+      if (!thread) return;
+
+      if (!selectedEvidence) {
+        thread.innerHTML = `<div class="collab-empty">Select an item to view notes.</div>`;
+        return;
+      }
+
+      thread.innerHTML = `<div class="collab-empty">Loading notes...</div>`;
+
+      try {
+        const response = await VeriCaseConfig.apiCall(
+          `/api/claims/comments/evidence/${selectedEvidence.id}?lane=${encodeURIComponent(evidenceLane)}`
+        );
+        const items = Array.isArray(response) ? response : (response.items || []);
+        const directComments = items.filter(c => !c.item_claim_link_id);
+        const linkedComments = items.filter(c => c.item_claim_link_id);
+
+        if (!includeLinkedNotes && directComments.length === 0) {
+          thread.innerHTML = `<div class="collab-empty">No notes in this lane yet.</div>`;
+          return;
+        }
+
+        let html = "";
+        if (directComments.length > 0) {
+          html += directComments.map(c => renderEvidenceNote(c)).join("");
+        } else {
+          html += `<div class="collab-empty">No direct notes in this lane yet.</div>`;
+        }
+
+        if (includeLinkedNotes) {
+          if (linkedComments.length > 0) {
+            html += `<div class="collab-section-title">Claim-linked notes</div>`;
+            html += linkedComments.map(c => renderEvidenceNote(c)).join("");
+          } else {
+            html += `<div class="collab-empty">No claim-linked notes in this lane yet.</div>`;
+          }
+        }
+
+        thread.innerHTML = html;
+      } catch (error) {
+        console.error("[Evidence] Failed to load notes:", error);
+        thread.innerHTML = `<div class="collab-empty">Failed to load notes.</div>`;
+      }
+    }
+
+    async function postEvidenceNote() {
+      if (!selectedEvidence) {
+        VericaseUI.Toast.warning("Select an evidence item first.");
+        return;
+      }
+
+      const input = document.getElementById("evidenceCommentInput");
+      if (!input) return;
+
+      const content = input.value.trim();
+      if (!content) {
+        VericaseUI.Toast.warning("Enter a note before posting.");
+        return;
+      }
+
+      try {
+        await VeriCaseConfig.apiCall(`/api/claims/comments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content,
+            item_type: "evidence",
+            item_id: selectedEvidence.id,
+            lane: evidenceLane,
+          }),
+        });
+
+        input.value = "";
+        VericaseUI.Toast.success("Note added");
+        loadEvidenceNotes();
+      } catch (error) {
+        console.error("[Evidence] Failed to post note:", error);
+        VericaseUI.Toast.error("Failed to add note");
+      }
+    }
 
     // Evidence type configuration
     const typeConfig = {
@@ -1229,7 +1820,7 @@
     }
 
     function formatDate(dateStr) {
-      if (!dateStr) return "—";
+      if (!dateStr) return "-";
       try {
         const d = new Date(dateStr);
         return d.toLocaleDateString("en-GB", {
@@ -1240,6 +1831,20 @@
       } catch {
         return dateStr;
       }
+    }
+
+    function formatTimeAgo(date) {
+      const now = new Date();
+      const diff = now - date;
+      const minutes = Math.floor(diff / 60000);
+      const hours = Math.floor(diff / 3600000);
+      const days = Math.floor(diff / 86400000);
+
+      if (minutes < 1) return "just now";
+      if (minutes < 60) return `${minutes} min ago`;
+      if (hours < 24) return `${hours} hour${hours > 1 ? "s" : ""} ago`;
+      if (days < 7) return `${days} day${days > 1 ? "s" : ""} ago`;
+      return date.toLocaleDateString();
     }
 
     function isImageFile(mimeType, filename) {
@@ -1290,6 +1895,203 @@
       return div.innerHTML;
     }
 
+    function getFilingCollections() {
+      const skip = new Set([
+        "all evidence",
+        "unassigned",
+        "recent uploads",
+        "starred",
+      ]);
+      return (collectionsCache || []).filter((c) => {
+        const name = (c?.name || "").trim().toLowerCase();
+        return name && !skip.has(name);
+      });
+    }
+
+    function findCollectionByNames(names) {
+      const lookup = new Set(names.map((n) => n.toLowerCase()));
+      return getFilingCollections().find((c) =>
+        lookup.has((c.name || "").toLowerCase()),
+      );
+    }
+
+    function inferAutofileCollection(detail) {
+      if (!detail) return null;
+      const mimeType = detail.mime_type || "";
+      const evidenceType = detail.evidence_type || "";
+      const fileType = (detail.file_type || "").toLowerCase();
+
+      if (mimeType.startsWith("image/")) {
+        return (
+          findCollectionByNames(["Photos", "Images", "Images & Media"]) || null
+        );
+      }
+      if (evidenceType === "drawing") {
+        return findCollectionByNames(["Drawings"]) || null;
+      }
+      if (evidenceType === "contract") {
+        return findCollectionByNames(["Contracts"]) || null;
+      }
+      if (evidenceType === "invoice" || evidenceType === "payment_certificate") {
+        return findCollectionByNames(["Invoices & Payments", "Invoices"]) || null;
+      }
+      if (evidenceType === "meeting_minutes") {
+        return findCollectionByNames(["Meeting Minutes"]) || null;
+      }
+      if (
+        evidenceType === "correspondence" ||
+        evidenceType === "email_attachment" ||
+        detail.source_type === "pst_extraction"
+      ) {
+        return findCollectionByNames(["Correspondence"]) || null;
+      }
+      if (fileType === "xls" || fileType === "xlsx") {
+        return findCollectionByNames(["Programme"]) || null;
+      }
+      return null;
+    }
+
+    async function assignEvidenceToCollection(collectionId) {
+      if (!selectedEvidence || !collectionId) return;
+      try {
+        const response = await fetch(
+          `${apiUrl}/api/evidence/collections/${collectionId}/items/${selectedEvidence.id}`,
+          { method: "POST" },
+        );
+        if (response.ok) {
+          VericaseUI.Toast.success("Filed to collection");
+          refreshGridData();
+          loadCollections();
+        } else {
+          VericaseUI.Toast.error("Failed to file to collection");
+        }
+      } catch (e) {
+        console.error("Collection assignment failed:", e);
+        VericaseUI.Toast.error("Failed to file to collection");
+      }
+    }
+
+    function setupCollectionActions() {
+      const select = document.getElementById("collectionSelect");
+      const assignBtn = document.getElementById("assignCollectionBtn");
+      const autoBtn = document.getElementById("autoFileBtn");
+      if (assignBtn && select) {
+        assignBtn.addEventListener("click", () => {
+          const collectionId = select.value;
+          if (!collectionId) {
+            VericaseUI.Toast.error("Select a collection first");
+            return;
+          }
+          assignEvidenceToCollection(collectionId);
+        });
+      }
+      if (autoBtn) {
+        autoBtn.addEventListener("click", () => {
+          const target = inferAutofileCollection(selectedEvidence);
+          if (!target) {
+            VericaseUI.Toast.error("No matching collection found");
+            return;
+          }
+          assignEvidenceToCollection(target.id);
+        });
+      }
+    }
+
+    function getGridStateKey() {
+      const ctxType = caseId ? "case" : "project";
+      const ctxId = caseId || projectId || "default";
+      return `vc_evidence_grid_state:${ctxType}:${ctxId}`;
+    }
+
+    function getEvidenceConfigKey() {
+      const ctxType = caseId ? "case" : "project";
+      const ctxId = caseId || projectId || "default";
+      return `vc_evidence_config:${ctxType}:${ctxId}`;
+    }
+
+    function loadEvidenceConfig() {
+      const key = getEvidenceConfigKey();
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          console.warn("Failed to parse evidence config:", e);
+        }
+      }
+      return {
+        autoCategorize: false,
+      };
+    }
+
+    function saveEvidenceConfig(config) {
+      const key = getEvidenceConfigKey();
+      localStorage.setItem(key, JSON.stringify(config));
+    }
+
+    function applySavedGridState() {
+      if (!gridApi || !gridStateKey) return false;
+      const raw = localStorage.getItem(gridStateKey);
+      if (!raw) return false;
+      try {
+        const saved = JSON.parse(raw);
+        if (!saved || !Array.isArray(saved.columnState)) return false;
+        gridApi.applyColumnState({ state: saved.columnState, applyOrder: true });
+        gridStateApplied = true;
+        return true;
+      } catch (e) {
+        console.warn("Failed to apply saved grid state:", e);
+        return false;
+      }
+    }
+
+    function saveGridState() {
+      if (!gridApi || !gridStateKey) return;
+      const state = {
+        version: 1,
+        columnState: gridApi.getColumnState(),
+      };
+      localStorage.setItem(gridStateKey, JSON.stringify(state));
+      if (window.VericaseUI && VericaseUI.Toast) {
+        VericaseUI.Toast.success("Layout saved");
+      }
+    }
+
+    function resetGridState() {
+      if (!gridApi || !gridStateKey) return;
+      localStorage.removeItem(gridStateKey);
+      gridApi.resetColumnState();
+      gridStateApplied = false;
+      autoFitGrid(true);
+      if (window.VericaseUI && VericaseUI.Toast) {
+        VericaseUI.Toast.info("Layout reset");
+      }
+    }
+
+    function autoFitGrid(force = false) {
+      if (!gridApi) return;
+      if (!force && gridStateApplied) return;
+      requestAnimationFrame(() => {
+        try {
+          gridApi.sizeColumnsToFit();
+        } catch (e) {
+          console.warn("Auto-fit failed:", e);
+        }
+      });
+    }
+
+    function toggleColumnsPanel() {
+      if (!gridApi) return;
+      columnsPanelOpen = !columnsPanelOpen;
+      if (columnsPanelOpen) {
+        gridApi.setSideBarVisible(true);
+        gridApi.openToolPanel("columns");
+      } else {
+        gridApi.closeToolPanel();
+        gridApi.setSideBarVisible(false);
+      }
+    }
+
     // ============================================
     // GRID SETUP
     // ============================================
@@ -1308,8 +2110,11 @@
 
       const gridOptions = {
         rowModelType: "serverSide",
-        serverSideStoreType: "partial",
         cacheBlockSize: 100,
+        getRowId: (params) => {
+          const id = params.data?.id;
+          return id ? String(id) : undefined;
+        },
         paginationPageSize: 100,
         columnDefs: [
           {
@@ -1366,6 +2171,10 @@
             field: "document_date",
             headerName: "Date",
             width: 120,
+            valueGetter: (params) =>
+              params.data?.document_date ||
+              params.data?.source_email_date ||
+              null,
             valueFormatter: (params) => formatDate(params.value),
           },
           {
@@ -1378,18 +2187,34 @@
             },
           },
           {
-            field: "evidence_type",
-            headerName: "Type",
-            width: 140,
+            field: "origin",
+            headerName: "Origin",
+            width: 160,
+            valueGetter: (params) => {
+              if (!params.data) return null;
+              // Check if it's from an email attachment
+              if (params.data.source_email_id) {
+                return "Email Attachment";
+              }
+              // Check for uploader name
+              if (params.data.uploader_name || params.data.uploader_display_name) {
+                return params.data.uploader_name || params.data.uploader_display_name;
+              }
+              // Check for uploaded_by user ID (fallback)
+              if (params.data.uploaded_by) {
+                return "Manual Upload";
+              }
+              return "Manual Upload";
+            },
             cellRenderer: (params) => {
-              const type = params.value;
-              if (!type || type === "other")
+              const origin = params.value;
+              if (!origin) {
                 return '<span style="color: var(--text-muted);">—</span>';
-              const config = typeConfig[type] || {
-                label: type,
-                color: "#64748b",
-              };
-              return `<span style="color: ${config.color}; font-weight: 500;"><i class="fas ${config.icon || "fa-file"}"></i> ${config.label}</span>`;
+              }
+              const isEmail = origin === "Email Attachment";
+              const icon = isEmail ? "fa-envelope" : "fa-user";
+              const color = isEmail ? "var(--vericase-teal)" : "var(--text-secondary)";
+              return `<span style="color: ${color}; font-weight: 500;"><i class="fas ${icon}" style="margin-right: 6px;"></i>${escapeHtml(origin)}</span>`;
             },
           },
           {
@@ -1460,22 +2285,65 @@
             field: "source_email_subject",
             headerName: "Source Email",
             width: 200,
+            wrapText: true,
+            autoHeight: true,
+            cellStyle: { 
+              whiteSpace: 'normal',
+              wordWrap: 'break-word',
+              lineHeight: '1.4',
+              padding: '8px'
+            },
             cellRenderer: (params) => {
               const subject = params.value;
               const emailId = safeGet(params.data, "source_email_id", "");
               const senderName = safeGet(params.data, "source_email_sender", "");
+              const preview = safeGet(params.data, "source_email_preview", "");
+              const messageId = safeGet(params.data, "source_email_message_id", "");
+              const evidenceId = safeGet(params.data, "id", "");
+              
               if (!subject && !emailId) {
-                return '<span style="color: var(--text-muted);">—</span>';
+                return '<span style="color: var(--text-muted);">-</span>';
               }
+              
               const displayText = subject || "Email";
-              const senderInfo = senderName ? `<br><span style="font-size: 0.7rem; color: var(--text-muted);">From: ${escapeHtml(senderName)}</span>` : "";
+              const senderInfo = senderName ? `<div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">From: ${escapeHtml(senderName)}</div>` : "";
+              const previewInfo = preview ? `<div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; line-height: 1.3;">${escapeHtml(preview.substring(0, 100))}${preview.length > 100 ? '...' : ''}</div>` : "";
+              const ref = messageId || emailId;
+              const refInfo = ref ? `\nRef: ${ref}` : "";
+              
               if (emailId) {
-                return `<div style="cursor: pointer; color: var(--vericase-teal);" onclick="event.stopPropagation(); openSourceEmail('${emailId}')" title="Click to view email">
-                  <i class="fas fa-envelope-open-text" style="margin-right: 4px;"></i>${escapeHtml(displayText.substring(0, 30))}${displayText.length > 30 ? '...' : ''}
-                  ${senderInfo}
-                </div>`;
+                return `
+                  <div style="display: flex; align-items: flex-start; gap: 8px; width: 100%;">
+                    <div style="flex: 1; min-width: 0; word-wrap: break-word; overflow-wrap: break-word;">
+                      <div style="color: var(--vericase-teal); font-weight: 500; word-wrap: break-word; overflow-wrap: break-word;">
+                        <i class="fas fa-envelope-open-text" style="margin-right: 4px; font-size: 0.75rem;"></i>
+                        <span style="word-wrap: break-word; overflow-wrap: break-word;">${escapeHtml(displayText)}</span>
+                      </div>
+                      ${senderInfo}
+                      ${previewInfo}
+                    </div>
+                    <button 
+                      class="btn-icon-small" 
+                      onclick="event.stopPropagation(); openSourceEmail('${emailId}')" 
+                      title="View source email${escapeHtml(refInfo)}"
+                      style="flex-shrink: 0; padding: 4px 6px; border: none; background: transparent; color: var(--vericase-teal); cursor: pointer; border-radius: 4px; transition: background 0.2s;"
+                      onmouseover="this.style.background='rgba(31, 111, 120, 0.1)'"
+                      onmouseout="this.style.background='transparent'"
+                    >
+                      <i class="fas fa-external-link-alt" style="font-size: 0.75rem;"></i>
+                    </button>
+                  </div>
+                `;
               }
-              return `<span style="color: var(--text-secondary);"><i class="fas fa-envelope"></i> ${escapeHtml(displayText.substring(0, 25))}...</span>`;
+              return `
+                <div style="word-wrap: break-word; overflow-wrap: break-word;">
+                  <span style="color: var(--text-secondary);">
+                    <i class="fas fa-envelope" style="margin-right: 4px;"></i>
+                    <span style="word-wrap: break-word; overflow-wrap: break-word;">${escapeHtml(displayText)}</span>
+                  </span>
+                  ${previewInfo}
+                </div>
+              `;
             },
           },
           {
@@ -1514,26 +2382,65 @@
             return String(params.value);
           },
           // Handle long text gracefully
-          wrapText: false,
-          cellStyle: { overflow: "hidden", "text-overflow": "ellipsis" },
+          wrapText: true,
+          autoHeight: true,
+          cellStyle: { "white-space": "normal", "line-height": "1.35" },
         },
         // Suppress errors for missing row data
         suppressRowClickSelection: false,
         rowSelection: "single",
         animateRows: true,
+        suppressRowTransform: true,
+        sideBar: {
+          toolPanels: [
+            {
+              id: "columns",
+              labelDefault: "Columns",
+              labelKey: "columns",
+              iconKey: "columns",
+              toolPanel: "agColumnsToolPanel",
+              toolPanelParams: {
+                suppressRowGroups: true,
+                suppressValues: true,
+                suppressPivots: true,
+                suppressPivotMode: true,
+              },
+            },
+          ],
+        },
+        onGridReady: (params) => {
+          gridApi = params.api;
+          // columnApi is deprecated in v31, use gridApi for column operations
+          columnApi = params.columnApi || null;
+          gridStateKey = getGridStateKey();
+          applySavedGridState();
+          gridApi.setSideBarVisible(false);
+        },
+        onFirstDataRendered: () => {
+          autoFitGrid();
+        },
         // Apply row height from admin settings (default 56 for evidence grid)
         rowHeight: adminGridConfig.default_row_height ? parseInt(adminGridConfig.default_row_height) : 56,
         headerHeight: 44,
         // Safe row click handler
         onRowClicked: (params) => {
-          if (params.data) showDetail(params.data);
+          if (!params.data) return;
+          const panel = document.getElementById("detailPanel");
+          if (
+            panel.classList.contains("open") &&
+            selectedEvidence?.id === params.data.id
+          ) {
+            hideDetail();
+            return;
+          }
+          showDetail(params.data);
         },
         // Handle grid errors gracefully
         onGridSizeChanged: (params) => {
           try {
             const gridEl = document.getElementById("evidenceGrid");
             if (!gridEl || gridEl.offsetWidth === 0) return;
-            params.api.sizeColumnsToFit();
+            autoFitGrid();
           } catch (e) {
             console.warn("Grid size adjustment failed:", e);
           }
@@ -1543,9 +2450,12 @@
       const gridDiv = document.getElementById("evidenceGrid");
 
       // Apply theme from admin settings
-      const theme = adminGridConfig.theme || 'quartz';
-      gridDiv.className = `ag-theme-${theme}`;
-      console.log('[Grid Config] Applied theme:', theme);
+      const requestedTheme = String(adminGridConfig.theme || "quartz").toLowerCase();
+      const supportedThemes = new Set(["quartz", "alpine"]);
+      const theme = supportedThemes.has(requestedTheme) ? requestedTheme : "quartz";
+      // Keep our custom theme class alongside the base theme.
+      gridDiv.className = `ag-theme-${theme} ag-theme-vericase`;
+      console.log("[Grid Config] Applied theme:", theme);
 
       // Use createGrid API (v31+) instead of deprecated new Grid()
       gridApi = agGrid.createGrid(gridDiv, gridOptions);
@@ -1634,12 +2544,24 @@
 
       const filterModel = {};
 
-      // Category filter -> is_image flag
+      // Category filter -> MIME type based filtering
       if (currentCategory === "images") {
-        filterModel["is_image"] = true;
+        // Filter for images, videos, and audio files
+        filterModel["mime_type"] = {
+          filterType: "text",
+          type: "startsWith",
+          filter: "image/",
+        };
       } else if (currentCategory === "documents") {
-        filterModel["is_image"] = false;
+        // Filter for documents (exclude images, videos, audio)
+        // Use a combination filter: application/* or text/* but not image/*, video/*, audio/*
+        filterModel["mime_type"] = {
+          filterType: "text",
+          type: "startsWith",
+          filter: "application/",
+        };
       }
+      // "all" category doesn't add any filter - show everything
 
       // Search filter -> filename contains
       const search = document
@@ -1787,6 +2709,17 @@
       const collectionArray = Array.isArray(collections)
         ? collections
         : collections.collections || [];
+      const seenNames = new Set(["all evidence"]);
+      const filtered = [];
+      collectionArray.forEach((c) => {
+        const name = (c?.name || "").trim();
+        if (!name) return;
+        const key = name.toLowerCase();
+        if (seenNames.has(key)) return;
+        seenNames.add(key);
+        filtered.push(c);
+      });
+      collectionsCache = filtered;
 
       let html = `
                 <div class="collection-item active" data-id="">
@@ -1795,16 +2728,64 @@
                 </div>
             `;
 
-      collectionArray.forEach((c) => {
-        const icon = c.is_system ? "fa-folder-open" : "fa-folder";
-        html += `
+      // Check if auto-categorize is enabled (load from saved config per project/case)
+      const evidenceConfig = loadEvidenceConfig();
+      const autoCategorize = evidenceConfig.autoCategorize || false;
+      
+      if (autoCategorize) {
+        // Build hierarchy from parent_id relationships
+        const collectionMap = new Map();
+        const rootCollections = [];
+        
+        filtered.forEach((c) => {
+          collectionMap.set(c.id, { ...c, children: [] });
+        });
+        
+        filtered.forEach((c) => {
+          if (c.parent_id && collectionMap.has(c.parent_id)) {
+            collectionMap.get(c.parent_id).children.push(collectionMap.get(c.id));
+          } else {
+            rootCollections.push(collectionMap.get(c.id));
+          }
+        });
+        
+        // Render hierarchical structure
+        function renderCollectionItem(collection, level = 0) {
+          const icon = collection.is_system ? "fa-folder-open" : "fa-folder";
+          const nestedClass = level > 0 ? ` nested${level > 3 ? "-3" : level > 2 ? "-2" : ""}` : "";
+          let itemHtml = `
+            <div class="collection-item${nestedClass}" data-id="${collection.id}">
+                <i class="fas ${icon}"></i>
+                ${escapeHtml(collection.name)}
+                <span class="collection-count">${collection.item_count || 0}</span>
+            </div>
+          `;
+          
+          if (collection.children && collection.children.length > 0) {
+            collection.children.forEach(child => {
+              itemHtml += renderCollectionItem(child, level + 1);
+            });
+          }
+          
+          return itemHtml;
+        }
+        
+        rootCollections.forEach(c => {
+          html += renderCollectionItem(c);
+        });
+      } else {
+        // Flat list (original behavior)
+        filtered.forEach((c) => {
+          const icon = c.is_system ? "fa-folder-open" : "fa-folder";
+          html += `
                     <div class="collection-item" data-id="${c.id}">
                         <i class="fas ${icon}"></i>
                         ${escapeHtml(c.name)}
                         <span class="collection-count">${c.item_count || 0}</span>
                     </div>
                 `;
-      });
+        });
+      }
 
       list.innerHTML = html;
       // Note: Click handler is attached via event delegation in DOMContentLoaded
@@ -1821,6 +2802,37 @@
         }
       } catch (error) {
         console.error("Error loading collections:", error);
+      }
+    }
+
+    async function createSubfolder() {
+      const name = prompt("Enter subfolder name:");
+      if (!name || !name.trim()) return;
+
+      const activeCollection = document.querySelector(".collection-item.active");
+      const parentId = activeCollection?.dataset.id || null;
+
+      try {
+        const response = await fetch(`${apiUrl}/api/evidence/collections`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name.trim(),
+            parent_id: parentId || null,
+            is_system: false,
+          }),
+        });
+
+        if (response.ok) {
+          VericaseUI.Toast.success("Subfolder created successfully");
+          await loadCollections();
+        } else {
+          const error = await response.json();
+          VericaseUI.Toast.error(error.detail || "Failed to create subfolder");
+        }
+      } catch (error) {
+        console.error("Error creating subfolder:", error);
+        VericaseUI.Toast.error("Failed to create subfolder");
       }
     }
 
@@ -1843,7 +2855,9 @@
       document.getElementById("docCount").textContent = totalVal.toLocaleString();
       document.getElementById("allCount").textContent = totalVal.toLocaleString();
       const imgVal =
-        (stats.by_type && (stats.by_type.image || stats.by_type.photo || 0)) || 0;
+        stats.image_count ||
+        (stats.by_type && (stats.by_type.image || stats.by_type.photo || 0)) ||
+        0;
       document.getElementById("imgCount").textContent = imgVal.toLocaleString();
     }
 
@@ -1892,6 +2906,10 @@
 
         renderPreview(preview, detail);
         renderMetadata(detail, metadata);
+        updateEvidenceLaneButtons();
+        updateEvidenceNotePlaceholder();
+        loadEvidenceNotes();
+        await loadVeriCaseSuggestions(evidence.id, detail);
       } catch (error) {
         console.error("Error loading detail:", error);
         VericaseUI.Toast.error("Failed to load evidence details");
@@ -2067,6 +3085,105 @@
                 `;
       }
 
+      if (
+        detail.source_email_subject ||
+        detail.source_email_sender ||
+        detail.source_email_date ||
+        detail.source_email_preview ||
+        detail.source_email_message_id ||
+        detail.source_email_id
+      ) {
+        const toList = Array.isArray(detail.source_email_to)
+          ? detail.source_email_to.join(", ")
+          : detail.source_email_to || "";
+        const ccList = Array.isArray(detail.source_email_cc)
+          ? detail.source_email_cc.join(", ")
+          : detail.source_email_cc || "";
+        html += `
+                    <div class="detail-section">
+                        <div class="detail-section-header">
+                            <i class="fas fa-envelope-open-text"></i>
+                            <h4>Source Email</h4>
+                        </div>
+                        <div class="detail-grid">
+                            ${detail.source_email_subject
+                              ? `
+                                <div class="detail-item" style="grid-column: 1 / -1;">
+                                    <div class="detail-label">Subject</div>
+                                    <div class="detail-value">${escapeHtml(detail.source_email_subject)}</div>
+                                </div>
+                            `
+                              : ""
+                            }
+                            ${detail.source_email_sender
+                              ? `
+                                <div class="detail-item">
+                                    <div class="detail-label">From</div>
+                                    <div class="detail-value">${escapeHtml(detail.source_email_sender)}</div>
+                                </div>
+                            `
+                              : ""
+                            }
+                            ${detail.source_email_date
+                              ? `
+                                <div class="detail-item">
+                                    <div class="detail-label">Date</div>
+                                    <div class="detail-value">${formatDate(detail.source_email_date)}</div>
+                                </div>
+                            `
+                              : ""
+                            }
+                            ${toList
+                              ? `
+                                <div class="detail-item" style="grid-column: 1 / -1;">
+                                    <div class="detail-label">To</div>
+                                    <div class="detail-value">${escapeHtml(toList)}</div>
+                                </div>
+                            `
+                              : ""
+                            }
+                            ${ccList
+                              ? `
+                                <div class="detail-item" style="grid-column: 1 / -1;">
+                                    <div class="detail-label">Cc</div>
+                                    <div class="detail-value">${escapeHtml(ccList)}</div>
+                                </div>
+                            `
+                              : ""
+                            }
+                            ${detail.source_email_message_id
+                              ? `
+                                <div class="detail-item" style="grid-column: 1 / -1;">
+                                    <div class="detail-label">Message ID</div>
+                                    <div class="detail-value" style="word-break: break-all;">${escapeHtml(detail.source_email_message_id)}</div>
+                                </div>
+                            `
+                              : ""
+                            }
+                            ${detail.source_email_id &&
+                            detail.source_email_id !== detail.source_email_message_id
+                              ? `
+                                <div class="detail-item" style="grid-column: 1 / -1;">
+                                    <div class="detail-label">Email ID</div>
+                                    <div class="detail-value" style="word-break: break-all;">${escapeHtml(detail.source_email_id)}</div>
+                                </div>
+                            `
+                              : ""
+                            }
+                        </div>
+                        ${detail.source_email_preview
+                          ? `
+                            <div class="detail-item" style="margin-top: 12px;">
+                                <div class="detail-label">Preview</div>
+                                <div class="detail-value">${escapeHtml(detail.source_email_preview)}</div>
+                            </div>
+                        `
+                          : ""
+                        }
+                    </div>
+                `;
+      }
+
       // Image EXIF
       if (meta.width || meta.camera_make || meta.date_taken) {
         html += `
@@ -2137,6 +3254,32 @@
                 `;
       }
 
+      // Filing
+      const filingCollections = getFilingCollections();
+      if (filingCollections.length) {
+        html += `
+                    <div class="detail-section">
+                        <div class="detail-section-header">
+                            <i class="fas fa-folder-open"></i>
+                            <h4>File Document</h4>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Collection</div>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <select id="collectionSelect" class="filter-select" style="flex: 1; min-width: 0;">
+                                    <option value="">Select collection...</option>
+                                    ${filingCollections
+                                      .map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
+                                      .join("")}
+                                </select>
+                                <button class="btn btn-vericase btn-sm" id="assignCollectionBtn">File</button>
+                                <button class="btn btn-ghost btn-sm" id="autoFileBtn">Auto-file</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+      }
+
       // Linked Correspondence
       if (detail.correspondence_links?.length > 0) {
         html += `
@@ -2186,12 +3329,256 @@
       }
 
       content.innerHTML = html;
+      setupCollectionActions();
     }
 
     function hideDetail() {
       document.getElementById("detailPanel").classList.remove("open");
       selectedEvidence = null;
       currentPreviewData = null;
+      const thread = document.getElementById("evidenceCommentThread");
+      if (thread) {
+        thread.innerHTML = `<div class="collab-empty">Select an item to view notes.</div>`;
+      }
+      const input = document.getElementById("evidenceCommentInput");
+      if (input) {
+        input.value = "";
+      }
+      // Clear suggestions
+      const suggestionsBody = document.getElementById("vericaseSuggestionsBody");
+      if (suggestionsBody) {
+        suggestionsBody.innerHTML = `
+          <div class="suggestions-empty-state">
+            <i class="fas fa-lightbulb"></i>
+            <p>Select an evidence item to see AI-powered suggestions</p>
+          </div>
+        `;
+      }
+    }
+
+    // ============================================
+    // VERICASE SUGGESTIONS
+    // ============================================
+
+    async function loadVeriCaseSuggestions(evidenceId, detail) {
+      const suggestionsBody = document.getElementById("vericaseSuggestionsBody");
+      if (!suggestionsBody) return;
+
+      // Show loading state
+      suggestionsBody.innerHTML = `
+        <div class="suggestions-loading">
+          <div class="loading" style="width: 24px; height: 24px; border-width: 2px;"></div>
+          <span>Loading suggestions...</span>
+        </div>
+      `;
+
+      try {
+        // Fetch suggestions from API
+        const response = await fetch(`${apiUrl}/api/evidence/items/${evidenceId}/suggestions`);
+        let suggestions = null;
+        
+        if (response.ok) {
+          suggestions = await response.json();
+        } else {
+          // If API doesn't exist yet, generate suggestions from available data
+          suggestions = generateSuggestionsFromDetail(detail);
+        }
+
+        renderVeriCaseSuggestions(suggestions, detail);
+      } catch (error) {
+        console.error("Error loading suggestions:", error);
+        // Fallback to generating from detail data
+        const suggestions = generateSuggestionsFromDetail(detail);
+        renderVeriCaseSuggestions(suggestions, detail);
+      }
+    }
+
+    function generateSuggestionsFromDetail(detail) {
+      const suggestions = {
+        link_suggestions: [],
+        classification: null,
+        extraction_status: {
+          dates: detail.extracted_dates || [],
+          parties: detail.extracted_parties || [],
+          amounts: detail.extracted_amounts || [],
+        },
+        similar_items: [],
+      };
+
+      // Check if there's a source email - that's a link suggestion
+      if (detail.source_email_id && detail.source_email_subject) {
+        suggestions.link_suggestions.push({
+          email_id: detail.source_email_id,
+          email_subject: detail.source_email_subject,
+          email_sender: detail.source_email_sender,
+          email_date: detail.source_email_date,
+          link_type: "Email Attachment",
+          confidence: 100,
+          method: "Direct attachment",
+        });
+      }
+
+      // Suggest collection based on evidence type
+      if (detail.evidence_type) {
+        const typeToCollection = {
+          drawing: "Drawings",
+          photo: "Photos",
+          document: "Documents",
+        };
+        const suggestedCollection = typeToCollection[detail.evidence_type];
+        if (suggestedCollection) {
+          suggestions.classification = {
+            collection_name: suggestedCollection,
+            confidence: 75,
+            reason: `Based on evidence type: ${detail.evidence_type}`,
+          };
+        }
+      }
+
+      return suggestions;
+    }
+
+    function renderVeriCaseSuggestions(suggestions, detail) {
+      const suggestionsBody = document.getElementById("vericaseSuggestionsBody");
+      if (!suggestionsBody) return;
+
+      let html = "";
+
+      // Link Suggestions
+      if (suggestions.link_suggestions && suggestions.link_suggestions.length > 0) {
+        html += `
+          <div class="suggestion-group">
+            <div class="suggestion-group-header">
+              <i class="fas fa-link"></i>
+              <span>Link Suggestions</span>
+            </div>
+            <div class="suggestion-list">
+              ${suggestions.link_suggestions.map(link => `
+                <div class="suggestion-item suggestion-link">
+                  <div class="suggestion-item-content">
+                    <div class="suggestion-item-title">
+                      <i class="fas fa-envelope"></i>
+                      ${escapeHtml(link.email_subject || "Email")}
+                    </div>
+                    <div class="suggestion-item-meta">
+                      ${link.email_sender ? escapeHtml(link.email_sender) : ""}
+                      ${link.email_date ? ` • ${formatDate(link.email_date)}` : ""}
+                      ${link.confidence ? ` • ${link.confidence}% confidence` : ""}
+                    </div>
+                    ${link.context ? `<div class="suggestion-item-context">${escapeHtml(link.context)}</div>` : ""}
+                  </div>
+                  ${link.email_id ? `
+                    <button class="btn btn-sm btn-ghost" onclick="openSourceEmail('${link.email_id}')" title="View email">
+                      <i class="fas fa-external-link-alt"></i>
+                    </button>
+                  ` : ""}
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        `;
+      }
+
+      // Classification Suggestion
+      if (suggestions.classification) {
+        html += `
+          <div class="suggestion-group">
+            <div class="suggestion-group-header">
+              <i class="fas fa-folder"></i>
+              <span>Suggested Collection</span>
+            </div>
+            <div class="suggestion-item suggestion-classification">
+              <div class="suggestion-item-content">
+                <div class="suggestion-item-title">
+                  <i class="fas fa-folder-open"></i>
+                  ${escapeHtml(suggestions.classification.collection_name)}
+                </div>
+                ${suggestions.classification.reason ? `
+                  <div class="suggestion-item-context">${escapeHtml(suggestions.classification.reason)}</div>
+                ` : ""}
+                ${suggestions.classification.confidence ? `
+                  <div class="suggestion-item-meta">${suggestions.classification.confidence}% confidence</div>
+                ` : ""}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Extraction Status
+      const extraction = suggestions.extraction_status || {};
+      const hasExtractions = (extraction.dates && extraction.dates.length > 0) ||
+                            (extraction.parties && extraction.parties.length > 0) ||
+                            (extraction.amounts && extraction.amounts.length > 0);
+      
+      if (hasExtractions) {
+        html += `
+          <div class="suggestion-group">
+            <div class="suggestion-group-header">
+              <i class="fas fa-check-circle"></i>
+              <span>Extracted Metadata</span>
+            </div>
+            <div class="suggestion-item suggestion-extraction">
+              <div class="suggestion-item-content">
+                ${extraction.dates && extraction.dates.length > 0 ? `
+                  <div class="suggestion-item-meta">
+                    <i class="fas fa-calendar"></i>
+                    <strong>Dates:</strong> ${extraction.dates.slice(0, 3).map(d => escapeHtml(String(d))).join(", ")}
+                    ${extraction.dates.length > 3 ? ` +${extraction.dates.length - 3} more` : ""}
+                  </div>
+                ` : ""}
+                ${extraction.parties && extraction.parties.length > 0 ? `
+                  <div class="suggestion-item-meta">
+                    <i class="fas fa-users"></i>
+                    <strong>Parties:</strong> ${extraction.parties.slice(0, 3).map(p => escapeHtml(String(p))).join(", ")}
+                    ${extraction.parties.length > 3 ? ` +${extraction.parties.length - 3} more` : ""}
+                  </div>
+                ` : ""}
+                ${extraction.amounts && extraction.amounts.length > 0 ? `
+                  <div class="suggestion-item-meta">
+                    <i class="fas fa-pound-sign"></i>
+                    <strong>Amounts:</strong> ${extraction.amounts.slice(0, 3).map(a => escapeHtml(String(a))).join(", ")}
+                    ${extraction.amounts.length > 3 ? ` +${extraction.amounts.length - 3} more` : ""}
+                  </div>
+                ` : ""}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Similar Items
+      if (suggestions.similar_items && suggestions.similar_items.length > 0) {
+        html += `
+          <div class="suggestion-group">
+            <div class="suggestion-group-header">
+              <i class="fas fa-copy"></i>
+              <span>Similar Items</span>
+            </div>
+            <div class="suggestion-list">
+              ${suggestions.similar_items.map(item => `
+                <div class="suggestion-item suggestion-similar">
+                  <div class="suggestion-item-content">
+                    <div class="suggestion-item-title">${escapeHtml(item.filename || "Unknown")}</div>
+                    <div class="suggestion-item-meta">${item.similarity ? `${item.similarity}% similar` : ""}</div>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        `;
+      }
+
+      if (!html) {
+        html = `
+          <div class="suggestions-empty-state">
+            <i class="fas fa-lightbulb"></i>
+            <p>No suggestions available for this item</p>
+          </div>
+        `;
+      }
+
+      suggestionsBody.innerHTML = html;
     }
 
     // ============================================
@@ -2202,6 +3589,8 @@
       // Navigate to correspondence page with the specific email highlighted
       if (emailId && projectId) {
         window.location.href = `correspondence-enterprise.html?projectId=${projectId}&emailId=${emailId}`;
+      } else if (emailId && caseId) {
+        window.location.href = `correspondence-enterprise.html?caseId=${caseId}&emailId=${emailId}`;
       } else if (emailId) {
         VericaseUI.Toast.info('Opening email viewer...');
         // Could also open in a modal or panel
@@ -2382,17 +3771,45 @@
     // ============================================
 
     document.addEventListener("DOMContentLoaded", async () => {
+      // Get context (project or case)
+      const ctx =
+        typeof VericaseShell.getContext === "function"
+          ? VericaseShell.getContext()
+          : { type: "project", id: VericaseShell.getProjectId() };
+      const ctxType = ctx?.type === "case" ? "case" : "project";
+      const ctxLabel =
+        ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
+      const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
+      const ctxId = ctx?.id ? String(ctx.id) : "";
+      const ctxUrl = ctxId
+        ? `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+        : "dashboard.html";
+
       // Inject navigation shell
       VericaseShell.inject({
-        title: "Evidence Repository",
+        title: '',
+        breadcrumbs: [
+          { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+          { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
+          { label: "Evidence Repository", icon: "fa-folder-tree" },
+        ],
         headerActions: "",
+        contentClass: "app-content--flush evidence-page",
       });
 
-      // Get project context
-      projectId = VericaseShell.getProjectId();
+      if (ctx.type === "case") {
+        caseId = ctx.id;
+        projectId = "";
+      } else {
+        projectId = ctx.id;
+        caseId = "";
+      }
 
       // Initialize grid with admin config
       await initGrid();
+
+      // Apply initial filters for default category
+      applyFilters();
 
       // Load data after grid is ready
       loadAllData();
@@ -2407,6 +3824,30 @@
           currentCategory = tab.dataset.category;
           applyFilters();
         });
+      });
+
+      // Load and apply saved evidence configuration
+      const evidenceConfig = loadEvidenceConfig();
+      const autoCategorizeToggle = document.getElementById("autoCategorizeToggle");
+      if (autoCategorizeToggle) {
+        autoCategorizeToggle.checked = evidenceConfig.autoCategorize || false;
+      }
+
+      // Auto-categorize toggle - save per project/case
+      document.getElementById("autoCategorizeToggle").addEventListener("change", (e) => {
+        const config = loadEvidenceConfig();
+        config.autoCategorize = e.target.checked;
+        saveEvidenceConfig(config);
+        
+        // Re-render collections with hierarchy if enabled
+        if (collectionsCache.length > 0) {
+          renderCollections(collectionsCache);
+        }
+      });
+
+      // Create subfolder button
+      document.getElementById("createSubfolderBtn").addEventListener("click", () => {
+        createSubfolder();
       });
 
       // Collection list - use event delegation to avoid listener accumulation
@@ -2468,10 +3909,29 @@
         VericaseUI.Toast.info("Refreshing...");
         loadAllData();
       });
+
+      document.getElementById("columnsBtn").addEventListener("click", () => {
+        toggleColumnsPanel();
+      });
+
+      document.getElementById("saveGridBtn").addEventListener("click", () => {
+        saveGridState();
+      });
+
+      document.getElementById("resetGridBtn").addEventListener("click", () => {
+        resetGridState();
+      });
+
+      document.getElementById("autofitBtn").addEventListener("click", () => {
+        autoFitGrid(true);
+      });
       // Detail panel
       document
         .getElementById("closeDetailBtn")
         .addEventListener("click", hideDetail);
+      document
+        .getElementById("viewItemBtn")
+        .addEventListener("click", openFullPreview);
       document
         .getElementById("downloadBtn")
         .addEventListener("click", downloadCurrentFile);

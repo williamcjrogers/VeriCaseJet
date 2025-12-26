@@ -14,8 +14,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
     <!-- VeriCase Design System -->
-    <link rel="stylesheet" href="brand-styles.css" />
-    <link rel="stylesheet" href="design-system.css" />
+    <link rel="stylesheet" href="brand-styles.css?v=6" />
+    <link rel="stylesheet" href="design-system.css?v=6" />
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
 
@@ -815,6 +815,36 @@
         background: white;
       }
 
+      .lane-tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+      }
+
+      .lane-tab {
+        padding: 6px 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        border: 1px solid var(--gray-200);
+        border-radius: 999px;
+        background: white;
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .lane-tab:hover {
+        border-color: var(--gray-300);
+        color: var(--text-primary);
+      }
+
+      .lane-tab.active {
+        background: var(--vericase-teal);
+        border-color: var(--vericase-teal);
+        color: white;
+      }
+
       .collab-content {
         padding: 16px;
         max-height: 400px;
@@ -926,6 +956,35 @@
       .comment-tag.tag-amount { background: #d1fae5; color: #065f46; }
       .comment-tag.tag-clause { background: #fef3c7; color: #92400e; }
       .comment-tag.tag-reference { background: #e9d5ff; color: #7c3aed; }
+
+      .lane-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 0.625rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        background: var(--gray-100);
+        color: var(--text-muted);
+      }
+
+      .lane-badge.core {
+        background: rgba(15, 157, 154, 0.12);
+        color: #0f766e;
+      }
+
+      .lane-badge.counsel {
+        background: rgba(59, 130, 246, 0.12);
+        color: #1d4ed8;
+      }
+
+      .lane-badge.expert {
+        background: rgba(245, 158, 11, 0.16);
+        color: #b45309;
+      }
 
       .comment-actions {
         display: flex;
@@ -1890,11 +1949,14 @@
       // State Management
       // ==========================================
       let projectId = null;
+      let caseId = null;
       let cachedMatters = [];
       let cachedClaims = [];
       let selectedMatter = null;
       let selectedClaim = null;
       let currentStats = {};
+      let focusClaimId = null;
+      let focusMatterId = null;
 
       // For link modal
       window._linkableItems = [];
@@ -1904,9 +1966,23 @@
       // Initialization
       // ==========================================
       document.addEventListener('DOMContentLoaded', async () => {
-        projectId = VericaseShell.getProjectId();
+        const urlParams = new URLSearchParams(window.location.search);
+        focusClaimId = urlParams.get('claimId');
+        focusMatterId = urlParams.get('matterId');
+        if (focusClaimId === 'null' || focusClaimId === 'undefined') focusClaimId = null;
+        if (focusMatterId === 'null' || focusMatterId === 'undefined') focusMatterId = null;
 
-        if (!projectId) {
+        const ctx =
+          typeof VericaseShell.getContext === "function"
+            ? VericaseShell.getContext()
+            : { type: "project", id: VericaseShell.getProjectId() };
+        const ctxType = ctx?.type === "case" ? "case" : "project";
+        const ctxId = ctx?.id ? String(ctx.id) : "";
+
+        projectId = ctxType === "project" ? ctxId : "";
+        caseId = ctxType === "case" ? ctxId : "";
+
+        if (!projectId && !caseId) {
           VericaseShell.showProjectSelector({
             required: true,
             onSelect: (id) => {
@@ -1917,8 +1993,20 @@
           return;
         }
 
+        const ctxLabel =
+          ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
+        const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
+        const ctxUrl = ctxId
+          ? `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+          : "dashboard.html";
+
         VericaseShell.inject({
-          title: 'Claims & Matters',
+          title: '',
+          breadcrumbs: [
+            { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+            { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
+            { label: "Claims & Matters", icon: "fa-balance-scale" },
+          ],
           projectId: projectId
         });
 
@@ -1931,8 +2019,16 @@
           loadStats(),
           loadNotificationPreferences()
         ]);
-        // Load all claims initially (no matter filter)
-        await loadClaims();
+
+        if (focusMatterId) {
+          await focusMatterInUI(focusMatterId);
+        } else {
+          await loadClaims();
+        }
+
+        if (focusClaimId) {
+          await focusClaimInUI(focusClaimId);
+        }
       }
 
       // ==========================================
@@ -1959,6 +2055,52 @@
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+      }
+
+      function buildWorkspaceQuery(params = new URLSearchParams()) {
+        if (caseId) {
+          params.set('case_id', caseId);
+        } else if (projectId) {
+          params.set('project_id', projectId);
+        }
+        const query = params.toString();
+        return query ? `?${query}` : '';
+      }
+
+      function applyWorkspacePayload(payload) {
+        if (caseId) {
+          payload.case_id = caseId;
+        } else if (projectId) {
+          payload.project_id = projectId;
+        }
+        return payload;
+      }
+
+      function buildCollaborationHubUrl(focusType, focusId) {
+        const ctx =
+          typeof VericaseShell.getContext === "function"
+            ? VericaseShell.getContext()
+            : { type: "project", id: projectId };
+        const ctxType = ctx?.type === "case" ? "case" : "project";
+        const ctxId = ctx?.id ? String(ctx.id) : (ctxType === "case" ? caseId : projectId);
+
+        const url = new URL("collaboration-workspace.html", window.location.href);
+        if (ctxId) {
+          if (ctxType === "case") {
+            url.searchParams.set("caseId", ctxId);
+          } else {
+            url.searchParams.set("projectId", ctxId);
+          }
+        }
+        if (focusType && focusId) {
+          url.searchParams.set("focusType", focusType);
+          url.searchParams.set("focusId", focusId);
+        }
+        return url.toString();
+      }
+
+      function openCollaborationHub(focusType, focusId) {
+        window.location.href = buildCollaborationHubUrl(focusType, focusId);
       }
 
       async function refreshData() {
@@ -1988,10 +2130,9 @@
 
         try {
           const params = new URLSearchParams();
-          params.set('project_id', projectId);
           if (statusFilter) params.set('status', statusFilter);
 
-          const response = await VeriCaseConfig.apiCall(`/api/claims/matters?${params.toString()}`);
+          const response = await VeriCaseConfig.apiCall(`/api/claims/matters${buildWorkspaceQuery(params)}`);
           const data = await response.json();
 
           cachedMatters = data.items || [];
@@ -2054,11 +2195,10 @@
 
         try {
           const params = new URLSearchParams();
-          params.set('project_id', projectId);
           if (matterId) params.set('contentious_matter_id', matterId);
           if (statusFilter) params.set('status', statusFilter);
 
-          const response = await VeriCaseConfig.apiCall(`/api/claims/heads-of-claim?${params.toString()}`);
+          const response = await VeriCaseConfig.apiCall(`/api/claims/heads-of-claim${buildWorkspaceQuery(params)}`);
           const data = await response.json();
 
           cachedClaims = data.items || [];
@@ -2125,7 +2265,7 @@
       // ==========================================
       async function loadStats() {
         try {
-          const response = await VeriCaseConfig.apiCall(`/api/claims/stats?project_id=${projectId}`);
+          const response = await VeriCaseConfig.apiCall(`/api/claims/stats${buildWorkspaceQuery()}`);
           currentStats = await response.json();
           renderStatsBar();
         } catch (error) {
@@ -2156,6 +2296,55 @@
       // ==========================================
       // Selection & Master-Detail
       // ==========================================
+      async function focusMatterInUI(matterId) {
+        if (!matterId) return;
+        const target = cachedMatters.find(m => m.id === matterId);
+        if (!target) {
+          if (window.VericaseUI?.Toast) {
+            window.VericaseUI.Toast.warning('Matter not found in this workspace');
+          }
+          return;
+        }
+        await selectMatter(target.id);
+      }
+
+      async function focusClaimInUI(claimId) {
+        if (!claimId) return;
+        let claim = cachedClaims.find(c => c.id === claimId);
+
+        if (!claim) {
+          try {
+            const response = await VeriCaseConfig.apiCall(`/api/claims/heads-of-claim/${claimId}`);
+            if (response.ok) {
+              claim = await response.json();
+            }
+          } catch (error) {
+            console.error('Error loading claim for focus:', error);
+          }
+        }
+
+        if (!claim) {
+          if (window.VericaseUI?.Toast) {
+            window.VericaseUI.Toast.warning('Claim not found in this workspace');
+          }
+          return;
+        }
+
+        if (claim.contentious_matter_id) {
+          const matter = cachedMatters.find(m => m.id === claim.contentious_matter_id);
+          if (matter && (!selectedMatter || selectedMatter.id !== matter.id)) {
+            await selectMatter(matter.id);
+          }
+        }
+
+        if (!cachedClaims.find(c => c.id === claimId)) {
+          cachedClaims = [claim, ...cachedClaims];
+          renderClaims();
+        }
+
+        await selectClaim(claimId);
+      }
+
       async function selectMatter(matterId) {
         // Update selection state
         document.querySelectorAll('.claim-card[data-matter-id]').forEach(el => el.classList.remove('selected'));
@@ -2306,17 +2495,20 @@
             ${renderLinkedItems(linkedItems.evidence, 'evidence')}
           </div>
 
-          <div class="detail-section">
-            <div class="detail-section-title">Actions</div>
-            <div class="action-buttons">
-              <button class="btn btn-vericase" onclick="showEditMatterModal('${matter.id}')">
-                <i class="fas fa-edit"></i> Edit
-              </button>
-              <button class="btn btn-outline" style="color: var(--error); border-color: var(--error);" onclick="deleteMatter('${matter.id}')">
-                <i class="fas fa-trash"></i> Delete
-              </button>
-              <button class="btn btn-secondary" onclick="clearMatterSelection()">
-                <i class="fas fa-times"></i> Clear
+            <div class="detail-section">
+              <div class="detail-section-title">Actions</div>
+              <div class="action-buttons">
+                <button class="btn btn-vericase" onclick="showEditMatterModal('${matter.id}')">
+                  <i class="fas fa-edit"></i> Edit
+                </button>
+                <button class="btn btn-secondary" onclick="openCollaborationHub('matter', '${matter.id}')">
+                  <i class="fas fa-comments"></i> Collaboration Hub
+                </button>
+                <button class="btn btn-outline" style="color: var(--error); border-color: var(--error);" onclick="deleteMatter('${matter.id}')">
+                  <i class="fas fa-trash"></i> Delete
+                </button>
+                <button class="btn btn-secondary" onclick="clearMatterSelection()">
+                  <i class="fas fa-times"></i> Clear
               </button>
             </div>
           </div>
@@ -2440,6 +2632,11 @@
               <div class="collab-content" id="collabContent-${claim.id}">
                 <div id="aiResultArea-${claim.id}"></div>
                 <div id="discussionTab-${claim.id}" class="collab-tab-content">
+                  <div class="lane-tabs" data-claim-id="${claim.id}">
+                    <button class="lane-tab active" data-lane="core" onclick="setCollabLane('${claim.id}', 'core')">Core</button>
+                    <button class="lane-tab" data-lane="counsel" onclick="setCollabLane('${claim.id}', 'counsel')">Counsel</button>
+                    <button class="lane-tab" data-lane="expert" onclick="setCollabLane('${claim.id}', 'expert')">Expert</button>
+                  </div>
                   <div class="comment-search">
                     <input type="text"
                            class="comment-search-input"
@@ -2460,9 +2657,16 @@
                   </div>
                 </div>
                 <div id="evidenceNotesTab-${claim.id}" class="collab-tab-content" style="display: none;">
-                  <div class="empty-collab">
-                    <i class="fas fa-sticky-note"></i>
-                    <p>Comments on linked evidence will appear here</p>
+                  <div class="lane-tabs" data-claim-id="${claim.id}">
+                    <button class="lane-tab active" data-lane="core" onclick="setCollabLane('${claim.id}', 'core')">Core</button>
+                    <button class="lane-tab" data-lane="counsel" onclick="setCollabLane('${claim.id}', 'counsel')">Counsel</button>
+                    <button class="lane-tab" data-lane="expert" onclick="setCollabLane('${claim.id}', 'expert')">Expert</button>
+                  </div>
+                  <div id="evidenceNotesContent-${claim.id}">
+                    <div class="empty-collab">
+                      <i class="fas fa-sticky-note"></i>
+                      <p>Comments on linked evidence will appear here</p>
+                    </div>
                   </div>
                 </div>
                 <div id="activityTab-${claim.id}" class="collab-tab-content" style="display: none;">
@@ -2504,6 +2708,9 @@
               <button class="btn btn-vericase" onclick="showEditClaimModal('${claim.id}')">
                 <i class="fas fa-edit"></i> Edit
               </button>
+              <button class="btn btn-secondary" onclick="openCollaborationHub('claim', '${claim.id}')">
+                <i class="fas fa-comments"></i> Collaboration Hub
+              </button>
               <button class="btn btn-outline" style="color: var(--error); border-color: var(--error);" onclick="deleteClaim('${claim.id}')">
                 <i class="fas fa-trash"></i> Delete
               </button>
@@ -2512,6 +2719,7 @@
         `;
 
         // Load collaboration data for this claim
+        ensureCollabLane(claim.id);
         loadClaimCollaboration(claim.id);
       }
 
@@ -2617,9 +2825,9 @@
           status,
           priority,
           estimated_value: valueInput ? Math.round(parseFloat(valueInput) * 100) : null,
-          currency,
-          project_id: projectId
+          currency
         };
+        applyWorkspacePayload(payload);
 
         try {
           const url = matterId
@@ -2819,9 +3027,9 @@
           claimed_amount: amountInput ? Math.round(parseFloat(amountInput) * 100) : null,
           awarded_amount: awardedInput ? Math.round(parseFloat(awardedInput) * 100) : null,
           currency,
-          supporting_contract_clause: clause || null,
-          project_id: projectId
+          supporting_contract_clause: clause || null
         };
+        applyWorkspacePayload(payload);
 
         try {
           const url = claimId
@@ -2943,11 +3151,15 @@
           let items = [];
 
           if (itemType === 'correspondence') {
-            const response = await VeriCaseConfig.apiCall(`/api/correspondence/emails?project_id=${projectId}&limit=100`);
+            const params = new URLSearchParams();
+            params.set('limit', '100');
+            const response = await VeriCaseConfig.apiCall(`/api/correspondence/emails${buildWorkspaceQuery(params)}`);
             const data = await response.json();
             items = data.items || data.emails || [];
           } else {
-            const response = await VeriCaseConfig.apiCall(`/api/evidence?project_id=${projectId}&limit=100`);
+            const params = new URLSearchParams();
+            params.set('limit', '100');
+            const response = await VeriCaseConfig.apiCall(`/api/evidence${buildWorkspaceQuery(params)}`);
             const data = await response.json();
             items = data.items || data.evidence || [];
           }
@@ -3107,6 +3319,53 @@
       // ==========================================
       // Collaboration Functions
       // ==========================================
+      const collabLaneState = {};
+      const lanePlaceholders = {
+        core: 'Record working position. (facts, evidence points, next steps)',
+        counsel: 'Record submissions. (legal test, pleadings framing, authorities)',
+        expert: 'Record expert analysis. (methodology, assumptions, conclusions)'
+      };
+
+      function getCollabLane(claimId) {
+        return collabLaneState[claimId] || 'core';
+      }
+
+      function updateLaneButtons(claimId) {
+        const buttons = document.querySelectorAll(`.lane-tabs[data-claim-id="${claimId}"] .lane-tab`);
+        const activeLane = getCollabLane(claimId);
+        buttons.forEach(btn => {
+          if (btn.dataset.lane === activeLane) {
+            btn.classList.add('active');
+          } else {
+            btn.classList.remove('active');
+          }
+        });
+      }
+
+      function updateCommentPlaceholder(claimId) {
+        const input = document.getElementById(`commentInput-${claimId}`);
+        if (!input) return;
+        const lane = getCollabLane(claimId);
+        input.placeholder = lanePlaceholders[lane] || 'Add a comment... Use @ to mention someone';
+      }
+
+      function ensureCollabLane(claimId) {
+        if (!collabLaneState[claimId]) {
+          collabLaneState[claimId] = 'core';
+        }
+        updateLaneButtons(claimId);
+        updateCommentPlaceholder(claimId);
+      }
+
+      function setCollabLane(claimId, lane) {
+        collabLaneState[claimId] = lane;
+        updateLaneButtons(claimId);
+        updateCommentPlaceholder(claimId);
+
+        const searchTerm = currentSearchTerms[claimId] || '';
+        loadClaimCollaboration(claimId, searchTerm);
+        loadEvidenceComments(claimId);
+      }
 
       function toggleCollabSection(claimId) {
         const section = document.getElementById(`collabSection-${claimId}`);
@@ -3149,19 +3408,21 @@
       let currentSearchTerms = {};
 
       async function loadClaimCollaboration(claimId, searchTerm = '') {
+        ensureCollabLane(claimId);
         // Load unread count first to enable unread highlighting
         await loadUnreadCount(claimId);
 
         // Load comments
         try {
-          let url = `/api/claims/heads-of-claim/${claimId}/comments`;
+          const lane = getCollabLane(claimId);
+          let url = `/api/claims/comments/claim/${claimId}?lane=${encodeURIComponent(lane)}`;
           if (searchTerm && searchTerm.trim()) {
-            url += `?search=${encodeURIComponent(searchTerm.trim())}`;
+            url += `&search=${encodeURIComponent(searchTerm.trim())}`;
           }
           const response = await VeriCaseConfig.apiCall(url);
 
           // Sort pinned comments to top
-          const items = response.items || [];
+          const items = Array.isArray(response) ? response : (response.items || []);
           items.sort((a, b) => {
             if (a.is_pinned && !b.is_pinned) return -1;
             if (!a.is_pinned && b.is_pinned) return 1;
@@ -3199,10 +3460,11 @@
 
       async function loadEvidenceComments(claimId) {
         const container = document.getElementById(`evidenceNotesTab-${claimId}`);
+        const content = document.getElementById(`evidenceNotesContent-${claimId}`) || container;
         if (!container) return;
 
         // Show loading
-        container.innerHTML = `
+        content.innerHTML = `
           <div class="empty-collab">
             <i class="fas fa-spinner fa-spin"></i>
             <p>Loading evidence notes...</p>
@@ -3210,11 +3472,12 @@
         `;
 
         try {
-          const response = await VeriCaseConfig.apiCall(`/api/claims/heads-of-claim/${claimId}/evidence-comments`);
+          const lane = getCollabLane(claimId);
+          const response = await VeriCaseConfig.apiCall(`/api/claims/heads-of-claim/${claimId}/evidence-comments?lane=${encodeURIComponent(lane)}`);
           const items = response.items || [];
 
           if (items.length === 0) {
-            container.innerHTML = `
+            content.innerHTML = `
               <div class="empty-collab">
                 <i class="fas fa-sticky-note"></i>
                 <p>No linked evidence yet. Link evidence items to add notes.</p>
@@ -3223,10 +3486,10 @@
             return;
           }
 
-          container.innerHTML = items.map(group => renderEvidenceGroup(claimId, group)).join('');
+          content.innerHTML = items.map(group => renderEvidenceGroup(claimId, group)).join('');
         } catch (error) {
           console.error('Error loading evidence comments:', error);
-          container.innerHTML = `
+          content.innerHTML = `
             <div class="empty-collab">
               <i class="fas fa-exclamation-triangle"></i>
               <p>Failed to load evidence notes</p>
@@ -3289,6 +3552,8 @@
       function renderEvidenceComment(claimId, linkId, comment, isReply = false) {
         const timeAgo = formatTimeAgo(new Date(comment.created_at));
         const initials = getInitials(comment.created_by_name || 'User');
+        const laneValue = (comment.lane || 'core').toLowerCase();
+        const laneBadge = `<span class="lane-badge ${laneValue}">${laneValue}</span>`;
 
         let repliesHtml = '';
         if (comment.replies && comment.replies.length > 0) {
@@ -3301,7 +3566,7 @@
               <div class="comment-author">
                 <div class="comment-avatar">${initials}</div>
                 <div>
-                  <div class="comment-author-name">${escapeHtml(comment.created_by_name || 'User')}</div>
+                  <div class="comment-author-name">${escapeHtml(comment.created_by_name || 'User')} ${laneBadge}</div>
                   <div class="comment-time">${timeAgo}${comment.is_edited ? ' (edited)' : ''}</div>
                 </div>
               </div>
@@ -3334,10 +3599,11 @@
         if (!content) return;
 
         try {
+          const lane = getCollabLane(claimId);
           await VeriCaseConfig.apiCall(`/api/claims/links/${linkId}/comments`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content }),
+            body: JSON.stringify({ content, lane }),
           });
 
           input.value = '';
@@ -3438,6 +3704,8 @@
         const initials = getInitials(comment.created_by_name || 'User');
         let contentRendered = renderMarkdown(comment.content);
         const contentEscaped = escapeHtml(comment.content);
+        const laneValue = (comment.lane || 'core').toLowerCase();
+        const laneBadge = `<span class="lane-badge ${laneValue}">${laneValue}</span>`;
 
         // Highlight search term if present
         if (searchTerm && searchTerm.trim()) {
@@ -3472,7 +3740,7 @@
                 <div class="comment-avatar">${initials}</div>
                 <div>
                   <div class="comment-author-name">
-                    ${unreadIndicator}${escapeHtml(comment.created_by_name || 'User')}${pinnedBadge}
+                    ${unreadIndicator}${escapeHtml(comment.created_by_name || 'User')}${pinnedBadge} ${laneBadge}
                   </div>
                   <div class="comment-time">${timeAgo}${comment.is_edited ? ' (edited)' : ''}</div>
                 </div>
@@ -3773,7 +4041,7 @@
           hideMentionDropdown(claimId);
           const input = document.getElementById(`commentInput-${claimId}`);
           if (input) {
-            input.placeholder = 'Add a comment... Use @ to mention someone';
+            updateCommentPlaceholder(claimId);
           }
         }
       }
@@ -3804,12 +4072,17 @@
         }
 
         try {
-          const payload = { content };
+          const payload = {
+            content,
+            item_type: 'claim',
+            item_id: claimId,
+            lane: getCollabLane(claimId),
+          };
           if (replyingToCommentId) {
             payload.parent_comment_id = replyingToCommentId;
           }
 
-          await VeriCaseConfig.apiCall(`/api/claims/heads-of-claim/${claimId}/comments`, {
+          await VeriCaseConfig.apiCall(`/api/claims/comments`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -3818,7 +4091,7 @@
           // Clear input and reload comments
           input.value = '';
           replyingToCommentId = null;
-          input.placeholder = 'Add a comment... Use @ to mention someone';
+          updateCommentPlaceholder(claimId);
 
           VericaseUI.Toast.success('Comment posted');
           await loadClaimCollaboration(claimId);

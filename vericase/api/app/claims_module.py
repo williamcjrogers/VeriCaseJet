@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Annotated, List, Optional
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
@@ -36,6 +36,9 @@ from .models import (
     CommentReadStatus,
     UserNotificationPreferences,
 )
+from .ai_runtime import complete_chat
+from .ai_settings import get_ai_api_key
+from .deep_research import start_research, StartResearchRequest
 
 DbSession = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(current_user)]
@@ -53,6 +56,28 @@ def _parse_uuid(value: Optional[str], field: str) -> Optional[uuid.UUID]:
         return uuid.UUID(value)
     except Exception:
         raise HTTPException(400, f"Invalid {field} format. Expected UUID.")
+
+
+def _log_claim_activity(
+    db: Session,
+    action: str,
+    claim_id: Optional[uuid.UUID] = None,
+    user_id: uuid.UUID | None = None,
+    details: dict | None = None,
+) -> None:
+    """Log an activity entry for a head of claim."""
+    if claim_id is None:
+        logger.warning("Skipping activity log due to missing claim_id")
+        return
+
+    activity = CollaborationActivity(
+        action=action,
+        resource_type="claim",
+        resource_id=claim_id,
+        user_id=user_id,
+        details=details or {},
+    )
+    db.add(activity)
 
 
 # =============================================================================
@@ -202,6 +227,7 @@ class CommentCreate(BaseModel):
     item_type: Optional[str] = None
     item_id: Optional[str] = None
     parent_comment_id: Optional[str] = None
+    lane: Optional[str] = None
 
 
 class CommentUpdate(BaseModel):
@@ -215,6 +241,7 @@ class CommentResponse(BaseModel):
     item_type: Optional[str]
     item_id: Optional[str]
     parent_comment_id: Optional[str]
+    lane: str
     is_edited: bool
     edited_at: Optional[datetime]
     is_pinned: bool = False
@@ -223,6 +250,19 @@ class CommentResponse(BaseModel):
     created_by: Optional[str]
     created_by_name: Optional[str] = None
     replies: List["CommentResponse"] = []
+
+
+ALLOWED_LANES = {"core", "counsel", "expert"}
+
+
+def _normalize_lane(lane: Optional[str], default_core: bool = True) -> Optional[str]:
+    if lane is None or not str(lane).strip():
+        return "core" if default_core else None
+    normalized = str(lane).strip().lower()
+    if normalized not in ALLOWED_LANES:
+        allowed = ", ".join(sorted(ALLOWED_LANES))
+        raise HTTPException(400, f"Invalid lane. Allowed: {allowed}")
+    return normalized
 
 
 # =============================================================================
@@ -492,11 +532,13 @@ async def get_claim_team_members(
 @router.get("/heads-of-claim/{claim_id}/evidence-comments")
 async def get_evidence_comments(
     claim_id: str,
+    lane: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
     """Get comments on evidence/correspondence linked to this claim (evidence notes tab)"""
     claim_uuid = _parse_uuid(claim_id, "claim_id")
+    lane_filter = _normalize_lane(lane, default_core=False)
 
     # Verify claim exists
     claim = db.query(HeadOfClaim).filter(HeadOfClaim.id == claim_uuid).first()
@@ -545,15 +587,14 @@ async def get_evidence_comments(
                 )
 
         # Get comments on this link
-        comments = (
-            db.query(ItemComment)
-            .filter(
-                ItemComment.item_claim_link_id == link.id,
-                ItemComment.parent_comment_id.is_(None),
-            )
-            .order_by(ItemComment.created_at.desc())
-            .all()
+        comments_query = db.query(ItemComment).filter(
+            ItemComment.item_claim_link_id == link.id,
+            ItemComment.parent_comment_id.is_(None),
         )
+        if lane_filter:
+            comments_query = comments_query.filter(ItemComment.lane == lane_filter)
+
+        comments = comments_query.order_by(ItemComment.created_at.desc()).all()
 
         def build_comment_response(comment):
             creator_name = None
@@ -563,17 +604,19 @@ async def get_evidence_comments(
                     creator_name = creator.display_name or creator.email
 
             # Get replies
-            replies = (
-                db.query(ItemComment)
-                .filter(ItemComment.parent_comment_id == comment.id)
-                .order_by(ItemComment.created_at.asc())
-                .all()
+            replies_query = db.query(ItemComment).filter(
+                ItemComment.parent_comment_id == comment.id
             )
+            if lane_filter:
+                replies_query = replies_query.filter(ItemComment.lane == lane_filter)
+
+            replies = replies_query.order_by(ItemComment.created_at.asc()).all()
 
             return {
                 "id": str(comment.id),
                 "content": comment.content,
                 "item_claim_link_id": str(link.id),
+                "lane": comment.lane or "core",
                 "is_edited": comment.is_edited or False,
                 "edited_at": comment.edited_at,
                 "created_at": comment.created_at,
@@ -598,27 +641,6 @@ async def get_evidence_comments(
     result_items.sort(key=lambda x: x["comment_count"], reverse=True)
 
     return {"items": result_items, "total": len(result_items)}
-
-
-def _log_claim_activity(
-    db: Session,
-    action: str,
-    claim_id: Optional[uuid.UUID] = None,
-    user_id: uuid.UUID | None = None,
-    details: dict | None = None,
-) -> None:
-    """Log an activity entry for a head of claim."""
-    if claim_id is None:
-        logger.warning("Skipping activity log due to missing claim_id")
-        return
-    activity = CollaborationActivity(
-        action=action,
-        resource_type="claim",
-        resource_id=claim_id,
-        user_id=user_id,
-        details=details or {},
-    )
-    db.add(activity)
 
 
 # =============================================================================
@@ -838,7 +860,7 @@ async def update_head_of_claim(
 
     update_data = request.model_dump(exclude_unset=True)
 
-    # Handle contention_matter_id conversion
+    # Handle contentious_matter_id conversion
     if "contentious_matter_id" in update_data:
         cm_id = update_data["contentious_matter_id"]
         update_data["contentious_matter_id"] = (
@@ -1129,18 +1151,21 @@ async def delete_item_link(
 
 @router.get("/links/{link_id}/comments")
 async def get_link_comments(
-    link_id: str, db: Session = Depends(get_db), user: User = Depends(current_user)
+    link_id: str,
+    lane: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
 ):
     """Get comments for an item link"""
-    comments = (
-        db.query(ItemComment)
-        .filter(
-            ItemComment.item_claim_link_id == uuid.UUID(link_id),
-            ItemComment.parent_comment_id.is_(None),  # Top-level comments only
-        )
-        .order_by(ItemComment.created_at.asc())
-        .all()
+    lane_filter = _normalize_lane(lane, default_core=False)
+    query = db.query(ItemComment).filter(
+        ItemComment.item_claim_link_id == uuid.UUID(link_id),
+        ItemComment.parent_comment_id.is_(None),  # Top-level comments only
     )
+    if lane_filter:
+        query = query.filter(ItemComment.lane == lane_filter)
+
+    comments = query.order_by(ItemComment.created_at.asc()).all()
 
     def build_comment_tree(comment):
         creator_name = None
@@ -1149,12 +1174,13 @@ async def get_link_comments(
             if creator:
                 creator_name = creator.display_name or creator.email
 
-        replies = (
-            db.query(ItemComment)
-            .filter(ItemComment.parent_comment_id == comment.id)
-            .order_by(ItemComment.created_at.asc())
-            .all()
+        reply_query = db.query(ItemComment).filter(
+            ItemComment.parent_comment_id == comment.id
         )
+        if lane_filter:
+            reply_query = reply_query.filter(ItemComment.lane == lane_filter)
+
+        replies = reply_query.order_by(ItemComment.created_at.asc()).all()
 
         return CommentResponse(
             id=str(comment.id),
@@ -1167,6 +1193,7 @@ async def get_link_comments(
             parent_comment_id=(
                 str(comment.parent_comment_id) if comment.parent_comment_id else None
             ),
+            lane=comment.lane or "core",
             is_edited=comment.is_edited or False,
             edited_at=comment.edited_at,
             is_pinned=comment.is_pinned or False,
@@ -1195,12 +1222,14 @@ async def add_link_comment(
     if not link:
         raise HTTPException(404, "Item link not found")
 
+    lane_value = _normalize_lane(request.lane)
     comment = ItemComment(
         item_claim_link_id=uuid.UUID(link_id),
         content=request.content,
         parent_comment_id=(
             uuid.UUID(request.parent_comment_id) if request.parent_comment_id else None
         ),
+        lane=lane_value,
         created_by=user.id,
     )
 
@@ -1208,17 +1237,25 @@ async def add_link_comment(
     db.commit()
     db.refresh(comment)
 
-    return {"id": str(comment.id), "content": comment.content, "status": "created"}
+    return {
+        "id": str(comment.id),
+        "content": comment.content,
+        "lane": comment.lane,
+        "status": "created",
+    }
 
 
 @router.get("/comments/{item_type}/{item_id}")
 async def get_item_comments(
     item_type: str,
     item_id: str,
+    lane: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
     """Get all comments for a specific item (correspondence or evidence)"""
+    lane_filter = _normalize_lane(lane, default_core=False)
     # Get comments from linked items
     link_ids = (
         db.query(ItemClaimLink.id)
@@ -1232,56 +1269,63 @@ async def get_item_comments(
     link_ids = [link.id for link in link_ids]
 
     # Get direct comments and linked comments
-    comments = (
-        db.query(ItemComment)
-        .filter(
-            or_(
-                and_(
-                    ItemComment.item_type == item_type,
-                    ItemComment.item_id == uuid.UUID(item_id),
-                ),
-                ItemComment.item_claim_link_id.in_(link_ids),
+    comments_query = db.query(ItemComment).filter(
+        or_(
+            and_(
+                ItemComment.item_type == item_type,
+                ItemComment.item_id == uuid.UUID(item_id),
             ),
-            ItemComment.parent_comment_id.is_(None),
-        )
-        .order_by(ItemComment.created_at.asc())
-        .all()
+            ItemComment.item_claim_link_id.in_(link_ids),
+        ),
+        ItemComment.parent_comment_id.is_(None),
     )
+    if lane_filter:
+        comments_query = comments_query.filter(ItemComment.lane == lane_filter)
+    if search and search.strip():
+        comments_query = comments_query.filter(
+            ItemComment.content.ilike(f"%{search.strip()}%")
+        )
 
-    result = []
-    for comment in comments:
+    comments = comments_query.order_by(ItemComment.created_at.asc()).all()
+
+    def build_comment_tree(comment):
         creator_name = None
         if comment.created_by:
             creator = db.query(User).filter(User.id == comment.created_by).first()
             if creator:
                 creator_name = creator.display_name or creator.email
 
-        result.append(
-            CommentResponse(
-                id=str(comment.id),
-                content=comment.content,
-                item_claim_link_id=(
-                    str(comment.item_claim_link_id)
-                    if comment.item_claim_link_id
-                    else None
-                ),
-                item_type=comment.item_type,
-                item_id=str(comment.item_id) if comment.item_id else None,
-                parent_comment_id=(
-                    str(comment.parent_comment_id)
-                    if comment.parent_comment_id
-                    else None
-                ),
-                is_edited=comment.is_edited or False,
-                edited_at=comment.edited_at,
-                created_at=comment.created_at,
-                created_by=str(comment.created_by) if comment.created_by else None,
-                created_by_name=creator_name,
-                replies=[],
-            )
+        reply_query = db.query(ItemComment).filter(
+            ItemComment.parent_comment_id == comment.id
+        )
+        if lane_filter:
+            reply_query = reply_query.filter(ItemComment.lane == lane_filter)
+
+        replies = reply_query.order_by(ItemComment.created_at.asc()).all()
+
+        return CommentResponse(
+            id=str(comment.id),
+            content=comment.content,
+            item_claim_link_id=(
+                str(comment.item_claim_link_id) if comment.item_claim_link_id else None
+            ),
+            item_type=comment.item_type,
+            item_id=str(comment.item_id) if comment.item_id else None,
+            parent_comment_id=(
+                str(comment.parent_comment_id) if comment.parent_comment_id else None
+            ),
+            lane=comment.lane or "core",
+            is_edited=comment.is_edited or False,
+            edited_at=comment.edited_at,
+            is_pinned=comment.is_pinned or False,
+            pinned_at=comment.pinned_at,
+            created_at=comment.created_at,
+            created_by=str(comment.created_by) if comment.created_by else None,
+            created_by_name=creator_name,
+            replies=[build_comment_tree(reply) for reply in replies],
         )
 
-    return result
+    return [build_comment_tree(comment) for comment in comments]
 
 
 @router.post("/comments")
@@ -1291,6 +1335,7 @@ async def create_comment(
     user: User = Depends(current_user),
 ):
     """Create a direct comment on an item"""
+    lane_value = _normalize_lane(request.lane)
     comment = ItemComment(
         item_claim_link_id=(
             uuid.UUID(request.item_claim_link_id)
@@ -1303,6 +1348,7 @@ async def create_comment(
             uuid.UUID(request.parent_comment_id) if request.parent_comment_id else None
         ),
         content=request.content,
+        lane=lane_value,
         created_by=user.id,
     )
 
@@ -1310,7 +1356,12 @@ async def create_comment(
     db.commit()
     db.refresh(comment)
 
-    return {"id": str(comment.id), "content": comment.content, "status": "created"}
+    return {
+        "id": str(comment.id),
+        "content": comment.content,
+        "lane": comment.lane,
+        "status": "created",
+    }
 
 
 @router.put("/comments/{comment_id}")
@@ -1442,6 +1493,58 @@ class AIResponse(BaseModel):
     model_used: Optional[str] = None
 
 
+@router.post("/heads-of-claim/{claim_id}/research")
+async def start_claim_research(
+    claim_id: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """
+    Initialize a Deep Research session for this claim.
+    Automatically gathers context from claim details and linked evidence.
+    """
+    claim_uuid = _parse_uuid(claim_id, "claim_id")
+    claim = db.query(HeadOfClaim).filter(HeadOfClaim.id == claim_uuid).first()
+
+    if not claim:
+        raise HTTPException(404, "Head of claim not found")
+
+    # Gather context
+    topic = f"Investigate claim: {claim.name}"
+    if claim.description:
+        topic += f"\n\nClaim Description:\n{claim.description}"
+
+    # Get linked items for context (reserved for future use)
+    _links = (  # noqa: F841
+        db.query(ItemClaimLink)
+        .filter(
+            ItemClaimLink.head_of_claim_id == claim_uuid,
+            ItemClaimLink.status == "active",
+        )
+        .all()
+    )
+
+    focus_areas = []
+    if claim.claim_type:
+        focus_areas.append(f"Claim Type: {claim.claim_type}")
+    if claim.supporting_contract_clause:
+        focus_areas.append(f"Contract Clause: {claim.supporting_contract_clause}")
+
+    # Create research request
+    request = StartResearchRequest(
+        topic=topic,
+        project_id=str(claim.project_id) if claim.project_id else None,
+        case_id=str(claim.case_id) if claim.case_id else None,
+        focus_areas=focus_areas,
+    )
+
+    # Call deep research module
+    return await start_research(
+        request=request, background_tasks=background_tasks, user=user, db=db
+    )
+
+
 @router.post("/heads-of-claim/{claim_id}/ai/summarize")
 async def ai_summarize_discussion(
     claim_id: str,
@@ -1450,8 +1553,6 @@ async def ai_summarize_discussion(
     user: User = Depends(current_user),
 ):
     """AI-powered summary of claim discussion threads"""
-    from .ai_runtime import complete_chat
-    from .ai_settings import get_ai_api_key
 
     claim_uuid = _parse_uuid(claim_id, "claim_id")
 
@@ -1536,8 +1637,6 @@ async def ai_suggest_evidence(
     user: User = Depends(current_user),
 ):
     """AI-powered evidence suggestions based on claim discussion"""
-    from .ai_runtime import complete_chat
-    from .ai_settings import get_ai_api_key
 
     claim_uuid = _parse_uuid(claim_id, "claim_id")
 
@@ -1645,8 +1744,6 @@ async def ai_draft_reply(
     user: User = Depends(current_user),
 ):
     """AI-assisted reply drafting for claim discussions"""
-    from .ai_runtime import complete_chat
-    from .ai_settings import get_ai_api_key
 
     claim_uuid = _parse_uuid(claim_id, "claim_id")
 
@@ -1694,26 +1791,18 @@ Context for reply: {request.context or "General response needed"}
 Draft a reply for the current user to post. Keep it concise but comprehensive."""
 
     try:
-        api_key = get_ai_api_key("openai", db) or get_ai_api_key("anthropic", db)
-        if not api_key:
-            raise HTTPException(503, "No AI provider configured")
-
-        provider = "openai" if get_ai_api_key("openai", db) else "anthropic"
-        model = "gpt-5-mini" if provider == "openai" else "claude-4.5-haiku"
-
         result = await complete_chat(
-            provider=provider,
-            model_id=model,
+            provider="gemini",
+            model_id="gemini-2.0-flash",
             prompt=prompt,
             system_prompt=system_prompt,
             db=db,
             max_tokens=500,
-            temperature=0.5,
         )
 
         return AIResponse(
             result=result,
-            model_used=f"{provider}/{model}",
+            model_used="gemini/gemini-2.0-flash",
         )
     except Exception as e:
         logger.error(f"AI draft reply failed: {e}")
@@ -1871,7 +1960,29 @@ async def add_reaction(
         action = "added"
 
     # Get updated reaction counts
-    reactions = _get_comment_reactions(db, comment_uuid, user.id)
+    reaction_groups = (
+        db.query(CommentReaction.emoji, func.count(CommentReaction.id))
+        .filter(CommentReaction.comment_id == comment_uuid)
+        .group_by(CommentReaction.emoji)
+        .all()
+    )
+
+    reactions = []
+    for group in reaction_groups:
+        reactions.append(
+            {
+                "emoji": group[0],
+                "count": group[1],
+                "users": [
+                    user.display_name or user.email
+                    for user in (db.query(User).filter(User.id == group.user_id).all())
+                ],
+                "user_reacted": any(
+                    r.emoji == request.emoji and r.user_id == user.id
+                    for r in comment.reactions
+                ),
+            }
+        )
 
     return {
         "status": action,
@@ -1906,7 +2017,34 @@ async def remove_reaction(
     db.delete(reaction)
     db.commit()
 
-    reactions = _get_comment_reactions(db, comment_uuid, user.id)
+    reaction_groups = (
+        db.query(CommentReaction.emoji, func.count(CommentReaction.id))
+        .filter(CommentReaction.comment_id == comment_uuid)
+        .group_by(CommentReaction.emoji)
+        .all()
+    )
+
+    # Check if current user still has a reaction on this comment
+    user_reactions = (
+        db.query(CommentReaction.emoji)
+        .filter(
+            CommentReaction.comment_id == comment_uuid,
+            CommentReaction.user_id == user.id,
+        )
+        .all()
+    )
+    user_emojis = {r[0] for r in user_reactions}
+
+    reactions = []
+    for group in reaction_groups:
+        reactions.append(
+            {
+                "emoji": group[0],
+                "count": group[1],
+                "users": [],
+                "user_reacted": group[0] in user_emojis,
+            }
+        )
 
     return {
         "status": "removed",
@@ -1924,50 +2062,15 @@ async def get_reactions(
     """Get all reactions for a comment"""
     comment_uuid = _parse_uuid(comment_id, "comment_id")
 
-    reactions = _get_comment_reactions(db, comment_uuid, user.id)
+    reactions = (
+        db.query(CommentReaction)
+        .filter(
+            CommentReaction.comment_id == comment_uuid,
+        )
+        .all()
+    )
 
     return {"comment_id": comment_id, "reactions": reactions}
-
-
-def _get_comment_reactions(
-    db: Session,
-    comment_id: Optional[uuid.UUID] = None,
-    current_user_id: Optional[uuid.UUID] = None,
-) -> List[dict]:
-    """Helper to get reactions with counts and user info"""
-    if comment_id is None:
-        return []
-    # Get all reactions for this comment
-    all_reactions = (
-        db.query(CommentReaction).filter(CommentReaction.comment_id == comment_id).all()
-    )
-    # Group by emoji
-    emoji_groups: dict[str, list] = {}
-    for r in all_reactions:
-        if r.emoji not in emoji_groups:
-            emoji_groups[r.emoji] = []
-        emoji_groups[r.emoji].append(r)
-    result = []
-    for emoji in ALLOWED_EMOJIS:
-        reactions = emoji_groups.get(emoji, [])
-        if reactions:
-            user_names = []
-            user_reacted = False
-            for r in reactions:
-                reactor = db.query(User).filter(User.id == r.user_id).first()
-                if reactor:
-                    user_names.append(reactor.display_name or reactor.email)
-                if r.user_id == current_user_id:
-                    user_reacted = True
-            result.append(
-                {
-                    "emoji": emoji,
-                    "count": len(reactions),
-                    "users": user_names,
-                    "user_reacted": user_reacted,
-                }
-            )
-    return result
 
 
 # =============================================================================
@@ -2136,7 +2239,7 @@ async def get_unread_count(
 
 
 # =============================================================================
-# Notification Preferences Endpoints
+# User Notification Preferences Endpoints
 # =============================================================================
 
 

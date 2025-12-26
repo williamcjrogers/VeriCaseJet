@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import uuid
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum as PyEnum
 from typing import Annotated, Any
 
@@ -37,6 +37,14 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/timeline", tags=["timeline"])
+
+
+def _normalize_datetime(dt: datetime) -> datetime:
+    """Normalize datetime to UTC for safe comparison (handles tz-aware vs naive)."""
+    if dt.tzinfo is None:
+        # Assume naive datetimes are UTC
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 # =============================================================================
@@ -439,6 +447,14 @@ def _adapt_chronology_items(
         if item.event_type:
             tags.append(item.event_type)
 
+        related_ids = item.evidence_ids or []
+        dep_uris = [
+            rid
+            for rid in related_ids
+            if isinstance(rid, str) and rid.startswith("dep://")
+        ]
+        non_dep_related_ids = [rid for rid in related_ids if rid not in dep_uris]
+
         events.append(
             TimelineEvent(
                 id=f"chrono-{item.id}",
@@ -447,16 +463,17 @@ def _adapt_chronology_items(
                 event_type=TimelineEventType.CHRONOLOGY,
                 source_table=TimelineEventSource.CHRONOLOGY_ITEM,
                 source_id=str(item.id),
-                title=item.title,
+                title=item.title or "Untitled Event",
                 summary=item.description,
                 start_date=item.event_date,
                 is_critical=False,
                 tags=tags,
-                related_ids=item.evidence_ids or [],
+                related_ids=non_dep_related_ids,
                 meta={
                     "event_type": item.event_type,
                     "parties_involved": item.parties_involved,
                     "claim_id": str(item.claim_id) if item.claim_id else None,
+                    "dep_uris": dep_uris,
                 },
             )
         )
@@ -628,15 +645,22 @@ def _aggregate_timeline_events(
         all_events = [
             e
             for e in all_events
-            if search_lower in e.title.lower()
+            if (e.title and search_lower in e.title.lower())
             or (e.summary and search_lower in e.summary.lower())
         ]
 
     # Date range filtering (for non-email sources that weren't pre-filtered)
+    # Use normalized datetimes to avoid timezone-aware vs naive comparison errors
     if filters.start_date:
-        all_events = [e for e in all_events if e.start_date >= filters.start_date]
+        start_norm = _normalize_datetime(filters.start_date)
+        all_events = [
+            e for e in all_events if _normalize_datetime(e.start_date) >= start_norm
+        ]
     if filters.end_date:
-        all_events = [e for e in all_events if e.start_date <= filters.end_date]
+        end_norm = _normalize_datetime(filters.end_date)
+        all_events = [
+            e for e in all_events if _normalize_datetime(e.start_date) <= end_norm
+        ]
 
     # Sort by date (most recent first)
     all_events.sort(key=lambda x: x.start_date, reverse=True)

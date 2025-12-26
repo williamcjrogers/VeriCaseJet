@@ -1,10 +1,8 @@
 import logging
 import uuid
 from uuid import uuid4
-import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from threading import RLock
 from fastapi import FastAPI, Depends, HTTPException, Query, Body, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -57,9 +55,6 @@ from .models import (
     User,
     ShareLink,
     Folder,
-    Case,
-    Company,
-    UserCompany,
     UserRole,
     AppSetting,
 )
@@ -69,6 +64,7 @@ from .storage import (
     multipart_start,
     presign_part,
     multipart_complete,
+    ensure_bucket_once,
     get_object,
     put_object,
     delete_object,
@@ -118,8 +114,17 @@ from .claims_module import (
 )  # Contentious Matters and Heads of Claim
 from .dashboard_api import router as dashboard_router  # Master Dashboard API
 from .timeline import router as timeline_router  # Project Timeline (Event + Chronology)
+from .forensics import router as forensics_router  # DEP anchors + verification
+from .bundle_manifest import router as bundle_router  # Bundle MVP (manifest + hashes)
 from .delay_analysis import router as delay_analysis_router  # Delay Analysis AI agents
 from .collaboration import router as collaboration_router  # Collaboration features
+from .workspace_collaboration import (
+    router as workspace_router,
+)  # Workspace collaboration hub
+from .workspace_config import (
+    router as workspace_config_router,
+)  # Workspace config (stakeholders/keywords)
+from .workspaces import router as workspaces_router  # Workspaces API
 from .enhanced_api_routes import (
     aws_router,
 )  # AWS AI Services (Bedrock, Textract, Comprehend, etc.)
@@ -129,13 +134,18 @@ try:
 except ImportError:
     get_aws_services = None
 from .ai_models_api import router as ai_models_router  # 2025 AI Models API
+from .ai_optimization import (
+    router as ai_optimization_router,
+)  # AI Optimization Tracking
+from .routers.caselaw import router as caselaw_router  # Case Law Intelligence
+from .routers.lex import router as lex_router  # Lex legislation/caselaw API
 
 logger = logging.getLogger(__name__)
 bearer = HTTPBearer(auto_error=False)
 
-CSRF_TOKEN_STORE: dict[str, str] = {}
-CSRF_LOCK = RLock()
-CSRF_PATTERN = re.compile(r"^[a-f0-9]{64}$")
+# Shared CSRF verifier (also used by other routers).
+from .csrf import verify_csrf_token
+from .trace_context import reset_trace_context, set_trace_context
 
 
 def _parse_uuid(value: str) -> uuid.UUID:
@@ -144,41 +154,6 @@ def _parse_uuid(value: str) -> uuid.UUID:
     except (ValueError, AttributeError, TypeError):
         logger.debug(f"Invalid UUID format: {value}")
         raise HTTPException(400, "invalid document id")
-
-
-def verify_csrf_token(
-    request: Request,
-    creds: HTTPAuthorizationCredentials = Depends(bearer),
-) -> None:
-    """
-    Verify CSRF token for state-changing requests. Requires valid authentication credentials.
-    """
-    if not creds:
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    csrf_header = request.headers.get("X-CSRF-Token")
-
-    if not csrf_header:
-        raise HTTPException(status_code=403, detail="Missing CSRF token")
-
-    if not CSRF_PATTERN.match(csrf_header):
-        raise HTTPException(status_code=403, detail="Invalid CSRF token format")
-
-    token = creds.credentials
-
-    with CSRF_LOCK:
-        stored = CSRF_TOKEN_STORE.get(token)
-        if stored is None:
-            CSRF_TOKEN_STORE[token] = csrf_header
-            if len(CSRF_TOKEN_STORE) > 10000:
-                # Prune oldest entry to avoid unbounded growth
-                CSRF_TOKEN_STORE.pop(next(iter(CSRF_TOKEN_STORE)))
-        elif stored != csrf_header:
-            raise HTTPException(status_code=403, detail="CSRF token mismatch")
 
 
 class DocumentSummary(BaseModel):
@@ -368,10 +343,18 @@ app.include_router(dashboard_router)  # Master Dashboard API
 app.include_router(aws_router)  # AWS AI Services (Bedrock, Textract, Comprehend, etc.)
 app.include_router(ai_models_router)  # 2025 AI Models API
 app.include_router(timeline_router)  # Project Timeline (Event + Chronology)
+app.include_router(forensics_router)  # Forensic spans (DEP)
+app.include_router(bundle_router)  # Bundle manifest export
 app.include_router(delay_analysis_router)  # Delay Analysis AI agents
 app.include_router(
     collaboration_router
 )  # Collaboration features (comments, annotations, activity)
+app.include_router(workspace_router)  # Workspace collaboration hub
+app.include_router(workspace_config_router)  # Workspace config (stakeholders/keywords)
+app.include_router(workspaces_router)  # Workspaces API
+app.include_router(ai_optimization_router)  # AI Optimization Tracking
+app.include_router(caselaw_router)  # Case Law Intelligence
+app.include_router(lex_router)  # Lex legislation/caselaw API
 
 # NOTE: unified_router is no longer exported from correspondence.
 
@@ -387,6 +370,27 @@ if origins:
 
 # GZip compression for responses > 500 bytes (significant bandwidth savings for large JSON responses)
 app.add_middleware(GZipMiddleware, minimum_size=500)
+
+
+# Request-scoped trace context (chain_id/run_id) for forensic logging and replay
+@app.middleware("http")
+async def trace_request_context(request: Request, call_next):
+    incoming_chain_id = request.headers.get("x-chain-id") or request.headers.get(
+        "x-request-id"
+    )
+    chain_id = incoming_chain_id or str(uuid4())
+    run_id = request.headers.get("x-run-id")
+
+    tokens = set_trace_context(chain_id=chain_id, run_id=run_id)
+    try:
+        response = await call_next(request)
+    finally:
+        reset_trace_context(tokens)
+
+    response.headers.setdefault("X-Chain-ID", chain_id)
+    if run_id:
+        response.headers.setdefault("X-Run-ID", run_id)
+    return response
 
 
 # Custom middleware for HTTP caching headers on static assets
@@ -449,6 +453,21 @@ def redirect_to_master_dashboard():
     return RedirectResponse(url="/ui/master-dashboard.html")
 
 
+@app.get("/.well-known/appspecific/com.chrome.devtools.json", include_in_schema=False)
+def chrome_devtools_appspecific():
+    return Response(content="{}", media_type="application/json")
+
+
+@app.get("/{page}.html", include_in_schema=False)
+def redirect_ui_html(page: str):
+    if not UI_DIR:
+        raise HTTPException(status_code=404, detail="UI not available")
+    target = UI_DIR / f"{page}.html"
+    if target.exists():
+        return RedirectResponse(url=f"/ui/{page}.html")
+    raise HTTPException(status_code=404, detail="Page not found")
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint for monitoring"""
@@ -495,7 +514,10 @@ async def debug_ui():
 async def debug_auth(db: Session = Depends(get_db)):
     """Debug endpoint to check auth setup"""
     try:
+        # Check for new admin account first, fall back to old
         admin = db.query(User).filter(User.email == "admin@veri-case.com").first()
+        if not admin:
+            admin = db.query(User).filter(User.email == "admin@vericase.com").first()
         user_count = db.query(User).count()
 
         result = {
@@ -683,6 +705,25 @@ def startup():
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created")
 
+        # Best-effort bucket provisioning/verification for local MinIO and AWS S3.
+        # Upload endpoints (PST + evidence) require the bucket(s) to exist.
+        try:
+            candidate_buckets = {
+                getattr(settings, "MINIO_BUCKET", None),
+                getattr(settings, "S3_BUCKET", None),
+                getattr(settings, "S3_PST_BUCKET", None),
+                getattr(settings, "S3_ATTACHMENTS_BUCKET", None),
+                "vericase-docs",
+                "vericase-docs-prod-526015377510",
+            }
+            for b in sorted({b for b in candidate_buckets if b}):
+                ensure_bucket_once(b)
+            logger.info("Storage bucket(s) verified")
+        except Exception as bucket_err:
+            logger.warning(
+                "Storage bucket initialization skipped (non-fatal): %s", bucket_err
+            )
+
         # Load AI keys from AWS Secrets Manager FIRST (if configured)
         # This ensures production gets keys from Secrets Manager before DB sync.
         force_update_ai_keys = (
@@ -777,12 +818,95 @@ def startup():
                 logger.warning(f"Migration skipped for evidence_items: {e}")
                 conn.rollback()
 
+            # 4b. Evidence Items string column sizes (prevents truncation on long types)
+            # NOTE: `v_evidence_with_links` depends on evidence_items (SELECT ei.*),
+            # so we must drop/recreate it before altering column types.
+            try:
+                file_type_len_row = conn.execute(
+                    text(
+                        """
+                        SELECT character_maximum_length
+                        FROM information_schema.columns
+                        WHERE table_name = 'evidence_items' AND column_name = 'file_type'
+                        """
+                    )
+                ).fetchone()
+                mime_type_len_row = conn.execute(
+                    text(
+                        """
+                        SELECT character_maximum_length
+                        FROM information_schema.columns
+                        WHERE table_name = 'evidence_items' AND column_name = 'mime_type'
+                        """
+                    )
+                ).fetchone()
+
+                file_type_len = file_type_len_row[0] if file_type_len_row else None
+                mime_type_len = mime_type_len_row[0] if mime_type_len_row else None
+
+                needs_file_type_widen = (
+                    file_type_len is not None and int(file_type_len) < 255
+                )
+                needs_mime_type_widen = (
+                    mime_type_len is not None and int(mime_type_len) < 255
+                )
+
+                if needs_file_type_widen or needs_mime_type_widen:
+                    with conn.begin():
+                        conn.execute(text("DROP VIEW IF EXISTS v_evidence_with_links"))
+                        if needs_file_type_widen:
+                            conn.execute(
+                                text(
+                                    "ALTER TABLE evidence_items ALTER COLUMN file_type TYPE VARCHAR(255)"
+                                )
+                            )
+                        if needs_mime_type_widen:
+                            conn.execute(
+                                text(
+                                    "ALTER TABLE evidence_items ALTER COLUMN mime_type TYPE VARCHAR(255)"
+                                )
+                            )
+
+                        conn.execute(
+                            text(
+                                """
+                                CREATE OR REPLACE VIEW v_evidence_with_links AS
+                                SELECT
+                                    ei.*,
+                                    COALESCE(link_counts.correspondence_count, 0) as correspondence_count,
+                                    COALESCE(link_counts.verified_link_count, 0) as verified_link_count,
+                                    COALESCE(rel_counts.relation_count, 0) as relation_count
+                                FROM evidence_items ei
+                                LEFT JOIN (
+                                    SELECT
+                                        evidence_item_id,
+                                        COUNT(*) as correspondence_count,
+                                        COUNT(*) FILTER (WHERE is_verified) as verified_link_count
+                                    FROM evidence_correspondence_links
+                                    GROUP BY evidence_item_id
+                                ) link_counts ON ei.id = link_counts.evidence_item_id
+                                LEFT JOIN (
+                                    SELECT
+                                        source_evidence_id as evidence_id,
+                                        COUNT(*) as relation_count
+                                    FROM evidence_relations
+                                    GROUP BY source_evidence_id
+                                ) rel_counts ON ei.id = rel_counts.evidence_id
+                                """
+                            )
+                        )
+            except Exception as e:
+                logger.warning(
+                    "Migration skipped for evidence_items file_type/mime_type: %s", e
+                )
+                conn.rollback()
+
             # 5. Ensure Default Data (Robust Seeding)
             try:
-                # Get admin user ID for ownership
+                # Get admin user ID for ownership - check both admin accounts
                 result = conn.execute(
                     text(
-                        "SELECT id FROM users WHERE email = 'admin@vericase.com' LIMIT 1"
+                        "SELECT id FROM users WHERE email IN ('admin@vericase.com', 'admin@veri-case.com') ORDER BY created_at DESC LIMIT 1"
                     )
                 )
                 admin_row = result.fetchone()
@@ -854,8 +978,11 @@ def startup():
 
                         for col_name in missing_columns:
                             col = table.columns[col_name]
-                            # Build column type string
+                            # Build column type string - convert SQLAlchemy types to PostgreSQL
                             col_type = str(col.type)
+                            # Fix SQLAlchemy DATETIME → PostgreSQL TIMESTAMP
+                            if col_type.upper() == "DATETIME":
+                                col_type = "TIMESTAMP WITH TIME ZONE"
                             _nullable = "NULL" if col.nullable else "NOT NULL"
                             default = ""
                             if col.default is not None:
@@ -1099,79 +1226,9 @@ def get_current_user_info(
 
 
 # Projects/Cases
-def get_or_create_test_user(db: Session) -> User:
-    """TEMPORARY: always provide a test user so wizard can run without auth."""
-    user = db.query(User).filter(User.email == "test@vericase.com").first()
-    if user:
-        return user
-
-    user = User(
-        email="test@vericase.com",
-        password_hash=hash_password("test123"),
-        role=UserRole.VIEWER,
-        is_active=True,
-        email_verified=True,
-        display_name="Test User",
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
-
-
-@app.post("/api/projects")
-@app.post("/api/cases")
-def create_case(
-    payload: dict = Body(...),
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user),
-):
-    # user = get_or_create_test_user(db)
-
-    # Get or create company for this user
-    user_company = (
-        db.query(UserCompany)
-        .filter(UserCompany.user_id == user.id, UserCompany.is_primary.is_(True))
-        .first()
-    )
-    if user_company:
-        company = user_company.company
-    else:
-        # Create new company
-        company = Company(name=payload.get("company_name") or "My Company")
-        db.add(company)
-        db.flush()
-        # Link user to company
-        user_company = UserCompany(
-            user_id=user.id, company_id=company.id, role="admin", is_primary=True
-        )
-        db.add(user_company)
-        db.flush()
-
-    # Extract case data from wizard payload
-    details = payload.get("details", {})
-    stakeholders = payload.get("stakeholders", {})
-
-    case = Case(
-        case_number=details.get("projectCode") or f"CASE-{uuid4().hex[:8].upper()}",
-        name=details.get("projectName") or "Untitled Case",
-        description=details.get("description") or "",
-        project_name=details.get("projectName"),
-        contract_type=payload.get("contractType") or stakeholders.get("contractType"),
-        status="active",
-        owner_id=user.id,
-        company_id=company.id,
-    )
-    db.add(case)
-    db.commit()
-    db.refresh(case)
-
-    return {
-        "id": str(case.id),
-        "case_number": case.case_number,
-        "name": case.name,
-        "status": case.status,
-    }
+## Project and Case creation endpoints are implemented in the routers.
+## - Projects: POST /api/projects in simple_cases.py
+## - Cases: POST /api/cases in simple_cases.py (dev/testing) and cases.py (auth)
 
 
 # Uploads (presign and complete)
@@ -1295,14 +1352,13 @@ def complete_upload(
         )
 
         celery_app.send_task(
-            "app.process_pst_forensic",
-            args=[str(pst_file.id), doc.bucket, doc.s3_key],
-            kwargs={"case_id": case_id, "project_id": project_id},
+            "worker_app.worker.process_pst_file",
+            args=[str(pst_file.id)],
             queue=settings.CELERY_PST_QUEUE,
         )
 
-        # Mark as queued so the UI can show the job immediately.
-        pst_file.processing_status = "queued"
+        # Mark as pending so the UI can show the job immediately.
+        pst_file.processing_status = "pending"
         pst_file.error_message = None
         db.commit()
         return {
@@ -1373,16 +1429,15 @@ def admin_trigger_pst(
 
     # Queue the forensic processing task
     celery_app.send_task(
-        "app.process_pst_forensic",
-        args=[pst_file_id, settings.S3_BUCKET, s3_key],
-        kwargs={"project_id": project_id},
+        "worker_app.worker.process_pst_file",
+        args=[pst_file_id],
         queue=settings.CELERY_PST_QUEUE,
     )
 
-    # Mark as queued so the UI can show the job immediately.
+    # Mark as pending so the UI can show the job immediately.
     existing = db.query(PSTFile).filter(PSTFile.id == uuid.UUID(pst_file_id)).first()
     if existing:
-        existing.processing_status = "queued"
+        existing.processing_status = "pending"
         existing.error_message = None
         db.commit()
 
@@ -1466,7 +1521,7 @@ def admin_cleanup_pst(
     if include_stuck:
         for pst in candidates:
             status = pst.processing_status or ""
-            if status not in {"processing", "queued"}:
+            if status not in {"processing", "pending"}:
                 continue
             ref = _as_utc(pst.processing_started_at) or _as_utc(pst.uploaded_at)
             if ref is None or (now - ref) > stuck_delta:

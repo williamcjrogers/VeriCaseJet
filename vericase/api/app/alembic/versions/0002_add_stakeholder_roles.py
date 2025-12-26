@@ -124,66 +124,85 @@ DEFAULT_ROLES = [
 
 def upgrade() -> None:
     """Create stakeholder_roles table and seed with default system roles."""
-    # Create the table
-    op.create_table(
-        "stakeholder_roles",
-        sa.Column(
-            "id",
-            UUID(as_uuid=True),
-            primary_key=True,
-            server_default=sa.text("gen_random_uuid()"),
-        ),
-        sa.Column(
-            "project_id",
-            UUID(as_uuid=True),
-            sa.ForeignKey("projects.id"),
-            nullable=True,
-        ),
-        sa.Column(
-            "case_id", UUID(as_uuid=True), sa.ForeignKey("cases.id"), nullable=True
-        ),
-        sa.Column("name", sa.String(255), nullable=False),
-        sa.Column("description", sa.Text, nullable=True),
-        sa.Column("color_bg", sa.String(20), nullable=True, server_default="#f3f4f6"),
-        sa.Column("color_text", sa.String(20), nullable=True, server_default="#374151"),
-        sa.Column("display_order", sa.Integer, nullable=False, server_default="0"),
-        sa.Column("is_system", sa.Boolean, nullable=False, server_default="false"),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
-        ),
-        sa.Column(
-            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()
-        ),
-    )
+    # This migration is intentionally idempotent.
+    # In dev/prod we may have databases already bootstrapped via legacy scripts,
+    # and Alembic should still be able to "adopt" them without failing.
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
 
-    # Create indexes
-    op.create_index("idx_stakeholder_role_project", "stakeholder_roles", ["project_id"])
-    op.create_index("idx_stakeholder_role_case", "stakeholder_roles", ["case_id"])
+    created_table = False
+    if not inspector.has_table("stakeholder_roles"):
+        created_table = True
+        op.create_table(
+            "stakeholder_roles",
+            sa.Column(
+                "id",
+                UUID(as_uuid=True),
+                primary_key=True,
+                server_default=sa.text("gen_random_uuid()"),
+            ),
+            sa.Column(
+                "project_id",
+                UUID(as_uuid=True),
+                sa.ForeignKey("projects.id"),
+                nullable=True,
+            ),
+            sa.Column(
+                "case_id", UUID(as_uuid=True), sa.ForeignKey("cases.id"), nullable=True
+            ),
+            sa.Column("name", sa.String(255), nullable=False),
+            sa.Column("description", sa.Text, nullable=True),
+            sa.Column(
+                "color_bg", sa.String(20), nullable=True, server_default="#f3f4f6"
+            ),
+            sa.Column(
+                "color_text", sa.String(20), nullable=True, server_default="#374151"
+            ),
+            sa.Column("display_order", sa.Integer, nullable=False, server_default="0"),
+            sa.Column("is_system", sa.Boolean, nullable=False, server_default="false"),
+            sa.Column(
+                "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+            ),
+            sa.Column(
+                "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+            ),
+        )
 
-    # Insert default system roles (global, no project_id or case_id)
-    # These are system-level defaults that apply when no project-specific roles exist
-    stakeholder_roles = sa.table(
-        "stakeholder_roles",
-        sa.column("name", sa.String),
-        sa.column("color_bg", sa.String),
-        sa.column("color_text", sa.String),
-        sa.column("display_order", sa.Integer),
-        sa.column("is_system", sa.Boolean),
-    )
+    existing_indexes = {
+        ix.get("name") for ix in inspector.get_indexes("stakeholder_roles")
+    }
+    if "idx_stakeholder_role_project" not in existing_indexes:
+        op.create_index(
+            "idx_stakeholder_role_project", "stakeholder_roles", ["project_id"]
+        )
+    if "idx_stakeholder_role_case" not in existing_indexes:
+        op.create_index("idx_stakeholder_role_case", "stakeholder_roles", ["case_id"])
 
-    op.bulk_insert(
-        stakeholder_roles,
-        [
-            {
-                "name": role["name"],
-                "color_bg": role["color_bg"],
-                "color_text": role["color_text"],
-                "display_order": role["display_order"],
-                "is_system": True,
-            }
-            for role in DEFAULT_ROLES
-        ],
-    )
+    # Insert default system roles only when the table is newly created, to avoid
+    # duplicating data on databases already seeded by legacy bootstrap scripts.
+    if created_table:
+        stakeholder_roles = sa.table(
+            "stakeholder_roles",
+            sa.column("name", sa.String),
+            sa.column("color_bg", sa.String),
+            sa.column("color_text", sa.String),
+            sa.column("display_order", sa.Integer),
+            sa.column("is_system", sa.Boolean),
+        )
+
+        op.bulk_insert(
+            stakeholder_roles,
+            [
+                {
+                    "name": role["name"],
+                    "color_bg": role["color_bg"],
+                    "color_text": role["color_text"],
+                    "display_order": role["display_order"],
+                    "is_system": True,
+                }
+                for role in DEFAULT_ROLES
+            ],
+        )
 
 
 def downgrade() -> None:

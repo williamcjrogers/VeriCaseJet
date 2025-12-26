@@ -11,8 +11,8 @@
     />
     <!-- VeriCase Design System -->
     <link rel="stylesheet" href="assets/global.css" />
-    <link rel="stylesheet" href="brand-styles.css" />
-    <link rel="stylesheet" href="design-system.css" />
+    <link rel="stylesheet" href="brand-styles.css?v=6" />
+    <link rel="stylesheet" href="design-system.css?v=6" />
     <script src="vericase-ui.js"></script>
     <script src="security.js"></script>
     <script src="nav-shell.js"></script>
@@ -417,7 +417,11 @@
       document.addEventListener("DOMContentLoaded", () => {
         // Inject navigation shell
         VericaseShell.inject({
-          title: "User Approvals",
+          title: '',
+          breadcrumbs: [
+            { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+            { label: "User Approvals", icon: "fa-user-check" },
+          ],
           headerActions: "",
         });
 

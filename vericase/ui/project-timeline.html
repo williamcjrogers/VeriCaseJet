@@ -16,8 +16,8 @@
     />
 
     <!-- VeriCase Design System -->
-    <link rel="stylesheet" href="brand-styles.css" />
-    <link rel="stylesheet" href="design-system.css" />
+    <link rel="stylesheet" href="brand-styles.css?v=6" />
+    <link rel="stylesheet" href="design-system.css?v=6" />
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
     <script src="app-state.js"></script>
@@ -961,8 +961,26 @@
     <!-- Shell Injection -->
     <script>
       document.addEventListener('DOMContentLoaded', () => {
+        const ctx =
+          typeof VericaseShell.getContext === "function"
+            ? VericaseShell.getContext()
+            : { type: "project", id: VericaseShell.getProjectId() };
+        const ctxType = ctx?.type === "case" ? "case" : "project";
+        const ctxLabel =
+          ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
+        const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
+        const ctxId = ctx?.id ? String(ctx.id) : "";
+        const ctxUrl = ctxId
+          ? `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+          : "dashboard.html";
+
         VericaseShell.inject({
-          title: 'Project Timeline',
+          title: '',
+          breadcrumbs: [
+            { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+            { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
+            { label: "Project Timeline", icon: "fa-clock-rotate-left" },
+          ],
           headerActions: `
             <div class="view-controls" style="margin-right: 1rem;">
               <div class="view-toggle">
@@ -1182,23 +1200,32 @@
         }
 
         function getCaseId() {
-          // Try URL params, then localStorage
-          const urlParams = new URLSearchParams(window.location.search);
-          let caseId = urlParams.get('case_id') || urlParams.get('caseId');
-          
-          if (!caseId) {
-            const activeCase = localStorage.getItem('activeCase') || localStorage.getItem('activeCaseId');
-            if (activeCase) {
-              try {
-                const parsed = JSON.parse(activeCase);
-                caseId = parsed.id || parsed;
-              } catch {
-                caseId = activeCase;
-              }
-            }
+          if (window.VericaseShell && typeof window.VericaseShell.getContext === "function") {
+            const ctx = window.VericaseShell.getContext();
+            if (ctx?.type === "case" && ctx.id) return String(ctx.id);
           }
-          
-          return caseId;
+
+          const urlParams = new URLSearchParams(window.location.search);
+          const fromUrl = urlParams.get('case_id') || urlParams.get('caseId');
+          if (fromUrl && fromUrl !== 'undefined' && fromUrl !== 'null') return fromUrl;
+
+          const storedCase =
+            localStorage.getItem('currentCaseId') ||
+            localStorage.getItem('caseId') ||
+            localStorage.getItem('vericase_current_case') ||
+            localStorage.getItem('activeCaseId') ||
+            localStorage.getItem('activeCase');
+
+          if (!storedCase || storedCase === 'undefined' || storedCase === 'null') {
+            return '';
+          }
+
+          try {
+            const parsed = JSON.parse(storedCase);
+            return parsed?.id ? String(parsed.id) : String(parsed);
+          } catch {
+            return String(storedCase);
+          }
         }
 
         function setupEventListeners() {

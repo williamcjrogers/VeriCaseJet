@@ -8,6 +8,7 @@ node_modules/
 # apprunner.yaml  # Commented out - needed for App Runner
 apprunner.local.yaml
 .env
+.kilocode/mcp.local.json
 .env.local
 .env.production
 

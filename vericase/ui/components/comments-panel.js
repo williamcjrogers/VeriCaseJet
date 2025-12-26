@@ -19,7 +19,7 @@ class CommentsPanel {
         try {
             const token = localStorage.getItem('token');
             const response = await fetch(
-                `/api/collaboration/documents/${this.documentId}/comments`,
+                `/api/collaboration/documents/${this.documentId}/comments?include_replies=true&page_size=500`,
                 {
                     headers: {
                         'Authorization': `Bearer ${token}`

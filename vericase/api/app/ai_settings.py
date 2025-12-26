@@ -41,7 +41,7 @@ class AISettings:
         "anthropic": "claude-opus-4.5-20251201",
         "gemini": "gemini-2.5-flash",
         "bedrock": "amazon.nova-pro-v1:0",  # Amazon Nova Pro (cost-effective)
-        "xai": "grok-4.1-fast",
+        "xai": "grok-3-mini",
         "perplexity": "sonar-pro",
     }
 

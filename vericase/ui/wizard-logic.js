@@ -81,6 +81,15 @@ const wizardState = {
   totalSteps: 0,
 };
 
+function getWizardKey(suffix) {
+  const prefix = wizardState.profileType === "case" ? "case" : "project";
+  return `${prefix}-${suffix}`;
+}
+
+function getWorkspaceLabel(projectLabel, caseLabel) {
+  return wizardState.profileType === "case" ? caseLabel : projectLabel;
+}
+
 // Pre-populated keywords list
 const prePopulatedKeywords = [
   "Relevant Event",
@@ -104,31 +113,31 @@ const stakeholderRoles = [
   "Client Management Team",
 ];
 
-// Define steps for each profile type
-const projectSteps = [
+// Define shared steps for both projects and cases
+const sharedSteps = [
   {
-    id: "project-identification",
+    id: "workspace-identification",
     title: "Identification",
     render: renderProjectIdentification,
     validate: validateProjectIdentification,
     save: saveProjectIdentification,
   },
   {
-    id: "project-stakeholders",
+    id: "workspace-stakeholders",
     title: "Stakeholders",
     render: renderProjectStakeholders,
     validate: validateProjectStakeholders,
     save: saveProjectStakeholders,
   },
   {
-    id: "project-keywords",
+    id: "workspace-keywords",
     title: "Contract",
     render: renderProjectKeywords,
     validate: validateProjectKeywords,
     save: saveProjectKeywords,
   },
   {
-    id: "project-review",
+    id: "workspace-review",
     title: "Review",
     render: renderProjectReview,
     validate: () => true,
@@ -136,43 +145,8 @@ const projectSteps = [
   },
 ];
 
-const caseSteps = [
-  {
-    id: "case-identification",
-    title: "Identification",
-    render: renderCaseIdentification,
-    validate: validateCaseIdentification,
-    save: saveCaseIdentification,
-  },
-  {
-    id: "case-legal-team",
-    title: "Legal Team",
-    render: renderCaseLegalTeam,
-    validate: () => true,
-    save: saveCaseLegalTeam,
-  },
-  {
-    id: "case-heads-keywords",
-    title: "Claims & Keywords",
-    render: renderCaseHeadsKeywords,
-    validate: () => true,
-    save: saveCaseHeadsKeywords,
-  },
-  {
-    id: "case-deadlines",
-    title: "Deadlines",
-    render: renderCaseDeadlines,
-    validate: () => true,
-    save: saveCaseDeadlines,
-  },
-  {
-    id: "case-review",
-    title: "Review",
-    render: renderCaseReview,
-    validate: () => true,
-    save: () => { },
-  },
-];
+const projectSteps = sharedSteps;
+const caseSteps = sharedSteps;
 
 const AUTO_SAVE_INTERVAL_MS = 30000;
 const TOKEN_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
@@ -531,39 +505,60 @@ function updateStepIndicator(steps) {
 // Project Step Renderers
 function renderProjectIdentification() {
   const container = document.getElementById("dynamicStep");
-  const data = wizardState.data["project-identification"] || {};
+  const data = wizardState.data[getWizardKey("identification")] || {};
+  const isCase = wizardState.profileType === "case";
+  const nameLabel = getWorkspaceLabel("Project Name", "Case Name");
+  const codeLabel = getWorkspaceLabel("Project Code", "Case Number");
+  const namePlaceholder = isCase
+    ? "e.g., Riverside Adjudication"
+    : "e.g., Riverside Housing Development, City Centre Regeneration";
+  const nameHelper = isCase
+    ? 'Example: "Riverside Adjudication" or "Defects Claim - Phase 2"'
+    : 'Example: "Riverside Housing Development Phase 2" or "City Centre Office Block"';
+  const codePlaceholder = isCase
+    ? "e.g., CASE-2024-001, CLAIM-ALPHA"
+    : "e.g., PROJ-2024-001, RHD-PHASE2, CCO-2024";
+  const codeHelper = isCase
+    ? "Must be unique. Format: UPPERCASE-WITH-HYPHENS (e.g., CASE-2024-001, CLAIM-ALPHA)"
+    : "Must be unique. Format: UPPERCASE-WITH-HYPHENS (e.g., PROJ-2024-001, ALPHA-TOWER)";
+  const guidanceCopy = isCase
+    ? "Provide basic identification details for your case. This helps organize and track your evidence."
+    : "Provide basic identification details for your project. This helps organize and track your evidence.";
+  const startDateHelper = isCase
+    ? "Optional: add key dates if relevant to the case timeline"
+    : "Include pre-commencement and tendering period if relevant";
 
   container.innerHTML = `
-        <h2>Step 1 of 3 — Identification</h2>
+        <h2>Step 1 of 4 - Identification</h2>
         
         <div class="guidance-note">
-            <i class="fas fa-info-circle"></i> <strong>What to include:</strong> Provide basic identification details for your project. This helps organize and track your evidence.
+            <i class="fas fa-info-circle"></i> <strong>What to include:</strong> ${guidanceCopy}
         </div>
         
         <div class="form-group">
-            <label>Project Name <span class="required">*</span></label>
+            <label>${nameLabel} <span class="required">*</span></label>
             <input type="text" id="projectName" required minlength="2" maxlength="200" 
                    value="${escapeHtml(data.projectName || "")}" 
-                   placeholder="e.g., Riverside Housing Development, City Centre Regeneration">
-            <span class="helper-text">Example: "Riverside Housing Development Phase 2" or "City Centre Office Block"</span>
+                   placeholder="${escapeHtml(namePlaceholder)}">
+            <span class="helper-text">${escapeHtml(nameHelper)}</span>
         </div>
         
         <div class="form-group">
-            <label>Project Code <span class="required">*</span> 
-                <i class="fas fa-question-circle tooltip" title="A unique identifier for this project. Use uppercase letters, numbers, hyphens. Example: PROJ-2024-001"></i>
+            <label>${codeLabel} <span class="required">*</span> 
+                <i class="fas fa-question-circle tooltip" title="A unique identifier for this workspace. Use uppercase letters, numbers, hyphens. Example: PROJ-2024-001 or CASE-2024-001"></i>
             </label>
             <input type="text" id="projectCode" required 
                    value="${escapeHtml(data.projectCode || "")}" 
-                   placeholder="e.g., PROJ-2024-001, RHD-PHASE2, CCO-2024">
-            <span class="helper-text">Must be unique. Format: UPPERCASE-WITH-HYPHENS (e.g., PROJ-2024-001, ALPHA-TOWER)</span>
+                   placeholder="${escapeHtml(codePlaceholder)}">
+            <span class="helper-text">${escapeHtml(codeHelper)}</span>
         </div>
         
         <div class="form-group">
             <label>Start Date 
-                <i class="fas fa-info-circle tooltip" title="Ensure all pre‑commencement and relevant tendering period is accounted for"></i>
+                <i class="fas fa-info-circle tooltip" title="Ensure all pre-commencement and relevant tendering period is accounted for"></i>
             </label>
             <input type="date" id="startDate" value="${escapeHtml(data.startDate || "")}">
-            <span class="helper-text">Include pre-commencement and tendering period if relevant</span>
+            <span class="helper-text">${escapeHtml(startDateHelper)}</span>
         </div>
         
         <div class="form-group">
@@ -576,14 +571,14 @@ function renderProjectIdentification() {
 
 function renderProjectStakeholders() {
   const container = document.getElementById("dynamicStep");
-  const data = wizardState.data["project-stakeholders"] || {};
+  const data = wizardState.data[getWizardKey("stakeholders")] || {};
 
   container.innerHTML = `
-        <h2>Step 2 of 3 — Stakeholders & Keywords</h2>
+        <h2>Step 2 of 4 - Stakeholders & Keywords</h2>
         
         <h3>Key Stakeholders & Parties</h3>
         <div class="guidance-note">
-            <i class="fas fa-users"></i> <strong>Who to include:</strong> List all key parties involved in the project. This helps identify correspondence and relationships.
+            <i class="fas fa-users"></i> <strong>Who to include:</strong> List all key parties involved in this workspace. This helps identify correspondence and relationships.
             <br><strong>Examples:</strong> Main Contractor (United Living), Employer's Agent (Smith & Co), Client (City Council), Subcontractors, NHBC, Building Control, etc.
         </div>
         
@@ -606,16 +601,17 @@ function renderProjectStakeholders() {
         
         <h3 style="margin-top: 30px;">Keywords (Heads of Claim / Relevant words)</h3>
         <div class="guidance-note">
-            <i class="fas fa-tags"></i> <strong>What to include:</strong> Add keywords relevant to potential claims, disputes, or important project events. Include variations to catch all mentions.
-            <br><strong>Examples:</strong> "Delay" (delayed, postponed), "Variation" (change order, modification), "Relevant Event" (RE, relevant matter), "Section 278" (s278, highway works)
+            <i class="fas fa-tags"></i> <strong>What to include:</strong> Add keywords relevant to potential claims, disputes, or important project events. Include a short definition and common variations to catch all mentions.
+            <br><strong>Examples:</strong> "Section 278" (definition: Highways Agreement, variations: s278, section 278), "Delay" (delayed, postponed)
         </div>
         
         <div class="table-container">
             <table id="keywordsTable">
                 <thead>
                     <tr>
-                        <th style="width: 30%">Keyword <small style="font-weight: normal; opacity: 0.7;">(e.g., Delay, Variation)</small></th>
-                        <th style="width: 60%">Variations/Synonyms <small style="font-weight: normal; opacity: 0.7;">(e.g., delayed, postponed, late)</small></th>
+                        <th style="width: 25%">Keyword <small style="font-weight: normal; opacity: 0.7;">(e.g., Section 278)</small></th>
+                        <th style="width: 35%">Definition <small style="font-weight: normal; opacity: 0.7;">(e.g., Highways Agreement)</small></th>
+                        <th style="width: 30%">Variations/Synonyms <small style="font-weight: normal; opacity: 0.7;">(e.g., s278, section 278)</small></th>
                         <th style="width: 10%">Actions</th>
                     </tr>
                 </thead>
@@ -640,17 +636,17 @@ function renderProjectStakeholders() {
 
   if (data.keywords) {
     data.keywords.forEach((keyword) => {
-      addKeywordRow(keyword.name, keyword.variations);
+      addKeywordRow(keyword.name, keyword.definition, keyword.variations);
     });
   }
 }
 
 function renderProjectKeywords() {
   const container = document.getElementById("dynamicStep");
-  const data = wizardState.data["project-keywords"] || {};
+  const data = wizardState.data[getWizardKey("keywords")] || {};
 
   container.innerHTML = `
-        <h2>Step 3 of 3 — Contract</h2>
+        <h2>Step 3 of 4 - Contract</h2>
         
         <div class="form-group">
             <label>Contract Type</label>
@@ -670,8 +666,8 @@ function renderProjectKeywords() {
 
 function renderProjectReview() {
   const container = document.getElementById("dynamicStep");
-  container.innerHTML = '<h2>Review Summary</h2><div id="reviewSummary"></div>';
-  generateProjectReviewSummary();
+  container.innerHTML = '<h2>Step 4 of 4 - Review Summary</h2><div id="reviewSummary"></div>';
+  generateWorkspaceReviewSummary();
 }
 
 // Case Step Renderers
@@ -816,15 +812,16 @@ function renderCaseHeadsKeywords() {
         
         <h3 style="margin-top: 30px;">Keywords</h3>
         <div class="guidance-note">
-            Populate with keywords relevant to your potential claims / Heads of Claim. Include common variations so nothing is missed.
+            Populate with keywords relevant to your potential claims / Heads of Claim. Add a short definition and common variations so nothing is missed.
         </div>
         
         <div class="table-container">
             <table id="caseKeywordsTable">
                 <thead>
                     <tr>
-                        <th style="width: 30%">Keyword</th>
-                        <th style="width: 60%">Variations/Synonyms</th>
+                        <th style="width: 25%">Keyword</th>
+                        <th style="width: 35%">Definition</th>
+                        <th style="width: 30%">Variations/Synonyms</th>
                         <th style="width: 10%">Actions</th>
                     </tr>
                 </thead>
@@ -846,7 +843,7 @@ function renderCaseHeadsKeywords() {
 
   if (data.keywords) {
     data.keywords.forEach((keyword) => {
-      addCaseKeywordRow(keyword.name, keyword.variations);
+      addCaseKeywordRow(keyword.name, keyword.definition, keyword.variations);
     });
   }
 }
@@ -897,11 +894,13 @@ function validateProjectIdentification() {
   const projectCode = document.getElementById("projectCode").value.trim();
   const startDate = document.getElementById("startDate").value;
   const completionDate = document.getElementById("completionDate").value;
+  const nameLabel = getWorkspaceLabel("Project Name", "Case Name");
+  const codeLabel = getWorkspaceLabel("Project Code", "Case Number");
 
   // Relaxed validation - all fields are optional
   // Just show a warning in console if both name and code are missing
   if (!projectName && !projectCode) {
-    console.warn("Project Name and Code are recommended but not required.");
+    console.warn(`${nameLabel} and ${codeLabel} are recommended but not required.`);
   }
 
   // Date validation - only warn in console if dates are invalid
@@ -941,7 +940,7 @@ function validateCaseIdentification() {
 
 // Save functions
 function saveProjectIdentification() {
-  wizardState.data["project-identification"] = {
+  wizardState.data[getWizardKey("identification")] = {
     projectName: document.getElementById("projectName").value,
     projectCode: document.getElementById("projectCode").value,
     startDate: document.getElementById("startDate").value,
@@ -967,13 +966,14 @@ function saveProjectStakeholders() {
     const nameInput = row.querySelector(".keyword-name");
     const name =
       nameInput.tagName === "SELECT" ? nameInput.value : nameInput.value;
+    const definition = row.querySelector(".keyword-definition")?.value || "";
     const variations = row.querySelector(".keyword-variations").value;
-    if (name || variations) {
-      keywords.push({ name, variations });
+    if (name || definition || variations) {
+      keywords.push({ name, definition, variations });
     }
   });
 
-  wizardState.data["project-stakeholders"] = {
+  wizardState.data[getWizardKey("stakeholders")] = {
     stakeholders,
     keywords,
   };
@@ -984,7 +984,7 @@ function saveProjectKeywords() {
   const contractTypeCustom =
     document.getElementById("contractTypeCustom").value;
 
-  wizardState.data["project-keywords"] = {
+  wizardState.data[getWizardKey("keywords")] = {
     contractType,
     contractTypeCustom,
   };
@@ -1046,9 +1046,10 @@ function saveCaseHeadsKeywords() {
     const nameInput = row.querySelector(".keyword-name");
     const name =
       nameInput.tagName === "SELECT" ? nameInput.value : nameInput.value;
+    const definition = row.querySelector(".keyword-definition")?.value || "";
     const variations = row.querySelector(".keyword-variations").value;
-    if (name || variations) {
-      keywords.push({ name, variations });
+    if (name || definition || variations) {
+      keywords.push({ name, definition, variations });
     }
   });
 
@@ -1103,7 +1104,7 @@ window.addStakeholderRow = function (role = "", name = "") {
     `;
 };
 
-window.addKeywordRow = function (name = "", variations = "") {
+window.addKeywordRow = function (name = "", definition = "", variations = "") {
   const tbody = document.querySelector("#keywordsTable tbody");
   const row = tbody.insertRow();
 
@@ -1126,7 +1127,8 @@ window.addKeywordRow = function (name = "", variations = "") {
                     <option value="Custom" ${!isPrePopulated && name ? "selected" : ""}>Custom</option>
                 </select>
             </td>
-            <td><input type="text" class="keyword-variations" value="${escapeHtml(variations)}" placeholder="e.g., Section 278, Highways Agreement, Section 106"></td>
+            <td><input type="text" class="keyword-definition" value="${escapeHtml(definition)}" placeholder="e.g., Highways Agreement / S278"></td>
+            <td><input type="text" class="keyword-variations" value="${escapeHtml(variations)}" placeholder="e.g., s278, section 278, highways agreement"></td>
             <td>
                 <button class="btn-delete-row" onclick="deleteRow(this)">
                     <i class="fas fa-trash"></i>
@@ -1137,7 +1139,8 @@ window.addKeywordRow = function (name = "", variations = "") {
     // Create text input for custom keyword (sanitized to prevent XSS)
     row.innerHTML = `
             <td><input type="text" class="keyword-name" value="${escapeHtml(name)}" placeholder="Custom keyword"></td>
-            <td><input type="text" class="keyword-variations" value="${escapeHtml(variations)}" placeholder="e.g., Section 278, Highways Agreement, Section 106"></td>
+            <td><input type="text" class="keyword-definition" value="${escapeHtml(definition)}" placeholder="e.g., Highways Agreement / S278"></td>
+            <td><input type="text" class="keyword-variations" value="${escapeHtml(variations)}" placeholder="e.g., s278, section 278, highways agreement"></td>
             <td>
                 <button class="btn-delete-row" onclick="deleteRow(this)">
                     <i class="fas fa-trash"></i>
@@ -1147,7 +1150,7 @@ window.addKeywordRow = function (name = "", variations = "") {
   }
 };
 
-window.addCaseKeywordRow = function (name = "", variations = "") {
+window.addCaseKeywordRow = function (name = "", definition = "", variations = "") {
   const tbody = document.querySelector("#caseKeywordsTable tbody");
   const row = tbody.insertRow();
 
@@ -1170,7 +1173,8 @@ window.addCaseKeywordRow = function (name = "", variations = "") {
                     <option value="Custom" ${!isPrePopulated && name ? "selected" : ""}>Custom</option>
                 </select>
             </td>
-            <td><input type="text" class="keyword-variations" value="${escapeHtml(variations)}" placeholder="comma-separated"></td>
+            <td><input type="text" class="keyword-definition" value="${escapeHtml(definition)}" placeholder="Definition"></td>
+            <td><input type="text" class="keyword-variations" value="${escapeHtml(variations)}" placeholder="e.g., s278, section 278"></td>
             <td>
                 <button class="btn-delete-row" onclick="deleteRow(this)">
                     <i class="fas fa-trash"></i>
@@ -1181,7 +1185,8 @@ window.addCaseKeywordRow = function (name = "", variations = "") {
     // Create text input for custom keyword (sanitized to prevent XSS)
     row.innerHTML = `
             <td><input type="text" class="keyword-name" value="${escapeHtml(name)}" placeholder="Custom keyword"></td>
-            <td><input type="text" class="keyword-variations" value="${escapeHtml(variations)}" placeholder="comma-separated"></td>
+            <td><input type="text" class="keyword-definition" value="${escapeHtml(definition)}" placeholder="Definition"></td>
+            <td><input type="text" class="keyword-variations" value="${escapeHtml(variations)}" placeholder="e.g., s278, section 278"></td>
             <td>
                 <button class="btn-delete-row" onclick="deleteRow(this)">
                     <i class="fas fa-trash"></i>
@@ -1290,21 +1295,25 @@ window.toggleCustomField = function (select, customInputId) {
 };
 
 // Review summary functions
-function generateProjectReviewSummary() {
+function generateWorkspaceReviewSummary() {
   const container = document.getElementById("reviewSummary");
-  const identification = wizardState.data["project-identification"] || {};
-  const stakeholdersData = wizardState.data["project-stakeholders"] || {};
-  const keywords = wizardState.data["project-keywords"] || {};
+  const identification = wizardState.data[getWizardKey("identification")] || {};
+  const stakeholdersData = wizardState.data[getWizardKey("stakeholders")] || {};
+  const keywords = wizardState.data[getWizardKey("keywords")] || {};
+  const isCase = wizardState.profileType === "case";
+  const titleLabel = isCase ? "Case Identification" : "Project Identification";
+  const nameLabel = isCase ? "Case Name" : "Project Name";
+  const codeLabel = isCase ? "Case Number" : "Project Code";
 
   let html = `
         <div class="summary-section">
-            <h3><i class="fas fa-clipboard-list"></i> Project Identification</h3>
+            <h3><i class="fas fa-clipboard-list"></i> ${escapeHtml(titleLabel)}</h3>
             <div class="summary-item">
-                <div class="summary-label">Project Name:</div>
+                <div class="summary-label">${escapeHtml(nameLabel)}:</div>
                 <div class="summary-value">${escapeHtml(identification.projectName || "Not specified")}</div>
             </div>
             <div class="summary-item">
-                <div class="summary-label">Project Code:</div>
+                <div class="summary-label">${escapeHtml(codeLabel)}:</div>
                 <div class="summary-value">${escapeHtml(identification.projectCode || "Not specified")}</div>
             </div>
             <div class="summary-item">
@@ -1333,13 +1342,15 @@ function generateProjectReviewSummary() {
         <div class="summary-section">
             <h3><i class="fas fa-tags"></i> Keywords</h3>
             ${(stakeholdersData.keywords || [])
-      .map(
-        (k) =>
-          `<div class="summary-item">
+      .map((k) => {
+        const defn = k.definition ? `Definition: ${escapeHtml(k.definition)}` : "";
+        const vars = k.variations ? `Variations: ${escapeHtml(k.variations)}` : "";
+        const details = [defn, vars].filter(Boolean).join(" | ") || "No definition or variations";
+        return `<div class="summary-item">
                     <div class="summary-label">${escapeHtml(k.name)}:</div>
-                    <div class="summary-value">${escapeHtml(k.variations || "No variations")}</div>
-                </div>`,
-      )
+                    <div class="summary-value">${details}</div>
+                </div>`;
+      })
       .join("")}
         </div>
         
@@ -1462,11 +1473,12 @@ async function submitWizard() {
 
     let endpoint, requestData;
 
+    const identification = wizardState.data[getWizardKey("identification")] || {};
+    const stakeholdersData = wizardState.data[getWizardKey("stakeholders")] || {};
+    const keywordsData = wizardState.data[getWizardKey("keywords")] || {};
+
     if (wizardState.profileType === "project") {
       endpoint = "/api/projects";
-      const identification = wizardState.data["project-identification"] || {};
-      const stakeholdersData = wizardState.data["project-stakeholders"] || {};
-      const keywordsData = wizardState.data["project-keywords"] || {};
 
       const normalizedContractType =
         keywordsData.contractType === "Custom"
@@ -1488,51 +1500,32 @@ async function submitWizard() {
         })),
         keywords: (stakeholdersData.keywords || []).map((k) => ({
           name: k.name || "",
+          definition: k.definition || null,
           variations: k.variations || null,
         })),
       };
     } else {
       endpoint = "/api/cases";
-      const identification = wizardState.data["case-identification"] || {};
-      const legalTeamData = wizardState.data["case-legal-team"] || {};
-      const headsKeywordsData = wizardState.data["case-heads-keywords"] || {};
-      const deadlinesData = wizardState.data["case-deadlines"] || {};
 
-      const normalizedResolutionRoute =
-        identification.resolutionRoute === "Custom"
-          ? identification.resolutionRouteCustom
-          : identification.resolutionRoute;
-      const normalizedCaseStatus =
-        identification.caseStatus === "Custom"
-          ? identification.caseStatusCustom
-          : identification.caseStatus;
+      const normalizedContractType =
+        keywordsData.contractType === "Custom"
+          ? keywordsData.contractTypeCustom
+          : keywordsData.contractType;
 
-      // Match the CaseCreate schema from simple_cases.py
       requestData = {
-        case_name: identification.caseName || "Untitled Case",
-        case_id: identification.caseId || null,
-        resolution_route: normalizedResolutionRoute || "TBC",
-        claimant: identification.claimant || null,
-        defendant: identification.defendant || null,
-        case_status: normalizedCaseStatus || "discovery",
-        client: identification.client || null,
-        legal_team: (legalTeamData.legalTeam || []).map((t) => ({
-          role: t.role || "",
-          name: t.name || "",
+        case_name: identification.projectName || "Untitled Case",
+        case_number: identification.projectCode || null,
+        contract_type: normalizedContractType || null,
+        stakeholders: (stakeholdersData.stakeholders || []).map((s) => ({
+          role: s.role || "",
+          name: s.name || "",
+          email: s.email || null,
+          organization: s.name || null,
         })),
-        heads_of_claim: (headsKeywordsData.headsOfClaim || []).map((h) => ({
-          head: h.head || "",
-          status: h.status || "Discovery",
-          actions: h.actions || null,
-        })),
-        keywords: (headsKeywordsData.keywords || []).map((k) => ({
+        keywords: (stakeholdersData.keywords || []).map((k) => ({
           name: k.name || "",
+          definition: k.definition || null,
           variations: k.variations || null,
-        })),
-        deadlines: (deadlinesData.deadlines || []).map((d) => ({
-          task: d.task || "",
-          description: d.description || null,
-          date: d.date || null,
         })),
       };
     }
@@ -2188,10 +2181,19 @@ function updateIntelligentProgress(percentage) {
 function storeIntelligentProfileContext(config) {
   if (!config) return;
 
+  // Keep legacy + newer keys in sync. Different pages historically read different keys.
   if (config.project_id) {
     localStorage.setItem("profileType", "project");
     localStorage.setItem("currentProjectId", config.project_id);
+    localStorage.setItem("vericase_current_project", config.project_id);
+
+    if (config.project_name) {
+      localStorage.setItem("currentProjectName", config.project_name);
+      localStorage.setItem("vericase_current_project_name", config.project_name);
+    }
+
     try {
+      // Convenience key used by some older UI pages
       localStorage.setItem("projectId", config.project_id);
     } catch (e) {
       // Ignore storage errors
@@ -2199,7 +2201,13 @@ function storeIntelligentProfileContext(config) {
   } else if (config.case_id) {
     localStorage.setItem("profileType", "case");
     localStorage.setItem("currentCaseId", config.case_id);
+
+    if (config.case_name) {
+      localStorage.setItem("vericase_current_case_name", config.case_name);
+    }
+
     try {
+      // Convenience key used by some older UI pages
       localStorage.setItem("caseId", config.case_id);
     } catch (e) {
       // Ignore storage errors

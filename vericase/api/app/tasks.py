@@ -170,6 +170,7 @@ def index_project_emails_semantic(
     """
     from .db import SessionLocal
     from .models import EmailMessage
+    from .visibility import build_email_visibility_filter
     from sqlalchemy import func
     import uuid
 
@@ -199,10 +200,13 @@ def index_project_emails_semantic(
             logger.warning("Semantic service not available, skipping indexing")
             return {"status": "skipped", "reason": "Semantic service not installed"}
 
+        visibility_filter = build_email_visibility_filter(EmailMessage)
+
         # Get total count
         total_count = (
             db.query(func.count(EmailMessage.id))
             .filter(EmailMessage.project_id == uuid.UUID(project_id))
+            .filter(visibility_filter)
             .scalar()
         ) or 0
 
@@ -215,6 +219,7 @@ def index_project_emails_semantic(
             emails = (
                 db.query(EmailMessage)
                 .filter(EmailMessage.project_id == uuid.UUID(project_id))
+                .filter(visibility_filter)
                 .order_by(EmailMessage.created_at)
                 .offset(offset)
                 .limit(batch_size)
@@ -226,6 +231,10 @@ def index_project_emails_semantic(
 
             for email in emails:
                 try:
+                    if (email.subject or "").startswith("IPM."):
+                        stats["skipped"] += 1
+                        continue
+
                     # Index this email
                     body_text = email.body_text_clean or email.body_text or ""
 
@@ -313,6 +322,7 @@ def index_case_emails_semantic(
     """
     from .db import SessionLocal
     from .models import EmailMessage
+    from .visibility import build_email_visibility_filter
     from sqlalchemy import func
     import uuid
 
@@ -342,10 +352,13 @@ def index_case_emails_semantic(
             logger.warning("Semantic service not available, skipping indexing")
             return {"status": "skipped", "reason": "Semantic service not installed"}
 
+        visibility_filter = build_email_visibility_filter(EmailMessage)
+
         # Get total count
         total_count = (
             db.query(func.count(EmailMessage.id))
             .filter(EmailMessage.case_id == uuid.UUID(case_id))
+            .filter(visibility_filter)
             .scalar()
         ) or 0
 
@@ -358,6 +371,7 @@ def index_case_emails_semantic(
             emails = (
                 db.query(EmailMessage)
                 .filter(EmailMessage.case_id == uuid.UUID(case_id))
+                .filter(visibility_filter)
                 .order_by(EmailMessage.created_at)
                 .offset(offset)
                 .limit(batch_size)
@@ -369,6 +383,10 @@ def index_case_emails_semantic(
 
             for email in emails:
                 try:
+                    if (email.subject or "").startswith("IPM."):
+                        stats["skipped"] += 1
+                        continue
+
                     # Index this email
                     body_text = email.body_text_clean or email.body_text or ""
 
@@ -520,10 +538,16 @@ def apply_spam_filter_batch(
             for email in emails:
                 try:
                     # Classify this email
+                    body_text = (
+                        email.body_text_clean
+                        or email.body_text
+                        or email.body_preview
+                        or ""
+                    )
                     result = classifier.classify(
                         subject=email.subject,
                         sender=email.sender_email,
-                        body=email.body_text,
+                        body=body_text,
                     )
 
                     # Update meta JSON with spam info
@@ -672,6 +696,54 @@ def apply_spam_filter_batch(
             "error": str(e),
             "stats": stats,
         }
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True, name="apply_email_dedupe_batch")
+def apply_email_dedupe_batch(
+    self,
+    project_id: str | None = None,
+    case_id: str | None = None,
+) -> dict[str, Any]:
+    """Background task to deduplicate emails for a project or case."""
+
+    from .db import SessionLocal
+    from .email_dedupe import dedupe_emails
+
+    entity_type = "project" if project_id else "case"
+    entity_id = project_id or case_id
+
+    if not entity_id:
+        return {"status": "failed", "error": "Must provide project_id or case_id"}
+
+    logger.info("Starting email dedupe for %s %s", entity_type, entity_id)
+
+    db = SessionLocal()
+    try:
+        stats = dedupe_emails(
+            db,
+            case_id=case_id,
+            project_id=project_id,
+            run_id="dedupe_batch",
+        )
+        result = {
+            "emails_total": stats.emails_total,
+            "duplicates_found": stats.duplicates_found,
+            "groups_matched": stats.groups_matched,
+            "decisions_recorded": stats.decisions_recorded,
+        }
+        logger.info(
+            "Email dedupe complete for %s %s: %s duplicates",
+            entity_type,
+            entity_id,
+            result["duplicates_found"],
+        )
+        return {"status": "completed", "stats": result}
+    except Exception as e:
+        logger.exception("Email dedupe failed for %s %s: %s", entity_type, entity_id, e)
+        db.rollback()
+        return {"status": "failed", "error": str(e)}
     finally:
         db.close()
 

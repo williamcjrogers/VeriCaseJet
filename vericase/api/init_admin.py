@@ -24,7 +24,7 @@ def create_admin_user():
         existing_admin = db.query(User).filter(User.email == admin_email).first()
 
         if existing_admin:
-            print("Admin user {admin_email} already exists")
+            print(f"Admin user {admin_email} already exists")
             return
 
         # Create admin user
@@ -43,12 +43,12 @@ def create_admin_user():
         db.commit()
 
         print("Admin user created successfully!")
-        print("Email: {admin_email}")
-        print("Password: {'*' * len(admin_password)} (from ADMIN_PASSWORD env var)")
+        print(f"Email: {admin_email}")
+        print(f"Password: {'*' * len(admin_password)} (from ADMIN_PASSWORD env var)")
         print("\n⚠️  IMPORTANT: Change the admin password after first login!")
 
-    except Exception:
-        print("Error creating admin user: {e}")
+    except Exception as e:
+        print(f"Error creating admin user: {e}")
         db.rollback()
     finally:
         db.close()

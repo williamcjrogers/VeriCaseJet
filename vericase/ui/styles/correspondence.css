@@ -552,6 +552,124 @@ body::before {
   font-weight: 600;
 }
 
+/* ============================================
+   Email Recipients List Styling
+   ============================================ */
+.email-recipients-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.email-recipient-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: rgba(26, 43, 60, 0.06);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+  transition: background 0.15s ease;
+}
+
+.email-recipient-chip:hover {
+  background: rgba(15, 157, 154, 0.12);
+}
+
+.email-recipient-more {
+  background: var(--vc-teal-light);
+  color: var(--vc-teal-dark);
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+/* ============================================
+   Attachment Grid Styling - Light Crayon Palette
+   ============================================ */
+.attachment-grid-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.attachment-grid-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  border: none;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Light crayon palette for attachments */
+.attachment-grid-link:nth-child(6n+1) {
+  background: #fef3c7; /* Warm yellow */
+  color: #92400e;
+}
+
+.attachment-grid-link:nth-child(6n+2) {
+  background: #dbeafe; /* Soft blue */
+  color: #1e40af;
+}
+
+.attachment-grid-link:nth-child(6n+3) {
+  background: #dcfce7; /* Mint green */
+  color: #166534;
+}
+
+.attachment-grid-link:nth-child(6n+4) {
+  background: #fce7f3; /* Soft pink */
+  color: #9d174d;
+}
+
+.attachment-grid-link:nth-child(6n+5) {
+  background: #f3e8ff; /* Lavender */
+  color: #6b21a8;
+}
+
+.attachment-grid-link:nth-child(6n+6) {
+  background: #e0f2fe; /* Sky blue */
+  color: #0369a1;
+}
+
+.attachment-grid-link:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  filter: brightness(0.97);
+}
+
+/* Plain span attachment (no link) */
+.attachment-grid-list > span {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 14px;
+  background: #f3f4f6;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .priority-high { color: var(--danger); font-weight: 600; }
 .priority-normal { color: var(--text-muted); }
 

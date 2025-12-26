@@ -31,9 +31,13 @@ ON email_messages(has_attachments) WHERE has_attachments = true;
 CREATE INDEX IF NOT EXISTS idx_email_project_sender_date
 ON email_messages(project_id, sender_email, date_sent DESC);
 
--- Index for linked activity queries
-CREATE INDEX IF NOT EXISTS idx_email_linked_activity
-ON email_messages(linked_activity_id) WHERE linked_activity_id IS NOT NULL;
+-- Index for linked activity queries (conditional - column may not exist)
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.columns WHERE table_name='email_messages' AND column_name='linked_activity_id') THEN
+        EXECUTE 'CREATE INDEX IF NOT EXISTS idx_email_linked_activity ON email_messages(linked_activity_id) WHERE linked_activity_id IS NOT NULL';
+    END IF;
+END $$;
 
 -- Analyze the table to update statistics
 ANALYZE email_messages;
