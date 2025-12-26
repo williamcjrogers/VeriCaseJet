@@ -1,4 +1,4 @@
-awslabs.amazon-qindex-mcp-server
+awslabs.amazon-qindex-mcp-server[mypy]
 mypy-boto3-qbusiness>=1.42.0
 boto3-stubs[qbusiness]>=1.42.0
 boto3>=1.42.0

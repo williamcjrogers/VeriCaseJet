@@ -8,8 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="brand-styles.css" />
-    <link rel="stylesheet" href="design-system.css" />
+    <link rel="stylesheet" href="brand-styles.css?v=6" />
+    <link rel="stylesheet" href="design-system.css?v=6" />
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
     <script src="config.js"></script>
@@ -637,32 +637,104 @@
     </div>
 
     <script>
-      let currentProjectId = null;
+      let currentWorkspaceId = null;
+      let workspaceType = "project";
       let allStakeholders = [];
       let editingStakeholderId = null;
+
+      function getWorkspaceContext() {
+        if (window.VericaseShell && typeof window.VericaseShell.getContext === "function") {
+          const ctx = window.VericaseShell.getContext();
+          if (ctx?.id) {
+            const type = ctx?.type === "case" ? "case" : "project";
+            return { type, id: String(ctx.id) };
+          }
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const fromCase = urlParams.get('caseId') || urlParams.get('case_id');
+        if (fromCase && fromCase !== 'undefined' && fromCase !== 'null') {
+          return { type: "case", id: String(fromCase) };
+        }
+
+        const fromProject = urlParams.get('projectId') || urlParams.get('project_id');
+        if (fromProject && fromProject !== 'undefined' && fromProject !== 'null') {
+          return { type: "project", id: String(fromProject) };
+        }
+
+        const storedProfileType = (localStorage.getItem('profileType') || '').trim();
+        const storedCase =
+          localStorage.getItem('currentCaseId') ||
+          localStorage.getItem('caseId');
+        const storedProject =
+          localStorage.getItem('vericase_current_project') ||
+          localStorage.getItem('currentProjectId') ||
+          localStorage.getItem('projectId');
+
+        const normalizeStored = (value) => {
+          if (!value || value === 'undefined' || value === 'null') {
+            return '';
+          }
+          try {
+            const parsed = JSON.parse(value);
+            return parsed?.id ? String(parsed.id) : String(parsed);
+          } catch {
+            return String(value);
+          }
+        };
+
+        if (storedProfileType === 'case') {
+          const caseId = normalizeStored(storedCase);
+          if (caseId) {
+            return { type: "case", id: caseId };
+          }
+        }
+
+        const projectId = normalizeStored(storedProject);
+        if (projectId) {
+          return { type: "project", id: projectId };
+        }
+
+        const fallbackCaseId = normalizeStored(storedCase);
+        if (fallbackCaseId) {
+          return { type: "case", id: fallbackCaseId };
+        }
+
+        return { type: "project", id: "" };
+      }
 
       // Initialize
       document.addEventListener('DOMContentLoaded', async () => {
         if (window.VericaseShell) {
+          const ctx =
+            typeof window.VericaseShell.getContext === "function"
+              ? window.VericaseShell.getContext()
+              : { type: "project", id: window.VericaseShell.getProjectId() };
+          const ctxType = ctx?.type === "case" ? "case" : "project";
+          const ctxLabel =
+            ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
+          const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
+          const ctxId = ctx?.id ? String(ctx.id) : "";
+          const ctxUrl = ctxId
+            ? `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+            : "dashboard.html";
+
           window.VericaseShell.inject({
-            title: 'Stakeholder Management',
+            title: '',
             breadcrumbs: [
-              { label: 'Home', url: 'dashboard.html', icon: 'fa-home' },
-              { label: 'Stakeholders' }
+              { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+              { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
+              { label: "Stakeholders", icon: "fa-users" }
             ]
           });
         }
 
-        // Get project ID from URL or app state
-        const urlParams = new URLSearchParams(window.location.search);
-        currentProjectId = urlParams.get('projectId') || urlParams.get('caseId');
-        
-        if (!currentProjectId && window.appState) {
-          currentProjectId = window.appState.getSelectedProfile();
-        }
+        const context = getWorkspaceContext();
+        workspaceType = context.type;
+        currentWorkspaceId = context.id;
 
-        if (!currentProjectId) {
-          showError('Please select a project first');
+        if (!currentWorkspaceId) {
+          showError('Please select a project or case first');
           return;
         }
 
@@ -679,7 +751,8 @@
         try {
           const apiUrl = window.CONFIG?.apiUrl || '';
           const token = localStorage.getItem('token') || localStorage.getItem('vericase_token') || localStorage.getItem('access_token');
-          const response = await fetch(`${apiUrl}/api/wizard/projects/${currentProjectId}/stakeholders`, {
+          const pathSegment = workspaceType === "case" ? "cases" : "projects";
+          const response = await fetch(`${apiUrl}/api/wizard/${pathSegment}/${currentWorkspaceId}/stakeholders`, {
             headers: {
               'Authorization': `Bearer ${token}`
             }
@@ -880,12 +953,14 @@
         try {
           const apiUrl = window.CONFIG?.apiUrl || '';
           const token = localStorage.getItem('token') || localStorage.getItem('vericase_token') || localStorage.getItem('access_token');
-          
-          // Use the individual stakeholder POST endpoint
-          const url = `${apiUrl}/api/wizard/projects/${currentProjectId}/stakeholders`;
+          const isEdit = Boolean(editingStakeholderId);
+          const pathSegment = workspaceType === "case" ? "cases" : "projects";
+          const baseUrl = `${apiUrl}/api/wizard/${pathSegment}/${currentWorkspaceId}/stakeholders`;
+          const url = isEdit ? `${baseUrl}/${editingStakeholderId}` : baseUrl;
+          const method = isEdit ? 'PUT' : 'POST';
           
           const response = await fetch(url, {
-            method: 'POST',
+            method,
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`
@@ -900,7 +975,7 @@
 
           closeStakeholderModal();
           await loadStakeholders();
-          showSuccess(editingStakeholderId ? 'Stakeholder updated successfully' : 'Stakeholder added successfully');
+          showSuccess(isEdit ? 'Stakeholder updated successfully' : 'Stakeholder added successfully');
         } catch (error) {
           console.error('Error saving stakeholder:', error);
           showError(error.message || 'Failed to save stakeholder. Please try again.');
@@ -916,8 +991,9 @@
         try {
           const apiUrl = window.CONFIG?.apiUrl || '';
           const token = localStorage.getItem('token') || localStorage.getItem('vericase_token') || localStorage.getItem('access_token');
+          const pathSegment = workspaceType === "case" ? "cases" : "projects";
           
-          const response = await fetch(`${apiUrl}/api/wizard/projects/${currentProjectId}/stakeholders/${stakeholderId}`, {
+          const response = await fetch(`${apiUrl}/api/wizard/${pathSegment}/${currentWorkspaceId}/stakeholders/${stakeholderId}`, {
             method: 'DELETE',
             headers: {
               'Authorization': `Bearer ${token}`

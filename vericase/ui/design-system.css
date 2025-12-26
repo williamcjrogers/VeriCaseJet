@@ -20,12 +20,19 @@
 
 .app-sidebar {
   width: 220px;
-  background: linear-gradient(
-    180deg,
-    var(--vericase-navy) 0%,
-    var(--vericase-navy-light) 50%,
-    var(--vericase-navy) 100%
-  );
+  background:
+    radial-gradient(
+      120% 85% at 18% 0%,
+      rgba(var(--vericase-blue-rgb, 47, 134, 200), 0.22) 0%,
+      rgba(var(--vericase-blue-rgb, 47, 134, 200), 0.08) 30%,
+      rgba(0, 0, 0, 0) 62%
+    ),
+    linear-gradient(
+      180deg,
+      var(--vericase-navy) 0%,
+      var(--vericase-navy-light) 52%,
+      #0b1119 100%
+    );
   color: var(--text-inverted);
   display: flex;
   flex-direction: column;
@@ -35,7 +42,10 @@
   bottom: 0;
   z-index: var(--z-sticky);
   transition: width var(--duration-slow) var(--ease-out-expo);
-  border-right: 1px solid var(--border-inverted);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset -1px 0 0 rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
   overflow: hidden;
 }
 
@@ -45,13 +55,16 @@
 
 /* Sidebar Header */
 .sidebar-header {
-  padding: var(--space-6) var(--space-5);
-  border-bottom: 1px solid var(--border-inverted);
+  padding: var(--space-4) var(--space-4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: center;
 }
 
 .sidebar-logo {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-3);
   font-family: var(--font-sans);
   font-weight: 700;
@@ -59,6 +72,40 @@
   color: var(--text-inverted);
   text-decoration: none;
   transition: opacity var(--duration-fast);
+  width: 100%;
+
+  /* Logo plaque: heritage brass plate with warm satin texture. */
+  position: relative;
+  isolation: isolate;
+  --logo-plaque-radius: 6px;
+  --logo-plaque-inset: 3px;
+  padding: 10px 12px;
+  border-radius: var(--logo-plaque-radius);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 60%),
+    radial-gradient(120% 140% at 18% 0%, rgba(255, 247, 232, 0.7) 0%, rgba(255, 255, 255, 0) 60%),
+    radial-gradient(120% 120% at 90% 120%, rgba(160, 130, 80, 0.12) 0%, rgba(160, 130, 80, 0) 55%),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0 2px, rgba(120, 95, 55, 0.05) 2px 4px),
+    linear-gradient(145deg, #fdf7e8 0%, #f2e7d2 40%, #e5d3ad 72%, #dbc699 100%);
+  border: 1px solid rgba(120, 95, 55, 0.55);
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -2px 6px rgba(90, 70, 40, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+
+.sidebar-logo::after {
+  content: "";
+  position: absolute;
+  inset: var(--logo-plaque-inset);
+  border-radius: calc(var(--logo-plaque-radius) - var(--logo-plaque-inset));
+  border: 1px solid rgba(255, 246, 224, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(120, 95, 55, 0.12);
+  pointer-events: none;
+  z-index: -1;
 }
 
 .sidebar-logo:hover {
@@ -75,18 +122,20 @@
 
 .sidebar-logo img {
   width: 100%;
-  height: auto;
-  max-width: 180px;
+  height: 52px;
+  max-width: 100%;
   object-fit: contain;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.22));
 }
 
 /* Project Context */
 .project-context {
   margin: var(--space-4);
   padding: var(--space-3) var(--space-4);
-  background: rgba(15, 157, 154, 0.12);
+  background: rgba(255, 255, 255, 0.06);
   border-radius: var(--radius-lg);
-  border-left: 3px solid var(--vericase-teal);
+  border-left: 3px solid var(--vericase-blue);
+  box-shadow: var(--shadow-inset);
 }
 
 .project-context-label {
@@ -94,7 +143,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--vericase-teal-light);
+  color: rgba(var(--vericase-blue-rgb, 47, 134, 200), 0.9);
   margin-bottom: 4px;
 }
 
@@ -121,7 +170,7 @@
 }
 
 .sidebar-nav::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 3px;
 }
 
@@ -135,7 +184,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(181, 155, 106, 0.62);
   padding: 0 var(--space-3);
   margin-bottom: var(--space-2);
 }
@@ -147,7 +196,7 @@
   gap: var(--space-3);
   padding: var(--space-3) var(--space-3);
   border-radius: var(--radius-md);
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.74);
   text-decoration: none;
   font-size: var(--text-sm);
   font-weight: 500;
@@ -157,13 +206,13 @@
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text-inverted);
 }
 
 .nav-item.active {
-  background: rgba(15, 157, 154, 0.15);
-  color: var(--vericase-teal-light);
+  background: rgba(var(--vericase-blue-rgb, 47, 134, 200), 0.16);
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .nav-item.active::before {
@@ -174,7 +223,7 @@
   transform: translateY(-50%);
   width: 3px;
   height: 24px;
-  background: var(--vericase-teal);
+  background: var(--vericase-blue);
   border-radius: 0 2px 2px 0;
 }
 
@@ -189,13 +238,30 @@
 .nav-item.active i,
 .nav-item.active svg {
   opacity: 1;
-  color: var(--vericase-teal);
+  color: var(--vericase-blue-light);
+}
+
+/* VeriCase tick icon (used for "VeriCase Assistant") */
+.vericase-tick {
+  color: var(--vericase-blue);
+  display: inline-block;
+  transform: translateY(-1px) rotate(-8deg);
+}
+
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+  .vericase-tick {
+    background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-blue) 70%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
 }
 
 .nav-badge {
   margin-left: auto;
-  background: var(--vericase-teal);
-  color: var(--text-inverted);
+  background: var(--vericase-gold);
+  color: rgba(15, 23, 32, 0.92);
   font-size: 11px;
   font-weight: 700;
   padding: 2px 8px;
@@ -211,8 +277,10 @@
   cursor: not-allowed;
 }
 
-.nav-section.needs-project .nav-section-title::after {
-  content: "(Select project)";
+/* Context hint when a workspace (project/case) hasn't been selected yet */
+.nav-section.needs-project .nav-section-title::after,
+.nav-section.needs-workspace .nav-section-title::after {
+  content: "(Select workspace)";
   display: block;
   font-size: 9px;
   font-weight: 400;
@@ -250,15 +318,15 @@
   width: 32px;
   height: 32px;
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.65);
   border: none;
   cursor: pointer;
   transition: all var(--duration-fast);
 }
 
 .sidebar-collapse-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(var(--vericase-blue-rgb, 47, 134, 200), 0.18);
   color: var(--text-inverted);
 }
 
@@ -273,6 +341,14 @@
 /* Collapsed State - Hide text elements */
 .app-sidebar.collapsed .sidebar-logo img {
   max-width: 36px;
+  height: 32px;
+}
+
+.app-sidebar.collapsed .sidebar-logo {
+  --logo-plaque-radius: 6px;
+  --logo-plaque-inset: 3px;
+  padding: 8px;
+  border-radius: var(--logo-plaque-radius);
 }
 
 .app-sidebar.collapsed .sidebar-header {
@@ -1173,7 +1249,7 @@
 }
 
 .project-context:hover {
-  background: rgba(15, 157, 154, 0.18);
+  background: rgba(var(--vericase-blue-rgb, 47, 134, 200), 0.14);
 }
 
 /* Preload class to prevent transitions on page load */

@@ -163,6 +163,8 @@
   line-height: 1.4;
   color: var(--text-primary, #1a2b3c) !important;
   padding-top: 8px;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .ag-theme-vericase .ag-cell-value {
@@ -460,9 +462,10 @@
 .ag-theme-vericase .file-name {
   font-weight: 500;
   color: var(--text-primary, #1a2b3c);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: initial;
+  word-break: break-word;
   line-height: 1.3;
 }
 

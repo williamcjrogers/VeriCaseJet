@@ -98,9 +98,9 @@
     stages: [
       {
         id: "profile",
-        name: "Create Profile",
+        name: "Workspace Setup",
         icon: "fa-cog",
-        url: "wizard.html",
+        url: "workspace-setup.html",
       },
       {
         id: "upload",
@@ -124,7 +124,7 @@
         id: "analysis",
         name: "Analysis",
         icon: "fa-chart-line",
-        url: "correspondence-enterprise.html",
+        url: "vericase-analysis.html",
       },
     ],
 
@@ -212,6 +212,13 @@
 
       if (this.currentProject) {
         localStorage.setItem("vericase_current_project", this.currentProject);
+        // Sync legacy keys used by other pages/wizards
+        localStorage.setItem("currentProjectId", this.currentProject);
+        try {
+          localStorage.setItem("projectId", this.currentProject);
+        } catch (e) {
+          // ignore
+        }
       }
 
       // Mark active nav item
@@ -271,7 +278,7 @@
       this.goTo("pst-upload.html");
     },
     goToWizard() {
-      this.goTo("wizard.html");
+      this.goTo("workspace-setup.html");
     },
     goToRefinement() {
       this.goTo("ai-refinement-wizard.html");
@@ -485,8 +492,8 @@
                         <i class="fas fa-folder"></i> ${projectData.evidenceCount?.toLocaleString() || 0} evidence items
                     </div>
                     <div style="margin-left: auto;">
-                        <button class="btn btn-ghost btn-sm" onclick="VericaseUI.Navigation.goTo('wizard.html')">
-                            <i class="fas fa-cog"></i> Settings
+                        <button class="btn btn-ghost btn-sm" onclick="VericaseUI.Navigation.goTo('workspace-setup.html')">
+                            <i class="fas fa-cog"></i> Workspace setup
                         </button>
                     </div>
                 </div>

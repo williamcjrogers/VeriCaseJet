@@ -167,7 +167,7 @@ CREATE TABLE pst_files (
     project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
     s3_bucket VARCHAR(128) NOT NULL,
     s3_key VARCHAR(2048) NOT NULL,
-    file_size INTEGER,
+    file_size_bytes BIGINT,
     total_emails INTEGER DEFAULT 0,
     processed_emails INTEGER DEFAULT 0,
     processing_status VARCHAR(50) DEFAULT 'queued',
@@ -175,6 +175,7 @@ CREATE TABLE pst_files (
     processing_completed_at TIMESTAMP WITH TIME ZONE,
     error_message TEXT,
     uploaded_by UUID REFERENCES users(id),
+    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -236,7 +237,7 @@ CREATE TABLE email_attachments (
     email_message_id UUID NOT NULL REFERENCES email_messages(id) ON DELETE CASCADE,
     filename VARCHAR(512) NOT NULL,
     content_type VARCHAR(128),
-    file_size INTEGER,
+    file_size_bytes BIGINT,
     s3_bucket VARCHAR(128) NOT NULL,
     s3_key VARCHAR(2048) NOT NULL,
     has_been_ocred BOOLEAN DEFAULT FALSE,
@@ -307,7 +308,7 @@ CREATE TABLE documents (
     filename VARCHAR(512) NOT NULL,
     path VARCHAR(1024),
     content_type VARCHAR(128),
-    size INTEGER,
+    size BIGINT,
     bucket VARCHAR(128) NOT NULL,
     s3_key VARCHAR(2048) NOT NULL,
     status VARCHAR(50) DEFAULT 'NEW',
@@ -387,7 +388,7 @@ CREATE TABLE document_versions (
     version_number INTEGER NOT NULL,
     s3_key VARCHAR(2048) NOT NULL,
     filename VARCHAR(512) NOT NULL,
-    size INTEGER,
+    size BIGINT,
     content_type VARCHAR(128),
     created_by UUID REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

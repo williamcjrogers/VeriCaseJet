@@ -71,79 +71,108 @@
     console.info("VeriCase Error Tracking Initialized");
   })();
 
+  const COMMAND_CENTER_PAGE = "control-centre.html";
+
   const NAV_ITEMS = [
     {
       section: "HOME",
       items: [
         {
           id: "home",
-          label: "Command Center",
+          label: "Control Centre",
           icon: "fa-home",
+          url: COMMAND_CENTER_PAGE,
+        },
+        {
+          id: "dashboard",
+          label: "Master Dashboard",
+          icon: "fa-columns",
           url: "master-dashboard.html",
         },
       ],
     },
     {
-      section: "PROJECT",
+      section: "WORKSPACE",
+      // Workspace navigation is only meaningful once a workspace (project OR case) is selected.
+      requiresContext: true,
+      hideOn: [COMMAND_CENTER_PAGE, "master-dashboard.html"],
+      sectionLabel: (ctx) => {
+        if (ctx?.type === "case") return "CASE";
+        if (ctx?.type === "project") return "PROJECT";
+        return "WORKSPACE";
+      },
       items: [
         {
           id: "dashboard",
-          label: "Project Dashboard",
+          label: (ctx) =>
+            ctx?.type === "case" ? "Case Dashboard" : "Project Dashboard",
           icon: "fa-gauge-high",
           url: "projectdashboard.html",
+          contexts: ["project", "case"],
         },
         {
           id: "evidence",
           label: "Evidence & Files",
           icon: "fa-folder-tree",
           url: "evidence.html",
+          contexts: ["project", "case"],
         },
         {
           id: "correspondence",
           label: "Correspondence",
           icon: "fa-envelope-open-text",
           url: "correspondence-enterprise.html",
+          contexts: ["project", "case"],
         },
         {
           id: "claims",
           label: "Claims & Matters",
           icon: "fa-balance-scale",
           url: "contentious-matters.html",
+          contexts: ["project", "case"],
         },
         {
-          id: "timeline",
-          label: "Project Timeline",
-          icon: "fa-clock-rotate-left",
-          url: "project-timeline.html",
+          id: "collaboration-hub",
+          label: "Collaboration Hub",
+          icon: "fa-comments",
+          url: "collaboration-workspace.html",
+          contexts: ["project", "case"],
         },
         {
           id: "programme",
           label: "Programme",
           icon: "fa-project-diagram",
           url: "programme.html",
+          contexts: ["project", "case"],
         },
-      {
-        id: "delays",
-        label: "The Delay Ripple",
-        icon: "fa-hourglass-half",
-        url: "delays.html",
-      },
-      {
-        id: "chronology",
-        label: "The Chronology Lense\u2122",
-        icon: "fa-history",
-        url: "chronology.html",
-      },
+        {
+          id: "delays",
+          label: "The Delay Ripple",
+          icon: "fa-hourglass-half",
+          url: "delays.html",
+          contexts: ["project", "case"],
+        },
+        {
+          id: "chronology",
+          label: "The Chronology Lense\u2122",
+          icon: "fa-history",
+          url: "chronology-lense.html",
+          contexts: ["project", "case"],
+        },
         {
           id: "stakeholders",
           label: "Stakeholders",
           icon: "fa-users",
           url: "stakeholders.html",
+          contexts: ["project", "case"],
         },
       ],
     },
     {
       section: "TOOLS",
+      // Tools are available elsewhere on the Command Center page (cards + quick actions).
+      // Hide here to avoid showing project/case-specific tools before a workspace is chosen.
+      hideOn: [COMMAND_CENTER_PAGE, "master-dashboard.html"],
       items: [
         {
           id: "upload",
@@ -152,10 +181,12 @@
           url: "pst-upload.html",
         },
         {
-          id: "wizard",
-          label: "Project Setup",
+          id: "workspace-setup",
+          label: "Workspace Setup",
           icon: "fa-magic",
-          url: "wizard.html",
+          url: "workspace-setup.html",
+          requiresContext: true,
+          contexts: ["project", "case"],
         },
         {
           id: "refinement",
@@ -169,6 +200,8 @@
           icon: "fa-microscope",
           url: "vericase-analysis.html",
           badge: "NEW",
+          contexts: ["project", "case"],
+          adminOnly: true,
         },
       ],
     },
@@ -199,16 +232,65 @@
     );
   }
 
-  function getProjectId() {
+  function getContext() {
     const urlParams = new URLSearchParams(window.location.search);
-    const stored = (
-      localStorage.getItem("vericase_current_project") ||
-      localStorage.getItem("currentProjectId") ||
+    const urlCaseId = (urlParams.get("caseId") || "").trim();
+    const urlProjectId = (urlParams.get("projectId") || "").trim();
+
+    if (urlCaseId && urlCaseId !== "undefined" && urlCaseId !== "null") {
+      return { type: "case", id: urlCaseId };
+    }
+
+    if (
+      urlProjectId &&
+      urlProjectId !== "undefined" &&
+      urlProjectId !== "null"
+    ) {
+      return { type: "project", id: urlProjectId };
+    }
+
+    const storedProfileType = (localStorage.getItem("profileType") || "").trim();
+    const storedCaseId = (
+      localStorage.getItem("currentCaseId") ||
+      localStorage.getItem("caseId") ||
       ""
     ).trim();
-    const normalizedStored =
-      stored && stored !== "undefined" && stored !== "null" ? stored : "";
-    return urlParams.get("projectId") || normalizedStored || "";
+    const storedProjectId = (
+      localStorage.getItem("vericase_current_project") ||
+      localStorage.getItem("currentProjectId") ||
+      localStorage.getItem("projectId") ||
+      ""
+    ).trim();
+
+    const normalizedCaseId =
+      storedCaseId && storedCaseId !== "undefined" && storedCaseId !== "null"
+        ? storedCaseId
+        : "";
+    const normalizedProjectId =
+      storedProjectId &&
+        storedProjectId !== "undefined" &&
+        storedProjectId !== "null"
+        ? storedProjectId
+        : "";
+
+    if (storedProfileType === "case" && normalizedCaseId) {
+      return { type: "case", id: normalizedCaseId };
+    }
+
+    if (normalizedProjectId) {
+      return { type: "project", id: normalizedProjectId };
+    }
+
+    if (normalizedCaseId) {
+      return { type: "case", id: normalizedCaseId };
+    }
+
+    return { type: "", id: "" };
+  }
+
+  function getProjectId() {
+    const ctx = getContext();
+    return ctx.type === "project" ? ctx.id : "";
   }
 
   function getUserRole() {
@@ -225,23 +307,61 @@
   }
 
   function buildNavUrl(url) {
-    const projectId = getProjectId();
-    // Don't add projectId to home page
-    if (url === "master-dashboard.html") {
+    const ctx = getContext();
+    // Don't add context to home page
+    if (url === COMMAND_CENTER_PAGE) {
       return url;
     }
-    if (projectId) {
+
+    if (ctx && ctx.id) {
       const u = new URL(url, window.location.href);
-      u.searchParams.set("projectId", projectId);
+      if (ctx.type === "case") {
+        u.searchParams.set("caseId", ctx.id);
+        u.searchParams.delete("projectId");
+      } else {
+        u.searchParams.set("projectId", ctx.id);
+        u.searchParams.delete("caseId");
+      }
       return u.toString();
     }
+
     return url;
+  }
+
+  function resolveNavLabel(label, ctx) {
+    try {
+      return typeof label === "function" ? label(ctx) : label;
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function getUrlPage(url) {
+    return (url || "").split("/").pop().toLowerCase();
+  }
+
+  function isItemVisibleForContext(item, ctx, hasContext) {
+    const contexts = Array.isArray(item?.contexts) ? item.contexts : null;
+    if (!contexts || contexts.length === 0) return true;
+
+    const ctxType = (ctx?.type || "").trim();
+
+    // Without a selected workspace, avoid showing project-only/case-only items.
+    if (!hasContext) {
+      return contexts.includes("project") && contexts.includes("case");
+    }
+
+    return contexts.includes(ctxType);
   }
 
   function renderSidebar() {
     const currentPage = getCurrentPage();
     const userIsAdmin = isAdmin();
-    const hasProject = !!getProjectId();
+    const rawCtx = getContext();
+    const isCommandCenter = currentPage === COMMAND_CENTER_PAGE;
+    const isMasterDashboard = currentPage === "master-dashboard.html";
+    const ctx = isCommandCenter || isMasterDashboard ? { type: "", id: "" } : rawCtx;
+    const hasContext = !!(ctx && ctx.id);
 
     let navHtml = "";
     NAV_ITEMS.forEach((section) => {
@@ -250,30 +370,57 @@
         return;
       }
 
-      // Add visual indicator if project section but no project selected
-      const needsProject = section.section === "PROJECT";
+      // Some sections (workspace nav, tools) should never appear on the Command Center or Master Dashboard.
+      if (Array.isArray(section.hideOn) && section.hideOn.includes(currentPage)) {
+        return;
+      }
+      
+      // Also hide WORKSPACE and TOOLS sections on master dashboard
+      if (isMasterDashboard && (section.section === "WORKSPACE" || section.section === "TOOLS")) {
+        return;
+      }
+
+      const needsContext = !!section.requiresContext;
       const sectionClass =
-        needsProject && !hasProject
-          ? "nav-section needs-project"
+        needsContext && !hasContext
+          ? "nav-section needs-workspace"
           : "nav-section";
 
-      navHtml += `<div class="${sectionClass}">`;
-      navHtml += `<div class="nav-section-title">${section.section}</div>`;
+      const sectionTitle = resolveNavLabel(
+        section.sectionLabel || section.section,
+        ctx
+      );
 
-      section.items.forEach((item) => {
-        const isActive = currentPage.includes(item.url.replace(".html", ""));
-        const itemDisabled = needsProject && !hasProject ? "disabled" : "";
+      // Filter items for the current context (project vs case)
+      const visibleItems = (section.items || []).filter((item) => {
+        // Check item-level admin restriction
+        if (item.adminOnly && !userIsAdmin) return false;
+        return isItemVisibleForContext(item, ctx, hasContext);
+      });
+
+      if (!visibleItems.length) return;
+
+      navHtml += `<div class="${sectionClass}">`;
+      navHtml += `<div class="nav-section-title">${sectionTitle}</div>`;
+
+      visibleItems.forEach((item) => {
+        const itemPage = getUrlPage(item.url);
+        const isDashboardAlias =
+          itemPage === "projectdashboard.html" && currentPage === "dashboard.html";
+        const isActive = currentPage === itemPage || isDashboardAlias;
+        const isDisabled = (needsContext && !hasContext) || (item.requiresContext && !hasContext);
+        const itemLabel = resolveNavLabel(item.label, ctx);
+
         navHtml += `
-                    <a href="${buildNavUrl(item.url)}" data-base-url="${item.url}" class="nav-item ${
-          isActive ? "active" : ""
-        } ${itemDisabled}" data-nav="${item.id}">
-                        <i class="fas ${item.icon}"></i>
-                        <span>${item.label}</span>
-                        ${
-                          item.badge
-                            ? `<span class="nav-badge">${item.badge}</span>`
-                            : ""
-                        }
+                    <a href="${isDisabled ? "#" : buildNavUrl(item.url)}" data-base-url="${item.url}" class="nav-item ${isActive ? "active" : ""
+          } ${isDisabled ? "disabled" : ""}" data-nav="${item.id}"${isActive ? ' aria-current="page"' : ""
+          }${isDisabled ? ' aria-disabled="true" tabindex="-1"' : ""}">
+                        <i class="fas ${item.icon} ${item.iconClass || ""}"></i>
+                        <span>${itemLabel}</span>
+                        ${item.badge
+            ? `<span class="nav-badge">${item.badge}</span>`
+            : ""
+          }
                     </a>
                 `;
       });
@@ -281,31 +428,54 @@
       navHtml += `</div>`;
     });
 
-    // Add project context indicator - always show, clickable to switch projects
-    const projectId = getProjectId();
-    // Get cached project name to show immediately (avoids flash of "Loading...")
-    const cachedProjectName = localStorage.getItem("currentProjectName") || 
-                              localStorage.getItem("vericase_current_project_name") || 
-                              "Loading...";
-    const projectContext = projectId
-      ? `
-            <div class="project-context" onclick="VericaseShell.showProjectSelector()" style="cursor: pointer;" title="Click to switch project">
-                <div class="project-context-label">Current Project <i class="fas fa-exchange-alt" style="float:right;opacity:0.5;font-size:0.75rem;"></i></div>
-                <div class="project-context-name" id="currentProjectName">${cachedProjectName}</div>
-            </div>
-        `
-      : `
-            <div class="project-context no-project" onclick="VericaseShell.showProjectSelector()" style="cursor: pointer;" title="Click to select project">
-                <div class="project-context-label">No Project Selected</div>
-                <div class="project-context-name" style="font-size:0.75rem;opacity:0.7;">Click to select</div>
-            </div>
-        `;
+    // Add context indicator (hide it on Command Center and Master Dashboard to reduce confusion)
+    let projectContext = "";
+    if (!isCommandCenter && !isMasterDashboard) {
+      const contextType =
+        ctx?.type || (localStorage.getItem("profileType") || "project");
+      const contextId = ctx?.id || "";
+
+      // Get cached context name to show immediately (avoids flash of "Loading...")
+      const cachedContextName =
+        contextType === "case"
+          ? localStorage.getItem("currentCaseName") ||
+          localStorage.getItem("vericase_current_case_name") ||
+          "Loading..."
+          : localStorage.getItem("currentProjectName") ||
+          localStorage.getItem("vericase_current_project_name") ||
+          "Loading...";
+
+      const contextLabel =
+        contextType === "case" ? "Current Case" : "Current Project";
+      const clickHandler =
+        contextType === "case"
+          ? `window.location.href='${COMMAND_CENTER_PAGE}'`
+          : "VericaseShell.showProjectSelector()";
+      const clickTitle =
+        contextType === "case"
+          ? "Click to change workspace"
+          : "Click to switch project";
+
+      projectContext = contextId
+        ? `
+              <div class="project-context" onclick="${clickHandler}" style="cursor: pointer;" title="${clickTitle}">
+                  <div class="project-context-label">${contextLabel} <i class="fas fa-exchange-alt" style="float:right;opacity:0.5;font-size:0.75rem;"></i></div>
+                  <div class="project-context-name" id="currentProjectName">${cachedContextName}</div>
+              </div>
+          `
+        : `
+              <div class="project-context no-project" onclick="window.location.href='${COMMAND_CENTER_PAGE}'" style="cursor: pointer;" title="Open Master Dashboard to select a workspace">
+                  <div class="project-context-label">No Workspace Selected</div>
+                  <div class="project-context-name" style="font-size:0.75rem;opacity:0.7;">Open Master Dashboard</div>
+              </div>
+          `;
+    }
 
     return `
             <aside class="app-sidebar" id="appSidebar">
                 <div class="sidebar-header">
                     <a href="master-dashboard.html" class="sidebar-logo">
-                        <img src="/ui/assets/VeriCaseContrast.png" alt="VeriCase" />
+                    <img src="/ui/assets/LOGOTOBEUSED.png" alt="VeriCase" />
                     </a>
                 </div>
                 ${projectContext}
@@ -334,16 +504,15 @@
                 <button class="btn btn-icon btn-ghost" id="sidebarToggle" style="display: none;">
                     <i class="fas fa-bars"></i>
                 </button>
-                ${
-                  breadcrumbHtml
-                    ? `
+                ${breadcrumbHtml
+        ? `
                 <div class="app-header-breadcrumb">
                     ${breadcrumbHtml}
                 </div>
                 <div class="app-header-divider"></div>
                 `
-                    : ""
-                }
+        : ""
+      }
                 <h1 class="app-header-title">${title}</h1>
                 <div class="app-header-actions">
                     ${actions}
@@ -358,103 +527,120 @@
     return breadcrumbs
       .map((crumb, index) => {
         const isLast = index === breadcrumbs.length - 1;
-        const icon = crumb.icon ? `<i class="fas ${crumb.icon}"></i> ` : "";
+        const icon = crumb.icon
+          ? `<i class="fas ${crumb.icon} ${crumb.iconClass || ""}"></i> `
+          : "";
 
         if (isLast) {
           return `<span class="breadcrumb-current">${icon}${crumb.label}</span>`;
         }
 
         return `
-        <a href="${crumb.url || "#"}" class="breadcrumb-link">${icon}${
-          crumb.label
-        }</a>
+        <a href="${crumb.url || "#"}" class="breadcrumb-link">${icon}${crumb.label
+          }</a>
         <span class="separator"><i class="fas fa-chevron-right"></i></span>
       `;
       })
       .join("");
   }
 
-  // Load and display the current project name in the sidebar
+  // Load and display the current context name in the sidebar
   async function loadCurrentProjectName() {
-    const projectId = getProjectId();
-    const nameElement = document.getElementById("currentProjectName");
+    const ctx = getContext();
+    const contextType =
+      ctx?.type || (localStorage.getItem("profileType") || "project");
+    const contextId = ctx?.id || "";
 
+    const nameElement = document.getElementById("currentProjectName");
     if (!nameElement) return;
 
     const cachedName =
-      localStorage.getItem("currentProjectName") ||
-      localStorage.getItem("vericase_current_project_name") ||
-      "";
+      contextType === "case"
+        ? localStorage.getItem("currentCaseName") ||
+        localStorage.getItem("vericase_current_case_name") ||
+        ""
+        : localStorage.getItem("currentProjectName") ||
+        localStorage.getItem("vericase_current_project_name") ||
+        "";
 
     // If we don't have an ID (or API fails later), still show the last-known name.
-    if (!projectId) {
+    if (!contextId) {
       if (cachedName) nameElement.textContent = cachedName;
       return;
     }
 
     try {
+      const apiUrl = window.location.origin;
+      const token =
+        localStorage.getItem("vericase_token") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("jwt");
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+      if (contextType === "case") {
+        const response = await fetch(`${apiUrl}/api/cases/${contextId}`, {
+          headers,
+        });
+
+        if (response.ok) {
+          const caseData = await response.json();
+          const name =
+            caseData.case_name ||
+            caseData.name ||
+            caseData.case_number ||
+            "Unnamed Case";
+          nameElement.textContent = name;
+          localStorage.setItem("currentCaseName", name);
+          localStorage.setItem("vericase_current_case_name", name);
+        } else {
+          nameElement.textContent = cachedName || "Case";
+        }
+        return;
+      }
+
+      // Project context
       // Try to get from cache first
       if (projectsCache && projectsCache.length > 0) {
         const project = projectsCache.find(
-          (p) => String(p.id) === String(projectId)
+          (p) => String(p.id) === String(contextId)
         );
         if (project) {
-          nameElement.textContent =
-            project.project_name || project.name || "Unnamed Project";
-          localStorage.setItem(
-            "currentProjectName",
-            project.project_name || project.name || "Unnamed Project"
-          );
+          const name = project.project_name || project.name || "Unnamed Project";
+          nameElement.textContent = name;
+          localStorage.setItem("currentProjectName", name);
+          localStorage.setItem("vericase_current_project_name", name);
           return;
         }
       }
 
-      // Fetch project details from API
-      const apiUrl = window.location.origin;
-      const token =
-        localStorage.getItem("token") || localStorage.getItem("jwt");
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
-      const response = await fetch(`${apiUrl}/api/projects/${projectId}`, {
+      const response = await fetch(`${apiUrl}/api/projects/${contextId}`, {
         headers,
       });
 
       if (response.ok) {
         const project = await response.json();
-        nameElement.textContent =
-          project.project_name || project.name || "Unnamed Project";
-        localStorage.setItem(
-          "currentProjectName",
-          project.project_name || project.name || "Unnamed Project"
-        );
-        localStorage.setItem(
-          "vericase_current_project_name",
-          project.project_name || project.name || "Unnamed Project"
-        );
+        const name = project.project_name || project.name || "Unnamed Project";
+        nameElement.textContent = name;
+        localStorage.setItem("currentProjectName", name);
+        localStorage.setItem("vericase_current_project_name", name);
       } else {
         // Fallback: try to load all projects and find this one
         const projects = await fetchProjects();
         const project = projects.find(
-          (p) => String(p.id) === String(projectId)
+          (p) => String(p.id) === String(contextId)
         );
         if (project) {
-          nameElement.textContent =
-            project.project_name || project.name || "Unnamed Project";
-          localStorage.setItem(
-            "currentProjectName",
-            project.project_name || project.name || "Unnamed Project"
-          );
-          localStorage.setItem(
-            "vericase_current_project_name",
-            project.project_name || project.name || "Unnamed Project"
-          );
+          const name = project.project_name || project.name || "Unnamed Project";
+          nameElement.textContent = name;
+          localStorage.setItem("currentProjectName", name);
+          localStorage.setItem("vericase_current_project_name", name);
         } else {
           nameElement.textContent = cachedName || "Unnamed Project";
         }
       }
     } catch (error) {
-      console.error("[VericaseShell] Failed to load project name:", error);
-      nameElement.textContent = cachedName || "Project";
+      console.error("[VeriCaseShell] Failed to load context name:", error);
+      nameElement.textContent = cachedName || "Workspace";
     }
   }
 
@@ -471,22 +657,42 @@
     // Don't inject if already has shell
     if (document.querySelector(".app-shell")) return;
 
-    // Wrap existing body content
-    const existingContent = document.body.innerHTML;
+    // Wrap existing body content WITHOUT recreating the DOM.
+    // Replacing `document.body.innerHTML` destroys event listeners registered by page scripts
+    // (e.g., buttons that "don't work" after the shell is injected). Moving nodes preserves them.
+    const existingFragment = document.createDocumentFragment();
+    while (document.body.firstChild) {
+      existingFragment.appendChild(document.body.firstChild);
+    }
 
-    document.body.innerHTML = `
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = `
             <div class="app-shell">
                 ${renderSidebar()}
                 <main class="app-main">
                     ${renderHeader(title, headerActions, breadcrumbs)}
                     ${showProgress ? '<div id="progressTracker"></div>' : ""}
-                    <div class="app-content ${contentClass}">
-                        ${existingContent}
-                    </div>
+                    <div class="app-content ${contentClass}"></div>
                 </main>
             </div>
             <div class="toast-container" id="toastContainer"></div>
         `;
+
+    const appShell = wrapper.querySelector(".app-shell");
+    const toastContainer = wrapper.querySelector("#toastContainer");
+    const appContent = appShell?.querySelector(".app-content");
+
+    if (!appShell || !appContent) {
+      // Failsafe: restore original DOM so the page remains usable.
+      document.body.appendChild(existingFragment);
+      return;
+    }
+
+    document.body.appendChild(appShell);
+    if (toastContainer) document.body.appendChild(toastContainer);
+
+    // Move existing DOM into the new content container.
+    appContent.appendChild(existingFragment);
 
     // Initialize progress tracker if needed
     if (showProgress && projectId && window.VericaseUI) {
@@ -607,8 +813,12 @@
   function setProjectContext({ projectId, projectName } = {}) {
     try {
       if (projectId && String(projectId).trim()) {
+        localStorage.setItem("profileType", "project");
         localStorage.setItem("vericase_current_project", String(projectId));
         localStorage.setItem("currentProjectId", String(projectId));
+        // Clear case context if switching back to a project
+        localStorage.removeItem("currentCaseId");
+        localStorage.removeItem("caseId");
       }
 
       if (projectName && String(projectName).trim()) {
@@ -666,7 +876,9 @@
     try {
       const apiUrl = window.location.origin;
       const token =
-        localStorage.getItem("token") || localStorage.getItem("jwt");
+        localStorage.getItem("vericase_token") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("jwt");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
       const response = await fetch(`${apiUrl}/api/projects`, { headers });
@@ -675,7 +887,7 @@
         return projectsCache;
       }
     } catch (error) {
-      console.error("[VericaseShell] Failed to fetch projects:", error);
+      console.error("[VeriCaseShell] Failed to fetch projects:", error);
     }
     return [];
   }
@@ -715,9 +927,8 @@
       projects.forEach((project) => {
         const selected =
           String(project.id) === String(currentProjectId) ? "selected" : "";
-        select.innerHTML += `<option value="${project.id}" ${selected}>${
-          project.project_name || project.name || "Unnamed Project"
-        } ${project.project_code ? `(${project.project_code})` : ""}</option>`;
+        select.innerHTML += `<option value="${project.id}" ${selected}>${project.project_name || project.name || "Unnamed Project"
+          } ${project.project_code ? `(${project.project_code})` : ""}</option>`;
       });
     }
 
@@ -746,8 +957,12 @@
     }
 
     // Store in localStorage
+    localStorage.setItem("profileType", "project");
     localStorage.setItem("vericase_current_project", selectedId);
     localStorage.setItem("currentProjectId", selectedId);
+    // Clear any case context when switching to a project
+    localStorage.removeItem("currentCaseId");
+    localStorage.removeItem("caseId");
 
     // Best-effort store of current project name for other pages
     try {
@@ -786,6 +1001,7 @@
     inject: injectShell,
     NAV_ITEMS,
     buildNavUrl,
+    getContext,
     getProjectId,
     showProjectSelector,
     closeProjectSelector,

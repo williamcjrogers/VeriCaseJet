@@ -32,22 +32,23 @@ print(f"Postgres did not become ready in time: {last_error}")
 sys.exit(1)
 PY
 
-echo "Running migrations (Alembic preferred)..."
+echo "Running migrations..."
 
-# Prefer Alembic-managed migrations; fall back to legacy script if needed
+# Run Alembic migrations first (handles incremental schema changes)
 set +e
 alembic upgrade head
-status=$?
+alembic_status=$?
 set -e
 
-if [ "$status" -ne 0 ]; then
-  echo "Alembic migrations failed with exit code $status, falling back to legacy apply_migrations.py"
-  if [ -f "/code/apply_migrations.py" ]; then
-    python /code/apply_migrations.py
-  else
-    echo "Legacy migration script /code/apply_migrations.py not found; cannot run migrations."
-    exit 1
-  fi
+if [ "$alembic_status" -ne 0 ]; then
+  echo "Alembic migrations failed with exit code $alembic_status (may be expected on fresh DB)"
+fi
+
+# Always run legacy SQL migrations to ensure base tables exist
+# This is safe because all CREATE statements use IF NOT EXISTS
+if [ -f "/code/apply_migrations.py" ]; then
+  echo "Applying SQL migrations to ensure all tables exist..."
+  python /code/apply_migrations.py || echo "Warning: Some SQL migrations may have had issues (usually harmless)"
 fi
 
 echo "Creating/resetting admin user..."

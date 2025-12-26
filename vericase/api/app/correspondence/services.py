@@ -7,10 +7,11 @@ import logging
 import os
 import uuid
 import asyncio
+from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import HTTPException, UploadFile
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func, or_
 from boto3.s3.transfer import TransferConfig
 
@@ -20,6 +21,8 @@ from ..models import (
     Project,
     PSTFile,
     EmailMessage,
+    EvidenceItem,
+    EvidenceCorrespondenceLink,
     User,
 )
 from ..storage import (
@@ -36,15 +39,22 @@ from ..tasks import celery_app
 # direct RDS access from a developer machine).
 from .utils import (
     _parse_pst_status_filter,
+    build_correspondence_hard_exclusion_filter,
     build_correspondence_visibility_filter,
+    compute_correspondence_exclusion,
+    _is_embedded_image,
     PSTUploadInitResponse,
     PSTMultipartInitResponse,
     PSTMultipartPartResponse,
     PSTProcessingStatus,
+    PSTStatus,
     PSTFileListResponse,
     PSTFileInfo,
     EmailListResponse,
     EmailMessageSummary,
+    EmailMessageDetail,
+    ServerSideRequest,
+    ServerSideResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -53,6 +63,219 @@ logger = logging.getLogger(__name__)
 MULTIPART_CHUNK_SIZE = 100 * 1024 * 1024  # 100MB
 # Server-side streaming chunk size for legacy uploads to avoid buffering entire files
 SERVER_STREAMING_CHUNK_SIZE = 10 * 1024 * 1024  # 10MB
+
+
+def _join_recipients(values: list[str] | None) -> str | None:
+    if not values:
+        return None
+    # Keep it readable for UI display.
+    return ", ".join([v for v in values if v]) or None
+
+
+def _build_email_row(
+    e: EmailMessage,
+    attachment_items: list[dict[str, Any]] | None = None,
+    linked_to_count: int | None = None,
+    pst_filename: str | None = None,
+) -> EmailMessageSummary:
+    meta: dict[str, Any] = e.meta if isinstance(e.meta, dict) else {}
+    exclusion = compute_correspondence_exclusion(meta, e.subject)
+
+    sender_display = None
+    if e.sender_name and e.sender_email:
+        sender_display = f"{e.sender_name} <{e.sender_email}>"
+    else:
+        sender_display = e.sender_name or e.sender_email
+
+    attachments_payload = attachment_items or []
+
+    # The UI uses these AG Grid compatibility fields.
+    email_body = e.body_text_clean or e.body_text or ""
+
+    return EmailMessageSummary(
+        id=str(e.id),
+        subject=e.subject,
+        sender_email=e.sender_email,
+        sender_name=e.sender_name,
+        body_text_clean=e.body_text_clean,
+        body_html=e.body_html,
+        body_text=e.body_text,
+        content_hash=e.content_hash,
+        date_sent=e.date_sent,
+        has_attachments=bool(e.has_attachments),
+        matched_stakeholders=e.matched_stakeholders,
+        matched_keywords=e.matched_keywords,
+        importance=e.importance,
+        meta={**meta, "exclusion": exclusion},
+        email_subject=e.subject,
+        email_from=sender_display,
+        email_to=_join_recipients(e.recipients_to),
+        email_cc=_join_recipients(e.recipients_cc),
+        email_date=e.date_sent,
+        email_body=email_body,
+        attachments=attachments_payload,
+        attachment_count=len(attachments_payload),
+        linked_to_count=linked_to_count,
+        status=(meta.get("status") if isinstance(meta, dict) else None),
+        # Programme/critical path fields (mapped from EmailMessage columns)
+        programme_activity=e.as_planned_activity,
+        as_built_activity=e.as_built_activity,
+        as_planned_finish_date=e.as_planned_finish_date,
+        as_built_finish_date=e.as_built_finish_date,
+        delay_days=e.delay_days,
+        is_critical_path=e.is_critical_path,
+        # Notes: quick-win storage in metadata; can be migrated to a first-class column later.
+        notes=(
+            meta.get("notes")
+            if isinstance(meta, dict) and isinstance(meta.get("notes"), str)
+            else None
+        ),
+        thread_id=e.thread_group_id or e.thread_id,
+        pst_file_id=str(e.pst_file_id) if e.pst_file_id else None,
+        pst_filename=pst_filename,
+    )
+
+
+def _apply_ag_grid_text_filter(query, column, spec: dict[str, Any]):
+    """Apply an AG Grid text filter spec to a query.
+
+    We intentionally implement only the common cases used in the UI.
+    """
+
+    value = spec.get("filter")
+    if value is None or value == "":
+        return query
+    op = (spec.get("type") or "contains").lower()
+    text = str(value)
+
+    if op == "equals":
+        return query.filter(column == text)
+    if op == "notEqual".lower():
+        return query.filter(or_(column.is_(None), column != text))
+    if op == "startsWith".lower():
+        return query.filter(column.ilike(f"{text}%"))
+    if op == "endsWith".lower():
+        return query.filter(column.ilike(f"%{text}"))
+    if op == "notcontains":
+        return query.filter(or_(column.is_(None), ~column.ilike(f"%{text}%")))
+    # default contains
+    return query.filter(column.ilike(f"%{text}%"))
+
+
+def _apply_ag_grid_boolean_filter(query, column, spec: dict[str, Any]):
+    value = spec.get("filter")
+    if value is None:
+        return query
+    if isinstance(value, str):
+        value_bool = value.strip().lower() in {"true", "1", "yes", "y"}
+    else:
+        value_bool = bool(value)
+    return query.filter(column.is_(value_bool))
+
+
+def _apply_ag_grid_number_filter(query, column, spec: dict[str, Any]):
+    """Apply an AG Grid number filter spec to a query."""
+
+    value = spec.get("filter")
+    if value is None or value == "":
+        return query
+
+    try:
+        num = float(value)
+    except (TypeError, ValueError):
+        return query
+
+    op = (spec.get("type") or "equals").lower()
+    if op == "equals":
+        return query.filter(column == num)
+    if op == "notequal":
+        return query.filter(column != num)
+    if op == "greaterthan":
+        return query.filter(column > num)
+    if op == "greaterthanorequal":
+        return query.filter(column >= num)
+    if op == "lessthan":
+        return query.filter(column < num)
+    if op == "lessthanorequal":
+        return query.filter(column <= num)
+    if op == "inrange":
+        to_value = spec.get("filterTo")
+        try:
+            num_to = float(to_value)
+        except (TypeError, ValueError):
+            return query
+        return query.filter(column >= num, column <= num_to)
+
+    return query
+
+
+def _apply_ag_grid_date_filter(query, column, spec: dict[str, Any]):
+    """Apply an AG Grid date filter spec (best-effort).
+
+    AG Grid typically sends ISO dates (YYYY-MM-DD) in dateFrom/dateTo.
+    We treat them as inclusive bounds.
+    """
+
+    date_from = spec.get("dateFrom") or spec.get("filter")
+    if not date_from:
+        return query
+
+    op = (spec.get("type") or "equals").lower()
+
+    def _parse(d: str | None) -> datetime | None:
+        if not d:
+            return None
+        try:
+            # Accept either YYYY-MM-DD or full ISO timestamp.
+            return datetime.fromisoformat(str(d).replace("Z", "+00:00"))
+        except Exception:
+            try:
+                return datetime.strptime(str(d), "%Y-%m-%d")
+            except Exception:
+                return None
+
+    dt_from = _parse(str(date_from))
+    if not dt_from:
+        return query
+
+    if op == "equals":
+        # Same-day match: [from, from+1d)
+        dt_to = dt_from.replace(hour=0, minute=0, second=0, microsecond=0)
+        dt_end = dt_to + timedelta(days=1)
+        return query.filter(column >= dt_to, column < dt_end)
+
+    if op == "greaterthan":
+        return query.filter(column > dt_from)
+
+    if op == "lessthan":
+        return query.filter(column < dt_from)
+
+    if op == "inrange":
+        dt_to = _parse(spec.get("dateTo") or spec.get("filterTo"))
+        if not dt_to:
+            return query
+        return query.filter(column >= dt_from, column <= dt_to)
+
+    return query
+
+
+def _date_range_to_text(dmin, dmax) -> str:
+    if not dmin and not dmax:
+        return "-"
+    if dmin and not dmax:
+        return str(dmin.date())
+    if dmax and not dmin:
+        return str(dmax.date())
+    return f"{dmin.date()} → {dmax.date()}"
+
+
+def _safe_uuid(value: str | None, field_name: str) -> uuid.UUID | None:
+    if value is None:
+        return None
+    try:
+        return uuid.UUID(str(value))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}") from exc
 
 
 async def upload_pst_file_service(
@@ -189,7 +412,7 @@ async def upload_pst_file_service(
         s3_bucket=s3_bucket,
         s3_key=s3_key,
         file_size_bytes=file_size or None,
-        processing_status="pending",
+        processing_status=PSTStatus.PENDING.value,
         uploaded_by=user.id,
     )
 
@@ -198,29 +421,17 @@ async def upload_pst_file_service(
 
     logger.info(f"Uploaded PST file via server: {pst_file_id}")
 
-    # Trigger processing immediately
     task_id = None
+    message = "PST uploaded successfully"
     try:
-        task = celery_app.send_task(
-            "app.process_pst_forensic",
-            args=[pst_file_id, s3_bucket, s3_key],
-            kwargs={"case_id": case_id, "project_id": project_id},
-            queue=settings.CELERY_PST_QUEUE,
-        )
-        task_id = task.id
-
-        pst_file.processing_status = "queued"
-        pst_file.error_message = None
-        db.commit()
+        start_resp = await start_pst_processing_service(pst_file_id, db)
+        task_id = start_resp.get("task_id")
+        message = start_resp.get("message", message)
     except Exception as e:
-        logger.warning(f"Failed to enqueue Celery task (Redis unavailable?): {e}")
+        logger.warning(f"Failed to enqueue PST processing task: {e}")
+        message = "PST uploaded successfully (processing pending)"
 
-    return {
-        "pst_file_id": pst_file_id,
-        "message": "PST uploaded successfully"
-        + (" and processing started" if task_id else " (processing pending)"),
-        "task_id": task_id,
-    }
+    return {"pst_file_id": pst_file_id, "message": message, "task_id": task_id}
 
 
 async def init_pst_upload_service(request, db, user):
@@ -250,7 +461,7 @@ async def init_pst_upload_service(request, db, user):
         s3_bucket=s3_bucket,
         s3_key=s3_key,
         file_size_bytes=request.file_size,
-        processing_status="pending",
+        processing_status=PSTStatus.PENDING.value,
         uploaded_by=user.id,
     )
 
@@ -300,7 +511,8 @@ async def init_pst_multipart_upload_service(request, db, user):
         s3_bucket=s3_bucket,
         s3_key=s3_key,
         file_size_bytes=request.file_size,
-        processing_status="uploading",
+        # Keep status aligned with the DB enum (pending|processing|completed|failed).
+        processing_status=PSTStatus.PENDING.value,
         uploaded_by=user.id,
     )
 
@@ -351,10 +563,25 @@ async def complete_pst_multipart_upload_service(request, db):
 
         logger.info(f"Completed multipart upload for PST: {request.pst_file_id}")
 
+        task_id = None
+        message = "Upload complete. Processing pending."
+        try:
+            start_resp = await start_pst_processing_service(request.pst_file_id, db)
+            task_id = start_resp.get("task_id")
+            message = start_resp.get("message", message)
+        except Exception as e:
+            logger.warning(
+                "Failed to enqueue PST processing after multipart upload %s: %s",
+                request.pst_file_id,
+                e,
+            )
+
         return {
             "success": True,
             "pst_file_id": request.pst_file_id,
-            "message": "Upload complete. Call /pst/{pst_file_id}/process to start processing.",
+            "processing_started": task_id is not None,
+            "task_id": task_id,
+            "message": message,
         }
 
     except Exception as e:
@@ -366,6 +593,26 @@ async def start_pst_processing_service(pst_file_id, db):
     pst_file = db.query(PSTFile).filter_by(id=pst_file_id).first()
     if not pst_file:
         raise HTTPException(404, "PST file not found")
+
+    status = (pst_file.processing_status or "").lower()
+    if (
+        status in {"processing", "pending"}
+        and pst_file.processing_started_at
+        and not pst_file.error_message
+    ):
+        return {
+            "success": True,
+            "task_id": None,
+            "pst_file_id": pst_file_id,
+            "message": "PST processing already started",
+        }
+    if status == "completed" and not pst_file.error_message:
+        return {
+            "success": True,
+            "task_id": None,
+            "pst_file_id": pst_file_id,
+            "message": "PST processing already completed",
+        }
 
     if pst_file.project_id:
         project = db.query(Project).filter_by(id=pst_file.project_id).first()
@@ -384,8 +631,9 @@ async def start_pst_processing_service(pst_file_id, db):
         queue=settings.CELERY_PST_QUEUE,
     )
 
-    pst_file.processing_status = "queued"
+    pst_file.processing_status = "pending"
     pst_file.error_message = None
+    pst_file.processing_started_at = datetime.now()
     db.commit()
 
     logger.info(f"Enqueued PST processing task {task.id} for file {pst_file_id}")
@@ -503,8 +751,8 @@ async def admin_cleanup_pst_service(body: dict, db: Session, user: User) -> dict
     NOTE: This does NOT delete S3 objects.
     """
 
-    # Simple admin check (same convention used elsewhere)
-    if not user.email.endswith("@vericase.com"):
+    # Admin check: trust role over email domain.
+    if str(getattr(user, "role", "")).upper() != "ADMIN":
         raise HTTPException(status_code=403, detail="Admin access required")
 
     project_id = body.get("project_id")
@@ -549,7 +797,7 @@ async def admin_cleanup_pst_service(body: dict, db: Session, user: User) -> dict
     if include_stuck:
         for pst in candidates:
             status = pst.processing_status or ""
-            if status not in {"processing", "queued"}:
+            if status not in {"processing", "pending"}:
                 continue
             ref = _as_utc(pst.processing_started_at) or _as_utc(pst.uploaded_at)
             if ref is None or (now - ref) > stuck_delta:
@@ -683,10 +931,11 @@ async def admin_cleanup_pst_service(body: dict, db: Session, user: User) -> dict
 async def list_pst_files_service(project_id, case_id, status, page, page_size, db):
     query = db.query(PSTFile)
 
-    if project_id:
-        query = query.filter(PSTFile.project_id == project_id)
     if case_id:
         query = query.filter(PSTFile.case_id == case_id)
+
+    if project_id:
+        query = query.filter(PSTFile.project_id == project_id)
     if status:
         statuses = _parse_pst_status_filter(status)
         if statuses:
@@ -737,18 +986,22 @@ async def list_emails_service(
     include_hidden,
     db,
 ):
+    # NOTE: This is the "simple" list endpoint. The Enterprise UI uses the
+    # server-side endpoint, but we keep this functional for compatibility.
     if not case_id and not project_id:
         query = db.query(EmailMessage)
     elif case_id:
         case = db.query(Case).filter_by(id=case_id).first()
         if not case:
             raise HTTPException(404, "Case not found")
-        query = db.query(EmailMessage).filter_by(case_id=case_id)
+        query = db.query(EmailMessage).filter(EmailMessage.case_id == case.id)
     else:
         project = db.query(Project).filter_by(id=project_id).first()
         if not project:
             raise HTTPException(404, "Project not found")
         query = db.query(EmailMessage).filter_by(project_id=project_id)
+
+    query = query.filter(build_correspondence_hard_exclusion_filter())
 
     if search:
         search_term = f"%{search}%"
@@ -797,23 +1050,549 @@ async def list_emails_service(
 
     offset = (page - 1) * page_size
     emails = (
-        query.order_by(EmailMessage.date_sent.desc())
+        query.options(selectinload(EmailMessage.attachments))
+        .order_by(EmailMessage.date_sent.desc())
         .offset(offset)
         .limit(page_size)
         .all()
     )
 
+    email_ids = [e.id for e in emails]
+    link_counts_by_email: dict[uuid.UUID, int] = {}
+    if email_ids:
+        rows_linked = (
+            db.query(
+                EvidenceCorrespondenceLink.email_message_id,
+                func.count(EvidenceCorrespondenceLink.id),
+            )
+            .filter(EvidenceCorrespondenceLink.email_message_id.in_(email_ids))
+            .group_by(EvidenceCorrespondenceLink.email_message_id)
+            .all()
+        )
+        link_counts_by_email = {
+            email_id: int(cnt)
+            for (email_id, cnt) in rows_linked
+            if email_id is not None
+        }
+
     email_summaries: list[EmailMessageSummary] = []
+    pst_filename_by_id: dict[uuid.UUID, str] = {}
+    pst_ids = {e.pst_file_id for e in emails if e.pst_file_id}
+    if pst_ids:
+        pst_rows = (
+            db.query(PSTFile.id, PSTFile.filename).filter(PSTFile.id.in_(pst_ids)).all()
+        )
+        pst_filename_by_id = {
+            pst_id: (filename or "")
+            for pst_id, filename in pst_rows
+            if pst_id is not None
+        }
 
     for e in emails:
-        # ... (logic to build EmailMessageSummary, similar to original file)
-        # For brevity, I'm omitting the detailed mapping logic here, but it should be copied from the original file.
-        # You'll need to import necessary helper functions like clean_body_text, format_recipients, etc.
-        pass
+        atts: list[dict[str, Any]] = []
+        for att in e.attachments or []:
+            att_data = {
+                "filename": att.filename,
+                "content_type": att.content_type,
+                "file_size": att.file_size_bytes,
+                "is_inline": att.is_inline,
+            }
+            if _is_embedded_image(att_data):
+                continue
+            atts.append(
+                {
+                    "id": str(att.id),
+                    "filename": att.filename,
+                    "content_type": att.content_type,
+                    "file_size": att.file_size_bytes,
+                    "s3_bucket": att.s3_bucket,
+                    "s3_key": att.s3_key,
+                    "is_inline": bool(att.is_inline),
+                    "is_duplicate": bool(att.is_duplicate),
+                }
+            )
+
+        email_summaries.append(
+            _build_email_row(
+                e,
+                attachment_items=atts,
+                linked_to_count=link_counts_by_email.get(e.id, 0),
+                pst_filename=pst_filename_by_id.get(e.pst_file_id),
+            )
+        )
 
     return EmailListResponse(
         total=total, emails=email_summaries, page=page, page_size=page_size
     )
 
 
-# ... (Implement other service functions similarly)
+async def list_emails_server_side_service(
+    request: ServerSideRequest,
+    case_id: str | None,
+    project_id: str | None,
+    search: str | None,
+    stakeholder_id: str | None,
+    keyword_id: str | None,
+    include_hidden: bool,
+    db: Session,
+) -> ServerSideResponse:
+    """Server-side row model endpoint for the Correspondence Enterprise grid."""
+
+    case_uuid = _safe_uuid(case_id, "case_id")
+    project_uuid = _safe_uuid(project_id, "project_id")
+
+    # Base query used for grid data.
+    q = db.query(EmailMessage).options(selectinload(EmailMessage.attachments))
+
+    # Correlated subquery for evidence link count (used for sort/filter only).
+    linked_count_expr = (
+        db.query(func.count(EvidenceCorrespondenceLink.id))
+        .filter(EvidenceCorrespondenceLink.email_message_id == EmailMessage.id)
+        .correlate(EmailMessage)
+        .scalar_subquery()
+    )
+
+    if case_uuid:
+        q = q.filter(EmailMessage.case_id == case_uuid)
+    if project_uuid:
+        q = q.filter(EmailMessage.project_id == project_uuid)
+
+    # Always exclude Outlook system items from the dataset.
+    q = q.filter(
+        or_(EmailMessage.subject.is_(None), ~EmailMessage.subject.like("IPM.%"))
+    )
+
+    # Always exclude duplicates/spam/other-project emails from correspondence.
+    q = q.filter(build_correspondence_hard_exclusion_filter())
+
+    # Stats queries want access to both total and visible counts.
+    q_all = q
+    q_visible = q.filter(build_correspondence_visibility_filter())
+
+    if search:
+        search_term = f"%{search}%"
+        q = q.filter(
+            or_(
+                EmailMessage.subject.ilike(search_term),
+                EmailMessage.body_text.ilike(search_term),
+                EmailMessage.sender_email.ilike(search_term),
+                EmailMessage.sender_name.ilike(search_term),
+            )
+        )
+        q_all = q_all.filter(
+            or_(
+                EmailMessage.subject.ilike(search_term),
+                EmailMessage.body_text.ilike(search_term),
+                EmailMessage.sender_email.ilike(search_term),
+                EmailMessage.sender_name.ilike(search_term),
+            )
+        )
+        q_visible = q_visible.filter(
+            or_(
+                EmailMessage.subject.ilike(search_term),
+                EmailMessage.body_text.ilike(search_term),
+                EmailMessage.sender_email.ilike(search_term),
+                EmailMessage.sender_name.ilike(search_term),
+            )
+        )
+
+    # Stakeholder / keyword filters (JSONB arrays of IDs).
+    if stakeholder_id:
+        q = q.filter(EmailMessage.matched_stakeholders.contains([stakeholder_id]))
+        q_all = q_all.filter(
+            EmailMessage.matched_stakeholders.contains([stakeholder_id])
+        )
+        q_visible = q_visible.filter(
+            EmailMessage.matched_stakeholders.contains([stakeholder_id])
+        )
+
+    if keyword_id:
+        q = q.filter(EmailMessage.matched_keywords.contains([keyword_id]))
+        q_all = q_all.filter(EmailMessage.matched_keywords.contains([keyword_id]))
+        q_visible = q_visible.filter(
+            EmailMessage.matched_keywords.contains([keyword_id])
+        )
+
+    if not include_hidden:
+        q = q.filter(build_correspondence_visibility_filter())
+
+    # AG Grid filter model.
+    filter_model: dict[str, Any] = request.filterModel or {}
+    for field, spec_raw in filter_model.items():
+        if not isinstance(spec_raw, dict):
+            continue
+        filter_type = (spec_raw.get("filterType") or "text").lower()
+
+        # Map UI column IDs -> model columns.
+        if field in {"email_subject", "subject"}:
+            if filter_type == "text":
+                q = _apply_ag_grid_text_filter(q, EmailMessage.subject, spec_raw)
+        elif field in {"body_text_clean", "body_text", "email_body"}:
+            if filter_type == "text":
+                body_text = func.coalesce(
+                    EmailMessage.body_text_clean,
+                    EmailMessage.body_text,
+                    "",
+                )
+                q = _apply_ag_grid_text_filter(q, body_text, spec_raw)
+        elif field in {"email_from", "sender_email", "sender_name"}:
+            if filter_type == "text":
+                # Treat as match on either email or name.
+                val = spec_raw.get("filter")
+                if val is not None and val != "":
+                    inner = f"%{val}%"
+                    q = q.filter(
+                        or_(
+                            EmailMessage.sender_email.ilike(inner),
+                            EmailMessage.sender_name.ilike(inner),
+                        )
+                    )
+        elif field in {"has_attachments"}:
+            if filter_type in {"boolean", "text"}:
+                q = _apply_ag_grid_boolean_filter(
+                    q, EmailMessage.has_attachments, spec_raw
+                )
+
+        elif field in {"email_to", "recipients_to"}:
+            if filter_type == "text":
+                recipients_text = func.coalesce(
+                    func.array_to_string(EmailMessage.recipients_to, ", "), ""
+                )
+                q = _apply_ag_grid_text_filter(q, recipients_text, spec_raw)
+
+        elif field in {"email_cc", "recipients_cc"}:
+            if filter_type == "text":
+                recipients_text = func.coalesce(
+                    func.array_to_string(EmailMessage.recipients_cc, ", "), ""
+                )
+                q = _apply_ag_grid_text_filter(q, recipients_text, spec_raw)
+
+        elif field in {"thread_id"}:
+            if filter_type == "text":
+                thread_key = func.coalesce(
+                    EmailMessage.thread_group_id, EmailMessage.thread_id
+                )
+                q = _apply_ag_grid_text_filter(q, thread_key, spec_raw)
+
+        elif field in {"notes"}:
+            if filter_type == "text":
+                notes_field = EmailMessage.meta["notes"].as_string()
+                q = _apply_ag_grid_text_filter(q, notes_field, spec_raw)
+
+        elif field in {"programme_activity", "as_planned_activity"}:
+            if filter_type == "text":
+                q = _apply_ag_grid_text_filter(
+                    q, EmailMessage.as_planned_activity, spec_raw
+                )
+
+        elif field in {"as_built_activity"}:
+            if filter_type == "text":
+                q = _apply_ag_grid_text_filter(
+                    q, EmailMessage.as_built_activity, spec_raw
+                )
+
+        elif field in {"delay_days"}:
+            if filter_type in {"number", "text"}:
+                q = _apply_ag_grid_number_filter(q, EmailMessage.delay_days, spec_raw)
+
+        elif field in {"linked_to_count", "links", "link_count"}:
+            if filter_type in {"number", "text"}:
+                q = _apply_ag_grid_number_filter(q, linked_count_expr, spec_raw)
+
+        elif field in {"email_date", "date_sent"}:
+            if filter_type in {"date", "text"}:
+                q = _apply_ag_grid_date_filter(q, EmailMessage.date_sent, spec_raw)
+
+    total_for_grid = int(q.count())
+
+    # Sorting.
+    sort_model: list[dict[str, Any]] = request.sortModel or []
+    for sort in sort_model:
+        col_id = sort.get("colId")
+        direction = (sort.get("sort") or "desc").lower()
+        desc = direction != "asc"
+
+        if col_id in {"email_date", "date_sent"}:
+            q = q.order_by(
+                EmailMessage.date_sent.desc() if desc else EmailMessage.date_sent.asc()
+            )
+        elif col_id in {"email_subject", "subject"}:
+            q = q.order_by(
+                EmailMessage.subject.desc() if desc else EmailMessage.subject.asc()
+            )
+        elif col_id in {"email_from", "sender_email"}:
+            q = q.order_by(
+                EmailMessage.sender_email.desc()
+                if desc
+                else EmailMessage.sender_email.asc()
+            )
+        elif col_id in {"email_to", "recipients_to"}:
+            recipients_text = func.coalesce(
+                func.array_to_string(EmailMessage.recipients_to, ", "), ""
+            )
+            q = q.order_by(recipients_text.desc() if desc else recipients_text.asc())
+        elif col_id in {"email_cc", "recipients_cc"}:
+            recipients_text = func.coalesce(
+                func.array_to_string(EmailMessage.recipients_cc, ", "), ""
+            )
+            q = q.order_by(recipients_text.desc() if desc else recipients_text.asc())
+        elif col_id in {"thread_id"}:
+            thread_key = func.coalesce(
+                EmailMessage.thread_group_id, EmailMessage.thread_id
+            )
+            q = q.order_by(thread_key.desc() if desc else thread_key.asc())
+        elif col_id in {"programme_activity", "as_planned_activity"}:
+            q = q.order_by(
+                EmailMessage.as_planned_activity.desc()
+                if desc
+                else EmailMessage.as_planned_activity.asc()
+            )
+        elif col_id in {"as_built_activity"}:
+            q = q.order_by(
+                EmailMessage.as_built_activity.desc()
+                if desc
+                else EmailMessage.as_built_activity.asc()
+            )
+        elif col_id in {"delay_days"}:
+            q = q.order_by(
+                EmailMessage.delay_days.desc()
+                if desc
+                else EmailMessage.delay_days.asc()
+            )
+        elif col_id in {"linked_to_count", "links", "link_count"}:
+            q = q.order_by(
+                linked_count_expr.desc() if desc else linked_count_expr.asc()
+            )
+
+    # Stable tie-break.
+    q = q.order_by(EmailMessage.id.desc())
+
+    start = max(0, int(request.startRow or 0))
+    end = max(start, int(request.endRow or (start + 100)))
+    page_size = max(1, end - start)
+
+    emails = q.offset(start).limit(page_size).all()
+    pst_filename_by_id: dict[uuid.UUID, str] = {}
+    pst_ids = {e.pst_file_id for e in emails if e.pst_file_id}
+    if pst_ids:
+        pst_rows = (
+            db.query(PSTFile.id, PSTFile.filename).filter(PSTFile.id.in_(pst_ids)).all()
+        )
+        pst_filename_by_id = {
+            pst_id: (filename or "")
+            for pst_id, filename in pst_rows
+            if pst_id is not None
+        }
+
+    # Attachments: pull evidence items for these emails (used for preview/download in UI).
+    email_ids = [e.id for e in emails]
+    attachments_by_email: dict[uuid.UUID, list[dict[str, Any]]] = {
+        eid: [] for eid in email_ids
+    }
+    if email_ids:
+        evidence_atts = (
+            db.query(EvidenceItem)
+            .filter(EvidenceItem.source_email_id.in_(email_ids))
+            .order_by(EvidenceItem.created_at.desc())
+            .all()
+        )
+        for item in evidence_atts:
+            if not item.source_email_id:
+                continue
+            att_data = {
+                "filename": item.filename,
+                "content_type": item.mime_type,
+                "file_size": item.file_size,
+            }
+            if _is_embedded_image(att_data):
+                continue
+            attachments_by_email.setdefault(item.source_email_id, []).append(
+                {
+                    "evidenceId": str(item.id),
+                    "attachmentId": str(item.id),
+                    "fileName": item.filename,
+                    "mime_type": item.mime_type,
+                    "file_size": item.file_size,
+                }
+            )
+
+    # Evidence link counts for "Link"/"Linked" columns.
+    link_counts_by_email: dict[uuid.UUID, int] = {}
+    if email_ids:
+        rows_linked = (
+            db.query(
+                EvidenceCorrespondenceLink.email_message_id,
+                func.count(EvidenceCorrespondenceLink.id),
+            )
+            .filter(EvidenceCorrespondenceLink.email_message_id.in_(email_ids))
+            .group_by(EvidenceCorrespondenceLink.email_message_id)
+            .all()
+        )
+        link_counts_by_email = {
+            email_id: int(cnt)
+            for (email_id, cnt) in rows_linked
+            if email_id is not None
+        }
+
+    rows = [
+        _build_email_row(
+            e,
+            attachment_items=attachments_by_email.get(e.id, []),
+            linked_to_count=link_counts_by_email.get(e.id, 0),
+            pst_filename=pst_filename_by_id.get(e.pst_file_id),
+        ).model_dump()
+        for e in emails
+    ]
+
+    stats: dict[str, Any] = {}
+    if start == 0:
+        total_all = int(q_all.count())
+        total_visible = int(q_visible.count())
+        excluded_count = max(0, total_all - total_visible)
+
+        # Threads (best-effort; some datasets only populate one of these).
+        thread_key = func.coalesce(EmailMessage.thread_group_id, EmailMessage.thread_id)
+        unique_threads = db.query(func.count(func.distinct(thread_key))).select_from(
+            EmailMessage
+        )
+        unique_threads = unique_threads.filter(
+            build_correspondence_hard_exclusion_filter()
+        )
+        if case_uuid:
+            unique_threads = unique_threads.filter(EmailMessage.case_id == case_uuid)
+        if project_uuid:
+            unique_threads = unique_threads.filter(
+                EmailMessage.project_id == project_uuid
+            )
+        unique_threads = unique_threads.filter(
+            or_(EmailMessage.subject.is_(None), ~EmailMessage.subject.like("IPM.%"))
+        )
+        if stakeholder_id:
+            unique_threads = unique_threads.filter(
+                EmailMessage.matched_stakeholders.contains([stakeholder_id])
+            )
+        if keyword_id:
+            unique_threads = unique_threads.filter(
+                EmailMessage.matched_keywords.contains([keyword_id])
+            )
+        if not include_hidden:
+            unique_threads = unique_threads.filter(
+                build_correspondence_visibility_filter()
+            )
+        unique_threads_count = int(unique_threads.scalar() or 0)
+
+        with_attachments_count = int(
+            (q_visible if not include_hidden else q_all)
+            .filter(EmailMessage.has_attachments.is_(True))
+            .count()
+        )
+        dmin, dmax = (
+            (q_visible if not include_hidden else q_all)
+            .with_entities(
+                func.min(EmailMessage.date_sent), func.max(EmailMessage.date_sent)
+            )
+            .first()
+        )
+
+        stats = {
+            "total": total_all,
+            "excludedCount": excluded_count,
+            "uniqueThreads": unique_threads_count,
+            "withAttachments": with_attachments_count,
+            "dateRange": _date_range_to_text(dmin, dmax),
+        }
+
+    return ServerSideResponse(rows=rows, lastRow=total_for_grid, stats=stats)
+
+
+async def get_email_detail_service(email_id: str, db: Session):
+    from sqlalchemy.orm import selectinload
+    from ..storage import get_object
+    from ..models import EmailMessage, EvidenceItem
+
+    email = (
+        db.query(EmailMessage)
+        .options(selectinload(EmailMessage.attachments))
+        .filter(EmailMessage.id == email_id)
+        .first()
+    )
+    if not email:
+        raise HTTPException(404, "Email not found")
+
+    # Reconstruct full body
+    full_body_text = email.body_text
+    full_body_html = email.body_html
+
+    if email.body_full_s3_key:
+        try:
+            bucket = settings.S3_BUCKET  # or attachments bucket
+            body_data = get_object(bucket, email.body_full_s3_key)
+            full_body_text = body_data.decode("utf-8")
+            # Optionally reconstruct HTML if needed, but use text for now
+        except Exception as e:
+            logger.warning(f"Failed to fetch full body from S3: {e}")
+
+    # Build attachments list (prefer evidence items for preview/download support).
+    atts = []
+    evidence_atts = (
+        db.query(EvidenceItem)
+        .filter(EvidenceItem.source_email_id == email.id)
+        .order_by(EvidenceItem.created_at.desc())
+        .all()
+    )
+
+    if evidence_atts:
+        for item in evidence_atts:
+            att_data = {
+                "filename": item.filename,
+                "content_type": item.mime_type,
+                "file_size": item.file_size,
+            }
+            if _is_embedded_image(att_data):
+                continue
+            atts.append(
+                {
+                    "id": str(item.id),
+                    "evidenceId": str(item.id),
+                    "attachmentId": str(item.id),
+                    "fileName": item.filename,
+                    "mime_type": item.mime_type,
+                    "file_size": item.file_size,
+                }
+            )
+    else:
+        for att in email.attachments or []:
+            att_data = {
+                "id": str(att.id),
+                "filename": att.filename,
+                "content_type": att.content_type,
+                "file_size": att.file_size_bytes,
+                "s3_bucket": att.s3_bucket,
+                "s3_key": att.s3_key,
+                "is_inline": bool(att.is_inline),
+                "is_duplicate": bool(att.is_duplicate),
+            }
+            if _is_embedded_image(att_data):
+                continue
+            atts.append(att_data)
+
+    return EmailMessageDetail(
+        id=str(email.id),
+        subject=email.subject,
+        sender_email=email.sender_email,
+        sender_name=email.sender_name,
+        recipients_to=email.recipients_to or [],
+        recipients_cc=email.recipients_cc or [],
+        date_sent=email.date_sent,
+        date_received=email.date_received,
+        body_text=full_body_text,
+        body_html=full_body_html,
+        body_text_clean=email.body_text_clean,
+        content_hash=email.content_hash,
+        has_attachments=bool(email.has_attachments),
+        attachments=atts,
+        matched_stakeholders=email.matched_stakeholders or [],
+        matched_keywords=email.matched_keywords or [],
+        importance=email.importance,
+        pst_message_path=email.pst_message_path,
+    )

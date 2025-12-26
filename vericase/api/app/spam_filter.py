@@ -75,6 +75,9 @@ OTHER_PROJECT_KEYWORDS: list[str] = [
     "camley street",
     "lsa",
     "honeywell",
+    "becontree",
+    "honeypot",
+    "honey",
 ]
 
 
@@ -235,6 +238,9 @@ class SpamClassifier:
                 r"camley street",
                 r"\blsa\b",
                 r"honeywell",
+                r"becontree",
+                r"honeypot",
+                r"\bhoney\b",
             ],
             confidence=92,
             auto_hide=True,

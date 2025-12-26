@@ -8,8 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="brand-styles.css" />
-    <link rel="stylesheet" href="design-system.css" />
+    <link rel="stylesheet" href="brand-styles.css?v=6" />
+    <link rel="stylesheet" href="design-system.css?v=6" />
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
     <script src="config.js"></script>
@@ -501,6 +501,10 @@
           <p class="page-subtitle">Create detailed event-by-event narratives from your evidence</p>
         </div>
         <div class="page-actions">
+          <button class="btn btn-secondary" onclick="openVisualTimeline()">
+            <i class="fas fa-chart-gantt"></i>
+            <span>Visual Timeline</span>
+          </button>
           <button class="btn btn-secondary" onclick="showImportModal()">
             <i class="fas fa-file-import"></i>
             <span>Import Events</span>
@@ -705,29 +709,113 @@
       let currentCaseId = null;
       let allEvents = [];
       let editingEventId = null;
+      let currentContextType = 'case'; // 'case' or 'project'
+
+      function getWorkspaceContext() {
+        // Check VericaseShell context first
+        if (window.VericaseShell && typeof window.VericaseShell.getContext === "function") {
+          const ctx = window.VericaseShell.getContext();
+          if (ctx?.id) {
+            currentContextType = ctx.type || 'project';
+            return String(ctx.id);
+          }
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        // Check for caseId first
+        const caseFromUrl = urlParams.get('caseId') || urlParams.get('case_id');
+        if (caseFromUrl && caseFromUrl !== 'undefined' && caseFromUrl !== 'null') {
+          currentContextType = 'case';
+          return caseFromUrl;
+        }
+        
+        // Check for projectId
+        const projectFromUrl = urlParams.get('projectId') || urlParams.get('project_id');
+        if (projectFromUrl && projectFromUrl !== 'undefined' && projectFromUrl !== 'null') {
+          currentContextType = 'project';
+          return projectFromUrl;
+        }
+
+        // Check localStorage for case
+        const storedCase =
+          localStorage.getItem('currentCaseId') ||
+          localStorage.getItem('caseId') ||
+          localStorage.getItem('vericase_current_case');
+        if (storedCase && storedCase !== 'undefined' && storedCase !== 'null') {
+          currentContextType = 'case';
+          try {
+            const parsed = JSON.parse(storedCase);
+            return parsed?.id ? String(parsed.id) : String(parsed);
+          } catch {
+            return String(storedCase);
+          }
+        }
+
+        // Check localStorage for project
+        const storedProject =
+          localStorage.getItem('vericase_current_project') ||
+          localStorage.getItem('projectId');
+        if (storedProject && storedProject !== 'undefined' && storedProject !== 'null') {
+          currentContextType = 'project';
+          try {
+            const parsed = JSON.parse(storedProject);
+            return parsed?.id ? String(parsed.id) : String(parsed);
+          } catch {
+            return String(storedProject);
+          }
+        }
+
+        return '';
+      }
+
+      // Helper to get the API base path based on context type
+      function getApiBasePath() {
+        return currentContextType === 'case' ? 'cases' : 'projects';
+      }
+
+      // Open Visual Timeline (integrated from Timeline feature)
+      function openVisualTimeline() {
+        const url = new URL("project-timeline.html", window.location.href);
+        
+        if (currentCaseId) {
+          const paramKey = currentContextType === 'case' ? 'caseId' : 'projectId';
+          url.searchParams.set(paramKey, currentCaseId);
+        }
+        
+        window.location.href = url.toString();
+      }
 
       // Initialize
       document.addEventListener('DOMContentLoaded', async () => {
           if (window.VericaseShell) {
+            const ctx =
+              typeof window.VericaseShell.getContext === "function"
+                ? window.VericaseShell.getContext()
+                : { type: "project", id: window.VericaseShell.getProjectId() };
+            const ctxType = ctx?.type === "case" ? "case" : "project";
+            const ctxLabel =
+              ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
+            const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
+            const ctxId = ctx?.id ? String(ctx.id) : "";
+            const ctxUrl = ctxId
+              ? `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+              : "dashboard.html";
+
             window.VericaseShell.inject({
               title: 'The Chronology Lense\u2122',
               breadcrumbs: [
-                { label: 'Home', url: 'dashboard.html', icon: 'fa-home' },
-                { label: 'The Chronology Lense\u2122' }
+                { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+                { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
+                { label: 'The Chronology Lense\u2122', icon: "fa-history" }
               ]
             });
           }
 
-        // Get case ID from URL or app state
-        const urlParams = new URLSearchParams(window.location.search);
-        currentCaseId = urlParams.get('caseId') || urlParams.get('projectId');
-        
-        if (!currentCaseId && window.appState) {
-          currentCaseId = window.appState.getSelectedProfile();
-        }
+        currentCaseId = getWorkspaceContext();
 
         if (!currentCaseId) {
-          showError('Please select a project first');
+          showError('Please select a case or project first');
           return;
         }
 
@@ -744,7 +832,7 @@
       async function loadChronology() {
         try {
           const apiUrl = window.CONFIG?.apiUrl || '';
-          const response = await fetch(`${apiUrl}/api/cases/${currentCaseId}/chronology`, {
+          const response = await fetch(`${apiUrl}/api/${getApiBasePath()}/${currentCaseId}/chronology`, {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('access_token')}`
             }
@@ -942,8 +1030,8 @@
         try {
           const apiUrl = window.CONFIG?.apiUrl || '';
           const url = editingEventId 
-            ? `${apiUrl}/api/cases/${currentCaseId}/chronology/${editingEventId}`
-            : `${apiUrl}/api/cases/${currentCaseId}/chronology`;
+            ? `${apiUrl}/api/${getApiBasePath()}/${currentCaseId}/chronology/${editingEventId}`
+            : `${apiUrl}/api/${getApiBasePath()}/${currentCaseId}/chronology`;
           
           const method = editingEventId ? 'PUT' : 'POST';
 
@@ -977,7 +1065,7 @@
 
         try {
           const apiUrl = window.CONFIG?.apiUrl || '';
-          const response = await fetch(`${apiUrl}/api/cases/${currentCaseId}/chronology/${eventId}`, {
+          const response = await fetch(`${apiUrl}/api/${getApiBasePath()}/${currentCaseId}/chronology/${eventId}`, {
             method: 'DELETE',
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -1014,7 +1102,7 @@
 
         try {
           const apiUrl = window.CONFIG?.apiUrl || '';
-          const response = await fetch(`${apiUrl}/api/cases/${currentCaseId}/chronology/import`, {
+          const response = await fetch(`${apiUrl}/api/${getApiBasePath()}/${currentCaseId}/chronology/import`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

@@ -1,6 +1,6 @@
 """Clean legacy stringified nulls in email_messages fields.
 
-Revision ID: 0007_clean_stringified_nulls_in_email_fields
+Revision ID: 0007_email_nulls_cleanup
 Revises: 0006_add_email_finish_dates
 Create Date: 2025-12-18
 
@@ -17,7 +17,7 @@ from __future__ import annotations
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = "0007_clean_stringified_nulls_in_email_fields"
+revision: str = "0007_email_nulls_cleanup"
 down_revision: str = "0006_add_email_finish_dates"
 branch_labels = None
 depends_on = None

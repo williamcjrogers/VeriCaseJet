@@ -7,8 +7,8 @@
   <title>VeriCase - Upload Evidence (v1.1)</title>
   <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
   <link rel="stylesheet" href="assets/global.css" />
-  <link rel="stylesheet" href="brand-styles.css" />
-  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="brand-styles.css?v=6" />
+  <link rel="stylesheet" href="design-system.css?v=6" />
   <script src="vericase-ui.js"></script>
   <script src="nav-shell.js"></script>
   <script src="security.js"></script>
@@ -93,7 +93,136 @@
       padding: 30px 20px;
     }
 
-    /* Stats Bar */
+    /* ============================================
+       TOAST NOTIFICATION SYSTEM
+       ============================================ */
+    .toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: white;
+      border-radius: 12px;
+      padding: 16px 20px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 320px;
+      max-width: 420px;
+      pointer-events: auto;
+      animation: toastSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transform-origin: right center;
+    }
+
+    .toast.hiding {
+      animation: toastSlideOut 0.3s ease-in forwards;
+    }
+
+    @keyframes toastSlideIn {
+      from { transform: translateX(120%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    @keyframes toastSlideOut {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(120%); opacity: 0; }
+    }
+
+    .toast-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .toast.success .toast-icon {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+    }
+
+    .toast.info .toast-icon {
+      background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-navy));
+      color: white;
+    }
+
+    .toast.warning .toast-icon {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: white;
+    }
+
+    .toast.error .toast-icon {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: white;
+    }
+
+    .toast-content {
+      flex: 1;
+    }
+
+    .toast-title {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--vericase-navy);
+      margin-bottom: 2px;
+    }
+
+    .toast-message {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .toast-close {
+      background: none;
+      border: none;
+      color: #a0a0c0;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+
+    .toast-close:hover {
+      background: var(--gray-100);
+      color: var(--vericase-navy);
+    }
+
+    .toast-progress {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--gray-200);
+      border-radius: 0 0 12px 12px;
+      overflow: hidden;
+    }
+
+    .toast-progress-fill {
+      height: 100%;
+      background: var(--vericase-teal);
+      animation: toastProgress 4s linear forwards;
+    }
+
+    @keyframes toastProgress {
+      from { width: 100%; }
+      to { width: 0%; }
+    }
+
+    /* ============================================
+       ANIMATED STATS BAR
+       ============================================ */
     .stats-bar {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -110,6 +239,42 @@
       align-items: center;
       gap: 16px;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--vericase-teal), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .stat-card.active::before {
+      opacity: 1;
+      animation: statShimmer 2s infinite;
+    }
+
+    /* Spin the Uploading stat icon while uploads/processing are active */
+    .stat-card.active .stat-icon.orange i {
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes statShimmer {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    .stat-card.highlight {
+      transform: scale(1.02);
+      border-color: var(--vericase-teal);
+      box-shadow: 0 8px 24px rgba(15, 157, 154, 0.2);
     }
 
     .stat-icon {
@@ -121,12 +286,11 @@
       justify-content: center;
       font-size: 20px;
       color: white;
+      position: relative;
     }
 
     .stat-icon.blue {
-      background: linear-gradient(135deg,
-          var(--vericase-teal),
-          var(--vericase-navy));
+      background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-navy));
     }
 
     .stat-icon.green {
@@ -141,10 +305,39 @@
       background: linear-gradient(135deg, #ef4444, #dc2626);
     }
 
+    .stat-icon .spin-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .stat-icon.loading .spin-overlay {
+      opacity: 1;
+    }
+
+    .stat-icon.loading .spin-overlay i {
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
     .stat-info h3 {
       font-size: 24px;
       font-weight: 700;
       color: var(--vericase-navy);
+      font-variant-numeric: tabular-nums;
+      transition: all 0.3s;
+    }
+
+    .stat-info h3.counting {
+      color: var(--vericase-teal);
     }
 
     .stat-info p {
@@ -153,7 +346,9 @@
       margin-top: 2px;
     }
 
-    /* Main Upload Area */
+    /* ============================================
+       UPLOAD SECTION
+       ============================================ */
     .upload-section {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -192,6 +387,27 @@
       background: rgba(15, 157, 154, 0.05);
       transition: all 0.3s;
       cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .upload-zone::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      background: radial-gradient(circle, rgba(15, 157, 154, 0.15), transparent 70%);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      transition: all 0.5s ease;
+      pointer-events: none;
+    }
+
+    .upload-zone:hover::before {
+      width: 300px;
+      height: 300px;
     }
 
     .upload-zone:hover {
@@ -205,6 +421,12 @@
       transform: scale(1.01);
     }
 
+    .upload-zone.dragover::before {
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(15, 157, 154, 0.25), transparent 70%);
+    }
+
     .upload-zone.uploading {
       pointer-events: none;
       opacity: 0.7;
@@ -214,26 +436,32 @@
       font-size: 48px;
       color: var(--vericase-teal);
       margin-bottom: 16px;
+      position: relative;
+      z-index: 1;
     }
 
     .upload-zone h3 {
       font-size: 18px;
       color: var(--vericase-navy);
       margin-bottom: 8px;
+      position: relative;
+      z-index: 1;
     }
 
     .upload-zone p {
       color: var(--text-muted);
       font-size: 14px;
       margin-bottom: 16px;
+      position: relative;
+      z-index: 1;
     }
 
     .btn-primary {
-      background: linear-gradient(135deg,
-          var(--vericase-teal) 0%,
-          var(--vericase-navy) 100%);
+      background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-navy) 100%);
       color: white;
       border: none;
+      position: relative;
+      z-index: 1;
     }
 
     .btn-primary:hover {
@@ -247,6 +475,8 @@
       gap: 8px;
       flex-wrap: wrap;
       margin-top: 20px;
+      position: relative;
+      z-index: 1;
     }
 
     .file-type-badge {
@@ -259,7 +489,9 @@
       border: 1px solid rgba(15, 157, 154, 0.3);
     }
 
-    /* File Queue */
+    /* ============================================
+       ENHANCED FILE QUEUE
+       ============================================ */
     .queue-card {
       background: white;
       border: 1px solid var(--gray-200);
@@ -331,52 +563,96 @@
       opacity: 0.5;
     }
 
+    /* Enhanced File Items */
     .file-item {
       background: white;
       border: 1px solid var(--gray-200);
-      border-radius: 10px;
-      padding: 12px 16px;
-      margin-bottom: 8px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      transition: all 0.2s;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 10px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .file-item::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--gray-300);
+      transition: all 0.3s;
     }
 
     .file-item:hover {
       border-color: rgba(15, 157, 154, 0.3);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     }
 
     .file-item.uploading {
       border-color: rgba(15, 157, 154, 0.5);
-      background: rgba(15, 157, 154, 0.05);
+      background: linear-gradient(90deg, rgba(15, 157, 154, 0.05), white);
+    }
+
+    .file-item.uploading::before {
+      background: linear-gradient(180deg, var(--vericase-teal), var(--vericase-navy));
+      animation: uploadPulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes uploadPulse {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+
+    .file-item.processing {
+      border-color: rgba(245, 158, 11, 0.5);
+      background: linear-gradient(90deg, rgba(245, 158, 11, 0.05), white);
+    }
+
+    .file-item.processing::before {
+      background: linear-gradient(180deg, #f59e0b, #d97706);
     }
 
     .file-item.complete {
       border-color: rgba(16, 185, 129, 0.5);
-      background: rgba(16, 185, 129, 0.1);
+      background: linear-gradient(90deg, rgba(16, 185, 129, 0.05), white);
+    }
+
+    .file-item.complete::before {
+      background: linear-gradient(180deg, #10b981, #059669);
     }
 
     .file-item.error {
       border-color: rgba(239, 68, 68, 0.5);
-      background: rgba(239, 68, 68, 0.1);
+      background: linear-gradient(90deg, rgba(239, 68, 68, 0.05), white);
+    }
+
+    .file-item.error::before {
+      background: linear-gradient(180deg, #ef4444, #dc2626);
+    }
+
+    .file-item-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
     }
 
     .file-icon {
-      width: 40px;
-      height: 40px;
-      border-radius: 8px;
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 18px;
       flex-shrink: 0;
+      position: relative;
     }
 
     .file-icon.pst {
-      background: linear-gradient(135deg,
-          var(--vericase-teal),
-          var(--vericase-navy));
+      background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-navy));
       color: white;
     }
 
@@ -416,94 +692,171 @@
     }
 
     .file-details h4 {
-      font-size: 13px;
+      font-size: 14px;
       color: var(--vericase-navy);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       margin-bottom: 4px;
+      font-weight: 600;
     }
 
     .file-meta {
       display: flex;
-      gap: 12px;
-      font-size: 11px;
+      gap: 16px;
+      font-size: 12px;
       color: var(--text-muted);
     }
 
-    .file-progress {
-      width: 100px;
+    .file-meta span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .file-progress-section {
+      width: 140px;
       flex-shrink: 0;
     }
 
+    .file-progress {
+      width: 100%;
+    }
+
     .progress-bar {
-      height: 6px;
+      height: 8px;
       background: var(--gray-200);
-      border-radius: 3px;
+      border-radius: 4px;
       overflow: hidden;
-      margin-bottom: 4px;
+      margin-bottom: 6px;
+      position: relative;
     }
 
     .progress-fill {
       height: 100%;
-      background: linear-gradient(90deg,
-          var(--vericase-teal),
-          var(--vericase-navy));
-      transition: width 0.2s;
-      border-radius: 3px;
+      background: linear-gradient(90deg, var(--vericase-teal), var(--vericase-navy));
+      transition: width 0.3s ease;
+      border-radius: 4px;
+      position: relative;
+    }
+
+    .progress-fill.indeterminate {
+      width: 100%;
+      background: linear-gradient(
+        90deg,
+        rgba(15, 157, 154, 0.15),
+        rgba(15, 157, 154, 0.7),
+        rgba(15, 157, 154, 0.15)
+      );
+      background-size: 200% 100%;
+      animation: progressIndeterminate 1.5s ease-in-out infinite;
+    }
+
+    .progress-fill::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+      animation: progressShimmer 1.5s infinite;
+    }
+
+    .progress-fill.indeterminate::after {
+      display: none;
+    }
+
+    @keyframes progressShimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    @keyframes progressIndeterminate {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
     }
 
     .progress-fill.complete {
       background: linear-gradient(90deg, #10b981, #059669);
     }
 
+    .progress-fill.complete::after {
+      display: none;
+    }
+
     .progress-fill.error {
       background: linear-gradient(90deg, #ef4444, #dc2626);
     }
 
-    .progress-text {
-      font-size: 10px;
-      color: #a0a0c0;
-      text-align: center;
+    .progress-fill.error::after {
+      display: none;
     }
 
-    .file-status {
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
       font-size: 11px;
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-weight: 600;
-      white-space: nowrap;
-    }
-
-    .status-queued {
-      background: var(--gray-200);
       color: var(--text-muted);
     }
 
-    .status-uploading {
-      background: rgba(15, 157, 154, 0.2);
+    .progress-percent {
+      font-weight: 600;
       color: var(--vericase-teal);
     }
 
-    .status-processing {
-      background: rgba(245, 158, 11, 0.3);
+    .progress-speed {
+      font-family: 'SF Mono', Monaco, monospace;
+    }
+
+    .file-status-badge {
+      font-size: 11px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-weight: 600;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .file-status-badge.pending {
+      background: var(--gray-100);
+      color: var(--text-muted);
+    }
+
+    .file-status-badge.uploading {
+      background: rgba(15, 157, 154, 0.15);
+      color: var(--vericase-teal);
+    }
+
+    .file-status-badge.uploading i {
+      animation: spin 1s linear infinite;
+    }
+
+    .file-status-badge.processing {
+      background: rgba(245, 158, 11, 0.15);
       color: #f59e0b;
     }
 
-    .status-complete {
-      background: rgba(16, 185, 129, 0.3);
+    .file-status-badge.processing i {
+      animation: spin 1.5s linear infinite;
+    }
+
+    .file-status-badge.complete {
+      background: rgba(16, 185, 129, 0.15);
       color: #10b981;
     }
 
-    .status-error {
-      background: rgba(239, 68, 68, 0.3);
+    .file-status-badge.error {
+      background: rgba(239, 68, 68, 0.15);
       color: #ef4444;
     }
 
     .file-remove {
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
       border: none;
       background: transparent;
       color: #606080;
@@ -515,11 +868,61 @@
     }
 
     .file-remove:hover {
-      background: rgba(239, 68, 68, 0.2);
+      background: rgba(239, 68, 68, 0.1);
       color: #ef4444;
     }
 
-    /* History Section */
+    /* Chunk Progress for Large Files */
+    .chunk-progress {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--gray-200);
+    }
+
+    .chunk-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .chunk-grid {
+      display: flex;
+      gap: 3px;
+      flex-wrap: wrap;
+    }
+
+    .chunk-block {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      background: var(--gray-200);
+      transition: all 0.3s ease;
+    }
+
+    .chunk-block.uploading {
+      background: var(--vericase-teal);
+      animation: chunkPulse 0.8s ease-in-out infinite;
+    }
+
+    .chunk-block.complete {
+      background: #10b981;
+    }
+
+    .chunk-block.error {
+      background: #ef4444;
+    }
+
+    @keyframes chunkPulse {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.1); }
+    }
+
+    /* ============================================
+       HISTORY SECTION
+       ============================================ */
     .history-card {
       background: white;
       border: 1px solid var(--gray-200);
@@ -563,6 +966,10 @@
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
+    }
+
+    .history-table tr {
+      transition: background 0.2s;
     }
 
     .history-table tr:hover {
@@ -616,6 +1023,11 @@
       color: #3b82f6;
     }
 
+    /* Ensure the Processing badge spinner actually spins (don't rely on FontAwesome animation helpers) */
+    .status-badge.status-processing i {
+      animation: spin 1s linear infinite;
+    }
+
     .status-completed {
       background: rgba(16, 185, 129, 0.2);
       color: #10b981;
@@ -663,7 +1075,9 @@
       opacity: 0.5;
     }
 
-    /* Global Progress Overlay */
+    /* ============================================
+       ENHANCED GLOBAL PROGRESS PANEL
+       ============================================ */
     .global-progress {
       position: fixed;
       bottom: 24px;
@@ -671,100 +1085,356 @@
       background: white;
       backdrop-filter: blur(20px);
       border: 1px solid var(--gray-200);
-      border-radius: 16px;
-      padding: 20px 24px;
-      min-width: 320px;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+      border-radius: 20px;
+      padding: 24px;
+      width: 380px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.1);
       display: none;
       z-index: 1000;
+      overflow: hidden;
+    }
+
+    .global-progress::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--vericase-teal), var(--vericase-navy), var(--vericase-teal));
+      background-size: 200% 100%;
+      animation: gradientShift 2s linear infinite;
+    }
+
+    @keyframes gradientShift {
+      0% { background-position: 0% 0%; }
+      100% { background-position: 200% 0%; }
     }
 
     .global-progress.active {
       display: block;
-      animation: slideIn 0.3s ease-out;
+      animation: panelSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
 
-    @keyframes slideIn {
-      from {
-        transform: translateY(20px);
-        opacity: 0;
-      }
-
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
+    @keyframes panelSlideIn {
+      from { transform: translateY(40px) scale(0.95); opacity: 0; }
+      to { transform: translateY(0) scale(1); opacity: 1; }
     }
 
-    /* Live Processing Tracker */
+    .global-progress-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .global-progress h3 {
+      font-size: 16px;
+      color: var(--vericase-navy);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0;
+    }
+
+    .global-progress h3 i {
+      color: var(--vericase-teal);
+      animation: bounce 1s ease infinite;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-3px); }
+    }
+
+    .global-progress .minimize-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+
+    .global-progress .minimize-btn:hover {
+      background: var(--gray-100);
+    }
+
+    .global-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .global-stat {
+      text-align: center;
+      padding: 12px 8px;
+      background: var(--gray-50);
+      border-radius: 10px;
+      transition: all 0.3s;
+    }
+
+    .global-stat.active {
+      background: rgba(15, 157, 154, 0.1);
+      border: 1px solid rgba(15, 157, 154, 0.2);
+    }
+
+    .global-stat .number {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--vericase-navy);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .global-stat .label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      margin-top: 2px;
+    }
+
+    .global-bar-container {
+      margin-bottom: 16px;
+    }
+
+    .global-bar-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+
+    .global-bar-label .phase {
+      color: var(--vericase-navy);
+      font-weight: 500;
+    }
+
+    .global-bar-label .eta {
+      color: var(--text-muted);
+    }
+
+    .global-bar {
+      height: 10px;
+      background: var(--gray-200);
+      border-radius: 5px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .global-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--vericase-teal), var(--vericase-navy));
+      transition: width 0.4s ease;
+      border-radius: 5px;
+      position: relative;
+    }
+
+    .global-fill::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+      animation: progressShimmer 1.5s infinite;
+    }
+
+    .global-current-file {
+      background: var(--gray-50);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .global-current-file .file-icon-mini {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-navy));
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .global-current-file .file-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .global-current-file .file-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--vericase-navy);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .global-current-file .file-status {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .global-current-file .file-status .speed {
+      color: var(--vericase-teal);
+      font-weight: 500;
+    }
+
+    /* ============================================
+       ENHANCED LIVE PROCESSING TRACKER
+       ============================================ */
     .live-tracker {
-      background: white;
-      border: 1px solid var(--gray-200);
-      border-radius: 16px;
-      padding: 20px;
+      background: linear-gradient(135deg, rgba(15, 157, 154, 0.03), rgba(26, 35, 66, 0.02));
+      border: 1px solid rgba(15, 157, 154, 0.2);
+      border-radius: 20px;
+      padding: 24px;
       margin-bottom: 24px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      box-shadow: 0 4px 20px rgba(15, 157, 154, 0.08);
       display: none;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .live-tracker::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--vericase-teal), transparent);
+      animation: trackerPulse 3s ease-in-out infinite;
+    }
+
+    @keyframes trackerPulse {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
     }
 
     .live-tracker.active {
       display: block;
+      animation: trackerFadeIn 0.5s ease;
+    }
+
+    @keyframes trackerFadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .live-tracker-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 16px;
+      margin-bottom: 20px;
     }
 
     .live-tracker-header h2 {
-      font-size: 16px;
+      font-size: 18px;
       color: var(--vericase-navy);
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
+      margin: 0;
     }
 
-    .live-tracker-header .pulse {
-      width: 10px;
-      height: 10px;
+    .live-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #10b981;
+      background: rgba(16, 185, 129, 0.1);
+      padding: 6px 12px;
+      border-radius: 20px;
+    }
+
+    .live-indicator .dot {
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
       background: #10b981;
-      animation: pulse 2s infinite;
+      animation: livePulse 1.5s ease-in-out infinite;
     }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
+    @keyframes livePulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.6; }
     }
 
     .processing-items {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 16px;
     }
 
     .processing-item {
-      background: var(--gray-50);
+      background: white;
       border: 1px solid var(--gray-200);
-      border-radius: 12px;
-      padding: 16px;
+      border-radius: 16px;
+      padding: 20px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .processing-item::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: linear-gradient(180deg, var(--vericase-teal), var(--vericase-navy));
+    }
+
+    .processing-item:hover {
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+      transform: translateY(-2px);
+    }
+
+    .processing-item-main {
       display: flex;
       align-items: center;
       gap: 16px;
     }
 
     .processing-item-icon {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
       background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-navy));
       color: white;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 20px;
+      font-size: 22px;
+      position: relative;
+    }
+
+    .processing-item-icon .spinner-ring {
+      position: absolute;
+      inset: -4px;
+      border: 2px solid transparent;
+      border-top-color: var(--vericase-teal);
+      border-radius: 50%;
+      animation: spinRing 1.2s linear infinite;
+    }
+
+    @keyframes spinRing {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
     }
 
     .processing-item-details {
@@ -772,97 +1442,137 @@
     }
 
     .processing-item-details h4 {
-      font-size: 14px;
+      font-size: 15px;
       color: var(--vericase-navy);
-      margin-bottom: 4px;
+      margin-bottom: 6px;
+      font-weight: 600;
     }
 
     .processing-item-stats {
       display: flex;
-      gap: 16px;
-      font-size: 12px;
+      gap: 20px;
+      font-size: 13px;
       color: var(--text-muted);
+    }
+
+    .processing-item-stats span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .processing-item-stats strong {
       color: var(--vericase-teal);
+      font-weight: 600;
     }
 
     .processing-item-progress {
-      width: 120px;
+      width: 160px;
+      flex-shrink: 0;
     }
 
     .processing-item-progress .progress-bar {
-      height: 8px;
+      height: 10px;
       background: var(--gray-200);
-      border-radius: 4px;
+      border-radius: 5px;
       overflow: hidden;
-      margin-bottom: 4px;
+      margin-bottom: 8px;
     }
 
     .processing-item-progress .progress-fill {
       height: 100%;
       background: linear-gradient(90deg, var(--vericase-teal), var(--vericase-navy));
       transition: width 0.5s ease;
+      border-radius: 5px;
     }
 
     .processing-item-progress .progress-text {
-      font-size: 11px;
-      color: var(--text-muted);
+      font-size: 12px;
+      color: var(--vericase-navy);
       text-align: center;
+      font-weight: 600;
     }
 
-    .global-progress h3 {
-      font-size: 14px;
-      color: var(--vericase-navy);
-      margin-bottom: 12px;
+    /* Phase Indicator */
+    .phase-indicator {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px dashed var(--gray-200);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .phase-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      position: relative;
+    }
+
+    .phase-step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      width: 100%;
+      height: 2px;
+      background: var(--gray-200);
+      z-index: 0;
+    }
+
+    .phase-step.complete:not(:last-child)::after {
+      background: var(--vericase-teal);
+    }
+
+    .phase-step .phase-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--gray-200);
+      color: var(--text-muted);
       display: flex;
       align-items: center;
-      gap: 8px;
+      justify-content: center;
+      font-size: 12px;
+      position: relative;
+      z-index: 1;
+      transition: all 0.3s;
     }
 
-    .global-progress h3 i {
-      color: var(--vericase-teal);
+    .phase-step.complete .phase-icon {
+      background: var(--vericase-teal);
+      color: white;
     }
 
-    .global-stats {
-      display: flex;
-      gap: 24px;
-      margin-bottom: 16px;
+    .phase-step.active .phase-icon {
+      background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-navy));
+      color: white;
+      animation: phaseActive 1s ease-in-out infinite;
     }
 
-    .global-stat {
-      text-align: center;
+    @keyframes phaseActive {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(15, 157, 154, 0.4); }
+      50% { box-shadow: 0 0 0 8px rgba(15, 157, 154, 0); }
     }
 
-    .global-stat .number {
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--vericase-navy);
-    }
-
-    .global-stat .label {
+    .phase-step .phase-label {
       font-size: 10px;
       color: var(--text-muted);
       text-transform: uppercase;
+      letter-spacing: 0.3px;
     }
 
-    .global-bar {
-      height: 8px;
-      background: var(--gray-200);
-      border-radius: 4px;
-      overflow: hidden;
+    .phase-step.active .phase-label,
+    .phase-step.complete .phase-label {
+      color: var(--vericase-teal);
+      font-weight: 600;
     }
 
-    .global-fill {
-      height: 100%;
-      background: linear-gradient(90deg,
-          var(--vericase-teal),
-          var(--vericase-navy));
-      transition: width 0.3s;
-    }
-
-    /* Scrollbar */
+    /* ============================================
+       SCROLLBAR
+       ============================================ */
     ::-webkit-scrollbar {
       width: 8px;
     }
@@ -885,6 +1595,9 @@
 </head>
 
 <body>
+  <!-- Toast Notifications Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
   <div class="top-bar">
     <h1>
       <img src="assets/Logo-Vector.png" alt="VeriCase" />
@@ -907,11 +1620,16 @@
         <h2>
           <i class="fas fa-cogs" style="color: var(--vericase-teal);"></i>
           Live Processing Status
-          <span class="pulse"></span>
         </h2>
-        <button class="btn btn-sm btn-ghost" onclick="refreshLiveStatus()">
-          <i class="fas fa-sync-alt"></i> Refresh
-        </button>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div class="live-indicator">
+            <span class="dot"></span>
+            LIVE
+          </div>
+          <button class="btn btn-sm btn-ghost" onclick="refreshLiveStatus()">
+            <i class="fas fa-sync-alt"></i> Refresh
+          </button>
+        </div>
       </div>
       <div class="processing-items" id="processingItems">
         <!-- Dynamically populated -->
@@ -1022,23 +1740,47 @@
 
   <!-- Global Progress Overlay -->
   <div class="global-progress" id="globalProgress">
-    <h3><i class="fas fa-cloud-upload-alt"></i> Uploading Files...</h3>
+    <div class="global-progress-header">
+      <h3><i class="fas fa-cloud-upload-alt"></i> Uploading Files</h3>
+    </div>
     <div class="global-stats">
-      <div class="global-stat">
+      <div class="global-stat" id="gpCompleteStat">
         <div class="number" id="gpComplete">0</div>
         <div class="label">Complete</div>
       </div>
-      <div class="global-stat">
+      <div class="global-stat" id="gpUploadingStat">
+        <div class="number" id="gpUploading">0</div>
+        <div class="label">Uploading</div>
+      </div>
+      <div class="global-stat" id="gpTotalStat">
         <div class="number" id="gpTotal">0</div>
         <div class="label">Total</div>
       </div>
-      <div class="global-stat">
+      <div class="global-stat" id="gpSpeedStat">
         <div class="number" id="gpSpeed">--</div>
         <div class="label">Speed</div>
       </div>
     </div>
-    <div class="global-bar">
-      <div class="global-fill" id="gpFill" style="width: 0"></div>
+    <div class="global-bar-container">
+      <div class="global-bar-label">
+        <span class="phase" id="gpPhase">Preparing upload...</span>
+        <span class="eta" id="gpEta"></span>
+      </div>
+      <div class="global-bar">
+        <div class="global-fill" id="gpFill" style="width: 0"></div>
+      </div>
+    </div>
+    <div class="global-current-file" id="gpCurrentFile" style="display: none;">
+      <div class="file-icon-mini">
+        <i class="fas fa-file" id="gpFileIcon"></i>
+      </div>
+      <div class="file-info">
+        <div class="file-name" id="gpFileName">--</div>
+        <div class="file-status">
+          <span id="gpFileProgress">0%</span>
+          <span class="speed" id="gpFileSpeed">--</span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1048,9 +1790,90 @@
       : window.location.origin;
     console.log("Upload using API URL:", apiUrl);
 
+    // ============================================
+    // TOAST NOTIFICATION SYSTEM
+    // ============================================
+    const ToastManager = {
+      container: null,
+      init() {
+        this.container = document.getElementById('toastContainer');
+      },
+      show(type, title, message, duration = 4000) {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+          <div class="toast-icon">
+            <i class="fas ${this.getIcon(type)}"></i>
+          </div>
+          <div class="toast-content">
+            <div class="toast-title">${escapeHtml(title)}</div>
+            <div class="toast-message">${escapeHtml(message)}</div>
+          </div>
+          <button class="toast-close" onclick="this.closest('.toast').remove()">
+            <i class="fas fa-times"></i>
+          </button>
+          <div class="toast-progress">
+            <div class="toast-progress-fill" style="animation-duration: ${duration}ms"></div>
+          </div>
+        `;
+        this.container.appendChild(toast);
+        
+        setTimeout(() => {
+          toast.classList.add('hiding');
+          setTimeout(() => toast.remove(), 300);
+        }, duration);
+        
+        return toast;
+      },
+      getIcon(type) {
+        return {
+          success: 'fa-check',
+          info: 'fa-info',
+          warning: 'fa-exclamation',
+          error: 'fa-times'
+        }[type] || 'fa-info';
+      },
+      success(title, message) { return this.show('success', title, message); },
+      info(title, message) { return this.show('info', title, message, 5000); },
+      warning(title, message) { return this.show('warning', title, message, 6000); },
+      error(title, message) { return this.show('error', title, message, 8000); }
+    };
+
+    // ============================================
+    // ANIMATED COUNTER
+    // ============================================
+    function animateCounter(element, targetValue, duration = 500) {
+      const startValue = parseInt(element.textContent) || 0;
+      const startTime = performance.now();
+      
+      element.classList.add('counting');
+      
+      function update(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Ease out cubic
+        const easeProgress = 1 - Math.pow(1 - progress, 3);
+        const currentValue = Math.round(startValue + (targetValue - startValue) * easeProgress);
+        
+        element.textContent = currentValue;
+        
+        if (progress < 1) {
+          requestAnimationFrame(update);
+        } else {
+          element.classList.remove('counting');
+        }
+      }
+      
+      requestAnimationFrame(update);
+    }
+
     // Attach auth token/cookies to API calls that require authentication
     function withAuth(options = {}) {
-      const token = localStorage.getItem("token");
+      const token =
+        localStorage.getItem("vericase_token") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("jwt");
       const csrfToken =
         typeof getCsrfToken === "function" ? getCsrfToken() : null;
       return {
@@ -1066,11 +1889,25 @@
 
     // Inject shared navigation shell so this page matches the rest of the app
     if (window.VericaseShell && typeof window.VericaseShell.inject === "function") {
+      const ctx =
+        typeof window.VericaseShell.getContext === "function"
+          ? window.VericaseShell.getContext()
+          : { type: "project", id: window.VericaseShell.getProjectId() };
+      const ctxType = ctx?.type === "case" ? "case" : "project";
+      const ctxLabel =
+        ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
+      const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
+      const ctxId = ctx?.id ? String(ctx.id) : "";
+      const ctxUrl = ctxId
+        ? `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+        : "dashboard.html";
+
       window.VericaseShell.inject({
-        title: "Evidence Upload",
+        title: '',
         breadcrumbs: [
           { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
-          { label: "Evidence Upload" },
+          { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
+          { label: "Evidence Upload", icon: "fa-upload" },
         ],
       });
     }
@@ -1110,6 +1947,91 @@
     let uploadStats = { total: 0, complete: 0, errors: 0, uploading: 0 };
     let uploadStartTime = null;
     let totalBytesUploaded = 0;
+    const pstProcessingMonitors = new Map(); // pst_file_id -> intervalId
+
+    function formatExtractedEmailCount(processed, total) {
+      const processedNum = Number(processed || 0);
+      const totalNum = Number(total || 0);
+      if (totalNum > 0) {
+        return `Extracted: ${processedNum.toLocaleString()} / ${totalNum.toLocaleString()} emails`;
+      }
+      return `Extracted: ${processedNum.toLocaleString()} emails`;
+    }
+
+    function stopPstProcessingMonitor(pstFileId) {
+      const intervalId = pstProcessingMonitors.get(pstFileId);
+      if (intervalId) {
+        clearInterval(intervalId);
+        pstProcessingMonitors.delete(pstFileId);
+      }
+    }
+
+    function startPstProcessingMonitor(itemId, pstFileId) {
+      if (!pstFileId) return;
+      if (pstProcessingMonitors.has(pstFileId)) return;
+
+      const poll = async () => {
+        const item = fileQueue.find((f) => f.id === itemId);
+        if (!item) {
+          stopPstProcessingMonitor(pstFileId);
+          return;
+        }
+
+        try {
+          const statusResp = await fetch(
+            `${apiUrl}/api/correspondence/pst/${pstFileId}/status`,
+            withAuth({}),
+          );
+          if (!statusResp.ok) return;
+
+          const status = await statusResp.json();
+          const processedEmails = Number(status.processed_emails || 0);
+          const totalEmails = Number(status.total_emails || 0);
+          const statusText = String(status.status || "").toLowerCase();
+
+          const updates = {
+            pst_file_id: pstFileId,
+            processed_emails: processedEmails,
+            total_emails: totalEmails,
+          };
+
+          if (statusText === "completed") {
+            updates.status = "complete";
+            updates.progress = 100;
+            stopPstProcessingMonitor(pstFileId);
+          } else if (statusText === "failed") {
+            updates.status = "error";
+            updates.error = status.error_message || "PST processing failed";
+            updates.progress = 100;
+            stopPstProcessingMonitor(pstFileId);
+          } else {
+            // Keep UI in "processing" while the backend is pending/processing.
+            updates.status = "processing";
+            // If the backend can provide a determinate % (pre-count enabled), reflect it,
+            // but never move the bar backwards (upload progress may already be 100).
+            const pct = Number(status.progress_percent || 0);
+            const currentProgress = Number(item.progress || 0);
+            if (totalEmails > 0 && pct > 0) {
+              const candidate = Math.max(1, Math.min(99, Math.round(pct)));
+              if (candidate > currentProgress) {
+                updates.progress = candidate;
+              }
+            } else if (processedEmails > 0 && currentProgress < 99) {
+              // Indeterminate (no total) but we've started extracting.
+              updates.progress = 99;
+            }
+          }
+
+          updateFileItem(itemId, updates);
+        } catch (e) {
+          // Best-effort polling; ignore transient failures.
+        }
+      };
+
+      poll();
+      const intervalId = setInterval(poll, 5000);
+      pstProcessingMonitors.set(pstFileId, intervalId);
+    }
 
     // Concurrent upload settings
     const MAX_CONCURRENT = 4; // Max parallel file uploads
@@ -1158,14 +2080,26 @@
         name: file.name,
         size: file.size,
         type: getFileType(file.name),
-        status: "queued",
+        status: "pending",
         progress: 0,
         error: null,
+        speed: null,
+        uploadStartTime: null,
+        pst_file_id: null,
+        processed_emails: 0,
+        total_emails: 0,
       }));
 
       fileQueue.push(...newFiles);
       updateStats();
       renderQueue();
+      
+      // Show toast for added files
+      const totalSize = newFiles.reduce((sum, f) => sum + f.size, 0);
+      ToastManager.info(
+        `${newFiles.length} file${newFiles.length > 1 ? 's' : ''} added`,
+        `Total size: ${formatSize(totalSize)}`
+      );
     }
 
     function getFileType(filename) {
@@ -1214,6 +2148,8 @@
     }
 
     function updateStats() {
+      const prevComplete = uploadStats.complete;
+      
       uploadStats.total = fileQueue.length;
       uploadStats.complete = fileQueue.filter(
         (f) => f.status === "complete",
@@ -1225,95 +2161,182 @@
         (f) => f.status === "uploading" || f.status === "processing",
       ).length;
 
-      document.getElementById("statTotal").textContent = uploadStats.total;
-      document.getElementById("statComplete").textContent =
-        uploadStats.complete;
-      document.getElementById("statProcessing").textContent =
-        uploadStats.uploading;
-      document.getElementById("statErrors").textContent = uploadStats.errors;
+      // Animate stat counters
+      const statTotal = document.getElementById("statTotal");
+      const statComplete = document.getElementById("statComplete");
+      const statProcessing = document.getElementById("statProcessing");
+      const statErrors = document.getElementById("statErrors");
+      
+      animateCounter(statTotal, uploadStats.total);
+      animateCounter(statComplete, uploadStats.complete);
+      animateCounter(statProcessing, uploadStats.uploading);
+      animateCounter(statErrors, uploadStats.errors);
+
+      // Highlight active stat cards
+      document.querySelectorAll('.stat-card').forEach((card, i) => {
+        card.classList.remove('active', 'highlight');
+      });
+      
+      if (uploadStats.uploading > 0) {
+        document.querySelectorAll('.stat-card')[2]?.classList.add('active');
+      }
+      if (uploadStats.complete > prevComplete) {
+        document.querySelectorAll('.stat-card')[1]?.classList.add('highlight');
+        setTimeout(() => {
+          document.querySelectorAll('.stat-card')[1]?.classList.remove('highlight');
+        }, 1000);
+      }
 
       queueCount.textContent = `(${uploadStats.total})`;
 
       const hasFiles = fileQueue.length > 0;
-      const hasPending = fileQueue.some((f) => f.status === "queued");
+      const hasPending = fileQueue.some((f) => f.status === "pending");
       btnUpload.disabled = !hasFiles || isUploading || !hasPending;
       btnClear.disabled = isUploading;
 
-      // Update global progress
+      // Update global progress panel
       if (isUploading) {
-        document.getElementById("gpComplete").textContent =
-          uploadStats.complete;
-        document.getElementById("gpTotal").textContent = uploadStats.total;
-        const pct =
-          uploadStats.total > 0
-            ? (uploadStats.complete / uploadStats.total) * 100
-            : 0;
-        document.getElementById("gpFill").style.width = `${pct}%`;
+        animateCounter(document.getElementById("gpComplete"), uploadStats.complete);
+        animateCounter(document.getElementById("gpUploading"), uploadStats.uploading);
+        animateCounter(document.getElementById("gpTotal"), uploadStats.total);
+        
+        // Calculate overall progress
+        const totalProgress = fileQueue.reduce((sum, f) => sum + f.progress, 0);
+        const avgProgress = uploadStats.total > 0 ? totalProgress / uploadStats.total : 0;
+        document.getElementById("gpFill").style.width = `${avgProgress}%`;
+        
+        // Update phase text
+        const currentFile = fileQueue.find(f => f.status === "uploading" || f.status === "processing");
+        if (currentFile) {
+          document.getElementById("gpPhase").textContent = 
+            currentFile.status === "processing" ? "Processing files..." : "Uploading files...";
+          
+          // Show current file info
+          const gpCurrentFile = document.getElementById("gpCurrentFile");
+          gpCurrentFile.style.display = "flex";
+          document.getElementById("gpFileName").textContent = currentFile.name;
+          document.getElementById("gpFileProgress").textContent = `${currentFile.progress}%`;
+          document.getElementById("gpFileSpeed").textContent = currentFile.speed || '--';
+          document.getElementById("gpFileIcon").className = `fas ${getFileIcon(currentFile.type)}`;
+        }
 
-        // Calculate speed
+        // Calculate speed and ETA
         if (uploadStartTime && totalBytesUploaded > 0) {
           const elapsed = (Date.now() - uploadStartTime) / 1000;
           const speed = totalBytesUploaded / elapsed;
-          document.getElementById("gpSpeed").textContent =
-            `${formatSize(speed)}/s`;
+          document.getElementById("gpSpeed").textContent = `${formatSize(speed)}/s`;
+          
+          // Estimate remaining time
+          const remainingBytes = fileQueue
+            .filter(f => f.status === "pending" || f.status === "uploading")
+            .reduce((sum, f) => sum + f.size * (1 - f.progress / 100), 0);
+          
+          if (speed > 0 && remainingBytes > 0) {
+            const etaSeconds = remainingBytes / speed;
+            document.getElementById("gpEta").textContent = formatEta(etaSeconds);
+          }
         }
+        
+        // Highlight active stat
+        document.getElementById("gpUploadingStat").classList.toggle('active', uploadStats.uploading > 0);
       }
+    }
+
+    function formatEta(seconds) {
+      if (seconds < 60) return `~${Math.round(seconds)}s remaining`;
+      if (seconds < 3600) return `~${Math.round(seconds / 60)}m remaining`;
+      return `~${Math.round(seconds / 3600)}h remaining`;
     }
 
     function renderQueue() {
       if (fileQueue.length === 0) {
         queueList.innerHTML = `
-                    <div class="queue-empty">
-                        <i class="fas fa-inbox"></i>
-                        <p>No files in queue</p>
-                        <p style="font-size: 12px; margin-top: 8px;">Drop files or click above to add</p>
-                    </div>
-                `;
+          <div class="queue-empty">
+            <i class="fas fa-inbox"></i>
+            <p>No files in queue</p>
+            <p style="font-size: 12px; margin-top: 8px;">Drop files or click above to add</p>
+          </div>
+        `;
         return;
       }
 
-      queueList.innerHTML = fileQueue
-        .map(
-          (item) => `
-                <div class="file-item ${item.status}" id="${item.id}">
-                    <div class="file-icon ${getFileIconClass(item.type)}">
-                        <i class="fas ${getFileIcon(item.type)}"></i>
-                    </div>
-                    <div class="file-details">
-                        <h4 title="${item.name}">${item.name}</h4>
-                        <div class="file-meta">
-                            <span>${formatSize(item.size)}</span>
-                            <span>${item.type.toUpperCase()}</span>
-                            ${item.error ? `<span style="color: #ef4444;">${item.error}</span>` : ""}
-                        </div>
-                    </div>
-                    <div class="file-progress">
-                        <div class="progress-bar">
-                            <div class="progress-fill ${item.status === "complete" ? "complete" : ""} ${item.status === "error" ? "error" : ""}"
-                                 style="width: ${item.progress}%"></div>
-                        </div>
-                        <div class="progress-text">${item.progress}%</div>
-                    </div>
-                    <span class="file-status status-${item.status}">
-                        ${getStatusText(item.status)}
-                    </span>
-                    ${item.status === "queued"
-              ? `
-                        <button class="file-remove" onclick="removeFile('${item.id}')" title="Remove">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    `
-              : ""
-            }
+      queueList.innerHTML = fileQueue.map((item) => {
+        const isLargeFile = item.size > 50 * 1024 * 1024; // >50MB shows chunk progress
+        const totalChunks = isLargeFile ? Math.ceil(item.size / CHUNK_SIZE) : 0;
+        const completedChunks = Math.floor((item.progress / 100) * totalChunks);
+        
+        const statusIcon = {
+          pending: 'fa-clock',
+          uploading: 'fa-arrow-up',
+          processing: 'fa-cog',
+          complete: 'fa-check',
+          error: 'fa-exclamation'
+        }[item.status] || 'fa-clock';
+
+        return `
+          <div class="file-item ${item.status}" id="${item.id}">
+            <div class="file-item-row">
+              <div class="file-icon ${getFileIconClass(item.type)}">
+                <i class="fas ${getFileIcon(item.type)}"></i>
+              </div>
+              <div class="file-details">
+                <h4 title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</h4>
+                <div class="file-meta">
+                  <span><i class="fas fa-hdd"></i> ${formatSize(item.size)}</span>
+                  <span><i class="fas fa-file"></i> ${item.type.toUpperCase()}</span>
+                  ${item.type === "pst"
+                    ? `<span class="email-extracted"><i class="fas fa-envelope-open"></i> ${escapeHtml(formatExtractedEmailCount(item.processed_emails || 0, item.total_emails || 0))}</span>`
+                    : ""}
+                  ${item.error ? `<span style="color: #ef4444;"><i class="fas fa-exclamation-circle"></i> ${escapeHtml(item.error)}</span>` : ""}
                 </div>
-            `,
-        )
-        .join("");
+              </div>
+              <div class="file-progress-section">
+                <div class="file-progress">
+                  <div class="progress-bar">
+                    <div class="progress-fill ${item.status === "complete" ? "complete" : ""} ${item.status === "error" ? "error" : ""}"
+                         style="width: ${item.progress}%"></div>
+                  </div>
+                  <div class="progress-info">
+                    <span class="progress-percent">${item.progress}%</span>
+                    <span class="progress-speed">${item.speed || '--'}</span>
+                  </div>
+                </div>
+              </div>
+              <span class="file-status-badge ${item.status}">
+                <i class="fas ${statusIcon}"></i>
+                ${getStatusText(item.status)}
+              </span>
+              ${item.status === "pending" ? `
+                <button class="file-remove" onclick="removeFile('${item.id}')" title="Remove">
+                  <i class="fas fa-times"></i>
+                </button>
+              ` : ""}
+            </div>
+            ${isLargeFile && (item.status === "uploading" || item.status === "processing") ? `
+              <div class="chunk-progress">
+                <div class="chunk-header">
+                  <span><i class="fas fa-puzzle-piece"></i> Chunk Progress</span>
+                  <span>${completedChunks} / ${totalChunks} chunks</span>
+                </div>
+                <div class="chunk-grid">
+                  ${Array.from({length: Math.min(totalChunks, 50)}, (_, i) => {
+                    let chunkStatus = 'pending';
+                    if (i < completedChunks) chunkStatus = 'complete';
+                    else if (i === completedChunks) chunkStatus = 'uploading';
+                    return `<div class="chunk-block ${chunkStatus}"></div>`;
+                  }).join('')}
+                  ${totalChunks > 50 ? `<span style="font-size: 10px; color: var(--text-muted);">+${totalChunks - 50} more</span>` : ''}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join("");
     }
 
     function getStatusText(status) {
       const texts = {
-        queued: "Queued",
+        pending: "Pending",
         uploading: "Uploading",
         processing: "Processing",
         complete: "Complete",
@@ -1338,6 +2361,24 @@
     function updateFileItem(id, updates) {
       const item = fileQueue.find((f) => f.id === id);
       if (item) {
+        const prevStatus = item.status;
+        const prevProgress = item.progress;
+        
+        // Track upload speed
+        if (updates.progress !== undefined && item.uploadStartTime) {
+          const elapsed = (Date.now() - item.uploadStartTime) / 1000;
+          if (elapsed > 0) {
+            const bytesUploaded = (updates.progress / 100) * item.size;
+            const speed = bytesUploaded / elapsed;
+            updates.speed = `${formatSize(speed)}/s`;
+          }
+        }
+        
+        // Set upload start time when status changes to uploading
+        if (updates.status === "uploading" && prevStatus !== "uploading") {
+          item.uploadStartTime = Date.now();
+        }
+        
         Object.assign(item, updates);
         updateStats();
 
@@ -1345,18 +2386,73 @@
         const el = document.getElementById(id);
         if (el) {
           el.className = `file-item ${item.status}`;
+          
           const progressFill = el.querySelector(".progress-fill");
-          const progressText = el.querySelector(".progress-text");
-          const statusEl = el.querySelector(".file-status");
+          const progressPercent = el.querySelector(".progress-percent");
+          const progressSpeed = el.querySelector(".progress-speed");
+          const statusBadge = el.querySelector(".file-status-badge");
+          const emailExtracted = el.querySelector(".email-extracted");
 
           if (progressFill) {
             progressFill.style.width = `${item.progress}%`;
             progressFill.className = `progress-fill ${item.status === "complete" ? "complete" : ""} ${item.status === "error" ? "error" : ""}`;
           }
-          if (progressText) progressText.textContent = `${item.progress}%`;
-          if (statusEl) {
-            statusEl.className = `file-status status-${item.status}`;
-            statusEl.textContent = getStatusText(item.status);
+          if (progressPercent) progressPercent.textContent = `${item.progress}%`;
+          if (progressSpeed) progressSpeed.textContent = item.speed || '--';
+          if (emailExtracted && item.type === "pst") {
+            emailExtracted.innerHTML =
+              `<i class="fas fa-envelope-open"></i> ` +
+              escapeHtml(formatExtractedEmailCount(item.processed_emails || 0, item.total_emails || 0));
+          }
+          
+          if (statusBadge) {
+            const statusIcon = {
+              pending: 'fa-clock',
+              uploading: 'fa-arrow-up',
+              processing: 'fa-cog',
+              complete: 'fa-check',
+              error: 'fa-exclamation'
+            }[item.status] || 'fa-clock';
+            
+            statusBadge.className = `file-status-badge ${item.status}`;
+            statusBadge.innerHTML = `<i class="fas ${statusIcon}"></i> ${getStatusText(item.status)}`;
+          }
+          
+          // Update chunk progress for large files
+          const chunkGrid = el.querySelector('.chunk-grid');
+          if (chunkGrid && item.size > 50 * 1024 * 1024) {
+            const totalChunks = Math.ceil(item.size / CHUNK_SIZE);
+            const completedChunks = Math.floor((item.progress / 100) * totalChunks);
+            const chunkBlocks = chunkGrid.querySelectorAll('.chunk-block');
+            
+            chunkBlocks.forEach((block, i) => {
+              block.className = 'chunk-block';
+              if (i < completedChunks) block.classList.add('complete');
+              else if (i === completedChunks) block.classList.add('uploading');
+            });
+            
+            const chunkHeader = el.querySelector('.chunk-header span:last-child');
+            if (chunkHeader) {
+              chunkHeader.textContent = `${completedChunks} / ${totalChunks} chunks`;
+            }
+          }
+        }
+        
+        // Show toast notifications for status changes
+        if (updates.status && updates.status !== prevStatus) {
+          if (updates.status === "complete") {
+            if (item.type === "pst") {
+              ToastManager.success(
+                "PST Processing Complete",
+                `${item.name} — ${(item.processed_emails || 0).toLocaleString()} email${(item.processed_emails || 0) === 1 ? "" : "s"} extracted`
+              );
+            } else {
+              ToastManager.success("Upload Complete", `${item.name} has been uploaded successfully`);
+            }
+          } else if (updates.status === "error") {
+            ToastManager.error("Upload Failed", `${item.name}: ${item.error || 'Unknown error'}`);
+          } else if (updates.status === "processing") {
+            ToastManager.info("Processing Started", `${item.name} is now being processed`);
           }
         }
       }
@@ -1374,7 +2470,7 @@
       globalProgress.classList.add("active");
       updateStats();
 
-      const pendingFiles = fileQueue.filter((f) => f.status === "queued");
+      const pendingFiles = fileQueue.filter((f) => f.status === "pending");
 
       // Group files by type for optimal upload strategy
       const pstFiles = pendingFiles.filter((f) => f.type === "pst");
@@ -1408,15 +2504,20 @@
       // Show completion
       setTimeout(() => {
         globalProgress.classList.remove("active");
+        document.getElementById("gpCurrentFile").style.display = "none";
         loadPSTHistory();
 
         if (uploadStats.complete > 0) {
           if (uploadStats.errors > 0) {
-            alert(
-              `Upload complete: ${uploadStats.complete} succeeded, ${uploadStats.errors} failed.`,
+            ToastManager.warning(
+              "Upload Complete",
+              `${uploadStats.complete} succeeded, ${uploadStats.errors} failed`
             );
           } else {
-            alert(`All ${uploadStats.complete} files uploaded successfully!`);
+            ToastManager.success(
+              "All Uploads Complete!",
+              `${uploadStats.complete} file${uploadStats.complete > 1 ? 's' : ''} uploaded successfully`
+            );
           }
         }
       }, 1500);
@@ -1461,16 +2562,17 @@
           await uploadPSTDirect(item);
         }
 
-        updateFileItem(item.id, { status: "processing", progress: 98 });
+        updateFileItem(item.id, { status: "processing", progress: 100 });
         totalBytesUploaded += item.size;
+
+        if (item.pst_file_id) {
+          startPstProcessingMonitor(item.id, item.pst_file_id);
+        }
       } catch (error) {
         console.error(`PST upload error for ${item.name}:`, error);
         updateFileItem(item.id, { status: "error", error: error.message });
         return;
       }
-
-      // Mark complete locally; backend processing will update real status
-      updateFileItem(item.id, { status: "complete", progress: 100 });
     }
 
     async function uploadPSTViaServer(item) {
@@ -1507,7 +2609,10 @@
         xhr.open("POST", uploadUrl, true);
 
         // Add Authorization header for authenticated upload
-        const token = localStorage.getItem("token") || localStorage.getItem("jwt");
+        const token =
+          localStorage.getItem("vericase_token") ||
+          localStorage.getItem("token") ||
+          localStorage.getItem("jwt");
         if (token) {
           xhr.setRequestHeader("Authorization", `Bearer ${token}`);
         }
@@ -1521,7 +2626,17 @@
 
         xhr.onload = () => {
           if (xhr.status < 400) {
-            updateFileItem(item.id, { status: "processing", progress: 98 });
+            let pstFileId = null;
+            try {
+              const payload = JSON.parse(xhr.responseText || "{}");
+              pstFileId = payload.pst_file_id || payload.pstFileId || null;
+            } catch (e) {
+              pstFileId = null;
+            }
+            if (pstFileId) {
+              updateFileItem(item.id, { pst_file_id: pstFileId });
+            }
+            updateFileItem(item.id, { status: "processing", progress: 100 });
             resolve();
           } else if ([413, 502, 504].includes(xhr.status)) {
             // Fall back to presigned/multipart when API rejects large uploads
@@ -1574,6 +2689,9 @@
       if (!initResp.ok) throw new Error("Failed to initialize upload");
 
       const { pst_file_id, upload_url } = await initResp.json();
+      if (pst_file_id) {
+        updateFileItem(item.id, { pst_file_id });
+      }
 
       // Upload with progress
       await new Promise((resolve, reject) => {
@@ -1628,6 +2746,9 @@
         throw new Error("Failed to initialize multipart upload");
 
       const { pst_file_id, upload_id, chunk_size } = await initResp.json();
+      if (pst_file_id) {
+        updateFileItem(item.id, { pst_file_id });
+      }
       const actualChunkSize = chunk_size || CHUNK_SIZE;
       const totalChunks = Math.ceil(item.size / actualChunkSize);
       const parts = [];
@@ -1691,12 +2812,21 @@
       if (!completeResp.ok)
         throw new Error("Failed to complete multipart upload");
 
+      let completionData = null;
+      try {
+        completionData = await completeResp.json();
+      } catch (e) {
+        completionData = null;
+      }
+
       updateFileItem(item.id, { status: "processing", progress: 95 });
 
-      await fetch(
-        `${apiUrl}/api/correspondence/pst/${pst_file_id}/process`,
-        withAuth({ method: "POST" }),
-      );
+      if (!completionData?.processing_started) {
+        await fetch(
+          `${apiUrl}/api/correspondence/pst/${pst_file_id}/process`,
+          withAuth({ method: "POST" }),
+        );
+      }
     }
 
     // Bulk email upload
@@ -1784,7 +2914,10 @@
           xhr.open("POST", `${apiUrl}/api/evidence/upload`, true);
 
           // Add Authorization header for authenticated upload
-          const token = localStorage.getItem("token") || localStorage.getItem("jwt");
+          const token =
+            localStorage.getItem("vericase_token") ||
+            localStorage.getItem("token") ||
+            localStorage.getItem("jwt");
           if (token) {
             xhr.setRequestHeader("Authorization", `Bearer ${token}`);
           }
@@ -1825,12 +2958,18 @@
 
       try {
         const params = new URLSearchParams();
-        if (VeriCaseApp.projectId)
+        if (VeriCaseApp.projectId) {
           params.append("project_id", VeriCaseApp.projectId);
+        } else if (VeriCaseApp.caseId) {
+          params.append("case_id", VeriCaseApp.caseId);
+        } else {
+          throw new Error("No active project/case selected");
+        }
         params.append("page_size", "20");
 
         const response = await fetch(
           `${apiUrl}/api/correspondence/pst/files?${params}`,
+          withAuth({}),
         );
         if (!response.ok) throw new Error("Failed to load history");
 
@@ -1860,6 +2999,16 @@
         return;
       }
 
+      const formatTotalEmailsForDisplay = (pst) => {
+        const total = Number(pst?.total_emails || 0);
+        const status = String(pst?.processing_status || "").toLowerCase();
+        // Many deployments disable PST pre-count; total_emails stays 0 until completion.
+        // Showing "0 of 0" is misleading for pending/processing/failed, so show "?" instead.
+        if (total > 0) return total.toLocaleString();
+        if (status === "pending" || status === "processing" || status === "failed") return "?";
+        return "0";
+      };
+
       historyContent.innerHTML = `
                 <table class="history-table">
                     <thead>
@@ -1887,10 +3036,10 @@
                                 <td>
                                     <div class="email-count">
                                         <span class="processed">${(pst.processed_emails || 0).toLocaleString()}</span>
-                                        <span class="total">of ${(pst.total_emails || 0).toLocaleString()}</span>
+                                        <span class="total">of ${formatTotalEmailsForDisplay(pst)}</span>
                                     </div>
                                 </td>
-                                <td>${getStatusBadge(pst.processing_status)}</td>
+                                <td>${getStatusBadge(pst.processing_status, pst.error_message)}</td>
                                 <td>${formatDate(pst.uploaded_at)}</td>
                                 <td class="history-actions">
                                     ${getActionButtons(pst)}
@@ -1904,20 +3053,19 @@
             `;
     }
 
-    function getStatusBadge(status) {
+    function getStatusBadge(status, errorMessage) {
+      const safeError = escapeHtml(errorMessage || "");
       const badges = {
         pending:
           '<span class="status-badge status-pending"><i class="fas fa-clock"></i> Pending</span>',
         uploaded:
           '<span class="status-badge status-pending"><i class="fas fa-cloud"></i> Uploaded</span>',
-        queued:
-          '<span class="status-badge status-pending"><i class="fas fa-list"></i> Queued</span>',
         processing:
           '<span class="status-badge status-processing"><i class="fas fa-spinner fa-spin"></i> Processing</span>',
         completed:
           '<span class="status-badge status-completed"><i class="fas fa-check"></i> Complete</span>',
         failed:
-          '<span class="status-badge status-failed"><i class="fas fa-times"></i> Failed</span>',
+          `<span class="status-badge status-failed" title="${safeError || "PST processing failed"}"><i class="fas fa-times"></i> Failed</span>`,
       };
       return badges[status] || `<span class="status-badge">${status}</span>`;
     }
@@ -1927,10 +3075,11 @@
 
       if (
         pst.processing_status === "uploaded" ||
-        pst.processing_status === "pending"
+        pst.processing_status === "pending" ||
+        pst.processing_status === "failed"
       ) {
         buttons.push(
-          `<button class="btn-icon" onclick="processPST('${pst.id}')" title="Start Processing"><i class="fas fa-play"></i></button>`,
+          `<button class="btn-icon" onclick="processPST('${pst.id}')" title="${pst.processing_status === "failed" ? "Retry Processing" : "Start Processing"}"><i class="fas ${pst.processing_status === "failed" ? "fa-redo" : "fa-play"}"></i></button>`,
         );
       }
 
@@ -1940,9 +3089,15 @@
         );
       }
 
+      if (pst.processing_status === "failed") {
+        buttons.push(
+          `<button class="btn-icon" onclick="showPSTError('${pst.id}')" title="View Error"><i class="fas fa-exclamation-circle"></i></button>`,
+        );
+      }
+
       if (pst.processing_status === "completed" && pst.processed_emails > 0) {
         buttons.push(
-          `<button class="btn-icon" onclick="viewEmails('${pst.project_id}')" title="View Emails"><i class="fas fa-envelope-open-text"></i></button>`,
+          `<button class="btn-icon" onclick="viewEmails()" title="View Emails"><i class="fas fa-envelope-open-text"></i></button>`,
         );
       }
 
@@ -1971,7 +3126,7 @@
       try {
         const response = await fetch(
           `${apiUrl}/api/correspondence/pst/${pstFileId}/process`,
-          { method: "POST" },
+          withAuth({ method: "POST" }),
         );
         if (!response.ok) throw new Error("Failed to start processing");
         alert("Processing started!");
@@ -1985,11 +3140,22 @@
       try {
         const response = await fetch(
           `${apiUrl}/api/correspondence/pst/${pstFileId}/status`,
+          withAuth({}),
         );
         if (!response.ok) throw new Error("Failed to get status");
         const status = await response.json();
+        const totalEmails = Number(status.total_emails || 0);
+        const processedEmails = Number(status.processed_emails || 0);
+        const totalDisplay = totalEmails > 0 ? totalEmails : "?";
+        const progressDisplay =
+          totalEmails > 0
+            ? `${status.progress_percent}%`
+            : processedEmails > 0
+              ? "Calculating..."
+              : "0%";
+        const err = status.error_message ? `\nError: ${status.error_message}` : "";
         alert(
-          `Status: ${status.status}\nProgress: ${status.progress_percent}%\nProcessed: ${status.processed_emails}/${status.total_emails} emails`,
+          `Status: ${status.status}\nProgress: ${progressDisplay}\nProcessed: ${processedEmails}/${totalDisplay} emails${err}`,
         );
         loadPSTHistory();
       } catch (error) {
@@ -1997,8 +3163,34 @@
       }
     }
 
-    function viewEmails(projectId) {
-      window.location.href = `correspondence-enterprise.html?projectId=${projectId}`;
+    async function showPSTError(pstFileId) {
+      try {
+        const response = await fetch(
+          `${apiUrl}/api/correspondence/pst/${pstFileId}/status`,
+          withAuth({}),
+        );
+        if (!response.ok) throw new Error("Failed to get status");
+        const status = await response.json();
+        const err = status.error_message || "No error message recorded for this PST.";
+        alert(`PST Error:\n\n${err}`);
+      } catch (error) {
+        alert("Failed to load error details: " + error.message);
+      }
+    }
+
+    function viewEmails() {
+      // Keep the current context (projectId OR caseId) when navigating.
+      if (window.VeriCaseApp && typeof window.VeriCaseApp.gotoCorrespondence === "function") {
+        window.VeriCaseApp.gotoCorrespondence();
+        return;
+      }
+
+      // Fallback: manually preserve whatever context params exist.
+      const params =
+        window.VeriCaseApp && typeof window.VeriCaseApp.getContextParams === "function"
+          ? window.VeriCaseApp.getContextParams()
+          : "";
+      window.location.href = `correspondence-enterprise.html${params ? "?" + params : ""}`;
     }
 
     function goToDashboard() {
@@ -2008,8 +3200,17 @@
     // Initialize
     VeriCaseApp.init().then(() => {
       console.log("VeriCaseApp initialized:", VeriCaseApp.projectId);
+      ToastManager.init();
       loadPSTHistory();
       startLiveTracking();
+      
+      // Show welcome notification
+      setTimeout(() => {
+        const activeProject = VeriCaseApp.projectId || VeriCaseApp.caseId;
+        if (activeProject) {
+          ToastManager.info("Ready to Upload", "Drag and drop files or click to browse");
+        }
+      }, 500);
     });
 
     // ============ LIVE PROCESSING TRACKER ============
@@ -2032,9 +3233,18 @@
     async function refreshLiveStatus() {
       try {
         const params = new URLSearchParams();
-        if (VeriCaseApp.projectId) params.append("project_id", VeriCaseApp.projectId);
-        // Include queued so newly-enqueued jobs show up immediately.
-        params.append("status", "queued,processing");
+        if (VeriCaseApp.projectId) {
+          params.append("project_id", VeriCaseApp.projectId);
+        } else if (VeriCaseApp.caseId) {
+          params.append("case_id", VeriCaseApp.caseId);
+        } else {
+          // No active context; nothing to poll.
+          activeProcessingFiles = [];
+          updateLiveTracker();
+          return;
+        }
+        // Include pending so newly-enqueued jobs show up immediately.
+        params.append("status", "pending,processing");
         params.append("page_size", "10");
 
         const response = await fetch(
@@ -2046,7 +3256,7 @@
 
         const data = await response.json();
         activeProcessingFiles = data.items?.filter(
-          f => f.processing_status === "processing" || f.processing_status === "queued"
+          f => f.processing_status === "processing" || f.processing_status === "pending"
         ) || [];
 
         updateLiveTracker();
@@ -2072,9 +3282,18 @@
         
         updateLiveTracker();
         
-        // If something finished, refresh history
+        // If something finished, refresh history and show notification
         if (activeProcessingFiles.length !== (window._lastActiveCount || 0)) {
           loadPSTHistory();
+          
+          // Check if files finished processing
+          if ((window._lastActiveCount || 0) > activeProcessingFiles.length) {
+            const finishedCount = (window._lastActiveCount || 0) - activeProcessingFiles.length;
+            ToastManager.success(
+              "Processing Complete",
+              `${finishedCount} file${finishedCount > 1 ? 's' : ''} finished processing`
+            );
+          }
         }
         window._lastActiveCount = activeProcessingFiles.length;
 
@@ -2094,27 +3313,65 @@
 
       tracker.classList.add("active");
 
-      container.innerHTML = activeProcessingFiles.map(file => `
-        <div class="processing-item">
-          <div class="processing-item-icon">
-            <i class="fas fa-envelope"></i>
-          </div>
-          <div class="processing-item-details">
-            <h4>${escapeHtml(file.filename)}</h4>
-            <div class="processing-item-stats">
-              <span><i class="fas fa-envelope-open"></i> <strong>${(file.processed_emails || 0).toLocaleString()}</strong> / ${(file.total_emails || '?').toLocaleString()} emails</span>
-              <span><i class="fas fa-tasks"></i> ${file.current_phase || "Extracting"}</span>
-              <span><i class="fas fa-clock"></i> ${formatTimeAgo(file.uploaded_at)}</span>
+      container.innerHTML = activeProcessingFiles.map(file => {
+        const phase = (file.current_phase || "extracting").toLowerCase();
+        const phases = ["uploaded", "extracting", "parsing", "indexing"];
+        const phaseIndex = phases.findIndex(p => phase.includes(p));
+        const currentPhaseIndex = phaseIndex === -1 ? 1 : phaseIndex;
+        const processed = Number(file.processed_emails || 0);
+        const total = Number(file.total_emails || 0);
+        const progressKnown = total > 0;
+        const progressPercent = progressKnown ? Math.min(100, Math.round(file.progress_percent || 0)) : 0;
+        const progressClass = progressKnown ? "" : (processed > 0 ? "indeterminate" : "");
+        const progressWidth = progressKnown ? progressPercent : (processed > 0 ? 100 : 0);
+        const progressText = progressKnown
+          ? `${progressPercent}% Complete`
+          : (processed > 0 ? "Processing..." : "Preparing...");
+        const totalDisplay = progressKnown ? total.toLocaleString() : "?";
+        
+        return `
+          <div class="processing-item">
+            <div class="processing-item-main">
+              <div class="processing-item-icon">
+                <i class="fas fa-envelope"></i>
+                <div class="spinner-ring"></div>
+              </div>
+              <div class="processing-item-details">
+                <h4>${escapeHtml(file.filename)}</h4>
+                <div class="processing-item-stats">
+                  <span><i class="fas fa-envelope-open"></i> <strong>${processed.toLocaleString()}</strong> / ${totalDisplay} emails</span>
+                  <span><i class="fas fa-tasks"></i> ${file.current_phase || "Extracting"}</span>
+                  <span><i class="fas fa-clock"></i> ${formatTimeAgo(file.uploaded_at)}</span>
+                </div>
+              </div>
+              <div class="processing-item-progress">
+                <div class="progress-bar">
+                  <div class="progress-fill ${progressClass}" style="width: ${progressWidth}%"></div>
+                </div>
+                <div class="progress-text">${progressText}</div>
+              </div>
+            </div>
+            <div class="phase-indicator">
+              <div class="phase-step ${currentPhaseIndex >= 0 ? 'complete' : ''} ${currentPhaseIndex === 0 ? 'active' : ''}">
+                <div class="phase-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                <span class="phase-label">Uploaded</span>
+              </div>
+              <div class="phase-step ${currentPhaseIndex >= 1 ? 'complete' : ''} ${currentPhaseIndex === 1 ? 'active' : ''}">
+                <div class="phase-icon"><i class="fas fa-file-export"></i></div>
+                <span class="phase-label">Extracting</span>
+              </div>
+              <div class="phase-step ${currentPhaseIndex >= 2 ? 'complete' : ''} ${currentPhaseIndex === 2 ? 'active' : ''}">
+                <div class="phase-icon"><i class="fas fa-cogs"></i></div>
+                <span class="phase-label">Parsing</span>
+              </div>
+              <div class="phase-step ${currentPhaseIndex >= 3 ? 'complete' : ''} ${currentPhaseIndex === 3 ? 'active' : ''}">
+                <div class="phase-icon"><i class="fas fa-search"></i></div>
+                <span class="phase-label">Indexing</span>
+              </div>
             </div>
           </div>
-          <div class="processing-item-progress">
-            <div class="progress-bar">
-              <div class="progress-fill" style="width: ${file.progress_percent || 0}%"></div>
-            </div>
-            <div class="progress-text">${file.progress_percent || 0}% Complete</div>
-          </div>
-        </div>
-      `).join("");
+        `;
+      }).join("");
     }
 
     function formatTimeAgo(dateStr) {

@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>The Delay Ripple | VeriCase</title>
     <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
-    <link rel="stylesheet" href="brand-styles.css" />
-    <link rel="stylesheet" href="design-system.css" />
+    <link rel="stylesheet" href="brand-styles.css?v=6" />
+    <link rel="stylesheet" href="design-system.css?v=6" />
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
     <script src="config.js"></script>
@@ -1060,11 +1060,25 @@
       document.addEventListener("DOMContentLoaded", async () => {
         // Inject navigation shell
         if (window.VericaseShell) {
+          const ctx =
+            typeof window.VericaseShell.getContext === "function"
+              ? window.VericaseShell.getContext()
+              : { type: "project", id: window.VericaseShell.getProjectId() };
+          const ctxType = ctx?.type === "case" ? "case" : "project";
+          const ctxLabel =
+            ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
+          const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
+          const ctxId = ctx?.id ? String(ctx.id) : "";
+          const ctxUrl = ctxId
+            ? `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+            : "dashboard.html";
+
           window.VericaseShell.inject({
-            title: 'The Delay Ripple',
+            title: '',
             breadcrumbs: [
-              { label: 'Home', url: 'master-dashboard.html', icon: 'fa-home' },
-              { label: 'Delays' }
+              { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+              { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
+              { label: "The Delay Ripple", icon: "fa-hourglass-half" }
             ]
           });
         }
@@ -1088,9 +1102,32 @@
       });
 
       function getCaseId() {
+        if (window.VericaseShell && typeof window.VericaseShell.getContext === "function") {
+          const ctx = window.VericaseShell.getContext();
+          if (ctx?.type === "case" && ctx.id) return String(ctx.id);
+        }
+
         const urlParams = new URLSearchParams(window.location.search);
-        return urlParams.get('caseId') || urlParams.get('case_id') ||
-               localStorage.getItem('vericase_current_case') || '1';
+        const fromUrl = urlParams.get('caseId') || urlParams.get('case_id');
+        if (fromUrl && fromUrl !== 'undefined' && fromUrl !== 'null') return fromUrl;
+
+        const storedCase =
+          localStorage.getItem('currentCaseId') ||
+          localStorage.getItem('caseId') ||
+          localStorage.getItem('vericase_current_case') ||
+          localStorage.getItem('activeCaseId') ||
+          localStorage.getItem('activeCase');
+
+        if (!storedCase || storedCase === 'undefined' || storedCase === 'null') {
+          return '';
+        }
+
+        try {
+          const parsed = JSON.parse(storedCase);
+          return parsed?.id ? String(parsed.id) : String(parsed);
+        } catch {
+          return String(storedCase);
+        }
       }
 
       function setupEventListeners() {

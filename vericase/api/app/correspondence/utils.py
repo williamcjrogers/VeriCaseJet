@@ -6,7 +6,16 @@ Correspondence API Utils
 import re as _re_module
 from typing import Any
 from datetime import datetime
+from enum import Enum
 from pydantic import BaseModel, Field
+
+
+class PSTStatus(str, Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
 
 # Pre-compiled regex patterns for inline image detection (compiled once at module load)
 _IMAGE_NUMBER_PATTERN = _re_module.compile(
@@ -65,7 +74,7 @@ def _is_embedded_image(att_data: dict[str, Any]) -> bool:
 def _parse_pst_status_filter(status: str | None) -> list[str] | None:
     """Parse the `status` query param for PST list endpoints.
 
-    Supports comma-separated lists (e.g. "queued,processing").
+    Supports comma-separated lists (e.g. "pending,processing").
     Returns None when no filtering should be applied.
     """
 
@@ -86,6 +95,38 @@ def build_correspondence_visibility_filter():
     from ..models import EmailMessage
 
     return build_email_visibility_filter(EmailMessage)
+
+
+def build_correspondence_hard_exclusion_filter():
+    """Return a SQLAlchemy filter that always excludes duplicates, spam, and other-project emails."""
+
+    from sqlalchemy import and_, or_
+    from ..models import EmailMessage
+
+    status_field = EmailMessage.meta["status"].as_string()
+    spam_override_field = EmailMessage.meta.op("->")("spam").op("->>")("user_override")
+    spam_hidden_field = EmailMessage.meta.op("->")("spam").op("->>")("is_hidden")
+    is_spam_field = EmailMessage.meta["is_spam"].as_string()
+    ai_reason_field = EmailMessage.meta["ai_exclude_reason"].as_string()
+
+    return and_(
+        or_(EmailMessage.is_duplicate.is_(False), EmailMessage.is_duplicate.is_(None)),
+        or_(
+            status_field.is_(None),
+            ~status_field.in_(["spam", "other_project", "duplicate"]),
+        ),
+        or_(spam_override_field.is_(None), spam_override_field != "hidden"),
+        or_(spam_hidden_field.is_(None), spam_hidden_field != "true"),
+        or_(is_spam_field.is_(None), is_spam_field != "true"),
+        or_(
+            ai_reason_field.is_(None),
+            and_(
+                ~ai_reason_field.ilike("spam%"),
+                ~ai_reason_field.ilike("other_project%"),
+                ai_reason_field != "duplicate",
+            ),
+        ),
+    )
 
 
 def _as_bool(value: Any) -> bool:
@@ -248,7 +289,7 @@ class PSTProcessingStatus(BaseModel):
     """PST processing status"""
 
     pst_file_id: str
-    status: str  # queued, processing, completed, failed
+    status: str  # pending, processing, completed, failed
     total_emails: int
     processed_emails: int
     progress_percent: float
@@ -308,6 +349,12 @@ class EmailMessageSummary(BaseModel):
     email_body: str | None = None
     attachments: list[dict[str, Any]] | None = None
 
+    # Convenience fields for grids
+    attachment_count: int | None = None
+    images_count: int | None = None
+    linked_to_count: int | None = None
+    claim_status: str | None = None
+
     # Additional AG Grid fields (editable/custom fields)
     programme_activity: str | None = None
     baseline_activity: str | None = None
@@ -329,6 +376,8 @@ class EmailMessageSummary(BaseModel):
     status: str | None = None
     notes: str | None = None
     thread_id: str | None = None
+    pst_file_id: str | None = None
+    pst_filename: str | None = None
 
 
 class EmailMessageDetail(BaseModel):

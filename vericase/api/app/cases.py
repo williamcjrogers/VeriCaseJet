@@ -18,7 +18,17 @@ from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import Session
 
 from .db import get_db
-from .models import Case, Claim, ClaimType, DocStatus, Document, Evidence, Issue, User
+from .models import (
+    Case,
+    Claim,
+    ClaimType,
+    DocStatus,
+    Document,
+    Evidence,
+    Issue,
+    Project,
+    User,
+)
 from .security import get_current_user
 
 DbSession = Annotated[Session, Depends(get_db)]
@@ -37,6 +47,7 @@ class CaseCreate(BaseModel):
     name: str
     description: str | None = None
     project_name: str | None = None
+    project_id: str | None = None
     contract_type: str | None = None  # JCT, NEC, FIDIC
     dispute_type: str | None = None  # Delay, Defects, Variation
     company_id: str | None = None
@@ -46,6 +57,7 @@ class CaseUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     project_name: str | None = None
+    project_id: str | None = None
     contract_type: str | None = None
     dispute_type: str | None = None
     status: str | None = None
@@ -60,6 +72,7 @@ class CaseOut(BaseModel):
     name: str
     description: str | None
     project_name: str | None
+    project_id: str | None = None
     contract_type: str | None
     dispute_type: str | None
     status: str
@@ -242,6 +255,9 @@ def list_cases(
             "name": str(case.name),
             "description": str(case.description) if case.description else None,
             "project_name": (str(case.project_name) if case.project_name else None),
+            "project_id": (
+                str(case.project_id) if getattr(case, "project_id", None) else None
+            ),
             "contract_type": (str(case.contract_type) if case.contract_type else None),
             "dispute_type": (str(case.dispute_type) if case.dispute_type else None),
             "status": str(case.status),
@@ -260,10 +276,36 @@ def list_cases(
 @router.post("", response_model=CaseOut)
 def create_case(data: CaseCreate, db: DbSession, current_user: CurrentUser):
     """Create a new case"""
+    # #region agent log
+    try:
+        from .debug_logger import log_debug
+
+        log_debug(
+            "cases.py:create_case",
+            "Creating case via cases router",
+            {"data": data.model_dump()},
+            "H1",
+        )
+    except Exception:
+        pass
+    # #endregion
+
     # Check if case number already exists
     existing = db.query(Case).filter(Case.case_number == data.case_number).first()
     if existing:
         raise HTTPException(status_code=400, detail="Case number already exists")
+
+    project_uuid: uuid.UUID | None = None
+    if data.project_id:
+        try:
+            project_uuid = uuid.UUID(str(data.project_id))
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="Invalid project_id") from exc
+
+        # Validate the project exists (keeps FK clean and improves UX)
+        exists = db.query(Project.id).filter(Project.id == project_uuid).first()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Project not found")
 
     case = Case(
         id=uuid.uuid4(),
@@ -271,6 +313,7 @@ def create_case(data: CaseCreate, db: DbSession, current_user: CurrentUser):
         name=data.name,
         description=data.description,
         project_name=data.project_name,
+        project_id=project_uuid,
         contract_type=data.contract_type,
         dispute_type=data.dispute_type,
         owner_id=current_user.id,
@@ -287,6 +330,7 @@ def create_case(data: CaseCreate, db: DbSession, current_user: CurrentUser):
         name=case.name,
         description=case.description,
         project_name=case.project_name,
+        project_id=str(case.project_id) if getattr(case, "project_id", None) else None,
         contract_type=case.contract_type,
         dispute_type=case.dispute_type,
         status=case.status,
@@ -336,6 +380,7 @@ def get_case(case_id: str, db: DbSession, current_user: CurrentUser):
         name=case.name,
         description=case.description,
         project_name=case.project_name,
+        project_id=str(case.project_id) if getattr(case, "project_id", None) else None,
         contract_type=case.contract_type,
         dispute_type=case.dispute_type,
         status=case.status,
@@ -365,6 +410,21 @@ def update_case(
         case.description = data.description
     if data.project_name is not None:
         case.project_name = data.project_name
+    if data.project_id is not None:
+        if data.project_id == "" or str(data.project_id).lower() in {"null", "none"}:
+            case.project_id = None
+        else:
+            try:
+                project_uuid = uuid.UUID(str(data.project_id))
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=400, detail="Invalid project_id"
+                ) from exc
+
+            exists = db.query(Project.id).filter(Project.id == project_uuid).first()
+            if not exists:
+                raise HTTPException(status_code=404, detail="Project not found")
+            case.project_id = project_uuid
     if data.contract_type is not None:
         case.contract_type = data.contract_type
     if data.dispute_type is not None:
@@ -390,6 +450,7 @@ def update_case(
         name=case.name,
         description=case.description,
         project_name=case.project_name,
+        project_id=str(case.project_id) if getattr(case, "project_id", None) else None,
         contract_type=case.contract_type,
         dispute_type=case.dispute_type,
         status=case.status,

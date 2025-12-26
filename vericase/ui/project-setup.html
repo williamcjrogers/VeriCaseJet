@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Setup | VeriCase</title>
+    <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
+    <link rel="stylesheet" href="brand-styles.css?v=7" />
+    <link rel="stylesheet" href="design-system.css?v=7" />
+    <script src="vericase-ui.js"></script>
+    <script src="nav-shell.js"></script>
+    <style>
+      body {
+        background: #f6f4f0;
+        color: var(--text-primary);
+      }
+
+      .container {
+        max-width: 960px;
+        margin: 2.5rem auto;
+        padding: 0 2rem 3rem;
+      }
+
+      .page-header {
+        margin-bottom: 1.5rem;
+      }
+
+      .page-title {
+        font-size: 2rem;
+        margin: 0 0 0.35rem;
+        color: var(--vericase-navy);
+      }
+
+      .page-subtitle {
+        color: var(--text-secondary);
+        margin: 0;
+      }
+
+      .card {
+        background: white;
+        border-radius: 20px;
+        box-shadow: var(--shadow-lg);
+        padding: 2rem;
+        border: 1px solid var(--gray-100);
+      }
+
+      .form-group {
+        margin-bottom: 1.25rem;
+      }
+
+      .form-label {
+        display: block;
+        font-weight: 600;
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .form-input,
+      .form-select {
+        width: 100%;
+        padding: 0.7rem 0.9rem;
+        border-radius: 10px;
+        border: 1px solid var(--border-default);
+        font-size: 0.95rem;
+      }
+
+      .form-input:focus,
+      .form-select:focus {
+        outline: none;
+        border-color: var(--vericase-teal);
+        box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.1);
+      }
+
+      .form-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+      }
+
+      .helper-text {
+        margin-top: 0.35rem;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      .action-row {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        margin-top: 1.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="main-content">
+      <div class="container">
+        <div class="page-header">
+          <h1 class="page-title">Project Setup</h1>
+          <p class="page-subtitle">Projects hold the core details and workstreams for a workspace.</p>
+        </div>
+        <div class="card">
+          <form id="projectForm">
+            <div class="form-group">
+              <label class="form-label" for="projectName">Project name *</label>
+              <input class="form-input" id="projectName" type="text" required />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="projectCode">Project code (optional)</label>
+                <input class="form-input" id="projectCode" type="text" />
+                <div class="helper-text">Auto-generated if left blank.</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="contractType">Contract type</label>
+                <select class="form-select" id="contractType">
+                  <option value="">Select...</option>
+                  <option value="JCT">JCT</option>
+                  <option value="NEC">NEC</option>
+                  <option value="FIDIC">FIDIC</option>
+                  <option value="Custom">Custom</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="startDate">Start date</label>
+                <input class="form-input" id="startDate" type="date" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="completionDate">Completion date</label>
+                <input class="form-input" id="completionDate" type="date" />
+              </div>
+            </div>
+            <div class="action-row">
+              <button class="btn btn-vericase" type="submit" id="createProjectBtn">
+                <i class="fas fa-plus"></i> Create project
+              </button>
+              <button class="btn btn-secondary" type="button" id="backToDashboardBtn">
+                Back to dashboard
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      let codeManuallyEdited = false;
+      let lastAutoCode = "";
+      let isEditMode = false;
+      let currentProjectId = null;
+      let currentWorkspaceId = null;
+
+      function getAuthHeaders() {
+        const token =
+          localStorage.getItem("vericase_token") ||
+          localStorage.getItem("token") ||
+          localStorage.getItem("jwt");
+        return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+      }
+
+      function buildProjectCode(name) {
+        const cleaned = String(name || "")
+          .replace(/[^a-zA-Z0-9]+/g, " ")
+          .trim();
+        const parts = cleaned ? cleaned.split(/\s+/) : [];
+        const abbrev = parts
+          .map((part) => part.slice(0, 3))
+          .join("")
+          .slice(0, 6)
+          .toUpperCase();
+        const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+        return `${abbrev || "PROJ"}-${suffix}`;
+      }
+
+      function syncAutoCode() {
+        const nameInput = document.getElementById("projectName");
+        const codeInput = document.getElementById("projectCode");
+        if (!nameInput || !codeInput || codeManuallyEdited || isEditMode) return;
+        const nextCode = buildProjectCode(nameInput.value);
+        if (!codeInput.value || codeInput.value === lastAutoCode) {
+          codeInput.value = nextCode;
+          lastAutoCode = nextCode;
+        }
+      }
+
+      function formatDateInput(value) {
+        if (!value) return "";
+        return String(value).split("T")[0];
+      }
+
+      async function loadProject(projectId) {
+        const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, {
+          headers: getAuthHeaders()
+        });
+        if (!response.ok) {
+          throw new Error("Failed to load project details");
+        }
+        const data = await response.json();
+        document.getElementById("projectName").value = data.project_name || "";
+        document.getElementById("projectCode").value = data.project_code || "";
+        document.getElementById("contractType").value = data.contract_type || "";
+        document.getElementById("startDate").value = formatDateInput(data.start_date);
+        document.getElementById("completionDate").value = formatDateInput(data.completion_date);
+        lastAutoCode = data.project_code || "";
+        codeManuallyEdited = true;
+      }
+
+      async function submitProject(event) {
+        event.preventDefault();
+        const nameValue = document.getElementById("projectName").value.trim();
+        if (!nameValue) {
+          VericaseUI.Toast.error("Please enter a project name");
+          return;
+        }
+
+        if (!isEditMode && !currentWorkspaceId) {
+          VericaseUI.Toast.error("Select a workspace first");
+          window.location.href = "master-dashboard.html";
+          return;
+        }
+
+        const codeValue = document.getElementById("projectCode").value.trim();
+        let resolvedCode = codeValue;
+        if (!resolvedCode && !isEditMode) {
+          resolvedCode = buildProjectCode(nameValue);
+          document.getElementById("projectCode").value = resolvedCode;
+          lastAutoCode = resolvedCode;
+        } else if (!resolvedCode && lastAutoCode) {
+          resolvedCode = lastAutoCode;
+        }
+
+        const payload = isEditMode
+          ? {
+              project_name: nameValue,
+              project_code: resolvedCode || null,
+              contract_type: document.getElementById("contractType").value || null,
+              start_date: document.getElementById("startDate").value || null,
+              completion_date: document.getElementById("completionDate").value || null
+            }
+          : {
+              project_name: nameValue,
+              project_code: resolvedCode,
+              workspace_id: currentWorkspaceId,
+              contract_type: document.getElementById("contractType").value || null,
+              start_date: document.getElementById("startDate").value || null,
+              completion_date: document.getElementById("completionDate").value || null
+            };
+
+        const btn = document.getElementById("createProjectBtn");
+        btn.disabled = true;
+        btn.innerHTML = isEditMode
+          ? '<i class="fas fa-spinner fa-spin"></i> Saving...'
+          : '<i class="fas fa-spinner fa-spin"></i> Creating...';
+
+        try {
+          const endpoint = isEditMode ? `/api/projects/${encodeURIComponent(currentProjectId)}` : "/api/projects";
+          const response = await fetch(endpoint, {
+            method: isEditMode ? "PUT" : "POST",
+            headers: getAuthHeaders(),
+            body: JSON.stringify(payload)
+          });
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || "Failed to save project");
+          }
+          const data = await response.json();
+          const projectId = data.id || currentProjectId;
+          localStorage.setItem("profileType", "project");
+          localStorage.setItem("vericase_current_project", projectId);
+          localStorage.setItem("currentProjectId", projectId);
+          localStorage.setItem("projectId", projectId);
+          localStorage.setItem("currentProjectName", data.project_name || nameValue);
+          localStorage.setItem("vericase_current_project_name", data.project_name || nameValue);
+          VericaseUI.Toast.success(isEditMode ? "Project updated" : "Project created");
+          window.location.href = `projectdashboard.html?projectId=${encodeURIComponent(projectId)}`;
+        } catch (error) {
+          VericaseUI.Toast.error(error.message || "Failed to save project");
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = isEditMode ? '<i class="fas fa-save"></i> Save changes' : '<i class="fas fa-plus"></i> Create project';
+        }
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        const params = new URLSearchParams(window.location.search);
+        currentProjectId = params.get("projectId");
+        currentWorkspaceId = params.get("workspaceId") || localStorage.getItem("currentWorkspaceId");
+        if (currentWorkspaceId) {
+          try {
+            localStorage.setItem("currentWorkspaceId", currentWorkspaceId);
+          } catch {
+            // ignore storage failures
+          }
+        }
+        isEditMode = Boolean(currentProjectId);
+        const pageTitle = document.querySelector(".page-title");
+        const pageSubtitle = document.querySelector(".page-subtitle");
+        const submitBtn = document.getElementById("createProjectBtn");
+        const backBtn = document.getElementById("backToDashboardBtn");
+        if (isEditMode) {
+          pageTitle.textContent = "Project Details";
+          pageSubtitle.textContent = "Update the core details for this project.";
+          submitBtn.innerHTML = '<i class="fas fa-save"></i> Save changes';
+          backBtn.addEventListener("click", () => {
+            window.location.href = `projectdashboard.html?projectId=${encodeURIComponent(currentProjectId)}`;
+          });
+          loadProject(currentProjectId).catch((error) => {
+            VericaseUI.Toast.error(error.message || "Failed to load project");
+          });
+        } else {
+          if (!currentWorkspaceId) {
+            VericaseUI.Toast.info("Select a workspace first");
+            window.location.href = "master-dashboard.html";
+            return;
+          }
+          backBtn.addEventListener("click", () => {
+            window.location.href = `workspace-setup.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;
+          });
+        }
+        if (window.VericaseShell?.inject) {
+          VericaseShell.inject({ title: isEditMode ? "Project Details" : "Project Setup", breadcrumbs: null, headerActions: "" });
+        }
+        document.getElementById("projectName").addEventListener("input", syncAutoCode);
+        document.getElementById("projectCode").addEventListener("input", (event) => {
+          codeManuallyEdited = event.target.value.trim().length > 0 && event.target.value !== lastAutoCode;
+        });
+        document.getElementById("projectForm").addEventListener("submit", submitProject);
+      });
+    </script>
+  </body>
+</html>

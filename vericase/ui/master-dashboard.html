@@ -4,375 +4,1271 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VeriCase - Command Center</title>
+  <title>VeriCase - Master Dashboard</title>
   <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
-  <link rel="stylesheet" href="brand-styles.css" />
-  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="brand-styles.css?v=7" />
+  <link rel="stylesheet" href="design-system.css?v=7" />
   <script src="vericase-ui.js"></script>
   <script src="nav-shell.js"></script>
   <style>
-    /* === PAGE-SPECIFIC STYLES === */
+    /* === MASTER DASHBOARD - REFINED LAYOUT === */
 
-    /* Stats Bar - Floating Glass Cards */
-    .stats-container {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 20px;
-      margin-bottom: 32px;
+    .app-content {
+      background:
+        radial-gradient(120% 140% at 10% 0%, rgba(255, 248, 234, 0.7) 0%, rgba(255, 255, 255, 0) 60%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 244, 235, 0.85) 100%);
+      border-radius: 26px;
+      box-shadow: 0 20px 50px rgba(15, 23, 32, 0.08);
+      margin: var(--space-4);
+      padding: var(--space-6);
     }
 
-    .stat-card {
-      background: white;
-      border-radius: var(--radius-xl);
-      padding: 20px;
+    /* === COMPACT HEADER === */
+    .dashboard-header {
       display: flex;
       align-items: center;
-      gap: 16px;
-      box-shadow: var(--shadow-md);
-      border: 1px solid var(--gray-200);
-      transition: all var(--transition-base);
-    }
-
-    .stat-card:hover {
-      transform: translateY(-4px);
-      box-shadow: var(--shadow-lg);
-      border-color: var(--vericase-teal-light);
-    }
-
-    .stat-icon-wrapper {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.25rem;
-    }
-
-    .stat-content {
-      flex: 1;
-    }
-
-    .stat-value {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--text-primary);
-      line-height: 1.2;
-      font-family: var(--font-mono);
-      /* Data font */
-    }
-
-    .stat-label {
-      font-size: 0.8125rem;
-      color: var(--text-secondary);
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    /* Toolbar & Search */
-    .toolbar {
-      display: flex;
       justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-      gap: 16px;
+      gap: 20px;
+      margin-bottom: 28px;
       flex-wrap: wrap;
     }
 
-    .search-container {
+    .dashboard-greeting {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .greeting-kicker {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--vericase-gold-muted);
+    }
+
+    .greeting-title {
+      font-family: var(--font-serif);
+      font-size: 1.625rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      line-height: 1.2;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* === STATS BAR - COMPACT === */
+    .stats-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .stat-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(181, 155, 106, 0.2);
+      border-radius: 999px;
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      box-shadow: 0 2px 6px rgba(15, 23, 32, 0.04);
+    }
+
+    .stat-pill i {
+      font-size: 0.75rem;
+      opacity: 0.7;
+    }
+
+    .stat-pill strong {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* === SEARCH BAR === */
+    .search-section {
+      margin-bottom: 32px;
+    }
+
+    .search-wrapper {
       position: relative;
-      flex: 1;
-      max-width: 600px;
+      max-width: 720px;
     }
 
     .search-input {
       width: 100%;
-      padding: 12px 16px 12px 44px;
+      padding: 14px 20px 14px 48px;
       border: 1px solid var(--gray-200);
-      border-radius: var(--radius-lg);
+      border-radius: var(--radius-xl);
       font-size: 0.9375rem;
-      transition: all 0.2s;
       background: white;
       box-shadow: var(--shadow-sm);
+      transition: all 0.2s;
     }
 
     .search-input:focus {
       outline: none;
       border-color: var(--vericase-teal);
-      box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.1);
+      box-shadow: 0 0 0 3px rgba(31, 111, 120, 0.1), var(--shadow-md);
     }
 
     .search-icon {
       position: absolute;
-      left: 16px;
+      left: 18px;
       top: 50%;
       transform: translateY(-50%);
       color: var(--text-muted);
+      font-size: 0.9375rem;
     }
 
-    /* Project Grid */
-    .work-items-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-      gap: 24px;
-    }
-
-    .project-card {
-      background: white;
-      border-radius: var(--radius-xl);
-      padding: 24px;
-      box-shadow: var(--shadow-card);
-      border: 1px solid var(--gray-200);
-      transition: all var(--transition-base);
-      cursor: pointer;
-      position: relative;
-      overflow: visible;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .project-card:hover {
-      transform: translateY(-4px);
-      box-shadow: var(--shadow-xl);
-      border-color: var(--vericase-teal);
-    }
-
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 16px;
-    }
-
-    .project-icon {
-      width: 40px;
-      height: 40px;
-      background: rgba(26, 43, 60, 0.05);
-      /* Navy tint */
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--vericase-navy);
-      font-size: 1.25rem;
-    }
-
-    .status-badge {
-      padding: 4px 10px;
-      border-radius: 100px;
-      font-size: 0.6875rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    .status-active {
-      background: rgba(5, 150, 105, 0.1);
-      color: var(--success);
-    }
-
-    .status-archived {
-      background: var(--gray-100);
-      color: var(--text-muted);
-    }
-
-    .project-title {
-      font-family: var(--font-sans);
-      font-size: 1.125rem;
-      font-weight: 700;
-      color: var(--text-primary);
-      margin-bottom: 4px;
-    }
-
-    .project-code {
-      font-family: var(--font-mono);
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-bottom: 12px;
-    }
-
-    .project-desc {
-      font-size: 0.875rem;
-      color: var(--text-secondary);
-      line-height: 1.5;
-      margin-bottom: 20px;
-      flex: 1;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-
-    .card-metrics {
-      display: flex;
-      gap: 16px;
-      padding-top: 16px;
-      border-top: 1px solid var(--gray-100);
-    }
-
-    .metric {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.8125rem;
-      color: var(--text-secondary);
-    }
-
-    .metric i {
-      color: var(--vericase-teal);
-    }
-
-    .card-actions {
-      position: absolute;
-      top: 16px;
-      right: 50px;
-      opacity: 0;
-      transition: opacity 0.2s;
-      display: flex;
-      gap: 4px;
-      z-index: 10;
-      background: rgba(255,255,255,0.95);
-      padding: 4px;
-      border-radius: 8px;
-      box-shadow: var(--shadow-md);
-    }
-
-    .project-card:hover .card-actions {
-      opacity: 1;
-    }
-
-    .action-btn {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: white;
-      border: 1px solid var(--gray-200);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--text-secondary);
-      transition: all 0.2s;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .action-btn:hover {
-      background: var(--vericase-teal);
-      color: white;
-      border-color: var(--vericase-teal);
-    }
-
-    .action-btn-danger:hover {
-      background: #dc2626;
-      color: white;
-      border-color: #dc2626;
-    }
-
-    /* Quick Links - Enhanced Design */
-    .quick-links-section {
-      margin-top: 48px;
-      padding: 32px;
-      background: linear-gradient(135deg, rgba(26, 43, 60, 0.02) 0%, rgba(15, 157, 154, 0.03) 100%);
-      border-radius: var(--radius-xl);
-      border: 1px solid var(--gray-200);
-    }
-
-    .section-title {
-      font-family: var(--font-serif);
-      font-style: italic;
-      font-size: 1.25rem;
-      color: var(--text-primary);
-      margin-bottom: 24px;
+    .search-hint {
+      margin-top: 8px;
       display: flex;
       align-items: center;
       gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .search-hint-text {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .search-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid rgba(181, 155, 106, 0.25);
+      border-radius: 999px;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .search-chip:hover {
+      background: white;
+      border-color: var(--vericase-teal);
+      color: var(--vericase-teal-dark);
+    }
+
+    .search-chip i {
+      color: var(--vericase-teal);
+      font-size: 0.625rem;
+    }
+
+    /* === MAIN CONTENT LAYOUT === */
+    .dashboard-layout {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 32px;
+      align-items: start;
+    }
+
+    @media (max-width: 1100px) {
+      .dashboard-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .dashboard-sidebar {
+        order: -1;
+      }
+    }
+
+    /* === WORKSPACES SECTION === */
+    .workspaces-section {
+      min-width: 0;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--font-sans);
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
     }
 
     .section-title::before {
       content: '';
       width: 4px;
-      height: 24px;
+      height: 20px;
       background: linear-gradient(180deg, var(--vericase-teal), var(--vericase-navy));
       border-radius: 2px;
     }
 
-    .quick-links-grid {
+    .section-count {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: var(--gray-100);
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    /* === WORKSPACE GRID === */
+    .workspace-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 20px;
-    }
-
-    .quick-link-card {
-      background: white;
-      padding: 20px;
-      border-radius: 16px;
-      border: 1px solid var(--gray-200);
-      display: flex;
-      align-items: center;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
       gap: 16px;
-      text-decoration: none;
-      color: var(--text-primary);
-      transition: all 0.3s ease;
-      box-shadow: var(--shadow-sm);
     }
 
-    .quick-link-card:hover {
+    .workspace-card {
+      background: white;
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      border: 1px solid var(--gray-200);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .workspace-card:hover {
       border-color: var(--vericase-teal);
-      transform: translateY(-4px);
-      box-shadow: var(--shadow-lg);
+      box-shadow: 0 8px 24px rgba(15, 23, 32, 0.1);
+      transform: translateY(-2px);
     }
 
-    .quick-link-card:hover .quick-link-icon {
-      background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-navy));
-      color: white;
+    .workspace-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
     }
 
-    .quick-link-icon {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
-      background: rgba(15, 157, 154, 0.1);
-      color: var(--vericase-teal);
+    .workspace-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.25rem;
-      transition: all 0.3s ease;
+      font-size: 1rem;
+      flex-shrink: 0;
     }
 
-    .quick-link-content h4 {
+    .workspace-icon.project {
+      background: rgba(47, 134, 200, 0.1);
+      color: var(--vericase-blue);
+    }
+
+    .workspace-icon.case {
+      background: rgba(181, 155, 106, 0.15);
+      color: var(--vericase-gold);
+    }
+
+    .workspace-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .workspace-status {
+      font-size: 0.625rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(5, 150, 105, 0.1);
+      color: var(--success);
+    }
+
+    .workspace-menu-btn {
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      opacity: 0;
+    }
+
+    .workspace-card:hover .workspace-menu-btn {
+      opacity: 1;
+    }
+
+    .workspace-menu-btn:hover {
+      background: var(--gray-100);
+      color: var(--text-primary);
+    }
+
+    .workspace-title {
+      font-size: 1rem;
       font-weight: 600;
-      margin-bottom: 4px;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+      line-height: 1.3;
     }
 
-    .quick-link-content p {
+    .workspace-code {
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .workspace-desc {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+
+    .workspace-stats {
+      display: flex;
+      gap: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--gray-100);
+    }
+
+    .workspace-stat {
+      display: flex;
+      align-items: center;
+      gap: 5px;
       font-size: 0.75rem;
       color: var(--text-muted);
-      margin: 0;
     }
 
-    /* Empty State */
+    .workspace-stat i {
+      color: var(--vericase-teal);
+      font-size: 0.6875rem;
+    }
+
+    .workspace-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .case-count-badge {
+      font-size: 0.5625rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(15, 157, 154, 0.12);
+      color: var(--vericase-teal);
+      border: 1px solid rgba(15, 157, 154, 0.2);
+    }
+
+    .case-stems {
+      margin-left: 16px;
+      padding-left: 16px;
+      border-left: 2px dashed rgba(15, 157, 154, 0.25);
+      display: grid;
+      gap: 10px;
+    }
+
+    .project-stems {
+      margin-left: 16px;
+      padding-left: 16px;
+      border-left: 2px dashed rgba(47, 134, 200, 0.25);
+      display: grid;
+      gap: 10px;
+    }
+
+    .project-stem {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      position: relative;
+    }
+
+    .project-stem::before {
+      content: "";
+      position: absolute;
+      left: -16px;
+      top: 50%;
+      width: 12px;
+      height: 2px;
+      background: rgba(47, 134, 200, 0.35);
+    }
+
+    .project-card {
+      flex: 1;
+      border-radius: 12px;
+      border: 1px solid var(--gray-200);
+      background: rgba(255, 255, 255, 0.95);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      appearance: none;
+    }
+
+    .project-card:hover {
+      border-color: var(--vericase-blue);
+      box-shadow: 0 6px 16px rgba(15, 23, 32, 0.08);
+      transform: translateY(-1px);
+    }
+
+    .project-card-content {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .project-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .project-code {
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      color: var(--text-muted);
+    }
+
+    .project-meta {
+      margin-left: auto;
+      display: flex;
+      gap: 12px;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .project-meta i {
+      color: var(--vericase-blue);
+      font-size: 0.7rem;
+    }
+
+    .case-stem {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      position: relative;
+    }
+
+    .case-stem::before {
+      content: "";
+      position: absolute;
+      left: -16px;
+      top: 50%;
+      width: 12px;
+      height: 2px;
+      background: rgba(15, 157, 154, 0.35);
+    }
+
+    .case-card {
+      flex: 1;
+      border-radius: 12px;
+      border: 1px solid var(--gray-200);
+      background: rgba(255, 255, 255, 0.95);
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      appearance: none;
+    }
+
+    .case-card:hover {
+      border-color: var(--vericase-teal);
+      box-shadow: 0 6px 16px rgba(15, 23, 32, 0.08);
+      transform: translateY(-1px);
+    }
+
+    .case-card-content {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .case-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .case-code {
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      color: var(--text-muted);
+    }
+
+    .case-project-tag {
+      font-size: 0.6875rem;
+      color: var(--text-muted);
+    }
+
+    .case-meta {
+      margin-left: auto;
+      display: flex;
+      gap: 12px;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .case-meta i {
+      color: var(--vericase-teal);
+      font-size: 0.7rem;
+    }
+
+    .case-menu-btn {
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      opacity: 0;
+    }
+
+    .case-stem:hover .case-menu-btn {
+      opacity: 1;
+    }
+
+    .case-menu-btn:hover {
+      background: var(--gray-100);
+      color: var(--text-primary);
+    }
+
+    .case-orphans {
+      grid-column: 1 / -1;
+      padding: 16px;
+      border-radius: var(--radius-lg);
+      border: 1px dashed rgba(181, 155, 106, 0.35);
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    .case-orphans-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--vericase-gold-muted);
+      margin: 0 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .case-orphans-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 12px;
+    }
+
+    .case-orphans .case-stem::before {
+      display: none;
+    }
+
+    /* === EMPTY STATE === */
     .empty-state {
       grid-column: 1 / -1;
       text-align: center;
-      padding: 60px;
-      background: white;
+      padding: 48px 24px;
+      background: rgba(255, 255, 255, 0.8);
       border-radius: var(--radius-xl);
-      border: 1px dashed var(--gray-300);
+      border: 1px dashed rgba(181, 155, 106, 0.3);
     }
 
     .empty-icon {
-      font-size: 3rem;
+      font-size: 2.5rem;
       color: var(--gray-300);
       margin-bottom: 16px;
     }
 
-    /* Modal Styles */
+    .empty-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .empty-text {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+    }
+
+    /* === SIDEBAR === */
+    .dashboard-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* === QUICK START CARD === */
+    .quick-start-card {
+      background: white;
+      border-radius: var(--radius-xl);
+      border: 1px solid rgba(181, 155, 106, 0.2);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .quick-start-header {
+      padding: 16px 20px;
+      background: linear-gradient(135deg, rgba(255, 248, 234, 0.5) 0%, rgba(255, 255, 255, 0) 100%);
+      border-bottom: 1px solid var(--gray-100);
+    }
+
+    .quick-start-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .quick-start-title i {
+      color: var(--vericase-teal);
+    }
+
+    .quick-start-actions {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .quick-action {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: var(--radius-md);
+      text-decoration: none;
+      color: var(--text-primary);
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: all 0.15s;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+      width: 100%;
+    }
+
+    .quick-action:hover {
+      background: var(--gray-50);
+    }
+
+    .quick-action-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.875rem;
+      background: rgba(31, 111, 120, 0.08);
+      color: var(--vericase-teal);
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+
+    .quick-action:hover .quick-action-icon {
+      background: var(--vericase-teal);
+      color: white;
+    }
+
+    .quick-action-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .quick-action-label {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .quick-action-desc {
+      font-size: 0.6875rem;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    .quick-action.locked {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .quick-action.locked:hover {
+      background: transparent;
+    }
+
+    .quick-action.locked:hover .quick-action-icon {
+      background: rgba(31, 111, 120, 0.08);
+      color: var(--vericase-teal);
+    }
+
+    .quick-action-badge {
+      font-size: 0.5625rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--vericase-gold-muted);
+      background: rgba(181, 155, 106, 0.15);
+      padding: 2px 6px;
+      border-radius: 999px;
+    }
+
+    /* === CONTEXT INDICATOR === */
+    .context-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: rgba(31, 111, 120, 0.06);
+      border: 1px solid rgba(31, 111, 120, 0.15);
+      border-radius: var(--radius-md);
+      margin: 12px 12px 0;
+    }
+
+    .context-indicator.no-context {
+      background: var(--gray-50);
+      border-color: var(--gray-200);
+    }
+
+    .context-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--vericase-teal);
+      flex-shrink: 0;
+    }
+
+    .context-indicator.no-context .context-dot {
+      background: var(--gray-400);
+    }
+
+    .context-text {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .context-text strong {
+      font-weight: 600;
+      color: var(--vericase-teal-dark);
+    }
+
+    .context-indicator.no-context .context-text strong {
+      color: var(--text-muted);
+    }
+
+    /* === AI ASSISTANT CARD === */
+    .ai-card {
+      background: white;
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--gray-200);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .ai-card-header {
+      padding: 14px 16px;
+      background: linear-gradient(135deg, rgba(31, 111, 120, 0.05) 0%, rgba(26, 43, 60, 0.03) 100%);
+      border-bottom: 1px solid var(--gray-100);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .ai-card-title {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ai-card-title i {
+      color: var(--vericase-teal);
+    }
+
+    .ai-toggle-btn {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: var(--vericase-teal);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: background 0.15s;
+    }
+
+    .ai-toggle-btn:hover {
+      background: rgba(31, 111, 120, 0.08);
+    }
+
+    .ai-card-body {
+      padding: 16px;
+    }
+
+    .ai-prompt-input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      font-size: 0.8125rem;
+      resize: none;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+
+    .ai-prompt-input:focus {
+      outline: none;
+      border-color: var(--vericase-teal);
+      box-shadow: 0 0 0 3px rgba(31, 111, 120, 0.08);
+    }
+
+    .ai-suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .ai-suggestion {
+      font-size: 0.6875rem;
+      padding: 5px 10px;
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: 999px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .ai-suggestion:hover {
+      background: white;
+      border-color: var(--vericase-teal);
+      color: var(--vericase-teal-dark);
+    }
+
+    /* === AI CHAT PANEL (EXPANDED) === */
+    .ai-chat-panel {
+      display: none;
+    }
+
+    .ai-chat-panel.active {
+      display: block;
+    }
+
+    .ai-chat-messages {
+      max-height: 250px;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .ai-message {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .ai-message.user {
+      flex-direction: row-reverse;
+    }
+
+    .ai-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      flex-shrink: 0;
+      background: rgba(31, 111, 120, 0.1);
+      color: var(--vericase-teal);
+    }
+
+    .ai-message.user .ai-avatar {
+      background: rgba(26, 43, 60, 0.1);
+      color: var(--vericase-navy);
+    }
+
+    .ai-bubble {
+      background: var(--gray-100);
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      max-width: 85%;
+    }
+
+    .ai-message.user .ai-bubble {
+      background: var(--vericase-teal);
+      color: white;
+    }
+
+    .ai-input-row {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--gray-100);
+      background: var(--gray-50);
+    }
+
+    .ai-input-row input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      font-size: 0.8125rem;
+    }
+
+    .ai-input-row input:focus {
+      outline: none;
+      border-color: var(--vericase-teal);
+    }
+
+    .ai-send-btn {
+      padding: 10px 14px;
+    }
+
+    /* === PREDICTIVE SIGNALS CARD === */
+    .predictive-card {
+      background: white;
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--gray-200);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .predictive-card-header {
+      padding: 14px 16px;
+      background: linear-gradient(135deg, rgba(181, 155, 106, 0.12) 0%, rgba(255, 255, 255, 0) 100%);
+      border-bottom: 1px solid var(--gray-100);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .predictive-card-title {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .predictive-card-title i {
+      color: var(--vericase-gold);
+    }
+
+    .predictive-refresh {
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: all 0.15s;
+    }
+
+    .predictive-refresh:hover {
+      background: rgba(181, 155, 106, 0.12);
+      color: var(--vericase-gold);
+    }
+
+    .predictive-card-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .predictive-filters {
+      display: grid;
+      gap: 8px;
+    }
+
+    .predictive-select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      font-size: 0.75rem;
+      font-family: inherit;
+      color: var(--text-primary);
+      background: white;
+    }
+
+    .predictive-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .predictive-btn {
+      flex: 1;
+      padding: 8px 10px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--gray-200);
+      background: white;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .predictive-btn.primary {
+      background: var(--vericase-teal);
+      border-color: var(--vericase-teal);
+      color: white;
+    }
+
+    .predictive-btn:hover {
+      border-color: var(--vericase-teal);
+      color: var(--vericase-teal-dark);
+    }
+
+    .predictive-btn.primary:hover {
+      background: var(--vericase-teal-dark);
+      color: white;
+    }
+
+    .predictive-meta {
+      font-size: 0.6875rem;
+      color: var(--text-muted);
+    }
+
+    .predictive-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.625rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+
+    .predictive-section-meta {
+      font-size: 0.6875rem;
+      text-transform: none;
+      color: var(--text-muted);
+    }
+
+    .predictive-proactive-list {
+      list-style: none;
+      display: grid;
+      gap: 10px;
+      padding: 0;
+      margin: 0;
+    }
+
+    .predictive-item.proactive {
+      border-color: rgba(15, 157, 154, 0.2);
+      background: rgba(236, 254, 255, 0.6);
+    }
+
+    .predictive-level {
+      padding: 2px 6px;
+      border-radius: 999px;
+      font-size: 0.55rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .predictive-level.high {
+      background: rgba(220, 38, 38, 0.12);
+      color: #dc2626;
+    }
+
+    .predictive-level.medium {
+      background: rgba(217, 119, 6, 0.12);
+      color: #b45309;
+    }
+
+    .predictive-level.watch {
+      background: rgba(15, 157, 154, 0.12);
+      color: var(--vericase-teal);
+    }
+
+    .predictive-list {
+      list-style: none;
+      display: grid;
+      gap: 10px;
+      padding: 0;
+      margin: 0;
+    }
+
+    .predictive-item {
+      border: 1px solid rgba(181, 155, 106, 0.2);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: rgba(255, 250, 240, 0.8);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .predictive-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.625rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+
+    .predictive-item-lift {
+      font-family: var(--font-mono);
+      color: var(--vericase-teal);
+      font-weight: 600;
+    }
+
+    .predictive-item-main {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8125rem;
+      color: var(--text-primary);
+    }
+
+    .predictive-item-feature {
+      font-weight: 600;
+    }
+
+    .predictive-item-outcome {
+      color: var(--vericase-navy);
+      font-weight: 600;
+    }
+
+    .predictive-item-meta {
+      font-size: 0.6875rem;
+      color: var(--text-muted);
+    }
+
+    .predictive-empty {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* === CARD MENU === */
+    .card-menu-wrapper {
+      position: relative;
+    }
+
+    .card-menu {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background: white;
+      border-radius: 8px;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--gray-200);
+      min-width: 150px;
+      z-index: 100;
+      display: none;
+    }
+
+    .card-menu.active {
+      display: block;
+    }
+
+    .card-menu button {
+      width: 100%;
+      padding: 10px 14px;
+      border: none;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.8125rem;
+      color: var(--text-primary);
+      transition: background 0.1s;
+    }
+
+    .card-menu button:hover {
+      background: var(--gray-50);
+    }
+
+    .card-menu button.danger {
+      color: #dc2626;
+    }
+
+    .card-menu button.danger:hover {
+      background: #fef2f2;
+    }
+
+    /* === MODALS === */
     .modal-overlay {
       position: fixed;
       inset: 0;
       background: rgba(26, 43, 60, 0.6);
-      /* Navy overlay */
       backdrop-filter: blur(4px);
       display: flex;
       align-items: center;
@@ -395,16 +1291,16 @@
       max-width: 500px;
       box-shadow: var(--shadow-2xl);
       transform: translateY(20px);
+      opacity: 1;
       transition: transform 0.3s;
     }
 
     .modal-overlay.active .modal {
       transform: translateY(0);
-      opacity: 1;
     }
 
     .modal-header {
-      padding: 24px;
+      padding: 20px 24px;
       border-bottom: 1px solid var(--gray-100);
       display: flex;
       justify-content: space-between;
@@ -412,8 +1308,27 @@
     }
 
     .modal-header h2 {
-      font-size: 1.25rem;
+      font-size: 1.125rem;
       margin: 0;
+    }
+
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.15s;
+    }
+
+    .modal-close:hover {
+      background: var(--gray-100);
+      color: var(--text-primary);
     }
 
     .modal-body {
@@ -421,30 +1336,41 @@
     }
 
     .modal-footer {
-      padding: 20px 24px;
+      padding: 16px 24px;
       border-top: 1px solid var(--gray-100);
       display: flex;
       justify-content: flex-end;
-      gap: 12px;
+      gap: 10px;
       background: var(--gray-50);
       border-radius: 0 0 16px 16px;
     }
 
-    /* Create Type Selector */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
     .type-selector {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 24px;
+      gap: 12px;
+      margin-bottom: 20px;
     }
 
     .type-option {
-      padding: 16px;
+      padding: 14px;
       border: 2px solid var(--gray-200);
-      border-radius: 12px;
+      border-radius: 10px;
       cursor: pointer;
       text-align: center;
-      transition: all 0.2s;
+      transition: all 0.15s;
     }
 
     .type-option:hover {
@@ -453,12 +1379,12 @@
 
     .type-option.selected {
       border-color: var(--vericase-teal);
-      background: rgba(15, 157, 154, 0.05);
+      background: rgba(31, 111, 120, 0.04);
     }
 
     .type-option i {
-      font-size: 1.5rem;
-      margin-bottom: 8px;
+      font-size: 1.25rem;
+      margin-bottom: 6px;
       display: block;
       color: var(--vericase-navy);
     }
@@ -467,82 +1393,20 @@
       color: var(--vericase-teal);
     }
 
-    /* Card Menu Dropdown */
-    .card-menu-wrapper {
-      position: relative;
-    }
-
-    .card-menu-btn {
-      width: 32px;
-      height: 32px;
-      border: none;
-      background: transparent;
-      border-radius: 8px;
-      cursor: pointer;
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s;
-    }
-
-    .card-menu-btn:hover {
-      background: var(--gray-100);
-      color: var(--text-primary);
-    }
-
-    .card-menu {
-      position: absolute;
-      top: 100%;
-      right: 0;
-      background: white;
-      border-radius: 8px;
-      box-shadow: var(--shadow-lg);
-      border: 1px solid var(--gray-200);
-      min-width: 150px;
-      z-index: 1000;
-      display: none;
-    }
-
-    .card-menu.active {
-      display: block;
-    }
-
-    .card-menu button {
-      width: 100%;
-      padding: 10px 16px;
-      border: none;
-      background: transparent;
-      text-align: left;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 10px;
+    .type-option span {
       font-size: 0.875rem;
-      color: var(--text-primary);
-      transition: background 0.15s;
+      font-weight: 600;
     }
 
-    .card-menu button:hover {
-      background: var(--gray-50);
-    }
-
-    .card-menu button.danger {
-      color: #dc2626;
-    }
-
-    .card-menu button.danger:hover {
-      background: #fef2f2;
-    }
-
-    /* Delete Modal Styles */
+    /* Delete Modal */
     .delete-warning {
       background: #fef2f2;
       border: 1px solid #fecaca;
       border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 16px;
+      padding: 14px;
+      margin-bottom: 14px;
       color: #991b1b;
+      font-size: 0.875rem;
     }
 
     .delete-warning i {
@@ -558,292 +1422,356 @@
     .btn-danger:hover {
       background: #b91c1c;
     }
+
+    .modal-text-muted {
+      color: var(--text-muted);
+      font-size: 0.8125rem;
+      margin-top: 8px;
+    }
+
+    /* Copy Options */
+    .copy-options {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .checkbox-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--vericase-teal);
+      cursor: pointer;
+    }
+
+    /* === RESPONSIVE === */
+    @media (max-width: 720px) {
+      .app-content {
+        margin: var(--space-3);
+        padding: var(--space-4);
+      }
+
+      .dashboard-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .header-actions {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .workspace-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .case-stems {
+        margin-left: 8px;
+        padding-left: 12px;
+      }
+
+      .case-card {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .case-meta {
+        margin-left: 0;
+      }
+
+      .search-hint {
+        display: none;
+      }
+    }
   </style>
 </head>
 
 <body>
-  <!-- Stats Overview -->
-  <div class="stats-container">
-    <div class="stat-card">
-      <div class="stat-icon-wrapper" style="
-            background: rgba(43, 127, 191, 0.1);
-            color: var(--vericase-blue);
-          ">
-        <i class="fas fa-project-diagram"></i>
+  <main id="main-content">
+    <!-- Compact Dashboard Header -->
+    <header class="dashboard-header">
+      <div class="dashboard-greeting">
+        <div class="greeting-kicker">
+          <i class="fas fa-check vericase-tick" aria-hidden="true"></i>
+          VeriCase
+        </div>
+        <h1 class="greeting-title" id="greetingTitle">Master Dashboard</h1>
       </div>
-      <div class="stat-content">
-        <div class="stat-value" id="statProjects">-</div>
-        <div class="stat-label">Projects</div>
+      <div class="stats-bar" id="statsBar">
+        <div class="stat-pill">
+          <i class="fas fa-project-diagram" aria-hidden="true"></i>
+          <strong id="statProjects">-</strong> Projects
+        </div>
+        <div class="stat-pill">
+          <i class="fas fa-briefcase" aria-hidden="true"></i>
+          <strong id="statCases">-</strong> Cases
+        </div>
+        <div class="stat-pill">
+          <i class="fas fa-envelope" aria-hidden="true"></i>
+          <strong id="statEmails">-</strong> Emails
+        </div>
+        <div class="stat-pill">
+          <i class="fas fa-file-alt" aria-hidden="true"></i>
+          <strong id="statEvidence">-</strong> Evidence
+        </div>
       </div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-icon-wrapper" style="
-            background: rgba(139, 115, 85, 0.1);
-            color: var(--vericase-gold);
-          ">
-        <i class="fas fa-briefcase"></i>
+      <div class="header-actions">
+        <button class="btn btn-outline btn-sm" onclick="loadDashboard()">
+          <i class="fas fa-sync-alt" aria-hidden="true"></i> Refresh
+        </button>
+        <button class="btn btn-vericase" id="createNewBtn">
+          <i class="fas fa-plus" aria-hidden="true"></i> New Workspace
+        </button>
       </div>
-      <div class="stat-content">
-        <div class="stat-value" id="statCases">-</div>
-        <div class="stat-label">Cases</div>
-      </div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-icon-wrapper" style="
-            background: rgba(15, 157, 154, 0.1);
-            color: var(--vericase-teal);
-          ">
-        <i class="fas fa-envelope"></i>
-      </div>
-      <div class="stat-content">
-        <div class="stat-value" id="statEmails">-</div>
-        <div class="stat-label">Emails</div>
-      </div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-icon-wrapper" style="background: rgba(26, 43, 60, 0.1); color: var(--vericase-navy)">
-        <i class="fas fa-file-alt"></i>
-      </div>
-      <div class="stat-content">
-        <div class="stat-value" id="statEvidence">-</div>
-        <div class="stat-label">Evidence</div>
-      </div>
-    </div>
-  </div>
+    </header>
 
-  <!-- Main Toolbar -->
-  <div class="toolbar">
-    <div class="search-container">
-      <i class="fas fa-search search-icon"></i>
-      <input type="text" id="searchInput" class="search-input"
-        placeholder="Search projects or ask 'Show me NEC4 contracts with delay notices'..." />
-    </div>
-    <div style="display: flex; gap: 12px">
-      <button class="btn btn-outline" onclick="toggleAIAssistant()" title="Ask VeriCase AI">
-        <i class="fas fa-robot"></i> AI Assistant
-      </button>
-      <button class="btn btn-outline" onclick="loadDashboard()">
-        <i class="fas fa-sync-alt"></i> Refresh
-      </button>
-      <button class="btn btn-vericase" id="createNewBtn">
-        <i class="fas fa-plus"></i> New Project
-      </button>
-    </div>
-  </div>
-
-  <!-- AI Assistant Panel -->
-  <div id="aiAssistantPanel" class="ai-assistant-panel" style="display: none;">
-    <div class="ai-panel-header">
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <i class="fas fa-brain" style="color: var(--vericase-teal);"></i>
-        <span style="font-weight: 600;">VeriCase AI Assistant</span>
+    <!-- Search Section -->
+    <section class="search-section">
+      <div class="search-wrapper">
+        <i class="fas fa-search search-icon" aria-hidden="true"></i>
+        <input type="text" id="searchInput" class="search-input"
+          placeholder="Search workspaces or ask VeriCase Assistant..." />
       </div>
-      <button onclick="toggleAIAssistant()" class="modal-close" style="background: none; border: none; cursor: pointer;">
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
-    <div class="ai-chat-container" id="aiChatMessages">
-      <div class="ai-message assistant">
-        <i class="fas fa-robot ai-avatar"></i>
-        <div class="ai-bubble">
-          Hello! I'm VeriCase AI. I can help you:
-          <ul style="margin: 10px 0 0 20px; font-size: 0.875rem;">
-            <li>Search across all your projects and evidence</li>
-            <li>Answer questions about your cases</li>
-            <li>Find specific contracts or delay notices</li>
-            <li>Analyze patterns across disputes</li>
-          </ul>
-          <div style="margin-top: 10px; font-size: 0.8125rem; color: var(--text-muted);">
-            Try: "Show me projects with NEC4 contracts" or "Find delay notices from 2024"
+      <div class="search-hint">
+        <span class="search-hint-text">Try:</span>
+        <button class="search-chip" data-query="NEC4 contracts">
+          <i class="fas fa-search" aria-hidden="true"></i> NEC4 contracts
+        </button>
+        <button class="search-chip" data-query="Delay notices 2024">
+          <i class="fas fa-calendar" aria-hidden="true"></i> Delay notices
+        </button>
+        <button class="search-chip" data-query="Active disputes">
+          <i class="fas fa-balance-scale" aria-hidden="true"></i> Active disputes
+        </button>
+      </div>
+    </section>
+
+    <!-- Main Layout -->
+    <div class="dashboard-layout">
+      <!-- Workspaces (Primary Content) -->
+      <section class="workspaces-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            Your Workspaces
+            <span class="section-count" id="workspaceCount">0</span>
+          </h2>
+        </div>
+        <div class="workspace-grid" id="workspaceGrid">
+          <!-- Loading skeleton -->
+          <div class="workspace-card" style="pointer-events: none;">
+            <div class="skeleton" style="width: 36px; height: 36px; border-radius: 10px; margin-bottom: 12px;"></div>
+            <div class="skeleton" style="width: 70%; height: 18px; margin-bottom: 8px;"></div>
+            <div class="skeleton" style="width: 40%; height: 14px; margin-bottom: 14px;"></div>
+            <div class="skeleton" style="width: 100%; height: 32px;"></div>
           </div>
         </div>
-      </div>
-    </div>
-    <div class="ai-input-container">
-      <input type="text" id="aiChatInput" class="ai-chat-input" placeholder="Ask VeriCase AI anything..." />
-      <button onclick="sendAIMessage()" class="btn btn-vericase" style="padding: 10px 16px;">
-        <i class="fas fa-paper-plane"></i>
-      </button>
-    </div>
-  </div>
+      </section>
 
-  <style>
-    .ai-assistant-panel {
-      background: white;
-      border-radius: var(--radius-xl);
-      border: 1px solid var(--gray-200);
-      box-shadow: var(--shadow-lg);
-      margin-bottom: 24px;
-      overflow: hidden;
-    }
-    .ai-panel-header {
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--gray-200);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: linear-gradient(135deg, rgba(15, 157, 154, 0.05) 0%, rgba(26, 43, 60, 0.05) 100%);
-    }
-    .ai-chat-container {
-      padding: 20px;
-      max-height: 300px;
-      overflow-y: auto;
-    }
-    .ai-message {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-    .ai-message.user {
-      flex-direction: row-reverse;
-    }
-    .ai-avatar {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: rgba(15, 157, 154, 0.1);
-      color: var(--vericase-teal);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-    .ai-message.user .ai-avatar {
-      background: rgba(26, 43, 60, 0.1);
-      color: var(--vericase-navy);
-    }
-    .ai-bubble {
-      background: var(--gray-100);
-      padding: 12px 16px;
-      border-radius: 12px;
-      max-width: 80%;
-      line-height: 1.5;
-    }
-    .ai-message.user .ai-bubble {
-      background: var(--vericase-teal);
-      color: white;
-    }
-    .ai-input-container {
-      padding: 16px 20px;
-      border-top: 1px solid var(--gray-200);
-      display: flex;
-      gap: 12px;
-      background: var(--gray-50);
-    }
-    .ai-chat-input {
-      flex: 1;
-      padding: 12px 16px;
-      border: 1px solid var(--gray-200);
-      border-radius: var(--radius-lg);
-      font-size: 0.9375rem;
-    }
-    .ai-chat-input:focus {
-      outline: none;
-      border-color: var(--vericase-teal);
-      box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.1);
-    }
-  </style>
+      <!-- Recent Activity Section -->
+      <section class="activity-section" id="activitySection" style="display: none;">
+        <h2 class="section-title">
+          <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
+          Recent Activity
+        </h2>
+        <div class="activity-content" id="activityContent">
+          <div class="empty-state">
+            <i class="fas fa-history empty-icon"></i>
+            <div class="empty-title">No recent activity</div>
+          </div>
+        </div>
+      </section>
 
-  <!-- Projects Grid -->
-  <div class="work-items-grid" id="workItemsGrid">
-    <!-- Loading State -->
-    <div class="skeleton-card project-card">
-      <div class="skeleton skeleton-title" style="width: 40px; height: 40px; margin-bottom: 16px"></div>
-      <div class="skeleton skeleton-text" style="width: 60%; height: 24px; margin-bottom: 8px"></div>
-      <div class="skeleton skeleton-text" style="width: 40%; height: 16px; margin-bottom: 16px"></div>
-      <div class="skeleton skeleton-text" style="width: 100%; height: 40px"></div>
-    </div>
-  </div>
+      <!-- KPIs and Urgent Items Section -->
+      <section class="kpis-section" id="kpisSection" style="display: none;">
+        <div class="section-row">
+          <div class="kpis-column">
+            <h2 class="section-title">
+              <i class="fas fa-chart-line" aria-hidden="true"></i>
+              KPIs
+            </h2>
+            <div class="kpis-content" id="kpisContent">
+              <div class="empty-state">
+                <div class="empty-title">No KPIs available</div>
+              </div>
+            </div>
+          </div>
+          <div class="urgent-column">
+            <h2 class="section-title">
+              <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+              Upcoming & Urgent
+            </h2>
+            <div class="urgent-content" id="urgentContent">
+              <div class="empty-state">
+                <div class="empty-title">No urgent items</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-  <!-- Quick Actions -->
-  <div class="quick-links-section">
-    <h3 class="section-title">Quick Actions</h3>
-    <div class="quick-links-grid">
-      <a href="pst-upload.html" class="quick-link-card">
-        <div class="quick-link-icon"><i class="fas fa-upload"></i></div>
-        <div class="quick-link-content">
-          <h4>Upload Data</h4>
-          <p>Process PST, EML, MSG, or document files</p>
+      <!-- Sidebar -->
+      <aside class="dashboard-sidebar">
+        <!-- Quick Start -->
+        <div class="quick-start-card">
+          <div class="quick-start-header">
+            <div class="quick-start-title">
+              <i class="fas fa-rocket" aria-hidden="true"></i>
+              Quick Start
+            </div>
+          </div>
+          <div class="context-indicator no-context" id="contextIndicator">
+            <div class="context-dot"></div>
+            <div class="context-text"><strong>No workspace selected</strong></div>
+          </div>
+          <nav class="quick-start-actions">
+            <button class="quick-action" data-action="create-workspace">
+              <div class="quick-action-icon"><i class="fas fa-plus" aria-hidden="true"></i></div>
+              <div class="quick-action-text">
+                <div class="quick-action-label">Create Workspace</div>
+                <div class="quick-action-desc">Start a new project or case</div>
+              </div>
+            </button>
+            <a href="pst-upload.html" class="quick-action locked" data-requires-context="true" data-contexts="project,case">
+              <div class="quick-action-icon"><i class="fas fa-upload" aria-hidden="true"></i></div>
+              <div class="quick-action-text">
+                <div class="quick-action-label">Upload Evidence</div>
+                <div class="quick-action-desc">PST, EML, MSG, documents</div>
+              </div>
+              <span class="quick-action-badge">Select workspace</span>
+            </a>
+            <a href="vericase-analysis.html" class="quick-action locked" data-requires-context="true" data-contexts="project">
+              <div class="quick-action-icon"><i class="fas fa-microscope" aria-hidden="true"></i></div>
+              <div class="quick-action-text">
+                <div class="quick-action-label">Deep Research</div>
+                <div class="quick-action-desc">AI-powered investigation</div>
+              </div>
+              <span class="quick-action-badge">Select project</span>
+            </a>
+            <a href="correspondence-enterprise.html" class="quick-action locked" data-requires-context="true" data-contexts="project,case">
+              <div class="quick-action-icon"><i class="fas fa-envelope-open-text" aria-hidden="true"></i></div>
+              <div class="quick-action-text">
+                <div class="quick-action-label">Correspondence</div>
+                <div class="quick-action-desc">Email thread analysis</div>
+              </div>
+              <span class="quick-action-badge">Select workspace</span>
+            </a>
+          </nav>
         </div>
-      </a>
-      <a href="vericase-analysis.html" class="quick-link-card">
-        <div class="quick-link-icon"><i class="fas fa-microscope"></i></div>
-        <div class="quick-link-content">
-          <h4>Deep Research</h4>
-          <p>AI-powered investigation & analysis</p>
+
+        <!-- VeriCase Assistant -->
+        <div class="ai-card">
+          <div class="ai-card-header">
+            <div class="ai-card-title">
+              <i class="fas fa-check vericase-tick" aria-hidden="true"></i>
+              VeriCase Assistant
+            </div>
+            <button class="ai-toggle-btn" onclick="toggleAIChat()">Expand</button>
+          </div>
+          <div class="ai-card-body" id="aiQuickPrompt">
+            <textarea class="ai-prompt-input" id="aiQuickInput" rows="2"
+              placeholder="Ask anything about your cases..."></textarea>
+            <div class="ai-suggestions">
+              <button class="ai-suggestion" data-prompt="Find delay notices">Find delay notices</button>
+              <button class="ai-suggestion" data-prompt="Summarize active cases">Summarize cases</button>
+              <button class="ai-suggestion" data-prompt="Show NEC4 contracts">NEC4 contracts</button>
+            </div>
+          </div>
+          <div class="ai-chat-panel" id="aiChatPanel">
+            <div class="ai-chat-messages" id="aiChatMessages">
+              <div class="ai-message">
+                <div class="ai-avatar"><i class="fas fa-robot" aria-hidden="true"></i></div>
+                <div class="ai-bubble">
+                  Hi! I can help you search across projects, find evidence, and answer questions about your cases.
+                </div>
+              </div>
+            </div>
+            <div class="ai-input-row">
+              <input type="text" id="aiChatInput" placeholder="Ask VeriCase..." />
+              <button class="btn btn-vericase btn-sm ai-send-btn" onclick="sendAIMessage()">
+                <i class="fas fa-paper-plane" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
         </div>
-      </a>
-      <a href="ai-refinement-wizard.html" class="quick-link-card">
-        <div class="quick-link-icon"><i class="fas fa-magic"></i></div>
-        <div class="quick-link-content">
-          <h4>AI Refinement</h4>
-          <p>Smart filtering & categorization</p>
+
+        <!-- Predictive Signals -->
+        <div class="predictive-card">
+          <div class="predictive-card-header">
+            <div class="predictive-card-title">
+              <i class="fas fa-chart-line" aria-hidden="true"></i>
+              Predictive Signals
+            </div>
+            <button class="predictive-refresh" id="predictiveRefresh" title="Refresh">
+              <i class="fas fa-sync-alt" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="predictive-card-body">
+            <div class="predictive-section-header">
+              <span>Proactive trends</span>
+              <span class="predictive-section-meta" id="proactiveMeta">Loading...</span>
+            </div>
+            <ul class="predictive-proactive-list" id="proactiveList"></ul>
+            <div class="predictive-filters">
+              <select id="predictiveThemeFilter" class="predictive-select">
+                <option value="">All themes</option>
+              </select>
+              <select id="predictiveOutcomeFilter" class="predictive-select">
+                <option value="">All outcomes</option>
+              </select>
+              <div class="predictive-actions">
+                <button class="predictive-btn primary" id="predictiveApply">
+                  Apply
+                </button>
+                <button class="predictive-btn" id="predictiveClear">
+                  Clear
+                </button>
+              </div>
+            </div>
+            <div class="predictive-meta" id="predictiveMeta">Loading signals...</div>
+            <ul class="predictive-list" id="predictiveList"></ul>
+            <div class="predictive-section-header" style="margin-top: 18px;">
+              <span>Risk signals</span>
+              <span class="predictive-section-meta" id="riskMeta">Loading...</span>
+            </div>
+            <ul class="predictive-list" id="riskList"></ul>
+          </div>
         </div>
-      </a>
-      <a href="evidence.html" class="quick-link-card">
-        <div class="quick-link-icon"><i class="fas fa-folder-open"></i></div>
-        <div class="quick-link-content">
-          <h4>Global Evidence</h4>
-          <p>Search all files across projects</p>
-        </div>
-      </a>
-      <a href="delays.html" class="quick-link-card">
-        <div class="quick-link-icon"><i class="fas fa-calendar-alt"></i></div>
-        <div class="quick-link-content">
-          <h4>Delay Analysis</h4>
-          <p>Track and analyze project delays</p>
-        </div>
-      </a>
-      <a href="correspondence-enterprise.html" class="quick-link-card">
-        <div class="quick-link-icon"><i class="fas fa-envelope-open-text"></i></div>
-        <div class="quick-link-content">
-          <h4>Correspondence</h4>
-          <p>Email thread analysis &amp; search</p>
-        </div>
-      </a>
+      </aside>
     </div>
-  </div>
+  </main>
 
   <!-- Create Modal -->
-  <div class="modal-overlay" id="createModal">
+  <div class="modal-overlay" id="createModal" role="dialog" aria-modal="true">
     <div class="modal">
       <div class="modal-header">
         <h2>Create New Workspace</h2>
-        <button class="modal-close" id="modalClose">
-          <i class="fas fa-times"></i>
-        </button>
+        <button class="modal-close" id="modalClose"><i class="fas fa-times" aria-hidden="true"></i></button>
       </div>
       <div class="modal-body">
-        <div class="type-selector">
-          <div class="type-option project-type selected" data-type="project">
-            <i class="fas fa-project-diagram"></i>
-            <span>Project</span>
-          </div>
-          <div class="type-option case-type" data-type="case">
-            <i class="fas fa-briefcase"></i>
-            <span>Case</span>
-          </div>
-        </div>
-
+        <!-- Workspace creation - no type selector needed -->
         <form id="createForm">
           <div class="form-group">
-            <label for="itemName" style="font-weight: 600; margin-bottom: 8px; display: block">Name *</label>
+            <label for="itemName" class="form-label">Name *</label>
             <input type="text" id="itemName" class="input" required placeholder="Enter name..." />
           </div>
-
           <div class="form-group" id="codeGroup">
-            <label for="itemCode" style="font-weight: 600; margin-bottom: 8px; display: block">Code *</label>
-            <input type="text" id="itemCode" class="input" placeholder="e.g., PRJ-2024-001" />
+            <label for="itemCode" class="form-label">Workspace Code *</label>
+            <input type="text" id="itemCode" class="input" placeholder="e.g., WEL-2024-001" />
           </div>
-
           <div class="form-group">
-            <label for="itemDescription"
-              style="font-weight: 600; margin-bottom: 8px; display: block">Description</label>
-            <textarea id="itemDescription" class="input" rows="3" placeholder="Brief description..."></textarea>
+            <label for="itemDescription" class="form-label">Description</label>
+            <textarea id="itemDescription" class="input" rows="2" placeholder="Brief description..."></textarea>
           </div>
-
           <div class="form-group">
-            <label for="contractType" style="font-weight: 600; margin-bottom: 8px; display: block">Contract Type</label>
+            <label for="contractType" class="form-label">Contract Type</label>
             <select id="contractType" class="input">
               <option value="">Select contract type...</option>
               <option value="JCT">JCT</option>
@@ -857,69 +1785,112 @@
       <div class="modal-footer">
         <button class="btn btn-outline" id="cancelCreate">Cancel</button>
         <button class="btn btn-vericase" id="confirmCreate">
-          <i class="fas fa-plus"></i> Create
+          <i class="fas fa-plus" aria-hidden="true"></i> Create
         </button>
       </div>
     </div>
   </div>
 
   <!-- Rename Modal -->
-  <div class="modal-overlay" id="renameModal">
+  <div class="modal-overlay" id="renameModal" role="dialog" aria-modal="true">
     <div class="modal">
       <div class="modal-header">
-        <h2>Rename Project</h2>
-        <button class="modal-close" onclick="closeRenameModal()">
-          <i class="fas fa-times"></i>
-        </button>
+        <h2>Rename Workspace</h2>
+        <button class="modal-close" onclick="closeRenameModal()"><i class="fas fa-times" aria-hidden="true"></i></button>
       </div>
       <div class="modal-body">
         <form id="renameForm">
           <input type="hidden" id="renameItemId" />
           <input type="hidden" id="renameItemType" />
           <div class="form-group">
-            <label for="renameItemName" style="font-weight: 600; margin-bottom: 8px; display: block">Name *</label>
+            <label for="renameItemName" class="form-label">Name *</label>
             <input type="text" id="renameItemName" class="input" required placeholder="Enter new name..." />
           </div>
           <div class="form-group">
-            <label for="renameItemCode" style="font-weight: 600; margin-bottom: 8px; display: block">Code</label>
-            <input type="text" id="renameItemCode" class="input" placeholder="Project code..." />
+            <label for="renameItemCode" class="form-label">Code</label>
+            <input type="text" id="renameItemCode" class="input" placeholder="Code..." />
           </div>
         </form>
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="closeRenameModal()">Cancel</button>
         <button class="btn btn-vericase" id="confirmRename">
-          <i class="fas fa-save"></i> Save Changes
+          <i class="fas fa-save" aria-hidden="true"></i> Save
         </button>
       </div>
     </div>
   </div>
 
-  <!-- Delete Confirmation Modal -->
-  <div class="modal-overlay" id="deleteModal">
+  <!-- Delete Modal -->
+  <div class="modal-overlay" id="deleteModal" role="dialog" aria-modal="true">
     <div class="modal">
       <div class="modal-header">
-        <h2>Delete Project</h2>
-        <button class="modal-close" onclick="closeDeleteModal()">
-          <i class="fas fa-times"></i>
-        </button>
+        <h2>Delete Workspace</h2>
+        <button class="modal-close" onclick="closeDeleteModal()"><i class="fas fa-times" aria-hidden="true"></i></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="deleteItemId" />
         <input type="hidden" id="deleteItemType" />
         <div class="delete-warning">
-          <i class="fas fa-exclamation-triangle"></i>
-          <strong>Warning:</strong> This action cannot be undone!
+          <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+          <strong>Warning:</strong> This cannot be undone!
         </div>
-        <p>Are you sure you want to delete <strong id="deleteItemName"></strong>?</p>
-        <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 8px;">
-          This will permanently delete the project and all associated emails, attachments, and evidence.
-        </p>
+        <p>Delete <strong id="deleteItemName"></strong>?</p>
+        <p class="modal-text-muted">All emails, attachments, and evidence will be permanently deleted.</p>
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="closeDeleteModal()">Cancel</button>
         <button class="btn btn-danger" id="confirmDelete">
-          <i class="fas fa-trash"></i> Delete Project
+          <i class="fas fa-trash" aria-hidden="true"></i> Delete
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Develop Case Modal -->
+  <div class="modal-overlay" id="developCaseModal" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Develop Case from Project</h2>
+        <button class="modal-close" onclick="closeDevelopCaseModal()"><i class="fas fa-times" aria-hidden="true"></i></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="developCaseProjectId" />
+        <p class="modal-text-muted" id="developCaseProjectLabel"></p>
+        <div class="form-group">
+          <label for="developCaseName" class="form-label">Case Name *</label>
+          <input type="text" id="developCaseName" class="input" required placeholder="Enter case name..." />
+        </div>
+        <div class="form-group">
+          <label for="developCaseNumber" class="form-label">Case Number</label>
+          <input type="text" id="developCaseNumber" class="input" placeholder="Leave blank to auto-generate" />
+        </div>
+        <div class="form-group">
+          <label for="developCaseDescription" class="form-label">Description</label>
+          <textarea id="developCaseDescription" class="input" rows="2" placeholder="Brief description..."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Include from project</label>
+          <div class="copy-options">
+            <label class="checkbox-row">
+              <input type="checkbox" id="developIncludeStakeholders" checked /> Stakeholders
+            </label>
+            <label class="checkbox-row">
+              <input type="checkbox" id="developIncludeKeywords" checked /> Keywords
+            </label>
+            <label class="checkbox-row">
+              <input type="checkbox" id="developIncludeClaims" checked /> Heads of claim
+            </label>
+            <label class="checkbox-row">
+              <input type="checkbox" id="developIncludeMatters" checked /> Contentious matters
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeDevelopCaseModal()">Cancel</button>
+        <button class="btn btn-vericase" id="confirmDevelopCase">
+          <i class="fas fa-briefcase" aria-hidden="true"></i> Develop Case
         </button>
       </div>
     </div>
@@ -929,460 +1900,1233 @@
     // Initialize Shell
     document.addEventListener("DOMContentLoaded", () => {
       VericaseShell.inject({
-        title: "Command Center",
-        headerActions: `
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <span style="font-size: 0.875rem; color: var(--text-secondary);" id="greetingText">Welcome back</span>
-                    </div>
-                `,
+        title: "Master Dashboard",
+        breadcrumbs: null,
+        headerActions: ""
       });
 
+      updateQuickActions();
       loadDashboard();
       setupEventListeners();
+      setupPredictiveControls();
+      loadPredictiveSignals({ populateOptions: true });
     });
 
-    // --- Logic ---
     let dashboardData = null;
+    let workspacesData = [];
     let searchQuery = "";
     let selectedType = "project";
+    let predictiveOptions = { themes: [], outcomes: [] };
+    let predictiveFilters = { theme: "", outcome: "" };
 
     function getAuthHeaders() {
-      // Support both legacy "token" and newer "vericase_token" storage keys
-      const token =
-        localStorage.getItem("vericase_token") ||
-        localStorage.getItem("token");
+      const token = localStorage.getItem("vericase_token") || localStorage.getItem("token") || localStorage.getItem("jwt");
       return token ? { Authorization: `Bearer ${token}` } : {};
+    }
+
+    function getContextSummary() {
+      const projectId = localStorage.getItem("vericase_current_project") || localStorage.getItem("currentProjectId");
+      const caseId = localStorage.getItem("currentCaseId") || localStorage.getItem("caseId");
+      const profileType = localStorage.getItem("profileType");
+
+      if (profileType === "case" && caseId) {
+        const name = localStorage.getItem("currentCaseName") || localStorage.getItem("vericase_current_case_name");
+        return { hasContext: true, type: "case", name: name || "Selected case", id: caseId };
+      }
+
+      if (projectId) {
+        const name = localStorage.getItem("currentProjectName") || localStorage.getItem("vericase_current_project_name");
+        return { hasContext: true, type: "project", name: name || "Selected project", id: projectId };
+      }
+
+      return { hasContext: false, type: "", name: "", id: "" };
+    }
+
+    function updateQuickActions() {
+      const ctx = getContextSummary();
+      const indicator = document.getElementById("contextIndicator");
+
+      if (ctx.hasContext) {
+        indicator.classList.remove("no-context");
+        indicator.innerHTML = `
+          <div class="context-dot"></div>
+          <div class="context-text"><strong>${ctx.type === "case" ? "Case" : "Project"}:</strong> ${escapeHtml(ctx.name)}</div>
+        `;
+      } else {
+        indicator.classList.add("no-context");
+        indicator.innerHTML = `
+          <div class="context-dot"></div>
+          <div class="context-text"><strong>No workspace selected</strong></div>
+        `;
+      }
+
+      document.querySelectorAll(".quick-action[data-requires-context]").forEach(a => {
+        const allowedContexts = (a.dataset.contexts || "").split(",").map(v => v.trim()).filter(Boolean);
+        const isAllowed = ctx.hasContext && (allowedContexts.length === 0 || allowedContexts.includes(ctx.type));
+
+        if (isAllowed) {
+          a.classList.remove("locked");
+          const badge = a.querySelector(".quick-action-badge");
+          if (badge) badge.style.display = "none";
+          if (a.dataset.baseUrl) a.setAttribute("href", a.dataset.baseUrl);
+        } else {
+          a.classList.add("locked");
+          const badge = a.querySelector(".quick-action-badge");
+          if (badge) badge.style.display = "";
+          if (!a.dataset.baseUrl) a.dataset.baseUrl = a.getAttribute("href");
+          a.setAttribute("href", "#");
+        }
+      });
     }
 
     async function loadDashboard() {
       try {
-        // Fetch real dashboard data
         const headers = getAuthHeaders();
-
-        const response = await fetch("/api/dashboard/overview", { headers });
-
-        if (response.ok) {
-          dashboardData = await response.json();
-        } else {
-          console.warn(
-            "Authenticated dashboard failed, trying public endpoint...",
-          );
-          const publicResponse = await fetch(
-            "/api/dashboard/overview/public",
-          );
-          if (publicResponse.ok) {
-            dashboardData = await publicResponse.json();
-          } else {
-            throw new Error("API Failed: " + publicResponse.status);
+        let workspacesData = [];
+        let statsData = null;
+        
+        // Try to get workspaces
+        try {
+          const workspacesResponse = await fetch("/api/workspaces", { headers });
+          if (workspacesResponse.ok) {
+            workspacesData = await workspacesResponse.json();
+            // Calculate stats from workspaces
+            statsData = {
+              total_projects: workspacesData.reduce((sum, ws) => sum + (ws.project_count || 0), 0),
+              total_cases: workspacesData.reduce((sum, ws) => sum + (ws.case_count || 0), 0),
+              total_emails: workspacesData.reduce((sum, ws) => sum + (ws.email_count || 0), 0),
+              total_evidence: workspacesData.reduce((sum, ws) => sum + (ws.evidence_count || 0), 0),
+            };
+          }
+        } catch (e) {
+          console.warn("Failed to load workspaces, trying fallback", e);
+        }
+        
+        // Fallback: try dashboard overview for backward compatibility
+        if (workspacesData.length === 0) {
+          let response = await fetch("/api/dashboard/overview", { headers });
+          if (!response.ok) {
+            response = await fetch("/api/dashboard/overview/public");
+          }
+          if (response.ok) {
+            const dashboardData = await response.json();
+            statsData = dashboardData.stats;
+            
+            if (dashboardData.user?.display_name) {
+              document.getElementById("greetingTitle").textContent = `Welcome back, ${dashboardData.user.display_name}`;
+            }
+            
+            // Convert old format to workspace format
+            const projects = (dashboardData.work_items || []).filter(w => w.type === "project");
+            const cases = (dashboardData.work_items || []).filter(w => w.type === "case");
+            
+            // Group by workspace (create default workspaces for existing projects)
+            const workspaceMap = new Map();
+            projects.forEach(p => {
+              const wsId = p.id; // Use project ID as temp workspace ID
+              if (!workspaceMap.has(wsId)) {
+                workspaceMap.set(wsId, {
+                  id: wsId,
+                  name: p.name,
+                  code: p.project_code || p.id.substring(0, 8).toUpperCase(),
+                  description: p.description,
+                  contract_type: p.contract_type,
+                  status: p.status || "active",
+                  project_count: 1,
+                  case_count: 0,
+                  email_count: p.email_count || 0,
+                  evidence_count: p.evidence_count || 0,
+                  projects: [p],
+                  cases: []
+                });
+              } else {
+                workspaceMap.get(wsId).projects.push(p);
+                workspaceMap.get(wsId).project_count++;
+              }
+            });
+            
+            cases.forEach(c => {
+              if (c.project_id && workspaceMap.has(c.project_id)) {
+                workspaceMap.get(c.project_id).cases.push(c);
+                workspaceMap.get(c.project_id).case_count++;
+              } else {
+                // Orphan case - create temporary workspace
+                const wsId = `case-${c.id}`;
+                workspaceMap.set(wsId, {
+                  id: wsId,
+                  name: c.name + " (Case)",
+                  code: c.case_number || c.id.substring(0, 8).toUpperCase(),
+                  description: c.description,
+                  contract_type: c.contract_type,
+                  status: c.status || "active",
+                  project_count: 0,
+                  case_count: 1,
+                  email_count: c.email_count || 0,
+                  evidence_count: c.evidence_count || 0,
+                  projects: [],
+                  cases: [c]
+                });
+              }
+            });
+            
+            workspacesData = Array.from(workspaceMap.values());
           }
         }
-
-        renderStats(dashboardData.stats);
-        renderWorkItems(dashboardData.work_items);
-        if (dashboardData.user && dashboardData.user.display_name) {
-          document.getElementById("greetingText").textContent =
-            `Welcome back, ${dashboardData.user.display_name}`;
+        
+        // Store workspaces data globally
+        window.workspacesData = workspacesData;
+        
+        // Render stats
+        if (statsData) {
+          renderStats(statsData);
+        } else {
+          // Calculate from workspaces
+          renderStats({
+            total_projects: workspacesData.reduce((sum, ws) => sum + (ws.project_count || 0), 0),
+            total_cases: workspacesData.reduce((sum, ws) => sum + (ws.case_count || 0), 0),
+            total_emails: workspacesData.reduce((sum, ws) => sum + (ws.email_count || 0), 0),
+            total_evidence: workspacesData.reduce((sum, ws) => sum + (ws.evidence_count || 0), 0),
+          });
+        }
+        
+        renderWorkspaces(workspacesData);
+        
+        // Load recent activity and KPIs (placeholder for now)
+        // These sections will be populated when backend APIs are ready
+        if (workspacesData.length > 0) {
+          document.getElementById("activitySection").style.display = "block";
+          document.getElementById("kpisSection").style.display = "block";
         }
       } catch (error) {
         console.error("Dashboard load failed", error);
-        document.getElementById("workItemsGrid").innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-exclamation-triangle empty-icon"></i>
-                        <h3>Unable to load dashboard</h3>
-                        <button class="btn btn-vericase" onclick="loadDashboard()">Retry</button>
-                    </div>
-                `;
+        document.getElementById("workspaceGrid").innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-exclamation-triangle empty-icon"></i>
+            <div class="empty-title">Unable to load dashboard</div>
+            <button class="btn btn-vericase" onclick="loadDashboard()">Retry</button>
+          </div>
+        `;
       }
     }
 
     function renderStats(stats) {
-      document.getElementById("statProjects").textContent =
-        stats.total_projects;
-      document.getElementById("statCases").textContent = stats.total_cases;
-      document.getElementById("statEmails").textContent =
-        (stats.total_emails / 1000).toFixed(1) + "k";
-      document.getElementById("statEvidence").textContent =
-        (stats.total_evidence / 1000).toFixed(1) + "k";
+      // Calculate totals from workspaces
+      const totals = (window.workspacesData || []).reduce((acc, ws) => {
+        acc.projects += ws.project_count || 0;
+        acc.cases += ws.case_count || 0;
+        acc.emails += ws.email_count || 0;
+        acc.evidence += ws.evidence_count || 0;
+        return acc;
+      }, { projects: 0, cases: 0, emails: 0, evidence: 0 });
+
+      document.getElementById("statProjects").textContent = totals.projects || stats?.total_projects || 0;
+      document.getElementById("statCases").textContent = totals.cases || stats?.total_cases || 0;
+      document.getElementById("statEmails").textContent = formatCount(totals.emails || stats?.total_emails || 0);
+      document.getElementById("statEvidence").textContent = formatCount(totals.evidence || stats?.total_evidence || 0);
     }
 
-    function renderWorkItems(items) {
-      const grid = document.getElementById("workItemsGrid");
-      const filtered = items.filter(
-        (item) =>
-          item.name.toLowerCase().includes(searchQuery) ||
-          (item.description || "").toLowerCase().includes(searchQuery),
-      );
+    function getItemTimestamp(item) {
+      const raw = item.updated_at || item.created_at || "";
+      const ts = Date.parse(raw);
+      return Number.isFinite(ts) ? ts : 0;
+    }
+
+    function matchesWorkspace(item, query) {
+      if (!query) return true;
+      const haystack = [
+        item.name,
+        item.description,
+        item.project_code,
+        item.case_number,
+        item.contract_type,
+        item.project_name,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    }
+
+    function renderProjectCardOld(item, caseCount) {
+      const countBadge = caseCount > 0
+        ? `<span class="case-count-badge">${caseCount} case${caseCount === 1 ? "" : "s"}</span>`
+        : "";
+
+      return `
+        <div class="workspace-card" data-id="${item.id}" data-type="${item.type}" onclick="openWorkspace('${item.id}', '${item.type}')">
+          <div class="workspace-card-header">
+            <div class="workspace-icon ${item.type}">
+              <i class="fas ${item.type === 'project' ? 'fa-project-diagram' : 'fa-briefcase'}" aria-hidden="true"></i>
+            </div>
+            <div class="workspace-meta">
+              <span class="workspace-status">${item.status || 'Active'}</span>
+              ${countBadge}
+              <div class="card-menu-wrapper">
+                <button class="workspace-menu-btn" onclick="event.stopPropagation(); toggleMenu('${item.id}')" title="More actions">
+                  <i class="fas fa-ellipsis-v" aria-hidden="true"></i>
+                </button>
+                <div class="card-menu" id="menu-${item.id}">
+                  <button onclick="event.stopPropagation(); openRenameModal('${item.id}', '${escapeHtml(item.name)}', '${escapeHtml(item.project_code || item.case_number || '')}', '${item.type}')">
+                    <i class="fas fa-edit" aria-hidden="true"></i> Rename
+                  </button>
+                  ${item.type === 'project' ? `
+                  <button onclick="event.stopPropagation(); openDevelopCaseModal('${item.id}', '${escapeHtml(item.name)}', '${escapeHtml(item.description || '')}')">
+                    <i class="fas fa-briefcase" aria-hidden="true"></i> Develop Case
+                  </button>` : ''}
+                  <button class="danger" onclick="event.stopPropagation(); openDeleteModal('${item.id}', '${escapeHtml(item.name)}', '${item.type}')">
+                    <i class="fas fa-trash" aria-hidden="true"></i> Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="workspace-title">${escapeHtml(item.name)}</div>
+          <div class="workspace-code">${escapeHtml(item.project_code || item.case_number || '')}</div>
+          <div class="workspace-desc">${escapeHtml(item.description || 'No description')}</div>
+          <div class="workspace-stats">
+            <div class="workspace-stat"><i class="fas fa-envelope" aria-hidden="true"></i> ${formatCount(item.email_count || 0)}</div>
+            <div class="workspace-stat"><i class="fas fa-file-alt" aria-hidden="true"></i> ${formatCount(item.evidence_count || 0)}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderCaseRow(item, options = {}) {
+      const showProjectTag = options.showProjectTag === true;
+      let projectTag = "";
+      if (showProjectTag) {
+        const label = item.project_name
+          ? `Linked to ${escapeHtml(item.project_name)}`
+          : item.project_id
+            ? "Linked project unavailable"
+            : "No linked project";
+        projectTag = `<div class="case-project-tag">${label}</div>`;
+      }
+
+      return `
+        <div class="case-stem">
+          <button class="case-card" type="button" onclick="openWorkspace('${item.id}', 'case')">
+            <div class="case-card-content">
+              <div class="case-title">${escapeHtml(item.name)}</div>
+              ${item.case_number ? `<div class="case-code">${escapeHtml(item.case_number)}</div>` : ""}
+              ${projectTag}
+            </div>
+            <div class="case-meta">
+              <span><i class="fas fa-envelope" aria-hidden="true"></i> ${formatCount(item.email_count || 0)}</span>
+              <span><i class="fas fa-file-alt" aria-hidden="true"></i> ${formatCount(item.evidence_count || 0)}</span>
+            </div>
+          </button>
+          <div class="card-menu-wrapper">
+            <button class="case-menu-btn" onclick="event.stopPropagation(); toggleMenu('${item.id}')" title="More actions">
+              <i class="fas fa-ellipsis-v" aria-hidden="true"></i>
+            </button>
+            <div class="card-menu" id="menu-${item.id}">
+              <button onclick="event.stopPropagation(); openRenameModal('${item.id}', '${escapeHtml(item.name)}', '${escapeHtml(item.case_number || '')}', 'case')">
+                <i class="fas fa-edit" aria-hidden="true"></i> Rename
+              </button>
+              <button class="danger" onclick="event.stopPropagation(); openDeleteModal('${item.id}', '${escapeHtml(item.name)}', 'case')">
+                <i class="fas fa-trash" aria-hidden="true"></i> Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderWorkspaceCard(workspace) {
+      const caseCount = workspace.case_count || 0;
+      const projectCount = workspace.project_count || 0;
+      const countBadge = projectCount > 0 || caseCount > 0
+        ? `<span class="case-count-badge">${projectCount} project${projectCount !== 1 ? 's' : ''}, ${caseCount} case${caseCount !== 1 ? 's' : ''}</span>`
+        : "";
+
+      // Get nested projects and cases
+      const projects = workspace.projects || [];
+      const cases = workspace.cases || [];
+
+      const caseStems = cases.length
+        ? `<div class="case-stems">${cases.map(item => renderCaseRow({
+          id: item.id || item.case_id,
+          name: item.name || item.case_name,
+          case_number: item.code || item.case_number,
+          description: item.description,
+          project_id: item.project_id,
+          project_name: item.project_name,
+          email_count: item.email_count || 0,
+          evidence_count: item.evidence_count || 0
+        })).join("")}</div>`
+        : "";
+
+      return `
+        <div class="workspace-stack">
+          <div class="workspace-card" data-id="${workspace.id}" data-type="workspace" onclick="openWorkspaceConfig('${workspace.id}')">
+            <div class="workspace-card-header">
+              <div class="workspace-icon project">
+                <i class="fas fa-building" aria-hidden="true"></i>
+              </div>
+              <div class="workspace-meta">
+                <span class="workspace-status">${workspace.status || 'Active'}</span>
+                ${countBadge}
+                <div class="card-menu-wrapper">
+                  <button class="workspace-menu-btn" onclick="event.stopPropagation(); toggleMenu('${workspace.id}')" title="More actions">
+                    <i class="fas fa-ellipsis-v" aria-hidden="true"></i>
+                  </button>
+                  <div class="card-menu" id="menu-${workspace.id}">
+                    <button onclick="event.stopPropagation(); openWorkspaceConfig('${workspace.id}')">
+                      <i class="fas fa-cog" aria-hidden="true"></i> Configure
+                    </button>
+                    <button onclick="event.stopPropagation(); openRenameWorkspaceModal('${workspace.id}', '${escapeHtml(workspace.name)}', '${escapeHtml(workspace.code || '')}')">
+                      <i class="fas fa-edit" aria-hidden="true"></i> Rename
+                    </button>
+                    <button class="danger" onclick="event.stopPropagation(); openDeleteWorkspaceModal('${workspace.id}', '${escapeHtml(workspace.name)}')">
+                      <i class="fas fa-trash" aria-hidden="true"></i> Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="workspace-title">${escapeHtml(workspace.name)}</div>
+            <div class="workspace-code">${escapeHtml(workspace.code || '')}</div>
+            <div class="workspace-desc">${escapeHtml(workspace.description || 'No description')}</div>
+            <div class="workspace-stats">
+              <div class="workspace-stat"><i class="fas fa-envelope" aria-hidden="true"></i> ${formatCount(workspace.email_count || 0)}</div>
+              <div class="workspace-stat"><i class="fas fa-file-alt" aria-hidden="true"></i> ${formatCount(workspace.evidence_count || 0)}</div>
+            </div>
+          </div>
+          ${projects.length > 0 ? `
+            <div class="project-stems">
+              ${projects.map(p => {
+                const projectId = p.id || p.project_id;
+                const projectName = p.name || p.project_name;
+                const projectCode = p.code || p.project_code;
+                return `
+                <div class="project-stem">
+                  <button class="project-card" type="button" onclick="event.stopPropagation(); openWorkspace('${projectId}', 'project')">
+                    <div class="project-card-content">
+                      <div class="project-title">${escapeHtml(projectName)}</div>
+                      ${projectCode ? `<div class="project-code">${escapeHtml(projectCode)}</div>` : ""}
+                    </div>
+                    <div class="project-meta">
+                      <span><i class="fas fa-envelope" aria-hidden="true"></i> ${formatCount(p.email_count || 0)}</span>
+                      <span><i class="fas fa-file-alt" aria-hidden="true"></i> ${formatCount(p.evidence_count || 0)}</span>
+                    </div>
+                  </button>
+                </div>
+              `;
+              }).join("")}
+            </div>
+          ` : ""}
+          ${caseStems}
+        </div>
+      `;
+    }
+
+    function renderWorkspaces(workspaces) {
+      const grid = document.getElementById("workspaceGrid");
+      const query = searchQuery.trim().toLowerCase();
+      const hasQuery = query.length > 0;
+      const list = Array.isArray(workspaces) ? workspaces : [];
+
+      // Filter workspaces by search query
+      const filtered = hasQuery
+        ? list.filter(ws => {
+            const haystack = [
+              ws.name,
+              ws.code,
+              ws.description,
+              ...(ws.projects || []).map(p => p.name || p.code),
+              ...(ws.cases || []).map(c => c.name || c.code),
+            ].filter(Boolean).join(" ").toLowerCase();
+            return haystack.includes(query);
+          })
+        : list;
 
       if (filtered.length === 0) {
-        grid.innerHTML = `<div class="empty-state"><p>No items found.</p></div>`;
+        const isSearch = hasQuery;
+        document.getElementById("workspaceCount").textContent = 0;
+        grid.innerHTML = `
+          <div class="empty-state">
+            <i class="fas ${isSearch ? 'fa-search' : 'fa-folder-open'} empty-icon"></i>
+            <div class="empty-title">${isSearch ? 'No matches found' : 'No workspaces yet'}</div>
+            <p class="empty-text">${isSearch ? 'Try a different search term' : 'Create a workspace to get started'}</p>
+            ${!isSearch ? '<button class="btn btn-vericase" onclick="window.location.href=\\\'workspace-setup.html\\\'"><i class="fas fa-plus"></i> Create Workspace</button>' : ''}
+          </div>
+        `;
         return;
       }
 
-      grid.innerHTML = filtered
-        .map(
-          (item) => `
-                <div class="project-card" onclick="openItem('${item.id}', '${item.type}')">
-                    <div class="card-header">
-                        <div class="project-icon">
-                            <i class="fas ${item.type === "project" ? "fa-project-diagram" : "fa-briefcase"}"></i>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span class="status-badge status-active">${item.status}</span>
-                            <div class="card-menu-wrapper">
-                                <button class="card-menu-btn" title="More actions" onclick="event.stopPropagation(); toggleCardMenu('${item.id}')">
-                                    <i class="fas fa-ellipsis-v"></i>
-                                </button>
-                                <div class="card-menu" id="menu-${item.id}">
-                                    <button onclick="event.stopPropagation(); openRenameModal('${item.id}', '${escapeHtml(item.name)}', '${escapeHtml(item.project_code || item.case_number || "")}', '${item.type}')">
-                                        <i class="fas fa-edit"></i> Rename
-                                    </button>
-                                    <button class="danger" onclick="event.stopPropagation(); openDeleteModal('${item.id}', '${escapeHtml(item.name)}', '${item.type}')">
-                                        <i class="fas fa-trash"></i> Delete
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="project-title">${escapeHtml(item.name)}</div>
-                    <div class="project-code">${escapeHtml(item.project_code || item.case_number || "")}</div>
-                    <div class="project-desc">${escapeHtml(item.description || "")}</div>
-                    
-                    <div class="card-metrics">
-                        <div class="metric"><i class="fas fa-envelope"></i> ${formatCount(item.email_count)}</div>
-                        <div class="metric"><i class="fas fa-file-alt"></i> ${formatCount(item.evidence_count)}</div>
-                    </div>
+      const sortByRecent = (a, b) => {
+        const aTime = Date.parse(a.updated_at || a.created_at || "");
+        const bTime = Date.parse(b.updated_at || b.created_at || "");
+        return (bTime || 0) - (aTime || 0);
+      };
 
-                    <div class="card-actions">
-                        <button class="action-btn" title="Evidence" onclick="event.stopPropagation(); goToEvidence('${item.id}')">
-                            <i class="fas fa-folder-open"></i>
-                        </button>
-                        <button class="action-btn" title="Correspondence" onclick="event.stopPropagation(); goToCorrespondence('${item.id}')">
-                            <i class="fas fa-envelope"></i>
-                        </button>
-                        <button class="action-btn" title="Edit Project" onclick="event.stopPropagation(); openRenameModal('${item.id}', '${escapeHtml(item.name)}', '${escapeHtml(item.project_code || item.case_number || "")}', '${item.type}')">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="action-btn action-btn-danger" title="Delete Project" onclick="event.stopPropagation(); openDeleteModal('${item.id}', '${escapeHtml(item.name)}', '${item.type}')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            `,
-        )
-        .join("");
+      const sorted = filtered.sort(sortByRecent);
+      document.getElementById("workspaceCount").textContent = sorted.length;
+
+      grid.innerHTML = sorted.map(ws => renderWorkspaceCard(ws)).join("");
     }
 
     function setupEventListeners() {
-      // Smart Search
+      // Search
       let timeout;
-      document
-        .getElementById("searchInput")
-        .addEventListener("input", (e) => {
-          clearTimeout(timeout);
-          timeout = setTimeout(() => {
-            searchQuery = e.target.value.toLowerCase();
-            // In a real app, if query looks like a question, trigger AI search
-            if (
-              searchQuery.includes("show me") ||
-              searchQuery.includes("find")
-            ) {
-              VericaseUI.Toast.info("AI Semantic Search active...");
-            }
-            renderWorkItems(dashboardData.work_items);
-          }, 300);
-        });
+      document.getElementById("searchInput").addEventListener("input", (e) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+          searchQuery = e.target.value.toLowerCase();
+          loadDashboard(); // Reload to re-filter
+        }, 300);
+      });
 
-      // Modal
-      document
-        .getElementById("createNewBtn")
-        .addEventListener("click", () => {
-          document.getElementById("createModal").classList.add("active");
-        });
-
-      document
-        .getElementById("modalClose")
-        .addEventListener("click", closeModal);
-      document
-        .getElementById("cancelCreate")
-        .addEventListener("click", closeModal);
-
-      // Type Selector
-      document.querySelectorAll(".type-option").forEach((opt) => {
-        opt.addEventListener("click", () => {
-          document
-            .querySelectorAll(".type-option")
-            .forEach((o) => o.classList.remove("selected"));
-          opt.classList.add("selected");
-          selectedType = opt.dataset.type;
-          updateFormLabels();
+      // Search chips
+      document.querySelectorAll(".search-chip").forEach(chip => {
+        chip.addEventListener("click", () => {
+          const query = chip.dataset.query;
+          document.getElementById("searchInput").value = query;
+          searchQuery = query.toLowerCase();
+          loadDashboard(); // Reload to re-filter
         });
       });
 
-      // Create Button Logic
-      document.getElementById("confirmCreate").addEventListener("click", async (e) => {
-        e.preventDefault();
+      // Quick action buttons
+      document.querySelectorAll('[data-action="create-workspace"]').forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          window.location.href = "workspace-setup.html";
+        });
+      });
 
-        const name = document.getElementById("itemName").value;
-        const code = document.getElementById("itemCode").value;
-        const description = document.getElementById("itemDescription").value;
-        const contractType = document.getElementById("contractType").value;
+      document.querySelectorAll(".quick-action.locked").forEach(a => {
+        a.addEventListener("click", (e) => {
+          e.preventDefault();
+          VericaseUI.Toast.info("Select a workspace first");
+        });
+      });
 
-        if (!name || !code) {
-          alert("Please fill in all required fields (Name and Code).");
+      // AI suggestions
+      document.querySelectorAll(".ai-suggestion").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const prompt = btn.dataset.prompt;
+          document.getElementById("aiQuickInput").value = prompt;
+          toggleAIChat();
+          setTimeout(() => {
+            document.getElementById("aiChatInput").value = prompt;
+            sendAIMessage();
+          }, 100);
+        });
+      });
+
+      // AI quick input enter
+      document.getElementById("aiQuickInput").addEventListener("keypress", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          const prompt = e.target.value.trim();
+          if (prompt) {
+            toggleAIChat();
+            setTimeout(() => {
+              document.getElementById("aiChatInput").value = prompt;
+              sendAIMessage();
+            }, 100);
+          }
+        }
+      });
+
+      // AI chat input enter
+      document.getElementById("aiChatInput")?.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") sendAIMessage();
+      });
+
+      // Create modal
+      document.getElementById("createNewBtn").addEventListener("click", () => {
+        window.location.href = "workspace-setup.html";
+      });
+
+      document.getElementById("modalClose").addEventListener("click", closeModal);
+      document.getElementById("cancelCreate").addEventListener("click", closeModal);
+
+      // Type selector - hide for workspaces (always creating workspace)
+      const typeSelector = document.querySelector(".type-selector");
+      if (typeSelector) {
+        typeSelector.style.display = "none";
+      }
+      document.querySelector('label[for="itemCode"]').textContent = "Workspace Code *";
+
+      // Create handler
+      document.getElementById("confirmCreate").addEventListener("click", handleCreate);
+      document.getElementById("confirmRename").addEventListener("click", handleRename);
+      document.getElementById("confirmDelete").addEventListener("click", handleDelete);
+      document.getElementById("confirmDevelopCase").addEventListener("click", handleDevelopCase);
+    }
+
+    function setupPredictiveControls() {
+      const refreshBtn = document.getElementById("predictiveRefresh");
+      const applyBtn = document.getElementById("predictiveApply");
+      const clearBtn = document.getElementById("predictiveClear");
+      const themeSelect = document.getElementById("predictiveThemeFilter");
+      const outcomeSelect = document.getElementById("predictiveOutcomeFilter");
+
+      if (refreshBtn) {
+        refreshBtn.addEventListener("click", () => loadPredictiveSignals());
+      }
+
+      if (applyBtn) {
+        applyBtn.addEventListener("click", () => {
+          predictiveFilters.theme = themeSelect?.value || "";
+          predictiveFilters.outcome = outcomeSelect?.value || "";
+          loadPredictiveSignals();
+        });
+      }
+
+      if (clearBtn) {
+        clearBtn.addEventListener("click", () => {
+          predictiveFilters = { theme: "", outcome: "" };
+          if (themeSelect) themeSelect.value = "";
+          if (outcomeSelect) outcomeSelect.value = "";
+          loadPredictiveSignals();
+        });
+      }
+    }
+
+    function formatPredictivePct(value) {
+      if (typeof value !== "number") return "-";
+      return `${Math.round(value * 100)}%`;
+    }
+
+    function formatPredictiveLift(value) {
+      if (typeof value !== "number") return "-";
+      return `${value.toFixed(2)}x`;
+    }
+
+      function formatPredictiveType(value) {
+      const type = String(value || "").toLowerCase();
+      const mapping = {
+        theme: "Theme",
+        contentious_issue: "Issue",
+        tag: "Tag",
+        issue: "Issue",
+        delay_cause: "Delay Cause",
+        defect_type: "Defect Type",
+        key_clause: "Key Clause",
+        contract_form: "Contract Form",
+        procurement_route: "Procurement Route",
+        construction_bucket: "Bucket",
+        rfi_count: "RFI Count",
+        change_order_count: "Change Orders",
+        delay_days: "Delay Days",
+        eot_days_granted: "EOT Days",
+        claim_value_gbp: "Claim Value",
+        award_amount_gbp: "Award Amount",
+      };
+      return mapping[type] || "Signal";
+    }
+
+    function setPredictiveOptions(selectEl, options, placeholder) {
+      if (!selectEl) return;
+      const safeOptions = (options || [])
+        .filter(Boolean)
+        .map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
+        .join("");
+      selectEl.innerHTML = `<option value="">${escapeHtml(placeholder)}</option>${safeOptions}`;
+    }
+
+    function renderPredictiveFilters() {
+      setPredictiveOptions(
+        document.getElementById("predictiveThemeFilter"),
+        predictiveOptions.themes,
+        "All themes",
+      );
+      setPredictiveOptions(
+        document.getElementById("predictiveOutcomeFilter"),
+        predictiveOptions.outcomes,
+        "All outcomes",
+      );
+
+      const themeSelect = document.getElementById("predictiveThemeFilter");
+      const outcomeSelect = document.getElementById("predictiveOutcomeFilter");
+      if (themeSelect) themeSelect.value = predictiveFilters.theme;
+      if (outcomeSelect) outcomeSelect.value = predictiveFilters.outcome;
+    }
+
+    function renderPredictiveSignals(data) {
+      const listEl = document.getElementById("predictiveList");
+      const metaEl = document.getElementById("predictiveMeta");
+      if (!listEl || !metaEl) return;
+
+      const signals = data?.predictive_signals || [];
+      const caseCount = data?.predictive_case_count ?? 0;
+      metaEl.textContent = `Signals based on ${caseCount} case(s) with outcomes.`;
+
+      if (!signals.length) {
+        listEl.innerHTML = "<li class='predictive-empty'>Not enough data yet.</li>";
+        return;
+      }
+
+      listEl.innerHTML = signals
+        .map((signal) => {
+          const featureType = formatPredictiveType(signal.feature_type);
+          const feature = escapeHtml(signal.feature || "Unknown");
+          const outcome = escapeHtml(signal.outcome || "Unknown");
+          const lift = formatPredictiveLift(signal.lift);
+          const featureRate = formatPredictivePct(signal.feature_rate);
+          const baseRate = formatPredictivePct(signal.base_rate);
+          const support = signal.support ?? 0;
+          const featureCases = signal.feature_cases ?? 0;
+
+          return `
+            <li class="predictive-item">
+              <div class="predictive-item-header">
+                <span>${escapeHtml(featureType)}</span>
+                <span class="predictive-item-lift">${lift}</span>
+              </div>
+              <div class="predictive-item-main">
+                <span class="predictive-item-feature">${feature}</span>
+                <span>-></span>
+                <span class="predictive-item-outcome">${outcome}</span>
+              </div>
+              <div class="predictive-item-meta">${featureRate} vs ${baseRate} | n=${support}/${featureCases}</div>
+            </li>
+          `;
+        })
+        .join("");
+    }
+
+    function renderRiskSignals(data) {
+      const listEl = document.getElementById("riskList");
+      const metaEl = document.getElementById("riskMeta");
+      if (!listEl || !metaEl) return;
+
+      const signals = data?.risk_signals || [];
+      const caseCount = data?.risk_case_count ?? 0;
+      metaEl.textContent = `Signals based on ${caseCount} case(s).`;
+
+      if (!signals.length) {
+        listEl.innerHTML = "<li class='predictive-empty'>No risk signals yet.</li>";
+        return;
+      }
+
+      listEl.innerHTML = signals
+        .map((signal) => {
+          const featureType = formatPredictiveType(signal.feature_type);
+          const feature = escapeHtml(signal.feature || "Unknown");
+          const target = escapeHtml(signal.target || "Unknown");
+          const lift = formatPredictiveLift(signal.lift);
+          const featureRate = formatPredictivePct(signal.feature_rate);
+          const baseRate = formatPredictivePct(signal.base_rate);
+          const support = signal.support ?? 0;
+          const featureCases = signal.feature_cases ?? 0;
+
+          return `
+            <li class="predictive-item">
+              <div class="predictive-item-header">
+                <span>${escapeHtml(featureType)}</span>
+                <span class="predictive-item-lift">${lift}</span>
+              </div>
+              <div class="predictive-item-main">
+                <span class="predictive-item-feature">${feature}</span>
+                <span>-></span>
+                <span class="predictive-item-outcome">${target}</span>
+              </div>
+              <div class="predictive-item-meta">${featureRate} vs ${baseRate} | n=${support}/${featureCases}</div>
+            </li>
+          `;
+        })
+        .join("");
+    }
+
+    function renderProactiveTrends(data) {
+      const listEl = document.getElementById("proactiveList");
+      const metaEl = document.getElementById("proactiveMeta");
+      if (!listEl || !metaEl) return;
+
+      const trends = data?.proactive_trends || [];
+      const fallback = !!data?.proactive_fallback;
+      metaEl.textContent = fallback
+        ? "Watching signals (low volume)"
+        : "Actionable signals";
+
+      if (!trends.length) {
+        listEl.innerHTML = "<li class='predictive-empty'>No proactive trends yet.</li>";
+        return;
+      }
+
+      listEl.innerHTML = trends
+        .map((trend) => {
+          const featureType = formatPredictiveType(trend.feature_type);
+          const feature = escapeHtml(trend.feature || "Unknown");
+          const outcome = escapeHtml(trend.outcome || "Unknown");
+          const lift = formatPredictiveLift(trend.lift);
+          const featureRate = formatPredictivePct(trend.feature_rate);
+          const baseRate = formatPredictivePct(trend.base_rate);
+          const support = trend.support ?? 0;
+          const featureCases = trend.feature_cases ?? 0;
+          const level = escapeHtml(trend.level || "watch");
+
+          return `
+            <li class="predictive-item proactive">
+              <div class="predictive-item-header">
+                <span>${escapeHtml(featureType)}</span>
+                <span class="predictive-level ${level}">${level}</span>
+              </div>
+              <div class="predictive-item-main">
+                <span class="predictive-item-feature">${feature}</span>
+                <span>-></span>
+                <span class="predictive-item-outcome">${outcome}</span>
+              </div>
+              <div class="predictive-item-meta">${featureRate} vs ${baseRate} | lift ${lift} | n=${support}/${featureCases}</div>
+            </li>
+          `;
+        })
+        .join("");
+    }
+
+    async function loadPredictiveSignals({ populateOptions = false } = {}) {
+      const listEl = document.getElementById("predictiveList");
+      const metaEl = document.getElementById("predictiveMeta");
+      if (!listEl || !metaEl) return;
+
+      const params = new URLSearchParams({ top_n: "6" });
+      if (predictiveFilters.theme) params.set("theme", predictiveFilters.theme);
+      if (predictiveFilters.outcome) params.set("outcome", predictiveFilters.outcome);
+
+      metaEl.textContent = "Loading signals...";
+      listEl.innerHTML = "";
+
+      try {
+        const response = await fetch(`/api/caselaw/trends?${params.toString()}`, {
+          headers: getAuthHeaders(),
+        });
+
+        if (response.status === 401 || response.status === 403) {
+          metaEl.textContent = "Sign in to view predictive signals.";
+          listEl.innerHTML = "<li class='predictive-empty'>Authentication required.</li>";
+          const proactiveMeta = document.getElementById("proactiveMeta");
+          const proactiveList = document.getElementById("proactiveList");
+          if (proactiveMeta) proactiveMeta.textContent = "Sign in to view proactive trends.";
+          if (proactiveList) proactiveList.innerHTML = "<li class='predictive-empty'>Authentication required.</li>";
+          const riskMeta = document.getElementById("riskMeta");
+          const riskList = document.getElementById("riskList");
+          if (riskMeta) riskMeta.textContent = "Sign in to view risk signals.";
+          if (riskList) riskList.innerHTML = "<li class='predictive-empty'>Authentication required.</li>";
           return;
         }
 
-        const btn = document.getElementById("confirmCreate");
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
-        btn.disabled = true;
-
-        try {
-          const headers = {
-            "Content-Type": "application/json",
-            ...getAuthHeaders()
-          };
-
-          const endpoint = selectedType === "project" ? "/api/projects" : "/api/cases";
-          const payload = selectedType === "project"
-            ? {
-              project_name: name,
-              project_code: code,
-              description: description,
-              contract_type: contractType
-            }
-            : {
-              case_name: name,
-              case_number: code, // UI calls it "Code" but maps to case_number
-              description: description,
-              contract_type: contractType
-            };
-
-          const response = await fetch(endpoint, {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify(payload)
-          });
-
-          if (response.ok) {
-            VericaseUI.Toast.success(`${selectedType === 'project' ? 'Project' : 'Case'} created successfully`);
-            closeModal();
-            // Clear form
-            document.getElementById("createForm").reset();
-            // Refresh dashboard
-            loadDashboard();
-          } else {
-            const errorText = await response.text();
-            try {
-              const errorJson = JSON.parse(errorText);
-              throw new Error(errorJson.detail || "Creation failed");
-            } catch {
-              throw new Error(errorText || "Creation failed");
-            }
-          }
-        } catch (error) {
-          console.error("Creation error:", error);
-          alert(`Error: ${error.message}`);
-        } finally {
-          btn.innerHTML = originalText;
-          btn.disabled = false;
+        if (!response.ok) {
+          metaEl.textContent = `Unable to load signals (${response.status}).`;
+          listEl.innerHTML = "<li class='predictive-empty'>No data available.</li>";
+          const proactiveMeta = document.getElementById("proactiveMeta");
+          const proactiveList = document.getElementById("proactiveList");
+          if (proactiveMeta) proactiveMeta.textContent = "Unable to load proactive trends.";
+          if (proactiveList) proactiveList.innerHTML = "<li class='predictive-empty'>No data available.</li>";
+          const riskMeta = document.getElementById("riskMeta");
+          const riskList = document.getElementById("riskList");
+          if (riskMeta) riskMeta.textContent = "Unable to load risk signals.";
+          if (riskList) riskList.innerHTML = "<li class='predictive-empty'>No data available.</li>";
+          return;
         }
-      });
+
+        const data = await response.json();
+        if (populateOptions) {
+          predictiveOptions = {
+            themes: (data.themes || []).map((item) => item.value),
+            outcomes: (data.outcomes || []).map((item) => item.value),
+          };
+          renderPredictiveFilters();
+        }
+        renderProactiveTrends(data);
+        renderPredictiveSignals(data);
+        renderRiskSignals(data);
+      } catch (error) {
+        console.error("Predictive signals load failed", error);
+        metaEl.textContent = "Unable to load predictive signals.";
+        listEl.innerHTML = "<li class='predictive-empty'>No data available.</li>";
+        const proactiveMeta = document.getElementById("proactiveMeta");
+        const proactiveList = document.getElementById("proactiveList");
+        if (proactiveMeta) proactiveMeta.textContent = "Unable to load proactive trends.";
+        if (proactiveList) proactiveList.innerHTML = "<li class='predictive-empty'>No data available.</li>";
+        const riskMeta = document.getElementById("riskMeta");
+        const riskList = document.getElementById("riskList");
+        if (riskMeta) riskMeta.textContent = "Unable to load risk signals.";
+        if (riskList) riskList.innerHTML = "<li class='predictive-empty'>No data available.</li>";
+      }
     }
 
-    function closeModal() {
-      document.getElementById("createModal").classList.remove("active");
-    }
+    // Modal handlers
+    function closeModal() { document.getElementById("createModal").classList.remove("active"); }
+    function closeRenameModal() { document.getElementById("renameModal").classList.remove("active"); }
+    function closeDeleteModal() { document.getElementById("deleteModal").classList.remove("active"); }
+    function closeDevelopCaseModal() { document.getElementById("developCaseModal").classList.remove("active"); }
 
-    function updateFormLabels() {
-      const label = document.querySelector('label[for="itemCode"]');
-      label.textContent =
-        selectedType === "project" ? "Project Code *" : "Case Number *";
-    }
-
-    // Navigation
-    function openItem(id, type) {
-      // Set context via Shell or localStorage
-      localStorage.setItem("vericase_current_project", id);
-      window.location.href = `projectdashboard.html?projectId=${id}`;
-    }
-
-    function goToEvidence(id) {
-      localStorage.setItem("vericase_current_project", id);
-      window.location.href = `evidence.html?projectId=${id}`;
-    }
-
-    function goToCorrespondence(id) {
-      localStorage.setItem("vericase_current_project", id);
-      window.location.href = `correspondence-enterprise.html?projectId=${id}`;
-    }
-
-    function goToSettings(id) {
-      localStorage.setItem("vericase_current_project", id);
-      window.location.href = `wizard.html?projectId=${id}&edit=true`;
-    }
-
-    // --- Project Management ---
     let activeMenu = null;
-
-    function toggleCardMenu(itemId) {
-      const menu = document.getElementById(`menu-${itemId}`);
-      
-      // Close any other open menu
-      if (activeMenu && activeMenu !== menu) {
-        activeMenu.classList.remove('active');
-      }
-      
-      menu.classList.toggle('active');
-      activeMenu = menu.classList.contains('active') ? menu : null;
+    function toggleMenu(id) {
+      const menu = document.getElementById(`menu-${id}`);
+      if (activeMenu && activeMenu !== menu) activeMenu.classList.remove("active");
+      menu.classList.toggle("active");
+      activeMenu = menu.classList.contains("active") ? menu : null;
     }
 
-    // Close menu when clicking outside
-    document.addEventListener('click', (e) => {
-      if (activeMenu && !e.target.closest('.card-menu-wrapper')) {
-        activeMenu.classList.remove('active');
-        activeMenu = null;
-      }
+    document.addEventListener("click", () => {
+      if (activeMenu) { activeMenu.classList.remove("active"); activeMenu = null; }
     });
 
     function openRenameModal(id, name, code, type) {
-      document.getElementById('renameItemId').value = id;
-      document.getElementById('renameItemType').value = type;
-      document.getElementById('renameItemName').value = name;
-      document.getElementById('renameItemCode').value = code;
-      document.getElementById('renameModal').classList.add('active');
-      
-      // Close any open card menu
-      if (activeMenu) {
-        activeMenu.classList.remove('active');
-        activeMenu = null;
-      }
-    }
-
-    function closeRenameModal() {
-      document.getElementById('renameModal').classList.remove('active');
+      document.getElementById("renameItemId").value = id;
+      document.getElementById("renameItemType").value = type;
+      document.getElementById("renameItemName").value = name;
+      document.getElementById("renameItemCode").value = code;
+      document.getElementById("renameModal").classList.add("active");
+      if (activeMenu) { activeMenu.classList.remove("active"); activeMenu = null; }
     }
 
     function openDeleteModal(id, name, type) {
-      document.getElementById('deleteItemId').value = id;
-      document.getElementById('deleteItemType').value = type;
-      document.getElementById('deleteItemName').textContent = name;
-      document.getElementById('deleteModal').classList.add('active');
-      
-      // Close any open card menu
-      if (activeMenu) {
-        activeMenu.classList.remove('active');
-        activeMenu = null;
+      document.getElementById("deleteItemId").value = id;
+      document.getElementById("deleteItemType").value = type;
+      document.getElementById("deleteItemName").textContent = name;
+      document.getElementById("deleteModal").classList.add("active");
+      if (activeMenu) { activeMenu.classList.remove("active"); activeMenu = null; }
+    }
+
+    function openDevelopCaseModal(projectId, projectName, description) {
+      document.getElementById("developCaseProjectId").value = projectId;
+      document.getElementById("developCaseName").value = projectName ? `${projectName} Case` : "";
+      document.getElementById("developCaseDescription").value = description || "";
+      document.getElementById("developCaseProjectLabel").textContent = projectName ? `From project: ${projectName}` : "";
+      document.getElementById("developCaseModal").classList.add("active");
+      if (activeMenu) { activeMenu.classList.remove("active"); activeMenu = null; }
+    }
+
+    function openWorkspace(id, type) {
+      setActiveContext(id, type);
+      const param = type === "case" ? "caseId" : "projectId";
+      window.location.href = `projectdashboard.html?${param}=${id}`;
+    }
+
+    function openWorkspaceConfig(workspaceId) {
+      window.location.href = `workspace-setup.html?workspaceId=${workspaceId}`;
+    }
+
+    function openRenameWorkspaceModal(id, name, code) {
+      // For now, reuse the existing rename modal but adapt it for workspaces
+      document.getElementById("renameItemId").value = id;
+      document.getElementById("renameItemType").value = "workspace";
+      document.getElementById("renameItemName").value = name;
+      document.getElementById("renameItemCode").value = code;
+      document.getElementById("renameModal").classList.add("active");
+      if (activeMenu) { activeMenu.classList.remove("active"); activeMenu = null; }
+    }
+
+    function openDeleteWorkspaceModal(id, name) {
+      document.getElementById("deleteItemId").value = id;
+      document.getElementById("deleteItemType").value = "workspace";
+      document.getElementById("deleteItemName").textContent = name;
+      document.getElementById("deleteModal").classList.add("active");
+      if (activeMenu) { activeMenu.classList.remove("active"); activeMenu = null; }
+    }
+
+    function setActiveContext(id, type) {
+      const item = (dashboardData?.work_items || []).find(i => String(i.id) === String(id));
+      try {
+        if (type === "case") {
+          localStorage.setItem("profileType", "case");
+          localStorage.setItem("currentCaseId", id);
+          localStorage.setItem("caseId", id);
+          if (item?.name) {
+            localStorage.setItem("currentCaseName", item.name);
+            localStorage.setItem("vericase_current_case_name", item.name);
+          }
+        } else {
+          localStorage.setItem("profileType", "project");
+          localStorage.setItem("vericase_current_project", id);
+          localStorage.setItem("currentProjectId", id);
+          localStorage.setItem("projectId", id);
+          if (item?.name) {
+            localStorage.setItem("currentProjectName", item.name);
+            localStorage.setItem("vericase_current_project_name", item.name);
+          }
+          localStorage.removeItem("currentCaseId");
+          localStorage.removeItem("caseId");
+        }
+      } catch (e) { }
+    }
+
+    // API Handlers
+    async function handleCreate(e) {
+      e.preventDefault();
+      const name = document.getElementById("itemName").value;
+      const code = document.getElementById("itemCode").value;
+      const description = document.getElementById("itemDescription").value;
+      const contractType = document.getElementById("contractType").value;
+
+      if (!name || !code) { alert("Please fill in Name and Code"); return; }
+
+      const btn = document.getElementById("confirmCreate");
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+      btn.disabled = true;
+
+      try {
+        // Create workspace
+        const payload = { name, code, description, contract_type: contractType };
+        const headers = { "Content-Type": "application/json", ...getAuthHeaders() };
+
+        let response = await fetch("/api/workspaces", {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload)
+        });
+
+        if (response.status === 404 || response.status === 405) {
+          const fallbackPayload = {
+            project_name: name,
+            project_code: code,
+            contract_type: contractType || null
+          };
+          response = await fetch("/api/projects", {
+            method: "POST",
+            headers,
+            body: JSON.stringify(fallbackPayload)
+          });
+        }
+
+        if (response.ok) {
+          VericaseUI.Toast.success('Workspace created');
+          closeModal();
+          document.getElementById("createForm").reset();
+          loadDashboard();
+        } else {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || "Creation failed");
+        }
+      } catch (error) {
+        alert("Error: " + error.message);
+      } finally {
+        btn.innerHTML = '<i class="fas fa-plus"></i> Create';
+        btn.disabled = false;
       }
     }
 
-    function closeDeleteModal() {
-      document.getElementById('deleteModal').classList.remove('active');
-    }
+    async function handleRename() {
+      const id = document.getElementById("renameItemId").value;
+      const type = document.getElementById("renameItemType").value;
+      const name = document.getElementById("renameItemName").value;
+      const code = document.getElementById("renameItemCode").value;
 
-    // Rename handler
-    document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('confirmRename').addEventListener('click', async () => {
-        const id = document.getElementById('renameItemId').value;
-        const type = document.getElementById('renameItemType').value;
-        const name = document.getElementById('renameItemName').value;
-        const code = document.getElementById('renameItemCode').value;
+      if (!name) { alert("Please enter a name"); return; }
 
-        if (!name) {
-          alert('Please enter a name');
-          return;
+      const btn = document.getElementById("confirmRename");
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+      btn.disabled = true;
+
+      try {
+        let endpoint = type === "project" ? `/api/projects/${id}` : `/api/cases/${id}`;
+        let payload = type === "project" ? { project_name: name, project_code: code } : { name, case_number: code };
+
+        if (type === "workspace") {
+          endpoint = `/api/workspaces/${id}`;
+          payload = { name, code };
         }
 
-        const btn = document.getElementById('confirmRename');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-        btn.disabled = true;
+        let response = await fetch(endpoint, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+          body: JSON.stringify(payload)
+        });
 
-        try {
-        const headers = {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        };
-
-          const endpoint = type === 'project' ? `/api/projects/${id}` : `/api/cases/${id}`;
-          const payload = type === 'project' 
-            ? { project_name: name, project_code: code }
-            : { name: name, case_number: code };
-
-          const response = await fetch(endpoint, {
-            method: 'PUT',
-            headers: headers,
+        if ((response.status === 404 || response.status === 405) && type === "workspace") {
+          endpoint = `/api/projects/${id}`;
+          payload = { project_name: name, project_code: code };
+          response = await fetch(endpoint, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", ...getAuthHeaders() },
             body: JSON.stringify(payload)
           });
-
-          if (response.ok) {
-            VericaseUI.Toast.success('Renamed successfully');
-            closeRenameModal();
-            loadDashboard();
-          } else {
-            const errorText = await response.text();
-            try {
-              const errorJson = JSON.parse(errorText);
-              throw new Error(errorJson.detail || 'Rename failed');
-            } catch {
-              throw new Error(errorText || 'Rename failed');
-            }
-          }
-        } catch (error) {
-          console.error('Rename error:', error);
-          alert(`Error: ${error.message}`);
-        } finally {
-          btn.innerHTML = originalText;
-          btn.disabled = false;
         }
-      });
 
-      // Delete handler
-      document.getElementById('confirmDelete').addEventListener('click', async () => {
-        const id = document.getElementById('deleteItemId').value;
-        const type = document.getElementById('deleteItemType').value;
-
-        const btn = document.getElementById('confirmDelete');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
-        btn.disabled = true;
-
-        try {
-        const headers = {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        };
-
-          const endpoint = type === 'project' ? `/api/projects/${id}` : `/api/cases/${id}`;
-
-          const response = await fetch(endpoint, {
-            method: 'DELETE',
-            headers: headers
-          });
-
-          if (response.ok) {
-            VericaseUI.Toast.success('Deleted successfully');
-            closeDeleteModal();
-            loadDashboard();
-          } else {
-            const errorText = await response.text();
-            try {
-              const errorJson = JSON.parse(errorText);
-              throw new Error(errorJson.detail || 'Delete failed');
-            } catch {
-              throw new Error(errorText || 'Delete failed');
-            }
-          }
-        } catch (error) {
-          console.error('Delete error:', error);
-          alert(`Error: ${error.message}`);
-        } finally {
-          btn.innerHTML = originalText;
-          btn.disabled = false;
+        if (response.ok) {
+          VericaseUI.Toast.success("Renamed successfully");
+          closeRenameModal();
+          loadDashboard();
+        } else {
+          throw new Error("Rename failed");
         }
-      });
-    });
+      } catch (error) {
+        alert("Error: " + error.message);
+      } finally {
+        btn.innerHTML = '<i class="fas fa-save"></i> Save';
+        btn.disabled = false;
+      }
+    }
+
+    async function handleDelete() {
+      const id = document.getElementById("deleteItemId").value;
+      const type = document.getElementById("deleteItemType").value;
+
+      const btn = document.getElementById("confirmDelete");
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+      btn.disabled = true;
+
+      try {
+        let endpoint;
+        if (type === "workspace") {
+          endpoint = `/api/workspaces/${id}`;
+        } else {
+          endpoint = type === "project" ? `/api/projects/${id}` : `/api/cases/${id}`;
+        }
+        let response = await fetch(endpoint, { method: "DELETE", headers: getAuthHeaders() });
+
+        if ((response.status === 404 || response.status === 405) && type === "workspace") {
+          endpoint = `/api/projects/${id}`;
+          response = await fetch(endpoint, { method: "DELETE", headers: getAuthHeaders() });
+        }
+
+        if (response.ok) {
+          VericaseUI.Toast.success("Deleted successfully");
+          closeDeleteModal();
+          loadDashboard();
+        } else {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || "Delete failed");
+        }
+      } catch (error) {
+        alert("Error: " + error.message);
+      } finally {
+        btn.innerHTML = '<i class="fas fa-trash"></i> Delete';
+        btn.disabled = false;
+      }
+    }
+
+    async function handleDevelopCase() {
+      const projectId = document.getElementById("developCaseProjectId").value;
+      const name = document.getElementById("developCaseName").value.trim();
+      const caseNumber = document.getElementById("developCaseNumber").value.trim();
+      const description = document.getElementById("developCaseDescription").value.trim();
+
+      if (!name) { alert("Please enter a case name"); return; }
+
+      const payload = {
+        case_name: name,
+        include_stakeholders: document.getElementById("developIncludeStakeholders").checked,
+        include_keywords: document.getElementById("developIncludeKeywords").checked,
+        include_heads_of_claim: document.getElementById("developIncludeClaims").checked,
+        include_contentious_matters: document.getElementById("developIncludeMatters").checked,
+      };
+      if (caseNumber) payload.case_number = caseNumber;
+      if (description) payload.description = description;
+
+      const btn = document.getElementById("confirmDevelopCase");
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+      btn.disabled = true;
+
+      try {
+        const response = await fetch(`/api/projects/${projectId}/cases`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+          body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          VericaseUI.Toast.success("Case developed successfully");
+          closeDevelopCaseModal();
+          if (data?.id) {
+            setActiveContext(data.id, "case");
+            window.location.href = `projectdashboard.html?caseId=${data.id}`;
+          } else {
+            loadDashboard();
+          }
+        } else {
+          throw new Error("Develop case failed");
+        }
+      } catch (error) {
+        alert("Error: " + error.message);
+      } finally {
+        btn.innerHTML = '<i class="fas fa-briefcase"></i> Develop Case';
+        btn.disabled = false;
+      }
+    }
+
+    // VeriCase Assistant
+    function toggleAIChat() {
+      const panel = document.getElementById("aiChatPanel");
+      const quickPrompt = document.getElementById("aiQuickPrompt");
+      const toggleBtn = document.querySelector(".ai-toggle-btn");
+
+      if (panel.classList.contains("active")) {
+        panel.classList.remove("active");
+        quickPrompt.style.display = "block";
+        toggleBtn.textContent = "Expand";
+      } else {
+        panel.classList.add("active");
+        quickPrompt.style.display = "none";
+        toggleBtn.textContent = "Collapse";
+        document.getElementById("aiChatInput")?.focus();
+      }
+    }
+
+    async function sendAIMessage() {
+      const input = document.getElementById("aiChatInput");
+      const message = input.value.trim();
+      if (!message) return;
+
+      const container = document.getElementById("aiChatMessages");
+
+      container.innerHTML += `
+        <div class="ai-message user">
+          <div class="ai-avatar"><i class="fas fa-user"></i></div>
+          <div class="ai-bubble">${escapeHtml(message)}</div>
+        </div>
+      `;
+      input.value = "";
+      container.scrollTop = container.scrollHeight;
+
+      const typingId = "typing-" + Date.now();
+      container.innerHTML += `
+        <div class="ai-message" id="${typingId}">
+          <div class="ai-avatar"><i class="fas fa-robot"></i></div>
+          <div class="ai-bubble"><i class="fas fa-spinner fa-spin"></i> Thinking...</div>
+        </div>
+      `;
+      container.scrollTop = container.scrollHeight;
+
+      try {
+        const response = await fetch("/api/ai-chat/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+          body: JSON.stringify({ message, context: "command_center", include_projects: true })
+        });
+
+        document.getElementById(typingId)?.remove();
+
+        if (response.ok) {
+          const data = await response.json();
+          const reply = data.response || data.message || "I processed your request.";
+          container.innerHTML += `
+            <div class="ai-message">
+              <div class="ai-avatar"><i class="fas fa-robot"></i></div>
+              <div class="ai-bubble">${escapeHtml(reply)}</div>
+            </div>
+          `;
+        } else {
+          container.innerHTML += `
+            <div class="ai-message">
+              <div class="ai-avatar"><i class="fas fa-robot"></i></div>
+              <div class="ai-bubble">I'll search for: "${escapeHtml(message)}"</div>
+            </div>
+          `;
+          searchQuery = message.toLowerCase();
+          document.getElementById("searchInput").value = message;
+          if (dashboardData) renderWorkspaces(dashboardData.work_items);
+        }
+        container.scrollTop = container.scrollHeight;
+      } catch (error) {
+        document.getElementById(typingId)?.remove();
+        container.innerHTML += `
+          <div class="ai-message">
+            <div class="ai-avatar"><i class="fas fa-robot"></i></div>
+            <div class="ai-bubble">Sorry, I encountered an error. Please try again.</div>
+          </div>
+        `;
+        container.scrollTop = container.scrollHeight;
+      }
+    }
 
     // Utils
     function escapeHtml(str) {
@@ -1393,134 +3137,9 @@
     }
 
     function formatCount(n) {
-      if (n > 1000) return (n / 1000).toFixed(1) + "k";
+      if (n >= 1000) return (n / 1000).toFixed(1) + "k";
       return n;
     }
-
-    // AI Assistant functions
-    function toggleAIAssistant() {
-      const panel = document.getElementById('aiAssistantPanel');
-      if (panel.style.display === 'none') {
-        panel.style.display = 'block';
-        document.getElementById('aiChatInput').focus();
-      } else {
-        panel.style.display = 'none';
-      }
-    }
-
-    async function sendAIMessage() {
-      const input = document.getElementById('aiChatInput');
-      const message = input.value.trim();
-      if (!message) return;
-
-      const container = document.getElementById('aiChatMessages');
-      
-      // Add user message
-      container.innerHTML += `
-        <div class="ai-message user">
-          <i class="fas fa-user ai-avatar"></i>
-          <div class="ai-bubble">${escapeHtml(message)}</div>
-        </div>
-      `;
-      input.value = '';
-      container.scrollTop = container.scrollHeight;
-
-      // Show typing indicator
-      const typingId = 'typing-' + Date.now();
-      container.innerHTML += `
-        <div class="ai-message assistant" id="${typingId}">
-          <i class="fas fa-robot ai-avatar"></i>
-          <div class="ai-bubble"><i class="fas fa-spinner fa-spin"></i> Thinking...</div>
-        </div>
-      `;
-      container.scrollTop = container.scrollHeight;
-
-      try {
-        const headers = {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        };
-
-        const response = await fetch('/api/ai-chat/chat', {
-          method: 'POST',
-          headers: headers,
-          body: JSON.stringify({
-            message: message,
-            context: 'command_center',
-            include_projects: true
-          })
-        });
-
-        // Remove typing indicator
-        document.getElementById(typingId)?.remove();
-
-        if (response.ok) {
-          const data = await response.json();
-          const reply = data.response || data.message || 'I processed your request but have no specific response.';
-          
-          container.innerHTML += `
-            <div class="ai-message assistant">
-              <i class="fas fa-robot ai-avatar"></i>
-              <div class="ai-bubble">${escapeHtml(reply)}</div>
-            </div>
-          `;
-        } else {
-          // Fallback to semantic search for queries
-          if (message.toLowerCase().includes('show') || message.toLowerCase().includes('find')) {
-            container.innerHTML += `
-              <div class="ai-message assistant">
-                <i class="fas fa-robot ai-avatar"></i>
-                <div class="ai-bubble">
-                  I'll search your projects for: "${escapeHtml(message)}"
-                  <br><br>
-                  <em style="color: var(--text-muted); font-size: 0.875rem;">
-                    Searching across ${dashboardData?.stats?.total_projects || 0} projects...
-                  </em>
-                </div>
-              </div>
-            `;
-            // Trigger search
-            document.getElementById('searchInput').value = message;
-            searchQuery = message.toLowerCase();
-            renderWorkItems(dashboardData.work_items);
-          } else {
-            container.innerHTML += `
-              <div class="ai-message assistant">
-                <i class="fas fa-robot ai-avatar"></i>
-                <div class="ai-bubble">
-                  I couldn't process that request. Try searching for specific projects or ask questions like:
-                  <ul style="margin-top: 8px; margin-left: 20px;">
-                    <li>"Show me NEC4 contracts"</li>
-                    <li>"Find projects with delay notices"</li>
-                    <li>"Which projects have the most emails?"</li>
-                  </ul>
-                </div>
-              </div>
-            `;
-          }
-        }
-        container.scrollTop = container.scrollHeight;
-      } catch (error) {
-        console.error('AI Chat error:', error);
-        document.getElementById(typingId)?.remove();
-        container.innerHTML += `
-          <div class="ai-message assistant">
-            <i class="fas fa-robot ai-avatar"></i>
-            <div class="ai-bubble">Sorry, I encountered an error. Please try again.</div>
-          </div>
-        `;
-        container.scrollTop = container.scrollHeight;
-      }
-    }
-
-    // Handle Enter key in AI chat input
-    document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('aiChatInput')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-          sendAIMessage();
-        }
-      });
-    });
   </script>
 </body>
 

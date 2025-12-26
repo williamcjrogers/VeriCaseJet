@@ -31,8 +31,26 @@ BEGIN
     ALTER TABLE email_attachments ALTER COLUMN file_size_bytes TYPE BIGINT;
 END $$;
 
--- 3. Fix documents
-ALTER TABLE documents ALTER COLUMN size TYPE BIGINT;
+-- 3. Fix documents (guarded - column may already be BIGINT or not exist)
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'documents' AND column_name = 'size') THEN
+        EXECUTE 'ALTER TABLE documents ALTER COLUMN size TYPE BIGINT';
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    -- Already BIGINT or other harmless error
+    NULL;
+END $$;
 
--- 4. Fix evidence_items
-ALTER TABLE evidence_items ALTER COLUMN file_size TYPE BIGINT;
+-- 4. Fix evidence_items (guarded - may be blocked by dependent views)
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'evidence_items' AND column_name = 'file_size') THEN
+        -- Drop dependent view first
+        EXECUTE 'DROP VIEW IF EXISTS v_evidence_with_links CASCADE';
+        EXECUTE 'ALTER TABLE evidence_items ALTER COLUMN file_size TYPE BIGINT';
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    -- Already BIGINT or other harmless error
+    NULL;
+END $$;

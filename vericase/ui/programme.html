@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Programme Management | VeriCase</title>
     <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
-    <link rel="stylesheet" href="brand-styles.css" />
-    <link rel="stylesheet" href="design-system.css" />
+    <link rel="stylesheet" href="brand-styles.css?v=6" />
+    <link rel="stylesheet" href="design-system.css?v=6" />
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
     <script src="config.js"></script>
@@ -347,11 +347,19 @@
         display: none;
         align-items: center;
         justify-content: center;
+        -webkit-backdrop-filter: blur(4px);
         backdrop-filter: blur(4px);
       }
 
       .modal-backdrop.active {
         display: flex;
+        visibility: visible;
+        opacity: 1;
+      }
+      
+      .modal-backdrop.active .modal {
+        opacity: 1;
+        transform: translateY(0);
       }
 
       .modal {
@@ -722,7 +730,7 @@
             <i class="fas fa-exchange-alt"></i>
             Compare Programmes
           </button>
-          <button class="btn btn-primary" id="uploadBtn">
+          <button class="btn btn-primary" id="uploadBtn" onclick="openUploadModal()">
             <i class="fas fa-upload"></i>
             Upload Programme
           </button>
@@ -849,10 +857,32 @@
 
     <script>
       const apiUrl = window.VeriCaseConfig ? window.VeriCaseConfig.apiUrl : window.location.origin;
-      let caseId = null;
+      let contextId = null;
+      let contextType = null; // 'project' or 'case'
       let programmes = [];
       let selectedProgramme = null;
       let selectedFile = null;
+      let fileUploadInitialized = false;
+
+      function showToast(type, message) {
+        if (window.VericaseUI?.Toast && typeof window.VericaseUI.Toast[type] === "function") {
+          window.VericaseUI.Toast[type](message);
+          return;
+        }
+        alert(message);
+      }
+
+      function ensureContextSelected(actionLabel) {
+        if (!contextId) {
+          const ctx = getContext();
+          contextId = ctx.id;
+          contextType = ctx.type;
+        }
+        if (contextId) return true;
+        const label = actionLabel ? ` to ${actionLabel}` : "";
+        showToast("warning", `Please select a project or case${label}.`);
+        return false;
+      }
 
       // ============================================
       // INITIALIZATION
@@ -861,26 +891,48 @@
       document.addEventListener("DOMContentLoaded", async () => {
         // Inject navigation shell
         if (window.VericaseShell) {
+          const ctx =
+            typeof window.VericaseShell.getContext === "function"
+              ? window.VericaseShell.getContext()
+              : { type: "project", id: window.VericaseShell.getProjectId() };
+          const ctxType = ctx?.type === "case" ? "case" : "project";
+          const ctxLabel =
+            ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
+          const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
+          const ctxId = ctx?.id ? String(ctx.id) : "";
+          const ctxUrl = ctxId
+            ? `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+            : "dashboard.html";
+
           window.VericaseShell.inject({
-            title: 'Programme Management',
+            title: '',
             breadcrumbs: [
-              { label: 'Home', url: 'master-dashboard.html', icon: 'fa-home' },
-              { label: 'Programme' }
+              { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+              { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
+              { label: "Programme", icon: "fa-project-diagram" }
             ]
           });
         }
 
-        // Get case context
-        caseId = getCaseId();
-        if (!caseId) {
-          VericaseUI.Toast.warning("Please select a case to manage programmes");
+        // Get context (project or case)
+        const ctx = getContext();
+        contextId = ctx.id;
+        contextType = ctx.type;
+        if (!contextId) {
+          showToast("warning", "Please select a project or case to manage programmes");
         }
 
         // Set default date to today
-        document.getElementById('programmeDate').valueAsDate = new Date();
+        const programmeDateInput = document.getElementById('programmeDate');
+        if (programmeDateInput) {
+          programmeDateInput.valueAsDate = new Date();
+        }
 
         // Setup file upload
         setupFileUpload();
+
+        // Setup button event listeners
+        setupButtonListeners();
 
         // Load programmes
         await loadProgrammes();
@@ -891,10 +943,67 @@
         });
       });
 
-      function getCaseId() {
+      function setupButtonListeners() {
+        const uploadBtn = document.getElementById('uploadBtn');
+        if (uploadBtn) {
+          uploadBtn.addEventListener('click', openUploadModal);
+        }
+        
+        const compareBtn = document.getElementById('compareBtn');
+        if (compareBtn) {
+          compareBtn.addEventListener('click', () => {
+            document.getElementById('compareModal').classList.add('active');
+          });
+        }
+      }
+
+      function getContext() {
+        // Use VericaseShell if available
+        if (window.VericaseShell && typeof window.VericaseShell.getContext === "function") {
+          const ctx = window.VericaseShell.getContext();
+          if (ctx?.id) return { type: ctx.type || 'project', id: String(ctx.id) };
+        }
+
+        // Check URL params - case first, then project
         const urlParams = new URLSearchParams(window.location.search);
-        return urlParams.get('caseId') || urlParams.get('case_id') ||
-               localStorage.getItem('vericase_current_case') || '1';
+        const caseFromUrl = urlParams.get('caseId') || urlParams.get('case_id');
+        if (caseFromUrl && caseFromUrl !== 'undefined' && caseFromUrl !== 'null') {
+          return { type: 'case', id: caseFromUrl };
+        }
+
+        const projectFromUrl = urlParams.get('projectId') || urlParams.get('project_id');
+        if (projectFromUrl && projectFromUrl !== 'undefined' && projectFromUrl !== 'null') {
+          return { type: 'project', id: projectFromUrl };
+        }
+
+        // Check localStorage
+        const storedCase =
+          localStorage.getItem('currentCaseId') ||
+          localStorage.getItem('caseId') ||
+          localStorage.getItem('vericase_current_case');
+        if (storedCase && storedCase !== 'undefined' && storedCase !== 'null') {
+          try {
+            const parsed = JSON.parse(storedCase);
+            return { type: 'case', id: parsed?.id ? String(parsed.id) : String(parsed) };
+          } catch {
+            return { type: 'case', id: String(storedCase) };
+          }
+        }
+
+        const storedProject =
+          localStorage.getItem('currentProjectId') ||
+          localStorage.getItem('vericase_current_project') ||
+          localStorage.getItem('projectId');
+        if (storedProject && storedProject !== 'undefined' && storedProject !== 'null') {
+          try {
+            const parsed = JSON.parse(storedProject);
+            return { type: 'project', id: parsed?.id ? String(parsed.id) : String(parsed) };
+          } catch {
+            return { type: 'project', id: String(storedProject) };
+          }
+        }
+
+        return { type: '', id: '' };
       }
 
       // ============================================
@@ -902,11 +1011,16 @@
       // ============================================
 
       async function loadProgrammes() {
-        if (!caseId) return;
+        if (!contextId) return;
 
         try {
           const token = localStorage.getItem('token');
-          const response = await fetch(`${apiUrl}/api/cases/${caseId}/programmes`, {
+          // Build URL based on context type
+          const endpoint = contextType === 'case'
+            ? `${apiUrl}/api/cases/${contextId}/programmes`
+            : `${apiUrl}/api/projects/${contextId}/programmes`;
+          
+          const response = await fetch(endpoint, {
             headers: token ? { 'Authorization': `Bearer ${token}` } : {}
           });
 
@@ -920,7 +1034,7 @@
           }
         } catch (error) {
           console.error('Error loading programmes:', error);
-          VericaseUI.Toast.error('Failed to load programmes');
+          showToast("error", 'Failed to load programmes');
         }
       }
 
@@ -1032,7 +1146,7 @@
           document.getElementById('detailPanel').classList.add('open');
         } catch (error) {
           console.error('Error loading programme:', error);
-          VericaseUI.Toast.error('Failed to load programme details');
+          showToast("error", 'Failed to load programme details');
         }
       }
 
@@ -1152,7 +1266,7 @@
       }
 
       function downloadProgramme(programmeId) {
-        VericaseUI.Toast.info('Download functionality coming soon');
+        showToast("info", 'Download functionality coming soon');
       }
 
       // ============================================
@@ -1160,9 +1274,12 @@
       // ============================================
 
       function setupFileUpload() {
+        if (fileUploadInitialized) return;
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
+        if (!dropZone || !fileInput) return;
 
+        fileUploadInitialized = true;
         dropZone.addEventListener('click', () => fileInput.click());
 
         dropZone.addEventListener('dragover', (e) => {
@@ -1194,7 +1311,7 @@
         const ext = '.' + file.name.split('.').pop().toLowerCase();
 
         if (!validTypes.includes(ext)) {
-          VericaseUI.Toast.error('Invalid file type. Please upload XML, Excel, or PDF files.');
+          showToast("error", 'Invalid file type. Please upload XML, Excel, or PDF files.');
           return;
         }
 
@@ -1226,6 +1343,8 @@
       }
 
       function openUploadModal() {
+        if (!ensureContextSelected("upload a programme")) return;
+        setupFileUpload();
         document.getElementById('uploadModal').classList.add('active');
       }
 
@@ -1238,7 +1357,11 @@
       }
 
       async function submitUpload() {
-        if (!selectedFile || !caseId) return;
+        if (!ensureContextSelected("upload a programme")) return;
+        if (!selectedFile) {
+          showToast("warning", "Please choose a programme file first.");
+          return;
+        }
 
         const submitBtn = document.getElementById('submitUploadBtn');
         submitBtn.disabled = true;
@@ -1247,7 +1370,12 @@
         try {
           const formData = new FormData();
           formData.append('file', selectedFile);
-          formData.append('case_id', caseId);
+          // Send context as either case_id or project_id based on context type
+          if (contextType === 'case') {
+            formData.append('case_id', contextId);
+          } else {
+            formData.append('project_id', contextId);
+          }
           formData.append('programme_type', document.getElementById('programmeType').value);
           formData.append('programme_date', document.getElementById('programmeDate').value);
 
@@ -1263,16 +1391,16 @@
 
           if (response.ok) {
             const result = await response.json();
-            VericaseUI.Toast.success(`Programme uploaded! ${result.activities_parsed} activities parsed.`);
+            showToast("success", `Programme uploaded! ${result.activities_parsed} activities parsed.`);
             closeUploadModal();
             await loadProgrammes();
           } else {
             const error = await response.json();
-            VericaseUI.Toast.error(error.detail || 'Upload failed');
+            showToast("error", error.detail || 'Upload failed');
           }
         } catch (error) {
           console.error('Upload error:', error);
-          VericaseUI.Toast.error('Upload failed. Please try again.');
+          showToast("error", 'Upload failed. Please try again.');
         } finally {
           submitBtn.disabled = false;
           submitBtn.innerHTML = '<i class="fas fa-upload"></i> Upload Programme';
@@ -1283,25 +1411,22 @@
       // COMPARE FUNCTIONALITY
       // ============================================
 
-      document.getElementById('compareBtn').addEventListener('click', () => {
-        document.getElementById('compareModal').classList.add('active');
-      });
-
       function closeCompareModal() {
         document.getElementById('compareModal').classList.remove('active');
       }
 
       async function runComparison() {
+        if (!ensureContextSelected("compare programmes")) return;
         const asPlannedId = document.getElementById('asPlannedSelect').value;
         const asBuiltId = document.getElementById('asBuiltSelect').value;
 
         if (!asPlannedId || !asBuiltId) {
-          VericaseUI.Toast.warning('Please select both programmes to compare');
+          showToast("warning", 'Please select both programmes to compare');
           return;
         }
 
         if (asPlannedId === asBuiltId) {
-          VericaseUI.Toast.warning('Please select different programmes to compare');
+          showToast("warning", 'Please select different programmes to compare');
           return;
         }
 
@@ -1324,25 +1449,29 @@
             closeCompareModal();
 
             if (result.total_delays > 0) {
-              VericaseUI.Toast.success(
+              showToast(
+                "success",
                 `Comparison complete! Found ${result.total_delays} delays (${result.critical_delays_count} critical). View in Delays page.`
               );
               // Offer to navigate to delays page
               setTimeout(() => {
                 if (confirm('Would you like to view the detected delays?')) {
-                  window.location.href = `delays.html?caseId=${caseId}`;
+                  const delaysUrl = contextType === 'case'
+                    ? `delays.html?caseId=${contextId}`
+                    : `delays.html?projectId=${contextId}`;
+                  window.location.href = delaysUrl;
                 }
               }, 500);
             } else {
-              VericaseUI.Toast.info('Comparison complete. No significant delays detected.');
+              showToast("info", 'Comparison complete. No significant delays detected.');
             }
           } else {
             const error = await response.json();
-            VericaseUI.Toast.error(error.detail || 'Comparison failed');
+            showToast("error", error.detail || 'Comparison failed');
           }
         } catch (error) {
           console.error('Comparison error:', error);
-          VericaseUI.Toast.error('Comparison failed. Please try again.');
+          showToast("error", 'Comparison failed. Please try again.');
         } finally {
           btn.disabled = false;
           btn.innerHTML = '<i class="fas fa-bolt"></i> Run Comparison';

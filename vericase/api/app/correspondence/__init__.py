@@ -7,6 +7,24 @@ Note: There is also an `app/correspondence.py` compatibility module that re-expo
 routers for legacy imports.
 """
 
-from .routes import router
+from .utils import (
+    _parse_pst_status_filter,
+    build_correspondence_visibility_filter,
+    compute_correspondence_exclusion,
+)
 
-__all__ = ["router"]
+# `router` pulls in the full FastAPI routing stack (and downstream deps like
+# OpenSearch client wiring). Keep it as a best-effort import so callers can
+# import lightweight helpers from this package without requiring all optional
+# runtime services.
+try:
+    from .routes import router  # type: ignore
+except ImportError:  # pragma: no cover
+    router = None  # type: ignore
+
+__all__ = [
+    "router",
+    "_parse_pst_status_filter",
+    "build_correspondence_visibility_filter",
+    "compute_correspondence_exclusion",
+]

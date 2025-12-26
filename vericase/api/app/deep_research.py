@@ -908,6 +908,8 @@ Always provide citations in the format: [Source: email/document ID, date, sender
         - MMR for diverse, non-redundant results
         """
 
+        relevant_evidence: list[dict[str, Any]] = []
+
         # If structured evidence items provided, use intelligent retrieval
         if evidence_items:
             try:
@@ -938,6 +940,17 @@ Always provide citations in the format: [Source: email/document ID, date, sender
                 )
             except Exception as e:
                 logger.warning(f"Intelligent retrieval failed, using raw context: {e}")
+
+        if not evidence_context or not evidence_context.strip():
+            return {
+                "findings": "Insufficient evidence retrieved to answer without speculation.",
+                "citations": [],
+                "gaps": [
+                    "No relevant evidence retrieved for this question; refine the query or broaden scope."
+                ],
+                "confidence": "low",
+                "key_entities": [],
+            }
 
         prior_str = ""
         if prior_findings:

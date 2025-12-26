@@ -11,10 +11,23 @@
     />
     <link rel="stylesheet" href="assets/global.css" />
     <!-- VeriCase Design System -->
-    <link rel="stylesheet" href="brand-styles.css" />
-    <link rel="stylesheet" href="design-system.css" />
+    <link rel="stylesheet" href="brand-styles.css?v=6" />
+    <link rel="stylesheet" href="design-system.css?v=6" />
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
+    <script>
+      (function () {
+        const params = new URLSearchParams(window.location.search);
+        const caseId = params.get("caseId");
+        const projectId = params.get("projectId");
+        const key = caseId ? "caseId" : projectId ? "projectId" : "";
+        const value = caseId || projectId || "";
+        const target = key
+          ? `ai-refinement-wizard.html?${key}=${encodeURIComponent(value)}`
+          : "ai-refinement-wizard.html";
+        window.location.replace(target);
+      })();
+    </script>
     <style>
       * {
         margin: 0;
@@ -531,8 +544,26 @@
       // Initialize
       document.addEventListener("DOMContentLoaded", () => {
         // Inject navigation shell
+        const ctx =
+          typeof VericaseShell.getContext === "function"
+            ? VericaseShell.getContext()
+            : { type: "project", id: VericaseShell.getProjectId() };
+        const ctxType = ctx?.type === "case" ? "case" : "project";
+        const ctxLabel =
+          ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
+        const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
+        const ctxId = ctx?.id ? String(ctx.id) : "";
+        const ctxUrl = ctxId
+          ? `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+          : "dashboard.html";
+
         VericaseShell.inject({
-          title: "Evidence Refinement",
+          title: '',
+          breadcrumbs: [
+            { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+            { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
+            { label: "Evidence Refinement", icon: "fa-wand-magic-sparkles" },
+          ],
           headerActions: `
             <div class="project-info-header">
               <span><i class="fas fa-project-diagram"></i> <span id="projectName">Loading...</span></span>

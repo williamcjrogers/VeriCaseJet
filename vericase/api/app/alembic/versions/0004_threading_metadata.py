@@ -17,42 +17,81 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "email_messages",
-        sa.Column("thread_group_id", sa.String(length=128), nullable=True),
-    )
-    op.add_column(
-        "email_messages",
-        sa.Column("thread_path", sa.String(length=64), nullable=True),
-    )
-    op.add_column(
-        "email_messages",
-        sa.Column("thread_position", sa.Integer(), nullable=True),
-    )
-    op.add_column(
-        "email_messages",
-        sa.Column("parent_message_id", sa.String(length=512), nullable=True),
-    )
-    op.add_column(
-        "email_messages",
-        sa.Column(
-            "is_inclusive",
-            sa.Boolean(),
-            server_default=sa.sql.expression.true(),
-            nullable=False,
-        ),
-    )
+    def column_exists(table: str, column: str) -> bool:
+        conn = op.get_bind()
+        result = conn.execute(
+            sa.text(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = :table
+                      AND column_name = :column
+                )
+                """
+            ),
+            {"table": table, "column": column},
+        )
+        return bool(result.scalar())
 
-    op.create_index(
-        "idx_email_thread_group",
-        "email_messages",
-        ["thread_group_id"],
-    )
-    op.create_index(
-        "idx_email_thread_path",
-        "email_messages",
-        ["thread_group_id", "thread_path"],
-    )
+    def index_exists(index_name: str) -> bool:
+        conn = op.get_bind()
+        result = conn.execute(
+            sa.text(
+                """
+                SELECT EXISTS (
+                    SELECT 1 FROM pg_indexes WHERE indexname = :index_name
+                )
+                """
+            ),
+            {"index_name": index_name},
+        )
+        return bool(result.scalar())
+
+    # Idempotent: legacy bootstrap may have already added these columns.
+    if not column_exists("email_messages", "thread_group_id"):
+        op.add_column(
+            "email_messages",
+            sa.Column("thread_group_id", sa.String(length=128), nullable=True),
+        )
+    if not column_exists("email_messages", "thread_path"):
+        op.add_column(
+            "email_messages",
+            sa.Column("thread_path", sa.String(length=64), nullable=True),
+        )
+    if not column_exists("email_messages", "thread_position"):
+        op.add_column(
+            "email_messages",
+            sa.Column("thread_position", sa.Integer(), nullable=True),
+        )
+    if not column_exists("email_messages", "parent_message_id"):
+        op.add_column(
+            "email_messages",
+            sa.Column("parent_message_id", sa.String(length=512), nullable=True),
+        )
+    if not column_exists("email_messages", "is_inclusive"):
+        op.add_column(
+            "email_messages",
+            sa.Column(
+                "is_inclusive",
+                sa.Boolean(),
+                server_default=sa.sql.expression.true(),
+                nullable=False,
+            ),
+        )
+
+    if not index_exists("idx_email_thread_group"):
+        op.create_index(
+            "idx_email_thread_group",
+            "email_messages",
+            ["thread_group_id"],
+        )
+    if not index_exists("idx_email_thread_path"):
+        op.create_index(
+            "idx_email_thread_path",
+            "email_messages",
+            ["thread_group_id", "thread_path"],
+        )
 
 
 def downgrade() -> None:

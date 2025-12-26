@@ -8,8 +8,8 @@
     <!-- Local Library -->
     <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
     <link rel="stylesheet" href="assets/global.css" />
-    <link rel="stylesheet" href="brand-styles.css" />
-    <link rel="stylesheet" href="design-system.css" />
+    <link rel="stylesheet" href="brand-styles.css?v=6" />
+    <link rel="stylesheet" href="design-system.css?v=6" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -42,6 +42,11 @@
         border-bottom: 2px solid var(--gray-200);
         padding: 1rem 2rem;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      }
+
+      /* Hide custom header when shell is active (consistent with dashboard/master-dashboard) */
+      .app-shell .header {
+        display: none;
       }
 
       .header-content {
@@ -652,30 +657,9 @@
       }
     </style>
   </head>
-  <body>
-    <div class="header">
-      <div class="header-content">
-        <div class="logo-section">
-          <img src="/assets/Logo-Vector.png" alt="VeriCase" class="logo" />
-          <span style="font-weight: 600; color: var(--vericase-navy)">Admin Settings</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Breadcrumbs for navigation clarity -->
-    <nav class="breadcrumbs">
-      <div class="container inner" aria-label="Breadcrumb">
-        <a href="dashboard.html">Home</a>
-        <span class="sep">/</span>
-        <span class="current">Admin Settings</span>
-      </div>
-    </nav>
-
+  <body class="preload">
+    <!-- Container - nav shell injected by JavaScript -->
     <div class="container">
-      <a href="dashboard.html" class="back-link">
-        <i class="fas fa-arrow-left"></i> Back to Dashboard
-      </a>
-
       <h1 class="page-title">Admin Settings</h1>
       <p class="page-subtitle">
         Configure system-wide settings for VeriCase
@@ -691,6 +675,12 @@
         </button>
         <button class="tab-btn" data-tab="ai-functions">
           <i class="fas fa-brain"></i> AI Functions
+        </button>
+        <button class="tab-btn" data-tab="ai-optimization">
+          <i class="fas fa-chart-line"></i> AI Optimization
+        </button>
+        <button class="tab-btn" data-tab="caselaw">
+          <i class="fas fa-scale-balanced"></i> Case Law
         </button>
         <button class="tab-btn" data-tab="display">
           <i class="fas fa-table"></i> Display
@@ -1195,6 +1185,462 @@
         </div>
       </div>
 
+      <!-- AI Optimization Tab -->
+      <div class="tab-content" id="tab-ai-optimization">
+        <div class="settings-section">
+          <div class="section-title">
+            <i class="fas fa-chart-line" style="color: var(--vericase-orange)"></i>
+            AI Optimization Analytics
+          </div>
+          <p class="section-description">
+            Track AI API calls, costs, performance, and quality metrics to optimize your AI usage
+          </p>
+
+          <!-- Statistics Cards -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+            <div class="stat-card" style="background: var(--card-bg); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border-color);">
+              <div style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Total Events</div>
+              <div id="stat-total-events" style="font-size: 2rem; font-weight: 600; color: var(--vericase-teal);">0</div>
+            </div>
+            <div class="stat-card" style="background: var(--card-bg); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border-color);">
+              <div style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Total Cost</div>
+              <div id="stat-total-cost" style="font-size: 2rem; font-weight: 600; color: var(--vericase-orange);">$0.00</div>
+            </div>
+            <div class="stat-card" style="background: var(--card-bg); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border-color);">
+              <div style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Success Rate</div>
+              <div id="stat-success-rate" style="font-size: 2rem; font-weight: 600; color: var(--vericase-green);">0%</div>
+            </div>
+            <div class="stat-card" style="background: var(--card-bg); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border-color);">
+              <div style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Avg Response Time</div>
+              <div id="stat-avg-response-time" style="font-size: 2rem; font-weight: 600; color: var(--vericase-blue);">0ms</div>
+            </div>
+          </div>
+
+          <!-- Filters -->
+          <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 150px;">
+              <label style="display: block; font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Provider</label>
+              <select id="filter-provider" class="setting-input" style="width: 100%;">
+                <option value="">All Providers</option>
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="gemini">Gemini</option>
+                <option value="bedrock">AWS Bedrock</option>
+                <option value="xai">xAI (Grok)</option>
+                <option value="perplexity">Perplexity</option>
+              </select>
+            </div>
+            <div style="flex: 1; min-width: 150px;">
+              <label style="display: block; font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Model</label>
+              <input id="filter-model" type="text" class="setting-input" placeholder="Filter by model ID" style="width: 100%;" />
+            </div>
+            <div style="flex: 1; min-width: 150px;">
+              <label style="display: block; font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Function</label>
+              <input id="filter-function" type="text" class="setting-input" placeholder="Filter by function" style="width: 100%;" />
+            </div>
+            <div style="flex: 0 0 auto; display: flex; align-items: flex-end; gap: 0.5rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input id="filter-success-only" type="checkbox" />
+                <span style="font-size: 0.875rem;">Success Only</span>
+              </label>
+            </div>
+            <div style="flex: 0 0 auto; display: flex; align-items: flex-end;">
+              <button class="btn btn-primary" onclick="loadAIOptimizationData()">
+                <i class="fas fa-sync"></i> Refresh
+              </button>
+            </div>
+          </div>
+
+          <!-- Events Table -->
+          <div style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: 8px;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="background: var(--card-bg); border-bottom: 2px solid var(--border-color);">
+                  <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.875rem;">Time</th>
+                  <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.875rem;">Provider</th>
+                  <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.875rem;">Model</th>
+                  <th style="padding: 0.75rem; text-align: left; font-weight: 600; font-size: 0.875rem;">Function</th>
+                  <th style="padding: 0.75rem; text-align: right; font-weight: 600; font-size: 0.875rem;">Tokens</th>
+                  <th style="padding: 0.75rem; text-align: right; font-weight: 600; font-size: 0.875rem;">Time (ms)</th>
+                  <th style="padding: 0.75rem; text-align: right; font-weight: 600; font-size: 0.875rem;">Cost</th>
+                  <th style="padding: 0.75rem; text-align: center; font-weight: 600; font-size: 0.875rem;">Status</th>
+                </tr>
+              </thead>
+              <tbody id="ai-events-tbody">
+                <tr>
+                  <td colspan="8" style="padding: 2rem; text-align: center; color: var(--text-secondary);">
+                    <i class="fas fa-spinner fa-spin"></i> Loading events...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Cost by Provider Chart Section -->
+          <div style="margin-top: 2rem;">
+            <div class="section-title" style="font-size: 1.125rem; margin-bottom: 1rem;">
+              <i class="fas fa-chart-pie" style="color: var(--vericase-orange)"></i>
+              Cost by Provider
+            </div>
+            <div id="cost-by-provider-chart" style="background: var(--card-bg); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border-color);">
+              <!-- Chart will be populated by JavaScript -->
+              <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <div id="cost-breakdown" style="color: var(--text-secondary); font-size: 0.875rem;">
+                  No data available
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- Case Law Intelligence Tab -->
+      <div class="tab-content" id="tab-caselaw">
+        <div class="settings-section">
+          <div class="section-title">
+            <i class="fas fa-scale-balanced" style="color: var(--vericase-navy)"></i>
+            Case Law Intelligence
+          </div>
+          <p class="section-description">
+            Manage case-law mining outputs, trend signals, and auto-tag suggestions.
+          </p>
+
+          <div class="info-box" style="margin-bottom: 1rem;">
+            <i class="fas fa-info-circle"></i>
+            <div>
+              <strong>Note:</strong> Trends and tag suggestions are available after cases finish the mining step
+              (extraction_status = "extracted").
+            </div>
+          </div>
+
+          <div class="settings-section" style="padding: 1.5rem; border: 1px solid var(--gray-100); border-radius: var(--radius-lg); background: var(--gray-50); margin-bottom: 1.5rem;">
+            <div class="section-title" style="font-size: 1.1rem;">
+              <i class="fas fa-sliders-h" style="color: var(--vericase-teal)"></i>
+              Configuration
+            </div>
+            <p class="section-description">
+              Control the mining model and tag taxonomy used by the case-law layer.
+            </p>
+
+            <div class="setting-row">
+              <div class="setting-label">
+                Mining Model ID
+                <small>LLM used for the extraction/mapping pass (format: provider:model_id)</small>
+              </div>
+              <input
+                type="text"
+                id="caselaw_mining_model"
+                class="setting-input wide"
+                placeholder="e.g., openai:gpt-4o or anthropic:claude-sonnet-4-20250514 or bedrock:amazon.nova-pro-v1:0"
+                value="openai:gpt-4o"
+              />
+              <button class="btn btn-primary" onclick="saveSetting('caselaw_mining_model')">
+                Save
+              </button>
+            </div>
+
+            <div class="setting-row" style="align-items: flex-start;">
+              <div class="setting-label">
+                Tag Taxonomy
+                <small>One tag per line (e.g., JCT, NEC, payment notices, fire safety)</small>
+              </div>
+              <textarea
+                id="caselaw_taxonomy"
+                class="setting-input wide"
+                rows="4"
+                placeholder="Enter canonical tag names to normalize suggestions..."
+                style="min-height: 120px;"
+              ></textarea>
+              <button class="btn btn-primary" onclick="saveSetting('caselaw_taxonomy')">
+                Save
+              </button>
+            </div>
+          </div>
+
+            <div class="status-grid" style="margin-top: 1rem;">
+              <div class="status-card" id="caselaw-total-card">
+                <div class="provider-icon" style="background: #e0f2fe; color: #0284c7;">
+                  <i class="fas fa-database"></i>
+                </div>
+                <div class="provider-info">
+                  <div class="provider-name">Extracted</div>
+                  <div class="provider-status" id="caselaw-total-cases">Loading…</div>
+                </div>
+              </div>
+              <div class="status-card">
+                <div class="provider-icon" style="background: #fef9c3; color: #d97706;">
+                  <i class="fas fa-hourglass-half"></i>
+                </div>
+                <div class="provider-info">
+                  <div class="provider-name">Pending</div>
+                  <div class="provider-status" id="caselaw-pending-cases">Loading…</div>
+                </div>
+              </div>
+              <div class="status-card">
+                <div class="provider-icon" style="background: #ecfeff; color: #0ea5e9;">
+                  <i class="fas fa-spinner"></i>
+                </div>
+                <div class="provider-info">
+                  <div class="provider-name">Processing</div>
+                  <div class="provider-status" id="caselaw-processing-cases">Loading…</div>
+                </div>
+              </div>
+              <div class="status-card">
+                <div class="provider-icon" style="background: #fef2f2; color: #dc2626;">
+                  <i class="fas fa-triangle-exclamation"></i>
+                </div>
+                <div class="provider-info">
+                  <div class="provider-name">Failed</div>
+                  <div class="provider-status" id="caselaw-failed-cases">Loading…</div>
+                </div>
+              </div>
+              <div class="status-card">
+                <div class="provider-icon" style="background: #ecfeff; color: #0ea5e9;">
+                  <i class="fas fa-chart-bar"></i>
+                </div>
+              <div class="provider-info">
+                <div class="provider-name">Trends Endpoint</div>
+                <div class="provider-status">GET /api/caselaw/trends</div>
+              </div>
+            </div>
+            <div class="status-card">
+              <div class="provider-icon" style="background: #fef9c3; color: #d97706;">
+                <i class="fas fa-tags"></i>
+              </div>
+              <div class="provider-info">
+                <div class="provider-name">Tag Suggestions</div>
+                <div class="provider-status">POST /api/caselaw/suggest-tags</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="section-title">
+            <i class="fas fa-hammer" style="color: #14b8a6"></i>
+            Mining Runner
+          </div>
+          <p class="section-description">
+            Mine pending cases in the background so trends and tag suggestions have data to work with.
+          </p>
+
+          <div class="function-grid">
+            <div class="function-field">
+              <label>Batch Size</label>
+              <input type="number" id="caselaw-mine-limit" class="setting-input" min="1" max="500" value="50" />
+            </div>
+            <div class="function-field">
+              <label>Concurrency</label>
+              <input type="number" id="caselaw-mine-concurrency" class="setting-input" min="1" max="10" value="2" />
+            </div>
+            <div class="function-field" style="display: flex; flex-direction: column; justify-content: flex-end;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input id="caselaw-mine-include-failed" type="checkbox" />
+                <span style="font-size: 0.875rem;">Include failed</span>
+              </label>
+            </div>
+            <div class="function-field" style="display: flex; flex-direction: column; justify-content: flex-end;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input id="caselaw-mine-include-extracted" type="checkbox" />
+                <span style="font-size: 0.875rem;">Re-mine extracted</span>
+              </label>
+            </div>
+            <div class="function-field" style="display: flex; flex-direction: column; justify-content: flex-end;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input id="caselaw-mine-construction-only" type="checkbox" />
+                <span style="font-size: 0.875rem;">Construction focus</span>
+              </label>
+            </div>
+          </div>
+
+          <div style="margin-top: 1rem; display: flex; gap: 0.75rem; align-items: center;">
+            <button class="btn btn-primary" onclick="runCaseLawMiningBatch()">
+              <i class="fas fa-play"></i> Mine Next Batch
+            </button>
+            <button class="btn btn-secondary" onclick="loadCaseLawMiningStatus()">
+              <i class="fas fa-sync-alt"></i> Refresh Status
+            </button>
+            <span id="caselaw-mine-status" class="help-text"></span>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="section-title">
+            <i class="fas fa-layer-group" style="color: var(--vericase-navy)"></i>
+            Vectorization
+          </div>
+          <p class="section-description">
+            Trigger knowledge base ingestion after mining so case law vectors are refreshed.
+          </p>
+          <div style="margin-top: 1rem; display: flex; gap: 0.75rem; align-items: center;">
+            <button class="btn btn-primary" onclick="runCaseLawKBIngest()">
+              <i class="fas fa-database"></i> Trigger KB Ingest
+            </button>
+            <span id="caselaw-kb-status" class="help-text"></span>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="section-title">
+            <i class="fas fa-chart-pie" style="color: var(--vericase-teal)"></i>
+            Trend Snapshot
+          </div>
+          <p class="section-description">
+            Quickly inspect recurring themes, contentious issues, and tags from extracted cases.
+          </p>
+          <div style="display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1rem;">
+            <button class="btn btn-primary" onclick="loadCaseLawTrends()">
+              <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+            <span id="caselaw-trends-status" class="help-text"></span>
+          </div>
+
+          <div class="function-grid" id="caselaw-trends-grid">
+            <div class="function-field">
+              <label>Top Themes</label>
+              <ul id="caselaw-top-themes" class="section-description"></ul>
+            </div>
+            <div class="function-field">
+              <label>Contentious Issues</label>
+              <ul id="caselaw-top-issues" class="section-description"></ul>
+            </div>
+            <div class="function-field">
+              <label>Tags</label>
+              <ul id="caselaw-top-tags" class="section-description"></ul>
+            </div>
+            <div class="function-field">
+              <label>Outcomes</label>
+              <ul id="caselaw-top-outcomes" class="section-description"></ul>
+            </div>
+            <div class="function-field">
+              <label>Construction Buckets</label>
+              <ul id="caselaw-top-buckets" class="section-description"></ul>
+            </div>
+            <div class="function-field" style="grid-column: 1 / -1;">
+              <label>Predictive Signals</label>
+              <ul id="caselaw-predictive-signals" class="section-description"></ul>
+              <div id="caselaw-predictive-meta" class="help-text"></div>
+            </div>
+            <div class="function-field" style="grid-column: 1 / -1;">
+              <label>Proactive Trends</label>
+              <ul id="caselaw-proactive-trends" class="section-description"></ul>
+              <div id="caselaw-proactive-meta" class="help-text"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="section-title">
+            <i class="fas fa-folder-open" style="color: #14b8a6"></i>
+            Context Documents
+          </div>
+          <p class="section-description">
+            Upload claim submissions or key documents to steer case-law searches and tag suggestions.
+          </p>
+
+          <div class="function-grid">
+            <div class="function-field">
+              <label>Context Tag</label>
+              <input type="text" id="caselaw-context-tag" class="setting-input" value="caselaw-context" />
+            </div>
+            <div class="function-field">
+              <label>Max Docs Used</label>
+              <input type="number" id="caselaw-context-max" class="setting-input" min="1" max="25" value="5" />
+            </div>
+            <div class="function-field" style="grid-column: 1 / -1;">
+              <label>Upload Documents</label>
+              <input type="file" id="caselaw-context-file" class="setting-input wide" multiple />
+            </div>
+          </div>
+
+          <div style="margin-top: 1rem; display: flex; gap: 0.75rem; align-items: center;">
+            <button class="btn btn-primary" onclick="uploadCaseLawContext()">
+              <i class="fas fa-upload"></i> Upload
+            </button>
+            <span id="caselaw-context-upload-status" class="help-text"></span>
+          </div>
+
+          <div style="margin-top: 1rem; display: flex; gap: 0.75rem; align-items: center;">
+            <button class="btn btn-primary" onclick="runContextSuggestion()">
+              <i class="fas fa-magnifying-glass"></i> Generate Suggestions
+            </button>
+            <span id="caselaw-context-suggest-status" class="help-text"></span>
+          </div>
+
+          <div class="status-grid" style="margin-top: 1rem;">
+            <div class="status-card">
+              <div class="provider-icon" style="background: #ecfeff; color: #0ea5e9;">
+                <i class="fas fa-tags"></i>
+              </div>
+              <div class="provider-info">
+                <div class="provider-name">Suggested Tags</div>
+                <div class="provider-status" id="caselaw-context-tags">-</div>
+              </div>
+            </div>
+            <div class="status-card">
+              <div class="provider-icon" style="background: #fef2f2; color: #dc2626;">
+                <i class="fas fa-exclamation-triangle"></i>
+              </div>
+              <div class="provider-info">
+                <div class="provider-name">Contentious Issues</div>
+                <div class="provider-status" id="caselaw-context-issues">-</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="section-title">
+            <i class="fas fa-lightbulb" style="color: #f59e0b"></i>
+            Suggest Tags & Issues
+          </div>
+          <p class="section-description">
+            Paste narrative text to auto-suggest tags and contentious issues using the mined case-law vocabulary.
+          </p>
+
+          <div class="function-grid">
+            <div class="function-field" style="grid-column: 1 / -1;">
+              <label>Text to Analyze</label>
+              <textarea id="caselaw-suggest-text" class="setting-input wide" rows="4"
+                placeholder="Paste correspondence, pleadings, or summaries to suggest tags..."></textarea>
+            </div>
+            <div class="function-field">
+              <label>Top N</label>
+              <input type="number" id="caselaw-suggest-topn" class="setting-input" min="1" max="15" value="8" />
+            </div>
+          </div>
+
+          <div style="margin-top: 1rem; display: flex; gap: 0.75rem; align-items: center;">
+            <button class="btn btn-primary" onclick="runTagSuggestion()">
+              <i class="fas fa-magic"></i> Suggest
+            </button>
+            <span id="caselaw-suggest-status" class="help-text"></span>
+          </div>
+
+          <div class="status-grid" style="margin-top: 1rem;">
+            <div class="status-card">
+              <div class="provider-icon" style="background: #ecfeff; color: #0ea5e9;">
+                <i class="fas fa-tags"></i>
+              </div>
+              <div class="provider-info">
+                <div class="provider-name">Tags</div>
+                <div class="provider-status" id="caselaw-suggest-tags">—</div>
+              </div>
+            </div>
+            <div class="status-card">
+              <div class="provider-icon" style="background: #fef2f2; color: #dc2626;">
+                <i class="fas fa-exclamation-triangle"></i>
+              </div>
+              <div class="provider-info">
+                <div class="provider-name">Contentious Issues</div>
+                <div class="provider-status" id="caselaw-suggest-issues">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Display Settings Tab -->
       <div class="tab-content" id="tab-display">
         <div class="settings-section">
@@ -1386,6 +1832,23 @@
     </div>
 
     <script>
+      // Inject navigation shell
+      document.addEventListener("DOMContentLoaded", () => {
+        VericaseShell.inject({
+          title: '',
+          breadcrumbs: [
+            { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+            { label: "Admin Settings", icon: "fa-cog" },
+          ],
+          headerActions: '',
+        });
+
+        // Remove preload class after shell is injected
+        requestAnimationFrame(() => {
+          document.body.classList.remove("preload");
+        });
+      });
+
       const API_BASE = window.location.origin;
       const token = localStorage.getItem("token");
 
@@ -1780,6 +2243,98 @@
         } finally {
           btn.innerHTML = originalText;
           btn.disabled = false;
+        }
+      }
+
+      // ====== AI Optimization Functions ======
+      async function loadAIOptimizationData() {
+        const token = localStorage.getItem("vericase_token");
+        if (!token) return;
+
+        try {
+          // Get filters
+          const provider = document.getElementById("filter-provider")?.value || "";
+          const model = document.getElementById("filter-model")?.value || "";
+          const functionName = document.getElementById("filter-function")?.value || "";
+          const successOnly = document.getElementById("filter-success-only")?.checked || false;
+
+          // Build query string
+          const params = new URLSearchParams();
+          if (provider) params.append("provider", provider);
+          if (model) params.append("model_id", model);
+          if (functionName) params.append("function_name", functionName);
+          if (successOnly) params.append("success_only", "true");
+          params.append("limit", "50");
+
+          // Fetch events
+          const response = await fetch(`${API_BASE}/api/admin/ai-optimization/events?${params}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to load AI optimization data: ${response.status}`);
+          }
+
+          const data = await response.json();
+
+          // Update statistics cards
+          document.getElementById("stat-total-events").textContent = data.stats.total_events.toLocaleString();
+          document.getElementById("stat-total-cost").textContent = "$" + data.stats.total_cost_usd.toFixed(2);
+          document.getElementById("stat-success-rate").textContent = (data.stats.success_rate * 100).toFixed(1) + "%";
+          document.getElementById("stat-avg-response-time").textContent = Math.round(data.stats.average_response_time_ms) + "ms";
+
+          // Update events table
+          const tbody = document.getElementById("ai-events-tbody");
+          if (data.events.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" style="padding: 2rem; text-align: center; color: var(--text-secondary);">No events found</td></tr>`;
+          } else {
+            tbody.innerHTML = data.events.map(event => {
+              const date = new Date(event.created_at);
+              const statusBadge = event.success
+                ? `<span style="background: var(--success-light); color: var(--success); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500;"><i class="fas fa-check-circle"></i> Success</span>`
+                : `<span style="background: var(--error-light); color: var(--error); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500;"><i class="fas fa-times-circle"></i> Failed</span>`;
+              return `
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                  <td style="padding: 0.75rem; font-size: 0.8rem;">${date.toLocaleString()}</td>
+                  <td style="padding: 0.75rem; font-size: 0.8rem; text-transform: capitalize;">${event.provider}</td>
+                  <td style="padding: 0.75rem; font-size: 0.8rem; font-family: monospace;">${event.model_id}</td>
+                  <td style="padding: 0.75rem; font-size: 0.8rem;">${event.function_name || "-"}</td>
+                  <td style="padding: 0.75rem; text-align: right; font-size: 0.8rem;">${event.total_tokens || "-"}</td>
+                  <td style="padding: 0.75rem; text-align: right; font-size: 0.8rem;">${event.response_time_ms}</td>
+                  <td style="padding: 0.75rem; text-align: right; font-size: 0.8rem;">${event.cost_usd ? "$" + event.cost_usd.toFixed(4) : "-"}</td>
+                  <td style="padding: 0.75rem; text-align: center;">${statusBadge}</td>
+                </tr>
+              `;
+            }).join("");
+          }
+
+          // Update cost breakdown chart
+          const costBreakdown = document.getElementById("cost-breakdown");
+          if (Object.keys(data.stats.cost_by_provider).length === 0) {
+            costBreakdown.innerHTML = "No cost data available";
+          } else {
+            const bars = Object.entries(data.stats.cost_by_provider)
+              .sort((a, b) => b[1] - a[1])
+              .map(([provider, cost]) => {
+                const percentage = (cost / data.stats.total_cost_usd) * 100;
+                return `
+                  <div style="margin-bottom: 0.75rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem; font-size: 0.8rem;">
+                      <span style="font-weight: 500; text-transform: capitalize;">${provider}</span>
+                      <span style="color: var(--text-secondary);">$${cost.toFixed(2)} (${percentage.toFixed(1)}%)</span>
+                    </div>
+                    <div style="width: 100%; height: 8px; background: var(--gray-200); border-radius: 4px; overflow: hidden;">
+                      <div style="width: ${percentage}%; height: 100%; background: var(--vericase-orange);"></div>
+                    </div>
+                  </div>
+                `;
+              }).join("");
+            costBreakdown.innerHTML = bars;
+          }
+
+        } catch (error) {
+          console.error("Error loading AI optimization data:", error);
+          showToast("Failed to load AI optimization data", "error");
         }
       }
 
@@ -2295,12 +2850,384 @@
         }
       }
 
+      // ====== Case Law Intelligence ======
+      async function loadCaseLawMiningStatus() {
+        const statusEl = document.getElementById("caselaw-mine-status");
+        const extractedEl = document.getElementById("caselaw-total-cases");
+        const pendingEl = document.getElementById("caselaw-pending-cases");
+        const processingEl = document.getElementById("caselaw-processing-cases");
+        const failedEl = document.getElementById("caselaw-failed-cases");
+
+        try {
+          if (statusEl) statusEl.textContent = "Loading…";
+          const response = await fetch(`${API_BASE}/api/caselaw/mining/status`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!response.ok) {
+            if (statusEl) statusEl.textContent = `Failed (${response.status})`;
+            return;
+          }
+
+          const data = await response.json();
+          const counts = data.counts || {};
+          const extracted = counts.extracted ?? 0;
+          const pending = counts.pending ?? 0;
+          const processing = counts.processing ?? 0;
+          const failed = counts.failed ?? 0;
+
+          if (extractedEl) extractedEl.textContent = extracted;
+          if (pendingEl) pendingEl.textContent = pending;
+          if (processingEl) processingEl.textContent = processing;
+          if (failedEl) failedEl.textContent = failed;
+          if (statusEl) statusEl.textContent = "Ready";
+        } catch (error) {
+          console.error("Error loading caselaw mining status:", error);
+          if (statusEl) statusEl.textContent = "Error";
+        }
+      }
+
+      async function runCaseLawMiningBatch() {
+        const limit = parseInt(document.getElementById("caselaw-mine-limit")?.value || "50", 10);
+        const concurrency = parseInt(document.getElementById("caselaw-mine-concurrency")?.value || "2", 10);
+        const includeFailed = !!document.getElementById("caselaw-mine-include-failed")?.checked;
+        const includeExtracted = !!document.getElementById("caselaw-mine-include-extracted")?.checked;
+        const constructionOnly = !!document.getElementById("caselaw-mine-construction-only")?.checked;
+        const statusEl = document.getElementById("caselaw-mine-status");
+
+        if (statusEl) statusEl.textContent = "Queueing…";
+        try {
+          const response = await fetch(`${API_BASE}/api/caselaw/mining/run`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              limit,
+              concurrency,
+              include_failed: includeFailed,
+              include_extracted: includeExtracted,
+              construction_only: constructionOnly,
+            }),
+          });
+
+          if (!response.ok) {
+            let message = "Failed to start mining";
+            try {
+              const errorData = await response.json();
+              message = errorData.detail || message;
+            } catch (e) {}
+            showToast(message, "error");
+            if (statusEl) statusEl.textContent = "Failed";
+            return;
+          }
+
+          const data = await response.json();
+          showToast(`Queued ${data.queued || 0} case(s) for mining`, "success");
+          if (statusEl) statusEl.textContent = `Queued ${data.queued || 0}`;
+          await loadCaseLawMiningStatus();
+          setTimeout(loadCaseLawTrends, 2000);
+        } catch (error) {
+          console.error("Error starting caselaw mining:", error);
+          if (statusEl) statusEl.textContent = "Error";
+          showToast("Failed to start mining", "error");
+        }
+      }
+
+      async function runCaseLawKBIngest() {
+        const statusEl = document.getElementById("caselaw-kb-status");
+        if (statusEl) statusEl.textContent = "Starting.";
+        try {
+          const response = await fetch(`${API_BASE}/api/caselaw/kb/ingest`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          if (!response.ok) {
+            let message = "Failed to start ingestion";
+            try {
+              const errorData = await response.json();
+              message = errorData.detail || message;
+            } catch (e) {}
+            if (statusEl) statusEl.textContent = message;
+            showToast(message, "error");
+            return;
+          }
+          const data = await response.json();
+          const status = data.status ? `Ingesting (${data.status})` : "Ingestion started";
+          if (statusEl) statusEl.textContent = status;
+          showToast("Knowledge base ingestion started", "success");
+        } catch (error) {
+          console.error("Error starting caselaw KB ingestion:", error);
+          if (statusEl) statusEl.textContent = "Error";
+          showToast("Failed to start KB ingestion", "error");
+        }
+      }
+
+      async function loadCaseLawTrends() {
+        const statusEl = document.getElementById("caselaw-trends-status");
+        const totalEl = document.getElementById("caselaw-total-cases");
+        const themesEl = document.getElementById("caselaw-top-themes");
+        const issuesEl = document.getElementById("caselaw-top-issues");
+        const tagsEl = document.getElementById("caselaw-top-tags");
+        const outcomesEl = document.getElementById("caselaw-top-outcomes");
+        const bucketsEl = document.getElementById("caselaw-top-buckets");
+        const predictiveEl = document.getElementById("caselaw-predictive-signals");
+        const predictiveMetaEl = document.getElementById("caselaw-predictive-meta");
+        const proactiveEl = document.getElementById("caselaw-proactive-trends");
+        const proactiveMetaEl = document.getElementById("caselaw-proactive-meta");
+
+        const setList = (el, items) => {
+          if (!el) return;
+          el.innerHTML = items && items.length
+            ? items.map((i) => `<li>${i.value} <span style="color: var(--text-secondary)">(${i.count})</span></li>`).join("")
+            : "<li style='color: var(--text-secondary)'>No data</li>";
+        };
+        const formatPct = (value) => {
+          if (typeof value !== "number") return "-";
+          return `${Math.round(value * 100)}%`;
+        };
+        const formatLift = (value) => {
+          if (typeof value !== "number") return "-";
+          return `${value.toFixed(2)}x`;
+        };
+          const formatFeatureType = (value) => {
+          const type = String(value || "").toLowerCase();
+          const mapping = {
+            theme: "Theme",
+            contentious_issue: "Issue",
+            tag: "Tag",
+            issue: "Issue",
+            delay_cause: "Delay Cause",
+            defect_type: "Defect Type",
+            key_clause: "Key Clause",
+            contract_form: "Contract Form",
+            procurement_route: "Procurement Route",
+            construction_bucket: "Bucket",
+            rfi_count: "RFI Count",
+            change_order_count: "Change Orders",
+            delay_days: "Delay Days",
+            eot_days_granted: "EOT Days",
+            claim_value_gbp: "Claim Value",
+            award_amount_gbp: "Award Amount",
+          };
+          return mapping[type] || "Signal";
+        };
+        const setSignals = (el, items) => {
+          if (!el) return;
+          el.innerHTML = items && items.length
+            ? items.map((signal) => {
+              const featureType = formatFeatureType(signal.feature_type);
+              const feature = signal.feature || "Unknown";
+              const outcome = signal.outcome || "Unknown";
+              const featureRate = formatPct(signal.feature_rate);
+              const baseRate = formatPct(signal.base_rate);
+              const lift = formatLift(signal.lift);
+              const support = signal.support ?? 0;
+              const featureCases = signal.feature_cases ?? 0;
+              return `<li>${featureType}: ${feature} -> ${outcome} (${featureRate} vs ${baseRate}, lift ${lift}, n=${support}/${featureCases})</li>`;
+            }).join("")
+            : "<li style='color: var(--text-secondary)'>Not enough data yet</li>";
+        };
+        const setProactive = (el, items) => {
+          if (!el) return;
+          el.innerHTML = items && items.length
+            ? items.map((signal) => {
+              const featureType = formatFeatureType(signal.feature_type);
+              const feature = signal.feature || "Unknown";
+              const outcome = signal.outcome || "Unknown";
+              const lift = formatLift(signal.lift);
+              const support = signal.support ?? 0;
+              const level = signal.level || "watch";
+              return `<li>${featureType}: ${feature} -> ${outcome} (${level}, lift ${lift}, n=${support})</li>`;
+            }).join("")
+            : "<li style='color: var(--text-secondary)'>No proactive trends yet</li>";
+        };
+
+        try {
+          if (statusEl) statusEl.textContent = "Loading…";
+          await loadCaseLawMiningStatus();
+          const response = await fetch(`${API_BASE}/api/caselaw/trends?top_n=8`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!response.ok) {
+            if (statusEl) statusEl.textContent = `Failed (${response.status})`;
+            return;
+          }
+          const data = await response.json();
+          if (totalEl) totalEl.textContent = data.total_cases ?? "0";
+          setList(themesEl, data.themes || []);
+          setList(issuesEl, data.contentious_issues || []);
+          setList(tagsEl, data.tags || []);
+          setList(outcomesEl, data.outcomes || []);
+          setList(bucketsEl, data.construction_buckets || []);
+          setSignals(predictiveEl, data.predictive_signals || []);
+          if (predictiveMetaEl) {
+            const count = data.predictive_case_count ?? 0;
+            predictiveMetaEl.textContent = `Signals based on ${count} case(s) with outcomes.`;
+          }
+          setProactive(proactiveEl, data.proactive_trends || []);
+          if (proactiveMetaEl) {
+            proactiveMetaEl.textContent = data.proactive_fallback
+              ? "Watching signals (low volume)."
+              : "Actionable signals.";
+          }
+          if (statusEl) statusEl.textContent = "Last updated just now";
+        } catch (error) {
+          console.error("Error loading caselaw trends:", error);
+          if (statusEl) statusEl.textContent = "Error loading trends";
+        }
+      }
+
+      async function runTagSuggestion() {
+        const text = document.getElementById("caselaw-suggest-text")?.value || "";
+        const topN = parseInt(document.getElementById("caselaw-suggest-topn")?.value || "8", 10);
+        const statusEl = document.getElementById("caselaw-suggest-status");
+        const tagsEl = document.getElementById("caselaw-suggest-tags");
+        const issuesEl = document.getElementById("caselaw-suggest-issues");
+
+        if (!text.trim()) {
+          showToast("Please paste some text to analyze.", "error");
+          return;
+        }
+
+        if (statusEl) statusEl.textContent = "Running…";
+        try {
+          const response = await fetch(`${API_BASE}/api/caselaw/suggest-tags`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ text, top_n: topN }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            showToast(errorData.detail || "Failed to suggest tags", "error");
+            if (statusEl) statusEl.textContent = "Failed";
+            return;
+          }
+
+          const data = await response.json();
+          if (tagsEl) tagsEl.textContent = (data.tags || []).join(", ") || "—";
+          if (issuesEl) issuesEl.textContent = (data.contentious_issues || []).join(", ") || "—";
+          if (statusEl) statusEl.textContent = "Done";
+        } catch (error) {
+          console.error("Error running tag suggestion:", error);
+          if (statusEl) statusEl.textContent = "Error";
+          showToast("Failed to suggest tags", "error");
+        }
+      }
+
+      async function uploadCaseLawContext() {
+        const fileInput = document.getElementById("caselaw-context-file");
+        const tagInput = document.getElementById("caselaw-context-tag");
+        const statusEl = document.getElementById("caselaw-context-upload-status");
+        const tagValue = tagInput?.value?.trim() || "caselaw-context";
+        const files = Array.from(fileInput?.files || []);
+
+        if (!files.length) {
+          showToast("Select at least one file to upload.", "error");
+          return;
+        }
+
+        if (statusEl) statusEl.textContent = "Uploading.";
+        let successCount = 0;
+        let failCount = 0;
+        for (const file of files) {
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("tags", tagValue);
+          try {
+            const response = await fetch(`${API_BASE}/api/caselaw/context/upload`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+              body: formData,
+            });
+            if (!response.ok) {
+              let message = "Upload failed";
+              try {
+                const errorData = await response.json();
+                message = errorData.detail || message;
+              } catch (e) {
+                try {
+                  const text = await response.text();
+                  message = text || message;
+                } catch (_) {}
+              }
+              showToast(message, "error");
+              failCount += 1;
+              continue;
+            }
+            successCount += 1;
+          } catch (error) {
+            console.error("Context upload failed:", error);
+            failCount += 1;
+          }
+        }
+
+        if (statusEl) statusEl.textContent = `Uploaded ${successCount}/${files.length}`;
+        if (successCount > 0) {
+          const suffix = failCount ? ` (${failCount} failed)` : "";
+          showToast(`Uploaded ${successCount} context file(s)${suffix}`, "success");
+        } else {
+          showToast("No files uploaded. Check the console/network tab for details.", "error");
+        }
+        if (fileInput) fileInput.value = "";
+      }
+
+      async function runContextSuggestion() {
+        const tagValue = document.getElementById("caselaw-context-tag")?.value?.trim() || "caselaw-context";
+        const maxItems = parseInt(document.getElementById("caselaw-context-max")?.value || "5", 10);
+        const statusEl = document.getElementById("caselaw-context-suggest-status");
+        const tagsEl = document.getElementById("caselaw-context-tags");
+        const issuesEl = document.getElementById("caselaw-context-issues");
+
+        if (statusEl) statusEl.textContent = "Analyzing.";
+        try {
+          const response = await fetch(`${API_BASE}/api/caselaw/context/suggest`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              tag: tagValue,
+              max_items: maxItems,
+              top_n: 10,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            showToast(errorData.detail || "Failed to generate suggestions", "error");
+            if (statusEl) statusEl.textContent = "Failed";
+            return;
+          }
+
+          const data = await response.json();
+          const suggestions = data.suggestions || {};
+          if (tagsEl) tagsEl.textContent = (suggestions.tags || []).join(", ") || "-";
+          if (issuesEl) issuesEl.textContent = (suggestions.contentious_issues || []).join(", ") || "-";
+          if (statusEl) statusEl.textContent = `Done (${data.evidence_count || 0} docs)`;
+        } catch (error) {
+          console.error("Error generating context suggestions:", error);
+          if (statusEl) statusEl.textContent = "Error";
+          showToast("Failed to generate suggestions", "error");
+        }
+      }
+
       // ====== Initialize ======
       async function init() {
         await loadAIModels();
         await loadSettings();
         await loadFunctionConfigs();
         await loadAIToolConfigs();
+        await loadCaseLawTrends();
       }
 
       init();

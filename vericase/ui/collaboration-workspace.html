@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>VeriCase - Collaboration Hub</title>
+
+  <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
+
+  <link rel="stylesheet" href="brand-styles.css?v=6" />
+  <link rel="stylesheet" href="design-system.css?v=6" />
+  <script src="config.js"></script>
+  <script src="vericase-ui.js"></script>
+  <script src="nav-shell.js"></script>
+
+  <style>
+    body {
+      background: var(--bg-primary);
+      overflow: auto;
+    }
+
+    .app-content.collaboration-page {
+      padding: 20px;
+      min-height: 0;
+    }
+
+    .collaboration-layout {
+      display: grid;
+      grid-template-columns: 1fr 1.1fr;
+      gap: 16px;
+      min-height: 0;
+      align-items: start;
+    }
+
+    @media (max-width: 1100px) {
+      .collaboration-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .collab-card {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .collab-card-header {
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+
+    .collab-card-header h2 {
+      margin: 0;
+      font-size: 0.95rem;
+      color: var(--vericase-navy);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .collab-muted {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+    }
+
+    .lane-tabs {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px 0 16px;
+      flex-wrap: wrap;
+    }
+
+    .lane-tab {
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: 1px solid var(--gray-200);
+      border-radius: 999px;
+      background: white;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all var(--duration-fast);
+    }
+
+    .lane-tab.active {
+      background: var(--vericase-teal);
+      border-color: var(--vericase-teal);
+      color: white;
+    }
+
+    .lane-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      background: var(--gray-100);
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .lane-badge.core {
+      background: rgba(15, 157, 154, 0.12);
+      color: #0f766e;
+    }
+
+    .lane-badge.counsel {
+      background: rgba(59, 130, 246, 0.12);
+      color: #1d4ed8;
+    }
+
+    .lane-badge.expert {
+      background: rgba(245, 158, 11, 0.16);
+      color: #b45309;
+    }
+
+    .team-chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 0 16px 12px 16px;
+    }
+
+    .focus-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      background: rgba(15, 157, 154, 0.08);
+      border-bottom: 1px solid rgba(15, 157, 154, 0.16);
+    }
+
+    .focus-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .focus-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #0f766e;
+    }
+
+    .focus-name {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--vericase-navy);
+      word-break: break-word;
+    }
+
+    .focus-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .team-chip {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--gray-200);
+      background: var(--gray-50);
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .team-chip strong {
+      color: var(--text-primary);
+      font-weight: 700;
+      font-size: 0.75rem;
+    }
+
+    .scroll-area {
+      padding: 14px 16px;
+      overflow-y: auto;
+      min-height: 0;
+      max-height: 520px;
+    }
+
+    .activity-item {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--gray-100);
+    }
+
+    .activity-item:last-child {
+      border-bottom: none;
+    }
+
+    .activity-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 10px;
+      background: rgba(15, 157, 154, 0.12);
+      color: var(--vericase-teal);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      margin-top: 2px;
+    }
+
+    .activity-title {
+      font-size: 0.85rem;
+      color: var(--text-primary);
+      line-height: 1.3;
+    }
+
+    .activity-meta {
+      margin-top: 4px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .comment {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--gray-100);
+    }
+
+    .comment:last-child {
+      border-bottom: none;
+    }
+
+    .comment-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+
+    .comment-author {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .comment-time {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .comment-body {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .comment-replies {
+      margin-top: 8px;
+      padding-left: 14px;
+      border-left: 2px solid var(--gray-100);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .composer {
+      border-top: 1px solid var(--gray-100);
+      padding: 12px 16px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .composer textarea {
+      width: 100%;
+      min-height: 84px;
+      resize: vertical;
+      border: 2px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 0.875rem;
+      outline: none;
+      transition: all var(--duration-fast);
+      background: var(--gray-50);
+    }
+
+    .composer textarea:focus {
+      border-color: var(--vericase-teal);
+      box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.14);
+      background: white;
+    }
+
+    .composer-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      background: var(--vericase-teal);
+      color: white;
+      border: 1px solid var(--vericase-teal);
+      padding: 10px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.85rem;
+      transition: all var(--duration-fast);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary:hover {
+      filter: brightness(0.96);
+      transform: translateY(-1px);
+    }
+
+    .btn-ghost {
+      background: white;
+      color: var(--text-secondary);
+      border: 1px solid var(--gray-200);
+      padding: 10px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.85rem;
+      transition: all var(--duration-fast);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-ghost:hover {
+      border-color: var(--gray-300);
+      color: var(--text-primary);
+      transform: translateY(-1px);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="collaboration-layout">
+    <section class="collab-card">
+      <div class="collab-card-header">
+        <h2><i class="fas fa-bolt"></i> Activity</h2>
+        <div class="collab-muted" id="activityStatus">Loading…</div>
+      </div>
+      <div class="scroll-area" id="activityList"></div>
+    </section>
+
+    <section class="collab-card">
+      <div class="collab-card-header">
+        <h2 id="discussionTitle"><i class="fas fa-comments"></i> Workspace Discussion</h2>
+        <div class="collab-muted" id="discussionStatus">Loading…</div>
+      </div>
+
+      <div class="focus-banner" id="focusBanner" style="display:none;">
+        <div class="focus-info">
+          <div class="focus-label" id="focusLabel"></div>
+          <div class="focus-name" id="focusName"></div>
+        </div>
+        <div class="focus-actions">
+          <button class="btn-ghost" id="openClaimsBtn" type="button">
+            <i class="fas fa-up-right-from-square"></i> Open in Claims
+          </button>
+          <button class="btn-ghost" id="clearFocusBtn" type="button">
+            <i class="fas fa-xmark"></i> Clear Focus
+          </button>
+        </div>
+      </div>
+
+      <div class="lane-tabs" id="laneTabs"></div>
+      <div class="team-chips" id="teamChips" style="display:none;"></div>
+      <div class="scroll-area" id="discussionList"></div>
+
+      <div class="composer">
+        <textarea id="discussionInput" placeholder=""></textarea>
+        <div class="composer-actions">
+          <div class="collab-muted" id="composerHint">Use lanes to separate working position, submissions, and expert analysis.</div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button class="btn-ghost" id="refreshBtn" type="button"><i class="fas fa-rotate"></i> Refresh</button>
+            <button class="btn-primary" id="postBtn" type="button"><i class="fas fa-paper-plane"></i> Post</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      const LANE_DEFS = [
+        { key: "core", label: "Core", placeholder: "Record working position. (facts, evidence points, next steps)" },
+        { key: "counsel", label: "Counsel", placeholder: "Record submissions. (legal test, pleadings framing, authorities)" },
+        { key: "expert", label: "Expert", placeholder: "Record expert analysis. (methodology, assumptions, calculations)" },
+      ];
+
+      function getAuthHeaders() {
+        const token =
+          localStorage.getItem("vericase_token") ||
+          localStorage.getItem("token") ||
+          localStorage.getItem("jwt");
+        return token ? { Authorization: `Bearer ${token}` } : {};
+      }
+
+      function escapeHtml(text) {
+        const s = String(text ?? "");
+        return s
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      function formatTimeAgo(ts) {
+        if (!ts) return "";
+        const date = new Date(ts);
+        if (Number.isNaN(date.getTime())) return "";
+        const diffMs = Date.now() - date.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        if (diffMins < 1) return "just now";
+        if (diffMins < 60) return `${diffMins}m`;
+        const diffHours = Math.floor(diffMins / 60);
+        if (diffHours < 48) return `${diffHours}h`;
+        const diffDays = Math.floor(diffHours / 24);
+        return `${diffDays}d`;
+      }
+
+      function iconForResource(type) {
+        switch ((type || "").toLowerCase()) {
+          case "document":
+            return "fa-file-lines";
+          case "claim":
+            return "fa-balance-scale";
+          case "evidence":
+            return "fa-folder-tree";
+          case "correspondence":
+            return "fa-envelope-open-text";
+          case "matter":
+            return "fa-layer-group";
+          case "workspace":
+            return "fa-comments";
+          default:
+            return "fa-circle-info";
+        }
+      }
+
+      function humanizeAction(action) {
+        const a = String(action || "");
+        if (!a) return "";
+        return a.replace(/\./g, " · ").replace(/_/g, " ");
+      }
+
+      async function apiJson(url, options = {}) {
+        const res = await fetch(url, {
+          ...options,
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+            ...(options.headers || {}),
+          },
+        });
+        const text = await res.text();
+        const data = text ? (() => { try { return JSON.parse(text); } catch { return text; } })() : null;
+        if (!res.ok) {
+          const msg = (data && data.detail) ? data.detail : `Request failed (${res.status})`;
+          throw new Error(msg);
+        }
+        return data;
+      }
+
+      function renderLaneTabs(container, activeLane, onChange) {
+        container.innerHTML = LANE_DEFS.map((l) => `
+          <button class="lane-tab ${l.key === activeLane ? "active" : ""}" data-lane="${l.key}" type="button">
+            ${escapeHtml(l.label)}
+          </button>
+        `).join("");
+
+        container.querySelectorAll(".lane-tab").forEach((btn) => {
+          btn.addEventListener("click", () => onChange(btn.getAttribute("data-lane")));
+        });
+      }
+
+      function renderTeam(container, items) {
+        if (!Array.isArray(items) || items.length === 0) {
+          container.style.display = "none";
+          container.innerHTML = "";
+          return;
+        }
+
+        container.style.display = "flex";
+        container.innerHTML = items.map((m) => {
+          const name = m.display_name || m.email || "User";
+          const role = m.role || "member";
+          return `
+            <div class="team-chip" title="${escapeHtml(m.email || "")}">
+              <strong>${escapeHtml(name)}</strong>
+              <span class="collab-muted">${escapeHtml(role)}</span>
+            </div>
+          `;
+        }).join("");
+      }
+
+      function renderActivity(container, items) {
+        if (!Array.isArray(items) || items.length === 0) {
+          container.innerHTML = `<div class="collab-muted">No recent activity.</div>`;
+          return;
+        }
+
+        container.innerHTML = items.map((a) => {
+          const icon = iconForResource(a.resource_type);
+          const lane = a?.details?.lane;
+          const laneBadge = lane ? `<span class="lane-badge ${escapeHtml(lane)}">${escapeHtml(lane)}</span>` : "";
+          const claimName = a?.details?.claim_name ? `<span class="collab-muted">(${escapeHtml(a.details.claim_name)})</span>` : "";
+          const title = `${escapeHtml(a.resource_name || "Unknown")} ${claimName}`;
+          const meta = `${escapeHtml(a.actor_name || "Unknown")} · ${formatTimeAgo(a.timestamp)}`;
+          return `
+            <div class="activity-item">
+              <div class="activity-icon"><i class="fas ${icon}"></i></div>
+              <div>
+                <div class="activity-title">
+                  <span>${title}</span>
+                </div>
+                <div class="activity-meta">
+                  <span>${escapeHtml(humanizeAction(a.action))}</span>
+                  ${laneBadge}
+                  <span>${meta}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+
+      function renderComment(comment, depth = 0) {
+        const author = comment.created_by_name || comment.created_by || "Unknown";
+        const lane = comment.lane || "core";
+        const laneBadge = `<span class="lane-badge ${escapeHtml(lane)}">${escapeHtml(lane)}</span>`;
+        const time = formatTimeAgo(comment.created_at);
+        const replies = Array.isArray(comment.replies) ? comment.replies : [];
+        const repliesHtml = replies.length
+          ? `<div class="comment-replies">${replies.map((r) => renderComment(r, depth + 1)).join("")}</div>`
+          : "";
+
+        const paddingLeft = depth > 0 ? `style="padding-left:${Math.min(depth * 10, 40)}px"` : "";
+        return `
+          <div class="comment" ${paddingLeft}>
+            <div class="comment-header">
+              <div class="comment-author">
+                <span>${escapeHtml(author)}</span>
+                ${laneBadge}
+              </div>
+              <div class="comment-time">${escapeHtml(time)}</div>
+            </div>
+            <div class="comment-body">${escapeHtml(comment.content || "")}</div>
+            ${repliesHtml}
+          </div>
+        `;
+      }
+
+      function renderDiscussion(container, comments) {
+        if (!Array.isArray(comments) || comments.length === 0) {
+          container.innerHTML = `<div class="collab-muted">No notes recorded in this lane.</div>`;
+          return;
+        }
+        container.innerHTML = comments.map((c) => renderComment(c, 0)).join("");
+      }
+
+      async function init() {
+        const ctx = typeof VericaseShell?.getContext === "function"
+          ? VericaseShell.getContext()
+          : { type: "", id: "" };
+
+        if (!ctx?.type || !ctx?.id) {
+          window.location.href = "master-dashboard.html";
+          return;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const focusTypeRaw = (params.get("focusType") || "").trim().toLowerCase();
+        const focusId = (params.get("focusId") || "").trim();
+        const focusType =
+          focusTypeRaw === "claim" || focusTypeRaw === "matter" ? focusTypeRaw : "";
+        const hasFocus = !!(focusType && focusId);
+
+        const ctxType = ctx.type === "case" ? "case" : "project";
+        const ctxLabel = ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
+        const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
+        const ctxUrl = `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(String(ctx.id))}`;
+
+        VericaseShell.inject({
+          title: "",
+          breadcrumbs: [
+            { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+            { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
+            { label: "Collaboration Hub", icon: "fa-comments" },
+          ],
+          contentClass: "collaboration-page",
+        });
+
+        let activeLane = "core";
+
+        const laneTabs = document.getElementById("laneTabs");
+        const discussionInput = document.getElementById("discussionInput");
+        const discussionList = document.getElementById("discussionList");
+        const discussionStatus = document.getElementById("discussionStatus");
+        const discussionTitle = document.getElementById("discussionTitle");
+        const activityList = document.getElementById("activityList");
+        const activityStatus = document.getElementById("activityStatus");
+        const teamChips = document.getElementById("teamChips");
+        const refreshBtn = document.getElementById("refreshBtn");
+        const postBtn = document.getElementById("postBtn");
+        const focusBanner = document.getElementById("focusBanner");
+        const focusLabel = document.getElementById("focusLabel");
+        const focusName = document.getElementById("focusName");
+        const clearFocusBtn = document.getElementById("clearFocusBtn");
+        const openClaimsBtn = document.getElementById("openClaimsBtn");
+
+        function setLane(laneKey) {
+          const next = LANE_DEFS.find((l) => l.key === laneKey)?.key || "core";
+          activeLane = next;
+          renderLaneTabs(laneTabs, activeLane, setLane);
+          const placeholder = LANE_DEFS.find((l) => l.key === activeLane)?.placeholder || "";
+          discussionInput.placeholder = placeholder;
+          loadDiscussion().catch(() => {});
+        }
+
+        async function loadTeam() {
+          if (ctxType !== "case") return;
+          try {
+            const data = await apiJson(`/api/workspace/cases/${encodeURIComponent(String(ctx.id))}/team`);
+            renderTeam(teamChips, data?.items || []);
+          } catch (e) {
+            renderTeam(teamChips, []);
+          }
+        }
+
+        async function loadFocusMeta() {
+          if (!hasFocus || !focusBanner || !focusLabel || !focusName) return;
+
+          focusBanner.style.display = "flex";
+          focusLabel.textContent = focusType === "claim" ? "Linked to Claim" : "Linked to Matter";
+
+          if (discussionTitle) {
+            discussionTitle.innerHTML = `<i class="fas fa-comments"></i> ${focusType === "claim" ? "Claim Discussion" : "Matter Discussion"}`;
+          }
+
+          try {
+            const endpoint =
+              focusType === "claim"
+                ? `/api/claims/heads-of-claim/${encodeURIComponent(focusId)}`
+                : `/api/claims/matters/${encodeURIComponent(focusId)}`;
+            const data = await apiJson(endpoint, { method: "GET", headers: getAuthHeaders() });
+            const name = data?.name || data?.reference_number || "Selected item";
+            focusName.textContent = name;
+          } catch (e) {
+            focusName.textContent = "Selected item";
+          }
+
+          if (openClaimsBtn) {
+            openClaimsBtn.addEventListener("click", () => {
+              const target = new URL("contentious-matters.html", window.location.href);
+              if (ctxType === "case") {
+                target.searchParams.set("caseId", String(ctx.id));
+              } else {
+                target.searchParams.set("projectId", String(ctx.id));
+              }
+              if (focusType === "claim") {
+                target.searchParams.set("claimId", focusId);
+              } else {
+                target.searchParams.set("matterId", focusId);
+              }
+              window.location.href = target.toString();
+            });
+          }
+
+          if (clearFocusBtn) {
+            clearFocusBtn.addEventListener("click", () => {
+              const next = new URL(window.location.href);
+              next.searchParams.delete("focusType");
+              next.searchParams.delete("focusId");
+              window.location.href = next.toString();
+            });
+          }
+        }
+
+        async function loadDiscussion() {
+          discussionStatus.textContent = "Loading…";
+          try {
+            const url = hasFocus
+              ? `/api/claims/comments/${encodeURIComponent(focusType)}/${encodeURIComponent(focusId)}?lane=${encodeURIComponent(activeLane)}`
+              : `/api/workspace/${ctxType}/${encodeURIComponent(String(ctx.id))}/discussion?lane=${encodeURIComponent(activeLane)}&include_replies=true&page_size=500`;
+            const comments = await apiJson(url, { method: "GET", headers: getAuthHeaders() });
+            renderDiscussion(discussionList, comments);
+            discussionStatus.textContent = `${Array.isArray(comments) ? comments.length : 0} thread(s)`;
+          } catch (e) {
+            discussionList.innerHTML = `<div class="collab-muted">${escapeHtml(e.message || "Failed to load discussion")}</div>`;
+            discussionStatus.textContent = "Error";
+          }
+        }
+
+        async function loadActivity() {
+          activityStatus.textContent = "Loading…";
+          try {
+            const url = hasFocus
+              ? `/api/workspace/${ctxType}/${encodeURIComponent(String(ctx.id))}/activity?limit=150&focus_type=${encodeURIComponent(focusType)}&focus_id=${encodeURIComponent(focusId)}`
+              : `/api/workspace/${ctxType}/${encodeURIComponent(String(ctx.id))}/activity?limit=150`;
+            const items = await apiJson(url, { method: "GET", headers: getAuthHeaders() });
+            renderActivity(activityList, items);
+            activityStatus.textContent = `${Array.isArray(items) ? items.length : 0} items`;
+          } catch (e) {
+            activityList.innerHTML = `<div class="collab-muted">${escapeHtml(e.message || "Failed to load activity")}</div>`;
+            activityStatus.textContent = "Error";
+          }
+        }
+
+        async function postComment() {
+          const content = (discussionInput.value || "").trim();
+          if (!content) return;
+          postBtn.disabled = true;
+          try {
+            if (hasFocus) {
+              await apiJson(`/api/claims/comments`, {
+                method: "POST",
+                body: JSON.stringify({
+                  content,
+                  lane: activeLane,
+                  item_type: focusType,
+                  item_id: focusId,
+                }),
+              });
+            } else {
+              await apiJson(`/api/workspace/${ctxType}/${encodeURIComponent(String(ctx.id))}/discussion`, {
+                method: "POST",
+                body: JSON.stringify({ content, lane: activeLane }),
+              });
+            }
+            discussionInput.value = "";
+            await Promise.all([loadDiscussion(), loadActivity()]);
+            if (window.VericaseUI?.Toast) window.VericaseUI.Toast.success("Posted");
+          } catch (e) {
+            if (window.VericaseUI?.Toast) window.VericaseUI.Toast.error(e.message || "Post failed");
+          } finally {
+            postBtn.disabled = false;
+          }
+        }
+
+        refreshBtn.addEventListener("click", () => {
+          Promise.all([loadDiscussion(), loadActivity()]).catch(() => {});
+        });
+
+        postBtn.addEventListener("click", postComment);
+        discussionInput.addEventListener("keydown", (e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === "Enter") postComment();
+        });
+
+        renderLaneTabs(laneTabs, activeLane, setLane);
+        discussionInput.placeholder = LANE_DEFS.find((l) => l.key === activeLane)?.placeholder || "";
+
+        await Promise.all([loadFocusMeta(), loadTeam(), loadDiscussion(), loadActivity()]);
+
+        // Gentle refresh so the hub feels alive without needing full real-time infra yet.
+        setInterval(() => loadActivity().catch(() => {}), 30000);
+      }
+
+      document.addEventListener("DOMContentLoaded", init);
+    })();
+  </script>
+</body>
+
+</html>

@@ -6,6 +6,7 @@ Provides smart classification, metadata extraction, and content insights
 
 import logging
 import uuid
+import json
 import re
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
@@ -17,6 +18,8 @@ from pydantic import BaseModel
 from .db import get_db
 from .security import current_user
 from .models import User, Document
+from .ai_runtime import complete_chat
+from .ai_settings import get_ai_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -106,11 +109,11 @@ PII_PATTERNS = {
 }
 
 
-def classify_document(text: str, filename: str) -> DocumentClassification:
+async def classify_document(
+    text: str, filename: str, db: Session
+) -> DocumentClassification:
     """
-    Classify document based on content analysis
-    Uses pattern matching and keyword analysis
-    In production, would use ML model
+    Classify document based on content analysis using LLM
     """
     if not text or not isinstance(text, str):
         logger.warning("Invalid text input for classification")
@@ -124,18 +127,78 @@ def classify_document(text: str, filename: str) -> DocumentClassification:
             tags=[],
         )
 
+    # Use LLM for classification
+    prompt = f"""Classify this document and extract metadata.
+    
+    Filename: {filename}
+    Content: {text[:3000]}
+    
+    Return JSON with:
+    - document_type (e.g. Invoice, Contract, Letter, Report, Drawing, Meeting Minutes)
+    - confidence (0.0-1.0)
+    - suggested_folder (e.g. Commercial/Invoices, Legal/Contracts, Technical/Drawings)
+    - summary (1-2 sentences)
+    - tags (list of strings)
+    - metadata (key-value pairs like date, amount, parties)
+    """
+
+    try:
+        api_key = get_ai_api_key("openai", db) or get_ai_api_key("anthropic", db)
+        if not api_key:
+            # Fallback to regex if no AI key
+            return _classify_document_regex(text, filename)
+
+        provider = "openai" if get_ai_api_key("openai", db) else "anthropic"
+        model = "gpt-4o-mini" if provider == "openai" else "claude-3-haiku-20240307"
+
+        response = await complete_chat(
+            provider=provider,
+            model_id=model,
+            prompt=prompt,
+            system_prompt="You are a document classifier for a construction project management system.",
+            db=db,
+            max_tokens=1000,
+        )
+
+        # Parse JSON
+        json_str = response
+        if "```json" in response:
+            json_str = response.split("```json")[1].split("```")[0]
+        elif "```" in response:
+            json_str = response.split("```")[1].split("```")[0]
+
+        data = json.loads(json_str.strip())
+
+        # Extract entities separately or use what we got
+        entities = await extract_entities(text, db)
+
+        return DocumentClassification(
+            document_type=data.get("document_type", "other"),
+            confidence=data.get("confidence", 0.5),
+            suggested_folder=data.get("suggested_folder", "General"),
+            extracted_metadata=data.get("metadata", {}),
+            key_entities=entities,
+            summary=data.get("summary"),
+            tags=data.get("tags", []),
+        )
+
+    except Exception as e:
+        logger.error(f"AI classification failed: {e}")
+        return _classify_document_regex(text, filename)
+
+
+def _classify_document_regex(text: str, filename: str) -> DocumentClassification:
+    """Fallback regex classification"""
     text_lower = text.lower()
     scores = {}
 
     # Score each document type
     for doc_type, patterns in DOCUMENT_PATTERNS.items():
         score = 0
-
         # Keyword matching
         for keyword in patterns["keywords"]:
             if keyword in text_lower:
                 score += 2
-
         # Regex pattern matching
         for pattern in patterns["patterns"]:
             try:
@@ -143,7 +206,6 @@ def classify_document(text: str, filename: str) -> DocumentClassification:
                     score += 3
             except re.error:
                 continue
-
         scores[doc_type] = score
 
     # Get best match
@@ -154,30 +216,17 @@ def classify_document(text: str, filename: str) -> DocumentClassification:
     else:
         doc_type = max(scores, key=lambda k: scores[k])
         max_score = scores[doc_type]
-        # Normalize confidence to 0-1 range
         confidence = min(0.95, max_score / 10)
         suggested_folder = DOCUMENT_PATTERNS[doc_type]["folder"]
-
-    # Extract metadata
-    metadata = extract_metadata(text)
-
-    # Extract entities
-    entities = extract_entities(text)
-
-    # Generate tags
-    tags = generate_tags(text, doc_type)
-
-    # Generate summary (first 2 sentences)
-    summary = generate_summary(text)
 
     return DocumentClassification(
         document_type=doc_type,
         confidence=confidence,
         suggested_folder=suggested_folder,
-        extracted_metadata=metadata,
-        key_entities=entities,
-        summary=summary,
-        tags=tags,
+        extracted_metadata=extract_metadata(text),
+        key_entities=[],  # Regex entity extraction is weak
+        summary=generate_summary(text),
+        tags=generate_tags(text, doc_type),
     )
 
 
@@ -234,39 +283,51 @@ def extract_metadata(text: str) -> Dict:
     return metadata
 
 
-def extract_entities(text: str) -> List[Dict]:
-    """Extract named entities (people, organizations, locations)"""
+async def extract_entities(text: str, db: Session) -> List[Dict]:
+    """Extract named entities using LLM"""
     if not text or not isinstance(text, str):
         return []
 
     try:
-        capitalized = re.findall(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b", text)
-    except re.error:
+        api_key = get_ai_api_key("openai", db) or get_ai_api_key("anthropic", db)
+        if not api_key:
+            return []
+
+        prompt = f"""Extract named entities from this text.
+        Return JSON list of objects with 'text', 'type' (PERSON, ORG, LOC, DATE), and 'mentions' (count).
+        
+        Text: {text[:2000]}
+        """
+
+        provider = "openai" if get_ai_api_key("openai", db) else "anthropic"
+        model = "gpt-4o-mini" if provider == "openai" else "claude-3-haiku-20240307"
+
+        response = await complete_chat(
+            provider=provider,
+            model_id=model,
+            prompt=prompt,
+            system_prompt="You are a Named Entity Recognition system.",
+            db=db,
+            max_tokens=1000,
+        )
+
+        json_str = response
+        if "```json" in response:
+            json_str = response.split("```json")[1].split("```")[0]
+        elif "```" in response:
+            json_str = response.split("```")[1].split("```")[0]
+
+        data = json.loads(json_str.strip())
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict) and "entities" in data:
+            return data["entities"]
+
         return []
 
-    common_words = {
-        "The",
-        "This",
-        "That",
-        "These",
-        "Those",
-        "A",
-        "An",
-        "And",
-        "Or",
-        "But",
-    }
-    potential_entities = [w for w in capitalized if w not in common_words]
-
-    from collections import Counter
-
-    entity_counts = Counter(potential_entities)
-
-    entities = []
-    for entity, count in entity_counts.most_common(10):
-        entities.append({"text": entity, "type": "UNKNOWN", "mentions": count})
-
-    return entities
+    except Exception as e:
+        logger.warning(f"Entity extraction failed: {e}")
+        return []
 
 
 def generate_tags(text: str, doc_type: str) -> List[str]:
@@ -395,7 +456,7 @@ async def classify_document_endpoint(
         )
 
     # Perform classification
-    classification = classify_document(text, document.filename)
+    classification = await classify_document(text, document.filename, db)
 
     # Detect compliance issues
     compliance_flags = detect_compliance_issues(text, classification.document_type)
@@ -479,7 +540,7 @@ async def suggest_folder(
             "reason": "No text content available",
         }
 
-    classification = classify_document(text, document.filename)
+    classification = await classify_document(text, document.filename, db)
 
     return {
         "suggested_folder": classification.suggested_folder,
@@ -507,7 +568,7 @@ async def auto_tag_document(
     if not text:
         raise HTTPException(400, "No text content available")
 
-    classification = classify_document(text, document.filename)
+    classification = await classify_document(text, document.filename, db)
 
     # Store tags in metadata
     if not document.meta:
@@ -634,7 +695,7 @@ async def batch_classify_documents(
             if len(text) < 50:
                 continue
 
-            classification = classify_document(text, document.filename)
+            classification = await classify_document(text, document.filename, db)
 
             # Store in metadata
             if not document.meta:

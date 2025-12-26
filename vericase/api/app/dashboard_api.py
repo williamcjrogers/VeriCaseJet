@@ -35,6 +35,20 @@ except Exception:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
+
+def _ensure_tz_aware(dt: datetime | None) -> datetime:
+    """
+    Ensure a datetime is timezone-aware (UTC).
+    Returns a very old UTC datetime if input is None.
+    """
+    if dt is None:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    if dt.tzinfo is None:
+        # Naive datetime - assume it's UTC
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 import json
 import time
 
@@ -145,6 +159,8 @@ class WorkItemSummary(BaseModel):
     project_code: str | None = None  # For projects
     case_number: str | None = None  # For cases
     contract_type: str | None = None
+    project_id: str | None = None  # For cases linked to a project
+    project_name: str | None = None
 
     # Statistics
     email_count: int = 0
@@ -167,6 +183,18 @@ class DashboardStats(BaseModel):
     recent_activity_count: int = 0
 
 
+class DeadlineItem(BaseModel):
+    """Unified deadline item for dashboard display"""
+
+    id: str
+    title: str
+    date: datetime
+    type: str  # 'deadline', 'deliverable', 'response_due'
+    source_id: str  # Case ID or Claim ID
+    source_name: str  # Case Name
+    status: str = "pending"
+
+
 class DashboardOverviewResponse(BaseModel):
     """Complete dashboard overview response"""
 
@@ -174,6 +202,7 @@ class DashboardOverviewResponse(BaseModel):
     stats: DashboardStats
     work_items: list[WorkItemSummary]
     recent_activity: list[dict[str, Any]]
+    upcoming_deadlines: list[DeadlineItem] = []
     permissions: dict[str, bool]
 
 
@@ -420,6 +449,8 @@ async def get_dashboard_overview(
                     updated_at=project.updated_at,
                     project_code=project.project_code,
                     contract_type=project.contract_type,
+                    project_id=str(project.id),
+                    project_name=project.project_name,
                     email_count=stats["email_count"],
                     evidence_count=stats["evidence_count"],
                     pst_count=stats["pst_count"],
@@ -449,6 +480,8 @@ async def get_dashboard_overview(
                     updated_at=case.updated_at,
                     case_number=case.case_number,
                     contract_type=case.contract_type,
+                    project_id=str(case.project_id) if case.project_id else None,
+                    project_name=case.project_name,
                     email_count=stats["email_count"],
                     evidence_count=stats["evidence_count"],
                     pst_count=stats["pst_count"],
@@ -457,11 +490,50 @@ async def get_dashboard_overview(
                 )
             )
 
+        # Collect upcoming deadlines from cases
+        upcoming_deadlines: list[DeadlineItem] = []
+        for case in cases:
+            if case.deadlines and isinstance(case.deadlines, list):
+                for i, d in enumerate(case.deadlines):
+                    if not isinstance(d, dict):
+                        continue
+
+                    # Safe extraction with defaults
+                    d_title = d.get("title", "Untitled Deadline")
+                    d_date_str = d.get("date")
+                    d_status = d.get("status", "pending")
+
+                    if d_date_str:
+                        try:
+                            # Handle string date parsing if needed, but assuming ISO format
+                            d_date = datetime.fromisoformat(
+                                str(d_date_str).replace("Z", "+00:00")
+                            )
+                            d_date = _ensure_tz_aware(d_date)
+
+                            upcoming_deadlines.append(
+                                DeadlineItem(
+                                    id=f"case_{case.id}_{i}",
+                                    title=d_title,
+                                    date=d_date,
+                                    type="deadline",
+                                    source_id=str(case.id),
+                                    source_name=case.name,
+                                    status=d_status,
+                                )
+                            )
+                        except (ValueError, TypeError):
+                            logger.warning(
+                                f"Invalid deadline date format in case {case.id}: {d_date_str}"
+                            )
+
+        # Sort deadlines by date (soonest first)
+        upcoming_deadlines.sort(key=lambda x: x.date)
+
         # Sort work items by updated_at descending (most recent first)
+        # Use helper to ensure all datetimes are timezone-aware for comparison
         work_items.sort(
-            key=lambda x: x.updated_at
-            or x.created_at
-            or datetime.min.replace(tzinfo=timezone.utc),
+            key=lambda x: _ensure_tz_aware(x.updated_at or x.created_at),
             reverse=True,
         )
 
@@ -477,11 +549,7 @@ async def get_dashboard_overview(
                     w
                     for w in work_items
                     if w.updated_at
-                    and (
-                        w.updated_at.replace(tzinfo=timezone.utc)
-                        if w.updated_at.tzinfo is None
-                        else w.updated_at
-                    )
+                    and _ensure_tz_aware(w.updated_at)
                     > datetime.now(timezone.utc) - timedelta(days=7)
                 ]
             ),
@@ -533,6 +601,7 @@ async def get_dashboard_overview(
             stats=stats,
             work_items=work_items,
             recent_activity=recent_activity,
+            upcoming_deadlines=upcoming_deadlines,
             permissions=permissions,
         )
     except Exception as e:
@@ -596,6 +665,8 @@ async def get_dashboard_overview_public(db: DbDep) -> dict[str, Any]:
                     ),
                     "project_code": project.project_code,
                     "contract_type": project.contract_type,
+                    "project_id": str(project.id),
+                    "project_name": project.project_name,
                     "email_count": stats["email_count"],
                     "evidence_count": stats["evidence_count"],
                     "pst_count": stats["pst_count"],
@@ -627,6 +698,8 @@ async def get_dashboard_overview_public(db: DbDep) -> dict[str, Any]:
                     ),
                     "case_number": case.case_number,
                     "contract_type": case.contract_type,
+                    "project_id": str(case.project_id) if case.project_id else None,
+                    "project_name": case.project_name,
                     "email_count": stats["email_count"],
                     "evidence_count": stats["evidence_count"],
                     "pst_count": stats["pst_count"],
@@ -659,6 +732,7 @@ async def get_dashboard_overview_public(db: DbDep) -> dict[str, Any]:
             },
             "work_items": work_items,
             "recent_activity": [],
+            "upcoming_deadlines": [],
             "permissions": {
                 "can_create_project": True,
                 "can_create_case": True,

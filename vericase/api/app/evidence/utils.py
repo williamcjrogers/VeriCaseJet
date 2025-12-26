@@ -9,7 +9,7 @@ import uuid
 
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, and_
+from sqlalchemy import desc, and_, or_
 
 from ..models import EvidenceItem, User, EvidenceActivityLog
 from ..security import hash_password
@@ -107,16 +107,44 @@ def _apply_ag_filters(query: Any, filter_model: dict[str, Any]) -> Any:
             )
             continue
         if col_id == "is_image":
+            image_exts = [
+                "jpg",
+                "jpeg",
+                "png",
+                "gif",
+                "bmp",
+                "webp",
+                "tif",
+                "tiff",
+                "heic",
+                "heif",
+                "svg",
+            ]
+            image_types = ["image", "photo", "photograph"]
+            image_match = or_(
+                EvidenceItem.mime_type.ilike("image/%"),
+                EvidenceItem.file_type.in_(image_exts),
+                EvidenceItem.evidence_type.in_(image_types),
+            )
             if f is True:
-                # Filter for images AND exclude small files (logos, icons < 20KB)
+                query = query.filter(image_match)
+            elif f is False:
                 query = query.filter(
                     and_(
-                        EvidenceItem.mime_type.ilike("image/%"),
-                        EvidenceItem.file_size > 20480,  # > 20KB
+                        or_(
+                            EvidenceItem.mime_type.is_(None),
+                            ~EvidenceItem.mime_type.ilike("image/%"),
+                        ),
+                        or_(
+                            EvidenceItem.file_type.is_(None),
+                            ~EvidenceItem.file_type.in_(image_exts),
+                        ),
+                        or_(
+                            EvidenceItem.evidence_type.is_(None),
+                            ~EvidenceItem.evidence_type.in_(image_types),
+                        ),
                     )
                 )
-            elif f is False:
-                query = query.filter(~EvidenceItem.mime_type.ilike("image/%"))
             continue
         if col_id == "is_starred" and f:
             query = query.filter(EvidenceItem.is_starred.is_(True))

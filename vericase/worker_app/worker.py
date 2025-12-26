@@ -519,8 +519,17 @@ def process_pst_file(
 
     try:
         # Import PST processor (import here to avoid loading pypff in main process)
-        # The pst_processor module is in /code/api/app/
-        sys.path.insert(0, "/code/api")
+        # The pst_processor module is in /code/api/app/ inside Docker.
+        api_path = "/code/api"
+        if os.path.isdir(api_path):
+            sys.path.insert(0, api_path)
+        else:
+            repo_root = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "..", "..")
+            )
+            local_api = os.path.join(repo_root, "vericase", "api")
+            if os.path.isdir(local_api):
+                sys.path.insert(0, local_api)
         from app.pst_processor import UltimatePSTProcessor
 
         # Create DB session
@@ -549,12 +558,11 @@ def process_pst_file(
             # Process PST - use case_id and project_id from the pst_file record
             stats = processor.process_pst(
                 pst_s3_key=pst_file["s3_key"],
-                pst_s3_bucket=pst_file.get("bucket"),
                 document_id=doc_id,
                 case_id=pst_file.get("case_id"),
-                company_id=pst_file.get(
-                    "project_id"
-                ),  # project_id maps to company_id in processor
+                company_id=company_id,
+                project_id=pst_file.get("project_id"),
+                pst_s3_bucket=pst_file.get("bucket"),
             )
 
             # Update PST file status with stats
@@ -578,6 +586,18 @@ def process_pst_file(
         logger.error(f"PST processing failed: {e}", exc_info=True)
         _update_pst_status(doc_id, "failed", error_msg=str(e))
         raise
+
+
+@celery_app.task(name="app.process_pst_forensic", queue=settings.CELERY_PST_QUEUE)
+def process_pst_forensic(
+    pst_file_id: str,
+    s3_bucket: str | None = None,
+    s3_key: str | None = None,
+    case_id: str | None = None,
+    project_id: str | None = None,
+):
+    """Compatibility alias for legacy forensic task names."""
+    return process_pst_file(pst_file_id, case_id=case_id)
 
 
 @celery_app.task(
@@ -616,20 +636,6 @@ def link_emails_to_programme_activities(
         )
     finally:
         db.close()
-
-
-# Import forensic processor to register its Celery task (optional)
-# Path is /code/app in Docker container
-
-sys.path.insert(0, "/code")
-
-try:
-    from app.pst_forensic_processor import process_pst_forensic
-
-    print("Forensic PST task module imported in worker - ready for execution")
-except ImportError as e:
-    print(f"Forensic PST processor not available: {e}")
-    process_pst_forensic = None
 
 
 def s3_key_from_db(doc_id: str) -> str:

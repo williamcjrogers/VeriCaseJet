@@ -7,8 +7,8 @@
   <title>VeriCase - Dispute Intelligence Dashboard</title>
   <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
   <link rel="stylesheet" href="assets/global.css" />
-  <link rel="stylesheet" href="brand-styles.css" />
-  <link rel="stylesheet" href="design-system.css" />
+  <link rel="stylesheet" href="brand-styles.css?v=6" />
+  <link rel="stylesheet" href="design-system.css?v=6" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -339,7 +339,7 @@
       color: white;
       font-size: 1.25rem;
       margin-bottom: 1rem;
-      box-shadow: 0 4px 14px rgba(15, 157, 154, 0.25);
+      box-shadow: 0 4px 14px rgba(31, 111, 120, 0.2);
     }
 
     .action-card .icon i {
@@ -376,7 +376,7 @@
 
     /* Pastel background tints for action cards */
     .action-card.pastel-teal {
-      background: linear-gradient(135deg, #f4f9f8 0%, #e6f0ed 100%);
+      background: linear-gradient(135deg, #f0f4f3 0%, #e3ebe8 100%);
     }
 
     .action-card.pastel-blue {
@@ -424,37 +424,36 @@
       line-height: 1.5;
     }
 
-    /* Feature Card - Premium styling for VeriCase Refine (no "blacked out" feel) */
+    /* Feature Card - Premium gold-accented styling for VeriCase Refine */
     .action-card.feature-card {
-      background: radial-gradient(1200px 500px at 20% -10%, rgba(184, 134, 11, 0.18) 0%, transparent 55%),
-        linear-gradient(135deg, #0b1220 0%, #0f172a 55%, #101b33 100%);
-      border: 1px solid rgba(184, 134, 11, 0.25);
-      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22);
+      background: linear-gradient(135deg, #fdfcfa 0%, #f5f0e8 100%);
+      border: 1.5px solid rgba(139, 115, 85, 0.35);
+      box-shadow: 0 4px 20px rgba(139, 115, 85, 0.12);
     }
 
     .action-card.feature-card::before {
       transform: scaleX(1);
-      background: linear-gradient(90deg, var(--vc-gold), var(--vericase-teal));
-      opacity: 0.9;
+      background: linear-gradient(90deg, var(--vericase-gold), var(--vericase-teal));
+      opacity: 0.85;
     }
 
     .action-card.feature-card h3 {
-      color: rgba(255, 255, 255, 0.96);
+      color: var(--vericase-navy);
     }
 
     .action-card.feature-card p {
-      color: rgba(255, 255, 255, 0.78);
+      color: var(--text-secondary);
     }
 
     .action-card.feature-card .icon {
-      background: linear-gradient(135deg, rgba(184, 134, 11, 0.95) 0%, rgba(184, 134, 11, 0.55) 100%);
-      box-shadow: 0 10px 22px rgba(184, 134, 11, 0.22);
+      background: linear-gradient(135deg, #8b7355 0%, #a68b5b 100%);
+      box-shadow: 0 6px 16px rgba(139, 115, 85, 0.25);
     }
 
     .action-card.feature-card:hover {
-      box-shadow: 0 14px 44px rgba(15, 23, 42, 0.28);
+      box-shadow: 0 8px 28px rgba(139, 115, 85, 0.18);
       transform: translateY(-3px);
-      border-color: rgba(184, 134, 11, 0.4);
+      border-color: rgba(139, 115, 85, 0.5);
     }
 
     /* Widgets Grid - Modernized */
@@ -1086,12 +1085,12 @@
         <p>Search and review all project emails</p>
       </div>
 
-      <div class="action-card pastel-purple" onclick="viewTimeline()">
+      <div class="action-card pastel-purple" onclick="openAnalysis()">
         <div class="icon icon--purple">
-          <i class="fas fa-clock-rotate-left"></i>
+          <i class="fas fa-microscope"></i>
         </div>
-        <h3>Project Timeline</h3>
-        <p>Visualize key events across the matter</p>
+        <h3>VeriCase Analysis</h3>
+        <p>AI-powered deep research &amp; investigation</p>
       </div>
 
         <div class="action-card pastel-slate" onclick="viewChronology()">
@@ -1131,20 +1130,25 @@
     <div class="widgets-grid">
       <!-- Evidence Status Widget -->
       <div class="widget">
-        <h3><i class="fas fa-database"></i> Evidence Status</h3>
+        <h3>
+          <i class="fas fa-database"></i> Evidence Status
+          <button class="btn btn-secondary" style="margin-left: auto; padding: 6px 12px; font-size: 12px" onclick="event.stopPropagation(); viewEvidenceRepository();">
+            <i class="fas fa-arrow-up-right-from-square"></i> Open
+          </button>
+        </h3>
         <div id="evidenceStatus">
           <div class="stat-card">
             <div>
               <div class="stat-label">Documents Uploaded</div>
               <div class="progress-bar">
-                <div class="progress-fill" style="width: 0"></div>
+                <div class="progress-fill" id="documentsUploadedProgress" style="width: 0"></div>
               </div>
             </div>
-            <div class="stat-value">0</div>
+            <div class="stat-value" id="documentsUploadedCount">0</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">Emails Processed</div>
-            <div class="stat-value">0</div>
+            <div class="stat-value" id="emailsProcessedCount">0</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">Keywords Tagged</div>
@@ -1153,26 +1157,14 @@
         </div>
       </div>
 
-      <!-- Evidence & Files Widget -->
-      <div class="widget" onclick="viewEvidenceRepository()" style="cursor: pointer">
-        <h3>
-          <i class="fas fa-folder-open"></i>
-          <span>Evidence &amp; Files</span>
-          <button class="btn btn-secondary" style="margin-left: auto; padding: 6px 12px; font-size: 12px" onclick="event.stopPropagation(); viewEvidenceRepository();">
-            <i class="fas fa-arrow-up-right-from-square"></i> Open
-          </button>
-        </h3>
-        <div id="evidenceFilesContent">
-          <div class="empty-state">
-            <i class="fas fa-file-alt"></i>
-            <p>Loading evidence for this profile...</p>
-          </div>
-        </div>
-      </div>
-
       <!-- Alerts & Deadlines Widget -->
       <div class="widget">
-        <h3><i class="fas fa-bell"></i> Alerts & Deadlines</h3>
+        <h3>
+          <i class="fas fa-bell"></i> Alerts & Deadlines
+          <button class="btn btn-secondary" style="margin-left: auto; padding: 6px 12px; font-size: 12px" onclick="event.stopPropagation(); openProfileSetup();">
+            <i class="fas fa-gear"></i> Manage
+          </button>
+        </h3>
         <div id="alertsContainer">
           <div class="alert alert-info">
             <i class="fas fa-info-circle"></i>
@@ -1188,9 +1180,13 @@
       <div class="widget">
         <h3>
           <i class="fas fa-clock"></i> Project Chronology
+          <button class="btn btn-secondary" style="margin-left: auto; padding: 6px 12px; font-size: 12px"
+            onclick="event.stopPropagation(); viewChronology()">
+            <i class="fas fa-arrow-up-right-from-square"></i> Open
+          </button>
           <button class="btn btn-secondary" style="margin-left: 10px; padding: 6px 12px; font-size: 12px"
-            onclick="openChronologyPrompt()">
-            <i class="fas fa-timeline"></i> Build Chronology
+            onclick="event.stopPropagation(); openChronologyPrompt()">
+            <i class="fas fa-timeline"></i> Build
           </button>
         </h3>
         <div id="activityFeed">
@@ -1211,6 +1207,9 @@
         <h3>
           <i class="fas fa-list-check"></i>
           <span id="headsTitle">Heads of Claim</span>
+          <button class="btn btn-secondary" style="margin-left: auto; padding: 6px 12px; font-size: 12px" onclick="event.stopPropagation(); openHeadsModule();">
+            <i class="fas fa-arrow-up-right-from-square"></i> Manage
+          </button>
         </h3>
         <div id="headsContent">
           <div class="empty-state">
@@ -1222,7 +1221,12 @@
 
       <!-- Stakeholders Widget -->
       <div class="widget">
-        <h3><i class="fas fa-users"></i> Key Stakeholders</h3>
+        <h3>
+          <i class="fas fa-users"></i> Key Stakeholders
+          <button class="btn btn-secondary" style="margin-left: auto; padding: 6px 12px; font-size: 12px" onclick="event.stopPropagation(); manageStakeholders();">
+            <i class="fas fa-arrow-up-right-from-square"></i> Manage
+          </button>
+        </h3>
         <div id="stakeholdersContent">
           <div class="empty-state">
             <i class="fas fa-user-friends"></i>
@@ -1233,21 +1237,26 @@
 
       <!-- Quick Stats Widget -->
       <div class="widget">
-        <h3><i class="fas fa-chart-pie"></i> Quick Stats</h3>
+        <h3>
+          <i class="fas fa-chart-pie"></i> Quick Stats
+          <button class="btn btn-secondary" style="margin-left: auto; padding: 6px 12px; font-size: 12px" onclick="event.stopPropagation(); openAnalysis();">
+            <i class="fas fa-arrow-up-right-from-square"></i> Open Analysis
+          </button>
+        </h3>
         <div id="quickStats">
           <div class="list-item">
             <div>
               <div class="list-item-title">Evidence Sources</div>
               <div class="list-item-meta">Uploaded files and systems</div>
             </div>
-            <div class="stat-value" style="font-size: 20px">0</div>
+            <div class="stat-value" id="quickEvidenceSourcesCount" style="font-size: 20px">0</div>
           </div>
           <div class="list-item">
             <div>
               <div class="list-item-title">Team Members</div>
               <div class="list-item-meta">Collaborators on this matter</div>
             </div>
-            <div class="stat-value" style="font-size: 20px">1</div>
+            <div class="stat-value" id="quickTeamMembersCount" style="font-size: 20px">0</div>
           </div>
           <div class="list-item">
             <div>
@@ -1256,7 +1265,7 @@
                 Evidence processed and searchable
               </div>
             </div>
-            <div class="stat-value" style="font-size: 20px">0%</div>
+            <div class="stat-value" id="quickAnalysisReadyPercent" style="font-size: 20px">0%</div>
           </div>
         </div>
       </div>
@@ -1264,13 +1273,7 @@
   </div>
 
   <script>
-    // Initialize VeriCaseApp on page load
-    VeriCaseApp.init().then(() => {
-      console.log(
-        "Dashboard: VeriCaseApp initialized - projectId:",
-        VeriCaseApp.projectId,
-      );
-    });
+    // Note: VeriCaseApp is initialized later (DOMContentLoaded) in strict mode.
 
     // Chronology launcher – always pulls from email correspondence for this project
     async function openChronologyPrompt() {
@@ -1285,17 +1288,19 @@
 
     async function runChronologyAnalysis(focus) {
       try {
-        const projectId = VeriCaseApp.projectId;
-        if (!projectId) {
-          alert("No active project/profile found. Create a profile first.");
+        const contextId = profileId || (window.VeriCaseApp ? window.VeriCaseApp.getContextId() : null);
+        const contextType = profileType || (window.VeriCaseApp ? window.VeriCaseApp.getContextType() : "project");
+
+        if (!contextId) {
+          alert("No active profile found. Select a case or project first.");
           return;
         }
 
         const body = {
-          query: `Using only the email correspondence for this project, build a detailed chronology of: ${focus}`,
+          query: `Using only the email correspondence for this ${contextType}, build a detailed chronology of: ${focus}`,
           mode: "deep",
-          project_id: projectId,
-          case_id: null,
+          project_id: contextType === "project" ? contextId : null,
+          case_id: contextType === "case" ? contextId : null,
         };
 
         const response = await fetch("/api/ai-chat/query", {
@@ -1398,8 +1403,28 @@
 
     // Define navigation functions first (before DOMContentLoaded)
     async function openPstUpload() {
-      // Use VeriCaseApp - it always has a valid project (creates default if needed)
-      VeriCaseApp.gotoUpload();
+      // Guard: require an explicit selected profile before uploading.
+      if (!profileId) {
+        window.location.href = "master-dashboard.html";
+        return;
+      }
+
+      // Ensure shared app-state matches the current dashboard context.
+      try {
+        if (window.VeriCaseApp && typeof window.VeriCaseApp.init === "function") {
+          await window.VeriCaseApp.init({
+            strict: true,
+            createDefaultProject: false,
+            allowLegacyProjectIdAsCaseId: false,
+            contextType: profileType,
+            contextId: String(profileId),
+          });
+        }
+      } catch {
+        // ignore
+      }
+
+      window.VeriCaseApp.gotoUpload();
     }
 
     function showQuickProfileDialog() {
@@ -1432,12 +1457,12 @@
                         </div>
                     </div>
 
-                    <div onclick="document.getElementById('quickProfileModal').remove(); window.location.href='wizard.html'" style="padding: 1.5rem; border: 2px solid var(--border-default); border-radius: 12px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--vericase-teal)'; this.style.background='var(--gray-50)'" onmouseout="this.style.borderColor='var(--border-default)'; this.style.background=''">
+                    <div onclick="document.getElementById('quickProfileModal').remove(); window.location.href='workspace-setup.html'" style="padding: 1.5rem; border: 2px solid var(--border-default); border-radius: 12px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--vericase-teal)'; this.style.background='var(--gray-50)'" onmouseout="this.style.borderColor='var(--border-default)'; this.style.background=''">
                         <h4 style="color: var(--vericase-navy); margin: 0 0 0.5rem 0; font-size: 1.1rem;">
-                            <i class="fas fa-list-check"></i> Full Wizard (Detailed)
+                            <i class="fas fa-layer-group"></i> Workspace Setup
                         </h4>
                         <p style="color: var(--text-secondary); margin: 0; font-size: 0.875rem;">
-                            Configure everything step-by-step: team members, keywords, deadlines, etc.
+                            Configure everything in one place: team members, keywords, deadlines, and more.
                         </p>
                     </div>
                 </div>
@@ -1493,6 +1518,7 @@
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify(projectData),
         });
@@ -1506,6 +1532,20 @@
         // Update VeriCaseApp state
         VeriCaseApp.projectId = result.id;
         VeriCaseApp.projectName = result.project_name;
+
+        // Persist project selection for the shell + state manager
+        try {
+          localStorage.setItem("profileType", "project");
+          localStorage.setItem("currentProjectId", String(result.id));
+          localStorage.setItem("vericase_current_project", String(result.id));
+          localStorage.setItem("projectId", String(result.id));
+          if (result.project_name) {
+            localStorage.setItem("currentProjectName", String(result.project_name));
+            localStorage.setItem("vericase_current_project_name", String(result.project_name));
+          }
+        } catch {
+          // ignore
+        }
 
         // Show success and redirect
         content.innerHTML = `
@@ -1526,9 +1566,9 @@
                     <div style="text-align: center; padding: 2rem;">
                         <i class="fas fa-exclamation-circle" style="font-size: 3rem; color: var(--error); margin-bottom: 1rem;"></i>
                         <h3 style="color: var(--vericase-navy); margin: 0 0 0.5rem 0;">Unable to create profile</h3>
-                        <p style="color: var(--text-secondary); margin: 0 0 1.5rem 0;">Please try using the full wizard instead.</p>
-                        <button onclick="window.location.href='wizard.html'" class="btn btn-primary">
-                            Open Wizard
+                        <p style="color: var(--text-secondary); margin: 0 0 1.5rem 0;">Please try using Workspace Setup instead.</p>
+                        <button onclick="window.location.href='workspace-setup.html'" class="btn btn-primary">
+                            Open Workspace Setup
                         </button>
                     </div>
                 `;
@@ -1544,41 +1584,83 @@
     }
 
     function manageStakeholders() {
-      const url = new URL('stakeholders.html', window.location.href);
+      const url = new URL("stakeholders.html", window.location.href);
       if (profileId) {
-        url.searchParams.set('projectId', profileId);
+        const key = profileType === "case" ? "caseId" : "projectId";
+        url.searchParams.set(key, profileId);
       }
       window.location.href = url.toString();
     }
 
     function viewTimeline() {
-      const url = new URL('project-timeline.html', window.location.href);
+      const url = new URL("project-timeline.html", window.location.href);
       if (profileId) {
-        url.searchParams.set('projectId', profileId);
+        const key = profileType === "case" ? "caseId" : "projectId";
+        url.searchParams.set(key, profileId);
       }
       window.location.href = url.toString();
     }
 
     function viewProgramme() {
-      const url = new URL('programme.html', window.location.href);
+      const url = new URL("programme.html", window.location.href);
       if (profileId) {
-        url.searchParams.set('projectId', profileId);
+        const key = profileType === "case" ? "caseId" : "projectId";
+        url.searchParams.set(key, profileId);
       }
       window.location.href = url.toString();
     }
 
     function viewDelays() {
-      const url = new URL('delays.html', window.location.href);
+      const url = new URL("delays.html", window.location.href);
       if (profileId) {
-        url.searchParams.set('projectId', profileId);
+        const key = profileType === "case" ? "caseId" : "projectId";
+        url.searchParams.set(key, profileId);
       }
       window.location.href = url.toString();
     }
 
     function viewChronology() {
-      const url = new URL('chronology.html', window.location.href);
+      const url = new URL("chronology-lense.html", window.location.href);
       if (profileId) {
-        url.searchParams.set('projectId', profileId);
+        const key = profileType === "case" ? "caseId" : "projectId";
+        url.searchParams.set(key, profileId);
+      }
+      window.location.href = url.toString();
+    }
+
+    function openProfileSetup() {
+      if (profileType === "case") {
+        const url = new URL("case-setup.html", window.location.href);
+        if (profileId) {
+          url.searchParams.set("caseId", profileId);
+        }
+        window.location.href = url.toString();
+        return;
+      }
+      const url = new URL("project-setup.html", window.location.href);
+      if (profileId) {
+        url.searchParams.set("projectId", profileId);
+      }
+      window.location.href = url.toString();
+    }
+
+    function openHeadsModule() {
+      if (profileType === "case") {
+        const url = new URL("contentious-matters.html", window.location.href);
+        if (profileId) {
+          url.searchParams.set("caseId", profileId);
+        }
+        window.location.href = url.toString();
+        return;
+      }
+      viewProgramme();
+    }
+
+    function openAnalysis() {
+      const url = new URL("vericase-analysis.html", window.location.href);
+      if (profileId) {
+        const key = profileType === "case" ? "caseId" : "projectId";
+        url.searchParams.set(key, profileId);
       }
       window.location.href = url.toString();
     }
@@ -1626,7 +1708,9 @@
 
     async function loadAIStatus() {
       try {
-        const response = await fetch(`${apiUrl}/api/ai/status`);
+        const response = await fetch(`${apiUrl}/api/ai/status`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
 
         if (response.ok) {
           const status = await response.json();
@@ -1680,11 +1764,11 @@
           [
             {
               text: "Create Profile (Manual)",
-              action: () => (window.location.href = "wizard.html"),
+              action: () => (window.location.href = "workspace-setup.html"),
             },
             {
-              text: "Intelligent Setup (AI)",
-              action: () => (window.location.href = "wizard.html"),
+              text: "Open Workspace Setup",
+              action: () => (window.location.href = "workspace-setup.html"),
             },
             { text: "Cancel", action: null },
           ],
@@ -1694,7 +1778,9 @@
 
       // Check if AI is configured
       try {
-        const response = await fetch(`${apiUrl}/api/ai/status`);
+        const response = await fetch(`${apiUrl}/api/ai/status`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
 
         if (response.ok) {
           const status = await response.json();
@@ -1714,7 +1800,8 @@
         console.error("Error checking AI status:", error);
       }
 
-      window.location.href = `ai-refinement-wizard.html?projectId=${profileId}`;
+      const key = profileType === "case" ? "caseId" : "projectId";
+      window.location.href = `ai-refinement-wizard.html?${key}=${encodeURIComponent(profileId)}`;
     }
 
     function showContextualError(title, message, actions) {
@@ -1773,24 +1860,54 @@
 
     // Get URL parameters
     const urlParams = new URLSearchParams(window.location.search);
-    let profileId = urlParams.get("projectId") || urlParams.get("caseId");
+    const urlProjectId = urlParams.get("projectId");
+    const urlCaseId = urlParams.get("caseId");
+
+    // Determine active profile scope.
+    // Priority:
+    //  - Explicit URL param (caseId > projectId)
+    //  - Stored profileType
+    let profileType = urlCaseId
+      ? "case"
+      : urlProjectId
+        ? "project"
+        : localStorage.getItem("profileType") || "project";
+
+    let profileId = urlCaseId || urlProjectId;
     const isFirstTime = urlParams.get("firstTime") === "true";
-    const profileType = localStorage.getItem("profileType") || "project";
+
+    // Keep localStorage consistent with explicit URL scope (important for nav-shell/app-state).
+    try {
+      if (urlCaseId) {
+        localStorage.setItem("profileType", "case");
+        localStorage.setItem("currentCaseId", String(urlCaseId));
+        localStorage.setItem("caseId", String(urlCaseId));
+      } else if (urlProjectId) {
+        localStorage.setItem("profileType", "project");
+        localStorage.setItem("vericase_current_project", String(urlProjectId));
+        localStorage.setItem("currentProjectId", String(urlProjectId));
+        localStorage.setItem("projectId", String(urlProjectId));
+      }
+    } catch {
+      // ignore
+    }
+
     // Fallbacks: grab stored IDs when URL param is missing
     if (!profileId) {
       const storedId =
         profileType === "project"
           ? localStorage.getItem("vericase_current_project") ||
-          localStorage.getItem("currentProjectId") ||
-          localStorage.getItem("projectId")
+            localStorage.getItem("currentProjectId") ||
+            localStorage.getItem("projectId")
           : localStorage.getItem("currentCaseId") ||
-          localStorage.getItem("caseId");
+            localStorage.getItem("caseId");
       if (storedId) profileId = storedId;
     }
 
-    // Load token
+    // Load token (support newer vericase_token key, plus legacy keys)
     const token =
       urlParams.get("token") ||
+      localStorage.getItem("vericase_token") ||
       localStorage.getItem("token") ||
       localStorage.getItem("jwt");
 
@@ -1799,6 +1916,41 @@
       ? window.VeriCaseConfig.apiUrl
       : window.location.origin;
     console.log("Dashboard using API URL:", apiUrl);
+
+    let evidenceStatsCache = null;
+    let emailCountCache = null;
+    let stakeholderCountCache = null;
+
+    function updateEvidenceStatusWidget() {
+      const docsEl = document.getElementById("documentsUploadedCount");
+      const progressEl = document.getElementById("documentsUploadedProgress");
+      const emailEl = document.getElementById("emailsProcessedCount");
+
+      if (!docsEl || !progressEl || !emailEl) return;
+
+      const total = evidenceStatsCache?.total ?? 0;
+      const linked = evidenceStatsCache?.with_correspondence ?? 0;
+      const progress = total > 0 ? Math.round((linked / total) * 100) : 0;
+
+      docsEl.textContent = total.toLocaleString();
+      emailEl.textContent = (emailCountCache ?? 0).toLocaleString();
+      progressEl.style.width = `${Math.min(100, Math.max(0, progress))}%`;
+    }
+
+    function updateQuickStatsWidget() {
+      const evidenceEl = document.getElementById("quickEvidenceSourcesCount");
+      const teamEl = document.getElementById("quickTeamMembersCount");
+      const analysisEl = document.getElementById("quickAnalysisReadyPercent");
+      if (!evidenceEl || !teamEl || !analysisEl) return;
+
+      const total = evidenceStatsCache?.total ?? 0;
+      const linked = evidenceStatsCache?.with_correspondence ?? 0;
+      const analysisPct = total > 0 ? Math.round((linked / total) * 100) : 0;
+
+      evidenceEl.textContent = total.toLocaleString();
+      teamEl.textContent = (stakeholderCountCache ?? 0).toLocaleString();
+      analysisEl.textContent = `${analysisPct}%`;
+    }
 
     // Upload button is always enabled - quick profile creation handles missing profileId
 
@@ -1943,19 +2095,29 @@
     async function loadProjectStats(projectId) {
       try {
         // Fetch email count (using lightweight count endpoint) and project details in parallel
+        const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
         const [emailResponse, projectResponse] = await Promise.all([
           fetch(
             `${apiUrl}/api/correspondence/emails/count?project_id=${projectId}`,
+            { headers: authHeaders },
           ),
           fetch(`${apiUrl}/api/projects/${projectId}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            headers: authHeaders,
           }),
         ]);
 
         if (emailResponse.ok) {
           const emailData = await emailResponse.json();
+          emailCountCache = emailData.count || 0;
           document.getElementById("emailCount").textContent =
-            emailData.count || 0;
+            emailCountCache;
+          updateEvidenceStatusWidget();
+          updateQuickStatsWidget();
+        } else {
+          emailCountCache = 0;
+          updateEvidenceStatusWidget();
+          updateQuickStatsWidget();
         }
 
         if (projectResponse.ok) {
@@ -2027,33 +2189,60 @@
 
     // Initialize dashboard
     document.addEventListener("DOMContentLoaded", () => {
+      // Initialize shared app-state strictly (no implicit default project creation on dashboard).
+      // This dashboard should reflect an explicit selection from the Command Center.
+      if (window.VeriCaseApp && typeof window.VeriCaseApp.init === "function") {
+        window.VeriCaseApp.init({
+          strict: true,
+          createDefaultProject: false,
+          allowLegacyProjectIdAsCaseId: false,
+          contextType: profileType,
+          contextId: profileId ? String(profileId) : "",
+          contextName:
+            (profileType === "case"
+              ? localStorage.getItem("currentCaseName") || localStorage.getItem("vericase_current_case_name")
+              : localStorage.getItem("currentProjectName") || localStorage.getItem("vericase_current_project_name")) ||
+            null,
+        }).catch((e) => console.warn("[Dashboard] VeriCaseApp.init strict failed:", e));
+      }
+
       // Immediately show cached project name if available (before API calls)
-      const cachedProjectName = localStorage.getItem("currentProjectName") || 
-                                localStorage.getItem("vericase_current_project_name");
-      if (cachedProjectName && profileId) {
+      const cachedProfileName =
+        profileType === "case"
+          ? localStorage.getItem("currentCaseName") ||
+            localStorage.getItem("vericase_current_case_name")
+          : localStorage.getItem("currentProjectName") ||
+            localStorage.getItem("vericase_current_project_name");
+
+      if (cachedProfileName && profileId) {
         const projectTitleSuffix = document.getElementById("projectTitleSuffix");
         if (projectTitleSuffix) {
-          projectTitleSuffix.textContent = cachedProjectName;
+          projectTitleSuffix.textContent = cachedProfileName;
         }
         const profileNameEl = document.getElementById("profileName");
         if (profileNameEl) {
-          profileNameEl.textContent = cachedProjectName;
+          profileNameEl.textContent = cachedProfileName;
         }
       }
 
       // Inject the navigation shell with sidebar
-      if (window.VericaseShell && typeof window.VericaseShell.inject === 'function') {
+      if (window.VericaseShell && typeof window.VericaseShell.inject === "function") {
         window.VericaseShell.inject({
-          title: '',
+          title: "",
           breadcrumbs: [
-            { label: 'Home', url: 'master-dashboard.html', icon: 'fa-home' },
-            { label: 'Project Dashboard' }
-          ]
+            { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+            { label: profileType === "case" ? "Case Dashboard" : "Project Dashboard" },
+          ],
         });
       }
 
-      // Always load projects list first
-      loadProjects();
+      // Only show the project selector for project dashboards.
+      if (profileType === "project") {
+        loadProjects();
+      } else {
+        const panel = document.getElementById("projectSelectorPanel");
+        if (panel) panel.style.display = "none";
+      }
 
       // Don't force redirect - let users land on dashboard first
       if (profileId) {
@@ -2065,9 +2254,11 @@
       } else {
         // Show welcome message for users without a profile
         document.getElementById("welcomeTitle").innerHTML =
-          '<span class="title-accent">Project Dashboard</span>';
+          `<span class="title-accent">${profileType === "case" ? "Case" : "Project"} Dashboard</span>`;
         document.getElementById("welcomeMessage").innerHTML =
-          "Select a project above or create a new one to get started.";
+          profileType === "case"
+            ? "Select a case from the Command Center to get started."
+            : "Select a project above or create a new one to get started.";
         document.getElementById("profileName").textContent = "Dashboard";
 
         const createdDateEl = document.getElementById("createdDate");
@@ -2100,10 +2291,15 @@
           statsUrl += `?${paramType}=${profileId}`;
         }
 
-        const response = await fetch(statsUrl);
+        const response = await fetch(statsUrl, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
 
         if (response.ok) {
           const stats = await response.json();
+          evidenceStatsCache = stats;
+          updateEvidenceStatusWidget();
+          updateQuickStatsWidget();
 
           if (stats.total === 0) {
             container.innerHTML = `
@@ -2171,6 +2367,9 @@
                         `;
           }
         } else {
+          evidenceStatsCache = null;
+          updateEvidenceStatusWidget();
+          updateQuickStatsWidget();
           // Fallback if evidence API not available
           container.innerHTML = `
                         <div class="empty-state" style="padding: 1.5rem;">
@@ -2185,6 +2384,9 @@
         }
       } catch (error) {
         console.error("Error loading evidence widget:", error);
+        evidenceStatsCache = null;
+        updateEvidenceStatusWidget();
+        updateQuickStatsWidget();
         container.innerHTML = `
                     <div class="empty-state" style="padding: 1.5rem;">
                         <i class="fas fa-folder-open" style="font-size: 2.5rem; color: var(--vericase-teal); margin-bottom: 0.75rem;"></i>
@@ -2208,7 +2410,9 @@
             "inline-flex";
 
           // Check for pending users
-          const response = await fetch(`${apiUrl}/api/admin/users/pending`);
+          const response = await fetch(`${apiUrl}/api/admin/users/pending`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
 
           if (response.ok) {
             const pending = await response.json();
@@ -2227,10 +2431,9 @@
       try {
         const endpoint =
           profileType === "project" ? "/api/projects" : "/api/cases";
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
         const response = await fetch(`${apiUrl}${endpoint}/${profileId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers,
         });
 
         if (response.ok) {
@@ -2253,6 +2456,8 @@
           "New " + (profileType === "project" ? "Project" : "Case");
         document.getElementById("profileType").textContent =
           profileType.charAt(0).toUpperCase() + profileType.slice(1);
+        stakeholderCountCache = 0;
+        updateQuickStatsWidget();
         return;
       }
 
@@ -2271,7 +2476,7 @@
         welcomeTitle.innerHTML = "";
         const accent = document.createElement("span");
         accent.className = "title-accent";
-        accent.textContent = "Project Dashboard";
+        accent.textContent = profileType === "case" ? "Case Dashboard" : "Project Dashboard";
         welcomeTitle.appendChild(accent);
         const suffix = document.createElement("span");
         suffix.className = "title-suffix";
@@ -2307,6 +2512,8 @@
       const stakeholdersContainer = document.getElementById(
         "stakeholdersContent",
       );
+      stakeholderCountCache = stakeholders.length;
+      updateQuickStatsWidget();
 
       if (stakeholders.length > 0) {
         stakeholdersContainer.innerHTML = stakeholders

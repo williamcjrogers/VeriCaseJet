@@ -271,10 +271,12 @@ class AnalysisStatusResponse(BaseModel):
     delay_status: str = "pending"
     research_status: str = "pending"
     final_report: str | None = None
+    executive_summary: str | None = None
     key_themes: list[str] = Field(default_factory=list)
     processing_time_seconds: float = 0
     report_available: bool = False
     error_message: str | None = None
+    models_used: list[str] = Field(default_factory=list)
 
 
 class AnalysisReportResponse(BaseModel):
@@ -1060,6 +1062,8 @@ Always provide citations in the format: [Source: email/document ID, date, sender
         - MMR for diverse, non-redundant results
         """
 
+        relevant_evidence: list[dict[str, Any]] = []
+
         # If structured evidence items provided, use intelligent retrieval
         if evidence_items:
             try:
@@ -1093,6 +1097,17 @@ Always provide citations in the format: [Source: email/document ID, date, sender
                 )
             except Exception as e:
                 logger.warning(f"Intelligent retrieval failed, using raw context: {e}")
+
+        if not evidence_context or not evidence_context.strip():
+            return {
+                "findings": "Insufficient evidence retrieved to answer without speculation.",
+                "citations": [],
+                "gaps": [
+                    "No relevant evidence retrieved for this question; refine the query or broaden scope."
+                ],
+                "confidence": "low",
+                "key_entities": [],
+            }
 
         prior_str = ""
         if prior_findings:
@@ -1993,16 +2008,16 @@ async def build_evidence_context(
         and_(
             or_(
                 EmailMessage.meta.is_(None),
-                not_(EmailMessage.meta["is_spam"].astext == "true"),
+                not_(EmailMessage.meta["is_spam"].as_string() == "true"),
             ),
             or_(
                 EmailMessage.meta.is_(None),
-                not_(EmailMessage.meta["is_hidden"].astext == "true"),
+                not_(EmailMessage.meta["is_hidden"].as_string() == "true"),
             ),
             or_(
                 EmailMessage.meta.is_(None),
-                EmailMessage.meta["other_project"].astext.is_(None),
-                EmailMessage.meta["other_project"].astext == "",
+                EmailMessage.meta["other_project"].as_string().is_(None),
+                EmailMessage.meta["other_project"].as_string() == "",
             ),
         )
     )
@@ -2203,10 +2218,12 @@ async def get_analysis_status(
             else "pending"
         ),
         final_report=session.final_report,
+        executive_summary=session.executive_summary,
         key_themes=session.key_themes,
         processing_time_seconds=session.processing_time_seconds,
         report_available=session.final_report is not None,
         error_message=session.error_message,
+        models_used=list(session.models_used.values()),
     )
 
 

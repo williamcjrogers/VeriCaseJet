@@ -7,10 +7,11 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <title>VeriCase - Email Correspondence Manager (Enterprise)</title>
+  <title>VeriCase - Correspondence</title>
 
   <!-- AG-Grid Enterprise CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-grid.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-theme-alpine.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-theme-quartz.css" />
   <link rel="stylesheet" href="ag-theme-vericase.css?v=2" />
 
@@ -19,9 +20,9 @@
   <link rel="stylesheet" href="assets/global.css" />
 
   <!-- VeriCase Design System -->
-  <link rel="stylesheet" href="brand-styles.css?v=3" />
-  <link rel="stylesheet" href="design-system.css?v=3" />
-  <link rel="stylesheet" href="assets/css/correspondence.css?v=1" />
+  <link rel="stylesheet" href="brand-styles.css?v=6" />
+  <link rel="stylesheet" href="design-system.css?v=6" />
+  <link rel="stylesheet" href="assets/css/correspondence.css?v=6" />
 
   <script src="vericase-ui.js"></script>
   <script src="nav-shell.js"></script>
@@ -34,17 +35,15 @@
 </head>
 
 <body class="preload">
-  <!-- Shell will be injected here by VericaseShell.inject() -->
-  
   <!-- Main correspondence content wrapper -->
   <div id="correspondence-app" style="height: 100%; display: flex; flex-direction: column;">
 
-  <!-- AI Chat Interface - Compact & Always Visible -->
+  <!-- Assistant Interface - Compact & Always Visible -->
   <div id="aiChatContainer">
     <div class="ai-bar">
-      <button id="aiChatToggleBtn" class="ai-toggle" onclick="toggleAIChat()" aria-expanded="true" aria-controls="aiChatPanel" title="Toggle AI panel">
+      <button id="aiChatToggleBtn" class="ai-toggle" onclick="toggleAIChat()" aria-expanded="true" aria-controls="aiChatPanel" title="Toggle suggestions panel">
         <i class="fas fa-chevron-up" id="aiChatToggleIcon"></i>
-        <span id="aiChatToggleLabel">Hide AI</span>
+        <span id="aiChatToggleLabel">Hide VeriCase Assistant</span>
       </button>
 
       <div class="ai-bar-brand">
@@ -52,7 +51,7 @@
           <i class="fas fa-brain" style="color: white; font-size: 17px"></i>
         </div>
         <div class="ai-bar-text">
-          <div class="ai-title">VeriCase AI</div>
+          <div class="ai-title">VeriCase Assistant</div>
           <div class="ai-subtitle">Ask about evidence • Ctrl+Enter Quick • Ctrl+Shift+Enter Deep</div>
         </div>
       </div>
@@ -64,7 +63,7 @@
       <div class="ai-compact">
         <div class="ai-input-wrapper">
           <label for="aiQuery"></label><textarea id="aiQuery"
-            placeholder="Ask AI about your evidence…"
+            placeholder="Ask about your evidence…"
             onkeydown="
               if (event.key === 'Enter' && event.ctrlKey && !event.shiftKey) { event.preventDefault(); aiQuickSearch(); }
               else if (event.key === 'Enter' && event.ctrlKey && event.shiftKey) { event.preventDefault(); aiDeepResearch(); }
@@ -114,13 +113,12 @@
         <div id="modelProgress" style="display: none; margin-top: 1rem"></div>
       </div>
 
-      <!-- AI Response -->
+      <!-- Response -->
       <div id="aiResponse" class="ai-card ai-response" style="display: none;"></div>
     </div>
   </div>
 
   <!-- Load Components -->
-  <div id="header-component"></div>
   <div id="toolbar-component"></div>
   
   <!-- Main Content -->
@@ -137,6 +135,14 @@
 
   <!-- Load Component Loader -->
   <script>
+    // Early safe stubs (the full implementations are provided by assets/js/correspondence.js).
+    // This prevents accidental early clicks from throwing during initial load.
+    window.toggleAIChat = window.toggleAIChat || function () {};
+    window.aiQuickSearch = window.aiQuickSearch || function () {};
+    window.aiDeepResearch = window.aiDeepResearch || function () {};
+    window.refreshData = window.refreshData || function () {};
+    window.toggleCommandPalette = window.toggleCommandPalette || function () {};
+
     async function loadComponent(id, url) {
       try {
         const response = await fetch(url);
@@ -152,8 +158,35 @@
     }
 
     async function initApp() {
+      // Inject navigation shell for consistency with the rest of the app.
+      // Do this first so subsequent DOM queries happen against the wrapped content.
+      try {
+        if (window.VericaseShell && typeof window.VericaseShell.inject === 'function') {
+          const ctx = typeof window.VericaseShell.getContext === 'function'
+            ? window.VericaseShell.getContext()
+            : { type: 'project', id: (window.VericaseShell.getProjectId ? window.VericaseShell.getProjectId() : '') };
+
+          const ctxLabel = (ctx && ctx.type === 'case') ? 'Case' : 'Project';
+          const ctxHome = (ctx && ctx.type === 'case') ? 'master-dashboard.html' : 'projectdashboard.html';
+
+          window.VericaseShell.inject({
+            title: '',
+            breadcrumbs: [
+              { label: ctxLabel, url: ctxHome, icon: (ctx && ctx.type === 'case') ? 'fa-briefcase' : 'fa-diagram-project' },
+              { label: 'Correspondence', icon: 'fa-envelope-open-text' }
+            ],
+            // This page uses a full-height grid layout. When injected into the shell,
+            // we must make the content area a flex column with min-height:0 so AG Grid
+            // can compute its viewport and render headers/scrollbars correctly.
+            contentClass: 'app-content--flush correspondence-page',
+            headerActions: "",
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to inject navigation shell:', e);
+      }
+
       await Promise.all([
-        loadComponent('header-component', 'components/header.html'),
         loadComponent('toolbar-component', 'components/toolbar.html'),
         loadComponent('grid-component', 'components/grid.html'),
         loadComponent('detail-panel-component', 'components/detail-panel.html'),
@@ -163,7 +196,7 @@
 
       // Initialize main logic after components are loaded
       const script = document.createElement('script');
-      script.src = 'assets/js/correspondence.js';
+      script.src = 'assets/js/correspondence.js?v=8';
       document.body.appendChild(script);
     }
 

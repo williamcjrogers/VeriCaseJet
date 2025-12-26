@@ -23,20 +23,64 @@ window.VeriCaseApp = {
    * Get authorization headers for API requests
    */
   _getAuthHeaders() {
-    const token = localStorage.getItem("token") || localStorage.getItem("jwt");
+    const token =
+      localStorage.getItem("vericase_token") ||
+      localStorage.getItem("token") ||
+      localStorage.getItem("jwt");
     return token ? { Authorization: `Bearer ${token}` } : {};
   },
 
   /**
    * Initialize the app state
-   * Always succeeds - creates default project if needed
+   *
+   * By default, maintains legacy behavior (best-effort context resolution +
+   * creates/uses a default project).
+   *
+   * Pass { strict: true } to require an explicit projectId/caseId (URL or
+   * previously-selected localStorage context) and to avoid implicit fallbacks.
    */
-  async init() {
+  async init(options = {}) {
+    const strict = !!options.strict;
+    const allowLegacyProjectIdAsCaseId =
+      options.allowLegacyProjectIdAsCaseId ?? !strict;
+    const createDefaultProject = options.createDefaultProject ?? !strict;
+
     try {
+      // Optional bootstrap override (lets pages provide a known context).
+      const bootstrapType = (options.contextType || "").trim();
+      const bootstrapId = (options.contextId || "").trim();
+      if (bootstrapType && bootstrapId) {
+        if (bootstrapType === "case") {
+          this.projectId = null;
+          this.projectName = null;
+          this.caseId = bootstrapId;
+          this.caseName = options.contextName || null;
+        } else if (bootstrapType === "project") {
+          this.caseId = null;
+          this.caseName = null;
+          this.projectId = bootstrapId;
+          this.projectName = options.contextName || null;
+        }
+        this._persistContext();
+        return this;
+      }
+
       // 1. Check URL params first (source of truth)
       const params = new URLSearchParams(window.location.search);
-      const urlProjectId = params.get("projectId");
       const urlCaseId = params.get("caseId");
+      const urlProjectId = params.get("projectId");
+
+      // Prefer an explicit caseId when both are present.
+      if (urlCaseId) {
+        const caseData = await this._fetchCase(urlCaseId);
+        if (caseData) {
+          this.caseId = caseData.id;
+          this.caseName = caseData.name;
+          console.log("[VeriCaseApp] Using URL case:", this.caseId);
+          this._persistContext();
+          return this;
+        }
+      }
 
       if (urlProjectId) {
         // Validate and use URL project
@@ -46,24 +90,47 @@ window.VeriCaseApp = {
           this.projectName = project.project_name || project.name;
           this.config = project.meta || {};
           console.log("[VeriCaseApp] Using URL project:", this.projectId);
+          this._persistContext();
+          return this;
+        }
+
+        if (allowLegacyProjectIdAsCaseId) {
+          // Compatibility: some pages historically passed a case UUID in the `projectId` param.
+          const caseData = await this._fetchCase(urlProjectId);
+          if (caseData) {
+            this.caseId = caseData.id;
+            this.caseName = caseData.name;
+            console.log(
+              "[VeriCaseApp] Interpreting URL projectId as caseId:",
+              this.caseId,
+            );
+            this._persistContext();
+            return this;
+          }
+        }
+      }
+
+      // 2. Check localStorage for previously selected context
+      const storedProfileType = (localStorage.getItem("profileType") || "").trim();
+      const storedCaseId =
+        localStorage.getItem("currentCaseId") || localStorage.getItem("caseId");
+      const storedProjectId =
+        localStorage.getItem("vericase_current_project") ||
+        localStorage.getItem("currentProjectId") ||
+        localStorage.getItem("projectId");
+
+      // Prefer the last-used profile type if present.
+      if (storedProfileType === "case" && storedCaseId && storedCaseId !== "null" && storedCaseId !== "undefined") {
+        const storedCase = await this._fetchCase(storedCaseId);
+        if (storedCase) {
+          this.caseId = storedCase.id;
+          this.caseName = storedCase.name;
+          console.log("[VeriCaseApp] Using stored case:", this.caseId);
+          this._persistContext();
           return this;
         }
       }
 
-      if (urlCaseId) {
-        // Validate and use URL case
-        const caseData = await this._fetchCase(urlCaseId);
-        if (caseData) {
-          this.caseId = caseData.id;
-          this.caseName = caseData.name;
-          console.log("[VeriCaseApp] Using URL case:", this.caseId);
-          return this;
-        }
-      }
-
-      // 2. Check localStorage for previously selected project
-      const storedProjectId = localStorage.getItem("vericase_current_project")
-        || localStorage.getItem("currentProjectId");
       if (storedProjectId && storedProjectId !== "null" && storedProjectId !== "undefined") {
         const storedProject = await this._fetchProject(storedProjectId);
         if (storedProject) {
@@ -71,16 +138,50 @@ window.VeriCaseApp = {
           this.projectName = storedProject.project_name || storedProject.name;
           this.config = storedProject.meta || {};
           console.log("[VeriCaseApp] Using stored project:", this.projectId);
+          this._persistContext();
+          return this;
+        }
+
+        if (allowLegacyProjectIdAsCaseId) {
+          // Compatibility: stored "project" may actually be a case from older UI flows.
+          const storedCase = await this._fetchCase(storedProjectId);
+          if (storedCase) {
+            this.caseId = storedCase.id;
+            this.caseName = storedCase.name;
+            console.log("[VeriCaseApp] Using stored case:", this.caseId);
+            this._persistContext();
+            return this;
+          }
+        }
+      }
+
+      // Fallback: if we have a caseId stored but profileType wasn't set, try it.
+      if (storedCaseId && storedCaseId !== "null" && storedCaseId !== "undefined") {
+        const storedCase = await this._fetchCase(storedCaseId);
+        if (storedCase) {
+          this.caseId = storedCase.id;
+          this.caseName = storedCase.name;
+          console.log("[VeriCaseApp] Using stored case (fallback):", this.caseId);
+          this._persistContext();
           return this;
         }
       }
 
-      // 3. No valid URL param or stored project - get or create default project
+      // 3. No valid URL param or stored context.
+      if (!createDefaultProject) {
+        console.log(
+          "[VeriCaseApp] No context found (strict mode) — not creating a default project",
+        );
+        return this;
+      }
+
+      // Legacy fallback: get or create default project
       const defaultProject = await this._getOrCreateDefaultProject();
       this.projectId = defaultProject.id;
       this.projectName = defaultProject.project_name || defaultProject.name;
       this.config = defaultProject.meta || {};
       console.log("[VeriCaseApp] Using default project:", this.projectId);
+      this._persistContext();
 
       return this;
     } catch (error) {
@@ -167,6 +268,41 @@ window.VeriCaseApp = {
         project_name: "Evidence Uploads",
         meta: {},
       };
+    }
+  },
+
+  /**
+   * Persist the current context into localStorage.
+   *
+   * We intentionally keep a couple of legacy keys in sync because different UI pages
+   * historically used different names (e.g. `currentProjectId` vs `vericase_current_project`).
+   */
+  _persistContext() {
+    try {
+      if (this.projectId) {
+        localStorage.setItem("profileType", "project");
+        localStorage.setItem("vericase_current_project", this.projectId);
+        localStorage.setItem("currentProjectId", this.projectId);
+        // Legacy convenience key used by some older pages
+        localStorage.setItem("projectId", this.projectId);
+
+        if (this.projectName) {
+          localStorage.setItem("vericase_current_project_name", this.projectName);
+          localStorage.setItem("currentProjectName", this.projectName);
+        }
+      } else if (this.caseId) {
+        localStorage.setItem("profileType", "case");
+        localStorage.setItem("currentCaseId", this.caseId);
+        // Legacy convenience key used by some older pages
+        localStorage.setItem("caseId", this.caseId);
+
+        if (this.caseName) {
+          localStorage.setItem("vericase_current_case_name", this.caseName);
+          localStorage.setItem("currentCaseName", this.caseName);
+        }
+      }
+    } catch (e) {
+      // Storage can be blocked (privacy mode) — ignore.
     }
   },
 
@@ -265,7 +401,7 @@ window.VeriCaseApp = {
    * Navigate to refinement wizard
    */
   gotoRefinement() {
-    this.goto("refinement-wizard.html");
+    this.goto("ai-refinement-wizard.html");
   },
 
   /**

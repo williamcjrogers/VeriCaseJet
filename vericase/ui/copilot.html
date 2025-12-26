@@ -510,7 +510,7 @@
           align-items: center;
           gap: 0.75rem;
           cursor: pointer;
-        " onclick="window.location.href = 'wizard.html'">
+        " onclick="window.location.href = 'master-dashboard.html'">
       <img src="/assets/Logo-Vector.png" alt="VeriCase" style="height: 42px" />
       <div style="display: flex; flex-direction: column">
         <strong style="font-size: 1.1rem">VeriCase Docs</strong>
@@ -659,7 +659,7 @@
     const token = localStorage.getItem("jwt");
     if (!token) {
       alert("Please log in first!");
-      window.location.href = "wizard.html";
+      window.location.href = "login.html";
     }
 
     // Initialize
@@ -756,7 +756,7 @@
         // Check if token expired
         if (error.message && error.message.includes("401")) {
           errorMsg =
-            '❌ Your session has expired. Please <a href="wizard.html" style="color: #667eea; text-decoration: underline;">log in again</a>.';
+            '❌ Your session has expired. Please <a href="login.html" style="color: #667eea; text-decoration: underline;">log in again</a>.';
         }
 
         addMessage("assistant", errorMsg);

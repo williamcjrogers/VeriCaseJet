@@ -16,7 +16,6 @@ Features:
 from __future__ import annotations
 
 import hashlib
-import html
 import json
 import os
 import logging
@@ -25,6 +24,7 @@ import tempfile
 import uuid
 import time
 import io
+import shutil
 from datetime import datetime, timezone
 from typing import Any, TypedDict
 from uuid import UUID
@@ -33,6 +33,7 @@ from email.utils import getaddresses
 
 import pypff  # type: ignore  # pypff is installed in Docker container
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from .models import (
     Document,
@@ -41,9 +42,32 @@ from .models import (
     DocStatus,
     PSTFile,
     EvidenceItem,
+    MessageRaw,
+    MessageOccurrence,
+    MessageDerived,
 )
 from .config import settings
 from .spam_filter import classify_email, extract_other_project, SpamResult
+from .project_scoping import ScopeMatcher, build_scope_matcher
+from .email_threading import build_email_threads, ThreadingStats
+from .email_dedupe import dedupe_emails
+from .email_normalizer import (
+    NORMALIZER_RULESET_HASH,
+    NORMALIZER_VERSION,
+    build_content_hash,
+    clean_body_text,
+    strip_footer_noise,
+)
+
+try:
+    from .email_normalizer import build_source_hash
+except (ImportError, AttributeError):
+
+    def build_source_hash(payload: dict[str, object]) -> str:
+        serialized = json.dumps(
+            payload, sort_keys=True, ensure_ascii=False, default=str
+        )
+        return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
 class ThreadInfo(TypedDict, total=False):
@@ -86,12 +110,15 @@ except ImportError:
     pass
 
 logger = logging.getLogger(__name__)
+_AGENT_LOG_ENABLED = bool(getattr(settings, "PST_AGENT_LOG_ENABLED", False))
 
 
 # region agent log helper
 def agent_log(
     hypothesis_id: str, message: str, data: dict | None = None, run_id: str = "run1"
 ) -> None:
+    if not _AGENT_LOG_ENABLED:
+        return
     log_path = (
         r"c:\Users\William\Documents\Projects\VeriCase Analysis\.cursor\debug.log"
     )
@@ -148,15 +175,21 @@ class UltimatePSTProcessor:
         self.s3 = s3_client
         self.opensearch = opensearch_client
         self.threads_map: dict[str, ThreadInfo] = {}
+        self.scope_matcher: ScopeMatcher | None = None
         self.processed_count = 0
         self.total_count = 0
-        self.attachment_hashes: dict[str, Any] = {}  # For Document deduplication
+        self._last_progress_update = 0.0
+        self._last_progress_count = 0
+        self.attachment_hashes: dict[str, dict[str, Any]] = {}  # For attachment dedup
         self.evidence_item_hashes: dict[str, Any] = {}  # For EvidenceItem deduplication
         self.body_offload_threshold = (
             getattr(settings, "PST_BODY_OFFLOAD_THRESHOLD", 50000) or 50000
         )
         self.body_offload_bucket = (
             getattr(settings, "S3_EMAIL_BODY_BUCKET", None) or settings.S3_BUCKET
+        )
+        self.attach_bucket = (
+            getattr(settings, "S3_ATTACHMENTS_BUCKET", None) or settings.S3_BUCKET
         )
         self.chunk_size = (
             getattr(settings, "PST_ATTACHMENT_CHUNK_SIZE", 1024 * 1024) or 1024 * 1024
@@ -171,12 +204,18 @@ class UltimatePSTProcessor:
         self.batch_commit_size = (
             getattr(settings, "PST_BATCH_COMMIT_SIZE", 2500) or 2500
         )
+        self._progress_update_interval = 5.0
+        self._progress_update_batch = max(100, min(1000, self.batch_commit_size // 5))
 
         # Initialize batch buffers (Split for performance)
         self.email_buffer = []
         self.attachment_buffer = []
         self.document_buffer = []
         self.evidence_buffer = []
+        self.message_raw_buffer = []
+        self.message_occurrence_buffer = []
+        self.message_derived_buffer = []
+        self.ingest_run_id: str | None = None
 
         # Initialize semantic processing for deep research acceleration
         self.semantic_service: Any = None
@@ -189,66 +228,170 @@ class UltimatePSTProcessor:
                     f"Semantic service initialization failed (non-fatal): {e}"
                 )
 
-    def _flush_buffers(self, force: bool = False) -> None:
+    def _flush_buffers(
+        self, force: bool = False, stats: ProcessingStats | None = None
+    ) -> None:
         """
         Flush all buffers to database.
         Splits by type to maximize bulk_save_objects efficiency.
+
+        NOTE: This method is intentionally **fail-fast**.
+        If a batch commit fails, we raise to avoid marking PST processing as
+        completed when nothing was persisted (a prior bug).
         """
         total_pending = (
             len(self.email_buffer)
             + len(self.document_buffer)
             + len(self.attachment_buffer)
             + len(self.evidence_buffer)
+            + len(self.message_raw_buffer)
+            + len(self.message_occurrence_buffer)
+            + len(self.message_derived_buffer)
         )
 
         if total_pending == 0:
             return
 
-        if force or total_pending >= self.batch_commit_size:
-            try:
-                # Flush in order of dependencies
-                if self.document_buffer:
-                    self.db.bulk_save_objects(self.document_buffer)
-                    self.document_buffer = []
+        if not (force or total_pending >= self.batch_commit_size):
+            return
 
-                if self.email_buffer:
-                    self.db.bulk_save_objects(self.email_buffer)
-                    self.email_buffer = []
+        # Snapshot current buffers so we can safely clear only on successful commit.
+        docs = list(self.document_buffer)
+        emails = list(self.email_buffer)
+        atts = list(self.attachment_buffer)
+        evidence = list(self.evidence_buffer)
+        raw_messages = list(self.message_raw_buffer)
+        occurrences = list(self.message_occurrence_buffer)
+        derived_messages = list(self.message_derived_buffer)
 
-                if self.attachment_buffer:
-                    self.db.bulk_save_objects(self.attachment_buffer)
-                    self.attachment_buffer = []
+        try:
+            # Flush in order of dependencies
+            if raw_messages:
+                self.db.bulk_save_objects(raw_messages)
+            if occurrences:
+                self.db.bulk_save_objects(occurrences)
+            if derived_messages:
+                self.db.bulk_save_objects(derived_messages)
+            if docs:
+                self.db.bulk_save_objects(docs)
+            if emails:
+                self.db.bulk_save_objects(emails)
+            if atts:
+                self.db.bulk_save_objects(atts)
+            if evidence:
+                self.db.bulk_save_objects(evidence)
 
-                if self.evidence_buffer:
-                    self.db.bulk_save_objects(self.evidence_buffer)
-                    self.evidence_buffer = []
+            self.db.commit()
 
-                self.db.commit()
-
-                # Log progress
-                if self.processed_count > 0 and self.processed_count % 500 == 0:
-                    if self.total_count > 0:
-                        progress = (self.processed_count / self.total_count) * 100
-                        logger.info(
-                            "Progress: %d/%d (%.1f%%)",
-                            self.processed_count,
-                            self.total_count,
-                            progress,
-                        )
-                    else:
-                        logger.info(
-                            "Progress: %d emails processed",
-                            self.processed_count,
-                        )
-
-            except Exception as commit_error:
-                logger.error(f"Batch commit failed: {commit_error}")
-                self.db.rollback()
-                # Clear buffers on error to prevent cascading
-                self.email_buffer = []
+            # Only clear buffers after successful commit.
+            if docs:
                 self.document_buffer = []
+            if emails:
+                self.email_buffer = []
+            if atts:
                 self.attachment_buffer = []
+            if evidence:
                 self.evidence_buffer = []
+            if raw_messages:
+                self.message_raw_buffer = []
+            if occurrences:
+                self.message_occurrence_buffer = []
+            if derived_messages:
+                self.message_derived_buffer = []
+
+            # Log progress
+            if self.processed_count > 0 and self.processed_count % 500 == 0:
+                if self.total_count > 0:
+                    progress = (self.processed_count / self.total_count) * 100
+                    logger.info(
+                        "Progress: %d/%d (%.1f%%)",
+                        self.processed_count,
+                        self.total_count,
+                        progress,
+                    )
+                else:
+                    logger.info(
+                        "Progress: %d emails processed",
+                        self.processed_count,
+                    )
+
+        except Exception as commit_error:
+            msg = (
+                "Batch commit failed "
+                f"(pending={total_pending}, emails={len(self.email_buffer)}, "
+                f"docs={len(self.document_buffer)}, atts={len(self.attachment_buffer)}, "
+                f"evidence={len(self.evidence_buffer)}): {commit_error}"
+            )
+            logger.error(msg, exc_info=True)
+            try:
+                self.db.rollback()
+            except Exception:
+                # Best-effort rollback; original exception is more important.
+                pass
+
+            if stats is not None:
+                stats["errors"].append(msg)
+
+            # Clear buffers on error to prevent cascading.
+            self.email_buffer = []
+            self.document_buffer = []
+            self.attachment_buffer = []
+            self.evidence_buffer = []
+
+            raise
+
+    def _report_progress(
+        self, pst_file_record: PSTFile | None, force: bool = False
+    ) -> None:
+        if pst_file_record is None:
+            return
+        now = time.monotonic()
+        if not force:
+            if self.processed_count <= self._last_progress_count:
+                return
+            if (
+                self.processed_count - self._last_progress_count
+            ) < self._progress_update_batch and (
+                now - self._last_progress_update
+            ) < self._progress_update_interval:
+                return
+
+        total_emails = (
+            self.total_count if self.total_count and self.total_count > 0 else None
+        )
+        try:
+            engine = self.db.get_bind()
+            if engine is None:
+                return
+            if total_emails is not None:
+                stmt = text(
+                    "UPDATE pst_files "
+                    "SET processed_emails = :processed, total_emails = :total, processing_status = 'processing' "
+                    "WHERE id::text = :id"
+                )
+                params = {
+                    "processed": self.processed_count,
+                    "total": total_emails,
+                    "id": str(pst_file_record.id),
+                }
+            else:
+                stmt = text(
+                    "UPDATE pst_files "
+                    "SET processed_emails = :processed, processing_status = 'processing' "
+                    "WHERE id::text = :id"
+                )
+                params = {
+                    "processed": self.processed_count,
+                    "id": str(pst_file_record.id),
+                }
+            with engine.begin() as conn:
+                conn.execute(stmt, params)
+            self._last_progress_update = now
+            self._last_progress_count = self.processed_count
+        except Exception as exc:
+            logger.debug(
+                "Failed to update PST progress for %s: %s", pst_file_record.id, exc
+            )
 
     def process_pst(
         self,
@@ -257,6 +400,7 @@ class UltimatePSTProcessor:
         case_id: UUID | str | None = None,
         company_id: UUID | str | None = None,
         project_id: UUID | str | None = None,
+        pst_s3_bucket: str | None = None,
     ) -> ProcessingStats:
         """
         Main entry point - process PST from S3
@@ -274,6 +418,7 @@ class UltimatePSTProcessor:
                 "document_id": str(document_id),
                 "case_id": str(case_id) if case_id else None,
                 "project_id": str(project_id) if project_id else None,
+                "pst_s3_bucket": pst_s3_bucket,
                 "pst_s3_key": pst_s3_key,
             },
             run_id="pre-fix",
@@ -290,8 +435,12 @@ class UltimatePSTProcessor:
             "errors": [],
         }
 
+        self.ingest_run_id = f"pst:{document_id}:{uuid.uuid4().hex}"
+
         start_time = datetime.now(timezone.utc)
         document: Document | None = None
+        pst_path: str | None = None
+        had_error = False
 
         # Try to find PST file record first (new upload flow creates this directly)
         pst_file_record = self.db.query(PSTFile).filter_by(id=document_id).first()
@@ -341,7 +490,7 @@ class UltimatePSTProcessor:
                     filename=document.filename,
                     case_id=case_id,
                     project_id=project_id,
-                    s3_bucket=settings.S3_BUCKET,
+                    s3_bucket=document.bucket or settings.S3_BUCKET,
                     s3_key=pst_s3_key,
                     file_size_bytes=document.size,
                     uploaded_by=uploader,
@@ -349,6 +498,15 @@ class UltimatePSTProcessor:
                 self.db.add(pst_file_record)
                 self.db.commit()
                 self.db.refresh(pst_file_record)
+
+        # Build a per-run project/case scoping matcher to exclude other projects early.
+        try:
+            self.scope_matcher = build_scope_matcher(
+                self.db, case_id=case_id, project_id=project_id
+            )
+        except Exception as exc:
+            logger.warning("Failed to build scope matcher (continuing): %s", exc)
+            self.scope_matcher = None
 
         def set_processing_meta(status: str, **extra: Any) -> None:
             if document is not None:
@@ -374,14 +532,64 @@ class UltimatePSTProcessor:
             pst_file_record.processing_started_at = start_time
         self.db.commit()
 
-        # Download PST from S3 to temp file
-        with tempfile.NamedTemporaryFile(suffix=".pst", delete=False) as tmp:
+        # Download PST from S3 to a local temp file (pypff requires a filesystem path).
+        temp_dir = getattr(settings, "PST_TEMP_DIR", None) or None
+        keep_temp_on_error = bool(getattr(settings, "PST_KEEP_TEMP_ON_ERROR", False))
+        if temp_dir:
             try:
-                logger.info(
-                    f"Downloading PST from s3://{settings.S3_BUCKET}/{pst_s3_key}"
+                os.makedirs(temp_dir, exist_ok=True)
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to create PST_TEMP_DIR={temp_dir}: {e}"
+                ) from e
+
+        # Preflight: ensure enough free disk for the download (large PSTs can be multi-GB).
+        try:
+            expected_size = int(getattr(pst_file_record, "file_size_bytes", 0) or 0)
+            usage = shutil.disk_usage(temp_dir or tempfile.gettempdir())
+            free_bytes = int(usage.free)
+            if expected_size and free_bytes < int(expected_size * 1.15):
+                raise RuntimeError(
+                    "Insufficient temp disk space for PST download. "
+                    f"Need ~{expected_size / (1024**3):.2f} GB, "
+                    f"free {free_bytes / (1024**3):.2f} GB "
+                    f"in {(temp_dir or tempfile.gettempdir())}. "
+                    "Set PST_TEMP_DIR to a larger writable volume."
                 )
+        except Exception as e:
+            had_error = True
+            logger.error("PST temp disk preflight failed: %s", e)
+            if document is not None:
+                setattr(document, "status", DocStatus.FAILED)
+                set_processing_meta(
+                    "failed",
+                    error=str(e),
+                    failed_at=datetime.now(timezone.utc).isoformat(),
+                )
+            else:
+                pst_file_record.processing_status = "failed"
+                pst_file_record.error_message = str(e)
+                pst_file_record.processing_completed_at = datetime.now(timezone.utc)
+            self.db.commit()
+            raise
+
+        with tempfile.NamedTemporaryFile(
+            suffix=".pst", delete=False, dir=temp_dir
+        ) as tmp:
+            try:
+                bucket_to_use = (
+                    pst_s3_bucket
+                    or (
+                        str(getattr(pst_file_record, "s3_bucket", ""))
+                        if pst_file_record is not None
+                        else ""
+                    )
+                    or getattr(settings, "S3_PST_BUCKET", "")
+                    or settings.S3_BUCKET
+                )
+                logger.info(f"Downloading PST from s3://{bucket_to_use}/{pst_s3_key}")
                 self.s3.download_fileobj(
-                    Bucket=settings.S3_BUCKET, Key=pst_s3_key, Fileobj=tmp
+                    Bucket=bucket_to_use, Key=pst_s3_key, Fileobj=tmp
                 )
                 pst_path = tmp.name
                 # region agent log H11 download
@@ -394,13 +602,14 @@ class UltimatePSTProcessor:
                     {
                         "path": pst_path,
                         "size_bytes": size_bytes,
-                        "bucket": settings.S3_BUCKET,
+                        "bucket": bucket_to_use,
                         "key": pst_s3_key,
                     },
                     run_id="pre-fix",
                 )
                 # endregion agent log H11 download
             except Exception as e:
+                had_error = True
                 logger.error(f"Failed to download PST: {e}")
                 if document is not None:
                     setattr(document, "status", DocStatus.FAILED)
@@ -419,6 +628,8 @@ class UltimatePSTProcessor:
         try:
             # Open PST with pypff
             pst_file = pypff.file()
+            if not pst_path:
+                raise RuntimeError("PST temp path was not created")
             pst_file.open(pst_path)
 
             logger.info("PST opened successfully, processing folders...")
@@ -458,6 +669,8 @@ class UltimatePSTProcessor:
                 )
                 # endregion agent log H12 count skipped
 
+            self._report_progress(pst_file_record, force=True)
+
             # Initialize batch buffers
             self.email_buffer = []
             self.attachment_buffer = []
@@ -478,11 +691,11 @@ class UltimatePSTProcessor:
                 )
 
                 # Flush remaining buffers
-                self._flush_buffers(force=True)
+                self._flush_buffers(force=True, stats=stats)
 
             # Build thread relationships after all emails are extracted (CRITICAL - USP FEATURE!)
             logger.info("Building email thread relationships...")
-            self._build_thread_relationships(case_id, project_id)
+            thread_stats = self._build_thread_relationships(case_id, project_id)
             # region agent log H13 threads
             agent_log(
                 "H13",
@@ -490,24 +703,25 @@ class UltimatePSTProcessor:
                 {
                     "case_id": str(case_id) if case_id else None,
                     "project_id": str(project_id) if project_id else None,
-                    "threads_map_size": len(self.threads_map),
+                    "threads_identified": thread_stats.threads_identified,
+                    "links_created": thread_stats.links_created,
                     "total_emails": stats.get("total_emails"),
                 },
                 run_id="pre-fix",
             )
             # endregion agent log H13 threads
 
-            # Count unique threads from the built thread_groups
-            unique_threads: set[str] = set()
-            for thread_info in self.threads_map.values():
-                email_msg = thread_info.get("email_message")
-                if (
-                    email_msg
-                    and hasattr(email_msg, "thread_id")
-                    and email_msg.thread_id
-                ):
-                    unique_threads.add(str(email_msg.thread_id))
-            stats["threads_identified"] = len(unique_threads)
+            stats["threads_identified"] = thread_stats.threads_identified
+
+            # Deduplicate emails after threading (deterministic, evidence-logged)
+            logger.info("Deduplicating emails...")
+            dedupe_stats = dedupe_emails(
+                self.db,
+                case_id=case_id,
+                project_id=project_id,
+                run_id="pst_processor",
+            )
+            stats["dedupe_duplicates"] = dedupe_stats.duplicates_found
 
             # Wait for any pending S3 uploads
             if self.upload_futures:
@@ -570,10 +784,11 @@ class UltimatePSTProcessor:
             logger.info(f"PST processing completed: {stats}")
 
         except Exception as e:
+            had_error = True
             logger.error(f"PST processing failed: {e}", exc_info=True)
             # Try to save partial results
             try:
-                self._flush_buffers(force=True)
+                self._flush_buffers(force=True, stats=stats)
             except Exception as save_err:
                 logger.error(f"Failed to save remaining buffer on error: {save_err}")
 
@@ -594,30 +809,48 @@ class UltimatePSTProcessor:
 
         finally:
             # Cleanup temp file
-            if os.path.exists(pst_path):
-                os.unlink(pst_path)
+            try:
+                if pst_path and os.path.exists(pst_path):
+                    if keep_temp_on_error and had_error:
+                        logger.warning(
+                            "Keeping PST temp file for debugging: %s", pst_path
+                        )
+                    else:
+                        os.unlink(pst_path)
+            except Exception as cleanup_err:
+                logger.warning(
+                    "Failed to cleanup PST temp file %s: %s", pst_path, cleanup_err
+                )
 
         return stats
 
     def _count_messages(self, folder: Any) -> int:
-        """Recursively count total messages for progress tracking"""
-        try:
-            count = int(self._safe_get_attr(folder, "number_of_sub_messages", 0) or 0)
-            num_subfolders = int(
-                self._safe_get_attr(folder, "number_of_sub_folders", 0) or 0
-            )
-            for i in range(num_subfolders):
-                try:
-                    subfolder: Any = folder.get_sub_folder(i)
-                    count += self._count_messages(subfolder)
-                except (AttributeError, RuntimeError, OSError) as e:
-                    logger.debug(
-                        "Could not count messages in subfolder %d: %s", i, str(e)[:50]
-                    )
-            return count
-        except (ValueError, TypeError) as e:
-            logger.warning("Error counting messages: %s", str(e))
-            return 0
+        """Iteratively count total messages for progress tracking."""
+        count = 0
+        stack = [folder]
+        while stack:
+            current = stack.pop()
+            try:
+                count += int(
+                    self._safe_get_attr(current, "number_of_sub_messages", 0) or 0
+                )
+                num_subfolders = int(
+                    self._safe_get_attr(current, "number_of_sub_folders", 0) or 0
+                )
+                for i in range(num_subfolders):
+                    try:
+                        subfolder: Any = current.get_sub_folder(i)
+                        stack.append(subfolder)
+                    except (AttributeError, RuntimeError, OSError) as e:
+                        logger.debug(
+                            "Could not count messages in subfolder %d: %s",
+                            i,
+                            str(e)[:50],
+                        )
+            except (ValueError, TypeError) as e:
+                logger.warning("Error counting messages: %s", str(e))
+                return count
+        return count
 
     def _process_folder(
         self,
@@ -631,83 +864,96 @@ class UltimatePSTProcessor:
         folder_path: str = "",
     ) -> None:
         """
-        Recursively process PST folders
+        Iteratively process PST folders to avoid deep recursion limits.
 
         Note: Email messages and attachments are now committed individually in _process_message
         to ensure EmailAttachment records can be properly linked.
         """
-        folder_name = folder.name or "Root"
-        current_path = f"{folder_path}/{folder_name}" if folder_path else folder_name
+        stack: list[tuple[Any, str]] = [(folder, folder_path)]
 
-        num_messages = int(
-            self._safe_get_attr(folder, "number_of_sub_messages", 0) or 0
-        )
-        logger.info("Processing folder: %s (%d messages)", current_path, num_messages)
+        while stack:
+            current_folder, parent_path = stack.pop()
+            folder_name = current_folder.name or "Root"
+            current_path = (
+                f"{parent_path}/{folder_name}" if parent_path else folder_name
+            )
 
-        # Process messages in this folder
-        for i in range(num_messages):
-            try:
-                message = folder.get_sub_message(i)
-                _ = self._process_message(
-                    message,
-                    pst_file_record,
-                    document,
-                    case_id,
-                    project_id,
-                    company_id,
-                    stats,
-                    current_path,
-                )
+            num_messages = int(
+                self._safe_get_attr(current_folder, "number_of_sub_messages", 0) or 0
+            )
+            logger.info(
+                "Processing folder: %s (%d messages)", current_path, num_messages
+            )
 
-                stats["total_emails"] += 1
-                self.processed_count += 1
+            # Process messages in this folder
+            for i in range(num_messages):
+                try:
+                    message = current_folder.get_sub_message(i)
+                    _ = self._process_message(
+                        message,
+                        pst_file_record,
+                        document,
+                        case_id,
+                        project_id,
+                        company_id,
+                        stats,
+                        current_path,
+                    )
 
-                # Check buffers
-                self._flush_buffers()
+                    stats["total_emails"] += 1
+                    self.processed_count += 1
+                    self._report_progress(pst_file_record)
 
-            except (
-                AttributeError,
-                RuntimeError,
-                OSError,
-                ValueError,
-                SystemError,
-                MemoryError,
-            ) as e:
-                logger.warning(
-                    f"Skipping message {i} in {current_path}: {str(e)[:100]}"
-                )
-                stats["errors"].append(f"Message {i} in {current_path}: {str(e)[:50]}")
+                    # Check buffers
+                    self._flush_buffers(stats=stats)
 
-        # Process subfolders
-        num_subfolders = int(
-            self._safe_get_attr(folder, "number_of_sub_folders", 0) or 0
-        )
-        for i in range(num_subfolders):
-            try:
-                subfolder: Any = folder.get_sub_folder(i)
-                self._process_folder(
-                    subfolder,
-                    pst_file_record,
-                    document,
-                    case_id,
-                    project_id,
-                    company_id,
-                    stats,
-                    current_path,
-                )
-            except (
-                AttributeError,
-                RuntimeError,
-                OSError,
-                SystemError,
-                MemoryError,
-            ) as e:
-                logger.warning(
-                    f"Skipping subfolder {i} in {current_path}: {str(e)[:100]}"
-                )
-                stats["errors"].append(
-                    f"Subfolder {i} in {current_path}: {str(e)[:50]}"
-                )
+                except (
+                    AttributeError,
+                    RuntimeError,
+                    OSError,
+                    ValueError,
+                    SystemError,
+                    MemoryError,
+                ) as e:
+                    logger.warning(
+                        f"Skipping message {i} in {current_path}: {str(e)[:100]}"
+                    )
+                    stats["errors"].append(
+                        f"Message {i} in {current_path}: {str(e)[:50]}"
+                    )
+
+            # Queue subfolders (reverse order to preserve traversal order)
+            num_subfolders = int(
+                self._safe_get_attr(current_folder, "number_of_sub_folders", 0) or 0
+            )
+            subfolders: list[Any] = []
+            for i in range(num_subfolders):
+                try:
+                    subfolder = current_folder.get_sub_folder(i)
+                    subfolders.append(subfolder)
+                except (
+                    AttributeError,
+                    RuntimeError,
+                    OSError,
+                    SystemError,
+                    MemoryError,
+                ) as e:
+                    logger.warning(
+                        f"Skipping subfolder {i} in {current_path}: {str(e)[:100]}"
+                    )
+                    stats["errors"].append(
+                        f"Subfolder {i} in {current_path}: {str(e)[:50]}"
+                    )
+
+            for subfolder in reversed(subfolders):
+                stack.append((subfolder, current_path))
+
+    def _strip_footer_noise(self, text: str | None) -> str:
+        """
+        Remove boilerplate banners and disclaimers (e.g., CAUTION EXTERNAL EMAIL,
+        confidentiality notices, office addresses) while keeping the core message.
+        """
+        return strip_footer_noise(text)
 
     def _clean_body_text(self, text: str | None) -> str | None:
         """
@@ -717,40 +963,7 @@ class UltimatePSTProcessor:
         - Remove zero-width characters (U+200B, U+200C, U+200D, U+FEFF)
         - Normalize whitespace
         """
-        if not text:
-            return text
-
-        # Remove CSS style blocks (VML behaviors, style tags, etc.)
-        text = re.sub(
-            r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE
-        )
-        text = re.sub(r"v\\:\*\s*\{[^}]*\}", "", text)  # VML behavior CSS
-        text = re.sub(r"o\\:\*\s*\{[^}]*\}", "", text)  # Office behavior CSS
-        text = re.sub(r"w\\:\*\s*\{[^}]*\}", "", text)  # Word behavior CSS
-        text = re.sub(r"\.shape\s*\{[^}]*\}", "", text)  # Shape CSS
-        text = re.sub(
-            r"@[a-z-]+\s*\{[^}]*\}", "", text, flags=re.IGNORECASE
-        )  # @media, @font-face, etc.
-
-        # Remove HTML tags
-        text = re.sub(r"<[^>]+>", " ", text)
-
-        # Decode HTML entities
-        text = html.unescape(text)
-
-        # Remove zero-width characters that cause "J ? ? ? ? OHN" display issues
-        text = re.sub(r"[\u200b\u200c\u200d\ufeff\u00ad]", "", text)
-
-        # Remove other invisible/control characters (but keep newlines and tabs)
-        text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
-
-        # Normalize multiple spaces (but preserve single newlines)
-        text = re.sub(r"[^\S\n]+", " ", text)
-
-        # Normalize multiple newlines to max 2
-        text = re.sub(r"\n{3,}", "\n\n", text)
-
-        return text.strip()
+        return clean_body_text(text)
 
     def _calculate_spam_score(
         self,
@@ -828,6 +1041,28 @@ class UltimatePSTProcessor:
             # Catch-all for any other pypff errors
             logger.debug("Generic error accessing %s: %s", attr_name, str(e)[:50])
             return default
+
+    def _build_canonical_participants(
+        self,
+        sender_email: str | None,
+        recipients_to: list[str] | None,
+        recipients_cc: list[str] | None,
+        recipients_bcc: list[str] | None,
+    ) -> list[str] | None:
+        participants: list[str] = []
+        for addr in [
+            sender_email,
+            *(recipients_to or []),
+            *(recipients_cc or []),
+            *(recipients_bcc or []),
+        ]:
+            if not addr:
+                continue
+            cleaned = addr.strip().lower()
+            if cleaned:
+                participants.append(cleaned)
+        unique = sorted(set(participants))
+        return unique or None
 
     def _process_message(
         self,
@@ -977,29 +1212,119 @@ class UltimatePSTProcessor:
             > 0,
         }
 
-        # =====================================================================
-        # EARLY SPAM DETECTION - Skip full ingestion for spam/hidden/other_project
-        # Only store minimal metadata to save storage and processing time
-        # =====================================================================
-        spam_info = self._calculate_spam_score(
-            subject, None, sender_email or sender_name
-        )  # Subject-only check first
+        ingest_run_id = (
+            self.ingest_run_id or f"pst:{pst_file_record.id}:{uuid.uuid4().hex}"
+        )
+        self.ingest_run_id = ingest_run_id
+        raw_payload = {
+            "source_type": "pst",
+            "pst_file_id": str(pst_file_record.id),
+            "pst_s3_bucket": pst_file_record.s3_bucket,
+            "pst_s3_key": pst_file_record.s3_key,
+            "folder_path": folder_path,
+            "message_id": message_id,
+            "conversation_index": conversation_index,
+            "subject": subject,
+            "date_sent": email_date.isoformat() if email_date else None,
+        }
+        raw_hash = build_source_hash(raw_payload)
+        storage_uri = None
+        if pst_file_record.s3_bucket and pst_file_record.s3_key:
+            storage_uri = f"s3://{pst_file_record.s3_bucket}/{pst_file_record.s3_key}"
+        raw_id = uuid.uuid4()
+        self.message_raw_buffer.append(
+            MessageRaw(
+                id=raw_id,
+                source_hash=raw_hash,
+                storage_uri=storage_uri,
+                source_type="pst",
+                extraction_tool_version="pypff",
+                extracted_at=email_date,
+                raw_metadata=raw_payload,
+            )
+        )
+        self.message_occurrence_buffer.append(
+            MessageOccurrence(
+                raw_id=raw_id,
+                ingest_run_id=ingest_run_id,
+                source_location=folder_path,
+                case_id=case_id if case_id else None,
+                project_id=project_id if project_id else None,
+            )
+        )
 
-        if spam_info.get("is_hidden") or spam_info.get("other_project"):
-            spam_category = (
-                spam_info.get("spam_reasons", [None])[0]
-                if spam_info.get("spam_reasons")
-                else None
+        # =====================================================================
+        # EARLY EXCLUSION GATE
+        # - Skip full ingestion for spam + other-project emails
+        # - Store minimal metadata only
+        # - Never extract attachments/evidence for excluded emails
+        # =====================================================================
+        scope_allow_current = not bool(getattr(settings, "PST_SCOPE_STRICT", False))
+
+        def _detect_other_project(body_preview: str | None = None) -> str | None:
+            if self.scope_matcher is None:
+                return None
+            try:
+                return self.scope_matcher.detect_other_project(
+                    subject,
+                    folder_path,
+                    body_preview,
+                    allow_current_terms=scope_allow_current,
+                )
+            except Exception:
+                return None
+
+        def _buffer_excluded_email(
+            spam_info: dict[str, Any], other_project_value: str | None
+        ) -> EmailMessage:
+            spam_category = None
+            if other_project_value:
+                spam_category = "other_project"
+            elif spam_info.get("spam_reasons"):
+                spam_category = spam_info.get("spam_reasons", [None])[0]
+
+            spam_reasons = (
+                [spam_category]
+                if spam_category
+                else [r for r in (spam_info.get("spam_reasons") or []) if r]
             )
-            is_hidden = bool(
-                spam_info.get("is_hidden", False) or spam_info.get("other_project")
-            )
-            derived_status = (
-                "other_project" if spam_category == "other_projects" else "spam"
-            )
+
+            # If we are excluding during ingest, treat as hidden so downstream
+            # subsystems (evidence, AI, search) cannot accidentally surface it.
+            is_hidden = True
+            derived_status = "other_project" if other_project_value else "spam"
+            body_label = spam_category or derived_status or "spam"
 
             # Create minimal EmailMessage record - NO body content, NO attachments
             email_id = uuid.uuid4()
+            participants = self._build_canonical_participants(
+                sender_email, to_recipients, cc_recipients, bcc_recipients
+            )
+            derived_hash = build_content_hash(
+                None,
+                sender_email,
+                sender_name,
+                to_recipients,
+                subject,
+                email_date,
+            )
+            self.message_derived_buffer.append(
+                MessageDerived(
+                    raw_id=raw_id,
+                    normalizer_version=NORMALIZER_VERSION,
+                    normalizer_ruleset_hash=NORMALIZER_RULESET_HASH,
+                    parser_version="pypff",
+                    canonical_subject=subject,
+                    canonical_participants=participants,
+                    canonical_body_preview=None,
+                    canonical_body_full=None,
+                    banner_stripped_body=None,
+                    content_hash_phase1=derived_hash,
+                    thread_id_header=message_id,
+                    thread_confidence="header" if message_id else None,
+                    qc_flags={"excluded": True, "reason": derived_status},
+                )
+            )
             email_message = EmailMessage(
                 id=email_id,
                 pst_file_id=pst_file_record.id,
@@ -1020,31 +1345,34 @@ class UltimatePSTProcessor:
                 body_text=None,  # Skip body - not needed for excluded emails
                 body_html=None,
                 body_text_clean=None,
-                body_preview=f"[EXCLUDED: {spam_info.get('spam_reasons', ['spam'])[0] if spam_info.get('spam_reasons') else 'spam'}]",
+                body_preview=f"[EXCLUDED: {body_label}]",
                 has_attachments=email_data.get("has_attachments", False),
                 importance=self._safe_get_attr(message, "importance", None),
                 pst_message_path=folder_path,
                 meta={
                     "thread_topic": thread_topic,
+                    "normalizer_version": NORMALIZER_VERSION,
+                    "normalizer_ruleset_hash": NORMALIZER_RULESET_HASH,
                     # Correspondence visibility convention
                     "status": derived_status,
                     # Backward-compatible top-level flags
                     "excluded": True,
-                    "spam_score": spam_info["spam_score"],
-                    "is_spam": spam_info["is_spam"],
+                    "spam_score": int(spam_info.get("spam_score") or 0),
+                    "is_spam": bool(spam_info.get("is_spam")),
                     "is_hidden": is_hidden,
-                    "spam_reasons": spam_info["spam_reasons"],
-                    "other_project": spam_info["other_project"],
+                    "spam_reasons": spam_reasons,
+                    "other_project": other_project_value,
                     # Canonical nested spam structure (used by evidence cascading)
                     "spam": {
-                        "is_spam": spam_info["is_spam"],
-                        "score": spam_info["spam_score"],
+                        "is_spam": bool(spam_info.get("is_spam")),
+                        "score": int(spam_info.get("spam_score") or 0),
                         "category": spam_category,
-                        "is_hidden": is_hidden,
+                        "is_hidden": True,
                         "status_set_by": "spam_filter_ingest",
                         "applied_status": derived_status,
                     },
                     "attachments_skipped": email_data.get("has_attachments", False),
+                    "attachments_skipped_reason": derived_status,
                 },
             )
             # Add to buffer instead of immediate commit
@@ -1061,7 +1389,16 @@ class UltimatePSTProcessor:
                 }
                 self.threads_map[message_id] = thread_info
 
-            return email_message  # EARLY RETURN - skip body/attachment processing
+            return email_message
+
+        other_project_label = _detect_other_project()
+        spam_info = self._calculate_spam_score(
+            subject, None, sender_email or sender_name
+        )  # Subject-only check first
+
+        other_project_value = other_project_label or spam_info.get("other_project")
+        if spam_info.get("is_spam") or other_project_value:
+            return _buffer_excluded_email(spam_info, other_project_value)
 
         # =====================================================================
         # FULL PROCESSING - Only for relevant, non-spam emails
@@ -1108,13 +1445,19 @@ class UltimatePSTProcessor:
         if body_plain:
             body_text = body_plain
         elif body_html_content:
-            # Provide a simple text fallback by stripping tags
-            body_text = re.sub(r"<[^>]+>", " ", body_html_content)
-            body_text = re.sub(r"\s+", " ", body_text).strip()
+            # Provide a simple text fallback by stripping tags (preserve line breaks).
+            body_text = re.sub(r"(?i)<br\s*/?>", "\n", body_html_content)
+            body_text = re.sub(r"(?i)</p\s*>", "\n", body_text)
+            body_text = re.sub(r"(?i)</div\s*>", "\n", body_text)
+            body_text = re.sub(r"<[^>]+>", " ", body_text)
+            body_text = re.sub(r"[^\S\n]+", " ", body_text)
+            body_text = re.sub(r"\n{3,}", "\n\n", body_text).strip()
         elif body_rtf:
-            # Strip RTF control codes for plain text
-            body_text = re.sub(r"\\[a-z]+\d*\s?|\{|\}", "", body_rtf)
-            body_text = re.sub(r"\s+", " ", body_text).strip()
+            # Strip RTF control codes for plain text (preserve paragraph breaks).
+            body_text = re.sub(r"\\par[d]?\b", "\n", body_rtf)
+            body_text = re.sub(r"\\[a-z]+\d*\s?|\{|\}", "", body_text)
+            body_text = re.sub(r"[^\S\n]+", " ", body_text)
+            body_text = re.sub(r"\n{3,}", "\n\n", body_text).strip()
         else:
             body_text = ""
 
@@ -1126,7 +1469,16 @@ class UltimatePSTProcessor:
             # Quick split on reply markers to approximate the top message.
             try:
                 reply_split_pattern = (
-                    r"(?mi)^On .+ wrote:|^From:\s|^Sent:\s|^-----Original Message-----"
+                    r"(?mi)^\s*>?\s*On .+ wrote:"
+                    r"|^\s*>?\s*From:\s"
+                    r"|^\s*>?\s*Sent:\s"
+                    r"|^\s*>?\s*To:\s"
+                    r"|^\s*>?\s*Cc:\s"
+                    r"|^\s*>?\s*Subject:\s"
+                    r"|^\s*>?\s*Disclaimer From:\s"
+                    r"|^-----Original Message-----"
+                    r"|^----- Forwarded message -----"
+                    r"|^Begin forwarded message"
                 )
                 parts = re.split(reply_split_pattern, canonical_body, maxsplit=1)
                 candidate = (parts[0] if parts else canonical_body).strip()
@@ -1136,9 +1488,26 @@ class UltimatePSTProcessor:
             except re.error:
                 pass
 
-        # Normalise whitespace for canonical body
+        # Clean body text - decode HTML entities and remove zero-width characters
+        body_text_clean = self._clean_body_text(canonical_body)
+        if body_text_clean is not None:
+            canonical_body = body_text_clean
+
+        # Normalise whitespace for canonical body (hashing/spam)
         if canonical_body:
             canonical_body = re.sub(r"\s+", " ", canonical_body).strip()
+
+        scope_preview = (body_text_clean or canonical_body or full_body_text).strip()
+        scope_preview = scope_preview[:4000] if scope_preview else None
+
+        # Calculate spam score during ingestion (no AI, pure pattern matching)
+        spam_info = self._calculate_spam_score(
+            subject, canonical_body, sender_email or sender_name
+        )
+        other_project_label = _detect_other_project(scope_preview)
+        other_project_value = other_project_label or spam_info.get("other_project")
+        if spam_info.get("is_spam") or other_project_value:
+            return _buffer_excluded_email(spam_info, other_project_value)
 
         # Calculate size saved by NOT storing the email as a file
         combined_content = (body_html_content or "") + (body_text or "")
@@ -1157,9 +1526,6 @@ class UltimatePSTProcessor:
 
         preview_source = full_body_text or body_html_content or ""
         body_preview = preview_source[:10000] if preview_source else None
-
-        # Clean body text - decode HTML entities and remove zero-width characters
-        body_text_clean = self._clean_body_text(canonical_body)
 
         # Optional offload of very large FULL bodies to S3 to keep DB lean
         offloaded_body_key = None
@@ -1186,36 +1552,34 @@ class UltimatePSTProcessor:
                 logger.warning(f"Body offload failed, keeping inline: {e}")
 
         # Compute content hash for deduplication (canonical body + key metadata)
-        content_hash = None
-        try:
-            # Normalise participants and subject/date for a stable hash
-            norm_from = (sender_email or sender_name or "").strip().lower()
-            norm_to = (
-                ",".join(sorted([r.strip().lower() for r in to_recipients]))
-                if to_recipients
-                else ""
-            )
-            norm_subject = (subject or "").strip().lower()
-            norm_date = email_date.isoformat() if email_date else ""
+        content_hash = build_content_hash(
+            canonical_body,
+            sender_email,
+            sender_name,
+            to_recipients,
+            subject,
+            email_date,
+        )
 
-            hash_payload = json.dumps(
-                {
-                    "body": canonical_body,
-                    "from": norm_from,
-                    "to": norm_to,
-                    "subject": norm_subject,
-                    "date": norm_date,
-                },
-                sort_keys=True,
-                ensure_ascii=False,
+        participants = self._build_canonical_participants(
+            sender_email, to_recipients, cc_recipients, bcc_recipients
+        )
+        preview_text = (body_text_clean or canonical_body or "").strip()
+        self.message_derived_buffer.append(
+            MessageDerived(
+                raw_id=raw_id,
+                normalizer_version=NORMALIZER_VERSION,
+                normalizer_ruleset_hash=NORMALIZER_RULESET_HASH,
+                parser_version="pypff",
+                canonical_subject=subject,
+                canonical_participants=participants,
+                canonical_body_preview=preview_text[:8000] if preview_text else None,
+                canonical_body_full=None,
+                banner_stripped_body=body_text_clean or None,
+                content_hash_phase1=content_hash,
+                thread_id_header=message_id,
+                thread_confidence="header" if message_id else None,
             )
-            content_hash = hashlib.sha256(hash_payload.encode("utf-8")).hexdigest()
-        except Exception as hash_error:
-            logger.debug("Failed to compute content_hash: %s", hash_error)
-
-        # Calculate spam score during ingestion (no AI, pure pattern matching)
-        spam_info = self._calculate_spam_score(
-            subject, canonical_body, sender_email or sender_name
         )
 
         spam_category = (
@@ -1228,8 +1592,8 @@ class UltimatePSTProcessor:
             "other_project" if spam_category == "other_projects" else "spam"
         )
         spam_payload: dict[str, Any] = {
-            "is_spam": spam_info["is_spam"],
-            "score": spam_info["spam_score"],
+            "is_spam": bool(spam_info.get("is_spam")),
+            "score": int(spam_info.get("spam_score") or 0),
             "category": spam_category,
             "is_hidden": spam_is_hidden,
             "status_set_by": "spam_filter_ingest",
@@ -1249,12 +1613,14 @@ class UltimatePSTProcessor:
             "body_offload_key": offloaded_body_key,
             # Backward-compatible hint for consumers expecting the explicit field.
             "body_full_s3_key": offloaded_body_key,
+            "normalizer_version": NORMALIZER_VERSION,
+            "normalizer_ruleset_hash": NORMALIZER_RULESET_HASH,
             # Spam classification (computed at ingestion time)
-            "spam_score": spam_info["spam_score"],
-            "is_spam": spam_info["is_spam"],
+            "spam_score": int(spam_info.get("spam_score") or 0),
+            "is_spam": bool(spam_info.get("is_spam")),
             "is_hidden": spam_is_hidden,  # Auto-exclude from views
-            "spam_reasons": spam_info["spam_reasons"],
-            "other_project": spam_info["other_project"],
+            "spam_reasons": spam_info.get("spam_reasons", []),
+            "other_project": other_project_value,
             # Canonical nested spam structure (used by evidence cascading)
             "spam": spam_payload,
         }
@@ -1609,12 +1975,17 @@ class UltimatePSTProcessor:
                 s3_key = f"attachments/{company_prefix}/{entity_folder}/{hash_prefix}_{safe_filename}"
 
                 # Check if we've already stored this attachment (deduplication)
-                is_duplicate = file_hash in self.attachment_hashes
+                entry = self.attachment_hashes.get(file_hash)
+                is_duplicate = entry is not None
                 att_doc_id = None
 
                 if is_duplicate:
-                    # Use existing document (deduped at storage level)
-                    att_doc_id = self.attachment_hashes[file_hash]
+                    # Use existing document and S3 key (deduped at storage level)
+                    if isinstance(entry, dict):
+                        att_doc_id = entry.get("document_id")
+                        s3_key = entry.get("s3_key", s3_key)
+                    else:
+                        att_doc_id = entry
                     logger.debug(
                         "Attachment is duplicate (hash=%s), reusing doc %s",
                         file_hash[:8],
@@ -1625,7 +1996,7 @@ class UltimatePSTProcessor:
                     try:
                         future = self.upload_executor.submit(
                             self.s3.put_object,
-                            Bucket=settings.S3_BUCKET,
+                            Bucket=self.attach_bucket,
                             Key=s3_key,
                             Body=attachment_data,
                             ContentType=content_type,
@@ -1650,9 +2021,10 @@ class UltimatePSTProcessor:
                     att_doc = Document(
                         id=att_doc_id,
                         filename=safe_filename,
+                        title=safe_filename,
                         content_type=content_type,
                         size=size,
-                        bucket=settings.S3_BUCKET,
+                        bucket=self.attach_bucket,
                         s3_key=s3_key,
                         status=DocStatus.NEW,  # Set to NEW so OCR can process it
                         owner_user_id=(
@@ -1675,7 +2047,10 @@ class UltimatePSTProcessor:
                     self.document_buffer.append(att_doc)
 
                     # Store for deduplication
-                    self.attachment_hashes[file_hash] = att_doc_id
+                    self.attachment_hashes[file_hash] = {
+                        "document_id": att_doc_id,
+                        "s3_key": s3_key,
+                    }
 
                     # ASYNC OCR: Queue OCR task immediately (non-blocking)
                     try:
@@ -1700,7 +2075,7 @@ class UltimatePSTProcessor:
                     filename=safe_filename,
                     content_type=content_type,
                     file_size_bytes=size,
-                    s3_bucket=settings.S3_BUCKET,
+                    s3_bucket=self.attach_bucket,
                     s3_key=s3_key,
                     attachment_hash=file_hash,
                     is_inline=is_inline,
@@ -1742,7 +2117,7 @@ class UltimatePSTProcessor:
                             mime_type=content_type,
                             file_size=size,
                             file_hash=file_hash,
-                            s3_bucket=settings.S3_BUCKET,
+                            s3_bucket=self.attach_bucket,
                             s3_key=s3_key,
                             evidence_type=evidence_type_category,
                             source_type="pst_extraction",
@@ -1914,185 +2289,27 @@ class UltimatePSTProcessor:
 
     def _build_thread_relationships(
         self, case_id: UUID | str | None, project_id: UUID | str | None
-    ) -> None:
-        """
-        Build email thread relationships using fallback algorithms
-
-        Threading hierarchy (PRIORITY ORDER):
-        1. Message-ID / In-Reply-To / References (RFC 2822 standard) (PRIMARY)
-        2. Conversation-Index (Outlook proprietary)
-        3. Subject-based grouping (FALLBACK)
-        """
+    ) -> ThreadingStats:
+        """Build deterministic email thread relationships with evidence."""
         logger.info(
-            f"Building thread relationships for case_id={case_id}, project_id={project_id}"
+            "Building thread relationships for case_id=%s, project_id=%s",
+            case_id,
+            project_id,
         )
-
-        if not self.threads_map:
-            logger.info("No emails to thread")
-            return
-
-        # Step 1: Build thread groups using message IDs
-        thread_groups: dict[str, list[EmailMessage]] = (
-            {}
-        )  # thread_id -> list of email_messages
-        message_id_to_email: dict[str, EmailMessage] = {}  # message_id -> email_message
-
-        # First pass: index all emails by message_id
-        for message_id, thread_info in self.threads_map.items():
-            if not message_id:
-                continue
-            email_message = thread_info.get("email_message")
-            if email_message:
-                message_id_to_email[message_id] = email_message
-
-        # === NEW OPTIMIZATION: Pre-index fallback fields ===
-        # Map conversation_index root -> thread_id
-        conv_root_map: dict[str, str] = {}
-        # Map normalized_subject -> (thread_id, participants)
-        subject_map: dict[str, tuple[str, set[str]]] = {}
-
-        # Build lookup maps
-        for thread_info in self.threads_map.values():
-            email = thread_info.get("email_message")
-            if not email:
-                continue
-
-            if (
-                email.conversation_index
-                and hasattr(email, "thread_id")
-                and email.thread_id
-            ):
-                conv_root, _ = self._decode_conversation_index(email.conversation_index)
-                if conv_root:
-                    conv_root_map.setdefault(conv_root, email.thread_id)
-
-            subject = thread_info.get("subject", "")
-            if subject:
-                norm_subj = re.sub(r"^(re|fw|fwd):\s*", "", subject.lower().strip())
-                if hasattr(email, "thread_id") and email.thread_id:
-                    participants = self._participants_set(email)
-                    subject_map.setdefault(norm_subj, (email.thread_id, participants))
-        # ===================================================
-
-        # Second pass: assign thread IDs using fallback logic
-        for message_id, thread_info in self.threads_map.items():
-            email_message: EmailMessage | None = thread_info.get("email_message")
-            if not email_message:
-                continue
-
-            subject = thread_info.get("subject", "")
-            in_reply_to = thread_info.get("in_reply_to")
-            references = thread_info.get("references")
-            conversation_index = email_message.conversation_index
-
-            thread_id = None
-            participants = self._participants_set(email_message)
-
-            # PRIORITY 1: Use RFC 2822 standard logic (Message-ID / In-Reply-To / References)
-            if not thread_id and in_reply_to and in_reply_to in message_id_to_email:
-                parent_email = message_id_to_email[in_reply_to]
-                if hasattr(parent_email, "thread_id") and parent_email.thread_id:
-                    thread_id = parent_email.thread_id
-
-            # Try references (parse space or comma separated list)
-            if not thread_id and references:
-                ref_list = []
-                # Handle both space and comma separated
-                if "," in references:
-                    ref_list = [r.strip().strip("<>") for r in references.split(",")]
-                else:
-                    ref_list = [r.strip().strip("<>") for r in references.split()]
-
-                for ref_id in ref_list:
-                    if ref_id in message_id_to_email:
-                        parent_email = message_id_to_email[ref_id]
-                        if (
-                            hasattr(parent_email, "thread_id")
-                            and parent_email.thread_id
-                        ):
-                            thread_id = parent_email.thread_id
-                            break
-
-            # Try conversation index (Outlook threading) via root hash
-            if not thread_id and conversation_index:
-                conv_root, _ = self._decode_conversation_index(conversation_index)
-                if conv_root:
-                    thread_id = conv_root_map.get(conv_root)
-
-            # Last resort: subject-based grouping (normalized subject) with participant overlap
-            if not thread_id:
-                if subject:
-                    # Normalize subject (remove Re:, Fwd:, etc.)
-                    normalized_subject = re.sub(
-                        r"^(re|fw|fwd):\s*", "", subject.lower().strip()
-                    )
-                    subject_entry = subject_map.get(normalized_subject)
-                    if subject_entry:
-                        existing_thread_id, existing_participants = subject_entry
-                        if participants & existing_participants:
-                            thread_id = existing_thread_id
-
-            # Create new thread if none found
-            if not thread_id:
-                thread_id = f"thread_{len(thread_groups) + 1}_{uuid.uuid4().hex[:8]}"
-
-            # Update indexes for subsequent lookups (only if not already set)
-            if conversation_index:
-                conv_root, _ = self._decode_conversation_index(conversation_index)
-                if conv_root and conv_root not in conv_root_map:
-                    conv_root_map.setdefault(conv_root, thread_id)
-
-            if subject:
-                normalized_subject = re.sub(
-                    r"^(re|fw|fwd):\s*", "", subject.lower().strip()
-                )
-                if normalized_subject not in subject_map:
-                    subject_map[normalized_subject] = (thread_id, participants)
-
-            # Assign thread_id to email (legacy)
-            email_message.thread_id = thread_id
-            # New metadata defaults
-            email_message.thread_group_id = thread_id
-            email_message.is_inclusive = (
-                True  # conservative default until finer-grained calc
-            )
-
-            # Add to thread group
-            if thread_id not in thread_groups:
-                thread_groups[thread_id] = []
-            thread_groups[thread_id].append(email_message)
-
-        # Update thread metadata in database (batch update)
-        try:
-            self.db.flush()
-            logger.info(f"Created {len(thread_groups)} unique threads")
-
-            # Log thread statistics
-            thread_sizes = [len(emails) for emails in thread_groups.values()]
-            if thread_sizes:
-                avg_size = sum(thread_sizes) / len(thread_sizes)
-                max_size = max(thread_sizes)
-                logger.info(
-                    f"Thread stats: avg={avg_size:.1f} emails/thread, max={max_size} emails/thread"
-                )
-
-            # Assign path/position within each thread (ordered by date_sent then id)
-            for tg_id, emails in thread_groups.items():
-                sorted_emails = sorted(
-                    emails,
-                    key=lambda e: (
-                        e.date_sent or datetime.min.replace(tzinfo=timezone.utc),
-                        str(e.id),
-                    ),
-                )
-                for idx, em in enumerate(sorted_emails):
-                    em.thread_group_id = tg_id
-                    em.thread_position = idx
-                    em.thread_path = str(idx)
-
-        except Exception as e:
-            logger.error(f"Error updating thread relationships: {e}")
-            self.db.rollback()
+        stats = build_email_threads(
+            self.db,
+            case_id=case_id,
+            project_id=project_id,
+            run_id="pst_processor",
+        )
+        logger.info(
+            "Threading complete: threads=%d links=%d",
+            stats.threads_identified,
+            stats.links_created,
+        )
+        # Free memory retained during ingest
+        self.threads_map = {}
+        return stats
 
     @staticmethod
     def _decode_conversation_index(
