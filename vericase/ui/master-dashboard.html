@@ -2343,6 +2343,9 @@
                     <i class="fas fa-ellipsis-v" aria-hidden="true"></i>
                   </button>
                   <div class="card-menu" id="menu-${workspace.id}">
+                    <button onclick="event.stopPropagation(); openWorkspaceHub('${workspace.id}')">
+                      <i class="fas fa-th-large" aria-hidden="true"></i> Open Hub
+                    </button>
                     <button onclick="event.stopPropagation(); openWorkspaceConfig('${workspace.id}')">
                       <i class="fas fa-cog" aria-hidden="true"></i> Configure
                     </button>
@@ -2897,6 +2900,19 @@
 
     function openWorkspaceConfig(workspaceId) {
       window.location.href = `workspace-setup.html?workspaceId=${workspaceId}`;
+    }
+
+    // Explicit "open the hub" action (always goes to the Workspace Hub, even if only 1 project/case exists)
+    function openWorkspaceHub(workspaceId) {
+      // Best-effort: store workspace context so other pages can show breadcrumbs, etc.
+      try {
+        const workspace = (window.workspacesData || []).find(ws => String(ws.id) === String(workspaceId));
+        if (workspace) {
+          localStorage.setItem("currentWorkspaceId", workspaceId);
+          localStorage.setItem("currentWorkspaceName", workspace.name || "Workspace");
+        }
+      } catch { /* ignore */ }
+      window.location.href = `workspace-hub.html?workspaceId=${encodeURIComponent(workspaceId)}`;
     }
 
     // Smart workspace click: enter the first project/case if available, otherwise open setup
