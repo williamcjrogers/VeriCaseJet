@@ -1399,9 +1399,12 @@
             closeUploadModal();
             await loadProgrammes();
             
-            // Automatically trigger sync linking to populate correspondence
+            // Automatically trigger sync linking to populate correspondence (non-blocking)
             if (result.activities_parsed > 0) {
-              await syncLinkEmails();
+              // Run in background - don't block or fail upload on sync issues
+              syncLinkEmails().catch(err => {
+                console.warn('Auto-sync to correspondence failed (can retry manually):', err);
+              });
             }
           } else {
             const error = await response.json();
