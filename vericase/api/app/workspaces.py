@@ -56,6 +56,22 @@ def _require_workspace(db: Session, workspace_id: str, user: User) -> Workspace:
     return workspace
 
 
+def _require_project(db: Session, project_id: str, user: User) -> Project:
+    project_uuid = _parse_uuid(project_id, "project_id")
+    project = db.query(Project).filter(Project.id == project_uuid).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    owner_id = getattr(project, "owner_user_id", None)
+    if owner_id is not None and owner_id != user.id and not _is_admin(user):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if owner_id is None and not _is_admin(user):
+        # Legacy data without owner tracking: allow admin only.
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    return project
+
+
 # Pydantic models
 class WorkspaceCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
@@ -436,6 +452,33 @@ def update_workspace(
         "updated_at": (
             workspace.updated_at.isoformat() if workspace.updated_at else None
         ),
+    }
+
+
+@router.put("/{workspace_id}/projects/{project_id}")
+def move_project_to_workspace(
+    workspace_id: str,
+    project_id: str,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    """Move/link an existing project into a workspace.
+
+    Emails/evidence remain attached to the project; the workspace just groups projects/cases.
+    """
+    workspace = _require_workspace(db, workspace_id, user)
+    project = _require_project(db, project_id, user)
+
+    from_workspace_id = str(project.workspace_id) if project.workspace_id else None
+    project.workspace_id = workspace.id
+    db.commit()
+    db.refresh(project)
+
+    return {
+        "status": "success",
+        "project_id": str(project.id),
+        "from_workspace_id": from_workspace_id,
+        "to_workspace_id": str(workspace.id),
     }
 
 

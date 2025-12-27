@@ -305,6 +305,13 @@
         color: var(--text-muted);
       }
 
+      .linked-items-title {
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+        font-size: 1.25rem;
+        color: var(--text-primary);
+      }
+
       .next-steps {
         margin-top: 2rem;
         padding: 1.5rem;
@@ -327,6 +334,32 @@
         display: flex;
         gap: 0.75rem;
         flex-wrap: wrap;
+      }
+
+      .next-steps-helper {
+        margin-top: 0.5rem;
+        display: none;
+      }
+
+      .link-existing {
+        margin-top: 1rem;
+        padding: 1rem;
+        border: 1px solid var(--gray-100);
+        border-radius: var(--radius-lg);
+        background: white;
+      }
+
+      .link-existing-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 700;
+        margin: 0 0 0.75rem 0;
+        color: var(--text-primary);
+      }
+
+      .link-existing .form-row {
+        align-items: end;
       }
 
       .linked-item-badge {
@@ -361,17 +394,17 @@
         <div class="tab-content active" id="tab-overview">
           <form id="overviewForm">
             <div class="form-group">
-              <label class="form-label">Workspace Name *</label>
+              <label class="form-label" for="workspaceName">Workspace Name *</label>
               <input type="text" class="form-input" id="workspaceName" required />
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label">Workspace Code (optional)</label>
+                <label class="form-label" for="workspaceCode">Workspace Code (optional)</label>
                 <input type="text" class="form-input" id="workspaceCode" />
                 <div class="helper-text">Auto-generated if left blank.</div>
               </div>
               <div class="form-group">
-                <label class="form-label">Contract Type</label>
+                <label class="form-label" for="contractType">Contract Type</label>
                 <select class="form-select" id="contractType">
                   <option value="">Select...</option>
                   <option value="JCT">JCT</option>
@@ -382,15 +415,37 @@
               </div>
             </div>
             <div class="form-group">
-              <label class="form-label">Description</label>
+              <label class="form-label" for="workspaceDescription">Description</label>
               <textarea class="form-textarea" id="workspaceDescription" rows="4"></textarea>
             </div>
 
-            <h3 style="margin-top: 2rem; margin-bottom: 1rem; font-size: 1.25rem; color: var(--text-primary);">Linked Projects & Cases</h3>
+            <h3 class="linked-items-title">Linked Projects & Cases</h3>
             <div id="linkedItemsContainer" class="linked-items">
               <div class="empty-state">
                 <i class="fas fa-folder-open"></i>
                 <div>No projects or cases linked yet</div>
+              </div>
+            </div>
+
+            <div class="link-existing" id="linkExistingProjectSection" hidden>
+              <div class="link-existing-title">
+                <i class="fas fa-right-left" aria-hidden="true"></i>
+                <span>Move an existing project into this workspace</span>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label" for="existingProjectSelect">Project</label>
+                  <select class="form-select" id="existingProjectSelect" aria-label="Select existing project">
+                    <option value="">Loading projects...</option>
+                  </select>
+                  <div class="helper-text">Projects keep their emails/evidence. Workspaces just group projects and cases.</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="linkProjectBtn">Action</label>
+                  <button class="btn btn-secondary" type="button" id="linkProjectBtn" onclick="linkExistingProject()">
+                    <i class="fas fa-right-left" aria-hidden="true"></i> Move project
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -405,7 +460,7 @@
                   <i class="fas fa-briefcase"></i> Case setup
                 </button>
               </div>
-              <div class="helper-text" id="nextStepsHelper" style="margin-top: 0.5rem; display: none;">Create the workspace first to add projects or cases.</div>
+              <div class="helper-text next-steps-helper" id="nextStepsHelper">Create the workspace first to add projects or cases.</div>
             </div>
           </form>
         </div>
@@ -497,6 +552,112 @@
         if (helper) helper.style.display = enabled ? "none" : "block";
       }
 
+      function setLinkExistingSectionState() {
+        const section = document.getElementById("linkExistingProjectSection");
+        if (!section) return;
+        section.hidden = !workspaceId;
+      }
+
+      async function loadProjectsForLinking() {
+        setLinkExistingSectionState();
+        const section = document.getElementById("linkExistingProjectSection");
+        const select = document.getElementById("existingProjectSelect");
+        const btn = document.getElementById("linkProjectBtn");
+
+        if (!workspaceId || !section || !select) return;
+
+        select.innerHTML = '<option value="">Loading projects...</option>';
+        if (btn) btn.disabled = true;
+
+        try {
+          const response = await fetch("/api/projects", { headers: getAuthHeaders() });
+          if (!response.ok) {
+            throw new Error("Failed to load projects");
+          }
+
+          const projects = await response.json();
+          const linkedIds = new Set((workspaceData?.projects || []).map(p => String(p.id)));
+          const available = (Array.isArray(projects) ? projects : [])
+            .filter(p => p && p.id && !linkedIds.has(String(p.id)));
+
+          if (!available.length) {
+            select.innerHTML = '<option value="">No other projects available</option>';
+            return;
+          }
+
+          select.innerHTML = '<option value="">-- Select a project --</option>';
+          available.forEach((p) => {
+            const name = escapeHtml(p.project_name || p.name || "Untitled Project");
+            const code = escapeHtml(p.project_code || p.code || "");
+            const label = code ? `${name} (${code})` : name;
+            select.innerHTML += `<option value="${p.id}">${label}</option>`;
+          });
+        } catch (error) {
+          console.error("Error loading projects for linking:", error);
+          select.innerHTML = '<option value="">Unable to load projects</option>';
+        } finally {
+          if (btn) btn.disabled = false;
+        }
+      }
+
+      async function linkExistingProject() {
+        try {
+          if (!workspaceId) {
+            VericaseUI.Toast.info("Create/save the workspace first, then link an existing project.");
+            return;
+          }
+
+          const select = document.getElementById("existingProjectSelect");
+          const projectId = (select?.value || "").trim();
+          if (!projectId) {
+            VericaseUI.Toast.error("Please select a project to move");
+            return;
+          }
+
+          const btn = document.getElementById("linkProjectBtn");
+          const originalText = btn?.innerHTML;
+          if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Moving...';
+          }
+
+          const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/projects/${encodeURIComponent(projectId)}`, {
+            method: "PUT",
+            headers: getAuthHeaders(),
+          });
+
+          if (!response.ok) {
+            let detail = "Failed to move project";
+            try {
+              const raw = await response.text();
+              if (raw) {
+                try {
+                  const parsed = JSON.parse(raw);
+                  detail = parsed?.detail || parsed?.message || detail;
+                } catch {
+                  detail = raw;
+                }
+              }
+            } catch {
+              // ignore
+            }
+            throw new Error(detail);
+          }
+
+          VericaseUI.Toast.success("Project moved into workspace");
+          await loadWorkspace();
+        } catch (error) {
+          console.error("Error moving project:", error);
+          VericaseUI.Toast.error(error.message || "Failed to move project");
+        } finally {
+          const btn = document.getElementById("linkProjectBtn");
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-right-left" aria-hidden="true"></i> Move project';
+          }
+        }
+      }
+
       function openProjectSetupFromWorkspace() {
         if (!workspaceId) {
           VericaseUI.Toast.info("Create the workspace first, then add a project.");
@@ -531,6 +692,7 @@
           `;
           setSaveButtonState();
           updateNextStepsState();
+          setLinkExistingSectionState();
           return;
         }
 
@@ -561,6 +723,8 @@
 
           // Render linked items
           renderLinkedItems();
+          // Populate "move existing project" selector
+          loadProjectsForLinking();
         } catch (error) {
           console.error("Error loading workspace:", error);
           VericaseUI.Toast.error("Failed to load workspace");
