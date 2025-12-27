@@ -703,7 +703,21 @@
             });
 
             if (!updateResponse.ok) {
-              throw new Error("Failed to update workspace");
+              let detail = "Failed to update workspace";
+              try {
+                const raw = await updateResponse.text();
+                if (raw) {
+                  try {
+                    const parsed = JSON.parse(raw);
+                    detail = parsed?.detail || parsed?.message || detail;
+                  } catch {
+                    detail = raw;
+                  }
+                }
+              } catch {
+                // ignore
+              }
+              throw new Error(detail);
             }
           }
 
