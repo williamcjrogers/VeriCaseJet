@@ -1,11 +1,12 @@
 """Quick semantic search test for the indexed codebase."""
 
+import os
 from qdrant_client import QdrantClient
 from fastembed import TextEmbedding
 
 client = QdrantClient(
     url="https://b5412748-1bf2-4a06-9a94-5ebf25ac2d5f.eu-west-2-0.aws.cloud.qdrant.io",
-    api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.1VBi5gFQ2NEeeVrCoQEWorzsff8UsvSO1aoBFtegRHc",
+    api_key=os.getenv("QDRANT_API_KEY", ""),
 )
 
 model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")

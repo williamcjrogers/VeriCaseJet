@@ -2616,10 +2616,11 @@ async def submit_answer(
             # stakeholders but for now we just record the answer without exclusion
 
         elif question.stage == RefinementStage.INITIAL_ANALYSIS:
-            # Handle date range question - store the selection for filtering
+            # Handle date range question - store for reference only
             if "date" in question.question_text.lower():
                 session.exclusion_rules["date_filter"] = answer_val
-                # Note: actual date filtering is applied when the apply endpoint runs
+                # Note: date_filter is stored for reference/reporting but refinement
+                # rules apply to ALL emails. Date filtering happens during PST processing.
 
     # Find next unanswered question
     answered_ids = {a.question_id for a in session.answers_received}
@@ -2790,6 +2791,7 @@ async def apply_refinement(
             "rules": rules,
             "applied_at": datetime.now(timezone.utc).isoformat(),
             "excluded_count": excluded_count,
+            "duplicate_removed_count": duplicate_removed_count,
         }
         target_profile.meta = profile_meta
 
@@ -2828,6 +2830,7 @@ async def apply_refinement(
         "success": True,
         "session_id": session_id,
         "excluded_count": excluded_count,
+        "duplicate_removed_count": duplicate_removed_count,
         "total_emails": len(emails),
         "remaining_emails": len(emails) - excluded_count,
         "cleanup_jobs": cleanup_jobs,

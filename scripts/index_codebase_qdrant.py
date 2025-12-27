@@ -4,6 +4,7 @@ Uses Fastembed for local embeddings (384 dimensions).
 """
 
 import hashlib
+import os
 from pathlib import Path
 from typing import Generator
 
@@ -15,7 +16,7 @@ from fastembed import TextEmbedding
 QDRANT_URL = (
     "https://b5412748-1bf2-4a06-9a94-5ebf25ac2d5f.eu-west-2-0.aws.cloud.qdrant.io"
 )
-QDRANT_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.1VBi5gFQ2NEeeVrCoQEWorzsff8UsvSO1aoBFtegRHc"
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
 COLLECTION_NAME = "symbolic-bovid-aqua"
 PROJECT_ROOT = Path(__file__).parent.parent
 
