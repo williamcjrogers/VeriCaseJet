@@ -119,3 +119,22 @@ EMERGENCY_COST_INVESTIGATION.md
 # MCP config with secrets - NEVER COMMIT
 .kilocode/
 *.kilocode/
+
+# Local utility scripts (may contain hardcoded URLs/keys)
+scripts/search_codebase.py
+scripts/index_codebase_qdrant.py
+
+# Security incident response documentation (contains sensitive info)
+SECURITY_INCIDENT_RESPONSE.md
+FINAL_SECURITY_STATUS.md
+IMMEDIATE_ACTION_PLAN.md
+NEXT_STEPS_NOW.md
+SAFE_KEY_ROTATION_STEPS.md
+WHICH_KEY_TO_DELETE.md
+CREATE_KEY_STEPS.md
+FIX_CREDENTIALS.md
+VERIFY_SECRET_KEY.md
+CHANGE_RDS_PASSWORD.md
+SECURE_SETUP_GUIDE.md
+security-check.ps1
+cleanup-git-history.ps1
