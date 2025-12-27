@@ -754,24 +754,64 @@
       `).join('');
     }
 
+    function resolveWorkspaceItem(id, type) {
+      const items = type === "case" ? (workspaceData?.cases || []) : (workspaceData?.projects || []);
+      return items.find((item) => {
+        const itemId = item?.id || item?.case_id || item?.project_id;
+        return String(itemId) === String(id);
+      }) || null;
+    }
+
     function openProject(projectId) {
-      // Set project context
+      const project = resolveWorkspaceItem(projectId, "project");
+      const projectName = project?.project_name || project?.name || "";
+
       try {
+        localStorage.setItem("profileType", "project");
+        localStorage.setItem("vericase_current_project", projectId);
         localStorage.setItem("currentProjectId", projectId);
-        localStorage.setItem("currentContextType", "project");
+        localStorage.setItem("projectId", projectId);
+        localStorage.removeItem("currentCaseId");
+        localStorage.removeItem("caseId");
+        if (projectName) {
+          localStorage.setItem("currentProjectName", projectName);
+          localStorage.setItem("vericase_current_project_name", projectName);
+        }
+        if (workspaceId) {
+          localStorage.setItem("currentWorkspaceId", workspaceId);
+        }
+        if (workspaceData?.name) {
+          localStorage.setItem("currentWorkspaceName", workspaceData.name);
+        }
       } catch { /* ignore */ }
 
-      window.location.href = `project-dashboard.html?projectId=${encodeURIComponent(projectId)}`;
+      window.location.href = `projectdashboard.html?projectId=${encodeURIComponent(projectId)}`;
     }
 
     function openCase(caseId) {
-      // Set case context
+      const caseItem = resolveWorkspaceItem(caseId, "case");
+      const caseName = caseItem?.case_name || caseItem?.name || "";
+
       try {
+        localStorage.setItem("profileType", "case");
         localStorage.setItem("currentCaseId", caseId);
-        localStorage.setItem("currentContextType", "case");
+        localStorage.setItem("caseId", caseId);
+        localStorage.removeItem("vericase_current_project");
+        localStorage.removeItem("currentProjectId");
+        localStorage.removeItem("projectId");
+        if (caseName) {
+          localStorage.setItem("currentCaseName", caseName);
+          localStorage.setItem("vericase_current_case_name", caseName);
+        }
+        if (workspaceId) {
+          localStorage.setItem("currentWorkspaceId", workspaceId);
+        }
+        if (workspaceData?.name) {
+          localStorage.setItem("currentWorkspaceName", workspaceData.name);
+        }
       } catch { /* ignore */ }
 
-      window.location.href = `case-dashboard.html?caseId=${encodeURIComponent(caseId)}`;
+      window.location.href = `projectdashboard.html?caseId=${encodeURIComponent(caseId)}`;
     }
 
     function showAddModal() {

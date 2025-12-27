@@ -380,9 +380,86 @@
 
           btnText.textContent = "Success!";
           btnSpinner.style.display = "none";
+          console.log("[FLOW] Login success -> master-dashboard.html");
 
-          setTimeout(() => {
-            // Go directly to master dashboard for workspace selection
+          setTimeout(async () => {
+            try {
+              [
+                "currentProjectId",
+                "currentCaseId",
+                "vericase_current_project",
+                "currentWorkspaceId",
+                "currentWorkspaceName",
+                "projectId",
+                "caseId",
+              ].forEach((key) => localStorage.removeItem(key));
+
+              // Check if user has any workspaces
+              const wsResponse = await fetch(`${apiUrl}/api/workspaces`, {
+                headers: { Authorization: `Bearer ${data.access_token}` },
+              });
+
+              if (wsResponse.ok) {
+                const workspaces = await wsResponse.json();
+
+                if (!workspaces || workspaces.length === 0) {
+                  console.log("[FLOW] Login redirect -> workspace-setup.html (onboarding)");
+                  window.location.href = "/ui/workspace-setup.html?onboarding=true";
+                  return;
+                }
+
+                if (workspaces.length === 1) {
+                  const ws = workspaces[0];
+                  localStorage.setItem("currentWorkspaceId", ws.id);
+                  localStorage.setItem("currentWorkspaceName", ws.name || "Workspace");
+
+                  const projects = ws.projects || [];
+                  const cases = ws.cases || [];
+
+                  if (projects.length === 1 && cases.length === 0) {
+                    const project = projects[0];
+                    const projectId = project.id;
+                    if (projectId) {
+                      localStorage.setItem("vericase_current_project", projectId);
+                      localStorage.setItem("currentProjectId", projectId);
+                      localStorage.setItem("projectId", projectId);
+                      const projectName = project.project_name || project.name;
+                      if (projectName) {
+                        localStorage.setItem("currentProjectName", projectName);
+                        localStorage.setItem("vericase_current_project_name", projectName);
+                      }
+                      console.log("[FLOW] Login redirect -> projectdashboard.html (single project)");
+                      window.location.href = `/ui/projectdashboard.html?projectId=${projectId}`;
+                      return;
+                    }
+                  }
+
+                  if (cases.length === 1 && projects.length === 0) {
+                    const caseItem = cases[0];
+                    const caseId = caseItem.id;
+                    if (caseId) {
+                      localStorage.setItem("currentCaseId", caseId);
+                      localStorage.setItem("caseId", caseId);
+                      const caseName = caseItem.case_name || caseItem.name;
+                      if (caseName) {
+                        localStorage.setItem("currentCaseName", caseName);
+                        localStorage.setItem("vericase_current_case_name", caseName);
+                      }
+                      console.log("[FLOW] Login redirect -> projectdashboard.html (single case)");
+                      window.location.href = `/ui/projectdashboard.html?caseId=${caseId}`;
+                      return;
+                    }
+                  }
+
+                  console.log("[FLOW] Login redirect -> workspace-hub.html");
+                  window.location.href = `/ui/workspace-hub.html?workspaceId=${ws.id}`;
+                  return;
+                }
+              }
+            } catch (e) {
+              console.warn("Smart redirect failed, falling back to master dashboard", e);
+            }
+
             window.location.href = "/ui/master-dashboard.html";
           }, 500);
         } catch (error) {

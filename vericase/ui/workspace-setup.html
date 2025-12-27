@@ -380,6 +380,18 @@
         background: rgba(15, 157, 154, 0.15);
         color: var(--vericase-teal);
       }
+
+      @keyframes pulse-highlight {
+        0% {
+          box-shadow: 0 0 0 0 rgba(23, 181, 163, 0.4);
+        }
+        70% {
+          box-shadow: 0 0 0 10px rgba(23, 181, 163, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(23, 181, 163, 0);
+        }
+      }
     </style>
   </head>
   <body>
@@ -891,6 +903,20 @@
           
           // Reload data
           await loadWorkspace();
+
+          if (createdNow) {
+            const nextSteps = document.querySelector(".next-steps");
+            if (nextSteps) {
+              nextSteps.scrollIntoView({ behavior: "smooth", block: "center" });
+              nextSteps.style.animation = "pulse-highlight 2s ease-in-out";
+              nextSteps.style.border = "2px solid var(--vericase-teal)";
+              VericaseUI.Toast.info("Now add a project or case to get started!");
+              setTimeout(() => {
+                nextSteps.style.animation = "";
+                nextSteps.style.border = "";
+              }, 2000);
+            }
+          }
         } catch (error) {
           console.error("Error saving workspace:", error);
           VericaseUI.Toast.error("Failed to save workspace: " + error.message);
@@ -900,6 +926,29 @@
       // Initialize on page load
       document.addEventListener("DOMContentLoaded", () => {
         const nameInput = document.getElementById("workspaceName");
+        const params = new URLSearchParams(window.location.search);
+        const isOnboarding = params.get("onboarding") === "true";
+
+        if (isOnboarding && !params.get("workspaceId")) {
+          const header = document.querySelector(".page-header");
+          if (header) {
+            const welcomeBanner = document.createElement("div");
+            welcomeBanner.className = "onboarding-banner";
+            welcomeBanner.innerHTML = `
+              <div style="background: linear-gradient(135deg, rgba(23, 181, 163, 0.1), rgba(31, 111, 120, 0.05)); border: 1px solid rgba(23, 181, 163, 0.3); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                <h2 style="margin: 0 0 0.5rem; color: var(--vericase-teal); font-size: 1.25rem;">
+                  <i class="fas fa-rocket"></i> Welcome to VeriCase!
+                </h2>
+                <p style="margin: 0; color: var(--text-secondary);">
+                  Let's set up your first workspace. A workspace organizes your projects and cases.
+                  Enter a name below, save it, then you can add your first project or case.
+                </p>
+              </div>
+            `;
+            header.insertBefore(welcomeBanner, header.firstChild);
+          }
+        }
+
         const codeInput = document.getElementById("workspaceCode");
         if (nameInput) {
           nameInput.addEventListener("input", syncAutoCode);

@@ -2080,7 +2080,7 @@
             response = await fetch("/api/dashboard/overview/public");
           }
           if (response.ok) {
-            const dashboardData = await response.json();
+            dashboardData = await response.json();
             statsData = dashboardData.stats;
             
             if (dashboardData.user?.display_name) {
@@ -2161,6 +2161,7 @@
         }
         
         renderWorkspaces(workspacesData);
+        console.log("[FLOW] MasterDashboard loaded:", workspacesData.length, "workspaces, context:", getContextSummary());
         
         // Load recent activity and KPIs (placeholder for now)
         // These sections will be populated when backend APIs are ready
@@ -2892,10 +2893,59 @@
       if (activeMenu) { activeMenu.classList.remove("active"); activeMenu = null; }
     }
 
+    function resolveWorkspaceContext(id, type) {
+      const list = window.workspacesData || [];
+      const targetId = String(id);
+      const isCase = type === "case";
+
+      for (const ws of list) {
+        const items = isCase ? (ws.cases || []) : (ws.projects || []);
+        const match = items.find((item) => {
+          const itemId = item?.id || item?.case_id || item?.project_id;
+          return String(itemId) === targetId;
+        });
+        if (match) {
+          return { workspace: ws, item: match };
+        }
+      }
+
+      return null;
+    }
+
     function openWorkspace(id, type) {
-      setActiveContext(id, type);
+      const resolved = resolveWorkspaceContext(id, type);
       const param = type === "case" ? "caseId" : "projectId";
-      window.location.href = `projectdashboard.html?${param}=${id}`;
+
+      if (resolved?.workspace?.id) {
+        try {
+          localStorage.setItem("currentWorkspaceId", resolved.workspace.id);
+          if (resolved.workspace.name) {
+            localStorage.setItem("currentWorkspaceName", resolved.workspace.name);
+          }
+        } catch { /* ignore */ }
+      }
+
+      setActiveContext(id, type);
+
+      if (resolved?.item) {
+        const name =
+          type === "case"
+            ? resolved.item.name || resolved.item.case_name
+            : resolved.item.name || resolved.item.project_name;
+        if (name) {
+          try {
+            if (type === "case") {
+              localStorage.setItem("currentCaseName", name);
+              localStorage.setItem("vericase_current_case_name", name);
+            } else {
+              localStorage.setItem("currentProjectName", name);
+              localStorage.setItem("vericase_current_project_name", name);
+            }
+          } catch { /* ignore */ }
+        }
+      }
+
+      window.location.href = `projectdashboard.html?${param}=${encodeURIComponent(id)}`;
     }
 
     function openWorkspaceConfig(workspaceId) {

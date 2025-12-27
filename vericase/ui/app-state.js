@@ -45,6 +45,10 @@ window.VeriCaseApp = {
       options.allowLegacyProjectIdAsCaseId ?? !strict;
     const createDefaultProject = options.createDefaultProject ?? !strict;
 
+    const logInitPath = (path) => {
+      console.log("[FLOW] AppState.init() - strict:", strict, "path:", path);
+    };
+
     try {
       // Optional bootstrap override (lets pages provide a known context).
       const bootstrapType = (options.contextType || "").trim();
@@ -61,6 +65,7 @@ window.VeriCaseApp = {
           this.projectId = bootstrapId;
           this.projectName = options.contextName || null;
         }
+        logInitPath("bootstrap");
         this._persistContext();
         return this;
       }
@@ -77,6 +82,7 @@ window.VeriCaseApp = {
           this.caseId = caseData.id;
           this.caseName = caseData.name;
           console.log("[VeriCaseApp] Using URL case:", this.caseId);
+          logInitPath("url-case");
           this._persistContext();
           return this;
         }
@@ -90,6 +96,7 @@ window.VeriCaseApp = {
           this.projectName = project.project_name || project.name;
           this.config = project.meta || {};
           console.log("[VeriCaseApp] Using URL project:", this.projectId);
+          logInitPath("url-project");
           this._persistContext();
           return this;
         }
@@ -104,6 +111,7 @@ window.VeriCaseApp = {
               "[VeriCaseApp] Interpreting URL projectId as caseId:",
               this.caseId,
             );
+            logInitPath("url-case");
             this._persistContext();
             return this;
           }
@@ -126,6 +134,7 @@ window.VeriCaseApp = {
           this.caseId = storedCase.id;
           this.caseName = storedCase.name;
           console.log("[VeriCaseApp] Using stored case:", this.caseId);
+          logInitPath("stored-case");
           this._persistContext();
           return this;
         }
@@ -138,6 +147,7 @@ window.VeriCaseApp = {
           this.projectName = storedProject.project_name || storedProject.name;
           this.config = storedProject.meta || {};
           console.log("[VeriCaseApp] Using stored project:", this.projectId);
+          logInitPath("stored-project");
           this._persistContext();
           return this;
         }
@@ -149,6 +159,7 @@ window.VeriCaseApp = {
             this.caseId = storedCase.id;
             this.caseName = storedCase.name;
             console.log("[VeriCaseApp] Using stored case:", this.caseId);
+            logInitPath("stored-case");
             this._persistContext();
             return this;
           }
@@ -162,6 +173,7 @@ window.VeriCaseApp = {
           this.caseId = storedCase.id;
           this.caseName = storedCase.name;
           console.log("[VeriCaseApp] Using stored case (fallback):", this.caseId);
+          logInitPath("stored-case");
           this._persistContext();
           return this;
         }
@@ -170,8 +182,9 @@ window.VeriCaseApp = {
       // 3. No valid URL param or stored context.
       if (!createDefaultProject) {
         console.log(
-          "[VeriCaseApp] No context found (strict mode) — not creating a default project",
+          "[VeriCaseApp] No context found (strict mode) - not creating a default project",
         );
+        logInitPath("none");
         return this;
       }
 
@@ -181,6 +194,7 @@ window.VeriCaseApp = {
       this.projectName = defaultProject.project_name || defaultProject.name;
       this.config = defaultProject.meta || {};
       console.log("[VeriCaseApp] Using default project:", this.projectId);
+      logInitPath("default");
       this._persistContext();
 
       return this;

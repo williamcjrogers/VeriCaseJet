@@ -1586,6 +1586,7 @@ async function submitWizard() {
 
     // Redirect to dashboard for next steps
     const redirectParam = isProject ? "projectId" : "caseId";
+    console.log("[FLOW] Wizard complete -> projectdashboard.html?", redirectParam, "=", result.id);
     window.location.href = `projectdashboard.html?${redirectParam}=${result.id}&firstTime=true`;
   } catch (error) {
     console.error("Error creating profile:", error);

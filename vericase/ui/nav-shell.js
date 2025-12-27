@@ -236,9 +236,13 @@
     const urlParams = new URLSearchParams(window.location.search);
     const urlCaseId = (urlParams.get("caseId") || "").trim();
     const urlProjectId = (urlParams.get("projectId") || "").trim();
+    const logContext = (ctx) => {
+      console.log("[FLOW] NavShell context:", ctx);
+      return ctx;
+    };
 
     if (urlCaseId && urlCaseId !== "undefined" && urlCaseId !== "null") {
-      return { type: "case", id: urlCaseId };
+      return logContext({ type: "case", id: urlCaseId });
     }
 
     if (
@@ -246,7 +250,7 @@
       urlProjectId !== "undefined" &&
       urlProjectId !== "null"
     ) {
-      return { type: "project", id: urlProjectId };
+      return logContext({ type: "project", id: urlProjectId });
     }
 
     const storedProfileType = (localStorage.getItem("profileType") || "").trim();
@@ -274,23 +278,38 @@
         : "";
 
     if (storedProfileType === "case" && normalizedCaseId) {
-      return { type: "case", id: normalizedCaseId };
+      return logContext({ type: "case", id: normalizedCaseId });
     }
 
     if (normalizedProjectId) {
-      return { type: "project", id: normalizedProjectId };
+      return logContext({ type: "project", id: normalizedProjectId });
     }
 
     if (normalizedCaseId) {
-      return { type: "case", id: normalizedCaseId };
+      return logContext({ type: "case", id: normalizedCaseId });
     }
 
-    return { type: "", id: "" };
+    return logContext({ type: "", id: "" });
   }
 
   function getProjectId() {
     const ctx = getContext();
     return ctx.type === "project" ? ctx.id : "";
+  }
+
+  function getWorkspaceId() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlWorkspaceId = (urlParams.get("workspaceId") || "").trim();
+    if (urlWorkspaceId && urlWorkspaceId !== "undefined" && urlWorkspaceId !== "null") {
+      return urlWorkspaceId;
+    }
+
+    const storedWorkspaceId = (localStorage.getItem("currentWorkspaceId") || "").trim();
+    if (storedWorkspaceId && storedWorkspaceId !== "undefined" && storedWorkspaceId !== "null") {
+      return storedWorkspaceId;
+    }
+
+    return "";
   }
 
   function getUserRole() {
@@ -308,6 +327,19 @@
 
   function buildNavUrl(url) {
     const ctx = getContext();
+    const page = getUrlPage(url).split("?")[0];
+    const workspaceId = getWorkspaceId();
+
+    if (page === "workspace-setup.html" || page === "workspace-hub.html") {
+      if (workspaceId) {
+        const u = new URL(url, window.location.href);
+        u.searchParams.set("workspaceId", workspaceId);
+        u.searchParams.delete("projectId");
+        u.searchParams.delete("caseId");
+        return u.toString();
+      }
+      return url;
+    }
     // Don't add context to home page
     if (url === COMMAND_CENTER_PAGE) {
       return url;
