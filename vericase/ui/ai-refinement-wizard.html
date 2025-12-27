@@ -1223,6 +1223,13 @@
 
           const data = await response.json();
           sessionId = data.session_id;
+          // If the backend switched to background analysis (large datasets),
+          // poll until questions are ready (UI does not need manual refresh).
+          if (data.status === "analyzing") {
+            await pollSessionUntilReady(sessionId);
+            return;
+          }
+
           questions = prepareQuestions(data.next_questions);
           analysisResults = data.summary;
 
@@ -1265,6 +1272,92 @@
                     <div class="loading-subtext">${subtext}</div>
                 </div>
             `;
+      }
+
+      function buildSummaryFromAnalysisResults(analysisResultsObj) {
+        const ar = analysisResultsObj || {};
+        const detectedProjects = Array.isArray(ar.detected_projects)
+          ? ar.detected_projects
+          : [];
+        const detectedSpam = Array.isArray(ar.detected_spam) ? ar.detected_spam : [];
+        const detectedDomains = Array.isArray(ar.detected_domains)
+          ? ar.detected_domains
+          : [];
+        const detectedPeople = Array.isArray(ar.detected_people)
+          ? ar.detected_people
+          : [];
+        const detectedDuplicates = Array.isArray(ar.detected_duplicates)
+          ? ar.detected_duplicates
+          : [];
+
+        return {
+          total_emails: Number(ar.total_emails || 0),
+          duplicates_found: detectedDuplicates.length,
+          other_projects_found: detectedProjects.length,
+          spam_sources_found: detectedSpam.length,
+          unknown_domains: detectedDomains.length,
+          unknown_people: detectedPeople.length,
+        };
+      }
+
+      async function pollSessionUntilReady(sessionIdToPoll, opts = {}) {
+        const start = Date.now();
+        const timeoutMs = Number(opts.timeoutMs || 10 * 60 * 1000); // 10 minutes
+        const intervalMs = Number(opts.intervalMs || 2000);
+
+        const token = localStorage.getItem("token") || "";
+        if (!token) {
+          throw new Error("Not logged in. Please log in and try again.");
+        }
+
+        while (Date.now() - start < timeoutMs) {
+          const resp = await fetch(
+            `${apiUrl}/api/ai-refinement/session/${encodeURIComponent(sessionIdToPoll)}`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            },
+          );
+
+          if (!resp.ok) {
+            const txt = await resp.text();
+            throw new Error(txt || "Failed to fetch session status");
+          }
+
+          const session = await resp.json();
+          const status = session?.status || "";
+
+          if (status === "failed") {
+            throw new Error(session?.error_message || "AI analysis failed");
+          }
+
+          if (status === "awaiting_answers" && session?.next_questions?.length) {
+            questions = prepareQuestions(session.next_questions);
+            const summary = buildSummaryFromAnalysisResults(session.analysis_results);
+            analysisResults = summary;
+            updateStats(summary);
+            document.getElementById("emailCount").textContent =
+              summary.total_emails?.toLocaleString() || "0";
+            showQuestion(0);
+            return;
+          }
+
+          const pct =
+            session?.progress_percent != null ? session.progress_percent : null;
+          const progressLine =
+            pct != null
+              ? `${pct}% complete`
+              : "Working… (large datasets run in the background)";
+          showLoading(
+            "Analyzing your emails with AI...",
+            `Background analysis in progress. ${progressLine}`,
+          );
+
+          await new Promise((r) => setTimeout(r, intervalMs));
+        }
+
+        throw new Error(
+          "Analysis is still running. Please wait a bit longer and refresh the page.",
+        );
       }
 
       function setActiveStep(stepId) {
