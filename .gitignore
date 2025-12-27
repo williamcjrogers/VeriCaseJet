@@ -115,3 +115,7 @@ fix-deployment.ps1
 investigate-10k-bill.ps1
 DEPLOYMENT_FIX_GUIDE.md
 EMERGENCY_COST_INVESTIGATION.md
+
+# MCP config with secrets - NEVER COMMIT
+.kilocode/
+*.kilocode/
