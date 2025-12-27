@@ -1,6 +1,6 @@
 """Add project and case configuration fields.
 
-Revision ID: 0013_add_project_case_config_fields
+Revision ID: 0013_project_case_config
 Revises: 0012_add_workspaces
 Create Date: 2025-12-27
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = "0013_add_project_case_config_fields"
+revision: str = "0013_project_case_config"
 down_revision: str = "0012_add_workspaces"
 branch_labels = None
 depends_on = None

@@ -225,13 +225,14 @@ def upgrade() -> None:
             conn.execute(
                 sa.text(
                     """
-                    INSERT INTO workspaces (id, name, code, description, contract_type, owner_id, created_at, updated_at)
+                    INSERT INTO workspaces (id, name, code, description, contract_type, status, owner_id, created_at, updated_at)
                     SELECT 
                         gen_random_uuid(),
                         project_name,
                         project_code,
                         NULL,
                         contract_type,
+                        'active',
                         owner_user_id,
                         created_at,
                         updated_at
