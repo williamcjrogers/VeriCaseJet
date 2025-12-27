@@ -1,0 +1,800 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VeriCase - Workspace Hub</title>
+  <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
+  <link rel="stylesheet" href="brand-styles.css?v=7" />
+  <link rel="stylesheet" href="design-system.css?v=7" />
+  <script src="vericase-ui.js"></script>
+  <script src="nav-shell.js"></script>
+  <style>
+    /* === WORKSPACE HUB - REFINED LAYOUT === */
+
+    .app-content {
+      background:
+        radial-gradient(120% 140% at 10% 0%, rgba(255, 248, 234, 0.7) 0%, rgba(255, 255, 255, 0) 60%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 244, 235, 0.85) 100%);
+      border-radius: 26px;
+      box-shadow: 0 20px 50px rgba(15, 23, 32, 0.08);
+      margin: var(--space-4);
+      padding: var(--space-6);
+    }
+
+    /* === WORKSPACE HEADER === */
+    .workspace-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .workspace-identity {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .workspace-icon-large {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.75rem;
+      background: linear-gradient(135deg, rgba(31, 111, 120, 0.15) 0%, rgba(47, 134, 200, 0.1) 100%);
+      color: var(--vericase-teal);
+      flex-shrink: 0;
+    }
+
+    .workspace-info {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .workspace-name {
+      font-family: var(--font-serif);
+      font-size: 1.75rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      line-height: 1.2;
+    }
+
+    .workspace-code-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    .workspace-code-badge .code {
+      background: var(--gray-100);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+
+    .workspace-code-badge .contract-type {
+      color: var(--vericase-teal);
+      font-weight: 600;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* === STATS BAR === */
+    .stats-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+
+    .stat-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(181, 155, 106, 0.2);
+      border-radius: 999px;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      box-shadow: 0 2px 6px rgba(15, 23, 32, 0.04);
+    }
+
+    .stat-pill i {
+      font-size: 0.8125rem;
+      opacity: 0.7;
+    }
+
+    .stat-pill strong {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* === SECTIONS === */
+    .hub-section {
+      margin-bottom: 40px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .section-title i {
+      color: var(--vericase-teal);
+      font-size: 1rem;
+    }
+
+    .section-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      height: 24px;
+      padding: 0 8px;
+      background: var(--gray-100);
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .section-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    /* === ITEM CARDS === */
+    .items-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 20px;
+    }
+
+    .item-card {
+      background: white;
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      border: 1px solid var(--gray-200);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .item-card:hover {
+      border-color: var(--vericase-teal);
+      box-shadow: 0 8px 24px rgba(15, 23, 32, 0.1);
+      transform: translateY(-2px);
+    }
+
+    .item-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .item-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.125rem;
+      flex-shrink: 0;
+    }
+
+    .item-icon.project {
+      background: rgba(47, 134, 200, 0.1);
+      color: #2f86c8;
+    }
+
+    .item-icon.case {
+      background: rgba(181, 155, 106, 0.15);
+      color: var(--vericase-gold);
+    }
+
+    .item-status {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(34, 197, 94, 0.1);
+      color: #16a34a;
+    }
+
+    .item-status.pending {
+      background: rgba(234, 179, 8, 0.1);
+      color: #ca8a04;
+    }
+
+    .item-status.closed {
+      background: rgba(107, 114, 128, 0.1);
+      color: #6b7280;
+    }
+
+    .item-content {
+      margin-bottom: 16px;
+    }
+
+    .item-title {
+      font-size: 1.0625rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+      line-height: 1.3;
+    }
+
+    .item-code {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .item-description {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .item-stats {
+      display: flex;
+      gap: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--gray-100);
+    }
+
+    .item-stat {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    .item-stat i {
+      font-size: 0.75rem;
+      opacity: 0.7;
+    }
+
+    .item-stat strong {
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .item-enter-arrow {
+      position: absolute;
+      right: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1.25rem;
+      color: var(--gray-300);
+      opacity: 0;
+      transition: all 0.2s;
+    }
+
+    .item-card:hover .item-enter-arrow {
+      opacity: 1;
+      color: var(--vericase-teal);
+      right: 16px;
+    }
+
+    /* === EMPTY STATE === */
+    .empty-state {
+      background: var(--gray-50);
+      border: 2px dashed var(--gray-300);
+      border-radius: var(--radius-lg);
+      padding: 40px 24px;
+      text-align: center;
+    }
+
+    .empty-icon {
+      font-size: 2.5rem;
+      color: var(--gray-400);
+      margin-bottom: 16px;
+    }
+
+    .empty-title {
+      font-size: 1.0625rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .empty-desc {
+      font-size: 0.9375rem;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* === BACK LINK === */
+    .back-section {
+      padding-top: 24px;
+      border-top: 1px solid var(--gray-200);
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-muted);
+      font-size: 0.9375rem;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .back-link:hover {
+      color: var(--vericase-teal);
+    }
+
+    .back-link i {
+      font-size: 0.875rem;
+    }
+
+    /* === LOADING STATE === */
+    .skeleton {
+      background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 50%, var(--gray-100) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 6px;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* === RESPONSIVE === */
+    @media (max-width: 768px) {
+      .workspace-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .workspace-identity {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+
+      .workspace-name {
+        font-size: 1.375rem;
+      }
+
+      .items-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="navShell"></div>
+  <main class="app-content">
+    <!-- Workspace Header -->
+    <header class="workspace-header" id="workspaceHeader">
+      <div class="workspace-identity">
+        <div class="workspace-icon-large">
+          <i class="fas fa-building" aria-hidden="true"></i>
+        </div>
+        <div class="workspace-info">
+          <h1 class="workspace-name" id="workspaceName">Loading...</h1>
+          <div class="workspace-code-badge">
+            <span class="code" id="workspaceCode">---</span>
+            <span class="contract-type" id="workspaceContractType"></span>
+          </div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <a href="#" id="configureBtn" class="btn btn-outline">
+          <i class="fas fa-cog" aria-hidden="true"></i> Configure
+        </a>
+        <button class="btn btn-vericase" onclick="showAddModal()">
+          <i class="fas fa-plus" aria-hidden="true"></i> Add
+        </button>
+      </div>
+    </header>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar" id="statsBar">
+      <div class="stat-pill skeleton" style="width: 100px; height: 32px;"></div>
+      <div class="stat-pill skeleton" style="width: 80px; height: 32px;"></div>
+      <div class="stat-pill skeleton" style="width: 90px; height: 32px;"></div>
+    </div>
+
+    <!-- Projects Section -->
+    <section class="hub-section" id="projectsSection">
+      <div class="section-header">
+        <div class="section-title">
+          <i class="fas fa-project-diagram" aria-hidden="true"></i>
+          Projects
+          <span class="section-count" id="projectCount">0</span>
+        </div>
+        <div class="section-actions">
+          <a href="#" id="addProjectBtn" class="btn btn-sm btn-outline">
+            <i class="fas fa-plus" aria-hidden="true"></i> Add Project
+          </a>
+        </div>
+      </div>
+      <div class="items-grid" id="projectsGrid">
+        <!-- Projects will be loaded here -->
+      </div>
+    </section>
+
+    <!-- Cases Section -->
+    <section class="hub-section" id="casesSection">
+      <div class="section-header">
+        <div class="section-title">
+          <i class="fas fa-briefcase" aria-hidden="true"></i>
+          Cases
+          <span class="section-count" id="caseCount">0</span>
+        </div>
+        <div class="section-actions">
+          <a href="#" id="addCaseBtn" class="btn btn-sm btn-outline">
+            <i class="fas fa-plus" aria-hidden="true"></i> Add Case
+          </a>
+        </div>
+      </div>
+      <div class="items-grid" id="casesGrid">
+        <!-- Cases will be loaded here -->
+      </div>
+    </section>
+
+    <!-- Back Navigation -->
+    <div class="back-section">
+      <a href="master-dashboard.html" class="back-link">
+        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+        Back to Dashboard
+      </a>
+    </div>
+  </main>
+
+  <!-- Add Modal -->
+  <div class="modal-overlay" id="addModal" style="display: none;">
+    <div class="modal-content" style="max-width: 420px;">
+      <div class="modal-header">
+        <h3>Add to Workspace</h3>
+        <button class="modal-close" onclick="hideAddModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+        <a href="#" id="addProjectLink" class="btn btn-lg btn-outline" style="justify-content: flex-start; gap: 16px; padding: 20px;">
+          <i class="fas fa-project-diagram" style="font-size: 1.25rem; color: #2f86c8;"></i>
+          <div style="text-align: left;">
+            <div style="font-weight: 600;">Add Project</div>
+            <div style="font-size: 0.8125rem; color: var(--text-muted); font-weight: 400;">A construction or engineering project</div>
+          </div>
+        </a>
+        <a href="#" id="addCaseLink" class="btn btn-lg btn-outline" style="justify-content: flex-start; gap: 16px; padding: 20px;">
+          <i class="fas fa-briefcase" style="font-size: 1.25rem; color: var(--vericase-gold);"></i>
+          <div style="text-align: left;">
+            <div style="font-weight: 600;">Add Case</div>
+            <div style="font-size: 0.8125rem; color: var(--text-muted); font-weight: 400;">A dispute or legal matter</div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Get workspace ID from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const workspaceId = urlParams.get("workspaceId");
+
+    // Workspace data
+    let workspaceData = null;
+
+    // Auth helpers
+    function getAuthHeaders() {
+      const token = localStorage.getItem("auth_token");
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    }
+
+    // Initialize page
+    document.addEventListener("DOMContentLoaded", async () => {
+      if (!workspaceId) {
+        VericaseUI.Toast.error("No workspace specified");
+        window.location.href = "master-dashboard.html";
+        return;
+      }
+
+      // Inject navigation shell
+      if (window.VericaseShell?.inject) {
+        VericaseShell.inject({
+          title: "Workspace Hub",
+          breadcrumbs: [
+            { label: "Dashboard", url: "master-dashboard.html" },
+            { label: "Workspace Hub" }
+          ],
+          headerActions: ""
+        });
+      }
+
+      // Set up add links
+      document.getElementById("configureBtn").href = `workspace-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
+      document.getElementById("addProjectBtn").href = `project-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
+      document.getElementById("addCaseBtn").href = `case-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
+      document.getElementById("addProjectLink").href = `project-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
+      document.getElementById("addCaseLink").href = `case-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
+
+      // Load workspace data
+      await loadWorkspace();
+    });
+
+    async function loadWorkspace() {
+      try {
+        const headers = getAuthHeaders();
+
+        // Fetch workspace details
+        const response = await fetch(`/api/workspaces/${workspaceId}`, { headers });
+        if (!response.ok) {
+          throw new Error("Failed to load workspace");
+        }
+
+        workspaceData = await response.json();
+
+        // Store workspace context
+        try {
+          localStorage.setItem("currentWorkspaceId", workspaceId);
+          localStorage.setItem("currentWorkspaceName", workspaceData.name || "Workspace");
+        } catch { /* ignore */ }
+
+        // Render workspace header
+        renderHeader();
+        renderStats();
+        renderProjects();
+        renderCases();
+
+        // Update breadcrumbs with workspace name
+        if (window.VericaseShell?.inject) {
+          VericaseShell.inject({
+            title: workspaceData.name,
+            breadcrumbs: [
+              { label: "Dashboard", url: "master-dashboard.html" },
+              { label: workspaceData.name }
+            ],
+            headerActions: ""
+          });
+        }
+
+      } catch (err) {
+        console.error("Failed to load workspace:", err);
+        VericaseUI.Toast.error("Failed to load workspace");
+      }
+    }
+
+    function renderHeader() {
+      if (!workspaceData) return;
+
+      document.getElementById("workspaceName").textContent = workspaceData.name || "Unnamed Workspace";
+      document.getElementById("workspaceCode").textContent = workspaceData.code || "---";
+
+      if (workspaceData.contract_type) {
+        document.getElementById("workspaceContractType").textContent = `• ${workspaceData.contract_type}`;
+      }
+    }
+
+    function renderStats() {
+      if (!workspaceData) return;
+
+      const statsBar = document.getElementById("statsBar");
+      const projectCount = workspaceData.project_count || (workspaceData.projects?.length || 0);
+      const caseCount = workspaceData.case_count || (workspaceData.cases?.length || 0);
+      const emailCount = workspaceData.email_count || 0;
+      const evidenceCount = workspaceData.evidence_count || 0;
+
+      statsBar.innerHTML = `
+        <div class="stat-pill">
+          <i class="fas fa-project-diagram" aria-hidden="true"></i>
+          <strong>${projectCount}</strong> Project${projectCount !== 1 ? 's' : ''}
+        </div>
+        <div class="stat-pill">
+          <i class="fas fa-briefcase" aria-hidden="true"></i>
+          <strong>${caseCount}</strong> Case${caseCount !== 1 ? 's' : ''}
+        </div>
+        <div class="stat-pill">
+          <i class="fas fa-envelope" aria-hidden="true"></i>
+          <strong>${emailCount.toLocaleString()}</strong> Emails
+        </div>
+        <div class="stat-pill">
+          <i class="fas fa-file-alt" aria-hidden="true"></i>
+          <strong>${evidenceCount.toLocaleString()}</strong> Files
+        </div>
+      `;
+    }
+
+    function renderProjects() {
+      const grid = document.getElementById("projectsGrid");
+      const countEl = document.getElementById("projectCount");
+      const projects = workspaceData?.projects || [];
+
+      countEl.textContent = projects.length;
+
+      if (projects.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-project-diagram empty-icon" aria-hidden="true"></i>
+            <div class="empty-title">No Projects Yet</div>
+            <div class="empty-desc">Create your first project to start managing timelines, emails, and evidence.</div>
+            <a href="project-setup.html?workspaceId=${encodeURIComponent(workspaceId)}" class="btn btn-vericase">
+              <i class="fas fa-plus" aria-hidden="true"></i> Add Project
+            </a>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = projects.map(project => `
+        <div class="item-card" onclick="openProject('${project.id}')">
+          <div class="item-card-header">
+            <div class="item-icon project">
+              <i class="fas fa-project-diagram" aria-hidden="true"></i>
+            </div>
+            <span class="item-status">${project.status || 'Active'}</span>
+          </div>
+          <div class="item-content">
+            <div class="item-title">${escapeHtml(project.name || project.project_name || 'Untitled Project')}</div>
+            <div class="item-code">${escapeHtml(project.code || project.project_code || '')}</div>
+            ${project.description ? `<div class="item-description">${escapeHtml(project.description)}</div>` : ''}
+          </div>
+          <div class="item-stats">
+            <div class="item-stat">
+              <i class="fas fa-envelope" aria-hidden="true"></i>
+              <strong>${(project.email_count || 0).toLocaleString()}</strong> emails
+            </div>
+            <div class="item-stat">
+              <i class="fas fa-file-alt" aria-hidden="true"></i>
+              <strong>${(project.evidence_count || 0).toLocaleString()}</strong> files
+            </div>
+          </div>
+          <i class="fas fa-arrow-right item-enter-arrow" aria-hidden="true"></i>
+        </div>
+      `).join('');
+    }
+
+    function renderCases() {
+      const grid = document.getElementById("casesGrid");
+      const countEl = document.getElementById("caseCount");
+      const cases = workspaceData?.cases || [];
+
+      countEl.textContent = cases.length;
+
+      if (cases.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-briefcase empty-icon" aria-hidden="true"></i>
+            <div class="empty-title">No Cases Yet</div>
+            <div class="empty-desc">Create a case to track disputes, claims, and legal matters.</div>
+            <a href="case-setup.html?workspaceId=${encodeURIComponent(workspaceId)}" class="btn btn-vericase">
+              <i class="fas fa-plus" aria-hidden="true"></i> Add Case
+            </a>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = cases.map(caseItem => `
+        <div class="item-card" onclick="openCase('${caseItem.id}')">
+          <div class="item-card-header">
+            <div class="item-icon case">
+              <i class="fas fa-briefcase" aria-hidden="true"></i>
+            </div>
+            <span class="item-status">${caseItem.status || 'Active'}</span>
+          </div>
+          <div class="item-content">
+            <div class="item-title">${escapeHtml(caseItem.name || caseItem.case_name || 'Untitled Case')}</div>
+            <div class="item-code">${escapeHtml(caseItem.case_number || '')}</div>
+            ${caseItem.description ? `<div class="item-description">${escapeHtml(caseItem.description)}</div>` : ''}
+          </div>
+          <div class="item-stats">
+            <div class="item-stat">
+              <i class="fas fa-envelope" aria-hidden="true"></i>
+              <strong>${(caseItem.email_count || 0).toLocaleString()}</strong> emails
+            </div>
+            <div class="item-stat">
+              <i class="fas fa-file-alt" aria-hidden="true"></i>
+              <strong>${(caseItem.evidence_count || 0).toLocaleString()}</strong> files
+            </div>
+          </div>
+          <i class="fas fa-arrow-right item-enter-arrow" aria-hidden="true"></i>
+        </div>
+      `).join('');
+    }
+
+    function openProject(projectId) {
+      // Set project context
+      try {
+        localStorage.setItem("currentProjectId", projectId);
+        localStorage.setItem("currentContextType", "project");
+      } catch { /* ignore */ }
+
+      window.location.href = `project-dashboard.html?projectId=${encodeURIComponent(projectId)}`;
+    }
+
+    function openCase(caseId) {
+      // Set case context
+      try {
+        localStorage.setItem("currentCaseId", caseId);
+        localStorage.setItem("currentContextType", "case");
+      } catch { /* ignore */ }
+
+      window.location.href = `case-dashboard.html?caseId=${encodeURIComponent(caseId)}`;
+    }
+
+    function showAddModal() {
+      document.getElementById("addModal").style.display = "flex";
+    }
+
+    function hideAddModal() {
+      document.getElementById("addModal").style.display = "none";
+    }
+
+    // Close modal on overlay click
+    document.getElementById("addModal")?.addEventListener("click", (e) => {
+      if (e.target.id === "addModal") hideAddModal();
+    });
+
+    // Escape key closes modal
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") hideAddModal();
+    });
+
+    // Helper function
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+
+</html>
+

@@ -377,7 +377,8 @@
           btnSpinner.style.display = "none";
 
           setTimeout(() => {
-            window.location.href = "/ui/control-centre.html";
+            // Go directly to master dashboard for workspace selection
+            window.location.href = "/ui/master-dashboard.html";
           }, 500);
         } catch (error) {
           errorDiv.textContent = error.message;

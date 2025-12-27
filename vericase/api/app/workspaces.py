@@ -120,14 +120,12 @@ def list_workspaces(
             or 0
         )
 
-        # Get email and evidence counts (aggregate from projects and cases)
-        project_ids = [
-            p.id
-            for p in db.query(Project.id).filter(Project.workspace_id == ws.id).all()
-        ]
-        case_ids = [
-            c.id for c in db.query(Case.id).filter(Case.workspace_id == ws.id).all()
-        ]
+        # Get projects and cases for this workspace
+        projects = db.query(Project).filter(Project.workspace_id == ws.id).all()
+        cases = db.query(Case).filter(Case.workspace_id == ws.id).all()
+
+        project_ids = [p.id for p in projects]
+        case_ids = [c.id for c in cases]
 
         from .models import EmailMessage, EvidenceItem
 
@@ -176,6 +174,23 @@ def list_workspaces(
                 "evidence_count": evidence_count,
                 "created_at": ws.created_at.isoformat() if ws.created_at else None,
                 "updated_at": ws.updated_at.isoformat() if ws.updated_at else None,
+                # Include nested projects and cases for frontend navigation
+                "projects": [
+                    {
+                        "id": str(p.id),
+                        "name": p.project_name,
+                        "code": p.project_code,
+                    }
+                    for p in projects
+                ],
+                "cases": [
+                    {
+                        "id": str(c.id),
+                        "name": c.case_name,
+                        "case_number": c.case_number,
+                    }
+                    for c in cases
+                ],
             }
         )
 

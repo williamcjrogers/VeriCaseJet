@@ -78,16 +78,16 @@
       section: "HOME",
       items: [
         {
-          id: "home",
-          label: "Control Centre",
+          id: "dashboard",
+          label: "Dashboard",
           icon: "fa-home",
-          url: COMMAND_CENTER_PAGE,
+          url: "master-dashboard.html",
         },
         {
-          id: "dashboard",
-          label: "Master Dashboard",
-          icon: "fa-columns",
-          url: "master-dashboard.html",
+          id: "help",
+          label: "Help & Features",
+          icon: "fa-compass",
+          url: COMMAND_CENTER_PAGE,
         },
       ],
     },
@@ -449,7 +449,7 @@
         contextType === "case" ? "Current Case" : "Current Project";
       const clickHandler =
         contextType === "case"
-          ? `window.location.href='${COMMAND_CENTER_PAGE}'`
+          ? `window.location.href='master-dashboard.html'`
           : "VericaseShell.showProjectSelector()";
       const clickTitle =
         contextType === "case"
@@ -464,9 +464,9 @@
               </div>
           `
         : `
-              <div class="project-context no-project" onclick="window.location.href='${COMMAND_CENTER_PAGE}'" style="cursor: pointer;" title="Open Master Dashboard to select a workspace">
-                  <div class="project-context-label">No Workspace Selected</div>
-                  <div class="project-context-name" style="font-size:0.75rem;opacity:0.7;">Open Master Dashboard</div>
+              <div class="project-context no-project" onclick="window.location.href='master-dashboard.html'" style="cursor: pointer;" title="Click to select a workspace">
+                  <div class="project-context-label"><i class="fas fa-exclamation-circle" style="margin-right:4px;"></i> No Workspace</div>
+                  <div class="project-context-name" style="font-size:0.75rem;">Click to select →</div>
               </div>
           `;
     }

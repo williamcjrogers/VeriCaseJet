@@ -1240,12 +1240,27 @@
 
 /* No project selected state in sidebar */
 .project-context.no-project {
-  background: rgba(255, 255, 255, 0.08);
-  border-left-color: var(--gray-500, #6b7280);
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.15) 0%, rgba(255, 152, 0, 0.1) 100%);
+  border-left-color: #f59e0b;
+  animation: pulse-context 2s ease-in-out infinite;
+}
+
+@keyframes pulse-context {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+.project-context.no-project .project-context-label {
+  color: #f59e0b;
+}
+
+.project-context.no-project .project-context-name {
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .project-context.no-project:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.22) 0%, rgba(255, 152, 0, 0.18) 100%);
+  cursor: pointer;
 }
 
 .project-context:hover {

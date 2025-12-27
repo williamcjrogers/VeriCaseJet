@@ -95,6 +95,15 @@
     <main id="main-content">
       <div class="container">
         <div class="page-header">
+          <nav class="breadcrumb" id="breadcrumbNav" style="margin-bottom: 0.75rem; font-size: 0.875rem;">
+            <a href="master-dashboard.html" style="color: var(--vericase-teal); text-decoration: none;">
+              <i class="fas fa-home"></i> Dashboard
+            </a>
+            <span style="color: var(--text-muted); margin: 0 0.5rem;">›</span>
+            <a href="#" id="workspaceLink" style="color: var(--vericase-teal); text-decoration: none;">Workspace</a>
+            <span style="color: var(--text-muted); margin: 0 0.5rem;">›</span>
+            <span style="color: var(--text-secondary);" id="breadcrumbCurrent">New Project</span>
+          </nav>
           <h1 class="page-title">Project Setup</h1>
           <p class="page-subtitle">Projects hold the core details and workstreams for a workspace.</p>
         </div>
@@ -298,21 +307,36 @@
         const pageSubtitle = document.querySelector(".page-subtitle");
         const submitBtn = document.getElementById("createProjectBtn");
         const backBtn = document.getElementById("backToDashboardBtn");
+        // Update breadcrumb
+        const workspaceLink = document.getElementById("workspaceLink");
+        const breadcrumbCurrent = document.getElementById("breadcrumbCurrent");
+
         if (isEditMode) {
           pageTitle.textContent = "Project Details";
           pageSubtitle.textContent = "Update the core details for this project.";
           submitBtn.innerHTML = '<i class="fas fa-save"></i> Save changes';
+          breadcrumbCurrent.textContent = "Edit Project";
           backBtn.addEventListener("click", () => {
             window.location.href = `projectdashboard.html?projectId=${encodeURIComponent(currentProjectId)}`;
           });
           loadProject(currentProjectId).catch((error) => {
             VericaseUI.Toast.error(error.message || "Failed to load project");
           });
+          // Hide workspace link in edit mode
+          if (workspaceLink) workspaceLink.style.display = "none";
+          if (workspaceLink?.previousElementSibling) workspaceLink.previousElementSibling.style.display = "none";
         } else {
           if (!currentWorkspaceId) {
-            VericaseUI.Toast.info("Select a workspace first");
+            VericaseUI.Toast.info("Please select a workspace first to create a project.");
             window.location.href = "master-dashboard.html";
             return;
+          }
+          // Update workspace link
+          if (workspaceLink) {
+            workspaceLink.href = `workspace-setup.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;
+            // Try to get workspace name
+            const wsName = localStorage.getItem("currentWorkspaceName");
+            if (wsName) workspaceLink.textContent = wsName;
           }
           backBtn.addEventListener("click", () => {
             window.location.href = `workspace-setup.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;
