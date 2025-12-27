@@ -1304,6 +1304,14 @@ Only include references that appear to be OTHER projects (is_other_project: true
         except (json.JSONDecodeError, KeyError) as e:
             logger.warning(f"Failed to parse AI response for project detection: {e}")
 
+        # Stable ordering for UI: most frequent first, then name
+        detected_items.sort(
+            key=lambda x: (
+                -int(x.email_count or 0),
+                (x.name or "").lower() if isinstance(x.name, str) else "",
+                x.id,
+            )
+        )
         return detected_items
 
     async def analyze_for_duplicates(
@@ -1394,8 +1402,14 @@ Only include references that appear to be OTHER projects (is_other_project: true
                     )
                 )
 
-        # Sort by count descending
-        detected_items.sort(key=lambda x: x.email_count, reverse=True)
+        # Stable ordering for UI: biggest duplicate groups first, then subject
+        detected_items.sort(
+            key=lambda x: (
+                -int(x.email_count or 0),
+                (x.name or "").lower() if isinstance(x.name, str) else "",
+                x.id,
+            )
+        )
         return detected_items[:30]  # Top 30 duplicate groups
 
     async def analyze_for_spam(self, emails: list[EmailMessage]) -> list[DetectedItem]:
@@ -1542,6 +1556,14 @@ Only include references that appear to be OTHER projects (is_other_project: true
                     )
                 )
 
+        # Stable ordering for UI: most frequent first, then name
+        spam_detected_items.sort(
+            key=lambda x: (
+                -int(x.email_count or 0),
+                (x.name or "").lower() if isinstance(x.name, str) else "",
+                x.id,
+            )
+        )
         return spam_detected_items[:20]  # Top 20 spam candidates
 
     async def analyze_domains_and_people(
@@ -1610,7 +1632,10 @@ Only include references that appear to be OTHER projects (is_other_project: true
             c: object = item[1].get("count")
             return int(c) if isinstance(c, (int, float)) else 0
 
-        sorted_domains = sorted(domain_stats.items(), key=get_dom_count, reverse=True)
+        # Stable ordering: count desc, then domain asc (prevents UI jitter on ties)
+        sorted_domains = sorted(
+            domain_stats.items(), key=lambda item: (-get_dom_count(item), item[0])
+        )
         for domain, stats in sorted_domains:
             stats_count_obj: object = stats.get("count")
             stats_count: int = (
@@ -1693,8 +1718,9 @@ Only include references that appear to be OTHER projects (is_other_project: true
             c: object = item[1].get("count")
             return int(c) if isinstance(c, (int, float)) else 0
 
+        # Stable ordering: count desc, then email asc (prevents UI jitter on ties)
         sorted_people = sorted(
-            people_stats.items(), key=get_people_count, reverse=True
+            people_stats.items(), key=lambda item: (-get_people_count(item), item[0])
         )[:30]
         for email_addr, stats in sorted_people:
             pstat_count_obj2: object = stats.get("count")
@@ -1902,6 +1928,8 @@ Only include references that appear to be OTHER projects (is_other_project: true
                 )
             )
 
+        # Defensive: ensure questions are returned in priority order (stable sort)
+        questions.sort(key=lambda q: q.priority if isinstance(q.priority, int) else 999)
         return questions
 
 

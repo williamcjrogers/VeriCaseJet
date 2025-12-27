@@ -462,6 +462,11 @@
         color: var(--vericase-blue);
       }
 
+      .item-type.duplicate {
+        background: rgba(23, 181, 163, 0.15);
+        color: var(--vericase-teal);
+      }
+
       .item-badges {
         display: flex;
         gap: 0.5rem;
@@ -892,6 +897,14 @@
               <div class="step-icon"><i class="fas fa-microscope"></i></div>
               <span class="step-text">AI Analysis</span>
             </div>
+            <div class="step" id="step-people">
+              <div class="step-icon"><i class="fas fa-users"></i></div>
+              <span class="step-text">People Validation</span>
+            </div>
+            <div class="step" id="step-domains">
+              <div class="step-icon"><i class="fas fa-globe"></i></div>
+              <span class="step-text">Domain Validation</span>
+            </div>
             <div class="step" id="step-projects">
               <div class="step-icon"><i class="fas fa-folder-tree"></i></div>
               <span class="step-text">Cross-Reference Projects</span>
@@ -903,14 +916,6 @@
             <div class="step" id="step-duplicates">
               <div class="step-icon"><i class="fas fa-copy"></i></div>
               <span class="step-text">Duplicate Removal</span>
-            </div>
-            <div class="step" id="step-domains">
-              <div class="step-icon"><i class="fas fa-globe"></i></div>
-              <span class="step-text">Domain Validation</span>
-            </div>
-            <div class="step" id="step-people">
-              <div class="step-icon"><i class="fas fa-users"></i></div>
-              <span class="step-text">People Validation</span>
             </div>
             <div class="step" id="step-review">
               <div class="step-icon"><i class="fas fa-check-double"></i></div>
@@ -963,6 +968,107 @@
       };
       const buildCorrespondenceUrl = (extraParams = {}) =>
         `correspondence-enterprise.html${buildContextQuery(extraParams)}`;
+
+      // Sorting helpers (stable ordering keeps the wizard predictable)
+      const STAGE_ORDER = {
+        initial_analysis: 0,
+        people_validation: 1,
+        domain_questions: 2,
+        project_cross_reference: 3,
+        spam_detection: 4,
+        final_review: 5,
+      };
+
+      function safeLower(value) {
+        return String(value || "").toLowerCase();
+      }
+
+      function getStageRank(stage) {
+        const key = safeLower(stage);
+        return Object.prototype.hasOwnProperty.call(STAGE_ORDER, key)
+          ? STAGE_ORDER[key]
+          : 999;
+      }
+
+      function getPriority(q) {
+        const p = Number(q?.priority);
+        return Number.isFinite(p) ? p : 999;
+      }
+
+      function stableSort(array, compareFn) {
+        const arr = Array.isArray(array) ? array : [];
+        return arr
+          .map((value, idx) => ({ value, idx }))
+          .sort((a, b) => compareFn(a.value, b.value) || a.idx - b.idx)
+          .map((x) => x.value);
+      }
+
+      function sortQuestionsList(qs) {
+        const arr = Array.isArray(qs) ? qs.filter(Boolean) : [];
+        return stableSort(arr, (a, b) => {
+          const pr = getPriority(a) - getPriority(b);
+          if (pr !== 0) return pr;
+          const sr = getStageRank(a?.stage) - getStageRank(b?.stage);
+          if (sr !== 0) return sr;
+          return safeLower(a?.question_text).localeCompare(safeLower(b?.question_text));
+        });
+      }
+
+      function getEmailCount(item) {
+        const n = Number(item?.email_count);
+        return Number.isFinite(n) ? n : 0;
+      }
+
+      function getRecommendedRank(item) {
+        const action = safeLower(item?.recommended_action);
+        if (
+          action === "exclude" ||
+          action === "remove_duplicates" ||
+          action === "remove"
+        ) {
+          return 0;
+        }
+        if (action === "review") return 1;
+        if (action === "keep") return 2;
+        return 1;
+      }
+
+      function sortDetectedItems(items) {
+        const arr = Array.isArray(items) ? items.filter(Boolean) : [];
+        const types = new Set(arr.map((it) => it?.item_type).filter(Boolean));
+        const singleType = types.size === 1 ? Array.from(types)[0] : null;
+
+        // Domains are easiest to scan when sorted A→Z
+        if (singleType === "unknown_domain") {
+          return stableSort(arr, (a, b) =>
+            safeLower(a?.name).localeCompare(safeLower(b?.name)),
+          );
+        }
+
+        // Default: action (exclude/review/keep), then volume, then name
+        return stableSort(arr, (a, b) => {
+          const ar = getRecommendedRank(a) - getRecommendedRank(b);
+          if (ar !== 0) return ar;
+          const cr = getEmailCount(b) - getEmailCount(a);
+          if (cr !== 0) return cr;
+          const nr = safeLower(a?.name).localeCompare(safeLower(b?.name));
+          if (nr !== 0) return nr;
+          return safeLower(a?.id).localeCompare(safeLower(b?.id));
+        });
+      }
+
+      function prepareQuestions(rawQuestions) {
+        const sortedQs = sortQuestionsList(rawQuestions);
+        sortedQs.forEach((q) => {
+          if (!q) return;
+          if (Array.isArray(q.detected_items)) {
+            q.detected_items = sortDetectedItems(q.detected_items);
+          } else {
+            q.detected_items = [];
+          }
+        });
+        return sortedQs;
+      }
 
       // Initialize
       document.addEventListener("DOMContentLoaded", async () => {
@@ -1113,7 +1219,7 @@
 
           const data = await response.json();
           sessionId = data.session_id;
-          questions = data.next_questions || [];
+          questions = prepareQuestions(data.next_questions);
           analysisResults = data.summary;
 
           // Update stats
@@ -1176,11 +1282,17 @@
         }
 
         currentQuestion = questions[index];
+        if (currentQuestion && Array.isArray(currentQuestion.detected_items)) {
+          currentQuestion.detected_items = sortDetectedItems(
+            currentQuestion.detected_items,
+          );
+        }
         selectedItems.clear();
         selectedOption = null;
 
         // Update step indicator
         const stageMap = {
+          initial_analysis: "step-analysis",
           project_cross_reference: "step-projects",
           spam_detection: "step-spam",
           final_review: "step-duplicates",
@@ -1270,7 +1382,7 @@
             other_project: "project",
             spam_newsletter: "spam",
             unknown_domain: "domain",
-            duplicate_email: "spam",
+            duplicate_email: "duplicate",
             unknown_person: "",
           }[item.item_type] || "";
 
@@ -1424,6 +1536,7 @@
 
           // Mark current step complete
           const stageMap = {
+            initial_analysis: "step-analysis",
             project_cross_reference: "step-projects",
             spam_detection: "step-spam",
             final_review: "step-duplicates",
