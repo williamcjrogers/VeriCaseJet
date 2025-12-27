@@ -640,6 +640,103 @@ async def trigger_case_email_linking(
     }
 
 
+@router.post("/api/projects/{project_id}/programmes/link-emails-sync")
+async def trigger_project_email_linking_sync(
+    project_id: uuid.UUID,
+    overwrite: bool = False,
+    db: Session = Depends(get_db),
+    user: "User" = Depends(current_user),
+):
+    """
+    Synchronously link emails to programme activities for a project.
+
+    This runs the linking IMMEDIATELY (no Celery required) and returns results.
+    Use this when background workers aren't running.
+
+    This links each email to its corresponding programme activity based on date,
+    populating as_planned_activity, as_built_activity, and delay_days fields.
+    """
+    from .models import Project
+    from .programme_linking import link_emails_to_programme_activities
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Check if there are programmes to link against
+    programme_count = (
+        db.query(Programme).filter(Programme.project_id == project_id).count()
+    )
+    if programme_count == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No programmes found for this project. Upload a programme first.",
+        )
+
+    # Run synchronously
+    result = link_emails_to_programme_activities(
+        db=db,
+        project_id=str(project_id),
+        overwrite_existing=overwrite,
+    )
+
+    return {
+        "status": result.get("status", "unknown"),
+        "project_id": str(project_id),
+        "programmes_available": programme_count,
+        "overwrite_existing": overwrite,
+        "result": result,
+        "message": "Email linking completed. Refresh correspondence to see updated activity fields.",
+    }
+
+
+@router.post("/api/cases/{case_id}/programmes/link-emails-sync")
+async def trigger_case_email_linking_sync(
+    case_id: uuid.UUID,
+    overwrite: bool = False,
+    db: Session = Depends(get_db),
+    user: "User" = Depends(current_user),
+):
+    """
+    Synchronously link emails to programme activities for a case.
+
+    This runs the linking IMMEDIATELY (no Celery required) and returns results.
+    Use this when background workers aren't running.
+
+    This links each email to its corresponding programme activity based on date,
+    populating as_planned_activity, as_built_activity, and delay_days fields.
+    """
+    from .programme_linking import link_emails_to_programme_activities
+
+    case = db.query(Case).filter(Case.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Check if there are programmes to link against
+    programme_count = db.query(Programme).filter(Programme.case_id == case_id).count()
+    if programme_count == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No programmes found for this case. Upload a programme first.",
+        )
+
+    # Run synchronously
+    result = link_emails_to_programme_activities(
+        db=db,
+        case_id=str(case_id),
+        overwrite_existing=overwrite,
+    )
+
+    return {
+        "status": result.get("status", "unknown"),
+        "case_id": str(case_id),
+        "programmes_available": programme_count,
+        "overwrite_existing": overwrite,
+        "result": result,
+        "message": "Email linking completed. Refresh correspondence to see updated activity fields.",
+    }
+
+
 @router.get("/api/programmes/{programme_id}")
 async def get_programme(
     programme_id: uuid.UUID,

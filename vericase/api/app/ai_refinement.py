@@ -2491,10 +2491,16 @@ async def submit_answer(
     raw_answer: object = answer.answer_value
     answer_val = str(raw_answer) if raw_answer is not None else ""
 
+    logger.info(
+        f"Processing answer for question {answer.question_id}: "
+        f"answer_value={answer_val}, selected_items={len(answer.selected_items)}, "
+        f"question_stage={question.stage if question else 'NOT FOUND'}"
+    )
+
     if question:
-        # Handle deduplication answers
+        # Handle deduplication answers (uses FINAL_REVIEW stage)
         if (
-            question.stage == RefinementStage.INITIAL_ANALYSIS
+            question.stage == RefinementStage.FINAL_REVIEW
             and "duplicate" in question.question_text.lower()
         ):
             if answer_val == "remove_all":
@@ -2538,6 +2544,54 @@ async def submit_answer(
                     if item.id in answer.selected_items and item.metadata.get("domain")
                 ]
                 session.exclusion_rules["exclude_spam_domains"] = selected_domains
+
+        elif question.stage == RefinementStage.DOMAIN_QUESTIONS:
+            # Handle domain inclusion/exclusion
+            if answer_val == "include_selected":
+                # Exclude domains NOT in the selected list
+                all_domains = [
+                    item.metadata.get("domain") or item.name
+                    for item in question.detected_items
+                ]
+                selected_domain_names = [
+                    item.metadata.get("domain") or item.name
+                    for item in question.detected_items
+                    if item.id in answer.selected_items
+                ]
+                # Domains to exclude = all domains - selected domains
+                exclude_domains = [
+                    d for d in all_domains if d not in selected_domain_names
+                ]
+                existing_excluded = session.exclusion_rules.get("exclude_domains", [])
+                if isinstance(existing_excluded, list):
+                    existing_excluded.extend(exclude_domains)
+                else:
+                    existing_excluded = exclude_domains
+                session.exclusion_rules["exclude_domains"] = existing_excluded
+            # "include_all" and "review_later" keep all domains, no exclusion needed
+
+        elif question.stage == RefinementStage.PEOPLE_VALIDATION:
+            # Handle people categorization/exclusion
+            if answer_val == "exclude":
+                # Exclude all people in this question
+                excluded_people = [
+                    item.metadata.get("email") or item.name
+                    for item in question.detected_items
+                ]
+                existing_excluded = session.exclusion_rules.get("exclude_people", [])
+                if isinstance(existing_excluded, list):
+                    existing_excluded.extend(excluded_people)
+                else:
+                    existing_excluded = excluded_people
+                session.exclusion_rules["exclude_people"] = existing_excluded
+            # For categorization answers (client, contractor, etc.), we could update
+            # stakeholders but for now we just record the answer without exclusion
+
+        elif question.stage == RefinementStage.INITIAL_ANALYSIS:
+            # Handle date range question - store the selection for filtering
+            if "date" in question.question_text.lower():
+                session.exclusion_rules["date_filter"] = answer_val
+                # Note: actual date filtering is applied when the apply endpoint runs
 
     # Find next unanswered question
     answered_ids = {a.question_id for a in session.answers_received}
@@ -2590,6 +2644,16 @@ async def apply_refinement(
     duplicate_removed_count = 0
     rules = session.exclusion_rules
 
+    logger.info(
+        f"Applying refinement for session {session_id}: "
+        f"exclusion_rules keys={list(rules.keys())}, "
+        f"project_refs={len(rules.get('exclude_project_refs', []))}, "
+        f"spam_domains={len(rules.get('exclude_spam_domains', []))}, "
+        f"domains={len(rules.get('exclude_domains', []))}, "
+        f"people={len(rules.get('exclude_people', []))}, "
+        f"duplicate_ids={len(rules.get('remove_duplicate_ids', []))}"
+    )
+
     # Fetch emails excluding pre-tagged spam/hidden/other_project
     emails = (
         db.query(EmailMessage)
@@ -2601,6 +2665,7 @@ async def apply_refinement(
     # Build sets for faster lookup with proper typing
     exclude_project_refs: list[str] = []
     exclude_spam_domains: list[str] = []
+    exclude_domains: list[str] = []  # From domain question
     exclude_people: list[str] = []
     remove_duplicate_ids: set[str] = set()
 
@@ -2613,6 +2678,11 @@ async def apply_refinement(
     if isinstance(raw_spam_domains, list):
         domains_list = cast(list[object], raw_spam_domains)
         exclude_spam_domains = [str(d_item) for d_item in domains_list]
+
+    raw_exclude_domains: object = rules.get("exclude_domains")
+    if isinstance(raw_exclude_domains, list):
+        domains_list = cast(list[object], raw_exclude_domains)
+        exclude_domains = [str(d_item) for d_item in domains_list]
 
     raw_exclude_people: object = rules.get("exclude_people")
     if isinstance(raw_exclude_people, list):
@@ -2650,6 +2720,13 @@ async def apply_refinement(
             if sender_domain in [d.lower() for d in exclude_spam_domains]:
                 should_exclude = True
                 exclude_reason = f"spam:{sender_domain}"
+
+        # Check user-excluded domains (from domain validation question)
+        if not should_exclude and exclude_domains:
+            sender_domain = (email.sender_email or "").split("@")[-1].lower()
+            if sender_domain in [d.lower() for d in exclude_domains]:
+                should_exclude = True
+                exclude_reason = f"excluded_domain:{sender_domain}"
 
         # Check excluded people
         if not should_exclude and exclude_people:
@@ -2692,6 +2769,11 @@ async def apply_refinement(
 
     session.status = "applied"
     _save_session_to_db(session, db)
+
+    logger.info(
+        f"Refinement applied for session {session_id}: "
+        f"excluded_count={excluded_count}, total_emails={len(emails)}"
+    )
 
     cleanup_jobs: dict[str, str] = {}
     try:

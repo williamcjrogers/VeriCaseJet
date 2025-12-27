@@ -1080,6 +1080,7 @@
           const payload = {
             include_spam_detection: true,
             include_project_detection: true,
+            run_in_background: false,  // Process synchronously to get questions immediately
           };
           if (targetType === "case") {
             payload.case_id = targetId;

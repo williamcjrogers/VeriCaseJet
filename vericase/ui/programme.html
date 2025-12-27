@@ -726,6 +726,10 @@
             Programmes
           </span>
           <div class="toolbar-spacer"></div>
+          <button class="btn btn-secondary" id="syncCorrespondenceBtn" onclick="syncLinkEmails()" title="Link emails to programme activities">
+            <i class="fas fa-link"></i>
+            Sync to Correspondence
+          </button>
           <button class="btn btn-secondary" id="compareBtn" disabled>
             <i class="fas fa-exchange-alt"></i>
             Compare Programmes
@@ -1394,6 +1398,11 @@
             showToast("success", `Programme uploaded! ${result.activities_parsed} activities parsed.`);
             closeUploadModal();
             await loadProgrammes();
+            
+            // Automatically trigger sync linking to populate correspondence
+            if (result.activities_parsed > 0) {
+              await syncLinkEmails();
+            }
           } else {
             const error = await response.json();
             showToast("error", error.detail || 'Upload failed');
@@ -1404,6 +1413,55 @@
         } finally {
           submitBtn.disabled = false;
           submitBtn.innerHTML = '<i class="fas fa-upload"></i> Upload Programme';
+        }
+      }
+
+      // ============================================
+      // SYNC EMAIL LINKING FUNCTIONALITY
+      // ============================================
+      
+      async function syncLinkEmails() {
+        if (!ensureContextSelected("sync emails to programme")) return;
+        
+        const syncBtn = document.getElementById('syncCorrespondenceBtn');
+        const originalHtml = syncBtn.innerHTML;
+        syncBtn.disabled = true;
+        syncBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+        
+        try {
+          const token = localStorage.getItem('token');
+          // Use the sync endpoint (runs immediately, no Celery required)
+          const endpoint = contextType === 'case' 
+            ? `${apiUrl}/api/cases/${contextId}/programmes/link-emails-sync`
+            : `${apiUrl}/api/projects/${contextId}/programmes/link-emails-sync`;
+          
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            const stats = result.result || {};
+            
+            if (stats.status === 'completed') {
+              showToast("success", `Linked ${stats.updated || 0} emails to programme activities!`);
+              showToast("info", "Refresh Correspondence tab to see Programme Activity columns.");
+            } else if (stats.status === 'skipped') {
+              showToast("warning", stats.reason || "No programmes available for linking. Upload a baseline programme first.");
+            } else {
+              showToast("warning", "Linking completed with status: " + (stats.status || 'unknown'));
+            }
+          } else {
+            const error = await response.json();
+            showToast("error", error.detail || 'Failed to sync emails to programme');
+          }
+        } catch (error) {
+          console.error('Sync error:', error);
+          showToast("error", 'Sync failed. Please try again.');
+        } finally {
+          syncBtn.disabled = false;
+          syncBtn.innerHTML = originalHtml;
         }
       }
 

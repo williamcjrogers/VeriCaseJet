@@ -1364,7 +1364,7 @@
     <!-- Collections Sidebar -->
     <div class="collections-sidebar">
       <div class="sidebar-header">
-        <div class="sidebar-section-title">Collections</div>
+      <div class="sidebar-section-title">Collections</div>
         <div class="sidebar-header-actions">
           <label class="auto-categorize-toggle" title="Enable intelligent auto-categorization">
             <input type="checkbox" id="autoCategorizeToggle" />
@@ -2775,16 +2775,16 @@
         });
       } else {
         // Flat list (original behavior)
-        filtered.forEach((c) => {
-          const icon = c.is_system ? "fa-folder-open" : "fa-folder";
-          html += `
+      filtered.forEach((c) => {
+        const icon = c.is_system ? "fa-folder-open" : "fa-folder";
+        html += `
                     <div class="collection-item" data-id="${c.id}">
                         <i class="fas ${icon}"></i>
                         ${escapeHtml(c.name)}
                         <span class="collection-count">${c.item_count || 0}</span>
                     </div>
                 `;
-        });
+      });
       }
 
       list.innerHTML = html;

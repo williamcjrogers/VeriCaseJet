@@ -366,8 +366,13 @@
 
           const data = await response.json();
 
+          // Store token under all commonly-used keys for compatibility across UI pages.
+          // Some older pages look for `token`/`jwt`, newer pages prefer `vericase_token`,
+          // and a few reference `access_token`.
+          localStorage.setItem("vericase_token", data.access_token);
           localStorage.setItem("token", data.access_token);
           localStorage.setItem("jwt", data.access_token);
+          localStorage.setItem("access_token", data.access_token);
 
           if (data.user) {
             localStorage.setItem("user", JSON.stringify(data.user));

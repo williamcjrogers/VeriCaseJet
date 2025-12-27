@@ -586,6 +586,45 @@
         display: none;
       }
 
+      /* New icon-based question styling */
+      .question-icon-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.35rem;
+        flex-shrink: 0;
+      }
+
+      .question-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1.5px solid;
+        transition: all 0.2s ease;
+      }
+
+      .question-icon i {
+        font-size: 1rem;
+      }
+
+      .question-node:hover .question-icon {
+        transform: scale(1.05);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      }
+
+      .question-number {
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        font-family: "JetBrains Mono", monospace;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+      }
+
+      /* Legacy status styles - kept for compatibility */
       .question-status {
         width: 36px;
         height: 36px;
@@ -629,35 +668,102 @@
 
       .question-content {
         flex: 1;
+        min-width: 0;
       }
 
       .question-text {
         font-size: 0.9375rem;
-        font-weight: 500;
+        font-weight: 600;
         color: var(--text-primary);
-        margin-bottom: 0.25rem;
+        margin-bottom: 0.35rem;
+        line-height: 1.4;
       }
 
       .question-rationale {
         font-size: 0.8125rem;
         color: var(--text-muted);
-        line-height: 1.5;
+        line-height: 1.55;
+      }
+
+      .question-footer {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-top: 0.65rem;
+        flex-wrap: wrap;
+      }
+
+      .question-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.25rem 0.65rem;
+        border-radius: 100px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+
+      .question-status-badge.pending {
+        background: rgba(107, 114, 128, 0.1);
+        color: var(--text-muted);
+      }
+
+      .question-status-badge.in-progress {
+        background: rgba(15, 157, 154, 0.12);
+        color: var(--vc-teal);
+      }
+
+      .question-status-badge.completed {
+        background: rgba(5, 150, 105, 0.12);
+        color: var(--accent-success);
+      }
+
+      .question-status-badge i {
+        font-size: 0.65rem;
       }
 
       .question-deps {
         display: flex;
         gap: 0.375rem;
-        margin-top: 0.5rem;
         align-items: center;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      .question-deps i {
+        font-size: 0.7rem;
+        opacity: 0.7;
       }
 
       .dep-badge {
-        padding: 0.125rem 0.5rem;
+        padding: 0.15rem 0.5rem;
         background: var(--bg-tertiary);
         border-radius: 4px;
         font-size: 0.6875rem;
         color: var(--text-muted);
         font-family: "JetBrains Mono", monospace;
+        font-weight: 500;
+      }
+
+      /* Angle tags with icons */
+      .angle-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.4rem 0.9rem;
+        background: rgba(139, 115, 85, 0.08);
+        border: 1px solid rgba(139, 115, 85, 0.2);
+        border-radius: 100px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--vc-gold);
+      }
+
+      .angle-tag i {
+        font-size: 0.7rem;
+        opacity: 0.85;
       }
 
       /* Plan actions */
@@ -761,34 +867,74 @@
       /* Report display */
       .report-container {
         background: var(--bg-card);
-        border-radius: 12px;
-        border: 1px solid var(--border-color);
-        padding: 2rem;
-        box-shadow: var(--shadow-card);
-        max-width: 720px;
+        border-radius: 16px;
+        border: 2px solid var(--vc-teal);
+        padding: 0;
+        box-shadow: 0 8px 32px rgba(15, 157, 154, 0.12);
+        max-width: 780px;
         margin-left: auto;
         margin-right: auto;
+        overflow: hidden;
       }
 
       .report-header {
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
-        margin-bottom: 2rem;
-        padding-bottom: 1.5rem;
+        padding: 1.5rem 2rem;
+        background: linear-gradient(135deg, rgba(15, 157, 154, 0.06) 0%, rgba(139, 115, 85, 0.04) 100%);
         border-bottom: 1px solid var(--border-color);
       }
 
+      .report-header-content {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+      }
+
+      .report-header-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, var(--vc-teal) 0%, #0d7377 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .report-header-icon i {
+        color: white;
+        font-size: 1.25rem;
+      }
+
       .report-title {
-        font-size: 1.5rem;
+        font-family: "DM Sans", sans-serif;
+        font-size: 1.375rem;
         font-weight: 700;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.35rem;
         color: var(--text-primary);
+        line-height: 1.3;
       }
 
       .report-meta {
-        font-size: 0.8125rem;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.8rem;
         color: var(--text-muted);
+      }
+
+      .report-meta-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+
+      .report-meta-item i {
+        font-size: 0.7rem;
+        opacity: 0.7;
       }
 
       .report-actions {
@@ -802,7 +948,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: var(--bg-primary);
+        background: white;
         border: 1px solid var(--border-color);
         border-radius: 8px;
         color: var(--text-secondary);
@@ -811,52 +957,78 @@
       }
 
       .btn-icon:hover {
-        border-color: var(--accent-primary);
-        color: var(--accent-primary);
+        border-color: var(--vc-teal);
+        color: var(--vc-teal);
         background: rgba(15, 157, 154, 0.04);
+        transform: translateY(-1px);
+      }
+
+      .report-body {
+        padding: 2rem;
       }
 
       .report-themes {
         display: flex;
         flex-wrap: wrap;
         gap: 0.5rem;
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 1px solid var(--border-color);
       }
 
       .theme-tag {
-        padding: 0.375rem 0.875rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.4rem 0.9rem;
         background: rgba(15, 157, 154, 0.08);
         border: 1px solid rgba(15, 157, 154, 0.2);
         border-radius: 100px;
         font-size: 0.75rem;
-        font-weight: 500;
+        font-weight: 600;
         color: var(--vc-teal);
+      }
+
+      .theme-tag::before {
+        content: "#";
+        opacity: 0.6;
       }
 
       .report-content {
         font-size: 0.9375rem;
-        line-height: 1.8;
+        line-height: 1.85;
         color: var(--text-secondary);
       }
 
       .report-content h1 {
+        font-family: "DM Sans", sans-serif;
         font-size: 1.5rem;
         color: var(--text-primary);
         margin: 2rem 0 1rem;
-        font-weight: 600;
+        font-weight: 700;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid rgba(15, 157, 154, 0.15);
       }
 
       .report-content h2 {
+        font-family: "DM Sans", sans-serif;
         font-size: 1.25rem;
         color: var(--text-primary);
-        margin: 1.5rem 0 0.75rem;
-        font-weight: 600;
+        margin: 1.75rem 0 0.75rem;
+        font-weight: 700;
       }
 
       .report-content h3 {
         font-size: 1.0625rem;
         color: var(--text-primary);
-        margin: 1rem 0 0.5rem;
+        margin: 1.25rem 0 0.5rem;
+        font-weight: 600;
+      }
+
+      .report-content h4 {
+        font-size: 0.95rem;
+        color: var(--vc-gold);
+        margin: 1rem 0 0.4rem;
         font-weight: 600;
       }
 
@@ -872,12 +1044,36 @@
 
       .report-content li {
         margin-bottom: 0.5rem;
+        position: relative;
+      }
+
+      .report-content strong {
+        color: var(--text-primary);
+        font-weight: 600;
+      }
+
+      .report-content blockquote {
+        margin: 1.25rem 0;
+        padding: 1rem 1.25rem;
+        background: rgba(15, 157, 154, 0.04);
+        border-left: 4px solid var(--vc-teal);
+        border-radius: 0 10px 10px 0;
+        font-style: italic;
       }
 
       .report-content hr {
         border: none;
         border-top: 1px solid var(--border-color);
         margin: 2rem 0;
+      }
+
+      .report-content code {
+        background: var(--bg-tertiary);
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.85em;
+        color: var(--vc-teal-dark);
       }
 
       /* History sidebar */
@@ -1273,11 +1469,14 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
               style="display: none"
             >
               <div class="report-header">
-                <div>
-                  <h2 class="report-title">Research Report</h2>
-                  <p class="report-meta">
-                    <span id="reportMeta"></span>
-                  </p>
+                <div class="report-header-content">
+                  <div class="report-header-icon">
+                    <i class="fas fa-file-alt"></i>
+                  </div>
+                  <div>
+                    <h2 class="report-title">Deep Analysis Report</h2>
+                    <div class="report-meta" id="reportMeta"></div>
+                  </div>
                 </div>
                 <div class="report-actions">
                   <button
@@ -1290,7 +1489,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
                   <button
                     class="btn-icon"
                     onclick="downloadReport()"
-                    title="Download as PDF"
+                    title="Download as text"
                   >
                     <i class="fas fa-download"></i>
                   </button>
@@ -1304,12 +1503,13 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
                 </div>
               </div>
 
-              <div id="reportThemes" class="report-themes"></div>
-
-              <div
-                id="reportContent"
-                class="report-content markdown-body"
-              ></div>
+              <div class="report-body">
+                <div id="reportThemes" class="report-themes"></div>
+                <div
+                  id="reportContent"
+                  class="report-content markdown-body"
+                ></div>
+              </div>
             </div>
           </section>
         </div>
@@ -1724,6 +1924,52 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
         }
       }
 
+      // Get an icon for a research question based on its content
+      function getQuestionIcon(question, rationale) {
+        const text = (question + " " + rationale).toLowerCase();
+        
+        // Check for specific keywords and return appropriate icons
+        if (text.includes("timeline") || text.includes("chronolog") || text.includes("when") || text.includes("date") || text.includes("sequence")) {
+          return { icon: "fa-clock", color: "#6366f1" }; // Indigo - time-related
+        }
+        if (text.includes("cause") || text.includes("reason") || text.includes("why") || text.includes("result")) {
+          return { icon: "fa-link", color: "#8b5cf6" }; // Purple - causation
+        }
+        if (text.includes("who") || text.includes("witness") || text.includes("person") || text.includes("party") || text.includes("parties")) {
+          return { icon: "fa-users", color: "#ec4899" }; // Pink - people
+        }
+        if (text.includes("contract") || text.includes("clause") || text.includes("obligation") || text.includes("liability")) {
+          return { icon: "fa-file-contract", color: "#f59e0b" }; // Amber - contracts
+        }
+        if (text.includes("delay") || text.includes("extension") || text.includes("programme") || text.includes("schedule")) {
+          return { icon: "fa-calendar-alt", color: "#10b981" }; // Emerald - schedule
+        }
+        if (text.includes("cost") || text.includes("quantum") || text.includes("payment") || text.includes("price") || text.includes("money") || text.includes("£")) {
+          return { icon: "fa-calculator", color: "#14b8a6" }; // Teal - money
+        }
+        if (text.includes("communication") || text.includes("email") || text.includes("letter") || text.includes("notice") || text.includes("notify")) {
+          return { icon: "fa-envelope", color: "#3b82f6" }; // Blue - communications
+        }
+        if (text.includes("variation") || text.includes("change") || text.includes("instruction") || text.includes("order")) {
+          return { icon: "fa-exchange-alt", color: "#f97316" }; // Orange - variations
+        }
+        if (text.includes("defect") || text.includes("quality") || text.includes("damage") || text.includes("issue")) {
+          return { icon: "fa-exclamation-triangle", color: "#ef4444" }; // Red - defects
+        }
+        if (text.includes("document") || text.includes("evidence") || text.includes("record") || text.includes("prove")) {
+          return { icon: "fa-file-alt", color: "#0ea5e9" }; // Sky - documents
+        }
+        if (text.includes("design") || text.includes("drawing") || text.includes("specification")) {
+          return { icon: "fa-drafting-compass", color: "#a855f7" }; // Violet - design
+        }
+        if (text.includes("impact") || text.includes("effect") || text.includes("consequence")) {
+          return { icon: "fa-bolt", color: "#eab308" }; // Yellow - impact
+        }
+        
+        // Default icon
+        return { icon: "fa-search", color: "var(--vc-teal)" };
+      }
+
       function showPlanReview(plan) {
         if (!plan) return;
 
@@ -1733,44 +1979,76 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
         document.getElementById("planProblem").textContent =
           plan.problem_statement;
 
-        // Show angles
+        // Show angles with icons
         const anglesContainer = document.getElementById("planAngles");
+        const angleIcons = {
+          'chronology': 'fa-clock',
+          'causation': 'fa-link',
+          'liability': 'fa-gavel',
+          'quantum': 'fa-calculator',
+          'communications': 'fa-envelope',
+          'variations': 'fa-exchange-alt',
+          'programme': 'fa-calendar-alt',
+          'witnesses': 'fa-users',
+          'defects': 'fa-exclamation-triangle',
+          'delay': 'fa-hourglass-half',
+          'contract': 'fa-file-contract',
+          'design': 'fa-drafting-compass'
+        };
+        
         anglesContainer.innerHTML = plan.key_angles
-          .map((angle) => `<span class="angle-tag">${angle}</span>`)
+          .map((angle) => {
+            const lowerAngle = angle.toLowerCase();
+            const icon = Object.entries(angleIcons).find(([key]) => lowerAngle.includes(key))?.[1] || 'fa-tag';
+            return `<span class="angle-tag"><i class="fas ${icon}"></i> ${angle}</span>`;
+          })
           .join("");
 
-        // Show questions
+        // Show questions with smart icons
         const questionsContainer =
           document.getElementById("questionsContainer");
         questionsContainer.innerHTML = plan.questions
           .map(
-            (q) => `
-                <div class="question-node">
-                    <div class="question-status ${q.status}">
-                        ${
-                          q.status === "completed"
-                            ? '<i class="fas fa-check"></i>'
-                            : q.status === "in-progress"
-                              ? '<i class="fas fa-spinner fa-spin"></i>'
-                              : '<span style="font-size: 0.75rem;">${q.id}</span>'
-                        }
+            (q, index) => {
+              const iconData = getQuestionIcon(q.question, q.rationale || "");
+              const questionNum = index + 1;
+              
+              return `
+                <div class="question-node" data-question-id="${q.id}">
+                    <div class="question-icon-wrapper">
+                        <div class="question-icon" style="background: ${iconData.color}15; border-color: ${iconData.color}40;">
+                            <i class="fas ${iconData.icon}" style="color: ${iconData.color};"></i>
+                        </div>
+                        <div class="question-number">Q${questionNum}</div>
                     </div>
                     <div class="question-content">
                         <div class="question-text">${q.question}</div>
-                        <div class="question-rationale">${q.rationale}</div>
-                        ${
-                          q.dependencies.length > 0
-                            ? `
-                            <div class="question-deps">
-                                <span style="font-size: 0.6875rem; color: var(--text-muted);">Depends on:</span>
-                                ${q.dependencies.map((d) => `<span class="dep-badge">${d}</span>`).join("")}
+                        <div class="question-rationale">${q.rationale || ""}</div>
+                        <div class="question-footer">
+                            <div class="question-status-badge ${q.status}">
+                                ${
+                                  q.status === "completed"
+                                    ? '<i class="fas fa-check"></i> Completed'
+                                    : q.status === "in-progress"
+                                      ? '<i class="fas fa-spinner fa-spin"></i> Researching...'
+                                      : '<i class="fas fa-clock"></i> Pending'
+                                }
                             </div>
-                        `
-                            : ""
-                        }
+                            ${
+                              q.dependencies && q.dependencies.length > 0
+                                ? `
+                                <div class="question-deps">
+                                    <i class="fas fa-project-diagram"></i>
+                                    ${q.dependencies.map((d) => `<span class="dep-badge">${d}</span>`).join("")}
+                                </div>
+                            `
+                                : ""
+                            }
+                        </div>
                     </div>
                 </div>
-            `,
+              `;
+            }
           )
           .join("");
       }
@@ -1791,23 +2069,28 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
         planReview.style.display = "none";
         reportContainer.style.display = "block";
 
-        // Meta
-        const metaParts = [];
+        // Build meta items
+        const metaItems = [];
         if (typeof data.processing_time_seconds === "number") {
-          metaParts.push(`Generated in ${data.processing_time_seconds.toFixed(1)}s`);
+          metaItems.push(`<span class="report-meta-item"><i class="fas fa-clock"></i> ${data.processing_time_seconds.toFixed(1)}s</span>`);
         }
         if (Array.isArray(data.models_used) && data.models_used.length) {
-          metaParts.push(`Models: ${data.models_used.join(", ")}`);
+          metaItems.push(`<span class="report-meta-item"><i class="fas fa-microchip"></i> ${data.models_used.join(", ")}</span>`);
         }
-        document.getElementById("reportMeta").textContent = metaParts.join(" • ");
+        const questionsCount = data.plan?.questions?.length || 0;
+        if (questionsCount > 0) {
+          metaItems.push(`<span class="report-meta-item"><i class="fas fa-search"></i> ${questionsCount} questions analyzed</span>`);
+        }
+        document.getElementById("reportMeta").innerHTML = metaItems.join("");
 
-        // Themes
+        // Themes with icons
         const themesContainer = document.getElementById("reportThemes");
-        themesContainer.innerHTML = data.key_themes
+        const themes = data.key_themes || [];
+        themesContainer.innerHTML = themes
           .map((theme) => `<span class="theme-tag">${theme}</span>`)
           .join("");
 
-        // Content (simple markdown rendering)
+        // Content (markdown rendering)
         const content = data.final_report || "No report generated.";
         document.getElementById("reportContent").innerHTML =
           renderMarkdown(content);
@@ -1844,8 +2127,8 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
           return `<a href="${escapeHtml(safe)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
         });
 
-        // Bold (do before italic)
-        t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        // Bold - improved pattern to handle text like **Word:** correctly
+        t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
 
         // Italic (non-greedy, avoid matching **bold**)
         t = t.replace(/(^|[^*])\*([^*]+?)\*(?!\*)/g, "$1<em>$2</em>");
@@ -1928,12 +2211,13 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
             continue;
           }
 
-          // Headings
-          const headingMatch = trimmed.match(/^(#{1,3})\s+(.+)$/);
+          // Headings - support h1-h6 (map h4-h6 to h4 for styling consistency)
+          const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
           if (headingMatch) {
             flushParagraph();
             closeList();
-            const level = headingMatch[1].length;
+            const rawLevel = headingMatch[1].length;
+            const level = Math.min(rawLevel, 4); // Cap at h4 for styling
             const text = headingMatch[2];
             out.push(`<h${level}>${renderInline(text)}</h${level}>`);
             continue;

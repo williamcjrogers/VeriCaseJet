@@ -541,8 +541,8 @@ function renderInline(rawText) {
     return `<a href="${escapeHtml(safe)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
   });
 
-  // Bold
-  t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  // Bold - improved pattern to handle text like **Word:** correctly
+  t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
 
   // Italic
   t = t.replace(/(^|[^*])\*([^*]+?)\*(?!\*)/g, "$1<em>$2</em>");
@@ -622,11 +622,13 @@ function renderMarkdown(markdown) {
       continue;
     }
 
-    const headingMatch = trimmed.match(/^(#{1,3})\s+(.+)$/);
+    // Support h1-h6 headers (map h4-h6 to h4 for styling consistency)
+    const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
     if (headingMatch) {
       flushParagraph();
       closeList();
-      const level = headingMatch[1].length;
+      const rawLevel = headingMatch[1].length;
+      const level = Math.min(rawLevel, 4); // Cap at h4 for styling
       const text = headingMatch[2];
       out.push(`<h${level}>${renderInline(text)}</h${level}>`);
       continue;
@@ -685,9 +687,6 @@ function renderChatResponse(payload) {
     payload?.processing_time === null || payload?.processing_time === undefined
       ? null
       : Number(payload.processing_time);
-  const meta = `Mode: ${escapeHtml(mode || "-")} • Models: ${escapeHtml(modelLabel)}${
-    secs !== null && Number.isFinite(secs) ? ` • ${secs.toFixed(1)}s` : ""
-  }`;
 
   const answer = payload?.answer || "";
   const answerHtml = renderMarkdown(answer);
@@ -697,45 +696,150 @@ function renderChatResponse(payload) {
     : [];
   const sources = Array.isArray(payload?.sources) ? payload.sources : [];
 
+  // Build professional header
+  const headerHtml = `
+    <div class="vc-assistant-header">
+      <div class="vc-assistant-header-icon">
+        <i class="fas fa-brain"></i>
+      </div>
+      <div class="vc-assistant-header-info">
+        <div class="vc-assistant-header-title">Pattern Recognition & Connection Mapping</div>
+        <div class="vc-assistant-header-meta">
+          <span class="vc-assistant-badge vc-assistant-badge-${mode === 'deep' ? 'deep' : 'quick'}">${escapeHtml(mode === 'deep' ? 'Deep Analysis' : 'Quick Search')}</span>
+          ${secs !== null && Number.isFinite(secs) ? `<span class="vc-assistant-timing"><i class="fas fa-clock"></i> ${secs.toFixed(1)}s</span>` : ""}
+          <span class="vc-assistant-models"><i class="fas fa-microchip"></i> ${escapeHtml(modelLabel)}</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Build key findings section with improved styling
   const keyFindingsHtml = keyFindings.length
-    ? `<h3>Key points</h3><ul>${keyFindings.map((k) => `<li>${renderInline(k)}</li>`).join("")}</ul>`
+    ? `
+      <div class="vc-assistant-section vc-assistant-key-findings">
+        <div class="vc-assistant-section-header">
+          <i class="fas fa-lightbulb"></i>
+          <span>Key Findings</span>
+        </div>
+        <ul class="vc-assistant-findings-list">
+          ${keyFindings.map((k) => `<li>${renderInline(k)}</li>`).join("")}
+        </ul>
+      </div>
+    `
     : "";
 
+  // Build evidence sources with download links
   const sourcesHtml = sources.length
     ? `
-      <h3>Evidence</h3>
-      <div class="vc-assistant-sources">
-        ${sources
-          .slice(0, 15)
-          .map((s) => {
-            const subj = s?.subject || "(No subject)";
-            const sender = s?.sender || "";
-            const date = s?.date ? new Date(s.date).toLocaleString() : "";
-            const rel = s?.relevance || "";
-            return `
-              <div class="vc-assistant-source">
-                <div class="vc-assistant-source-title">${renderInline(subj)}</div>
-                <div class="vc-assistant-source-meta">${escapeHtml(sender)}${sender && date ? " • " : ""}${escapeHtml(date)}</div>
-                ${rel ? `<div class="vc-assistant-source-rel">${renderInline(rel)}</div>` : ""}
-              </div>
-            `;
-          })
-          .join("")}
-        ${sources.length > 15 ? `<div class="vc-assistant-source-more">+${sources.length - 15} more</div>` : ""}
+      <div class="vc-assistant-section vc-assistant-evidence">
+        <div class="vc-assistant-section-header">
+          <i class="fas fa-file-alt"></i>
+          <span>Referenced Evidence</span>
+          <span class="vc-assistant-count">${sources.length}</span>
+        </div>
+        <div class="vc-assistant-sources">
+          ${sources
+            .slice(0, 15)
+            .map((s, idx) => {
+              const subj = s?.subject || "(No subject)";
+              const sender = s?.sender || "";
+              const date = s?.date ? new Date(s.date).toLocaleString() : "";
+              const rel = s?.relevance || "";
+              const emailId = s?.email_id || s?.id || "";
+              const hasAttachment = s?.has_attachment || s?.attachment_count > 0;
+              
+              return `
+                <div class="vc-assistant-source" ${emailId ? `data-email-id="${escapeHtml(emailId)}"` : ""}>
+                  <div class="vc-assistant-source-icon">
+                    <i class="fas fa-envelope"></i>
+                  </div>
+                  <div class="vc-assistant-source-content">
+                    <div class="vc-assistant-source-title">${renderInline(subj)}</div>
+                    <div class="vc-assistant-source-meta">
+                      ${sender ? `<span><i class="fas fa-user"></i> ${escapeHtml(sender)}</span>` : ""}
+                      ${date ? `<span><i class="fas fa-calendar"></i> ${escapeHtml(date)}</span>` : ""}
+                    </div>
+                    ${rel ? `<div class="vc-assistant-source-rel">${renderInline(rel)}</div>` : ""}
+                  </div>
+                  <div class="vc-assistant-source-actions">
+                    ${emailId ? `<button class="vc-assistant-source-btn" onclick="viewEvidenceFromAssistant('${escapeHtml(emailId)}')" title="View in detail panel"><i class="fas fa-eye"></i></button>` : ""}
+                    ${hasAttachment ? `<button class="vc-assistant-source-btn" onclick="downloadEvidenceFromAssistant('${escapeHtml(emailId)}')" title="Download attachments"><i class="fas fa-download"></i></button>` : ""}
+                  </div>
+                </div>
+              `;
+            })
+            .join("")}
+          ${sources.length > 15 ? `<div class="vc-assistant-source-more"><i class="fas fa-ellipsis-h"></i> +${sources.length - 15} more references</div>` : ""}
+        </div>
       </div>
     `
     : "";
 
   els.response.innerHTML = `
-    <div class="vc-assistant-meta">${meta}</div>
-    <div class="vc-assistant-answer">${answerHtml}</div>
-    ${keyFindingsHtml}
+    ${headerHtml}
+    <div class="vc-assistant-body">
+      <div class="vc-assistant-answer">${answerHtml}</div>
+      ${keyFindingsHtml}
+    </div>
     ${sourcesHtml}
   `;
   els.response.style.display = "block";
 
   if (els.modelsStatus) {
     els.modelsStatus.textContent = uniqueModels.length ? `Models: ${uniqueModels.join(", ")}` : "";
+  }
+}
+
+// View evidence from assistant panel
+function viewEvidenceFromAssistant(emailId) {
+  if (!emailId) return;
+  // Find and select the email in the grid if possible
+  if (window.gridApi) {
+    let found = false;
+    window.gridApi.forEachNode((node) => {
+      if (node.data && (node.data.id === emailId || node.data.email_id === emailId)) {
+        node.setSelected(true, true);
+        window.gridApi.ensureNodeVisible(node, 'middle');
+        found = true;
+      }
+    });
+    if (found) {
+      if (window.VericaseUI?.Toast) window.VericaseUI.Toast.info("Email selected in grid");
+      return;
+    }
+  }
+  // Fallback: open in detail panel directly
+  if (window.VericaseUI?.Toast) window.VericaseUI.Toast.info("Locating evidence...");
+}
+
+// Download attachments from evidence
+async function downloadEvidenceFromAssistant(emailId) {
+  if (!emailId) return;
+  try {
+    const response = await fetch(`${API_BASE}/api/evidence/${emailId}/attachments`, {
+      headers: getAuthHeaders()
+    });
+    if (!response.ok) throw new Error("Failed to fetch attachments");
+    const data = await response.json();
+    if (!data.attachments || data.attachments.length === 0) {
+      if (window.VericaseUI?.Toast) window.VericaseUI.Toast.info("No attachments available");
+      return;
+    }
+    // Download each attachment
+    for (const att of data.attachments) {
+      const url = att.download_url || `${API_BASE}/api/evidence/${emailId}/attachments/${att.id}/download`;
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = att.filename || "attachment";
+      a.target = "_blank";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+    if (window.VericaseUI?.Toast) window.VericaseUI.Toast.success(`Downloading ${data.attachments.length} attachment(s)`);
+  } catch (err) {
+    console.error("Download error:", err);
+    if (window.VericaseUI?.Toast) window.VericaseUI.Toast.error("Failed to download attachments");
   }
 }
 

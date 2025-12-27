@@ -259,8 +259,11 @@ async function refreshToken() {
     if (response.ok) {
       const data = await response.json();
       if (data && data.access_token) {
+        // Keep token storage consistent across the UI.
+        localStorage.setItem("vericase_token", data.access_token);
         localStorage.setItem("token", data.access_token);
         localStorage.setItem("jwt", data.access_token);
+        localStorage.setItem("access_token", data.access_token);
       }
       return;
     }

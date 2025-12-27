@@ -533,7 +533,13 @@
 
     // Auth helpers
     function getAuthHeaders() {
-      const token = localStorage.getItem("auth_token");
+      // Keep token lookup consistent with the rest of the UI.
+      // (Some pages historically stored under `token`/`jwt`, newer pages may use `vericase_token`.)
+      const token =
+        localStorage.getItem("vericase_token") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("jwt") ||
+        localStorage.getItem("auth_token"); // legacy/experimental
       return token ? { Authorization: `Bearer ${token}` } : {};
     }
 
