@@ -88,6 +88,11 @@ tmp/
 NUL
 *.pst
 
+# Backup files
+*.bak
+*.backup
+*~
+
 # AWS exports / inventory dumps (often contain sensitive details)
 aws-*-export-*.json
 aws-complete-export-*.json
@@ -123,6 +128,16 @@ EMERGENCY_COST_INVESTIGATION.md
 # Local utility scripts (may contain hardcoded URLs/keys)
 scripts/search_codebase.py
 scripts/index_codebase_qdrant.py
+check_minio_buckets.py
+check_multipart.py
+
+# AWS environment files with infrastructure details
+AWS.env
+*.env.local
+
+# Third-party API keys and tokens
+vericase/Deep Research/pendo.js
+**/pendo.js
 
 # Security incident response documentation (contains sensitive info)
 SECURITY_INCIDENT_RESPONSE.md
@@ -138,3 +153,8 @@ CHANGE_RDS_PASSWORD.md
 SECURE_SETUP_GUIDE.md
 security-check.ps1
 cleanup-git-history.ps1
+vericase/Deep Research/pendo.js
+vericase/ops/setup-aws.sh
+vericase/Deep Research/pendo.js
+vericase/Deep Research/pendo.js
+vericase/Deep Research/pendo.js

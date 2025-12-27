@@ -2969,47 +2969,18 @@
     function enterWorkspace(workspaceId) {
       // Use window.workspacesData which is populated by loadDashboard
       const workspace = (window.workspacesData || []).find(ws => String(ws.id) === String(workspaceId));
-      if (!workspace) {
-        console.warn("Workspace not found in data, opening config", workspaceId);
-        openWorkspaceConfig(workspaceId);
-        return;
-      }
-
+      
       // Save workspace context for breadcrumbs
       try {
         localStorage.setItem("currentWorkspaceId", workspaceId);
-        localStorage.setItem("currentWorkspaceName", workspace.name || "Workspace");
+        if (workspace?.name) {
+          localStorage.setItem("currentWorkspaceName", workspace.name);
+        }
       } catch { /* ignore */ }
 
-      // Check for projects and cases
-      const projects = workspace.projects || [];
-      const cases = workspace.cases || [];
-      const totalItems = projects.length + cases.length;
-
-      console.log("enterWorkspace:", { workspaceId, projects: projects.length, cases: cases.length, totalItems });
-
-      if (totalItems === 0) {
-        // No projects or cases - go to workspace setup to add content
-        VericaseUI.Toast.info("This workspace is empty. Add a project or case to get started.");
-        openWorkspaceConfig(workspaceId);
-      } else if (totalItems === 1) {
-        // Exactly one item - go directly to it
-        if (projects.length === 1) {
-          const firstProject = projects[0];
-          const projectId = firstProject.id || firstProject.project_id;
-          console.log("Opening single project:", projectId);
-          openWorkspace(projectId, 'project');
-        } else {
-          const firstCase = cases[0];
-          const caseId = firstCase.id || firstCase.case_id;
-          console.log("Opening single case:", caseId);
-          openWorkspace(caseId, 'case');
-        }
-      } else {
-        // Multiple items - go to Workspace Hub to choose
-        console.log("Opening workspace hub for multiple items");
-        window.location.href = `workspace-hub.html?workspaceId=${encodeURIComponent(workspaceId)}`;
-      }
+      // ALWAYS navigate to Workspace Hub - it is the central command center
+      // for all projects, cases, deadlines, documents, team, and collaboration
+      window.location.href = `workspace-hub.html?workspaceId=${encodeURIComponent(workspaceId)}`;
     }
 
     function openRenameWorkspaceModal(id, name, code) {

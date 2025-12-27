@@ -26,6 +26,7 @@ from .models import (
     Document,
     Evidence,
     Issue,
+    Keyword,
     Project,
     User,
 )
@@ -53,14 +54,51 @@ class CaseCreate(BaseModel):
     company_id: str | None = None
 
 
+class LegalTeamMemberSchema(BaseModel):
+    role: str
+    name: str
+    organization: str | None = None
+
+
+class HeadOfClaimSchema(BaseModel):
+    name: str
+    status: str | None = "Discovery"
+    actions: str | None = None
+
+
+class CaseKeywordSchema(BaseModel):
+    name: str
+    variations: str | None = None
+
+
+class CaseDeadlineSchema(BaseModel):
+    task: str
+    description: str | None = None
+    date: datetime | None = None
+    reminder: str | None = "none"
+
+
 class CaseUpdate(BaseModel):
     name: str | None = None
+    case_name: str | None = None  # Alias for name
     description: str | None = None
     project_name: str | None = None
     project_id: str | None = None
     contract_type: str | None = None
     dispute_type: str | None = None
     status: str | None = None
+    # New case configuration fields
+    case_status: str | None = None
+    resolution_route: str | None = None
+    position: str | None = None  # Upstream/Downstream
+    claimant: str | None = None
+    defendant: str | None = None
+    client: str | None = None
+    # JSON fields
+    legal_team: list[LegalTeamMemberSchema] | None = None
+    heads_of_claim: list[HeadOfClaimSchema] | None = None
+    keywords: list[CaseKeywordSchema] | None = None
+    deadlines: list[CaseDeadlineSchema] | None = None
 
     class Config:
         from_attributes = True
@@ -76,6 +114,18 @@ class CaseOut(BaseModel):
     contract_type: str | None
     dispute_type: str | None
     status: str
+    # New configuration fields
+    case_status: str | None = None
+    resolution_route: str | None = None
+    position: str | None = None
+    claimant: str | None = None
+    defendant: str | None = None
+    client: str | None = None
+    legal_team: list[dict] | None = None
+    heads_of_claim: list[dict] | None = None
+    deadlines: list[dict] | None = None
+    keywords: list[dict] | None = None
+    # Standard fields
     owner_id: str
     company_id: str | None
     created_at: datetime | None
@@ -334,6 +384,12 @@ def create_case(data: CaseCreate, db: DbSession, current_user: CurrentUser):
         contract_type=case.contract_type,
         dispute_type=case.dispute_type,
         status=case.status,
+        case_status=getattr(case, "case_status", None),
+        resolution_route=getattr(case, "resolution_route", None),
+        position=getattr(case, "position", None),
+        claimant=getattr(case, "claimant", None),
+        defendant=getattr(case, "defendant", None),
+        client=getattr(case, "client", None),
         owner_id=str(case.owner_id),
         company_id=str(case.company_id) if case.company_id else None,
         created_at=case.created_at,
@@ -374,6 +430,13 @@ def get_case(case_id: str, db: DbSession, current_user: CurrentUser):
         # TODO: Check if user is in case_users
         raise HTTPException(status_code=403, detail="Access denied")
 
+    # Get keywords for this case
+    case_keywords = db.query(Keyword).filter(Keyword.case_id == case.id).all()
+    keywords_list = [
+        {"id": str(k.id), "keyword_name": k.keyword_name, "variations": k.variations}
+        for k in case_keywords
+    ]
+
     return CaseOut(
         id=str(case.id),
         case_number=case.case_number,
@@ -384,6 +447,16 @@ def get_case(case_id: str, db: DbSession, current_user: CurrentUser):
         contract_type=case.contract_type,
         dispute_type=case.dispute_type,
         status=case.status,
+        case_status=getattr(case, "case_status", None),
+        resolution_route=getattr(case, "resolution_route", None),
+        position=getattr(case, "position", None),
+        claimant=getattr(case, "claimant", None),
+        defendant=getattr(case, "defendant", None),
+        client=getattr(case, "client", None),
+        legal_team=getattr(case, "legal_team", None),
+        heads_of_claim=getattr(case, "heads_of_claim", None),
+        deadlines=getattr(case, "deadlines", None),
+        keywords=keywords_list,
         owner_id=str(case.owner_id),
         company_id=str(case.company_id) if case.company_id else None,
         created_at=case.created_at,
@@ -397,15 +470,18 @@ def get_case(case_id: str, db: DbSession, current_user: CurrentUser):
 def update_case(
     case_id: str, data: CaseUpdate, db: DbSession, current_user: CurrentUser
 ):
-    """Update case details"""
+    """Update case details including legal team, heads of claim, keywords, and deadlines"""
     case = db.query(Case).filter(Case.id == uuid.UUID(case_id)).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     if case.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
+    # Basic fields
     if data.name is not None:
         case.name = data.name
+    if data.case_name is not None:
+        case.name = data.case_name  # Alias support
     if data.description is not None:
         case.description = data.description
     if data.project_name is not None:
@@ -432,6 +508,58 @@ def update_case(
     if data.status is not None:
         case.status = data.status
 
+    # New case configuration fields
+    if data.case_status is not None:
+        case.case_status = data.case_status
+    if data.resolution_route is not None:
+        case.resolution_route = data.resolution_route
+    if data.position is not None:
+        case.position = data.position
+    if data.claimant is not None:
+        case.claimant = data.claimant
+    if data.defendant is not None:
+        case.defendant = data.defendant
+    if data.client is not None:
+        case.client = data.client
+
+    # JSON fields (legal_team, heads_of_claim, deadlines)
+    if data.legal_team is not None:
+        case.legal_team = [
+            {"role": lt.role, "name": lt.name, "organization": lt.organization}
+            for lt in data.legal_team
+        ]
+    if data.heads_of_claim is not None:
+        case.heads_of_claim = [
+            {"name": hoc.name, "status": hoc.status, "actions": hoc.actions}
+            for hoc in data.heads_of_claim
+        ]
+    if data.deadlines is not None:
+        case.deadlines = [
+            {
+                "task": d.task,
+                "description": d.description,
+                "date": d.date.isoformat() if d.date else None,
+                "reminder": d.reminder,
+            }
+            for d in data.deadlines
+        ]
+
+    # Handle keywords via the Keyword table if provided
+    if data.keywords is not None:
+        from .models import Keyword
+
+        case_uuid = uuid.UUID(case_id)
+        # Delete existing keywords for this case
+        db.query(Keyword).filter(Keyword.case_id == case_uuid).delete()
+        # Create new keywords
+        for kw in data.keywords:
+            keyword = Keyword(
+                case_id=case_uuid,
+                keyword_name=kw.name,
+                variations=kw.variations,
+            )
+            db.add(keyword)
+
     db.commit()
     db.refresh(case)
 
@@ -444,6 +572,13 @@ def update_case(
         db.query(func.count(Issue.id)).filter(Issue.case_id == case.id).scalar() or 0
     )
 
+    # Get keywords for response
+    case_keywords = db.query(Keyword).filter(Keyword.case_id == case.id).all()
+    keywords_list = [
+        {"id": str(k.id), "keyword_name": k.keyword_name, "variations": k.variations}
+        for k in case_keywords
+    ]
+
     return CaseOut(
         id=str(case.id),
         case_number=case.case_number,
@@ -454,6 +589,16 @@ def update_case(
         contract_type=case.contract_type,
         dispute_type=case.dispute_type,
         status=case.status,
+        case_status=getattr(case, "case_status", None),
+        resolution_route=getattr(case, "resolution_route", None),
+        position=getattr(case, "position", None),
+        claimant=getattr(case, "claimant", None),
+        defendant=getattr(case, "defendant", None),
+        client=getattr(case, "client", None),
+        legal_team=getattr(case, "legal_team", None),
+        heads_of_claim=getattr(case, "heads_of_claim", None),
+        deadlines=getattr(case, "deadlines", None),
+        keywords=keywords_list,
         owner_id=str(case.owner_id),
         company_id=str(case.company_id) if case.company_id else None,
         created_at=case.created_at,

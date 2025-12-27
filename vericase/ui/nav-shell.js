@@ -79,13 +79,13 @@
       items: [
         {
           id: "dashboard",
-          label: "Dashboard",
+          label: "Master Dashboard",
           icon: "fa-home",
           url: "master-dashboard.html",
         },
         {
           id: "help",
-          label: "Help & Features",
+          label: "Control Centre",
           icon: "fa-compass",
           url: COMMAND_CENTER_PAGE,
         },

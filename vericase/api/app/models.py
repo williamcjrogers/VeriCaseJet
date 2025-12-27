@@ -568,6 +568,9 @@ class Case(Base):
     )  # active, closed, archived
     case_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
     resolution_route: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    position: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # Upstream/Downstream
     claimant: Mapped[str | None] = mapped_column(String(255), nullable=True)
     defendant: Mapped[str | None] = mapped_column(String(255), nullable=True)
     client: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -959,6 +962,9 @@ class Project(Base):
         DateTime(timezone=True), nullable=True
     )
     contract_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    contract_family: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    contract_form: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    contract_form_custom: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Retrospective analysis fields
     analysis_type: Mapped[str | None] = mapped_column(
         String(50), nullable=True, default="project"

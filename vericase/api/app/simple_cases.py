@@ -188,10 +188,30 @@ class ProjectStateResponse(BaseModel):
     analysis_type: str | None = None
 
 
+class StakeholderOut(BaseModel):
+    id: str
+    role: str
+    name: str
+    email: str | None = None
+    organization: str | None = None
+
+
+class KeywordOut(BaseModel):
+    id: str
+    keyword_name: str
+    definition: str | None = None
+    variations: str | None = None
+
+
 class ProjectDetailResponse(ProjectStateResponse):
     start_date: str | None = None
     completion_date: str | None = None
     contract_type: str | None = None
+    contract_family: str | None = None
+    contract_form: str | None = None
+    contract_form_custom: str | None = None
+    stakeholders: list[StakeholderOut] = Field(default_factory=list)
+    keywords: list[KeywordOut] = Field(default_factory=list)
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -218,6 +238,9 @@ class ProjectCreate(BaseModel):
     start_date: datetime | None = None
     completion_date: datetime | None = None
     contract_type: str | None = None
+    contract_family: str | None = None
+    contract_form: str | None = None
+    contract_form_custom: str | None = None
     workspace_id: str | None = None
     stakeholders: list[StakeholderCreate] = Field(default_factory=list)
     keywords: list[KeywordCreate] = Field(default_factory=list)
@@ -296,15 +319,28 @@ class LegalTeamMember(BaseModel):
 
 
 class HeadOfClaimSchema(BaseModel):
-    head: str
+    name: str | None = None
+    head: str | None = None  # Backwards compatibility
     status: str = "Discovery"
     actions: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_head(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # Accept either 'name' or 'head'
+            if "head" in data and "name" not in data:
+                data["name"] = data["head"]
+            elif "name" in data and "head" not in data:
+                data["head"] = data["name"]
+        return data
 
 
 class Deadline(BaseModel):
     task: str
     description: str | None = None
     date: datetime | None = None
+    reminder: str | None = "none"
 
 
 class CaseCreate(BaseModel):
@@ -319,6 +355,7 @@ class CaseCreate(BaseModel):
     description: str | None = None
     stakeholders: list[StakeholderCreate] = Field(default_factory=list)
     resolution_route: str | None = "TBC"
+    position: str | None = None  # Upstream/Downstream
     claimant: str | None = None
     defendant: str | None = None
     case_status: str | None = "discovery"
@@ -519,6 +556,9 @@ def create_project(
             start_date=project_data.start_date,
             completion_date=project_data.completion_date,
             contract_type=project_data.contract_type,
+            contract_family=project_data.contract_family,
+            contract_form=project_data.contract_form,
+            contract_form_custom=project_data.contract_form_custom,
             analysis_type=project_data.analysis_type or "project",
             project_aliases=project_data.project_aliases,
             site_address=project_data.site_address,
@@ -653,6 +693,33 @@ def get_project(project_id: str, db: DbDep) -> ProjectDetailResponse:
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    # Get stakeholders
+    stakeholders = (
+        db.query(Stakeholder).filter(Stakeholder.project_id == project_uuid).all()
+    )
+    stakeholder_list = [
+        StakeholderOut(
+            id=str(s.id),
+            role=s.role or "",
+            name=s.name or "",
+            email=s.email,
+            organization=s.organization,
+        )
+        for s in stakeholders
+    ]
+
+    # Get keywords
+    keywords = db.query(Keyword).filter(Keyword.project_id == project_uuid).all()
+    keyword_list = [
+        KeywordOut(
+            id=str(k.id),
+            keyword_name=k.keyword_name or "",
+            definition=k.definition,
+            variations=k.variations,
+        )
+        for k in keywords
+    ]
+
     return ProjectDetailResponse(
         id=str(project.id),
         project_name=project.project_name,
@@ -662,6 +729,11 @@ def get_project(project_id: str, db: DbDep) -> ProjectDetailResponse:
             project.completion_date.isoformat() if project.completion_date else None
         ),
         contract_type=project.contract_type,
+        contract_family=getattr(project, "contract_family", None),
+        contract_form=getattr(project, "contract_form", None),
+        contract_form_custom=getattr(project, "contract_form_custom", None),
+        stakeholders=stakeholder_list,
+        keywords=keyword_list,
         analysis_type=project.analysis_type or "project",
         meta=project.meta or {},
         created_at=project.created_at.isoformat() if project.created_at else None,
@@ -731,8 +803,13 @@ class ProjectUpdate(BaseModel):
     project_code: str | None = None
     description: str | None = None
     contract_type: str | None = None
+    contract_family: str | None = None
+    contract_form: str | None = None
+    contract_form_custom: str | None = None
     start_date: datetime | None = None
     completion_date: datetime | None = None
+    stakeholders: list[StakeholderCreate] | None = None
+    keywords: list[KeywordCreate] | None = None
 
 
 class CaseFromProjectRequest(BaseModel):
@@ -749,10 +826,12 @@ class CaseFromProjectRequest(BaseModel):
 def update_project(
     project_id: str, project_data: ProjectUpdate, db: DbDep
 ) -> dict[str, str]:
-    """Update a project's details"""
+    """Update a project's details including stakeholders and keywords"""
     try:
+        project_uuid = uuid.UUID(project_id)
+
         # Find the project
-        project = db.query(Project).filter(Project.id == uuid.UUID(project_id)).first()
+        project = db.query(Project).filter(Project.id == project_uuid).first()
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
 
@@ -765,7 +844,7 @@ def update_project(
                 db.query(Project)
                 .filter(
                     Project.project_code == project_data.project_code,
-                    Project.id != uuid.UUID(project_id),
+                    Project.id != project_uuid,
                 )
                 .first()
             )
@@ -774,7 +853,7 @@ def update_project(
                     status_code=400, detail="Project code already exists"
                 )
 
-        # Update fields
+        # Update basic fields
         project.project_name = project_data.project_name
         if project_data.project_code:
             project.project_code = project_data.project_code
@@ -782,10 +861,54 @@ def update_project(
             project.description = project_data.description
         if project_data.contract_type is not None:
             project.contract_type = project_data.contract_type
+        if project_data.contract_family is not None:
+            project.contract_family = project_data.contract_family
+        if project_data.contract_form is not None:
+            project.contract_form = project_data.contract_form
+        if project_data.contract_form_custom is not None:
+            project.contract_form_custom = project_data.contract_form_custom
         if project_data.start_date is not None:
             project.start_date = project_data.start_date
         if project_data.completion_date is not None:
             project.completion_date = project_data.completion_date
+
+        # Update stakeholders (replace all)
+        if project_data.stakeholders is not None:
+            # Delete existing stakeholders for this project
+            db.query(Stakeholder).filter(
+                Stakeholder.project_id == project_uuid
+            ).delete()
+
+            # Create new stakeholders
+            for stakeholder_data in project_data.stakeholders:
+                email_domain = None
+                if stakeholder_data.email and "@" in stakeholder_data.email:
+                    email_domain = stakeholder_data.email.split("@")[-1].lower()
+
+                stakeholder = Stakeholder(
+                    project_id=project_uuid,
+                    role=stakeholder_data.role,
+                    name=stakeholder_data.name,
+                    email=stakeholder_data.email,
+                    email_domain=email_domain,
+                    organization=stakeholder_data.organization,
+                )
+                db.add(stakeholder)
+
+        # Update keywords (replace all)
+        if project_data.keywords is not None:
+            # Delete existing keywords for this project
+            db.query(Keyword).filter(Keyword.project_id == project_uuid).delete()
+
+            # Create new keywords
+            for keyword_data in project_data.keywords:
+                keyword = Keyword(
+                    project_id=project_uuid,
+                    keyword_name=keyword_data.name,
+                    definition=keyword_data.definition,
+                    variations=keyword_data.variations,
+                )
+                db.add(keyword)
 
         db.commit()
         db.refresh(project)
@@ -1232,6 +1355,8 @@ def create_case(
             case.case_status = case_data.case_status
         if hasattr(Case, "resolution_route"):
             case.resolution_route = case_data.resolution_route
+        if hasattr(Case, "position"):
+            case.position = case_data.position
         if hasattr(Case, "claimant"):
             case.claimant = case_data.claimant
         if hasattr(Case, "defendant"):

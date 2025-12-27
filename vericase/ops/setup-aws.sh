@@ -319,7 +319,7 @@ EOF
         cat >> $env_file << EOF
 
 # RDS (update with actual endpoint)
-DATABASE_URL=postgresql://vericase:PASSWORD@database-1.cv8uwu0uqr7f.eu-west-2.rds.amazonaws.com:5432/vericase
+DATABASE_URL=postgresql://vericase:PASSWORD@YOUR_RDS_ENDPOINT.rds.amazonaws.com:5432/vericase
 
 # ElastiCache Redis
 REDIS_URL=redis://master.vericase-redis-simple.dbbgbx.euw2.cache.amazonaws.com:6379

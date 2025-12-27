@@ -16,7 +16,7 @@
       }
 
       .container {
-        max-width: 960px;
+        max-width: 1000px;
         margin: 2.5rem auto;
         padding: 0 2rem 3rem;
       }
@@ -36,12 +36,48 @@
         margin: 0;
       }
 
-      .card {
+      /* Config Sections */
+      .config-section {
         background: white;
-        border-radius: 20px;
-        box-shadow: var(--shadow-lg);
-        padding: 2rem;
+        border-radius: 16px;
+        box-shadow: var(--shadow-md);
+        padding: 1.75rem;
+        margin-bottom: 1.5rem;
         border: 1px solid var(--gray-100);
+      }
+
+      .config-section h3 {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--vericase-navy);
+        margin: 0 0 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .config-section h3 i {
+        color: var(--vericase-teal);
+        font-size: 1rem;
+      }
+
+      .config-section h4 {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin: 1.5rem 0 0.75rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--gray-100);
+      }
+
+      .guidance-note {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        background: var(--gray-50);
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        border-left: 3px solid var(--vericase-teal);
       }
 
       .form-group {
@@ -49,10 +85,17 @@
       }
 
       .form-label {
-        display: block;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
         font-weight: 600;
         font-size: 0.875rem;
         margin-bottom: 0.5rem;
+        color: var(--text-primary);
+      }
+
+      .form-label .required {
+        color: var(--red-600);
       }
 
       .form-input,
@@ -63,6 +106,12 @@
         border-radius: 10px;
         border: 1px solid var(--border-default);
         font-size: 0.95rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+
+      .form-textarea {
+        min-height: 80px;
+        resize: vertical;
       }
 
       .form-input:focus,
@@ -73,19 +122,25 @@
         box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.1);
       }
 
+      .form-input.error,
+      .form-select.error {
+        border-color: var(--red-500);
+      }
+
       .form-input--disabled {
         background: #f3f4f6;
         color: var(--text-muted);
       }
 
-      .form-textarea {
-        min-height: 120px;
-        resize: vertical;
-      }
-
       .form-row {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+      }
+
+      .form-row-3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
         gap: 1rem;
       }
 
@@ -95,11 +150,150 @@
         color: var(--text-muted);
       }
 
+      /* Custom Input Wrapper */
+      .custom-input-wrapper {
+        margin-top: 0.5rem;
+      }
+
+      .custom-input-wrapper.hidden {
+        display: none;
+      }
+
+      /* Dynamic Tables */
+      .dynamic-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 0.75rem;
+      }
+
+      .dynamic-table th {
+        text-align: left;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 0.5rem 0.75rem;
+        background: var(--gray-50);
+        border-bottom: 1px solid var(--gray-200);
+      }
+
+      .dynamic-table td {
+        padding: 0.5rem 0.75rem;
+        border-bottom: 1px solid var(--gray-100);
+        vertical-align: middle;
+      }
+
+      .dynamic-table tbody tr:hover {
+        background: var(--gray-50);
+      }
+
+      .dynamic-table .form-input,
+      .dynamic-table .form-select {
+        padding: 0.5rem 0.7rem;
+        font-size: 0.875rem;
+      }
+
+      .dynamic-table .action-col {
+        width: 40px;
+        text-align: center;
+      }
+
+      .btn-delete-row {
+        background: transparent;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0.25rem;
+        border-radius: 4px;
+        transition: color 0.2s, background 0.2s;
+      }
+
+      .btn-delete-row:hover {
+        color: var(--red-600);
+        background: var(--red-50);
+      }
+
+      .btn-add-row {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: var(--gray-100);
+        border: 1px dashed var(--gray-300);
+        color: var(--text-secondary);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: background 0.2s, border-color 0.2s;
+      }
+
+      .btn-add-row:hover {
+        background: var(--gray-200);
+        border-color: var(--gray-400);
+        color: var(--text-primary);
+      }
+
+      /* Action Row */
       .action-row {
         display: flex;
         gap: 0.75rem;
         flex-wrap: wrap;
-        margin-top: 1.5rem;
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--gray-200);
+      }
+
+      .action-row .btn {
+        padding: 0.75rem 1.5rem;
+      }
+
+      /* Position Toggle */
+      .position-toggle {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .position-btn {
+        flex: 1;
+        padding: 0.6rem 1rem;
+        border: 2px solid var(--gray-200);
+        background: white;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+      }
+
+      .position-btn:hover {
+        border-color: var(--vericase-teal);
+      }
+
+      .position-btn.active {
+        border-color: var(--vericase-teal);
+        background: rgba(15, 157, 154, 0.1);
+        color: var(--vericase-teal);
+      }
+
+      /* Responsive */
+      @media (max-width: 768px) {
+        .form-row-3 {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .container {
+          padding: 0 1rem 2rem;
+        }
+        .config-section {
+          padding: 1.25rem;
+        }
       }
     </style>
   </head>
@@ -117,68 +311,236 @@
             <span style="color: var(--text-secondary);" id="breadcrumbCurrent">New Case</span>
           </nav>
           <h1 class="page-title">Case Setup</h1>
-          <p class="page-subtitle">Capture the dispute details and link the case to a project if needed.</p>
+          <p class="page-subtitle">Configure case identification, heads of claim, keywords, and deadlines.</p>
         </div>
-        <div class="card">
-          <form id="caseForm">
-            <div class="form-group">
-              <label class="form-label" for="caseName">Case name *</label>
-              <input class="form-input" id="caseName" type="text" required />
-            </div>
+
+        <form id="caseForm">
+          <!-- Section 3.1: Case Identification -->
+          <section class="config-section">
+            <h3><i class="fas fa-gavel"></i> Case Identification</h3>
+            
             <div class="form-row">
               <div class="form-group">
-                <label class="form-label" for="caseNumber">Case number (optional)</label>
-                <input class="form-input" id="caseNumber" type="text" />
-                <div class="helper-text">Auto-generated if left blank.</div>
+                <label class="form-label" for="caseName">
+                  Case Name <span class="required">*</span>
+                </label>
+                <input class="form-input" id="caseName" type="text" required placeholder="Enter case name" />
               </div>
               <div class="form-group">
-                <label class="form-label" for="contractType">Contract type</label>
-                <select class="form-select" id="contractType">
-                  <option value="">Select...</option>
-                  <option value="JCT">JCT</option>
-                  <option value="NEC">NEC</option>
-                  <option value="FIDIC">FIDIC</option>
-                  <option value="Custom">Custom</option>
-                </select>
+                <label class="form-label" for="caseId">Case ID (recommended)</label>
+                <input class="form-input" id="caseId" type="text" placeholder="Auto-generated if blank" />
+                <div class="helper-text">Optional but recommended for tracking</div>
               </div>
             </div>
+
             <div class="form-group">
-              <label class="form-label" for="projectSelect">Link to a project (optional)</label>
+              <label class="form-label">Position</label>
+              <div class="position-toggle" id="positionToggle">
+                <button type="button" class="position-btn" data-value="Upstream" onclick="setPosition('Upstream')">
+                  <i class="fas fa-arrow-up"></i> Upstream
+                </button>
+                <button type="button" class="position-btn" data-value="Downstream" onclick="setPosition('Downstream')">
+                  <i class="fas fa-arrow-down"></i> Downstream
+                </button>
+              </div>
+              <input type="hidden" id="casePosition" value="" />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="resolutionRoute">Resolution Route</label>
+                <select class="form-select" id="resolutionRoute" onchange="toggleCustomField('resolutionRoute', 'resolutionRouteCustom')">
+                  <option value="">Select...</option>
+                  <option value="Adjudication">Adjudication</option>
+                  <option value="Litigation">Litigation</option>
+                  <option value="Arbitration">Arbitration</option>
+                  <option value="Mediation">Mediation</option>
+                  <option value="Settlement">Settlement</option>
+                  <option value="TBC">TBC</option>
+                  <option value="Custom">Custom</option>
+                </select>
+                <div class="custom-input-wrapper hidden" id="resolutionRouteCustomWrapper">
+                  <input class="form-input" id="resolutionRouteCustom" type="text" placeholder="Enter custom route" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="caseStatus">Case Status</label>
+                <select class="form-select" id="caseStatus" onchange="toggleCustomField('caseStatus', 'caseStatusCustom')">
+                  <option value="">Select...</option>
+                  <option value="Discovery">Discovery</option>
+                  <option value="Preparation">Preparation</option>
+                  <option value="Pre-Adjudication">Pre-Adjudication</option>
+                  <option value="Live Adjudication">Live Adjudication</option>
+                  <option value="Pre-action Protocol">Pre-action Protocol</option>
+                  <option value="Litigation Preparation">Litigation Preparation</option>
+                  <option value="Live Litigation">Live Litigation</option>
+                  <option value="Custom">Custom</option>
+                </select>
+                <div class="custom-input-wrapper hidden" id="caseStatusCustomWrapper">
+                  <input class="form-input" id="caseStatusCustom" type="text" placeholder="Enter custom status" />
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="claimant">Claimant</label>
+                <input class="form-input" id="claimant" type="text" placeholder="Claimant party" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="defendant">Defendant</label>
+                <input class="form-input" id="defendant" type="text" placeholder="Defendant party" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="clientParty">Client</label>
+              <input class="form-input" id="clientParty" type="text" placeholder="Top-level client party for whom we are acting" />
+            </div>
+
+            <!-- Legal Team -->
+            <h4><i class="fas fa-user-tie" style="margin-right: 0.4rem;"></i> Legal Team</h4>
+            <table class="dynamic-table" id="legalTeamTable">
+              <thead>
+                <tr>
+                  <th style="width: 40%;">Role / Area</th>
+                  <th style="width: 50%;">Name / Organisation</th>
+                  <th class="action-col"></th>
+                </tr>
+              </thead>
+              <tbody id="legalTeamBody">
+                <!-- Rows inserted by JS -->
+              </tbody>
+            </table>
+            <button type="button" class="btn-add-row" onclick="addLegalRow()">
+              <i class="fas fa-plus"></i> Add Team Member
+            </button>
+          </section>
+
+          <!-- Section 3.2: Heads of Claim -->
+          <section class="config-section">
+            <h3><i class="fas fa-list-check"></i> Heads of Claim</h3>
+            <p class="guidance-note">
+              Define the heads of claim for this case. These will populate the Heads of Claim & Matters module.
+            </p>
+
+            <table class="dynamic-table" id="headsOfClaimTable">
+              <thead>
+                <tr>
+                  <th style="width: 30%;">Head of Claim</th>
+                  <th style="width: 25%;">Status</th>
+                  <th style="width: 35%;">Actions</th>
+                  <th class="action-col"></th>
+                </tr>
+              </thead>
+              <tbody id="headsOfClaimBody">
+                <!-- Rows inserted by JS -->
+              </tbody>
+            </table>
+            <button type="button" class="btn-add-row" onclick="addClaimRow()">
+              <i class="fas fa-plus"></i> Add Head of Claim
+            </button>
+          </section>
+
+          <!-- Section 3.3: Keywords -->
+          <section class="config-section">
+            <h3><i class="fas fa-tags"></i> Keywords</h3>
+            <p class="guidance-note">
+              Populate with keywords relevant to your potential matters / heads of claim. 
+              <strong>Quick tip:</strong> include common variations, i.e., Section 278 / S278. 
+              These drive auto-tagging in Correspondence.
+            </p>
+
+            <table class="dynamic-table" id="keywordsTable">
+              <thead>
+                <tr>
+                  <th style="width: 35%;">Keyword</th>
+                  <th style="width: 55%;">Variations / Synonyms (comma-separated)</th>
+                  <th class="action-col"></th>
+                </tr>
+              </thead>
+              <tbody id="keywordsBody">
+                <!-- Rows inserted by JS -->
+              </tbody>
+            </table>
+            <button type="button" class="btn-add-row" onclick="addKeywordRow()">
+              <i class="fas fa-plus"></i> Add Keyword
+            </button>
+          </section>
+
+          <!-- Section 3.4: Case Deadlines -->
+          <section class="config-section">
+            <h3><i class="fas fa-calendar-alt"></i> Case Deadlines</h3>
+            <p class="guidance-note">
+              Track important deadlines and tasks for this case. Reminders will notify you ahead of time.
+            </p>
+
+            <table class="dynamic-table" id="deadlinesTable">
+              <thead>
+                <tr>
+                  <th style="width: 25%;">Deadline / Task</th>
+                  <th style="width: 30%;">Description / Notes</th>
+                  <th style="width: 15%;">Date</th>
+                  <th style="width: 20%;">Reminder</th>
+                  <th class="action-col"></th>
+                </tr>
+              </thead>
+              <tbody id="deadlinesBody">
+                <!-- Rows inserted by JS -->
+              </tbody>
+            </table>
+            <button type="button" class="btn-add-row" onclick="addDeadlineRow()">
+              <i class="fas fa-plus"></i> Add Deadline
+            </button>
+          </section>
+
+          <!-- Link to Project (optional) -->
+          <section class="config-section">
+            <h3><i class="fas fa-project-diagram"></i> Link to Project</h3>
+            <div class="form-group">
+              <label class="form-label" for="projectSelect">Associated Project (optional)</label>
               <select class="form-select" id="projectSelect">
-                <option value="">Not linked</option>
+                <option value="">Not linked to a project</option>
               </select>
+              <div class="helper-text">Link this case to an existing project to inherit stakeholders and share context.</div>
             </div>
-            <div class="form-group">
-              <label class="form-label" for="caseDescription">Description</label>
-              <textarea class="form-textarea" id="caseDescription"></textarea>
-            </div>
-            <div class="action-row">
-              <button class="btn btn-vericase" type="submit" id="createCaseBtn">
-                <i class="fas fa-plus"></i> Create case
-              </button>
-              <button class="btn btn-secondary" type="button" id="backToDashboardBtn">
-                Back to dashboard
-              </button>
-            </div>
-          </form>
-        </div>
+          </section>
+
+          <!-- Action Buttons -->
+          <div class="action-row">
+            <button class="btn btn-vericase" type="submit" id="createCaseBtn">
+              <i class="fas fa-plus"></i> Create Case
+            </button>
+            <button class="btn btn-secondary" type="button" id="backBtn">
+              <i class="fas fa-arrow-left"></i> Back
+            </button>
+          </div>
+        </form>
       </div>
     </main>
 
     <script>
+      // ========================================
+      // State
+      // ========================================
       let numberManuallyEdited = false;
       let lastAutoNumber = "";
       let isEditMode = false;
       let currentCaseId = null;
-      let pendingProjectId = null;
       let currentWorkspaceId = null;
+      let pendingProjectId = null;
 
+      // ========================================
+      // Utility Functions
+      // ========================================
       function getAuthHeaders() {
         const token =
           localStorage.getItem("vericase_token") ||
           localStorage.getItem("token") ||
           localStorage.getItem("jwt");
-        return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+        return token 
+          ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } 
+          : { "Content-Type": "application/json" };
       }
 
       function buildCaseNumber(name) {
@@ -197,7 +559,7 @@
 
       function syncAutoNumber() {
         const nameInput = document.getElementById("caseName");
-        const numberInput = document.getElementById("caseNumber");
+        const numberInput = document.getElementById("caseId");
         if (!nameInput || !numberInput || numberManuallyEdited || isEditMode) return;
         const nextNumber = buildCaseNumber(nameInput.value);
         if (!numberInput.value || numberInput.value === lastAutoNumber) {
@@ -206,30 +568,307 @@
         }
       }
 
-      function syncProjectSelection() {
-        const select = document.getElementById("projectSelect");
-        if (!select || !pendingProjectId) return;
-        for (const option of select.options) {
-          if (String(option.value) === String(pendingProjectId)) {
-            select.value = pendingProjectId;
-            break;
-          }
+      // UK Date Formatting
+      function formatUKDate(input) {
+        let value = input.value.replace(/[^\d]/g, '');
+        if (value.length >= 2) {
+          value = value.slice(0, 2) + '/' + value.slice(2);
+        }
+        if (value.length >= 5) {
+          value = value.slice(0, 5) + '/' + value.slice(5, 9);
+        }
+        input.value = value.slice(0, 10);
+      }
+
+      function parseUKDate(str) {
+        if (!str) return null;
+        const parts = str.split('/');
+        if (parts.length !== 3) return null;
+        const [day, month, year] = parts.map(Number);
+        if (!day || !month || !year) return null;
+        return new Date(year, month - 1, day);
+      }
+
+      function toISODate(ukDateStr) {
+        const date = parseUKDate(ukDateStr);
+        if (!date || isNaN(date.getTime())) return null;
+        return date.toISOString().split('T')[0];
+      }
+
+      function toUKDate(isoDateStr) {
+        if (!isoDateStr) return '';
+        const date = new Date(isoDateStr);
+        if (isNaN(date.getTime())) return '';
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
+      }
+
+      // ========================================
+      // Position Toggle
+      // ========================================
+      function setPosition(value) {
+        document.getElementById("casePosition").value = value;
+        document.querySelectorAll(".position-btn").forEach(btn => {
+          btn.classList.toggle("active", btn.dataset.value === value);
+        });
+      }
+
+      // ========================================
+      // Custom Field Toggle
+      // ========================================
+      function toggleCustomField(selectId, customId) {
+        const select = document.getElementById(selectId);
+        const wrapper = document.getElementById(customId + "Wrapper");
+        const input = document.getElementById(customId);
+        
+        if (select.value === "Custom") {
+          wrapper.classList.remove("hidden");
+          input.focus();
+        } else {
+          wrapper.classList.add("hidden");
+          input.value = "";
         }
       }
 
+      // ========================================
+      // Legal Team Table
+      // ========================================
+      function createLegalRow(role = "", name = "") {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>
+            <input type="text" class="form-input legal-role" value="${role}" placeholder="e.g., Partner, Counsel, Associate" />
+          </td>
+          <td>
+            <input type="text" class="form-input legal-name" value="${name}" placeholder="Name or organisation" />
+          </td>
+          <td class="action-col">
+            <button type="button" class="btn-delete-row" onclick="deleteRow(this)">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        `;
+        return tr;
+      }
+
+      function addLegalRow(role = "", name = "") {
+        const tbody = document.getElementById("legalTeamBody");
+        tbody.appendChild(createLegalRow(role, name));
+      }
+
+      function getLegalTeam() {
+        const rows = document.querySelectorAll("#legalTeamBody tr");
+        const team = [];
+        rows.forEach(row => {
+          const role = row.querySelector('.legal-role').value.trim();
+          const name = row.querySelector('.legal-name').value.trim();
+          if (role || name) {
+            team.push({ role, name });
+          }
+        });
+        return team;
+      }
+
+      // ========================================
+      // Heads of Claim Table
+      // ========================================
+      const claimStatuses = [
+        "Discovery",
+        "Merit Established",
+        "Collating Evidence",
+        "Bundling",
+        "Complete",
+        "Custom"
+      ];
+
+      function createClaimRow(claim = "", status = "", actions = "") {
+        const tr = document.createElement("tr");
+        const statusOptions = claimStatuses
+          .map(s => `<option value="${s}" ${s === status ? 'selected' : ''}>${s === 'Custom' ? 'Custom...' : s}</option>`)
+          .join('');
+        
+        tr.innerHTML = `
+          <td>
+            <input type="text" class="form-input claim-name" value="${claim}" placeholder="e.g., Delay to Completion" />
+          </td>
+          <td>
+            <select class="form-select claim-status" onchange="handleClaimStatusChange(this)">
+              <option value="">Select...</option>
+              ${statusOptions}
+            </select>
+            <input type="text" class="form-input custom-status hidden" placeholder="Enter custom status" style="margin-top: 0.5rem;" />
+          </td>
+          <td>
+            <input type="text" class="form-input claim-actions" value="${actions}" placeholder="e.g., Request PM notes, Draft chronology" />
+          </td>
+          <td class="action-col">
+            <button type="button" class="btn-delete-row" onclick="deleteRow(this)">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        `;
+        return tr;
+      }
+
+      function handleClaimStatusChange(select) {
+        const customInput = select.parentElement.querySelector('.custom-status');
+        if (select.value === 'Custom') {
+          customInput.classList.remove('hidden');
+          customInput.focus();
+        } else {
+          customInput.classList.add('hidden');
+          customInput.value = '';
+        }
+      }
+
+      function addClaimRow(claim = "", status = "", actions = "") {
+        const tbody = document.getElementById("headsOfClaimBody");
+        tbody.appendChild(createClaimRow(claim, status, actions));
+      }
+
+      function getHeadsOfClaim() {
+        const rows = document.querySelectorAll("#headsOfClaimBody tr");
+        const claims = [];
+        rows.forEach(row => {
+          const claim = row.querySelector('.claim-name').value.trim();
+          const statusSelect = row.querySelector('.claim-status');
+          const customStatus = row.querySelector('.custom-status');
+          let status = statusSelect.value;
+          if (status === 'Custom' && customStatus.value.trim()) {
+            status = customStatus.value.trim();
+          }
+          const actions = row.querySelector('.claim-actions').value.trim();
+          if (claim) {
+            claims.push({ name: claim, status, actions });
+          }
+        });
+        return claims;
+      }
+
+      // ========================================
+      // Keywords Table
+      // ========================================
+      function createKeywordRow(keyword = "", variations = "") {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>
+            <input type="text" class="form-input keyword-name" value="${keyword}" placeholder="e.g., Section 278" />
+          </td>
+          <td>
+            <input type="text" class="form-input keyword-variations" value="${variations}" placeholder="e.g., Section 278, Highways Agreement, S278" />
+          </td>
+          <td class="action-col">
+            <button type="button" class="btn-delete-row" onclick="deleteRow(this)">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        `;
+        return tr;
+      }
+
+      function addKeywordRow(keyword = "", variations = "") {
+        const tbody = document.getElementById("keywordsBody");
+        tbody.appendChild(createKeywordRow(keyword, variations));
+      }
+
+      function getKeywords() {
+        const rows = document.querySelectorAll("#keywordsBody tr");
+        const keywords = [];
+        rows.forEach(row => {
+          const keyword = row.querySelector('.keyword-name').value.trim();
+          const variations = row.querySelector('.keyword-variations').value.trim();
+          if (keyword) {
+            keywords.push({ name: keyword, variations });
+          }
+        });
+        return keywords;
+      }
+
+      // ========================================
+      // Deadlines Table
+      // ========================================
+      function createDeadlineRow(task = "", description = "", date = "", reminder = "none") {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>
+            <input type="text" class="form-input deadline-task" value="${task}" placeholder="e.g., Respondent's evidence" />
+          </td>
+          <td>
+            <input type="text" class="form-input deadline-description" value="${description}" placeholder="Notes..." />
+          </td>
+          <td>
+            <input type="text" class="form-input deadline-date" value="${date}" placeholder="dd/mm/yyyy" maxlength="10" oninput="formatUKDate(this)" />
+          </td>
+          <td>
+            <select class="form-select deadline-reminder">
+              <option value="none" ${reminder === 'none' ? 'selected' : ''}>None</option>
+              <option value="7d" ${reminder === '7d' ? 'selected' : ''}>7 days before</option>
+              <option value="3d" ${reminder === '3d' ? 'selected' : ''}>3 days before</option>
+              <option value="24h" ${reminder === '24h' ? 'selected' : ''}>24 hours before</option>
+            </select>
+          </td>
+          <td class="action-col">
+            <button type="button" class="btn-delete-row" onclick="deleteRow(this)">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        `;
+        return tr;
+      }
+
+      function addDeadlineRow(task = "", description = "", date = "", reminder = "none") {
+        const tbody = document.getElementById("deadlinesBody");
+        tbody.appendChild(createDeadlineRow(task, description, date, reminder));
+      }
+
+      function getDeadlines() {
+        const rows = document.querySelectorAll("#deadlinesBody tr");
+        const deadlines = [];
+        rows.forEach(row => {
+          const task = row.querySelector('.deadline-task').value.trim();
+          const description = row.querySelector('.deadline-description').value.trim();
+          const dateStr = row.querySelector('.deadline-date').value.trim();
+          const reminder = row.querySelector('.deadline-reminder').value;
+          if (task) {
+            deadlines.push({
+              task,
+              description,
+              date: toISODate(dateStr),
+              reminder
+            });
+          }
+        });
+        return deadlines;
+      }
+
+      // ========================================
+      // Generic Row Delete
+      // ========================================
+      function deleteRow(btn) {
+        btn.closest("tr").remove();
+      }
+
+      // ========================================
+      // Load Projects
+      // ========================================
       async function loadProjects() {
         try {
           let data = [];
           if (!isEditMode && currentWorkspaceId) {
-            const wsResponse = await fetch(`/api/workspaces/${encodeURIComponent(currentWorkspaceId)}`, { headers: getAuthHeaders() });
+            const wsResponse = await fetch(`/api/workspaces/${encodeURIComponent(currentWorkspaceId)}`, { 
+              headers: getAuthHeaders() 
+            });
             if (wsResponse.ok) {
               const wsData = await wsResponse.json();
               data = Array.isArray(wsData.projects) ? wsData.projects : [];
             }
           } else {
             const response = await fetch("/api/projects", { headers: getAuthHeaders() });
-            if (!response.ok) return;
-            data = await response.json();
+            if (response.ok) {
+              data = await response.json();
+            }
           }
 
           const select = document.getElementById("projectSelect");
@@ -249,12 +888,14 @@
             }
             select.appendChild(option);
           });
-          syncProjectSelection();
         } catch (error) {
           console.warn("Failed to load projects", error);
         }
       }
 
+      // ========================================
+      // Load Case (Edit Mode)
+      // ========================================
       async function loadCase(caseId) {
         const response = await fetch(`/api/cases/${encodeURIComponent(caseId)}`, {
           headers: getAuthHeaders()
@@ -263,18 +904,122 @@
           throw new Error("Failed to load case details");
         }
         const data = await response.json();
-        document.getElementById("caseName").value = data.name || "";
-        document.getElementById("caseNumber").value = data.case_number || "";
-        document.getElementById("contractType").value = data.contract_type || "";
-        document.getElementById("caseDescription").value = data.description || "";
+
+        // Basic fields
+        document.getElementById("caseName").value = data.name || data.case_name || "";
+        document.getElementById("caseId").value = data.case_number || data.case_id || "";
+        
+        // Position
+        if (data.position) {
+          setPosition(data.position);
+        }
+        
+        // Resolution Route
+        if (data.resolution_route) {
+          const routeSelect = document.getElementById("resolutionRoute");
+          const isStandard = Array.from(routeSelect.options).some(o => o.value === data.resolution_route);
+          if (isStandard) {
+            routeSelect.value = data.resolution_route;
+          } else {
+            routeSelect.value = "Custom";
+            toggleCustomField("resolutionRoute", "resolutionRouteCustom");
+            document.getElementById("resolutionRouteCustom").value = data.resolution_route;
+          }
+        }
+        
+        // Case Status
+        if (data.status || data.case_status) {
+          const statusValue = data.status || data.case_status;
+          const statusSelect = document.getElementById("caseStatus");
+          const isStandard = Array.from(statusSelect.options).some(o => o.value === statusValue);
+          if (isStandard) {
+            statusSelect.value = statusValue;
+          } else {
+            statusSelect.value = "Custom";
+            toggleCustomField("caseStatus", "caseStatusCustom");
+            document.getElementById("caseStatusCustom").value = statusValue;
+          }
+        }
+        
+        // Claimant / Defendant
+        document.getElementById("claimant").value = data.claimant || "";
+        document.getElementById("defendant").value = data.defendant || "";
+        document.getElementById("clientParty").value = data.client || "";
+        
+        // Project link
         pendingProjectId = data.project_id || null;
+        
+        // Legal Team
+        const legalBody = document.getElementById("legalTeamBody");
+        legalBody.innerHTML = "";
+        if (Array.isArray(data.legal_team) && data.legal_team.length > 0) {
+          data.legal_team.forEach(member => {
+            legalBody.appendChild(createLegalRow(member.role, member.name));
+          });
+        } else {
+          addLegalRow();
+        }
+        
+        // Heads of Claim
+        const claimBody = document.getElementById("headsOfClaimBody");
+        claimBody.innerHTML = "";
+        if (Array.isArray(data.heads_of_claim) && data.heads_of_claim.length > 0) {
+          data.heads_of_claim.forEach(hoc => {
+            // Handle both name and claim field names
+            const claimName = hoc.name || hoc.head || hoc.claim || "";
+            const tr = createClaimRow(claimName, hoc.status, hoc.actions);
+            claimBody.appendChild(tr);
+            // Handle custom status
+            if (hoc.status && !claimStatuses.includes(hoc.status)) {
+              const select = tr.querySelector('.claim-status');
+              select.value = 'Custom';
+              handleClaimStatusChange(select);
+              tr.querySelector('.custom-status').value = hoc.status;
+            }
+          });
+        } else {
+          addClaimRow();
+        }
+        
+        // Keywords
+        const keywordsBody = document.getElementById("keywordsBody");
+        keywordsBody.innerHTML = "";
+        if (Array.isArray(data.keywords) && data.keywords.length > 0) {
+          data.keywords.forEach(k => {
+            // Handle both backend formats: keyword_name (from API) and name (from schema)
+            const kw = k.keyword_name || k.name || k.keyword || "";
+            keywordsBody.appendChild(createKeywordRow(kw, k.variations || ""));
+          });
+        } else {
+          addKeywordRow();
+        }
+        
+        // Deadlines
+        const deadlinesBody = document.getElementById("deadlinesBody");
+        deadlinesBody.innerHTML = "";
+        if (Array.isArray(data.deadlines) && data.deadlines.length > 0) {
+          data.deadlines.forEach(d => {
+            deadlinesBody.appendChild(createDeadlineRow(
+              d.task,
+              d.description,
+              toUKDate(d.date),
+              d.reminder || "none"
+            ));
+          });
+        } else {
+          addDeadlineRow();
+        }
+
         lastAutoNumber = data.case_number || "";
         numberManuallyEdited = true;
-        syncProjectSelection();
       }
 
+      // ========================================
+      // Submit Form
+      // ========================================
       async function submitCase(event) {
         event.preventDefault();
+
         const nameValue = document.getElementById("caseName").value.trim();
         if (!nameValue) {
           VericaseUI.Toast.error("Please enter a case name");
@@ -287,31 +1032,51 @@
           return;
         }
 
-        let payload = null;
-        const projectSelection = document.getElementById("projectSelect").value;
-        if (isEditMode) {
-          payload = {
-            name: nameValue,
-            description: document.getElementById("caseDescription").value || null,
-            contract_type: document.getElementById("contractType").value || null,
-            project_id: projectSelection === "" ? "" : projectSelection
-          };
-        } else {
-          const numberValue = document.getElementById("caseNumber").value.trim();
-          const resolvedNumber = numberValue || buildCaseNumber(nameValue);
-          if (!numberValue) {
-            document.getElementById("caseNumber").value = resolvedNumber;
-            lastAutoNumber = resolvedNumber;
-          }
+        // Case ID
+        const caseIdValue = document.getElementById("caseId").value.trim();
+        let resolvedCaseId = caseIdValue;
+        if (!resolvedCaseId && !isEditMode) {
+          resolvedCaseId = buildCaseNumber(nameValue);
+          document.getElementById("caseId").value = resolvedCaseId;
+          lastAutoNumber = resolvedCaseId;
+        }
 
-          payload = {
-            case_name: nameValue,
-            case_number: resolvedNumber,
-            workspace_id: currentWorkspaceId,
-            description: document.getElementById("caseDescription").value || null,
-            contract_type: document.getElementById("contractType").value || null,
-            project_id: projectSelection === "" ? null : projectSelection
-          };
+        // Resolution Route
+        const routeSelect = document.getElementById("resolutionRoute");
+        let resolutionRoute = routeSelect.value;
+        if (resolutionRoute === "Custom") {
+          resolutionRoute = document.getElementById("resolutionRouteCustom").value.trim() || "Custom";
+        }
+
+        // Case Status
+        const statusSelect = document.getElementById("caseStatus");
+        let caseStatus = statusSelect.value;
+        if (caseStatus === "Custom") {
+          caseStatus = document.getElementById("caseStatusCustom").value.trim() || "Custom";
+        }
+
+        const projectSelection = document.getElementById("projectSelect").value;
+
+        const payload = {
+          name: nameValue,
+          case_name: nameValue,
+          case_number: resolvedCaseId,
+          position: document.getElementById("casePosition").value || null,
+          resolution_route: resolutionRoute || null,
+          status: caseStatus || null,
+          case_status: caseStatus || null,
+          claimant: document.getElementById("claimant").value.trim() || null,
+          defendant: document.getElementById("defendant").value.trim() || null,
+          client: document.getElementById("clientParty").value.trim() || null,
+          legal_team: getLegalTeam(),
+          heads_of_claim: getHeadsOfClaim(),
+          keywords: getKeywords(),
+          deadlines: getDeadlines(),
+          project_id: projectSelection === "" ? null : projectSelection
+        };
+
+        if (!isEditMode) {
+          payload.workspace_id = currentWorkspaceId;
         }
 
         const btn = document.getElementById("createCaseBtn");
@@ -321,75 +1086,85 @@
           : '<i class="fas fa-spinner fa-spin"></i> Creating...';
 
         try {
-          const endpoint = isEditMode ? `/api/cases/${encodeURIComponent(currentCaseId)}` : "/api/cases";
+          const endpoint = isEditMode 
+            ? `/api/cases/${encodeURIComponent(currentCaseId)}` 
+            : "/api/cases";
           const response = await fetch(endpoint, {
             method: isEditMode ? "PUT" : "POST",
             headers: getAuthHeaders(),
             body: JSON.stringify(payload)
           });
+
           if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.detail || "Failed to save case");
           }
+
           const data = await response.json();
           const caseId = data.id || currentCaseId;
           const caseName = data.case_name || data.name || nameValue;
+
           localStorage.setItem("profileType", "case");
           localStorage.setItem("currentCaseId", caseId);
           localStorage.setItem("caseId", caseId);
           localStorage.setItem("currentCaseName", caseName);
           localStorage.setItem("vericase_current_case_name", caseName);
+
           VericaseUI.Toast.success(isEditMode ? "Case updated" : "Case created");
           window.location.href = `projectdashboard.html?caseId=${encodeURIComponent(caseId)}`;
         } catch (error) {
           VericaseUI.Toast.error(error.message || "Failed to save case");
         } finally {
           btn.disabled = false;
-          btn.innerHTML = isEditMode ? '<i class="fas fa-save"></i> Save changes' : '<i class="fas fa-plus"></i> Create case';
+          btn.innerHTML = isEditMode 
+            ? '<i class="fas fa-save"></i> Save Changes' 
+            : '<i class="fas fa-plus"></i> Create Case';
         }
       }
 
+      // ========================================
+      // Initialization
+      // ========================================
       document.addEventListener("DOMContentLoaded", () => {
         const params = new URLSearchParams(window.location.search);
         currentWorkspaceId = params.get("workspaceId") || localStorage.getItem("currentWorkspaceId");
         if (currentWorkspaceId) {
           try {
             localStorage.setItem("currentWorkspaceId", currentWorkspaceId);
-          } catch {
-            // ignore storage failures
-          }
+          } catch { /* ignore */ }
         }
+
         currentCaseId = params.get("caseId");
+        pendingProjectId = params.get("projectId") || null;
         isEditMode = Boolean(currentCaseId);
+
         const pageTitle = document.querySelector(".page-title");
         const pageSubtitle = document.querySelector(".page-subtitle");
         const submitBtn = document.getElementById("createCaseBtn");
-        const backBtn = document.getElementById("backToDashboardBtn");
-        const caseNumberInput = document.getElementById("caseNumber");
-        const caseNumberHelper = caseNumberInput?.nextElementSibling;
-        // Update breadcrumb
+        const backBtn = document.getElementById("backBtn");
+        const caseIdInput = document.getElementById("caseId");
         const workspaceLink = document.getElementById("workspaceLink");
         const breadcrumbCurrent = document.getElementById("breadcrumbCurrent");
 
         if (isEditMode) {
-          pageTitle.textContent = "Case Details";
-          pageSubtitle.textContent = "Update the core details for this case.";
-          submitBtn.innerHTML = '<i class="fas fa-save"></i> Save changes';
+          pageTitle.textContent = "Case Configuration";
+          pageSubtitle.textContent = "Update case identification, heads of claim, keywords, and deadlines.";
+          submitBtn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
           breadcrumbCurrent.textContent = "Edit Case";
-          if (caseNumberInput) {
-            caseNumberInput.disabled = true;
-            caseNumberInput.classList.add("form-input--disabled");
+          
+          if (caseIdInput) {
+            caseIdInput.disabled = true;
+            caseIdInput.classList.add("form-input--disabled");
           }
-          if (caseNumberHelper) {
-            caseNumberHelper.textContent = "Case numbers are fixed after creation.";
-          }
+          
           backBtn.addEventListener("click", () => {
             window.location.href = `projectdashboard.html?caseId=${encodeURIComponent(currentCaseId)}`;
           });
+          
           loadCase(currentCaseId).catch((error) => {
             VericaseUI.Toast.error(error.message || "Failed to load case");
           });
-          // Hide workspace link in edit mode
+          
           if (workspaceLink) workspaceLink.style.display = "none";
           if (workspaceLink?.previousElementSibling) workspaceLink.previousElementSibling.style.display = "none";
         } else {
@@ -398,25 +1173,40 @@
             window.location.href = "master-dashboard.html";
             return;
           }
-          // Update workspace link
+          
           if (workspaceLink) {
-            workspaceLink.href = `workspace-setup.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;
-            // Try to get workspace name
+            workspaceLink.href = `workspace-hub.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;
             const wsName = localStorage.getItem("currentWorkspaceName");
             if (wsName) workspaceLink.textContent = wsName;
           }
+          
           backBtn.addEventListener("click", () => {
-            window.location.href = `workspace-setup.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;
+            window.location.href = `workspace-hub.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;
+          });
+          
+          // Add initial rows
+          addLegalRow();
+          addClaimRow();
+          addKeywordRow();
+          addDeadlineRow();
+        }
+
+        // Shell
+        if (window.VericaseShell?.inject) {
+          VericaseShell.inject({ 
+            title: isEditMode ? "Case Configuration" : "Case Setup", 
+            breadcrumbs: null, 
+            headerActions: "" 
           });
         }
-        if (window.VericaseShell?.inject) {
-          VericaseShell.inject({ title: isEditMode ? "Case Details" : "Case Setup", breadcrumbs: null, headerActions: "" });
-        }
+
+        // Event listeners
         document.getElementById("caseName").addEventListener("input", syncAutoNumber);
-        document.getElementById("caseNumber").addEventListener("input", (event) => {
-          numberManuallyEdited = event.target.value.trim().length > 0 && event.target.value !== lastAutoNumber;
+        document.getElementById("caseId").addEventListener("input", (e) => {
+          numberManuallyEdited = e.target.value.trim().length > 0 && e.target.value !== lastAutoNumber;
         });
         document.getElementById("caseForm").addEventListener("submit", submitCase);
+
         loadProjects();
       });
     </script>

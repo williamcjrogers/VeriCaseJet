@@ -1997,6 +1997,33 @@ async def build_evidence_context(
     - Structured items for multi-vector semantic search, cross-encoder reranking, and MMR
     """
 
+    # #region agent log
+    import json
+    import time
+
+    try:
+        with open(
+            r"c:\Users\William\Documents\Projects\VeriCaseJet_canonical\.cursor\debug.log",
+            "a",
+            encoding="utf-8",
+        ) as f:
+            f.write(
+                json.dumps(
+                    {
+                        "location": "vericase_analysis.py:build_evidence_context",
+                        "message": "Building context",
+                        "data": {"project_id": project_id, "case_id": case_id},
+                        "timestamp": int(time.time() * 1000),
+                        "sessionId": "debug-session",
+                        "hypothesisId": "backend_context",
+                    }
+                )
+                + "\n"
+            )
+    except Exception:
+        pass
+    # #endregion
+
     context_parts: list[str] = []
     evidence_items: list[dict[str, Any]] = []
 
@@ -2149,11 +2176,51 @@ async def start_vericase_analysis(
         import asyncio
         from .db import SessionLocal
 
+        # #region agent log
+        def log_debug(message, data):
+            import json
+            import time
+
+            try:
+                with open(
+                    r"c:\Users\William\Documents\Projects\VeriCaseJet_canonical\.cursor\debug.log",
+                    "a",
+                    encoding="utf-8",
+                ) as f:
+                    f.write(
+                        json.dumps(
+                            {
+                                "location": "vericase_analysis.py",
+                                "message": message,
+                                "data": data,
+                                "timestamp": int(time.time() * 1000),
+                                "sessionId": "debug-session",
+                                "hypothesisId": "backend_context",
+                            }
+                        )
+                        + "\n"
+                    )
+            except Exception:
+                pass
+
+        # #endregion
+
         async def run_planning():
             task_db = SessionLocal()
             try:
+                log_debug(
+                    "Starting planning phase",
+                    {"user_id": user_id, "project_id": project_id, "case_id": case_id},
+                )
                 evidence_context = await build_evidence_context(
                     task_db, user_id, project_id, case_id
+                )
+                log_debug(
+                    "Evidence context built",
+                    {
+                        "items_count": len(evidence_context.items),
+                        "text_len": len(evidence_context.text),
+                    },
                 )
 
                 master = VeriCaseOrchestrator(task_db, session)

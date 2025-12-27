@@ -11,7 +11,7 @@
   <script src="vericase-ui.js"></script>
   <script src="nav-shell.js"></script>
   <style>
-    /* === WORKSPACE HUB - REFINED LAYOUT === */
+    /* === WORKSPACE HUB - TABBED COMMAND CENTER === */
 
     .app-content {
       background:
@@ -21,6 +21,7 @@
       box-shadow: 0 20px 50px rgba(15, 23, 32, 0.08);
       margin: var(--space-4);
       padding: var(--space-6);
+      min-height: calc(100vh - 120px);
     }
 
     /* === WORKSPACE HEADER === */
@@ -29,7 +30,7 @@
       align-items: flex-start;
       justify-content: space-between;
       gap: 24px;
-      margin-bottom: 32px;
+      margin-bottom: 24px;
       flex-wrap: wrap;
       padding-bottom: 24px;
       border-bottom: 1px solid var(--gray-200);
@@ -101,7 +102,7 @@
       align-items: center;
       gap: 6px;
       flex-wrap: wrap;
-      margin-bottom: 32px;
+      margin-bottom: 24px;
     }
 
     .stat-pill {
@@ -128,9 +129,72 @@
       color: var(--text-primary);
     }
 
+    /* === TAB NAVIGATION === */
+    .hub-tabs {
+      display: flex;
+      gap: 4px;
+      border-bottom: 2px solid var(--gray-200);
+      margin-bottom: 24px;
+      overflow-x: auto;
+    }
+
+    .hub-tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      background: transparent;
+      border: none;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .hub-tab:hover {
+      color: var(--text-primary);
+      background: var(--gray-50);
+    }
+
+    .hub-tab.active {
+      color: var(--vericase-teal);
+      border-bottom-color: var(--vericase-teal);
+      font-weight: 600;
+    }
+
+    .hub-tab i {
+      font-size: 0.875rem;
+    }
+
+    .hub-tab .tab-count {
+      background: var(--gray-100);
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .hub-tab.active .tab-count {
+      background: rgba(15, 157, 154, 0.1);
+      color: var(--vericase-teal);
+    }
+
+    /* === TAB PANELS === */
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
     /* === SECTIONS === */
     .hub-section {
-      margin-bottom: 40px;
+      margin-bottom: 32px;
     }
 
     .section-header {
@@ -177,14 +241,14 @@
     /* === ITEM CARDS === */
     .items-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
       gap: 20px;
     }
 
     .item-card {
       background: white;
       border-radius: var(--radius-lg);
-      padding: 24px;
+      padding: 20px;
       border: 1px solid var(--gray-200);
       cursor: pointer;
       transition: all 0.2s ease;
@@ -202,7 +266,7 @@
       align-items: flex-start;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
 
     .item-icon {
@@ -248,7 +312,7 @@
     }
 
     .item-content {
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
 
     .item-title {
@@ -272,6 +336,7 @@
       line-height: 1.5;
       display: -webkit-box;
       -webkit-line-clamp: 2;
+      line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
@@ -279,8 +344,9 @@
     .item-stats {
       display: flex;
       gap: 16px;
-      padding-top: 16px;
+      padding-top: 12px;
       border-top: 1px solid var(--gray-100);
+      margin-bottom: 12px;
     }
 
     .item-stat {
@@ -301,21 +367,50 @@
       color: var(--text-secondary);
     }
 
-    .item-enter-arrow {
-      position: absolute;
-      right: 20px;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 1.25rem;
-      color: var(--gray-300);
-      opacity: 0;
-      transition: all 0.2s;
+    /* Card Action Buttons */
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      padding-top: 12px;
+      border-top: 1px solid var(--gray-100);
     }
 
-    .item-card:hover .item-enter-arrow {
-      opacity: 1;
+    .card-action-btn {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 12px;
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .card-action-btn:hover {
+      background: var(--gray-100);
+      border-color: var(--gray-300);
+      color: var(--text-primary);
+    }
+
+    .card-action-btn.primary {
+      background: rgba(15, 157, 154, 0.1);
+      border-color: rgba(15, 157, 154, 0.3);
       color: var(--vericase-teal);
-      right: 16px;
+    }
+
+    .card-action-btn.primary:hover {
+      background: rgba(15, 157, 154, 0.15);
+      border-color: var(--vericase-teal);
+    }
+
+    .card-action-btn i {
+      font-size: 0.75rem;
     }
 
     /* === EMPTY STATE === */
@@ -323,7 +418,7 @@
       background: var(--gray-50);
       border: 2px dashed var(--gray-300);
       border-radius: var(--radius-lg);
-      padding: 40px 24px;
+      padding: 48px 24px;
       text-align: center;
     }
 
@@ -349,10 +444,512 @@
       margin-right: auto;
     }
 
+    /* === MANAGEMENT TABLE === */
+    .mgmt-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      border: 1px solid var(--gray-200);
+    }
+
+    .mgmt-table th {
+      text-align: left;
+      padding: 14px 16px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      background: var(--gray-50);
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .mgmt-table td {
+      padding: 14px 16px;
+      font-size: 0.9375rem;
+      border-bottom: 1px solid var(--gray-100);
+      vertical-align: middle;
+    }
+
+    .mgmt-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .mgmt-table tbody tr:hover {
+      background: var(--gray-50);
+    }
+
+    .mgmt-table .actions-col {
+      width: 100px;
+      text-align: right;
+    }
+
+    .mgmt-table .date-col {
+      width: 120px;
+    }
+
+    .mgmt-table .status-col {
+      width: 140px;
+    }
+
+    .table-action-btn {
+      background: transparent;
+      border: none;
+      padding: 6px 8px;
+      cursor: pointer;
+      color: var(--text-muted);
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+
+    .table-action-btn:hover {
+      background: var(--gray-100);
+      color: var(--text-primary);
+    }
+
+    .table-action-btn.danger:hover {
+      background: rgba(239, 68, 68, 0.1);
+      color: #dc2626;
+    }
+
+    /* Date badges */
+    .date-badge {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: var(--gray-100);
+      color: var(--text-secondary);
+    }
+
+    .date-badge.overdue {
+      background: rgba(239, 68, 68, 0.1);
+      color: #dc2626;
+      font-weight: 600;
+    }
+
+    .date-badge.soon {
+      background: rgba(234, 179, 8, 0.1);
+      color: #ca8a04;
+      font-weight: 600;
+    }
+
+    .date-badge.upcoming {
+      background: rgba(34, 197, 94, 0.1);
+      color: #16a34a;
+    }
+
+    /* Status badges */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8125rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-weight: 500;
+    }
+
+    .status-badge.active {
+      background: rgba(34, 197, 94, 0.1);
+      color: #16a34a;
+    }
+
+    .status-badge.pending {
+      background: rgba(234, 179, 8, 0.1);
+      color: #ca8a04;
+    }
+
+    .status-badge.complete {
+      background: rgba(107, 114, 128, 0.1);
+      color: #6b7280;
+    }
+
+    /* === INLINE ADD FORM === */
+    .inline-add-row {
+      background: rgba(15, 157, 154, 0.03);
+      border: 2px dashed rgba(15, 157, 154, 0.3);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      margin-top: 16px;
+    }
+
+    .inline-add-row .form-row {
+      display: grid;
+      grid-template-columns: 2fr 2fr 1fr 1fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .inline-add-row .form-group {
+      margin: 0;
+    }
+
+    .inline-add-row .form-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .inline-add-row .form-input,
+    .inline-add-row .form-select {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--gray-300);
+      font-size: 0.9375rem;
+      width: 100%;
+    }
+
+    .inline-add-row .form-input:focus,
+    .inline-add-row .form-select:focus {
+      outline: none;
+      border-color: var(--vericase-teal);
+      box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.1);
+    }
+
+    /* === DOCUMENTS GRID === */
+    .documents-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .document-card {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .document-card:hover {
+      border-color: var(--vericase-teal);
+      box-shadow: 0 4px 12px rgba(15, 23, 32, 0.08);
+    }
+
+    .document-card .doc-actions {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .document-card:hover .doc-actions {
+      opacity: 1;
+    }
+
+    .document-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      margin-bottom: 12px;
+      background: var(--gray-50);
+      color: var(--text-muted);
+    }
+
+    .document-icon.pdf { background: rgba(239, 68, 68, 0.1); color: #dc2626; }
+    .document-icon.doc { background: rgba(37, 99, 235, 0.1); color: #2563eb; }
+    .document-icon.xls { background: rgba(22, 163, 74, 0.1); color: #16a34a; }
+    .document-icon.img { background: rgba(168, 85, 247, 0.1); color: #9333ea; }
+
+    .document-name {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .document-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* Upload Zone */
+    .upload-zone {
+      border: 2px dashed var(--gray-300);
+      border-radius: var(--radius-lg);
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: var(--gray-50);
+      margin-bottom: 24px;
+    }
+
+    .upload-zone:hover,
+    .upload-zone.dragover {
+      border-color: var(--vericase-teal);
+      background: rgba(15, 157, 154, 0.05);
+    }
+
+    .upload-zone i {
+      font-size: 2.5rem;
+      color: var(--gray-400);
+      margin-bottom: 12px;
+    }
+
+    .upload-zone:hover i {
+      color: var(--vericase-teal);
+    }
+
+    .upload-zone .upload-text {
+      font-size: 1rem;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    .upload-zone .upload-hint {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    /* === TEAM LIST === */
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+
+    .team-member {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      position: relative;
+    }
+
+    .team-member:hover {
+      border-color: var(--gray-300);
+    }
+
+    .team-member .member-actions {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .team-member:hover .member-actions {
+      opacity: 1;
+    }
+
+    .team-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--vericase-teal), #2f86c8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .team-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .team-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+
+    .team-email {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .team-role {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--gray-100);
+      color: var(--text-secondary);
+    }
+
+    .team-role.admin {
+      background: rgba(15, 157, 154, 0.1);
+      color: var(--vericase-teal);
+    }
+
+    /* === COLLABORATION === */
+    .collab-section {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-lg);
+      margin-bottom: 24px;
+    }
+
+    .collab-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+
+    .collab-section-header h4 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    .collab-section-header h4 i {
+      color: var(--vericase-teal);
+    }
+
+    .collab-section-body {
+      padding: 20px;
+    }
+
+    /* Notes */
+    .notes-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .note-item {
+      background: var(--gray-50);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      position: relative;
+    }
+
+    .note-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .note-author {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--text-primary);
+    }
+
+    .note-time {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .note-content {
+      font-size: 0.9375rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .note-input-wrapper {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .note-input-wrapper textarea {
+      flex: 1;
+      padding: 12px;
+      border: 1px solid var(--gray-300);
+      border-radius: 8px;
+      resize: none;
+      font-size: 0.9375rem;
+      min-height: 80px;
+    }
+
+    .note-input-wrapper textarea:focus {
+      outline: none;
+      border-color: var(--vericase-teal);
+    }
+
+    /* Activity Feed */
+    .activity-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .activity-item {
+      display: flex;
+      gap: 12px;
+    }
+
+    .activity-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--gray-100);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .activity-icon.add { background: rgba(34, 197, 94, 0.1); color: #16a34a; }
+    .activity-icon.edit { background: rgba(37, 99, 235, 0.1); color: #2563eb; }
+    .activity-icon.delete { background: rgba(239, 68, 68, 0.1); color: #dc2626; }
+    .activity-icon.comment { background: rgba(168, 85, 247, 0.1); color: #9333ea; }
+
+    .activity-content {
+      flex: 1;
+    }
+
+    .activity-text {
+      font-size: 0.875rem;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+
+    .activity-text strong {
+      font-weight: 600;
+    }
+
+    .activity-time {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
     /* === BACK LINK === */
     .back-section {
       padding-top: 24px;
       border-top: 1px solid var(--gray-200);
+      margin-top: 32px;
     }
 
     .back-link {
@@ -369,11 +966,102 @@
       color: var(--vericase-teal);
     }
 
-    .back-link i {
-      font-size: 0.875rem;
+    /* === MODAL === */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 32, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 24px;
     }
 
-    /* === LOADING STATE === */
+    .modal-content {
+      background: white;
+      border-radius: var(--radius-xl);
+      box-shadow: 0 20px 60px rgba(15, 23, 32, 0.2);
+      max-width: 500px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+
+    .modal-header h3 {
+      font-size: 1.125rem;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      font-size: 1.5rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    .modal-close:hover {
+      color: var(--text-primary);
+    }
+
+    .modal-body {
+      padding: 24px;
+    }
+
+    .modal-body .form-group {
+      margin-bottom: 16px;
+    }
+
+    .modal-body .form-label {
+      display: block;
+      font-weight: 600;
+      font-size: 0.875rem;
+      margin-bottom: 6px;
+      color: var(--text-primary);
+    }
+
+    .modal-body .form-input,
+    .modal-body .form-select,
+    .modal-body .form-textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--gray-300);
+      border-radius: 8px;
+      font-size: 0.9375rem;
+    }
+
+    .modal-body .form-textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .modal-body .form-input:focus,
+    .modal-body .form-select:focus,
+    .modal-body .form-textarea:focus {
+      outline: none;
+      border-color: var(--vericase-teal);
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 16px 24px;
+      border-top: 1px solid var(--gray-100);
+    }
+
+    /* === SKELETON === */
     .skeleton {
       background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 50%, var(--gray-100) 75%);
       background-size: 200% 100%;
@@ -393,24 +1081,21 @@
         align-items: flex-start;
       }
 
-      .workspace-identity {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
-      }
-
-      .workspace-name {
-        font-size: 1.375rem;
-      }
-
       .items-grid {
         grid-template-columns: 1fr;
       }
 
-      .section-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
+      .inline-add-row .form-row {
+        grid-template-columns: 1fr;
+      }
+
+      .team-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hub-tab {
+        padding: 10px 14px;
+        font-size: 0.875rem;
       }
     }
   </style>
@@ -445,11 +1130,41 @@
 
     <!-- Stats Bar -->
     <div class="stats-bar" id="statsBar">
-      <div class="stat-pill skeleton" style="width: 100px; height: 32px;"></div>
-      <div class="stat-pill skeleton" style="width: 80px; height: 32px;"></div>
-      <div class="stat-pill skeleton" style="width: 90px; height: 32px;"></div>
+      <div class="stat-pill skeleton"></div>
     </div>
 
+    <!-- Tab Navigation -->
+    <nav class="hub-tabs" id="hubTabs">
+      <button class="hub-tab active" data-tab="projects-cases" onclick="switchTab('projects-cases')">
+        <i class="fas fa-th-large"></i>
+        Projects & Cases
+        <span class="tab-count" id="projectsCasesCount">0</span>
+      </button>
+      <button class="hub-tab" data-tab="deadlines" onclick="switchTab('deadlines')">
+        <i class="fas fa-calendar-alt"></i>
+        Deadlines
+        <span class="tab-count" id="deadlinesCount">0</span>
+      </button>
+      <button class="hub-tab" data-tab="documents" onclick="switchTab('documents')">
+        <i class="fas fa-folder-open"></i>
+        Documents
+        <span class="tab-count" id="documentsCount">0</span>
+      </button>
+      <button class="hub-tab" data-tab="team" onclick="switchTab('team')">
+        <i class="fas fa-users"></i>
+        Team
+        <span class="tab-count" id="teamCount">0</span>
+      </button>
+      <button class="hub-tab" data-tab="collaboration" onclick="switchTab('collaboration')">
+        <i class="fas fa-comments"></i>
+        Collaboration
+      </button>
+    </nav>
+
+    <!-- Tab Panels -->
+    <div class="tab-panels">
+      <!-- Projects & Cases Panel -->
+      <div class="tab-panel active" id="panel-projects-cases">
     <!-- Projects Section -->
     <section class="hub-section" id="projectsSection">
       <div class="section-header">
@@ -464,9 +1179,7 @@
           </a>
         </div>
       </div>
-      <div class="items-grid" id="projectsGrid">
-        <!-- Projects will be loaded here -->
-      </div>
+          <div class="items-grid" id="projectsGrid"></div>
     </section>
 
     <!-- Cases Section -->
@@ -483,10 +1196,131 @@
           </a>
         </div>
       </div>
-      <div class="items-grid" id="casesGrid">
-        <!-- Cases will be loaded here -->
+          <div class="items-grid" id="casesGrid"></div>
+        </section>
+      </div>
+
+      <!-- Deadlines Panel -->
+      <div class="tab-panel" id="panel-deadlines">
+        <section class="hub-section">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-calendar-alt" aria-hidden="true"></i>
+              Workspace Deadlines & Deliverables
+            </div>
+            <div class="section-actions">
+              <button class="btn btn-sm btn-outline" onclick="exportDeadlines()">
+                <i class="fas fa-download"></i> Export
+              </button>
+            </div>
+          </div>
+          
+          <div id="deadlinesTableContainer"></div>
+          
+          <!-- Inline Add Deadline -->
+          <div class="inline-add-row" id="addDeadlineRow">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Task / Deadline</label>
+                <input type="text" class="form-input" id="newDeadlineTask" placeholder="e.g., Position statement due">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Description</label>
+                <input type="text" class="form-input" id="newDeadlineDesc" placeholder="Notes...">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Date</label>
+                <input type="date" class="form-input" id="newDeadlineDate">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Reminder</label>
+                <select class="form-select" id="newDeadlineReminder">
+                  <option value="none">None</option>
+                  <option value="7d">7 days</option>
+                  <option value="3d">3 days</option>
+                  <option value="24h">24 hours</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <button class="btn btn-sm btn-vericase" onclick="addDeadline()">
+                  <i class="fas fa-plus"></i> Add
+                </button>
+              </div>
+            </div>
       </div>
     </section>
+      </div>
+
+      <!-- Documents Panel -->
+      <div class="tab-panel" id="panel-documents">
+        <section class="hub-section">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-folder-open" aria-hidden="true"></i>
+              Workspace Documents
+            </div>
+          </div>
+          
+          <!-- Upload Zone -->
+          <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <div class="upload-text">Drop files here or click to upload</div>
+            <div class="upload-hint">PDF, DOC, XLS, images up to 50MB</div>
+            <input type="file" id="fileInput" multiple hidden onchange="handleFileSelect(event)">
+          </div>
+          
+          <div id="documentsGrid" class="documents-grid"></div>
+        </section>
+      </div>
+
+      <!-- Team Panel -->
+      <div class="tab-panel" id="panel-team">
+        <section class="hub-section">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-users" aria-hidden="true"></i>
+              Team Members
+            </div>
+            <div class="section-actions">
+              <button class="btn btn-sm btn-vericase" onclick="showInviteModal()">
+                <i class="fas fa-user-plus"></i> Invite Member
+              </button>
+            </div>
+          </div>
+          
+          <div id="teamGrid" class="team-grid"></div>
+        </section>
+      </div>
+
+      <!-- Collaboration Panel -->
+      <div class="tab-panel" id="panel-collaboration">
+        <!-- Workspace Notes -->
+        <div class="collab-section">
+          <div class="collab-section-header">
+            <h4><i class="fas fa-sticky-note"></i> Workspace Notes</h4>
+          </div>
+          <div class="collab-section-body">
+            <div id="notesList" class="notes-list"></div>
+            <div class="note-input-wrapper">
+              <textarea id="newNoteInput" placeholder="Add a note for your team..."></textarea>
+              <button class="btn btn-vericase" onclick="addNote()">
+                <i class="fas fa-paper-plane"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Activity Feed -->
+        <div class="collab-section">
+          <div class="collab-section-header">
+            <h4><i class="fas fa-stream"></i> Recent Activity</h4>
+          </div>
+          <div class="collab-section-body">
+            <div id="activityFeed" class="activity-feed"></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Back Navigation -->
     <div class="back-section">
@@ -499,12 +1333,12 @@
 
   <!-- Add Modal -->
   <div class="modal-overlay" id="addModal" style="display: none;">
-    <div class="modal-content" style="max-width: 420px;">
+    <div class="modal-content">
       <div class="modal-header">
         <h3>Add to Workspace</h3>
         <button class="modal-close" onclick="hideAddModal()">&times;</button>
       </div>
-      <div class="modal-body" style="padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
         <a href="#" id="addProjectLink" class="btn btn-lg btn-outline" style="justify-content: flex-start; gap: 16px; padding: 20px;">
           <i class="fas fa-project-diagram" style="font-size: 1.25rem; color: #2f86c8;"></i>
           <div style="text-align: left;">
@@ -523,6 +1357,40 @@
     </div>
   </div>
 
+  <!-- Invite Team Modal -->
+  <div class="modal-overlay" id="inviteModal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Invite Team Member</h3>
+        <button class="modal-close" onclick="hideInviteModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" class="form-input" id="inviteEmail" placeholder="colleague@example.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Role</label>
+          <select class="form-select" id="inviteRole">
+            <option value="member">Member</option>
+            <option value="editor">Editor</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Message (optional)</label>
+          <textarea class="form-textarea" id="inviteMessage" placeholder="Add a personal message..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="hideInviteModal()">Cancel</button>
+        <button class="btn btn-vericase" onclick="sendInvite()">
+          <i class="fas fa-paper-plane"></i> Send Invite
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // Get workspace ID from URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -530,17 +1398,31 @@
 
     // Workspace data
     let workspaceData = null;
+    let workspaceDeadlines = [];
+    let workspaceDocuments = [];
+    let workspaceTeam = [];
+    let workspaceNotes = [];
+    let workspaceActivity = [];
 
     // Auth helpers
     function getAuthHeaders() {
-      // Keep token lookup consistent with the rest of the UI.
-      // (Some pages historically stored under `token`/`jwt`, newer pages may use `vericase_token`.)
       const token =
         localStorage.getItem("vericase_token") ||
         localStorage.getItem("token") ||
         localStorage.getItem("jwt") ||
-        localStorage.getItem("auth_token"); // legacy/experimental
-      return token ? { Authorization: `Bearer ${token}` } : {};
+        localStorage.getItem("auth_token");
+      return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+    }
+
+    // Tab switching
+    function switchTab(tabId) {
+      document.querySelectorAll('.hub-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabId);
+      });
+      
+      document.querySelectorAll('.tab-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === `panel-${tabId}`);
+      });
     }
 
     // Initialize page
@@ -551,7 +1433,6 @@
         return;
       }
 
-      // Inject navigation shell
       if (window.VericaseShell?.inject) {
         VericaseShell.inject({
           title: "Workspace Hub",
@@ -563,12 +1444,15 @@
         });
       }
 
-      // Set up add links
+      // Set up links
       document.getElementById("configureBtn").href = `workspace-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
       document.getElementById("addProjectBtn").href = `project-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
       document.getElementById("addCaseBtn").href = `case-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
       document.getElementById("addProjectLink").href = `project-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
       document.getElementById("addCaseLink").href = `case-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
+
+      // Setup drag and drop for documents
+      setupDragAndDrop();
 
       // Load workspace data
       await loadWorkspace();
@@ -576,29 +1460,40 @@
 
     async function loadWorkspace() {
       try {
-        const headers = getAuthHeaders();
-
-        // Fetch workspace details
-        const response = await fetch(`/api/workspaces/${workspaceId}`, { headers });
-        if (!response.ok) {
-          throw new Error("Failed to load workspace");
-        }
+        const response = await fetch(`/api/workspaces/${workspaceId}`, { headers: getAuthHeaders() });
+        if (!response.ok) throw new Error("Failed to load workspace");
 
         workspaceData = await response.json();
 
-        // Store workspace context
         try {
           localStorage.setItem("currentWorkspaceId", workspaceId);
           localStorage.setItem("currentWorkspaceName", workspaceData.name || "Workspace");
         } catch { /* ignore */ }
 
-        // Render workspace header
-        renderHeader();
-        renderStats();
-        renderProjects();
-        renderCases();
+        // Extract data
+        workspaceDeadlines = workspaceData.deadlines || [];
+        workspaceDocuments = workspaceData.documents || [];
+        workspaceTeam = workspaceData.users || workspaceData.team || [];
+        workspaceNotes = workspaceData.notes || [];
+        workspaceActivity = workspaceData.activity || [];
 
-        // Update breadcrumbs with workspace name
+        // Aggregate deadlines from cases too
+        const cases = workspaceData.cases || [];
+        cases.forEach(c => {
+          if (Array.isArray(c.deadlines)) {
+            c.deadlines.forEach(d => {
+              workspaceDeadlines.push({
+                ...d,
+                source: c.name || c.case_name || 'Case',
+                source_type: 'case',
+                source_id: c.id
+              });
+            });
+          }
+        });
+
+        renderAll();
+
         if (window.VericaseShell?.inject) {
           VericaseShell.inject({
             title: workspaceData.name,
@@ -616,204 +1511,669 @@
       }
     }
 
+    function renderAll() {
+      renderHeader();
+      renderStats();
+      renderProjects();
+      renderCases();
+      renderDeadlines();
+      renderDocuments();
+      renderTeam();
+      renderNotes();
+      renderActivity();
+      updateTabCounts();
+    }
+
     function renderHeader() {
-      if (!workspaceData) return;
-
-      document.getElementById("workspaceName").textContent = workspaceData.name || "Unnamed Workspace";
-      document.getElementById("workspaceCode").textContent = workspaceData.code || "---";
-
-      if (workspaceData.contract_type) {
+      document.getElementById("workspaceName").textContent = workspaceData?.name || "Unnamed Workspace";
+      document.getElementById("workspaceCode").textContent = workspaceData?.code || "---";
+      if (workspaceData?.contract_type) {
         document.getElementById("workspaceContractType").textContent = `• ${workspaceData.contract_type}`;
       }
     }
 
     function renderStats() {
-      if (!workspaceData) return;
-
       const statsBar = document.getElementById("statsBar");
-      const projectCount = workspaceData.project_count || (workspaceData.projects?.length || 0);
-      const caseCount = workspaceData.case_count || (workspaceData.cases?.length || 0);
-      const emailCount = workspaceData.email_count || 0;
-      const evidenceCount = workspaceData.evidence_count || 0;
+      const projects = workspaceData?.projects?.length || 0;
+      const cases = workspaceData?.cases?.length || 0;
+      const deadlines = workspaceDeadlines.length;
+      const docs = workspaceDocuments.length;
+      const team = workspaceTeam.length;
 
       statsBar.innerHTML = `
-        <div class="stat-pill">
-          <i class="fas fa-project-diagram" aria-hidden="true"></i>
-          <strong>${projectCount}</strong> Project${projectCount !== 1 ? 's' : ''}
-        </div>
-        <div class="stat-pill">
-          <i class="fas fa-briefcase" aria-hidden="true"></i>
-          <strong>${caseCount}</strong> Case${caseCount !== 1 ? 's' : ''}
-        </div>
-        <div class="stat-pill">
-          <i class="fas fa-envelope" aria-hidden="true"></i>
-          <strong>${emailCount.toLocaleString()}</strong> Emails
-        </div>
-        <div class="stat-pill">
-          <i class="fas fa-file-alt" aria-hidden="true"></i>
-          <strong>${evidenceCount.toLocaleString()}</strong> Files
-        </div>
+        <div class="stat-pill"><i class="fas fa-project-diagram"></i> <strong>${projects}</strong> Projects</div>
+        <div class="stat-pill"><i class="fas fa-briefcase"></i> <strong>${cases}</strong> Cases</div>
+        <div class="stat-pill"><i class="fas fa-calendar-alt"></i> <strong>${deadlines}</strong> Deadlines</div>
+        <div class="stat-pill"><i class="fas fa-folder-open"></i> <strong>${docs}</strong> Documents</div>
+        <div class="stat-pill"><i class="fas fa-users"></i> <strong>${team}</strong> Members</div>
       `;
+    }
+
+    function updateTabCounts() {
+      const projects = workspaceData?.projects?.length || 0;
+      const cases = workspaceData?.cases?.length || 0;
+      document.getElementById("projectsCasesCount").textContent = projects + cases;
+      document.getElementById("projectCount").textContent = projects;
+      document.getElementById("caseCount").textContent = cases;
+      document.getElementById("deadlinesCount").textContent = workspaceDeadlines.length;
+      document.getElementById("documentsCount").textContent = workspaceDocuments.length;
+      document.getElementById("teamCount").textContent = workspaceTeam.length;
     }
 
     function renderProjects() {
       const grid = document.getElementById("projectsGrid");
-      const countEl = document.getElementById("projectCount");
       const projects = workspaceData?.projects || [];
-
-      countEl.textContent = projects.length;
 
       if (projects.length === 0) {
         grid.innerHTML = `
           <div class="empty-state">
-            <i class="fas fa-project-diagram empty-icon" aria-hidden="true"></i>
+            <i class="fas fa-project-diagram empty-icon"></i>
             <div class="empty-title">No Projects Yet</div>
-            <div class="empty-desc">Create your first project to start managing timelines, emails, and evidence.</div>
+            <div class="empty-desc">Create your first project to manage timelines, emails, and evidence.</div>
             <a href="project-setup.html?workspaceId=${encodeURIComponent(workspaceId)}" class="btn btn-vericase">
-              <i class="fas fa-plus" aria-hidden="true"></i> Add Project
+              <i class="fas fa-plus"></i> Add Project
             </a>
           </div>
         `;
         return;
       }
 
-      grid.innerHTML = projects.map(project => `
-        <div class="item-card" onclick="openProject('${project.id}')">
+      grid.innerHTML = projects.map(p => `
+        <div class="item-card" data-project-id="${p.id}">
           <div class="item-card-header">
-            <div class="item-icon project">
-              <i class="fas fa-project-diagram" aria-hidden="true"></i>
-            </div>
-            <span class="item-status">${project.status || 'Active'}</span>
+            <div class="item-icon project"><i class="fas fa-project-diagram"></i></div>
+            <span class="item-status">${p.status || 'Active'}</span>
           </div>
           <div class="item-content">
-            <div class="item-title">${escapeHtml(project.name || project.project_name || 'Untitled Project')}</div>
-            <div class="item-code">${escapeHtml(project.code || project.project_code || '')}</div>
-            ${project.description ? `<div class="item-description">${escapeHtml(project.description)}</div>` : ''}
+            <div class="item-title">${escapeHtml(p.name || p.project_name || 'Untitled')}</div>
+            <div class="item-code">${escapeHtml(p.code || p.project_code || '')}</div>
           </div>
           <div class="item-stats">
-            <div class="item-stat">
-              <i class="fas fa-envelope" aria-hidden="true"></i>
-              <strong>${(project.email_count || 0).toLocaleString()}</strong> emails
+            <div class="item-stat"><i class="fas fa-envelope"></i> <strong>${p.email_count || 0}</strong> emails</div>
+            <div class="item-stat"><i class="fas fa-file-alt"></i> <strong>${p.evidence_count || 0}</strong> files</div>
             </div>
-            <div class="item-stat">
-              <i class="fas fa-file-alt" aria-hidden="true"></i>
-              <strong>${(project.evidence_count || 0).toLocaleString()}</strong> files
+          <div class="card-actions">
+            <button class="card-action-btn" data-action="configure"><i class="fas fa-cog"></i> Configure</button>
+            <button class="card-action-btn primary" data-action="develop-case"><i class="fas fa-gavel"></i> Develop Case</button>
+            <button class="card-action-btn" data-action="open"><i class="fas fa-arrow-right"></i> Open</button>
             </div>
-          </div>
-          <i class="fas fa-arrow-right item-enter-arrow" aria-hidden="true"></i>
         </div>
       `).join('');
+
+      grid.onclick = handleProjectClick;
     }
 
     function renderCases() {
       const grid = document.getElementById("casesGrid");
-      const countEl = document.getElementById("caseCount");
       const cases = workspaceData?.cases || [];
-
-      countEl.textContent = cases.length;
 
       if (cases.length === 0) {
         grid.innerHTML = `
           <div class="empty-state">
-            <i class="fas fa-briefcase empty-icon" aria-hidden="true"></i>
+            <i class="fas fa-briefcase empty-icon"></i>
             <div class="empty-title">No Cases Yet</div>
-            <div class="empty-desc">Create a case to track disputes, claims, and legal matters.</div>
+            <div class="empty-desc">Create a case to track disputes and legal matters.</div>
             <a href="case-setup.html?workspaceId=${encodeURIComponent(workspaceId)}" class="btn btn-vericase">
-              <i class="fas fa-plus" aria-hidden="true"></i> Add Case
+              <i class="fas fa-plus"></i> Add Case
             </a>
           </div>
         `;
         return;
       }
 
-      grid.innerHTML = cases.map(caseItem => `
-        <div class="item-card" onclick="openCase('${caseItem.id}')">
+      grid.innerHTML = cases.map(c => `
+        <div class="item-card" data-case-id="${c.id}">
           <div class="item-card-header">
-            <div class="item-icon case">
-              <i class="fas fa-briefcase" aria-hidden="true"></i>
-            </div>
-            <span class="item-status">${caseItem.status || 'Active'}</span>
+            <div class="item-icon case"><i class="fas fa-briefcase"></i></div>
+            <span class="item-status">${c.status || 'Active'}</span>
           </div>
           <div class="item-content">
-            <div class="item-title">${escapeHtml(caseItem.name || caseItem.case_name || 'Untitled Case')}</div>
-            <div class="item-code">${escapeHtml(caseItem.case_number || '')}</div>
-            ${caseItem.description ? `<div class="item-description">${escapeHtml(caseItem.description)}</div>` : ''}
+            <div class="item-title">${escapeHtml(c.name || c.case_name || 'Untitled')}</div>
+            <div class="item-code">${escapeHtml(c.case_number || '')}</div>
           </div>
           <div class="item-stats">
-            <div class="item-stat">
-              <i class="fas fa-envelope" aria-hidden="true"></i>
-              <strong>${(caseItem.email_count || 0).toLocaleString()}</strong> emails
+            <div class="item-stat"><i class="fas fa-envelope"></i> <strong>${c.email_count || 0}</strong> emails</div>
+            <div class="item-stat"><i class="fas fa-file-alt"></i> <strong>${c.evidence_count || 0}</strong> files</div>
             </div>
-            <div class="item-stat">
-              <i class="fas fa-file-alt" aria-hidden="true"></i>
-              <strong>${(caseItem.evidence_count || 0).toLocaleString()}</strong> files
+          <div class="card-actions">
+            <button class="card-action-btn" data-action="configure"><i class="fas fa-cog"></i> Configure</button>
+            <button class="card-action-btn primary" data-action="open"><i class="fas fa-arrow-right"></i> Open</button>
+            </div>
+        </div>
+      `).join('');
+
+      grid.onclick = handleCaseClick;
+    }
+
+    function handleProjectClick(e) {
+      const card = e.target.closest('[data-project-id]');
+      if (!card) return;
+      const id = card.dataset.projectId;
+      const action = e.target.closest('[data-action]')?.dataset.action;
+      
+      if (action === 'configure') {
+        window.location.href = `project-setup.html?workspaceId=${workspaceId}&projectId=${id}`;
+      } else if (action === 'develop-case') {
+        window.location.href = `case-setup.html?workspaceId=${workspaceId}&projectId=${id}`;
+      } else if (action === 'open' || !e.target.closest('button')) {
+        openProject(id);
+      }
+    }
+
+    function handleCaseClick(e) {
+      const card = e.target.closest('[data-case-id]');
+      if (!card) return;
+      const id = card.dataset.caseId;
+      const action = e.target.closest('[data-action]')?.dataset.action;
+      
+      if (action === 'configure') {
+        window.location.href = `case-setup.html?workspaceId=${workspaceId}&caseId=${id}`;
+      } else if (action === 'open' || !e.target.closest('button')) {
+        openCase(id);
+      }
+    }
+
+    function openProject(id) {
+      const p = (workspaceData?.projects || []).find(x => String(x.id) === String(id));
+      try {
+        localStorage.setItem("profileType", "project");
+        localStorage.setItem("currentProjectId", id);
+        localStorage.setItem("projectId", id);
+        if (p?.name || p?.project_name) localStorage.setItem("currentProjectName", p.name || p.project_name);
+      } catch {}
+      window.location.href = `projectdashboard.html?projectId=${id}`;
+    }
+
+    function openCase(id) {
+      const c = (workspaceData?.cases || []).find(x => String(x.id) === String(id));
+      try {
+        localStorage.setItem("profileType", "case");
+        localStorage.setItem("currentCaseId", id);
+        localStorage.setItem("caseId", id);
+        if (c?.name || c?.case_name) localStorage.setItem("currentCaseName", c.name || c.case_name);
+      } catch {}
+      window.location.href = `projectdashboard.html?caseId=${id}`;
+    }
+
+    // ========================================
+    // DEADLINES MANAGEMENT
+    // ========================================
+    function renderDeadlines() {
+      const container = document.getElementById("deadlinesTableContainer");
+      
+      // Sort by date
+      const sorted = [...workspaceDeadlines].sort((a, b) => {
+        if (!a.date) return 1;
+        if (!b.date) return -1;
+        return new Date(a.date) - new Date(b.date);
+      });
+
+      if (sorted.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state" style="margin-bottom: 0;">
+            <i class="fas fa-calendar-check empty-icon"></i>
+            <div class="empty-title">No Deadlines Yet</div>
+            <div class="empty-desc">Add deadlines to track important dates and deliverables for this workspace.</div>
+          </div>
+        `;
+        return;
+      }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      container.innerHTML = `
+        <table class="mgmt-table">
+          <thead>
+            <tr>
+              <th>Task / Deadline</th>
+              <th>Description</th>
+              <th class="date-col">Date</th>
+              <th>Source</th>
+              <th>Reminder</th>
+              <th class="actions-col"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sorted.map((d, i) => {
+              const dDate = d.date ? new Date(d.date) : null;
+              let dateClass = '';
+              if (dDate) {
+                dDate.setHours(0, 0, 0, 0);
+                if (dDate < today) dateClass = 'overdue';
+                else if (dDate - today <= 7 * 24 * 60 * 60 * 1000) dateClass = 'soon';
+                else dateClass = 'upcoming';
+              }
+              const source = d.source ? `<span style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(d.source)}</span>` : '<span style="color: var(--vericase-teal); font-size: 0.75rem;">Workspace</span>';
+              return `
+                <tr data-deadline-idx="${i}">
+                  <td><strong>${escapeHtml(d.task || '')}</strong></td>
+                  <td>${escapeHtml(d.description || '')}</td>
+                  <td><span class="date-badge ${dateClass}">${formatDate(d.date)}</span></td>
+                  <td>${source}</td>
+                  <td>${d.reminder === 'none' || !d.reminder ? '—' : d.reminder}</td>
+                  <td class="actions-col">
+                    ${!d.source_type ? `
+                      <button class="table-action-btn" onclick="editDeadline(${i})" title="Edit"><i class="fas fa-edit"></i></button>
+                      <button class="table-action-btn danger" onclick="deleteDeadline(${i})" title="Delete"><i class="fas fa-trash"></i></button>
+                    ` : ''}
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    async function addDeadline() {
+      const task = document.getElementById("newDeadlineTask").value.trim();
+      const desc = document.getElementById("newDeadlineDesc").value.trim();
+      const date = document.getElementById("newDeadlineDate").value;
+      const reminder = document.getElementById("newDeadlineReminder").value;
+
+      if (!task) {
+        VericaseUI.Toast.error("Please enter a task name");
+        return;
+      }
+
+      const newDeadline = { task, description: desc, date, reminder, source: null, source_type: null };
+      
+      // Save to backend
+      try {
+        const res = await fetch(`/api/workspaces/${workspaceId}/deadlines`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(newDeadline)
+        });
+        if (res.ok) {
+          const saved = await res.json();
+          workspaceDeadlines.push(saved);
+        } else {
+          // Fallback to local storage
+          workspaceDeadlines.push({ ...newDeadline, id: Date.now() });
+        }
+      } catch {
+        workspaceDeadlines.push({ ...newDeadline, id: Date.now() });
+      }
+
+      // Clear form
+      document.getElementById("newDeadlineTask").value = '';
+      document.getElementById("newDeadlineDesc").value = '';
+      document.getElementById("newDeadlineDate").value = '';
+      document.getElementById("newDeadlineReminder").value = 'none';
+
+      renderDeadlines();
+      updateTabCounts();
+      VericaseUI.Toast.success("Deadline added");
+    }
+
+    function deleteDeadline(idx) {
+      const d = workspaceDeadlines[idx];
+      if (!d || d.source_type) return;
+      
+      if (!confirm(`Delete "${d.task}"?`)) return;
+      
+      // Remove from array
+      workspaceDeadlines.splice(idx, 1);
+      
+      // Try to delete from backend
+      if (d.id) {
+        fetch(`/api/workspaces/${workspaceId}/deadlines/${d.id}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders()
+        }).catch(() => {});
+      }
+      
+      renderDeadlines();
+      updateTabCounts();
+      VericaseUI.Toast.success("Deadline deleted");
+    }
+
+    function editDeadline(idx) {
+      VericaseUI.Toast.info("Edit feature coming soon - delete and re-add for now");
+    }
+
+    function exportDeadlines() {
+      const sorted = [...workspaceDeadlines].sort((a, b) => new Date(a.date) - new Date(b.date));
+      let csv = "Task,Description,Date,Source,Reminder\n";
+      sorted.forEach(d => {
+        csv += `"${d.task || ''}","${d.description || ''}","${d.date || ''}","${d.source || 'Workspace'}","${d.reminder || 'none'}"\n`;
+      });
+      
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `deadlines-${workspaceData?.code || 'workspace'}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      VericaseUI.Toast.success("Deadlines exported");
+    }
+
+    // ========================================
+    // DOCUMENTS MANAGEMENT
+    // ========================================
+    function setupDragAndDrop() {
+      const zone = document.getElementById("uploadZone");
+      if (!zone) return;
+
+      zone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        zone.classList.add("dragover");
+      });
+
+      zone.addEventListener("dragleave", () => {
+        zone.classList.remove("dragover");
+      });
+
+      zone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        zone.classList.remove("dragover");
+        handleFiles(e.dataTransfer.files);
+      });
+    }
+
+    function handleFileSelect(e) {
+      handleFiles(e.target.files);
+    }
+
+    async function handleFiles(files) {
+      for (const file of files) {
+        if (file.size > 50 * 1024 * 1024) {
+          VericaseUI.Toast.error(`${file.name} is too large (max 50MB)`);
+          continue;
+        }
+
+        // Add to local list immediately for UI feedback
+        const doc = {
+          id: Date.now() + Math.random(),
+          filename: file.name,
+          size: file.size,
+          created_at: new Date().toISOString(),
+          uploading: true
+        };
+        workspaceDocuments.push(doc);
+        renderDocuments();
+
+        // Upload to backend
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('workspace_id', workspaceId);
+
+          const res = await fetch(`/api/workspaces/${workspaceId}/documents`, {
+            method: 'POST',
+            headers: { Authorization: getAuthHeaders().Authorization },
+            body: formData
+          });
+
+          if (res.ok) {
+            const saved = await res.json();
+            // Replace temp with saved
+            const idx = workspaceDocuments.findIndex(d => d.id === doc.id);
+            if (idx >= 0) workspaceDocuments[idx] = saved;
+          }
+          doc.uploading = false;
+        } catch {
+          doc.uploading = false;
+        }
+
+        renderDocuments();
+        updateTabCounts();
+      }
+      VericaseUI.Toast.success("Files uploaded");
+    }
+
+    function renderDocuments() {
+      const grid = document.getElementById("documentsGrid");
+
+      if (workspaceDocuments.length === 0) {
+        grid.innerHTML = '';
+        return;
+      }
+
+      grid.innerHTML = workspaceDocuments.map(doc => {
+        const ext = (doc.filename || '').split('.').pop().toLowerCase();
+        let iconClass = '';
+        let iconName = 'fa-file';
+        if (['pdf'].includes(ext)) { iconClass = 'pdf'; iconName = 'fa-file-pdf'; }
+        else if (['doc', 'docx'].includes(ext)) { iconClass = 'doc'; iconName = 'fa-file-word'; }
+        else if (['xls', 'xlsx', 'csv'].includes(ext)) { iconClass = 'xls'; iconName = 'fa-file-excel'; }
+        else if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) { iconClass = 'img'; iconName = 'fa-file-image'; }
+
+        return `
+          <div class="document-card" data-doc-id="${doc.id}" ${doc.uploading ? 'style="opacity: 0.6;"' : ''}>
+            <div class="doc-actions">
+              <button class="table-action-btn" onclick="downloadDocument('${doc.id}')" title="Download"><i class="fas fa-download"></i></button>
+              <button class="table-action-btn danger" onclick="deleteDocument('${doc.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+            </div>
+            <div class="document-icon ${iconClass}">
+              <i class="fas ${iconName}"></i>
+            </div>
+            <div class="document-name">${escapeHtml(doc.filename || 'Untitled')}</div>
+            <div class="document-meta">${formatFileSize(doc.size)} • ${formatDate(doc.created_at)}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function downloadDocument(id) {
+      window.open(`/api/workspaces/${workspaceId}/documents/${id}/download`, '_blank');
+    }
+
+    function deleteDocument(id) {
+      const doc = workspaceDocuments.find(d => String(d.id) === String(id));
+      if (!doc) return;
+      
+      if (!confirm(`Delete "${doc.filename}"?`)) return;
+
+      workspaceDocuments = workspaceDocuments.filter(d => String(d.id) !== String(id));
+      
+      fetch(`/api/workspaces/${workspaceId}/documents/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      }).catch(() => {});
+
+      renderDocuments();
+      updateTabCounts();
+      VericaseUI.Toast.success("Document deleted");
+    }
+
+    // ========================================
+    // TEAM MANAGEMENT
+    // ========================================
+    function renderTeam() {
+      const grid = document.getElementById("teamGrid");
+
+      if (workspaceTeam.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state" style="grid-column: 1 / -1;">
+            <i class="fas fa-users empty-icon"></i>
+            <div class="empty-title">No Team Members</div>
+            <div class="empty-desc">Invite colleagues to collaborate on this workspace.</div>
+            <button class="btn btn-vericase" onclick="showInviteModal()">
+              <i class="fas fa-user-plus"></i> Invite Member
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = workspaceTeam.map(user => {
+        const initials = getInitials(user.name || user.email);
+        const roleClass = user.role === 'admin' ? 'admin' : '';
+        return `
+          <div class="team-member" data-user-id="${user.id || user.email}">
+            <div class="member-actions">
+              <button class="table-action-btn danger" onclick="removeMember('${user.id || user.email}')" title="Remove"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="team-avatar">${initials}</div>
+            <div class="team-info">
+              <div class="team-name">${escapeHtml(user.name || 'Unknown')}</div>
+              <div class="team-email">${escapeHtml(user.email || '')}</div>
+              <span class="team-role ${roleClass}">${escapeHtml(user.role || 'Member')}</span>
             </div>
           </div>
-          <i class="fas fa-arrow-right item-enter-arrow" aria-hidden="true"></i>
+        `;
+      }).join('');
+    }
+
+    function showInviteModal() {
+      document.getElementById("inviteModal").style.display = "flex";
+    }
+
+    function hideInviteModal() {
+      document.getElementById("inviteModal").style.display = "none";
+    }
+
+    async function sendInvite() {
+      const email = document.getElementById("inviteEmail").value.trim();
+      const role = document.getElementById("inviteRole").value;
+      const message = document.getElementById("inviteMessage").value.trim();
+
+      if (!email) {
+        VericaseUI.Toast.error("Please enter an email address");
+        return;
+      }
+
+      // Send invite
+      try {
+        const res = await fetch(`/api/workspaces/${workspaceId}/invites`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ email, role, message })
+        });
+
+        if (res.ok) {
+          VericaseUI.Toast.success(`Invite sent to ${email}`);
+          // Add to team list optimistically
+          workspaceTeam.push({ email, role, name: email.split('@')[0], pending: true });
+          renderTeam();
+          updateTabCounts();
+        } else {
+          VericaseUI.Toast.error("Failed to send invite");
+        }
+      } catch {
+        VericaseUI.Toast.info(`Invite would be sent to ${email}`);
+        workspaceTeam.push({ email, role, name: email.split('@')[0], id: Date.now() });
+        renderTeam();
+        updateTabCounts();
+      }
+
+      hideInviteModal();
+      document.getElementById("inviteEmail").value = '';
+      document.getElementById("inviteMessage").value = '';
+    }
+
+    function removeMember(id) {
+      const user = workspaceTeam.find(u => String(u.id) === String(id) || u.email === id);
+      if (!user) return;
+      
+      if (!confirm(`Remove ${user.name || user.email} from this workspace?`)) return;
+
+      workspaceTeam = workspaceTeam.filter(u => String(u.id) !== String(id) && u.email !== id);
+      
+      fetch(`/api/workspaces/${workspaceId}/users/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      }).catch(() => {});
+
+      renderTeam();
+      updateTabCounts();
+      VericaseUI.Toast.success("Team member removed");
+    }
+
+    // ========================================
+    // COLLABORATION (Notes & Activity)
+    // ========================================
+    function renderNotes() {
+      const container = document.getElementById("notesList");
+
+      if (workspaceNotes.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 20px;">No notes yet. Start the conversation!</p>';
+        return;
+      }
+
+      container.innerHTML = workspaceNotes.map(note => `
+        <div class="note-item">
+          <div class="note-header">
+            <span class="note-author">${escapeHtml(note.author || 'Unknown')}</span>
+            <span class="note-time">${formatRelativeTime(note.created_at)}</span>
+          </div>
+          <div class="note-content">${escapeHtml(note.content)}</div>
         </div>
       `).join('');
     }
 
-    function resolveWorkspaceItem(id, type) {
-      const items = type === "case" ? (workspaceData?.cases || []) : (workspaceData?.projects || []);
-      return items.find((item) => {
-        const itemId = item?.id || item?.case_id || item?.project_id;
-        return String(itemId) === String(id);
-      }) || null;
-    }
+    async function addNote() {
+      const input = document.getElementById("newNoteInput");
+      const content = input.value.trim();
 
-    function openProject(projectId) {
-      const project = resolveWorkspaceItem(projectId, "project");
-      const projectName = project?.project_name || project?.name || "";
+      if (!content) return;
 
+      const note = {
+        id: Date.now(),
+        content,
+        author: 'You',
+        created_at: new Date().toISOString()
+      };
+
+      // Try to save to backend
       try {
-        localStorage.setItem("profileType", "project");
-        localStorage.setItem("vericase_current_project", projectId);
-        localStorage.setItem("currentProjectId", projectId);
-        localStorage.setItem("projectId", projectId);
-        localStorage.removeItem("currentCaseId");
-        localStorage.removeItem("caseId");
-        if (projectName) {
-          localStorage.setItem("currentProjectName", projectName);
-          localStorage.setItem("vericase_current_project_name", projectName);
+        const res = await fetch(`/api/workspaces/${workspaceId}/notes`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ content })
+        });
+        if (res.ok) {
+          const saved = await res.json();
+          workspaceNotes.unshift(saved);
+        } else {
+          workspaceNotes.unshift(note);
         }
-        if (workspaceId) {
-          localStorage.setItem("currentWorkspaceId", workspaceId);
-        }
-        if (workspaceData?.name) {
-          localStorage.setItem("currentWorkspaceName", workspaceData.name);
-        }
-      } catch { /* ignore */ }
+      } catch {
+        workspaceNotes.unshift(note);
+      }
 
-      window.location.href = `projectdashboard.html?projectId=${encodeURIComponent(projectId)}`;
+      input.value = '';
+      renderNotes();
+      VericaseUI.Toast.success("Note added");
     }
 
-    function openCase(caseId) {
-      const caseItem = resolveWorkspaceItem(caseId, "case");
-      const caseName = caseItem?.case_name || caseItem?.name || "";
+    function renderActivity() {
+      const container = document.getElementById("activityFeed");
 
-      try {
-        localStorage.setItem("profileType", "case");
-        localStorage.setItem("currentCaseId", caseId);
-        localStorage.setItem("caseId", caseId);
-        localStorage.removeItem("vericase_current_project");
-        localStorage.removeItem("currentProjectId");
-        localStorage.removeItem("projectId");
-        if (caseName) {
-          localStorage.setItem("currentCaseName", caseName);
-          localStorage.setItem("vericase_current_case_name", caseName);
-        }
-        if (workspaceId) {
-          localStorage.setItem("currentWorkspaceId", workspaceId);
-        }
-        if (workspaceData?.name) {
-          localStorage.setItem("currentWorkspaceName", workspaceData.name);
-        }
-      } catch { /* ignore */ }
+      // Generate some mock activity if empty
+      if (workspaceActivity.length === 0) {
+        workspaceActivity = [
+          { type: 'add', text: 'Workspace created', time: workspaceData?.created_at || new Date().toISOString() }
+        ];
+      }
 
-      window.location.href = `projectdashboard.html?caseId=${encodeURIComponent(caseId)}`;
+      container.innerHTML = workspaceActivity.slice(0, 10).map(a => {
+        let iconClass = '';
+        let iconName = 'fa-circle';
+        if (a.type === 'add') { iconClass = 'add'; iconName = 'fa-plus'; }
+        else if (a.type === 'edit') { iconClass = 'edit'; iconName = 'fa-edit'; }
+        else if (a.type === 'delete') { iconClass = 'delete'; iconName = 'fa-trash'; }
+        else if (a.type === 'comment') { iconClass = 'comment'; iconName = 'fa-comment'; }
+
+        return `
+          <div class="activity-item">
+            <div class="activity-icon ${iconClass}"><i class="fas ${iconName}"></i></div>
+            <div class="activity-content">
+              <div class="activity-text">${a.text}</div>
+              <div class="activity-time">${formatRelativeTime(a.time)}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
     }
 
+    // ========================================
+    // MODALS
+    // ========================================
     function showAddModal() {
       document.getElementById("addModal").style.display = "flex";
     }
@@ -822,25 +2182,64 @@
       document.getElementById("addModal").style.display = "none";
     }
 
-    // Close modal on overlay click
-    document.getElementById("addModal")?.addEventListener("click", (e) => {
-      if (e.target.id === "addModal") hideAddModal();
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.style.display = 'none';
+      });
     });
 
-    // Escape key closes modal
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") hideAddModal();
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
+      }
     });
 
-    // Helper function
+    // ========================================
+    // HELPERS
+    // ========================================
     function escapeHtml(str) {
       if (!str) return '';
       const div = document.createElement('div');
       div.textContent = str;
       return div.innerHTML;
     }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '—';
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    function formatRelativeTime(dateStr) {
+      if (!dateStr) return '';
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diff = now - date;
+      
+      if (diff < 60000) return 'Just now';
+      if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+      if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+      if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
+      return formatDate(dateStr);
+    }
+
+    function formatFileSize(bytes) {
+      if (!bytes) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let i = 0;
+      while (bytes >= 1024 && i < units.length - 1) {
+        bytes /= 1024;
+        i++;
+      }
+      return `${bytes.toFixed(1)} ${units[i]}`;
+    }
+
+    function getInitials(name) {
+      if (!name) return '?';
+      return name.split(/[\s@]+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+    }
   </script>
 </body>
 
 </html>
-

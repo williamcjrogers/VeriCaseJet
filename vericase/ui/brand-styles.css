@@ -7,21 +7,22 @@
 
 :root {
   /* ============================================
-       CORE BRAND COLORS - Deep Research Palette
+       CORE BRAND COLORS - VeriCase Palette v4
+       "Cockpit Effect" Design System
        ============================================ */
 
-  /* Primary Teal - Intelligence & Technology */
-  --vericase-teal: #1f6f78;
-  --vericase-teal-dark: #1a5c64;
-  --vericase-teal-darker: #12454c;
-  --vericase-teal-light: #2d7f89;
-  --vericase-teal-lighter: #5b9ea6;
-  --vericase-teal-ghost: rgba(31, 111, 120, 0.08);
+  /* Primary Teal - Rich Teal / Emerald (Verification Green) */
+  --vericase-teal: #0D9488;
+  --vericase-teal-dark: #0F766E;
+  --vericase-teal-darker: #115E59;
+  --vericase-teal-light: #14B8A6;
+  --vericase-teal-lighter: #2DD4BF;
+  --vericase-teal-ghost: rgba(13, 148, 136, 0.08);
 
-  /* Navy - Authority & Trust */
-  --vericase-navy: #0f1720;
-  --vericase-navy-light: #1b2534;
-  --vericase-navy-lighter: #223042;
+  /* Navy - Sidebar Navy (Deep Authority) */
+  --vericase-navy: #0F172A;
+  --vericase-navy-light: #1E293B;
+  --vericase-navy-lighter: #334155;
 
   /* Logo Blue - Signature Accent (used primarily in navigation) */
   --vericase-blue: #2f86c8;
@@ -29,15 +30,20 @@
   --vericase-blue-light: #5bb0e1;
   --vericase-blue-rgb: 47, 134, 200;
 
-  /* Gold - Premium Accent */
-  --vericase-gold: #b59b6a;
-  --vericase-gold-light: #c9b07d;
-  --vericase-gold-muted: #9f8a63;
+  /* Gold - Pale Gold Premium Accent */
+  --vericase-gold: #C5A065;
+  --vericase-gold-light: #D4B57A;
+  --vericase-gold-muted: #A68B54;
 
-  /* Cream - Warmth & Sophistication */
-  --vericase-cream: #f6f5f2;
-  --vericase-cream-dark: #ede9e3;
-  --vericase-cream-warm: #f8f6f1;
+  /* Cream - Warm Cream (Legal Stationery Feel) */
+  --vericase-cream: #F9F5EB;
+  --vericase-cream-dark: #F0EBE0;
+  --vericase-cream-warm: #FBF8F1;
+
+  /* Mint/Sage - Fresh Action Button Color */
+  --vericase-mint: #2DD4BF;
+  --vericase-mint-dark: #14B8A6;
+  --vericase-mint-light: #5EEAD4;
 
   /* Royal Green - Vintage/Club Aesthetic (Control Centre) */
   --vericase-royal-green: #1A3C34;
@@ -418,26 +424,26 @@ samp {
   cursor: not-allowed;
 }
 
-/* Primary Button - Teal */
+/* Primary Button - Mint/Sage (Fresh Accent) */
 .btn-primary,
 .btn-vericase {
   background: linear-gradient(
     135deg,
-    var(--vericase-teal) 0%,
-    var(--vericase-teal-dark) 100%
+    var(--vericase-mint) 0%,
+    var(--vericase-mint-dark) 100%
   );
-  color: var(--text-inverted);
-  box-shadow: var(--shadow-teal), var(--shadow-sm);
+  color: #0F172A;
+  box-shadow: 0 4px 14px rgba(45, 212, 191, 0.3), var(--shadow-sm);
 }
 
 .btn-primary:hover:not(:disabled),
 .btn-vericase:hover:not(:disabled) {
   background: linear-gradient(
     135deg,
-    var(--vericase-teal-light) 0%,
-    var(--vericase-teal) 100%
+    var(--vericase-mint-light) 0%,
+    var(--vericase-mint) 100%
   );
-  box-shadow: var(--shadow-teal-lg), var(--shadow-md);
+  box-shadow: 0 8px 24px rgba(45, 212, 191, 0.4), var(--shadow-md);
   transform: translateY(-1px);
 }
 

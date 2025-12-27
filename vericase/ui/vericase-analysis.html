@@ -1571,6 +1571,23 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
     <script src="config.js"></script>
     <script src="security.js"></script>
     <script>
+      // #region agent log
+      function logDebug(message, data, hypothesisId) {
+        fetch('http://127.0.0.1:7242/ingest/5878c12a-2174-470f-8d6f-f65c4c277108', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                location: 'vericase-analysis.html',
+                message: message,
+                data: data || {},
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                hypothesisId: hypothesisId || 'general'
+            })
+        }).catch(() => {});
+      }
+      // #endregion
+
       // State
       let currentSessionId = null;
       let selectedFocusAreas = [];
@@ -1685,6 +1702,12 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
           const data = await response.json();
           const projects = data.projects || data || [];
 
+          // If currentProjectId is set (from URL/context) and valid, skip showing the selector
+          // This respects the "no need for a dropdown" when in project context
+          if (currentProjectId && projects.some(p => String(p.id) === String(currentProjectId))) {
+            return;
+          }
+
           // Create project selector if it doesn't exist
           let projectSelect = document.getElementById("projectSelect");
           if (!projectSelect) {
@@ -1779,14 +1802,18 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
         }
 
         try {
+          const payload = {
+            topic: topic,
+            project_id: currentProjectId,
+            case_id: currentCaseId,
+            focus_areas: selectedFocusAreas,
+          };
+          logDebug("Sending start request", payload, "start");
+
           const response = await secureApiFetch(`/api/vericase-analysis/start`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              topic: topic,
-              project_id: currentProjectId,
-              focus_areas: selectedFocusAreas,
-            }),
+            body: JSON.stringify(payload),
           });
 
           if (!response.ok) {
