@@ -1176,7 +1176,7 @@
 }
 
 .project-selector-header h3 i {
-  color: var(--vericase-teal, #0f9d9a);
+  color: var(--vericase-teal, var(--vericase-teal));
 }
 
 .project-selector-header .close-btn {
@@ -1215,8 +1215,8 @@
 
 .project-selector-body select:focus {
   outline: none;
-  border-color: var(--vericase-teal, #0f9d9a);
-  box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.1);
+  border-color: var(--vericase-teal, var(--vericase-teal));
+  box-shadow: 0 0 0 3px rgba(var(--vericase-teal-rgb), 0.1);
 }
 
 .project-selector-hint {

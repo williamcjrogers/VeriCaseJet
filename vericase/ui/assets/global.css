@@ -6,9 +6,10 @@ html {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'SF Pro Display', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "SF Pro Display", "Roboto", "Helvetica Neue", Arial, sans-serif);
   line-height: 1.5;
-  color: #1F2937; /* var(--vericase-navy) fallback */
+  color: var(--text-secondary, #475569);
+  background: var(--bg-primary, #F8FAFC);
 }
 
 img { max-width: 100%; height: auto; }
@@ -41,14 +42,14 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 3px solid rgba(23, 181, 163, 0.45);
+  outline: 3px solid rgba(var(--vericase-teal-rgb, 15, 118, 110), 0.45);
   outline-offset: 2px;
 }
 
 /* 4) Breadcrumbs */
 .breadcrumbs {
-  background: #ffffff;
-  border-bottom: 1px solid #e5e7eb; /* border */
+  background: var(--bg-white, #ffffff);
+  border-bottom: 1px solid var(--border-default, #e2e8f0);
 }
 .breadcrumbs .inner {
   display: flex;
@@ -69,14 +70,14 @@ textarea:focus-visible {
 .btn { transition: transform 0.06s ease, box-shadow 0.2s ease !important; }
 .btn:hover { transform: translateY(-1px); }
 .btn:active { transform: translateY(0); }
-.btn:focus-visible { box-shadow: 0 0 0 3px rgba(23, 181, 163, 0.35); }
+.btn:focus-visible { box-shadow: 0 0 0 3px rgba(var(--vericase-teal-rgb, 15, 118, 110), 0.35); }
 
 /* 6) Cards defaults (non-invasive) */
 .card {
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-white, #fff);
+  border: 1px solid var(--border-default, #e2e8f0);
   border-radius: 10px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
 }
 
 /* 7) AG Grid readability tweaks (Quartz theme) */

@@ -159,6 +159,59 @@ $awsServers = @{
             "FASTMCP_LOG_LEVEL" = "ERROR"
         }
     }
+    "context7" = @{
+        "command" = "npx"
+        "args" = @("-y", "@upstash/context7-mcp")
+    }
+    "github" = @{
+        "command" = "npx"
+        "args" = @("-y", "@modelcontextprotocol/server-github")
+        "env" = @{
+            "GITHUB_PERSONAL_ACCESS_TOKEN" = ""
+        }
+    }
+    "filesystem" = @{
+        "command" = "npx"
+        "args" = @("-y", "@modelcontextprotocol/server-filesystem", "C:/", "`${workspaceFolder}")
+    }
+    "brave-search" = @{
+        "command" = "npx"
+        "args" = @("-y", "@modelcontextprotocol/server-brave-search")
+        "env" = @{
+            "BRAVE_API_KEY" = ""
+        }
+    }
+    "google-maps" = @{
+        "command" = "npx"
+        "args" = @("-y", "@modelcontextprotocol/server-google-maps")
+        "env" = @{
+            "GOOGLE_MAPS_API_KEY" = ""
+        }
+    }
+    "slack" = @{
+        "command" = "npx"
+        "args" = @("-y", "@modelcontextprotocol/server-slack")
+        "env" = @{
+            "SLACK_BOT_TOKEN" = ""
+            "SLACK_TEAM_ID" = ""
+        }
+    }
+    "puppeteer" = @{
+        "command" = "npx"
+        "args" = @("-y", "@modelcontextprotocol/server-puppeteer")
+    }
+    "everything" = @{
+        "command" = "npx"
+        "args" = @("-y", "@modelcontextprotocol/server-everything")
+    }
+    "sequential-thinking" = @{
+        "command" = "npx"
+        "args" = @("-y", "@modelcontextprotocol/server-sequential-thinking")
+    }
+    "memory" = @{
+        "command" = "npx"
+        "args" = @("-y", "@modelcontextprotocol/server-memory@latest")
+    }
 }
 
 # Read existing config

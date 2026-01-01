@@ -21,8 +21,8 @@
 
     <style>
       :root {
-        --vc-teal: #0f9d9a;
-        --vc-teal-dark: #0a7d7a;
+        --vc-teal: var(--vericase-teal);
+        --vc-teal-dark: var(--vericase-teal-dark);
         --vc-navy: #1a2b3c;
         --vc-gold: #8b7355;
         --vc-gold-light: #a68b5b;
@@ -55,7 +55,7 @@
         height: 100%;
         z-index: -1;
         background:
-          linear-gradient(135deg, rgba(15, 157, 154, 0.02) 0%, transparent 50%),
+          linear-gradient(135deg, rgba(var(--vericase-teal-rgb), 0.02) 0%, transparent 50%),
           linear-gradient(225deg, rgba(139, 115, 85, 0.02) 0%, transparent 50%);
         pointer-events: none;
       }
@@ -201,14 +201,14 @@
 
       .claim-card:hover {
         border-color: var(--vc-teal);
-        box-shadow: 0 4px 12px rgba(15, 157, 154, 0.12);
+        box-shadow: 0 4px 12px rgba(var(--vericase-teal-rgb), 0.12);
       }
 
       .claim-card.selected {
         border-color: var(--vc-teal);
-        background: rgba(15, 157, 154, 0.04);
+        background: rgba(var(--vericase-teal-rgb), 0.04);
         border-width: 2px;
-        box-shadow: 0 4px 12px rgba(15, 157, 154, 0.15);
+        box-shadow: 0 4px 12px rgba(var(--vericase-teal-rgb), 0.15);
       }
 
       .card-header {
@@ -366,7 +366,7 @@
       .linked-item-icon {
         width: 36px;
         height: 36px;
-        background: rgba(15, 157, 154, 0.1);
+        background: rgba(var(--vericase-teal-rgb), 0.1);
         color: var(--vericase-teal);
         border-radius: 6px;
         display: flex;
@@ -461,7 +461,7 @@
       .suggestion-icon {
         width: 32px;
         height: 32px;
-        background: rgba(15, 157, 154, 0.1);
+        background: rgba(var(--vericase-teal-rgb), 0.1);
         color: var(--vericase-teal);
         border-radius: 6px;
         display: flex;
@@ -633,7 +633,7 @@
       .form-input:focus {
         outline: none;
         border-color: var(--vericase-teal);
-        box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.1);
+        box-shadow: 0 0 0 3px rgba(var(--vericase-teal-rgb), 0.1);
       }
 
       .form-input:disabled {
@@ -659,7 +659,7 @@
       }
 
       .linkable-item.selected {
-        background: rgba(15, 157, 154, 0.1);
+        background: rgba(var(--vericase-teal-rgb), 0.1);
         border-color: var(--vericase-teal);
       }
 
@@ -672,7 +672,7 @@
       .linkable-item-icon {
         width: 32px;
         height: 32px;
-        background: rgba(15, 157, 154, 0.1);
+        background: rgba(var(--vericase-teal-rgb), 0.1);
         color: var(--vericase-teal);
         border-radius: 6px;
         display: flex;
@@ -806,7 +806,7 @@
 
       .collab-tab:hover {
         color: var(--text-primary);
-        background: rgba(15, 157, 154, 0.05);
+        background: rgba(var(--vericase-teal-rgb), 0.05);
       }
 
       .collab-tab.active {
@@ -972,7 +972,7 @@
       }
 
       .lane-badge.core {
-        background: rgba(15, 157, 154, 0.12);
+        background: rgba(var(--vericase-teal-rgb), 0.12);
         color: #0f766e;
       }
 
@@ -1484,7 +1484,7 @@
 
       .comment-edit-area textarea:focus {
         outline: none;
-        box-shadow: 0 0 0 2px rgba(15, 157, 154, 0.2);
+        box-shadow: 0 0 0 2px rgba(var(--vericase-teal-rgb), 0.2);
       }
 
       .comment-edit-actions {
@@ -1564,7 +1564,7 @@
       }
 
       .search-highlight {
-        background: rgba(15, 157, 154, 0.2);
+        background: rgba(var(--vericase-teal-rgb), 0.2);
         padding: 1px 2px;
         border-radius: 2px;
       }
@@ -1598,7 +1598,7 @@
       }
 
       .reaction-btn.active {
-        background: rgba(15, 157, 154, 0.1);
+        background: rgba(var(--vericase-teal-rgb), 0.1);
         border-color: var(--vericase-teal);
       }
 
@@ -1705,7 +1705,7 @@
 
       .comment-item.unread {
         border-left: 3px solid var(--vericase-teal);
-        background: rgba(15, 157, 154, 0.03);
+        background: rgba(var(--vericase-teal-rgb), 0.03);
       }
 
       .unread-indicator {

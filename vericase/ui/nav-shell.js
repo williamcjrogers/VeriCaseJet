@@ -78,16 +78,16 @@
       section: "HOME",
       items: [
         {
-          id: "dashboard",
-          label: "Master Dashboard",
-          icon: "fa-home",
-          url: "master-dashboard.html",
-        },
-        {
           id: "help",
           label: "Control Centre",
           icon: "fa-compass",
           url: COMMAND_CENTER_PAGE,
+        },
+        {
+          id: "dashboard",
+          label: "Master Dashboard",
+          icon: "fa-home",
+          url: "master-dashboard.html",
         },
       ],
     },

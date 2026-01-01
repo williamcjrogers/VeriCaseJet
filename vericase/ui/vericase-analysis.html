@@ -24,48 +24,25 @@
     <script src="app-state.js"></script>
     <style>
       :root {
-        /* VeriCase Brand Colors - Mapped to brand-styles.css */
+        /* Aliases used by this page (mapped to the global design tokens) */
         --vc-teal: var(--vericase-teal);
         --vc-teal-dark: var(--vericase-teal-dark);
         --vc-teal-light: var(--vericase-teal-light);
         --vc-navy: var(--vericase-navy);
         --vc-navy-dark: var(--vericase-navy-light);
-        /* Using light navy as dark variant or define new if needed */
-        --vc-cream: var(--bg-primary);
-        --vc-cream-dark: var(--bg-secondary);
-        --vc-gold: #8b7355;
-        /* Keep gold as accent */
-        --vc-gold-light: #a68b5b;
+        --vc-gold: var(--vericase-gold);
+        --vc-gold-light: var(--vericase-gold-light);
 
-        /* Semantic Colors */
-        --bg-primary: var(--vc-cream);
-        --bg-secondary: #ffffff;
-        --bg-tertiary: var(--vc-cream-dark);
-        --bg-card: #ffffff;
-        --bg-header: var(--vc-navy);
-
-        --text-primary: var(--vc-navy);
-        --text-secondary: #4a5568;
-        --text-muted: #718096;
-        --text-inverse: #ffffff;
-
-        --accent-primary: var(--vc-teal);
-        --accent-secondary: var(--vc-gold);
-        --accent-success: #059669;
-        --accent-warning: #d97706;
-        --accent-danger: #dc2626;
-
-        --border-color: #e2e8f0;
-        --border-subtle: rgba(26, 43, 60, 0.08);
-
-        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-        --shadow-md:
-          0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
-        --shadow-lg:
-          0 10px 15px -3px rgba(0, 0, 0, 0.08),
-          0 4px 6px -2px rgba(0, 0, 0, 0.04);
-        --shadow-card:
-          0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+        /* Page-local helpers */
+        --bg-card: var(--bg-white);
+        --text-inverse: var(--text-inverted);
+        --accent-primary: var(--vericase-teal);
+        --accent-secondary: var(--vericase-gold);
+        --accent-success: var(--success);
+        --accent-warning: var(--warning);
+        --accent-danger: var(--error);
+        --border-color: var(--border-default);
+        --border-subtle: rgba(15, 23, 42, 0.08);
       }
 
       * {
@@ -75,13 +52,9 @@
       }
 
       body {
-        font-family:
-          "DM Sans",
-          -apple-system,
-          BlinkMacSystemFont,
-          sans-serif;
+        font-family: var(--font-sans);
         background: var(--bg-primary);
-        color: var(--text-primary);
+        color: var(--text-secondary);
         min-height: 100vh;
         overflow-x: hidden;
       }
@@ -95,7 +68,7 @@
         height: 100%;
         z-index: -1;
         background:
-          linear-gradient(135deg, rgba(15, 157, 154, 0.03) 0%, transparent 50%),
+          linear-gradient(135deg, rgba(var(--vericase-teal-rgb), 0.03) 0%, transparent 50%),
           linear-gradient(225deg, rgba(139, 115, 85, 0.03) 0%, transparent 50%);
         pointer-events: none;
       }
@@ -203,8 +176,8 @@
         align-items: center;
         gap: 0.5rem;
         padding: 0.5rem 1rem;
-        background: rgba(15, 157, 154, 0.08);
-        border: 1px solid rgba(15, 157, 154, 0.2);
+        background: rgba(var(--vericase-teal-rgb), 0.08);
+        border: 1px solid rgba(var(--vericase-teal-rgb), 0.2);
         border-radius: 100px;
         font-size: 0.6875rem;
         font-weight: 700;
@@ -288,7 +261,7 @@
       .form-input:focus {
         outline: none;
         border-color: var(--accent-primary);
-        box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.12);
+        box-shadow: 0 0 0 3px rgba(var(--vericase-teal-rgb), 0.12);
       }
 
       .form-textarea {
@@ -328,11 +301,11 @@
       .focus-tag:hover {
         border-color: var(--accent-primary);
         color: var(--accent-primary);
-        background: rgba(15, 157, 154, 0.04);
+        background: rgba(var(--vericase-teal-rgb), 0.04);
       }
 
       .focus-tag.active {
-        background: rgba(15, 157, 154, 0.1);
+        background: rgba(var(--vericase-teal-rgb), 0.1);
         border-color: var(--accent-primary);
         color: var(--accent-primary);
       }
@@ -364,7 +337,7 @@
       .btn-start:hover {
         background: var(--vc-teal-dark);
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(15, 157, 154, 0.25);
+        box-shadow: 0 4px 12px rgba(var(--vericase-teal-rgb), 0.25);
       }
 
       .btn-start:disabled {
@@ -431,7 +404,7 @@
       }
 
       .status-badge.planning {
-        background: rgba(15, 157, 154, 0.1);
+        background: rgba(var(--vericase-teal-rgb), 0.1);
         color: var(--vc-teal);
       }
 
@@ -643,7 +616,7 @@
       }
 
       .question-status.in-progress {
-        background: rgba(15, 157, 154, 0.1);
+        background: rgba(var(--vericase-teal-rgb), 0.1);
         border: 2px solid var(--vc-teal);
         color: var(--vc-teal);
         animation: pulse 2s infinite;
@@ -711,7 +684,7 @@
       }
 
       .question-status-badge.in-progress {
-        background: rgba(15, 157, 154, 0.12);
+        background: rgba(var(--vericase-teal-rgb), 0.12);
         color: var(--vc-teal);
       }
 
@@ -870,7 +843,7 @@
         border-radius: 16px;
         border: 2px solid var(--vc-teal);
         padding: 0;
-        box-shadow: 0 8px 32px rgba(15, 157, 154, 0.12);
+        box-shadow: 0 8px 32px rgba(var(--vericase-teal-rgb), 0.12);
         max-width: 780px;
         margin-left: auto;
         margin-right: auto;
@@ -882,7 +855,7 @@
         justify-content: space-between;
         align-items: flex-start;
         padding: 1.5rem 2rem;
-        background: linear-gradient(135deg, rgba(15, 157, 154, 0.06) 0%, rgba(139, 115, 85, 0.04) 100%);
+        background: linear-gradient(135deg, rgba(var(--vericase-teal-rgb), 0.06) 0%, rgba(139, 115, 85, 0.04) 100%);
         border-bottom: 1px solid var(--border-color);
       }
 
@@ -959,7 +932,7 @@
       .btn-icon:hover {
         border-color: var(--vc-teal);
         color: var(--vc-teal);
-        background: rgba(15, 157, 154, 0.04);
+        background: rgba(var(--vericase-teal-rgb), 0.04);
         transform: translateY(-1px);
       }
 
@@ -981,8 +954,8 @@
         align-items: center;
         gap: 0.35rem;
         padding: 0.4rem 0.9rem;
-        background: rgba(15, 157, 154, 0.08);
-        border: 1px solid rgba(15, 157, 154, 0.2);
+        background: rgba(var(--vericase-teal-rgb), 0.08);
+        border: 1px solid rgba(var(--vericase-teal-rgb), 0.2);
         border-radius: 100px;
         font-size: 0.75rem;
         font-weight: 600;
@@ -1007,7 +980,7 @@
         margin: 2rem 0 1rem;
         font-weight: 700;
         padding-bottom: 0.5rem;
-        border-bottom: 2px solid rgba(15, 157, 154, 0.15);
+        border-bottom: 2px solid rgba(var(--vericase-teal-rgb), 0.15);
       }
 
       .report-content h2 {
@@ -1055,7 +1028,7 @@
       .report-content blockquote {
         margin: 1.25rem 0;
         padding: 1rem 1.25rem;
-        background: rgba(15, 157, 154, 0.04);
+        background: rgba(var(--vericase-teal-rgb), 0.04);
         border-left: 4px solid var(--vc-teal);
         border-radius: 0 10px 10px 0;
         font-style: italic;
@@ -1125,7 +1098,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: rgba(15, 157, 154, 0.08);
+        background: rgba(var(--vericase-teal-rgb), 0.08);
         color: var(--vc-teal);
         flex-shrink: 0;
       }

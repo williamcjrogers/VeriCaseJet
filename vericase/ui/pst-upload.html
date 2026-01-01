@@ -82,9 +82,9 @@
     }
 
     .btn-ghost:hover {
-      background: rgba(15, 157, 154, 0.1);
+      background: rgba(var(--vericase-teal-rgb), 0.1);
       color: var(--vericase-navy);
-      border-color: rgba(15, 157, 154, 0.5);
+      border-color: rgba(var(--vericase-teal-rgb), 0.5);
     }
 
     .container {
@@ -274,7 +274,7 @@
     .stat-card.highlight {
       transform: scale(1.02);
       border-color: var(--vericase-teal);
-      box-shadow: 0 8px 24px rgba(15, 157, 154, 0.2);
+      box-shadow: 0 8px 24px rgba(var(--vericase-teal-rgb), 0.2);
     }
 
     .stat-icon {
@@ -380,11 +380,11 @@
     }
 
     .upload-zone {
-      border: 2px dashed rgba(15, 157, 154, 0.5);
+      border: 2px dashed rgba(var(--vericase-teal-rgb), 0.5);
       border-radius: 12px;
       padding: 48px 24px;
       text-align: center;
-      background: rgba(15, 157, 154, 0.05);
+      background: rgba(var(--vericase-teal-rgb), 0.05);
       transition: all 0.3s;
       cursor: pointer;
       position: relative;
@@ -398,7 +398,7 @@
       left: 50%;
       width: 0;
       height: 0;
-      background: radial-gradient(circle, rgba(15, 157, 154, 0.15), transparent 70%);
+      background: radial-gradient(circle, rgba(var(--vericase-teal-rgb), 0.15), transparent 70%);
       border-radius: 50%;
       transform: translate(-50%, -50%);
       transition: all 0.5s ease;
@@ -411,12 +411,12 @@
     }
 
     .upload-zone:hover {
-      background: rgba(15, 157, 154, 0.1);
-      border-color: rgba(15, 157, 154, 0.8);
+      background: rgba(var(--vericase-teal-rgb), 0.1);
+      border-color: rgba(var(--vericase-teal-rgb), 0.8);
     }
 
     .upload-zone.dragover {
-      background: rgba(15, 157, 154, 0.15);
+      background: rgba(var(--vericase-teal-rgb), 0.15);
       border-color: var(--vericase-teal);
       transform: scale(1.01);
     }
@@ -424,7 +424,7 @@
     .upload-zone.dragover::before {
       width: 400px;
       height: 400px;
-      background: radial-gradient(circle, rgba(15, 157, 154, 0.25), transparent 70%);
+      background: radial-gradient(circle, rgba(var(--vericase-teal-rgb), 0.25), transparent 70%);
     }
 
     .upload-zone.uploading {
@@ -466,7 +466,7 @@
 
     .btn-primary:hover {
       transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(15, 157, 154, 0.4);
+      box-shadow: 0 8px 20px rgba(var(--vericase-teal-rgb), 0.4);
     }
 
     .file-types {
@@ -480,13 +480,13 @@
     }
 
     .file-type-badge {
-      background: rgba(15, 157, 154, 0.2);
+      background: rgba(var(--vericase-teal-rgb), 0.2);
       padding: 6px 14px;
       border-radius: 16px;
       font-size: 12px;
       font-weight: 600;
       color: var(--vericase-teal);
-      border: 1px solid rgba(15, 157, 154, 0.3);
+      border: 1px solid rgba(var(--vericase-teal-rgb), 0.3);
     }
 
     /* ============================================
@@ -587,13 +587,13 @@
     }
 
     .file-item:hover {
-      border-color: rgba(15, 157, 154, 0.3);
+      border-color: rgba(var(--vericase-teal-rgb), 0.3);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     }
 
     .file-item.uploading {
-      border-color: rgba(15, 157, 154, 0.5);
-      background: linear-gradient(90deg, rgba(15, 157, 154, 0.05), white);
+      border-color: rgba(var(--vericase-teal-rgb), 0.5);
+      background: linear-gradient(90deg, rgba(var(--vericase-teal-rgb), 0.05), white);
     }
 
     .file-item.uploading::before {
@@ -744,9 +744,9 @@
       width: 100%;
       background: linear-gradient(
         90deg,
-        rgba(15, 157, 154, 0.15),
-        rgba(15, 157, 154, 0.7),
-        rgba(15, 157, 154, 0.15)
+        rgba(var(--vericase-teal-rgb), 0.15),
+        rgba(var(--vericase-teal-rgb), 0.7),
+        rgba(var(--vericase-teal-rgb), 0.15)
       );
       background-size: 200% 100%;
       animation: progressIndeterminate 1.5s ease-in-out infinite;
@@ -826,7 +826,7 @@
     }
 
     .file-status-badge.uploading {
-      background: rgba(15, 157, 154, 0.15);
+      background: rgba(var(--vericase-teal-rgb), 0.15);
       color: var(--vericase-teal);
     }
 
@@ -973,7 +973,7 @@
     }
 
     .history-table tr:hover {
-      background: rgba(15, 157, 154, 0.05);
+      background: rgba(var(--vericase-teal-rgb), 0.05);
     }
 
     .history-filename {
@@ -1047,7 +1047,7 @@
       width: 32px;
       height: 32px;
       border-radius: 6px;
-      border: 1px solid rgba(15, 157, 154, 0.3);
+      border: 1px solid rgba(var(--vericase-teal-rgb), 0.3);
       background: transparent;
       color: var(--text-muted);
       cursor: pointer;
@@ -1058,9 +1058,9 @@
     }
 
     .btn-icon:hover {
-      background: rgba(15, 157, 154, 0.2);
+      background: rgba(var(--vericase-teal-rgb), 0.2);
       color: var(--vericase-teal);
-      border-color: rgba(15, 157, 154, 0.5);
+      border-color: rgba(var(--vericase-teal-rgb), 0.5);
     }
 
     .no-history {
@@ -1177,8 +1177,8 @@
     }
 
     .global-stat.active {
-      background: rgba(15, 157, 154, 0.1);
-      border: 1px solid rgba(15, 157, 154, 0.2);
+      background: rgba(var(--vericase-teal-rgb), 0.1);
+      border: 1px solid rgba(var(--vericase-teal-rgb), 0.2);
     }
 
     .global-stat .number {
@@ -1295,12 +1295,12 @@
        ENHANCED LIVE PROCESSING TRACKER
        ============================================ */
     .live-tracker {
-      background: linear-gradient(135deg, rgba(15, 157, 154, 0.03), rgba(26, 35, 66, 0.02));
-      border: 1px solid rgba(15, 157, 154, 0.2);
+      background: linear-gradient(135deg, rgba(var(--vericase-teal-rgb), 0.03), rgba(26, 35, 66, 0.02));
+      border: 1px solid rgba(var(--vericase-teal-rgb), 0.2);
       border-radius: 20px;
       padding: 24px;
       margin-bottom: 24px;
-      box-shadow: 0 4px 20px rgba(15, 157, 154, 0.08);
+      box-shadow: 0 4px 20px rgba(var(--vericase-teal-rgb), 0.08);
       display: none;
       position: relative;
       overflow: hidden;
@@ -1553,8 +1553,8 @@
     }
 
     @keyframes phaseActive {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(15, 157, 154, 0.4); }
-      50% { box-shadow: 0 0 0 8px rgba(15, 157, 154, 0); }
+      0%, 100% { box-shadow: 0 0 0 0 rgba(var(--vericase-teal-rgb), 0.4); }
+      50% { box-shadow: 0 0 0 8px rgba(var(--vericase-teal-rgb), 0); }
     }
 
     .phase-step .phase-label {
@@ -1582,12 +1582,12 @@
     }
 
     ::-webkit-scrollbar-thumb {
-      background: rgba(15, 157, 154, 0.3);
+      background: rgba(var(--vericase-teal-rgb), 0.3);
       border-radius: 4px;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-      background: rgba(15, 157, 154, 0.5);
+      background: rgba(var(--vericase-teal-rgb), 0.5);
     }
   </style>
   <script src="config.js"></script>

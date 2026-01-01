@@ -124,7 +124,7 @@ function renderKeywordChips(value) {
           ? `${item.variations}`
           : "";
       const titleAttr = tooltip ? ` title="${escapeHtml(tooltip)}"` : "";
-      return `<span${titleAttr} style="display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; border: 1px solid rgba(15, 157, 154, 0.25); background: rgba(15, 157, 154, 0.08); color: var(--vc-teal-dark); font-size: 0.75rem; line-height: 1.2; white-space: nowrap;">${escapeHtml(name)}</span>`;
+      return `<span${titleAttr} style="display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; border: 1px solid rgba(var(--vericase-teal-rgb), 0.25); background: rgba(var(--vericase-teal-rgb), 0.08); color: var(--vc-teal-dark); font-size: 0.75rem; line-height: 1.2; white-space: nowrap;">${escapeHtml(name)}</span>`;
     })
     .join(" ");
 
@@ -3585,7 +3585,7 @@ function initGrid() {
         }
         if (emailId) {
           chips.push(
-            `<button type="button" onclick="openLinkModalForEmail('${emailId}'); event.stopPropagation();" title="Link to Contentious Matter / Head of Claim" style="margin-left:8px; padding:2px 8px; border-radius:999px; font-size:0.75rem; line-height:1; border: 1px solid var(--border-default); background: rgba(15, 157, 154, 0.08); color: var(--vc-teal); cursor: pointer;"><i class="fas fa-link"></i>${linkCount > 0 ? ` ${linkCount}` : ""}</button>`,
+            `<button type="button" onclick="openLinkModalForEmail('${emailId}'); event.stopPropagation();" title="Link to Contentious Matter / Head of Claim" style="margin-left:8px; padding:2px 8px; border-radius:999px; font-size:0.75rem; line-height:1; border: 1px solid var(--border-default); background: rgba(var(--vericase-teal-rgb), 0.08); color: var(--vc-teal); cursor: pointer;"><i class="fas fa-link"></i>${linkCount > 0 ? ` ${linkCount}` : ""}</button>`,
           );
         }
 
@@ -3802,7 +3802,7 @@ function initGrid() {
             type="button"
             onclick="openLinkModalForEmail('${emailId}'); event.stopPropagation();"
             title="Link to Matter / Head of Claim"
-            style="padding:2px 8px; border-radius:999px; font-size:0.75rem; line-height:1; border: 1px solid var(--border-default); background: rgba(15, 157, 154, 0.08); color: var(--vc-teal); cursor:pointer;"
+            style="padding:2px 8px; border-radius:999px; font-size:0.75rem; line-height:1; border: 1px solid var(--border-default); background: rgba(var(--vericase-teal-rgb), 0.08); color: var(--vc-teal); cursor:pointer;"
           ><i class="fas fa-link"></i>${suffix}</button>
         `;
       },

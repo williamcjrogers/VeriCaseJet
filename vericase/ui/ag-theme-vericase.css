@@ -14,10 +14,16 @@
   --ag-background-color: var(--bg-white, #ffffff);
   --ag-header-foreground-color: #ffffff;
   --ag-header-background-color: var(--vericase-navy, #0f172a);
-  --ag-odd-row-background-color: var(--bg-primary, #faf9f6);
-  --ag-row-hover-color: rgba(15, 157, 154, 0.04);
-  --ag-selected-row-background-color: rgba(15, 157, 154, 0.08);
-  --ag-range-selection-background-color: rgba(15, 157, 154, 0.12);
+  --ag-odd-row-background-color: var(--bg-primary, #f8fafc);
+  --ag-row-hover-color: rgba(var(--vericase-teal-rgb, 15, 118, 110), 0.04);
+  --ag-selected-row-background-color: rgba(
+    var(--vericase-teal-rgb, 15, 118, 110),
+    0.08
+  );
+  --ag-range-selection-background-color: rgba(
+    var(--vericase-teal-rgb, 15, 118, 110),
+    0.12
+  );
 
   /* Secondary Colors */
   --ag-secondary-foreground-color: var(--text-secondary, #4a5568);
@@ -27,7 +33,7 @@
 
   /* Borders */
   --ag-border-color: var(--gray-200, #e2e8f0);
-  --ag-row-border-color: var(--gray-100, #f0ede8);
+  --ag-row-border-color: var(--gray-100, #f1f5f9);
   --ag-header-column-separator-display: block;
   --ag-header-column-separator-height: 50%;
   --ag-header-column-separator-width: 1px;
@@ -57,10 +63,10 @@
   --ag-cell-horizontal-padding: 10px;
 
   /* Interactive */
-  --ag-input-focus-border-color: var(--vericase-teal, #0f9d9a);
-  --ag-input-focus-box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.15);
-  --ag-checkbox-checked-color: var(--vericase-teal, #0f9d9a);
-  --ag-toggle-button-on-background-color: var(--vericase-teal, #0f9d9a);
+  --ag-input-focus-border-color: var(--vericase-teal, var(--vericase-teal));
+  --ag-input-focus-box-shadow: 0 0 0 3px rgba(var(--vericase-teal-rgb, 15, 118, 110), 0.15);
+  --ag-checkbox-checked-color: var(--vericase-teal, var(--vericase-teal));
+  --ag-toggle-button-on-background-color: var(--vericase-teal, var(--vericase-teal));
 
   /* Cards & Panels */
   --ag-card-shadow: var(--shadow-md, 0 4px 6px -1px rgba(0, 0, 0, 0.1));
@@ -81,7 +87,7 @@
    Header Styling
    ---------------------------------------- */
 .ag-theme-vericase .ag-header {
-  border-bottom: 2px solid var(--vericase-teal, #0f9d9a);
+  border-bottom: 2px solid var(--vericase-teal, var(--vericase-teal));
   background: linear-gradient(
     180deg,
     var(--vericase-navy, #0f172a) 0%,
@@ -111,7 +117,7 @@
 
 /* Header Sort Indicators */
 .ag-theme-vericase .ag-sort-indicator-icon {
-  color: var(--vericase-teal, #0f9d9a);
+  color: var(--vericase-teal, var(--vericase-teal));
 }
 
 .ag-theme-vericase .ag-header-icon {
@@ -129,21 +135,21 @@
   transition:
     background-color 0.12s ease,
     transform 0.12s ease;
-  border-bottom: 1px solid var(--gray-100, #f0ede8);
+  border-bottom: 1px solid var(--gray-100, #f1f5f9);
   background-color: #ffffff;
   color: var(--text-primary, #1a2b3c);
 }
 
 .ag-theme-vericase .ag-row:hover {
-  background-color: rgba(15, 157, 154, 0.03) !important;
+  background-color: rgba(var(--vericase-teal-rgb), 0.03) !important;
 }
 
 .ag-theme-vericase .ag-row-selected {
-  background-color: rgba(15, 157, 154, 0.06) !important;
+  background-color: rgba(var(--vericase-teal-rgb), 0.06) !important;
 }
 
 .ag-theme-vericase .ag-row-selected:hover {
-  background-color: rgba(15, 157, 154, 0.08) !important;
+  background-color: rgba(var(--vericase-teal-rgb), 0.08) !important;
 }
 
 /* Row Animation */
@@ -176,7 +182,7 @@
 }
 
 .ag-theme-vericase .ag-cell-focus {
-  border-color: var(--vericase-teal, #0f9d9a) !important;
+  border-color: var(--vericase-teal, var(--vericase-teal)) !important;
 }
 
 /* ----------------------------------------
@@ -208,12 +214,12 @@
 }
 
 .ag-theme-vericase .ag-checkbox-input-wrapper:hover {
-  border-color: var(--vericase-teal, #0f9d9a);
+  border-color: var(--vericase-teal, var(--vericase-teal));
 }
 
 .ag-theme-vericase .ag-checkbox-input-wrapper.ag-checked {
-  background: var(--vericase-teal, #0f9d9a);
-  border-color: var(--vericase-teal, #0f9d9a);
+  background: var(--vericase-teal, var(--vericase-teal));
+  border-color: var(--vericase-teal, var(--vericase-teal));
 }
 
 .ag-theme-vericase .ag-checkbox-input-wrapper.ag-checked::after {
@@ -227,15 +233,15 @@
 }
 
 .ag-theme-vericase .ag-header-select-all .ag-checkbox-input-wrapper.ag-checked {
-  background: var(--vericase-teal, #0f9d9a);
-  border-color: var(--vericase-teal, #0f9d9a);
+  background: var(--vericase-teal, var(--vericase-teal));
+  border-color: var(--vericase-teal, var(--vericase-teal));
 }
 
 /* ----------------------------------------
    Filter Styling
    ---------------------------------------- */
 .ag-theme-vericase .ag-floating-filter-button {
-  color: var(--vericase-teal, #0f9d9a);
+  color: var(--vericase-teal, var(--vericase-teal));
 }
 
 .ag-theme-vericase .ag-floating-filter-body input,
@@ -251,9 +257,9 @@
 
 .ag-theme-vericase .ag-floating-filter-body input:focus,
 .ag-theme-vericase .ag-filter-body input:focus {
-  border-color: var(--vericase-teal, #0f9d9a);
+  border-color: var(--vericase-teal, var(--vericase-teal));
   outline: none;
-  box-shadow: 0 0 0 3px rgba(15, 157, 154, 0.12);
+  box-shadow: 0 0 0 3px rgba(var(--vericase-teal-rgb), 0.12);
 }
 
 /* Filter Menu */
@@ -285,8 +291,8 @@
 }
 
 .ag-theme-vericase .ag-paging-button:hover {
-  background: var(--gray-100, #f0ede8);
-  color: var(--vericase-teal, #0f9d9a);
+  background: var(--gray-100, #f1f5f9);
+  color: var(--vericase-teal, var(--vericase-teal));
 }
 
 .ag-theme-vericase .ag-paging-button.ag-disabled {
@@ -313,7 +319,7 @@
 }
 
 .ag-theme-vericase .ag-menu-option-active {
-  background: rgba(15, 157, 154, 0.08);
+  background: rgba(var(--vericase-teal-rgb), 0.08);
   color: var(--vericase-teal-dark, #0d8b88);
 }
 
@@ -343,13 +349,13 @@
 }
 
 .ag-theme-vericase .ag-side-button-button:hover {
-  color: var(--vericase-teal, #0f9d9a);
-  background: rgba(15, 157, 154, 0.05);
+  color: var(--vericase-teal, var(--vericase-teal));
+  background: rgba(var(--vericase-teal-rgb), 0.05);
 }
 
 .ag-theme-vericase .ag-selected .ag-side-button-button {
-  color: var(--vericase-teal, #0f9d9a);
-  background: rgba(15, 157, 154, 0.08);
+  color: var(--vericase-teal, var(--vericase-teal));
+  background: rgba(var(--vericase-teal-rgb), 0.08);
 }
 
 /* ----------------------------------------
@@ -444,7 +450,7 @@
 }
 
 .ag-theme-vericase .entity-pill.entity-amount {
-  background: rgba(15, 157, 154, 0.1);
+  background: rgba(var(--vericase-teal-rgb), 0.1);
   color: #0d8b88;
 }
 
@@ -483,7 +489,7 @@
   height: 36px;
   object-fit: cover;
   border-radius: 6px;
-  background: var(--gray-100, #f0ede8);
+  background: var(--gray-100, #f1f5f9);
 }
 
 .ag-theme-vericase .grid-file-icon {
@@ -492,7 +498,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--gray-100, #f0ede8);
+  background: var(--gray-100, #f1f5f9);
   border-radius: 6px;
   font-size: 14px;
   color: var(--text-muted, #94a3b8);
@@ -554,7 +560,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--vericase-teal, #0f9d9a);
+  color: var(--vericase-teal, var(--vericase-teal));
   font-size: 12px;
   font-weight: 500;
 }
