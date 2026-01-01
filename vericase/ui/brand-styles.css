@@ -3,7 +3,7 @@
    "Deep Research" Premium Aesthetic
    ============================================ */
 
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500&display=swap");
 
 :root {
   /* ============================================
@@ -40,9 +40,9 @@
   --vericase-gold-light: #D4B57A;
   --vericase-gold-muted: #A68B54;
 
-  /* Background (Clean Executive) */
-  --vericase-cream: #F8FAFC; /* Ice Grey (kept for back-compat variable name) */
-  --vericase-cream-dark: #F1F5F9;
+  /* Background (Stone - Premium Paper) */
+  --vericase-cream: #FAFAF9; /* Stone White */
+  --vericase-cream-dark: #F5F5F4;
   --vericase-cream-warm: #FFFFFF;
 
   /* Legacy Mint Tokens (kept for compatibility; aligned to Spruce) */
@@ -62,25 +62,25 @@
 
   /* Backgrounds */
   --bg-white: #ffffff;
-  --bg-primary: #F8FAFC; /* Ice Grey */
+  --bg-primary: #FAFAF9; /* Stone White */
   --bg-secondary: #ffffff;
-  --bg-tertiary: #F1F5F9;
+  --bg-tertiary: #F5F5F4;
   --bg-elevated: #ffffff;
   --bg-dark: var(--vericase-navy);
   --bg-sidebar: var(--vericase-navy);
   --bg-header: #ffffff;
 
   /* Text */
-  --text-primary: var(--vericase-navy);
-  --text-secondary: #475569;
-  --text-tertiary: #64748b;
-  --text-muted: #94a3b8;
+  --text-primary: #1C1917; /* Soft Black */
+  --text-secondary: #57534E; /* Stone Grey */
+  --text-tertiary: #78716C;
+  --text-muted: #A8A29E;
   --text-inverted: #ffffff;
   --text-link: var(--vericase-teal);
 
   /* Borders */
-  --border-default: #e2e8f0;
-  --border-muted: #f1f5f9;
+  --border-default: #E7E5E4;
+  --border-muted: #F5F5F4;
   --border-focus: var(--vericase-teal);
   --border-inverted: rgba(255, 255, 255, 0.1);
 
@@ -101,25 +101,25 @@
   --info-light: rgba(var(--vericase-teal-rgb), 0.1);
 
   /* ============================================
-       GRAY SCALE - Warm Slate
+       GRAY SCALE - Stone (Warm)
        ============================================ */
-  --gray-50: #f8fafc;
-  --gray-100: #f1f5f9;
-  --gray-200: #e2e8f0;
-  --gray-300: #cbd5e1;
-  --gray-400: #94a3b8;
-  --gray-500: #64748b;
-  --gray-600: #475569;
-  --gray-700: #334155;
-  --gray-800: #1e293b;
-  --gray-900: #0f172a;
+  --gray-50: #FAFAF9;
+  --gray-100: #F5F5F4;
+  --gray-200: #E7E5E4;
+  --gray-300: #D6D3D1;
+  --gray-400: #A8A29E;
+  --gray-500: #78716C;
+  --gray-600: #57534E;
+  --gray-700: #44403C;
+  --gray-800: #292524;
+  --gray-900: #1C1917;
 
   /* ============================================
        TYPOGRAPHY
        ============================================ */
   --font-sans:
     "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-serif: "Merriweather", Georgia, "Times New Roman", serif;
+  --font-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
 
   /* Font Sizes */
