@@ -324,8 +324,14 @@ def build_email_threads(
     indexes = _build_indexes(nodes)
     decisions = _select_parents(nodes, nodes_by_id, indexes, cfg)
 
+    cycles_broken = _break_parent_cycles(nodes_by_id, decisions)
+    if cycles_broken:
+        logger.warning(
+            "Email threading cycle(s) detected and broken: %s", cycles_broken
+        )
+
     thread_groups = _assign_thread_groups(nodes_by_id, decisions)
-    stats.threads_identified = len(thread_groups)
+    stats.threads_identified = len(set(thread_groups.values()))
 
     updates: list[dict[str, Any]] = []
     link_rows: list[EmailThreadLink] = []
@@ -751,28 +757,59 @@ def _assign_thread_groups(
     nodes_by_id: dict[uuid.UUID, ThreadNode],
     decisions: dict[uuid.UUID, ThreadLinkDecision],
 ) -> dict[uuid.UUID, str]:
+    parent_map: dict[uuid.UUID, uuid.UUID] = {}
+    for node_id, decision in decisions.items():
+        parent_id = decision.parent_email_id if decision else None
+        if (
+            parent_id
+            and parent_id != node_id
+            and parent_id in nodes_by_id
+            and node_id in nodes_by_id
+        ):
+            parent_map[node_id] = parent_id
+
     root_cache: dict[uuid.UUID, uuid.UUID] = {}
 
     def _root_for(node_id: uuid.UUID) -> uuid.UUID:
-        if node_id in root_cache:
-            return root_cache[node_id]
-        decision = decisions.get(node_id)
-        if not decision or not decision.parent_email_id:
-            root_cache[node_id] = node_id
-            return node_id
-        parent_id = decision.parent_email_id
-        if parent_id == node_id:
-            root_cache[node_id] = node_id
-            return node_id
-        root_id = _root_for(parent_id)
-        root_cache[node_id] = root_id
-        return root_id
+        cached = root_cache.get(node_id)
+        if cached is not None:
+            return cached
+
+        chain: list[uuid.UUID] = []
+        seen: set[uuid.UUID] = set()
+        current = node_id
+        root: uuid.UUID | None = None
+
+        while True:
+            cached = root_cache.get(current)
+            if cached is not None:
+                root = cached
+                break
+
+            if current in seen:
+                # Defensive: cycles should have been broken, but never recurse forever.
+                root = min(seen, key=lambda cid: _node_sort_key(nodes_by_id[cid]))
+                break
+
+            seen.add(current)
+            chain.append(current)
+
+            parent_id = parent_map.get(current)
+            if not parent_id:
+                root = current
+                break
+            current = parent_id
+
+        for cid in chain:
+            root_cache[cid] = root
+        return root
 
     thread_ids: dict[uuid.UUID, str] = {}
-    for node_id in nodes_by_id:
-        root_id = _root_for(node_id)
+    for node in sorted(nodes_by_id.values(), key=_node_sort_key):
+        root_id = _root_for(node.email_id)
         if root_id not in thread_ids:
             thread_ids[root_id] = _make_thread_group_id(nodes_by_id[root_id])
+
     return {node_id: thread_ids[_root_for(node_id)] for node_id in nodes_by_id}
 
 
@@ -841,15 +878,99 @@ def _apply_thread_positions(
         for key in children:
             children[key].sort(key=_node_sort_key)
 
-        def _assign_paths(node: ThreadNode, path: str) -> None:
-            update = update_map.get(node.email_id)
-            if update is not None:
-                update["thread_path"] = path
-            for idx, child in enumerate(children.get(node.email_id, [])):
-                _assign_paths(child, f"{path}/{idx:06d}")
-
         for idx, root in enumerate(roots):
-            _assign_paths(root, f"{idx:06d}")
+            stack: list[tuple[ThreadNode, str]] = [(root, f"{idx:06d}")]
+            while stack:
+                node, path = stack.pop()
+                update = update_map.get(node.email_id)
+                if update is not None:
+                    update["thread_path"] = path
+                node_children = children.get(node.email_id, [])
+                # Stack is LIFO; push in reverse for stable left-to-right traversal.
+                for child_idx, child in reversed(list(enumerate(node_children))):
+                    stack.append((child, f"{path}/{child_idx:06d}"))
+
+
+def _break_parent_cycles(
+    nodes_by_id: dict[uuid.UUID, ThreadNode],
+    decisions: dict[uuid.UUID, ThreadLinkDecision],
+) -> int:
+    """Break cycles in the parent pointer graph deterministically.
+
+    Threading should produce a forest (each node has 0..1 parent). Certain
+    heuristic links can accidentally create cycles (A->B and B->A). Cycles
+    make downstream processing non-terminating and are not valid thread
+    structures, so we break them in a stable, explainable way.
+    """
+
+    parent_map: dict[uuid.UUID, uuid.UUID] = {}
+    for node_id, decision in decisions.items():
+        parent_id = decision.parent_email_id if decision else None
+        if (
+            parent_id
+            and parent_id != node_id
+            and parent_id in nodes_by_id
+            and node_id in nodes_by_id
+        ):
+            parent_map[node_id] = parent_id
+
+    state: dict[uuid.UUID, int] = {}  # 0=unvisited, 1=visiting, 2=done
+    cycles_broken = 0
+
+    ordered_nodes = sorted(nodes_by_id.values(), key=_node_sort_key)
+    for node in ordered_nodes:
+        start_id = node.email_id
+        if state.get(start_id, 0) != 0:
+            continue
+
+        path: list[uuid.UUID] = []
+        index: dict[uuid.UUID, int] = {}
+        current = start_id
+
+        while True:
+            st = state.get(current, 0)
+            if st == 2:
+                break
+            if st == 1:
+                if current in index:
+                    cycle = path[index[current] :]
+                    if cycle:
+                        root_id = min(
+                            cycle, key=lambda cid: _node_sort_key(nodes_by_id[cid])
+                        )
+                        decision = decisions.get(root_id)
+                        if decision and decision.parent_email_id:
+                            old_parent = decision.parent_email_id
+                            decisions[root_id] = ThreadLinkDecision(
+                                parent_email_id=None,
+                                methods=list(decision.methods) + ["CycleBreak"],
+                                evidence={
+                                    **(decision.evidence or {}),
+                                    "cycle_break": {
+                                        "removed_parent_email_id": str(old_parent),
+                                        "cycle_email_ids": [str(cid) for cid in cycle],
+                                    },
+                                },
+                                confidence=0.0,
+                                alternatives=list(decision.alternatives),
+                            )
+                            parent_map.pop(root_id, None)
+                            cycles_broken += 1
+                break
+
+            state[current] = 1
+            index[current] = len(path)
+            path.append(current)
+
+            parent_id = parent_map.get(current)
+            if not parent_id:
+                break
+            current = parent_id
+
+        for cid in path:
+            state[cid] = 2
+
+    return cycles_broken
 
 
 def _to_uuid(value: uuid.UUID | str | None) -> uuid.UUID | None:
