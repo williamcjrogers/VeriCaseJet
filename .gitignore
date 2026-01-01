@@ -47,6 +47,10 @@ wheels/
 .installed.cfg
 *.egg
 
+# Rust
+target/
+**/target/
+
 # Virtual environments
 venv/
 ENV/

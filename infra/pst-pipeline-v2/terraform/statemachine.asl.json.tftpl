@@ -1,0 +1,126 @@
+{
+  "Comment": "VeriCase PST pipeline V2 (Batch-orchestrated). Input comes from SQS via EventBridge Pipes.",
+  "StartAt": "Extract",
+  "States": {
+    "Extract": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::batch:submitJob.sync",
+      "Parameters": {
+        "JobName.$": "States.Format('pst-extract-{}', $.pst_file_id)",
+        "JobQueue": "${batch_job_queue_arn}",
+        "JobDefinition": "${extract_job_definition_arn}",
+        "ContainerOverrides": {
+          "Environment": [
+            {
+              "Name": "PST_FILE_ID",
+              "Value.$": "$.pst_file_id"
+            },
+            {
+              "Name": "PROJECT_ID",
+              "Value.$": "$.project_id"
+            },
+            {
+              "Name": "CASE_ID",
+              "Value.$": "$.case_id"
+            },
+            {
+              "Name": "SOURCE_BUCKET",
+              "Value.$": "$.source_bucket"
+            },
+            {
+              "Name": "SOURCE_KEY",
+              "Value.$": "$.source_key"
+            },
+            {
+              "Name": "OUTPUT_BUCKET",
+              "Value.$": "$.output_bucket"
+            },
+            {
+              "Name": "OUTPUT_PREFIX",
+              "Value.$": "$.output_prefix"
+            }
+          ]
+        }
+      },
+      "Next": "Load"
+    },
+    "Load": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::batch:submitJob.sync",
+      "Parameters": {
+        "JobName.$": "States.Format('pst-load-{}', $.pst_file_id)",
+        "JobQueue": "${batch_job_queue_arn}",
+        "JobDefinition": "${load_job_definition_arn}",
+        "ContainerOverrides": {
+          "Environment": [
+            {
+              "Name": "PST_FILE_ID",
+              "Value.$": "$.pst_file_id"
+            },
+            {
+              "Name": "OUTPUT_BUCKET",
+              "Value.$": "$.output_bucket"
+            },
+            {
+              "Name": "OUTPUT_PREFIX",
+              "Value.$": "$.output_prefix"
+            }
+          ]
+        }
+      },
+      "Next": "Thread"
+    },
+    "Thread": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::batch:submitJob.sync",
+      "Parameters": {
+        "JobName.$": "States.Format('pst-thread-{}', $.pst_file_id)",
+        "JobQueue": "${batch_job_queue_arn}",
+        "JobDefinition": "${thread_job_definition_arn}",
+        "ContainerOverrides": {
+          "Environment": [
+            { "Name": "PST_FILE_ID", "Value.$": "$.pst_file_id" },
+            { "Name": "PROJECT_ID", "Value.$": "$.project_id" },
+            { "Name": "CASE_ID", "Value.$": "$.case_id" }
+          ]
+        }
+      },
+      "Next": "Dedupe"
+    },
+    "Dedupe": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::batch:submitJob.sync",
+      "Parameters": {
+        "JobName.$": "States.Format('pst-dedupe-{}', $.pst_file_id)",
+        "JobQueue": "${batch_job_queue_arn}",
+        "JobDefinition": "${dedupe_job_definition_arn}",
+        "ContainerOverrides": {
+          "Environment": [
+            { "Name": "PST_FILE_ID", "Value.$": "$.pst_file_id" },
+            { "Name": "PROJECT_ID", "Value.$": "$.project_id" },
+            { "Name": "CASE_ID", "Value.$": "$.case_id" }
+          ]
+        }
+      },
+      "Next": "Index"
+    },
+    "Index": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::batch:submitJob.sync",
+      "Parameters": {
+        "JobName.$": "States.Format('pst-index-{}', $.pst_file_id)",
+        "JobQueue": "${batch_job_queue_arn}",
+        "JobDefinition": "${index_job_definition_arn}",
+        "ContainerOverrides": {
+          "Environment": [
+            { "Name": "PST_FILE_ID", "Value.$": "$.pst_file_id" },
+            { "Name": "PROJECT_ID", "Value.$": "$.project_id" },
+            { "Name": "CASE_ID", "Value.$": "$.case_id" }
+          ]
+        }
+      },
+      "End": true
+    }
+  }
+}
+
