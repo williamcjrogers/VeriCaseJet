@@ -43,6 +43,8 @@ from .models import (
     DocStatus,
     PSTFile,
     EvidenceItem,
+    Stakeholder,
+    Keyword,
     MessageRaw,
     MessageOccurrence,
     MessageDerived,
@@ -235,6 +237,8 @@ class UltimatePSTProcessor:
         self.message_occurrence_buffer = []
         self.message_derived_buffer = []
         self.ingest_run_id: str | None = None
+        self._stakeholders: list[Stakeholder] = []
+        self._keywords: list[Keyword] = []
 
         # Initialize semantic processing for deep research acceleration
         self.semantic_service: Any = None
@@ -526,6 +530,11 @@ class UltimatePSTProcessor:
         except Exception as exc:
             logger.warning("Failed to build scope matcher (continuing): %s", exc)
             self.scope_matcher = None
+
+        if pst_file_record is not None:
+            self._stakeholders, self._keywords = self._load_tagging_assets(
+                pst_file_record
+            )
 
         def set_processing_meta(status: str, **extra: Any) -> None:
             if document is not None:
@@ -1110,6 +1119,144 @@ class UltimatePSTProcessor:
         unique = sorted(set(participants))
         return unique or None
 
+    def _load_tagging_assets(
+        self, pst_file: PSTFile
+    ) -> tuple[list[Stakeholder], list[Keyword]]:
+        try:
+            stakeholder_query = self.db.query(Stakeholder)
+            keyword_query = self.db.query(Keyword)
+            if pst_file.case_id:
+                stakeholder_query = stakeholder_query.filter_by(
+                    case_id=pst_file.case_id
+                )
+                keyword_query = keyword_query.filter_by(case_id=pst_file.case_id)
+            elif pst_file.project_id:
+                stakeholder_query = stakeholder_query.filter_by(
+                    project_id=pst_file.project_id
+                )
+                keyword_query = keyword_query.filter_by(project_id=pst_file.project_id)
+            return stakeholder_query.all(), keyword_query.all()
+        except Exception as exc:
+            logger.error("Failed to load tagging assets: %s", exc)
+            return [], []
+
+    def _match_stakeholders(
+        self,
+        sender_email: str,
+        sender_name: str,
+        all_recipients: list[Any],
+        stakeholders: list[Stakeholder],
+    ) -> list[Stakeholder]:
+        """Auto-tag email with matching stakeholders."""
+        matched: list[Stakeholder] = []
+
+        emails: list[str] = []
+        names: list[str] = []
+
+        if sender_email:
+            emails.append(sender_email)
+        if sender_name:
+            names.append(sender_name)
+
+        for recipient in all_recipients or []:
+            if isinstance(recipient, dict):
+                email = (recipient.get("email") or "").strip()
+                name = (recipient.get("name") or "").strip()
+                if email:
+                    emails.append(email)
+                if name:
+                    names.append(name)
+            else:
+                try:
+                    email = str(recipient).strip()
+                except Exception:
+                    email = ""
+                if email:
+                    emails.append(email)
+
+        all_emails: list[str] = []
+        seen_emails: set[str] = set()
+        for email in emails:
+            if not email:
+                continue
+            lowered = email.lower()
+            if lowered in seen_emails:
+                continue
+            seen_emails.add(lowered)
+            all_emails.append(email)
+
+        all_names = [name for name in names if name]
+
+        for stakeholder in stakeholders:
+            if stakeholder.email and stakeholder.email.lower() in [
+                email.lower() for email in all_emails if email
+            ]:
+                matched.append(stakeholder)
+                continue
+
+            if stakeholder.email_domain:
+                for email in all_emails:
+                    if email and "@" in email:
+                        domain = email.split("@", 1)[1].lower()
+                        if domain == stakeholder.email_domain.lower():
+                            matched.append(stakeholder)
+                            break
+
+            if stakeholder.name:
+                stakeholder_name_lower = stakeholder.name.lower()
+                for name in all_names:
+                    if name and stakeholder_name_lower in name.lower():
+                        matched.append(stakeholder)
+                        break
+
+        unique: dict[str, Stakeholder] = {}
+        for stakeholder in matched:
+            key = str(stakeholder.id)
+            if key not in unique:
+                unique[key] = stakeholder
+        return list(unique.values())
+
+    def _match_keywords(
+        self, subject: str, body_text: str, keywords: list[Keyword]
+    ) -> list[Keyword]:
+        """Auto-tag email with matching keywords."""
+        matched: list[Keyword] = []
+        search_text = f"{subject or ''} {body_text or ''}".lower()
+
+        for keyword in keywords:
+            keyword_name = (keyword.keyword_name or "").strip()
+            if not keyword_name:
+                continue
+            search_terms = [keyword_name.lower()]
+
+            if keyword.variations:
+                variations = [
+                    v.strip().lower()
+                    for v in keyword.variations.split(",")
+                    if v and v.strip()
+                ]
+                search_terms.extend(variations)
+
+            for term in search_terms:
+                if keyword.is_regex:
+                    try:
+                        if re.search(term, search_text, re.IGNORECASE):
+                            matched.append(keyword)
+                            break
+                    except (re.error, TypeError):
+                        continue
+                else:
+                    if term in search_text:
+                        matched.append(keyword)
+                        break
+
+        unique: dict[str, Keyword] = {}
+        for keyword in matched:
+            key = str(keyword.id)
+            if key not in unique:
+                unique[key] = keyword
+        return list(unique.values())
+
     def _process_message(
         self,
         message: Any,
@@ -1566,6 +1713,24 @@ class UltimatePSTProcessor:
         if spam_info.get("is_spam") or other_project_value:
             return _buffer_excluded_email(spam_info, other_project_value)
 
+        matched_stakeholders: list[Stakeholder] = []
+        matched_keywords: list[Keyword] = []
+        if self._stakeholders:
+            recipients_all = (
+                (to_recipients or []) + (cc_recipients or []) + (bcc_recipients or [])
+            )
+            matched_stakeholders = self._match_stakeholders(
+                sender_email or "",
+                sender_name or "",
+                recipients_all,
+                self._stakeholders,
+            )
+        if self._keywords:
+            keyword_body = body_text_clean or canonical_body or full_body_text or ""
+            matched_keywords = self._match_keywords(
+                subject or "", keyword_body, self._keywords
+            )
+
         # Calculate size saved by NOT storing the email as a file
         combined_content = (body_html_content or "") + (body_text or "")
         stats["size_saved"] += len(combined_content) + len(str(email_data))
@@ -1740,6 +1905,16 @@ class UltimatePSTProcessor:
             content_hash=content_hash,
             body_preview=body_preview,
             body_full_s3_key=offloaded_body_key,
+            matched_stakeholders=(
+                [str(item.id) for item in matched_stakeholders]
+                if matched_stakeholders
+                else None
+            ),
+            matched_keywords=(
+                [str(item.id) for item in matched_keywords]
+                if matched_keywords
+                else None
+            ),
             has_attachments=num_attachments > 0,
             importance=self._safe_get_attr(message, "importance", None),
             pst_message_path=folder_path,
