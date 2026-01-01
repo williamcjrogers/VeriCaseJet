@@ -155,22 +155,22 @@ body::before {
   gap: 1rem;
 }
 
-/* Toolbar - Refined Card Style */
+/* Toolbar - Tighter for Bloomberg density */
 .toolbar {
   background: var(--bg-card);
-  padding: 0.75rem 1.5rem;
+  padding: 0.5rem 1rem; /* Tighter: was 0.75rem 1.5rem */
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--border);
-  gap: 1rem;
-  box-shadow: var(--shadow-sm);
+  gap: 0.5rem; /* Tighter: was 1rem */
+  box-shadow: none; /* Cleaner */
 }
 
 .toolbar-left {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
+  gap: 0.5rem; /* Tighter: was 0.625rem */
 }
 
 .search-box {
@@ -178,10 +178,10 @@ body::before {
   align-items: center;
   background: var(--bg-primary);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.5rem 0.875rem;
-  min-width: 260px;
-  max-width: 360px;
+  border-radius: 6px; /* Tighter corners */
+  padding: 0.375rem 0.625rem; /* Tighter: was 0.5rem 0.875rem */
+  min-width: 200px; /* Smaller: was 260px */
+  max-width: 280px; /* Smaller: was 360px */
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
@@ -333,15 +333,15 @@ body::before {
   background: var(--bg-tertiary);
 }
 
-/* Statistics Bar - Minimal & Clean */
+/* Statistics Bar - Compact for density */
 .stats-bar {
   background: var(--bg-card);
-  padding: 0.5rem 1.5rem;
+  padding: 0.25rem 1rem; /* Tighter: was 0.5rem 1.5rem */
   display: flex;
   align-items: center;
-  gap: 2rem;
+  gap: 1.25rem; /* Tighter: was 2rem */
   border-bottom: 1px solid var(--border);
-  font-size: 0.8125rem;
+  font-size: 0.75rem; /* Smaller: was 0.8125rem */
 }
 
 .stat-item {
@@ -917,9 +917,9 @@ body::before {
   color: var(--text-muted);
 }
 
-/* Context Panel Styles */
+/* Context Panel Styles - Narrower for density */
 .context-panel {
-  width: 380px;
+  width: 260px; /* Was 380px - tighter for Bloomberg density */
   background: var(--surface);
   border-left: 1px solid var(--border);
   display: flex;
@@ -934,7 +934,7 @@ body::before {
 }
 
 .context-panel.collapsed {
-  width: 48px;
+  width: 40px; /* Tighter collapsed state */
 }
 
 .context-panel.collapsed .context-panel-content {
@@ -947,7 +947,7 @@ body::before {
 }
 
 .context-panel-header {
-  padding: 1rem;
+  padding: 0.625rem 0.75rem; /* Tighter padding */
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -956,17 +956,16 @@ body::before {
       var(--vericase-teal) 0%,
       var(--vericase-teal-dark) 100%);
   color: white;
-  min-height: 56px;
+  min-height: 40px; /* Shorter header */
 }
 
 .context-panel-header h3 {
-  /* Match overall app typography (less "widget-y") */
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: 0.8125rem; /* Smaller title */
+  font-weight: 600;
   letter-spacing: 0;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.375rem;
 }
 
 .context-toggle-btn {
@@ -1001,9 +1000,9 @@ body::before {
 }
 
 .context-section-header {
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0.75rem; /* Tighter */
   background: var(--bg-card);
-  font-size: 0.8125rem;
+  font-size: 0.75rem; /* Smaller */
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
@@ -1021,6 +1020,7 @@ body::before {
 
 .context-section-header i {
   transition: transform 0.2s;
+  font-size: 0.625rem; /* Smaller icons */
 }
 
 .context-section-header.collapsed i {
@@ -1028,7 +1028,7 @@ body::before {
 }
 
 .context-section-body {
-  padding: 1rem;
+  padding: 0.625rem 0.75rem; /* Tighter */
 }
 
 .context-section-body.collapsed {
