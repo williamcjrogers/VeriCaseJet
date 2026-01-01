@@ -424,9 +424,10 @@ function looksLikeUuid(value) {
 }
 
 function getCsrfToken() {
-  // Keep per-browser token stable to satisfy backend CSRF binding.
+  // SECURITY: Uses sessionStorage (not localStorage) so tokens are cleared
+  // when the browser tab closes, providing better CSRF protection.
   const key = "vericase_csrf";
-  let token = localStorage.getItem(key);
+  let token = sessionStorage.getItem(key);
   if (token && /^[a-f0-9]{64}$/i.test(token)) return token;
 
   try {
@@ -440,7 +441,7 @@ function getCsrfToken() {
     token = Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
   }
 
-  localStorage.setItem(key, token);
+  sessionStorage.setItem(key, token);
   return token;
 }
 

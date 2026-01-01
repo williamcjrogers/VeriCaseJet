@@ -103,9 +103,13 @@
         if (response.status === 401) {
           console.error("Authentication failed - redirecting to login");
           if (!window.location.pathname.includes("login")) {
-            ["vericase_token", "access_token", "token", "jwt", "csrf-token"].forEach((key) =>
+            // Clear authentication tokens from localStorage
+            ["vericase_token", "access_token", "token", "jwt"].forEach((key) =>
               localStorage.removeItem(key),
             );
+            // Clear CSRF tokens from sessionStorage
+            sessionStorage.removeItem("csrf-token");
+            sessionStorage.removeItem("vericase_csrf");
             window.location.href = "/ui/login.html";
           }
         }

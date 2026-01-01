@@ -54,12 +54,16 @@ def decode_maybe_bytes(value: Any) -> str | None:
     if isinstance(value, bytes):
         for encoding in ("utf-8", "windows-1252", "iso-8859-1", "cp1252"):
             try:
-                return value.decode(encoding)
+                text = value.decode(encoding)
+                return text.replace("\x00", "").replace("\u0000", "")
             except (UnicodeDecodeError, LookupError):
                 continue
-        return value.decode("utf-8", errors="replace")
+        text = value.decode("utf-8", errors="replace")
+        return text.replace("\x00", "").replace("\u0000", "")
     text = str(value)
-    return text if text else None
+    if not text:
+        return None
+    return text.replace("\x00", "").replace("\u0000", "")
 
 
 def html_to_text(html: str | None) -> str:

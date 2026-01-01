@@ -161,6 +161,15 @@ class ForensicPSTProcessor:
         """
         return strip_footer_noise(text)
 
+    def _sanitize_text(self, value: str | None) -> str | None:
+        """Remove NUL/control bytes that Postgres cannot store."""
+        if value is None:
+            return None
+        text = str(value)
+        if not text:
+            return text
+        return text.replace("\x00", "").replace("\u0000", "")
+
     def _stream_pst_to_temp(self, s3_bucket: str, s3_key: str) -> str:
         temp_dir = getattr(settings, "PST_TEMP_DIR", None) or None
         if temp_dir:
@@ -536,12 +545,17 @@ class ForensicPSTProcessor:
 
         # Extract email headers and content
         try:
-            subject = message.get_subject() or ""
-            sender_email_addr = message.get_sender_email_address() or ""
-            sender_name = message.get_sender_name() or ""
+            subject = self._sanitize_text(message.get_subject() or "")
+            sender_email_addr = self._sanitize_text(
+                message.get_sender_email_address() or ""
+            )
+            sender_name = self._sanitize_text(message.get_sender_name() or "")
+            folder_path = self._sanitize_text(folder_path) or folder_path
 
             # Get RFC822 message headers for threading
-            transport_headers = message.get_transport_headers() or ""
+            transport_headers = (
+                self._sanitize_text(message.get_transport_headers() or "") or ""
+            )
 
             # Fallback: Exchange often returns display names, extract SMTP from headers
             if not sender_email_addr or "@" not in sender_email_addr:
@@ -551,10 +565,18 @@ class ForensicPSTProcessor:
                     re.IGNORECASE | re.DOTALL,
                 )
                 if from_match:
-                    sender_email_addr = from_match.group(1)
-            message_id = self._extract_header(transport_headers, "Message-ID")
-            in_reply_to = self._extract_header(transport_headers, "In-Reply-To")
-            references_header = self._extract_header(transport_headers, "References")
+                    sender_email_addr = (
+                        self._sanitize_text(from_match.group(1)) or sender_email_addr
+                    )
+            message_id = self._sanitize_text(
+                self._extract_header(transport_headers, "Message-ID")
+            )
+            in_reply_to = self._sanitize_text(
+                self._extract_header(transport_headers, "In-Reply-To")
+            )
+            references_header = self._sanitize_text(
+                self._extract_header(transport_headers, "References")
+            )
 
             # Get conversation index (Outlook-specific threading)
             conv_index = None
@@ -746,8 +768,8 @@ class ForensicPSTProcessor:
                 return
 
             # Get body text and HTML
-            body_text = message.get_plain_text_body() or ""
-            body_html = message.get_html_body() or ""
+            body_text = self._sanitize_text(message.get_plain_text_body() or "") or ""
+            body_html = self._sanitize_text(message.get_html_body() or "") or ""
 
             # Get importance/priority
             importance = "normal"

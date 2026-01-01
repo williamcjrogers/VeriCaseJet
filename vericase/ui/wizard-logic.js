@@ -21,15 +21,18 @@ function escapeHtml(unsafe) {
 
 /**
  * Get or generate CSRF token for request protection
+ * 
+ * SECURITY: Uses sessionStorage (not localStorage) so tokens are cleared
+ * when the browser tab closes, providing better CSRF protection.
  */
 function getCsrfToken() {
-  let token = localStorage.getItem("csrf-token");
+  let token = sessionStorage.getItem("csrf-token");
   if (!token) {
     // Generate a random token
     token = Array.from(crypto.getRandomValues(new Uint8Array(32)))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
-    localStorage.setItem("csrf-token", token);
+    sessionStorage.setItem("csrf-token", token);
   }
   return token;
 }

@@ -35,16 +35,16 @@ function escapeHtml(unsafe) {
  * Get or generate CSRF token for request protection
  * Generates a cryptographically secure random token if none exists
  *
- * @returns {string} CSRF token
+ * @returns SECURITY: Uses sessionStorage (not localStorage) so tokens are cleared`n * when the browser tab closes, providing better CSRF protection.`n *`n * @returns {string} CSRF token
  */
 function getCsrfToken() {
-  let token = localStorage.getItem("csrf-token");
+  let token = sessionStorage.getItem("csrf-token");
   if (!token) {
     // Generate a cryptographically secure random token (64 hex characters = 32 bytes)
     token = Array.from(crypto.getRandomValues(new Uint8Array(32)))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
-    localStorage.setItem("csrf-token", token);
+    sessionStorage.setItem("csrf-token", token);
   }
   return token;
 }

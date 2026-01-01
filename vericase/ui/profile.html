@@ -737,8 +737,17 @@
           // Logout anyway
         }
 
+        // Clear authentication tokens from localStorage
         localStorage.removeItem("token");
         localStorage.removeItem("user");
+        localStorage.removeItem("vericase_token");
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("jwt");
+        
+        // SECURITY FIX: Clear CSRF tokens from sessionStorage on logout
+        sessionStorage.removeItem("csrf-token");
+        sessionStorage.removeItem("vericase_csrf");
+        
         window.location.href = "login.html";
       }
     </script>

@@ -983,6 +983,15 @@ class UltimatePSTProcessor:
         """
         return strip_footer_noise(text)
 
+    def _sanitize_text(self, value: str | None) -> str | None:
+        """Remove NUL/control bytes that Postgres cannot store."""
+        if value is None:
+            return None
+        text = str(value)
+        if not text:
+            return text
+        return text.replace("\x00", "").replace("\u0000", "")
+
     def _clean_body_text(self, text: str | None) -> str | None:
         """
         Clean body text for display:
@@ -1318,6 +1327,11 @@ class UltimatePSTProcessor:
             if not references:
                 references = get_header_first(parsed_headers, "References")
 
+        message_id = self._sanitize_text(message_id)
+        in_reply_to = self._sanitize_text(in_reply_to)
+        references = self._sanitize_text(references)
+        folder_path = self._sanitize_text(folder_path) or folder_path
+
         header_date = parse_date_header(get_header_first(parsed_headers, "Date"))
         received_values = get_header_all(parsed_headers, "Received")
         received_hops = (
@@ -1327,13 +1341,15 @@ class UltimatePSTProcessor:
         transport_headers_hash = sha256_text(transport_headers_text)
 
         # Safely get attributes - pypff objects have limited attributes
-        subject = self._safe_get_attr(message, "subject", "")
-        sender_name = self._safe_get_attr(message, "sender_name", "")
+        subject = self._sanitize_text(self._safe_get_attr(message, "subject", ""))
+        sender_name = self._sanitize_text(
+            self._safe_get_attr(message, "sender_name", "")
+        )
 
         # Sender/recipient extraction:
         # Prefer pypff message helper methods (more reliable than transport header parsing),
         # but fall back to transport headers when needed.
-        sender_email = self._extract_sender_email(message)
+        sender_email = self._sanitize_text(self._extract_sender_email(message))
 
         def _normalize_address_list(raw: Any) -> list[str]:
             """Return a stable, de-duplicated list of email addresses (lower-cased).
@@ -1345,6 +1361,7 @@ class UltimatePSTProcessor:
             if isinstance(raw, bytes):
                 raw = raw.decode("utf-8", errors="replace")
             text = str(raw)
+            text = text.replace("\x00", "").replace("\u0000", "")
 
             # Primary: RFC 2822 parsing (handles display names)
             parsed = [addr.strip() for _, addr in getaddresses([text]) if addr]
@@ -1431,6 +1448,7 @@ class UltimatePSTProcessor:
             logger.debug("Failed to extract conversation index: %s", e, exc_info=True)
 
         thread_topic = self._get_header(message, "Thread-Topic") or subject
+        thread_topic = self._sanitize_text(thread_topic)
 
         # Extract email data
         email_data = {
