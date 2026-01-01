@@ -1542,7 +1542,7 @@ class UltimatePSTProcessor:
         canonical_body = body_selection.top_text or ""
         if canonical_body and len(canonical_body) < 20 and len(full_body_text) <= 200:
             canonical_body = full_body_text
-        elif not canonical_body and full_body_text and len(full_body_text) <= 200:
+        elif not canonical_body and full_body_text and len(full_body_text) > 200:
             canonical_body = full_body_text
 
         # Clean body text - decode HTML entities and remove zero-width characters
