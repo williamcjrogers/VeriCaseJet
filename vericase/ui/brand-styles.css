@@ -253,6 +253,71 @@ body {
 }
 
 /* ============================================
+   GLOBAL BORDER-RADIUS NORMALIZATION
+   Professional corners throughout the app
+   ============================================ */
+
+/* Cards and containers - professional corners */
+.card,
+.panel,
+.modal-content,
+.dropdown-menu,
+.popover,
+.toast,
+[class*="card"],
+[class*="panel"],
+[class*="container"]:not(.stats-container):not(.toast-container) {
+  border-radius: var(--radius-lg) !important;
+}
+
+/* Inputs and form controls */
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea,
+.form-control,
+.input,
+[class*="input"],
+[class*="select"] {
+  border-radius: var(--radius-md) !important;
+}
+
+/* Buttons - professional corners */
+button,
+.btn,
+[class*="btn"]:not([class*="btn-pill"]) {
+  border-radius: var(--radius-md) !important;
+}
+
+/* Pills and badges - keep full radius */
+.pill,
+.badge,
+.tag,
+.chip,
+[class*="pill"]:not(.stat-pill),
+[class*="badge"]:not(.category-badge),
+[class*="tag"] {
+  border-radius: var(--radius-full) !important;
+}
+
+/* Stat pills - professional left-border accent style */
+.stat-pill {
+  border-radius: var(--radius-md) !important;
+}
+
+/* Status indicators - keep full radius */
+.status-dot,
+.indicator,
+.avatar {
+  border-radius: var(--radius-full) !important;
+}
+
+/* Tabs */
+.tab,
+[class*="tab"]:not([class*="table"]) {
+  border-radius: var(--radius-md) var(--radius-md) 0 0 !important;
+}
+
+/* ============================================
    TYPOGRAPHY SYSTEM
    ============================================ */
 
