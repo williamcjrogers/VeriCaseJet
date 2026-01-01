@@ -2224,50 +2224,6 @@
       return haystack.includes(query);
     }
 
-    function renderProjectCardOld(item, caseCount) {
-      const countBadge = caseCount > 0
-        ? `<span class="case-count-badge">${caseCount} case${caseCount === 1 ? "" : "s"}</span>`
-        : "";
-
-      return `
-        <div class="workspace-card" data-id="${item.id}" data-type="${item.type}" onclick="openWorkspace('${item.id}', '${item.type}')">
-          <div class="workspace-card-header">
-            <div class="workspace-icon ${item.type}">
-              <i class="fas ${item.type === 'project' ? 'fa-project-diagram' : 'fa-briefcase'}" aria-hidden="true"></i>
-            </div>
-            <div class="workspace-meta">
-              <span class="workspace-status">${item.status || 'Active'}</span>
-              ${countBadge}
-              <div class="card-menu-wrapper">
-                <button class="workspace-menu-btn" onclick="event.stopPropagation(); toggleMenu('${item.id}')" title="More actions">
-                  <i class="fas fa-ellipsis-v" aria-hidden="true"></i>
-                </button>
-                <div class="card-menu" id="menu-${item.id}">
-                  <button onclick="event.stopPropagation(); openRenameModal('${item.id}', '${escapeHtml(item.name)}', '${escapeHtml(item.project_code || item.case_number || '')}', '${item.type}')">
-                    <i class="fas fa-edit" aria-hidden="true"></i> Rename
-                  </button>
-                  ${item.type === 'project' ? `
-                  <button onclick="event.stopPropagation(); openDevelopCaseModal('${item.id}', '${escapeHtml(item.name)}', '${escapeHtml(item.description || '')}')">
-                    <i class="fas fa-briefcase" aria-hidden="true"></i> Develop Case
-                  </button>` : ''}
-                  <button class="danger" onclick="event.stopPropagation(); openDeleteModal('${item.id}', '${escapeHtml(item.name)}', '${item.type}')">
-                    <i class="fas fa-trash" aria-hidden="true"></i> Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="workspace-title">${escapeHtml(item.name)}</div>
-          <div class="workspace-code">${escapeHtml(item.project_code || item.case_number || '')}</div>
-          <div class="workspace-desc">${escapeHtml(item.description || 'No description')}</div>
-          <div class="workspace-stats">
-            <div class="workspace-stat"><i class="fas fa-envelope" aria-hidden="true"></i> ${formatCount(item.email_count || 0)}</div>
-            <div class="workspace-stat"><i class="fas fa-file-alt" aria-hidden="true"></i> ${formatCount(item.evidence_count || 0)}</div>
-          </div>
-        </div>
-      `;
-    }
-
     function renderCaseRow(item, options = {}) {
       const showProjectTag = options.showProjectTag === true;
       let projectTag = "";
@@ -3297,7 +3253,7 @@
           `;
           searchQuery = message.toLowerCase();
           document.getElementById("searchInput").value = message;
-          if (dashboardData) renderWorkspaces(dashboardData.work_items);
+          if (window.workspacesData) renderWorkspaces(window.workspacesData);
         }
         container.scrollTop = container.scrollHeight;
       } catch (error) {
