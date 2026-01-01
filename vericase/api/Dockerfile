@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 FROM python:3.11-slim
-# Build: 2025-12-10
+# Build: 2026-01-01
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 WORKDIR /code
