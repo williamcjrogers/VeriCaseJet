@@ -1146,9 +1146,12 @@ class UltimatePSTProcessor:
         sender_name: str,
         all_recipients: list[Any],
         stakeholders: list[Stakeholder],
+        subject: str | None = None,
+        body_text: str | None = None,
     ) -> list[Stakeholder]:
         """Auto-tag email with matching stakeholders."""
         matched: list[Stakeholder] = []
+        search_text = f"{subject or ''} {body_text or ''}".lower()
 
         emails: list[str] = []
         names: list[str] = []
@@ -1208,6 +1211,9 @@ class UltimatePSTProcessor:
                     if name and stakeholder_name_lower in name.lower():
                         matched.append(stakeholder)
                         break
+                else:
+                    if stakeholder_name_lower and stakeholder_name_lower in search_text:
+                        matched.append(stakeholder)
 
         unique: dict[str, Stakeholder] = {}
         for stakeholder in matched:
@@ -1221,32 +1227,42 @@ class UltimatePSTProcessor:
     ) -> list[Keyword]:
         """Auto-tag email with matching keywords."""
         matched: list[Keyword] = []
-        search_text = f"{subject or ''} {body_text or ''}".lower()
+        search_text = f"{subject or ''} {body_text or ''}"
+        search_text_lower = search_text.lower()
 
         for keyword in keywords:
             keyword_name = (keyword.keyword_name or "").strip()
             if not keyword_name:
                 continue
-            search_terms = [keyword_name.lower()]
+            if keyword.is_regex:
+                search_terms = [keyword_name]
+                if keyword.variations:
+                    variations = [
+                        v.strip()
+                        for v in keyword.variations.split(",")
+                        if v and v.strip()
+                    ]
+                    search_terms.extend(variations)
 
-            if keyword.variations:
-                variations = [
-                    v.strip().lower()
-                    for v in keyword.variations.split(",")
-                    if v and v.strip()
-                ]
-                search_terms.extend(variations)
-
-            for term in search_terms:
-                if keyword.is_regex:
+                for term in search_terms:
                     try:
                         if re.search(term, search_text, re.IGNORECASE):
                             matched.append(keyword)
                             break
                     except (re.error, TypeError):
                         continue
-                else:
-                    if term in search_text:
+            else:
+                search_terms = [keyword_name.lower()]
+                if keyword.variations:
+                    variations = [
+                        v.strip().lower()
+                        for v in keyword.variations.split(",")
+                        if v and v.strip()
+                    ]
+                    search_terms.extend(variations)
+
+                for term in search_terms:
+                    if term in search_text_lower:
                         matched.append(keyword)
                         break
 
@@ -1724,9 +1740,11 @@ class UltimatePSTProcessor:
                 sender_name or "",
                 recipients_all,
                 self._stakeholders,
+                subject=subject,
+                body_text=full_body_text,
             )
         if self._keywords:
-            keyword_body = body_text_clean or canonical_body or full_body_text or ""
+            keyword_body = full_body_text or body_text_clean or canonical_body or ""
             matched_keywords = self._match_keywords(
                 subject or "", keyword_body, self._keywords
             )
