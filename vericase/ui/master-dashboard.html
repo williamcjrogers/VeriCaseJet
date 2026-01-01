@@ -244,45 +244,61 @@
       border-radius: var(--radius-md); /* Professional 6px, not pills */
     }
 
-    /* === WORKSPACE GRID === */
-    .workspace-grid {
+    /* === WORKSPACE LIST (Master-Detail Layout) === */
+    .workspace-master-detail {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); /* Denser: was 300px */
-      gap: 10px; /* Tighter: was 16px */
+      grid-template-columns: 1fr 340px;
+      gap: 20px;
+      min-height: 400px;
     }
 
-    .workspace-card {
-      background: white;
-      border-radius: var(--radius-md); /* Tighter corners */
-      padding: 14px; /* Denser: was 20px */
-      border: 1px solid var(--gray-200);
-      cursor: pointer;
-      transition: all 0.2s ease;
-      position: relative;
-    }
-
-    .workspace-card:hover {
-      border-color: var(--vericase-teal);
-      box-shadow: 0 8px 24px rgba(15, 23, 32, 0.1);
-      transform: translateY(-2px);
-    }
-
-    .workspace-card-header {
+    .workspace-list {
       display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 12px;
+      flex-direction: column;
+      gap: 0;
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .workspace-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 18px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border-bottom: 1px solid var(--gray-100);
+      background: white;
+    }
+
+    .workspace-row:nth-child(even) {
+      background: var(--gray-50);
+    }
+
+    .workspace-row:last-child {
+      border-bottom: none;
+    }
+
+    .workspace-row:hover {
+      background: rgba(var(--vericase-teal-rgb), 0.06);
+    }
+
+    .workspace-row.selected {
+      background: rgba(var(--vericase-teal-rgb), 0.1);
+      border-left: 3px solid var(--vericase-teal);
+      padding-left: 15px;
     }
 
     .workspace-icon {
       width: 36px;
       height: 36px;
-      border-radius: 10px;
+      border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1rem;
+      font-size: 0.875rem;
       flex-shrink: 0;
     }
 
@@ -296,78 +312,31 @@
       color: var(--vericase-gold);
     }
 
-    .workspace-meta {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .workspace-status {
-      font-size: 0.625rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      padding: 3px 8px;
-      border-radius: var(--radius-md); /* Professional 6px, not pills */
-      background: rgba(5, 150, 105, 0.1);
-      color: var(--success);
-    }
-
-    .workspace-menu-btn {
-      width: 28px;
-      height: 28px;
-      border: none;
-      background: transparent;
-      border-radius: 6px;
-      cursor: pointer;
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.15s;
-      opacity: 0;
-    }
-
-    .workspace-card:hover .workspace-menu-btn {
-      opacity: 1;
-    }
-
-    .workspace-menu-btn:hover {
-      background: var(--gray-100);
-      color: var(--text-primary);
+    .workspace-info {
+      flex: 1;
+      min-width: 0;
     }
 
     .workspace-title {
-      font-size: 1rem;
+      font-size: 0.9375rem;
       font-weight: 600;
       color: var(--text-primary);
       margin-bottom: 2px;
-      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .workspace-code {
       font-family: var(--font-mono);
       font-size: 0.6875rem;
       color: var(--text-muted);
-      margin-bottom: 8px;
-    }
-
-    .workspace-desc {
-      font-size: 0.8125rem;
-      color: var(--text-secondary);
-      line-height: 1.5;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      margin-bottom: 14px;
     }
 
     .workspace-stats {
       display: flex;
-      gap: 14px;
-      padding-top: 12px;
-      border-top: 1px solid var(--gray-100);
+      gap: 16px;
+      flex-shrink: 0;
     }
 
     .workspace-stat {
@@ -383,10 +352,277 @@
       font-size: 0.6875rem;
     }
 
-    .workspace-stack {
+    .workspace-status {
+      font-size: 0.625rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 3px 8px;
+      border-radius: var(--radius-md);
+      background: rgba(5, 150, 105, 0.1);
+      color: var(--success);
+      flex-shrink: 0;
+    }
+
+    .workspace-menu-btn {
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      opacity: 0;
+      flex-shrink: 0;
+    }
+
+    .workspace-row:hover .workspace-menu-btn {
+      opacity: 1;
+    }
+
+    .workspace-menu-btn:hover {
+      background: var(--gray-100);
+      color: var(--text-primary);
+    }
+
+    /* === WORKSPACE DETAIL PANEL (Right Side) === */
+    .workspace-detail-panel {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md);
       display: flex;
       flex-direction: column;
+    }
+
+    .detail-panel-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .detail-panel-empty i {
+      font-size: 2rem;
+      margin-bottom: 12px;
+      opacity: 0.4;
+    }
+
+    .detail-panel-header {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--gray-100);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .detail-panel-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .detail-panel-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .detail-panel-btn {
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      border: 1px solid var(--gray-200);
+      background: white;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .detail-panel-btn:hover {
+      background: var(--gray-50);
+      border-color: var(--gray-300);
+    }
+
+    .detail-panel-btn.primary {
+      background: var(--vericase-teal);
+      color: white;
+      border-color: var(--vericase-teal);
+    }
+
+    .detail-panel-btn.primary:hover {
+      background: var(--vericase-teal-dark);
+    }
+
+    .detail-panel-body {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .detail-section {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+
+    .detail-section:last-child {
+      border-bottom: none;
+    }
+
+    .detail-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .detail-section-title {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+
+    .detail-section-count {
+      font-size: 0.625rem;
+      font-weight: 600;
+      padding: 2px 6px;
+      background: var(--gray-100);
+      border-radius: var(--radius-md);
+      color: var(--text-secondary);
+    }
+
+    /* Project items in detail panel */
+    .detail-project-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .detail-project-item {
+      display: flex;
+      align-items: center;
       gap: 10px;
+      padding: 10px 12px;
+      background: var(--gray-50);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.15s;
+      border: 1px solid transparent;
+    }
+
+    .detail-project-item:hover {
+      background: rgba(var(--vericase-blue-rgb, 47, 134, 200), 0.08);
+      border-color: rgba(47, 134, 200, 0.2);
+    }
+
+    .detail-project-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: rgba(47, 134, 200, 0.1);
+      color: var(--vericase-blue);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .detail-project-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .detail-project-name {
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .detail-project-code {
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      color: var(--text-muted);
+    }
+
+    .detail-project-stats {
+      display: flex;
+      gap: 10px;
+      font-size: 0.6875rem;
+      color: var(--text-muted);
+    }
+
+    .detail-project-stats i {
+      color: var(--vericase-blue);
+      margin-right: 3px;
+    }
+
+    /* User items in detail panel */
+    .detail-user-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .detail-user-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: var(--gray-50);
+      border-radius: var(--radius-md);
+    }
+
+    .detail-user-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--vericase-navy);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .detail-user-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .detail-user-name {
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .detail-user-role {
+      font-size: 0.625rem;
+      color: var(--text-muted);
+    }
+
+    /* Description in detail panel */
+    .detail-description {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* Legacy stack support (hide in new layout) */
+    .workspace-stack {
+      display: none;
     }
 
     .case-count-badge {
@@ -1643,7 +1879,7 @@
 
     <!-- Main Layout -->
     <div class="dashboard-layout">
-      <!-- Workspaces (Primary Content) -->
+      <!-- Workspaces (Primary Content) - Master-Detail Layout -->
       <section class="workspaces-section">
         <div class="section-header">
           <h2 class="section-title">
@@ -1651,13 +1887,26 @@
             <span class="section-count" id="workspaceCount">0</span>
           </h2>
         </div>
-        <div class="workspace-grid" id="workspaceGrid">
-          <!-- Loading skeleton -->
-          <div class="workspace-card" style="pointer-events: none;">
-            <div class="skeleton" style="width: 36px; height: 36px; border-radius: 10px; margin-bottom: 12px;"></div>
-            <div class="skeleton" style="width: 70%; height: 18px; margin-bottom: 8px;"></div>
-            <div class="skeleton" style="width: 40%; height: 14px; margin-bottom: 14px;"></div>
-            <div class="skeleton" style="width: 100%; height: 32px;"></div>
+        <div class="workspace-master-detail">
+          <!-- Workspace List (Left) -->
+          <div class="workspace-list" id="workspaceList">
+            <!-- Loading skeleton -->
+            <div class="workspace-row" style="pointer-events: none;">
+              <div class="skeleton" style="width: 36px; height: 36px; border-radius: 8px;"></div>
+              <div style="flex: 1;">
+                <div class="skeleton" style="width: 60%; height: 16px; margin-bottom: 6px;"></div>
+                <div class="skeleton" style="width: 30%; height: 12px;"></div>
+              </div>
+              <div class="skeleton" style="width: 60px; height: 20px;"></div>
+            </div>
+          </div>
+
+          <!-- Workspace Detail Panel (Right) -->
+          <div class="workspace-detail-panel" id="workspaceDetailPanel">
+            <div class="detail-panel-empty">
+              <i class="fas fa-hand-pointer" aria-hidden="true"></i>
+              <div>Select a workspace to view details</div>
+            </div>
           </div>
         </div>
       </section>
@@ -2277,102 +2526,226 @@
       `;
     }
 
-    function renderWorkspaceCard(workspace) {
-      const caseCount = workspace.case_count || 0;
-      const projectCount = workspace.project_count || 0;
-      const countBadge = projectCount > 0 || caseCount > 0
-        ? `<span class="case-count-badge">${projectCount} project${projectCount !== 1 ? 's' : ''}, ${caseCount} case${caseCount !== 1 ? 's' : ''}</span>`
-        : "";
+    // Track selected workspace for detail panel
+    let selectedWorkspaceId = null;
+    let workspacesData = [];
 
-      // Get nested projects and cases
-      const projects = workspace.projects || [];
-      const cases = workspace.cases || [];
-
-      const caseStems = cases.length
-        ? `<div class="case-stems">${cases.map(item => renderCaseRow({
-          id: item.id || item.case_id,
-          name: item.name || item.case_name,
-          case_number: item.code || item.case_number,
-          description: item.description,
-          project_id: item.project_id,
-          project_name: item.project_name,
-          email_count: item.email_count || 0,
-          evidence_count: item.evidence_count || 0
-        })).join("")}</div>`
-        : "";
+    function renderWorkspaceRow(workspace) {
+      const isSelected = selectedWorkspaceId === workspace.id;
+      const projectCount = (workspace.projects || []).length || workspace.project_count || 0;
+      const caseCount = (workspace.cases || []).length || workspace.case_count || 0;
 
       return `
-        <div class="workspace-stack">
-          <div class="workspace-card" data-id="${workspace.id}" data-type="workspace" onclick="enterWorkspace('${workspace.id}')">
-            <div class="workspace-card-header">
-              <div class="workspace-icon project">
-                <i class="fas fa-building" aria-hidden="true"></i>
-              </div>
-              <div class="workspace-meta">
-                <span class="workspace-status">${workspace.status || 'Active'}</span>
-                ${countBadge}
-                <div class="card-menu-wrapper">
-                  <button class="workspace-menu-btn" onclick="event.stopPropagation(); toggleMenu('${workspace.id}')" title="More actions">
-                    <i class="fas fa-ellipsis-v" aria-hidden="true"></i>
-                  </button>
-                  <div class="card-menu" id="menu-${workspace.id}">
-                    <button onclick="event.stopPropagation(); openWorkspaceHub('${workspace.id}')">
-                      <i class="fas fa-th-large" aria-hidden="true"></i> Open Hub
-                    </button>
-                    <button onclick="event.stopPropagation(); openWorkspaceConfig('${workspace.id}')">
-                      <i class="fas fa-cog" aria-hidden="true"></i> Configure
-                    </button>
-                    <button onclick="event.stopPropagation(); openRenameWorkspaceModal('${workspace.id}', '${escapeHtml(workspace.name)}', '${escapeHtml(workspace.code || '')}')">
-                      <i class="fas fa-edit" aria-hidden="true"></i> Rename
-                    </button>
-                    <button class="danger" onclick="event.stopPropagation(); openDeleteWorkspaceModal('${workspace.id}', '${escapeHtml(workspace.name)}')">
-                      <i class="fas fa-trash" aria-hidden="true"></i> Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <div class="workspace-row ${isSelected ? 'selected' : ''}"
+             data-id="${workspace.id}"
+             onclick="selectWorkspace('${workspace.id}')"
+             ondblclick="enterWorkspace('${workspace.id}')">
+          <div class="workspace-icon project">
+            <i class="fas fa-building" aria-hidden="true"></i>
+          </div>
+          <div class="workspace-info">
             <div class="workspace-title">${escapeHtml(workspace.name)}</div>
             <div class="workspace-code">${escapeHtml(workspace.code || '')}</div>
-            <div class="workspace-desc">${escapeHtml(workspace.description || 'No description')}</div>
-            <div class="workspace-stats">
-              <div class="workspace-stat"><i class="fas fa-envelope" aria-hidden="true"></i> ${formatCount(workspace.email_count || 0)}</div>
-              <div class="workspace-stat"><i class="fas fa-file-alt" aria-hidden="true"></i> ${formatCount(workspace.evidence_count || 0)}</div>
+          </div>
+          <div class="workspace-stats">
+            <div class="workspace-stat"><i class="fas fa-folder" aria-hidden="true"></i> ${projectCount}</div>
+            <div class="workspace-stat"><i class="fas fa-briefcase" aria-hidden="true"></i> ${caseCount}</div>
+            <div class="workspace-stat"><i class="fas fa-envelope" aria-hidden="true"></i> ${formatCount(workspace.email_count || 0)}</div>
+          </div>
+          <span class="workspace-status">${workspace.status || 'Active'}</span>
+          <div class="card-menu-wrapper">
+            <button class="workspace-menu-btn" onclick="event.stopPropagation(); toggleMenu('${workspace.id}')" title="More actions">
+              <i class="fas fa-ellipsis-v" aria-hidden="true"></i>
+            </button>
+            <div class="card-menu" id="menu-${workspace.id}">
+              <button onclick="event.stopPropagation(); enterWorkspace('${workspace.id}')">
+                <i class="fas fa-arrow-right" aria-hidden="true"></i> Enter Workspace
+              </button>
+              <button onclick="event.stopPropagation(); openWorkspaceHub('${workspace.id}')">
+                <i class="fas fa-th-large" aria-hidden="true"></i> Open Hub
+              </button>
+              <button onclick="event.stopPropagation(); openWorkspaceConfig('${workspace.id}')">
+                <i class="fas fa-cog" aria-hidden="true"></i> Configure
+              </button>
+              <button onclick="event.stopPropagation(); openRenameWorkspaceModal('${workspace.id}', '${escapeHtml(workspace.name)}', '${escapeHtml(workspace.code || '')}')">
+                <i class="fas fa-edit" aria-hidden="true"></i> Rename
+              </button>
+              <button class="danger" onclick="event.stopPropagation(); openDeleteWorkspaceModal('${workspace.id}', '${escapeHtml(workspace.name)}')">
+                <i class="fas fa-trash" aria-hidden="true"></i> Delete
+              </button>
             </div>
           </div>
-          ${projects.length > 0 ? `
-            <div class="project-stems">
-              ${projects.map(p => {
-                const projectId = p.id || p.project_id;
-                const projectName = p.name || p.project_name;
-                const projectCode = p.code || p.project_code;
-                return `
-                <div class="project-stem">
-                  <button class="project-card" type="button" onclick="event.stopPropagation(); openWorkspace('${projectId}', 'project')">
-                    <div class="project-card-content">
-                      <div class="project-title">${escapeHtml(projectName)}</div>
-                      ${projectCode ? `<div class="project-code">${escapeHtml(projectCode)}</div>` : ""}
-                    </div>
-                    <div class="project-meta">
-                      <span><i class="fas fa-envelope" aria-hidden="true"></i> ${formatCount(p.email_count || 0)}</span>
-                      <span><i class="fas fa-file-alt" aria-hidden="true"></i> ${formatCount(p.evidence_count || 0)}</span>
-                    </div>
-                  </button>
-                </div>
-              `;
-              }).join("")}
+        </div>
+      `;
+    }
+
+    function selectWorkspace(workspaceId) {
+      selectedWorkspaceId = workspaceId;
+      const workspace = workspacesData.find(ws => ws.id === workspaceId);
+
+      // Update row selection UI
+      document.querySelectorAll('.workspace-row').forEach(row => {
+        row.classList.toggle('selected', row.dataset.id === workspaceId);
+      });
+
+      // Set context for sidebar quick actions
+      if (workspace) {
+        // Store workspace context - use "project" type so actions unlock
+        localStorage.setItem("currentProjectId", workspaceId);
+        localStorage.setItem("currentProjectName", workspace.name);
+        localStorage.setItem("vericase_current_project_id", workspaceId);
+        localStorage.setItem("vericase_current_project_name", workspace.name);
+      }
+
+      // Update sidebar quick actions
+      if (typeof updateQuickActions === 'function') {
+        updateQuickActions();
+      }
+
+      // Render detail panel
+      renderWorkspaceDetail(workspaceId);
+    }
+
+    function renderWorkspaceDetail(workspaceId) {
+      const panel = document.getElementById('workspaceDetailPanel');
+      const workspace = workspacesData.find(ws => ws.id === workspaceId);
+
+      if (!workspace) {
+        panel.innerHTML = `
+          <div class="detail-panel-empty">
+            <i class="fas fa-hand-pointer" aria-hidden="true"></i>
+            <div>Select a workspace to view details</div>
+          </div>
+        `;
+        return;
+      }
+
+      const projects = workspace.projects || [];
+      const cases = workspace.cases || [];
+      const users = workspace.users || [];
+
+      panel.innerHTML = `
+        <div class="detail-panel-header">
+          <div class="detail-panel-title">${escapeHtml(workspace.name)}</div>
+          <div class="detail-panel-actions">
+            <button class="detail-panel-btn primary" onclick="enterWorkspace('${workspace.id}')">
+              <i class="fas fa-arrow-right"></i> Enter
+            </button>
+            <button class="detail-panel-btn" onclick="openWorkspaceConfig('${workspace.id}')">
+              <i class="fas fa-cog"></i>
+            </button>
+          </div>
+        </div>
+        <div class="detail-panel-body">
+          <!-- Description -->
+          ${workspace.description ? `
+            <div class="detail-section">
+              <div class="detail-section-header">
+                <span class="detail-section-title">Description</span>
+              </div>
+              <p class="detail-description">${escapeHtml(workspace.description)}</p>
             </div>
-          ` : ""}
-          ${caseStems}
+          ` : ''}
+
+          <!-- Projects -->
+          <div class="detail-section">
+            <div class="detail-section-header">
+              <span class="detail-section-title">Projects</span>
+              <span class="detail-section-count">${projects.length}</span>
+            </div>
+            ${projects.length > 0 ? `
+              <div class="detail-project-list">
+                ${projects.map(p => {
+                  const projectId = p.id || p.project_id;
+                  const projectName = p.name || p.project_name;
+                  const projectCode = p.code || p.project_code;
+                  return `
+                    <div class="detail-project-item" onclick="openWorkspace('${projectId}', 'project')">
+                      <div class="detail-project-icon">
+                        <i class="fas fa-folder"></i>
+                      </div>
+                      <div class="detail-project-info">
+                        <div class="detail-project-name">${escapeHtml(projectName)}</div>
+                        ${projectCode ? `<div class="detail-project-code">${escapeHtml(projectCode)}</div>` : ''}
+                      </div>
+                      <div class="detail-project-stats">
+                        <span><i class="fas fa-envelope"></i>${formatCount(p.email_count || 0)}</span>
+                        <span><i class="fas fa-file-alt"></i>${formatCount(p.evidence_count || 0)}</span>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            ` : `<div style="color: var(--text-muted); font-size: 0.8125rem;">No projects yet</div>`}
+          </div>
+
+          <!-- Cases -->
+          <div class="detail-section">
+            <div class="detail-section-header">
+              <span class="detail-section-title">Cases</span>
+              <span class="detail-section-count">${cases.length}</span>
+            </div>
+            ${cases.length > 0 ? `
+              <div class="detail-project-list">
+                ${cases.map(c => {
+                  const caseId = c.id || c.case_id;
+                  const caseName = c.name || c.case_name;
+                  const caseCode = c.code || c.case_number;
+                  return `
+                    <div class="detail-project-item" onclick="openWorkspace('${caseId}', 'case')">
+                      <div class="detail-project-icon" style="background: rgba(181, 155, 106, 0.15); color: var(--vericase-gold);">
+                        <i class="fas fa-briefcase"></i>
+                      </div>
+                      <div class="detail-project-info">
+                        <div class="detail-project-name">${escapeHtml(caseName)}</div>
+                        ${caseCode ? `<div class="detail-project-code">${escapeHtml(caseCode)}</div>` : ''}
+                      </div>
+                      <div class="detail-project-stats">
+                        <span><i class="fas fa-envelope"></i>${formatCount(c.email_count || 0)}</span>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            ` : `<div style="color: var(--text-muted); font-size: 0.8125rem;">No cases yet</div>`}
+          </div>
+
+          <!-- Users -->
+          <div class="detail-section">
+            <div class="detail-section-header">
+              <span class="detail-section-title">Team Members</span>
+              <span class="detail-section-count">${users.length}</span>
+            </div>
+            ${users.length > 0 ? `
+              <div class="detail-user-list">
+                ${users.map(u => {
+                  const initials = (u.name || u.email || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                  return `
+                    <div class="detail-user-item">
+                      <div class="detail-user-avatar">${initials}</div>
+                      <div class="detail-user-info">
+                        <div class="detail-user-name">${escapeHtml(u.name || u.email)}</div>
+                        <div class="detail-user-role">${escapeHtml(u.role || 'Member')}</div>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            ` : `<div style="color: var(--text-muted); font-size: 0.8125rem;">No team members assigned</div>`}
+          </div>
         </div>
       `;
     }
 
     function renderWorkspaces(workspaces) {
-      const grid = document.getElementById("workspaceGrid");
+      const listEl = document.getElementById("workspaceList");
+      const detailPanel = document.getElementById("workspaceDetailPanel");
       const query = searchQuery.trim().toLowerCase();
       const hasQuery = query.length > 0;
       const list = Array.isArray(workspaces) ? workspaces : [];
+
+      // Store for detail panel access
+      workspacesData = list;
 
       // Filter workspaces by search query
       const filtered = hasQuery
@@ -2391,14 +2764,14 @@
       if (filtered.length === 0) {
         const isSearch = hasQuery;
         document.getElementById("workspaceCount").textContent = 0;
-        grid.innerHTML = isSearch ? `
-          <div class="empty-state">
+        listEl.innerHTML = isSearch ? `
+          <div class="empty-state" style="padding: 40px;">
             <i class="fas fa-search empty-icon"></i>
             <div class="empty-title">No matches found</div>
             <p class="empty-text">Try a different search term</p>
           </div>
         ` : `
-          <div class="empty-state onboarding-state">
+          <div class="empty-state onboarding-state" style="padding: 40px;">
             <div class="onboarding-icon">
               <i class="fas fa-rocket"></i>
             </div>
@@ -2423,6 +2796,13 @@
             </button>
           </div>
         `;
+        // Reset detail panel
+        detailPanel.innerHTML = `
+          <div class="detail-panel-empty">
+            <i class="fas fa-hand-pointer" aria-hidden="true"></i>
+            <div>Select a workspace to view details</div>
+          </div>
+        `;
         return;
       }
 
@@ -2435,7 +2815,15 @@
       const sorted = filtered.sort(sortByRecent);
       document.getElementById("workspaceCount").textContent = sorted.length;
 
-      grid.innerHTML = sorted.map(ws => renderWorkspaceCard(ws)).join("");
+      listEl.innerHTML = sorted.map(ws => renderWorkspaceRow(ws)).join("");
+
+      // Auto-select first workspace if none selected
+      if (!selectedWorkspaceId && sorted.length > 0) {
+        selectWorkspace(sorted[0].id);
+      } else if (selectedWorkspaceId) {
+        // Re-render detail for current selection
+        renderWorkspaceDetail(selectedWorkspaceId);
+      }
     }
 
     function setupEventListeners() {
