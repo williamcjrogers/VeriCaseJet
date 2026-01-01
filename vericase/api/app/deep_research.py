@@ -1991,7 +1991,7 @@ async def build_evidence_context(
     else:
         # Get from user's projects
         projects = (
-            db.query(Project).filter(Project.owner_id == user_id).all()
+            db.query(Project).filter(Project.owner_user_id == user_id).all()
         )  # pyright: ignore[reportAny]
         project_ids = [str(p.id) for p in projects]
         if project_ids:

@@ -81,17 +81,17 @@ spec:
               value: "vericase-docs"
             - name: MINIO_ENDPOINT
               value: ""
-            # Redis/Celery Configuration (ElastiCache Cluster Mode)
+            # Redis/Celery Configuration (Non-cluster ElastiCache with TLS)
             - name: REDIS_URL
-              value: "redis://clustercfg.vericase-redis.dbbgbx.euw2.cache.amazonaws.com:6379/0"
+              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_NONE"
             - name: CELERY_BROKER_URL
-              value: "redis://clustercfg.vericase-redis.dbbgbx.euw2.cache.amazonaws.com:6379/0"
+              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_NONE"
             - name: CELERY_RESULT_BACKEND
-              value: "redis://clustercfg.vericase-redis.dbbgbx.euw2.cache.amazonaws.com:6379/0"
+              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_NONE"
             - name: CELERY_BROKER_USE_SSL
-              value: "false"
+              value: "true"
             - name: CELERY_REDIS_BACKEND_USE_SSL
-              value: "false"
+              value: "true"
             # AWS Bedrock Knowledge Base Configuration
             - name: BEDROCK_KB_ID
               value: "ACKHIYIHPK"
@@ -234,17 +234,17 @@ spec:
               value: "vericase-docs"
             - name: MINIO_ENDPOINT
               value: ""
-            # Redis/Celery Configuration (ElastiCache Cluster Mode)
+            # Redis/Celery Configuration (Non-cluster ElastiCache with TLS)
             - name: REDIS_URL
-              value: "redis://clustercfg.vericase-redis.dbbgbx.euw2.cache.amazonaws.com:6379/0"
+              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_NONE"
             - name: CELERY_BROKER_URL
-              value: "redis://clustercfg.vericase-redis.dbbgbx.euw2.cache.amazonaws.com:6379/0"
+              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_NONE"
             - name: CELERY_RESULT_BACKEND
-              value: "redis://clustercfg.vericase-redis.dbbgbx.euw2.cache.amazonaws.com:6379/0"
+              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_NONE"
             - name: CELERY_BROKER_USE_SSL
-              value: "false"
+              value: "true"
             - name: CELERY_REDIS_BACKEND_USE_SSL
-              value: "false"
+              value: "true"
             # AWS Bedrock Knowledge Base Configuration
             - name: BEDROCK_KB_ID
               value: "ACKHIYIHPK"

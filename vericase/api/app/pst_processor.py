@@ -25,6 +25,7 @@ import uuid
 import time
 import io
 import shutil
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, TypedDict
 from uuid import UUID
@@ -58,6 +59,17 @@ from .email_normalizer import (
     clean_body_text,
     strip_footer_noise,
 )
+from .email_headers import (
+    decode_header_blob,
+    get_header_all,
+    get_header_first,
+    parse_date_header,
+    parse_received_headers,
+    parse_rfc822_headers,
+    received_time_bounds,
+    sha256_text,
+)
+from .email_content import decode_maybe_bytes, select_best_body
 
 try:
     from .email_normalizer import build_source_hash
@@ -120,8 +132,15 @@ def agent_log(
     if not _AGENT_LOG_ENABLED:
         return
     log_path = (
-        r"c:\Users\William\Documents\Projects\VeriCase Analysis\.cursor\debug.log"
+        os.getenv("PST_AGENT_LOG_PATH")
+        or getattr(settings, "PST_AGENT_LOG_PATH", None)
+        or os.getenv("VERICASE_DEBUG_LOG_PATH")
+        or str(Path(".cursor") / "debug.log")
     )
+    try:
+        Path(log_path).parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
     payload = {
         "id": f"log_{int(time.time() * 1000)}_{hash(message) % 10000}",
         "timestamp": int(time.time() * 1000),
@@ -1042,6 +1061,33 @@ class UltimatePSTProcessor:
             logger.debug("Generic error accessing %s: %s", attr_name, str(e)[:50])
             return default
 
+    def _safe_get_value(
+        self, obj: Any, attr_name: str, default: Any | None = None
+    ) -> Any:
+        """
+        Safely get an attribute value from a pypff object.
+
+        If the attribute is callable (e.g. `get_transport_headers()`), calls it
+        without arguments and returns the result.
+        """
+        value = self._safe_get_attr(obj, attr_name, None)
+        if value is None:
+            return default
+        if callable(value):
+            try:
+                return value()
+            except (TypeError, AttributeError, RuntimeError, OSError, ValueError):
+                return default
+        return value
+
+    def _get_transport_headers_text(self, message: Any) -> str | None:
+        """Best-effort extraction of RFC822 transport headers from a PST message."""
+        headers = self._safe_get_attr(message, "transport_headers", None)
+        if headers is None:
+            headers = self._safe_get_value(message, "get_transport_headers", None)
+        headers = decode_header_blob(headers)
+        return headers
+
     def _build_canonical_participants(
         self,
         sender_email: str | None,
@@ -1086,6 +1132,36 @@ class UltimatePSTProcessor:
         message_id = self._get_header(message, "Message-ID")
         in_reply_to = self._get_header(message, "In-Reply-To")
         references = self._get_header(message, "References")
+        transport_headers_text = self._get_transport_headers_text(message)
+        parsed_headers = parse_rfc822_headers(transport_headers_text)
+
+        def _strip_angles(value: str | None) -> str | None:
+            if not value:
+                return None
+            cleaned = value.strip()
+            if cleaned.startswith("<") and cleaned.endswith(">"):
+                cleaned = cleaned[1:-1].strip()
+            return cleaned or None
+
+        if parsed_headers:
+            if not message_id:
+                message_id = _strip_angles(
+                    get_header_first(parsed_headers, "Message-ID")
+                )
+            if not in_reply_to:
+                in_reply_to = _strip_angles(
+                    get_header_first(parsed_headers, "In-Reply-To")
+                )
+            if not references:
+                references = get_header_first(parsed_headers, "References")
+
+        header_date = parse_date_header(get_header_first(parsed_headers, "Date"))
+        received_values = get_header_all(parsed_headers, "Received")
+        received_hops = (
+            parse_received_headers(received_values) if received_values else []
+        )
+        received_first, received_last = received_time_bounds(received_hops)
+        transport_headers_hash = sha256_text(transport_headers_text)
 
         # Safely get attributes - pypff objects have limited attributes
         subject = self._safe_get_attr(message, "subject", "")
@@ -1129,11 +1205,11 @@ class UltimatePSTProcessor:
 
         def _recipient_string(recipient_type: str) -> str | None:
             if recipient_type == "to":
-                return self._safe_get_attr(message, "get_recipient_string", None)
+                return self._safe_get_value(message, "get_recipient_string", None)
             if recipient_type == "cc":
-                return self._safe_get_attr(message, "get_cc_string", None)
+                return self._safe_get_value(message, "get_cc_string", None)
             if recipient_type == "bcc":
-                return self._safe_get_attr(message, "get_bcc_string", None)
+                return self._safe_get_value(message, "get_bcc_string", None)
             return None
 
         def _extract_recipients(recipient_type: str, header_name: str) -> list[str]:
@@ -1179,7 +1255,9 @@ class UltimatePSTProcessor:
         # Get Outlook conversation index (binary data, convert to hex)
         conversation_index = None
         try:
-            conv_idx_raw = self._safe_get_attr(message, "conversation_index", None)
+            conv_idx_raw = self._safe_get_value(message, "get_conversation_index", None)
+            if conv_idx_raw is None:
+                conv_idx_raw = self._safe_get_attr(message, "conversation_index", None)
             if conv_idx_raw:
                 conversation_index = (
                     conv_idx_raw.hex()
@@ -1228,6 +1306,13 @@ class UltimatePSTProcessor:
             "date_sent": email_date.isoformat() if email_date else None,
         }
         raw_hash = build_source_hash(raw_payload)
+        raw_metadata = dict(raw_payload)
+        if transport_headers_hash:
+            raw_metadata["transport_headers_sha256"] = transport_headers_hash
+        if header_date:
+            raw_metadata["header_date_utc"] = header_date
+        if received_values:
+            raw_metadata["received_count"] = len(received_values)
         storage_uri = None
         if pst_file_record.s3_bucket and pst_file_record.s3_key:
             storage_uri = f"s3://{pst_file_record.s3_bucket}/{pst_file_record.s3_key}"
@@ -1240,7 +1325,7 @@ class UltimatePSTProcessor:
                 source_type="pst",
                 extraction_tool_version="pypff",
                 extracted_at=email_date,
-                raw_metadata=raw_payload,
+                raw_metadata=raw_metadata,
             )
         )
         self.message_occurrence_buffer.append(
@@ -1353,6 +1438,23 @@ class UltimatePSTProcessor:
                     "thread_topic": thread_topic,
                     "normalizer_version": NORMALIZER_VERSION,
                     "normalizer_ruleset_hash": NORMALIZER_RULESET_HASH,
+                    "transport_headers_sha256": transport_headers_hash,
+                    "transport_headers_present": bool(transport_headers_text),
+                    "header_date_utc": header_date,
+                    "received_count": len(received_hops),
+                    "received_bounds": (
+                        {
+                            "first": received_first,
+                            "last": received_last,
+                        }
+                        if received_first or received_last
+                        else None
+                    ),
+                    "received_chain": (
+                        [hop.to_dict() for hop in received_hops]
+                        if received_hops
+                        else []
+                    ),
                     # Correspondence visibility convention
                     "status": derived_status,
                     # Backward-compatible top-level flags
@@ -1404,89 +1506,44 @@ class UltimatePSTProcessor:
         # FULL PROCESSING - Only for relevant, non-spam emails
         # =====================================================================
 
-        # Extract body content (prefer HTML, fallback to plain text)
-        # pypff returns bytes, need to decode properly
-        def _decode_body(raw: Any) -> str | None:
-            if raw is None:
-                return None
-            if isinstance(raw, bytes):
-                # Try common encodings
-                for encoding in ["utf-8", "windows-1252", "iso-8859-1", "cp1252"]:
-                    try:
-                        return raw.decode(encoding)
-                    except (UnicodeDecodeError, LookupError):
-                        continue
-                # Last resort - replace errors
-                return raw.decode("utf-8", errors="replace")
-            return str(raw)
-
-        # Prefer pypff get_*_body methods when available (often more reliable)
-        body_html = _decode_body(self._safe_get_attr(message, "get_html_body", None))
+        # Extract body content deterministically; select the most complete top message.
+        body_html = decode_maybe_bytes(
+            self._safe_get_value(message, "get_html_body", None)
+        )
         if body_html is None:
-            body_html = _decode_body(self._safe_get_attr(message, "html_body", None))
+            body_html = decode_maybe_bytes(
+                self._safe_get_attr(message, "html_body", None)
+            )
 
-        body_plain = _decode_body(
-            self._safe_get_attr(message, "get_plain_text_body", None)
+        body_plain = decode_maybe_bytes(
+            self._safe_get_value(message, "get_plain_text_body", None)
         )
         if body_plain is None:
-            body_plain = _decode_body(
+            body_plain = decode_maybe_bytes(
                 self._safe_get_attr(message, "plain_text_body", None)
             )
 
-        body_rtf = _decode_body(self._safe_get_attr(message, "get_rtf_body", None))
+        body_rtf = decode_maybe_bytes(
+            self._safe_get_value(message, "get_rtf_body", None)
+        )
         if body_rtf is None:
-            body_rtf = _decode_body(self._safe_get_attr(message, "rtf_body", None))
+            body_rtf = decode_maybe_bytes(
+                self._safe_get_attr(message, "rtf_body", None)
+            )
 
-        body_text = None
-        body_html_content = None
+        body_selection = select_best_body(
+            plain_text=body_plain, html_body=body_html, rtf_body=body_rtf
+        )
 
-        if body_html:
-            body_html_content = body_html
-        if body_plain:
-            body_text = body_plain
-        elif body_html_content:
-            # Provide a simple text fallback by stripping tags (preserve line breaks).
-            body_text = re.sub(r"(?i)<br\s*/?>", "\n", body_html_content)
-            body_text = re.sub(r"(?i)</p\s*>", "\n", body_text)
-            body_text = re.sub(r"(?i)</div\s*>", "\n", body_text)
-            body_text = re.sub(r"<[^>]+>", " ", body_text)
-            body_text = re.sub(r"[^\S\n]+", " ", body_text)
-            body_text = re.sub(r"\n{3,}", "\n\n", body_text).strip()
-        elif body_rtf:
-            # Strip RTF control codes for plain text (preserve paragraph breaks).
-            body_text = re.sub(r"\\par[d]?\b", "\n", body_rtf)
-            body_text = re.sub(r"\\[a-z]+\d*\s?|\{|\}", "", body_text)
-            body_text = re.sub(r"[^\S\n]+", " ", body_text)
-            body_text = re.sub(r"\n{3,}", "\n\n", body_text).strip()
-        else:
-            body_text = ""
+        body_html_content = body_html or None
+        full_body_text = body_selection.full_text or ""
+        body_text = full_body_text
 
-        # Store FULL body (plain text), and compute a separate canonical "top message" for previews/dedupe.
-        full_body_text = body_text or ""
-
-        canonical_body = full_body_text
-        if canonical_body:
-            # Quick split on reply markers to approximate the top message.
-            try:
-                reply_split_pattern = (
-                    r"(?mi)^\s*>?\s*On .+ wrote:"
-                    r"|^\s*>?\s*From:\s"
-                    r"|^\s*>?\s*Sent:\s"
-                    r"|^\s*>?\s*To:\s"
-                    r"|^\s*>?\s*Cc:\s"
-                    r"|^\s*>?\s*Subject:\s"
-                    r"|^\s*>?\s*Disclaimer From:\s"
-                    r"|^-----Original Message-----"
-                    r"|^----- Forwarded message -----"
-                    r"|^Begin forwarded message"
-                )
-                parts = re.split(reply_split_pattern, canonical_body, maxsplit=1)
-                candidate = (parts[0] if parts else canonical_body).strip()
-                # Avoid over-stripping: if the split yields almost nothing, keep the full text.
-                if len(candidate) >= 20 or len(canonical_body) <= 200:
-                    canonical_body = candidate
-            except re.error:
-                pass
+        canonical_body = body_selection.top_text or ""
+        if canonical_body and len(canonical_body) < 20 and len(full_body_text) <= 200:
+            canonical_body = full_body_text
+        elif not canonical_body and full_body_text and len(full_body_text) <= 200:
+            canonical_body = full_body_text
 
         # Clean body text - decode HTML entities and remove zero-width characters
         body_text_clean = self._clean_body_text(canonical_body)
@@ -1579,6 +1636,11 @@ class UltimatePSTProcessor:
                 content_hash_phase1=content_hash,
                 thread_id_header=message_id,
                 thread_confidence="header" if message_id else None,
+                qc_flags={
+                    "body_source": body_selection.selected_source,
+                    "body_quoted_len": len(body_selection.quoted_text or ""),
+                    "body_signature_len": len(body_selection.signature_text or ""),
+                },
             )
         )
 
@@ -1624,6 +1686,29 @@ class UltimatePSTProcessor:
             # Canonical nested spam structure (used by evidence cascading)
             "spam": spam_payload,
         }
+        meta_payload.update(
+            {
+                "body_source": body_selection.selected_source,
+                "body_selection": body_selection.diagnostics,
+                "body_quoted_len": len(body_selection.quoted_text or ""),
+                "body_signature_len": len(body_selection.signature_text or ""),
+                "transport_headers_sha256": transport_headers_hash,
+                "transport_headers_present": bool(transport_headers_text),
+                "header_date_utc": header_date,
+                "received_count": len(received_hops),
+                "received_bounds": (
+                    {
+                        "first": received_first,
+                        "last": received_last,
+                    }
+                    if received_first or received_last
+                    else None
+                ),
+                "received_chain": (
+                    [hop.to_dict() for hop in received_hops] if received_hops else []
+                ),
+            }
+        )
         if spam_is_hidden:
             # Correspondence visibility convention
             meta_payload["status"] = derived_status
@@ -2192,10 +2277,8 @@ class UltimatePSTProcessor:
         Extract specific header from message transport headers
         """
         try:
-            if hasattr(message, "transport_headers") and message.transport_headers:
-                headers = message.transport_headers
-                if isinstance(headers, bytes):
-                    headers = headers.decode("utf-8", errors="replace")
+            headers = self._get_transport_headers_text(message)
+            if headers:
                 # Parse headers - handle multi-line headers (continuation lines start with whitespace)
                 current_header = None
                 current_value = []
@@ -2402,18 +2485,9 @@ class UltimatePSTProcessor:
                     if "@" in addr:
                         return addr.strip().lower()
 
-            headers_raw = getattr(message, "transport_headers", None)
-            if not headers_raw:
+            headers_str = self._get_transport_headers_text(message)
+            if not headers_str:
                 return None
-
-            # Ensure headers is a string for regex search
-            headers_str: str
-            if isinstance(headers_raw, bytes):
-                headers_str = headers_raw.decode("utf-8", errors="replace")
-            elif isinstance(headers_raw, str):
-                headers_str = headers_raw
-            else:
-                headers_str = str(headers_raw)
 
             # Fallback: search for a From: line then a raw email anywhere
             from_match = re.search(

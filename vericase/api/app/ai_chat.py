@@ -1489,7 +1489,7 @@ async def _get_relevant_emails(
             query = query.filter(EmailMessage.case_id == case_id)
         else:
             # Get all user's emails
-            projects = db.query(Project).filter(Project.owner_id == user_id).all()
+            projects = db.query(Project).filter(Project.owner_user_id == user_id).all()
             cases = db.query(Case).filter(Case.owner_id == user_id).all()
 
             project_ids = [str(p.id) for p in projects]

@@ -2028,7 +2028,7 @@ async def build_evidence_context(
         email_query = email_query.filter(EmailMessage.case_id == case_id)
     else:
         # Get from user's projects
-        projects = db.query(Project).filter(Project.owner_id == user_id).all()
+        projects = db.query(Project).filter(Project.owner_user_id == user_id).all()
         project_ids = [str(p.id) for p in projects]
         if project_ids:
             email_query = email_query.filter(EmailMessage.project_id.in_(project_ids))

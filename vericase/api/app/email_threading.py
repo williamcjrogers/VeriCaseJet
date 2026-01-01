@@ -35,7 +35,7 @@ class ThreadingConfig:
     time_window_hours: int = 36
     quoted_anchor_lines: int = 6
     subject_numeric_token_len: int = 4
-    allow_conversation_index: bool = False
+    allow_conversation_index: bool = True
 
 
 @dataclass
@@ -58,6 +58,7 @@ class ThreadNode:
     participants: set[str]
     date_sent: datetime | None
     conversation_index: str | None
+    content_hash: str | None
     body_anchor_hash: str | None
     quoted_anchor_hash: str | None
     sender: str | None
@@ -155,6 +156,36 @@ def _normalize_subject(subject: str | None, numeric_len: int) -> str | None:
     return s or None
 
 
+def _normalize_conversation_index(value: str | None) -> str | None:
+    if not value:
+        return None
+    text = str(value).strip()
+    if text.lower().startswith("0x"):
+        text = text[2:]
+    text = re.sub(r"\s+", "", text)
+    return text.lower() or None
+
+
+def _conversation_index_root(value: str | None) -> str | None:
+    if not value:
+        return None
+    text = _normalize_conversation_index(value)
+    if not text:
+        return None
+    return text[:44] if len(text) >= 44 else text
+
+
+def _conversation_index_parent(value: str | None) -> str | None:
+    text = _normalize_conversation_index(value)
+    if not text:
+        return None
+    if len(text) <= 44:
+        return None
+    if len(text) < 10:
+        return None
+    return text[:-10]
+
+
 def _normalize_text_for_hash(text: str) -> str:
     normalized = text.replace("\x00", " ").replace("\u0000", " ")
     normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
@@ -248,6 +279,12 @@ def _is_forward_subject(subject: str | None) -> bool:
     return bool(re.match(r"^\s*(?:fw|fwd)\s*:", subject, re.IGNORECASE))
 
 
+def _node_sort_key(node: ThreadNode) -> tuple[datetime, str, str]:
+    timestamp = node.date_sent or datetime.min.replace(tzinfo=timezone.utc)
+    message_key = node.message_id_norm or node.message_id or ""
+    return (timestamp, message_key, str(node.email_id))
+
+
 # =============================================================================
 # Threading engine
 # =============================================================================
@@ -326,7 +363,7 @@ def build_email_threads(
                 )
             )
 
-    _apply_thread_positions(nodes_by_id, updates)
+    _apply_thread_positions(nodes_by_id, updates, decisions)
 
     email_ids = [node.email_id for node in nodes]
     if email_ids:
@@ -367,6 +404,8 @@ def _build_nodes(
         subject_key = _normalize_subject(email.subject, cfg.subject_numeric_token_len)
         participants = _participants_from_email(email)
         date_sent = _email_timestamp(email)
+        conversation_index = _normalize_conversation_index(email.conversation_index)
+        content_hash = email.content_hash
         body_anchor = _extract_body_anchor(
             email.body_text_clean, cfg.quoted_anchor_lines
         )
@@ -390,7 +429,8 @@ def _build_nodes(
                 subject_key=subject_key,
                 participants=participants,
                 date_sent=date_sent,
-                conversation_index=email.conversation_index,
+                conversation_index=conversation_index,
+                content_hash=content_hash,
                 body_anchor_hash=body_anchor_hash,
                 quoted_anchor_hash=quoted_anchor_hash,
                 sender=(
@@ -420,9 +460,7 @@ def _build_indexes(nodes: Iterable[ThreadNode]) -> dict[str, Any]:
 
     # Sort subject buckets by date for deterministic selection
     for key in subject_index:
-        subject_index[key].sort(
-            key=lambda n: n.date_sent or datetime.min.replace(tzinfo=timezone.utc)
-        )
+        subject_index[key].sort(key=_node_sort_key)
 
     return {
         "message_id": message_id_index,
@@ -480,7 +518,21 @@ def _select_parent_for_node(
             if decision:
                 return decision
 
-    # Priority 3: Quoted anchor hash
+    # Priority 3: Outlook ConversationIndex (when present)
+    if cfg.allow_conversation_index and node.conversation_index:
+        parent_index = _conversation_index_parent(node.conversation_index)
+        if parent_index:
+            candidates = indexes["conversation_index"].get(parent_index, [])
+            decision = _resolve_candidates(
+                node,
+                candidates,
+                method="ConversationIndex",
+                alternatives=alternatives,
+            )
+            if decision:
+                return decision
+
+    # Priority 4: Quoted anchor hash
     if node.quoted_anchor_hash:
         candidates = indexes["anchor"].get(node.quoted_anchor_hash, [])
         decision = _resolve_candidates(
@@ -492,7 +544,7 @@ def _select_parent_for_node(
         if decision:
             return decision
 
-    # Priority 4: Subject key + participants + time window
+    # Priority 5: Subject key + participants + time window
     if node.subject_key and not _is_forward_subject(node.raw_subject):
         candidates = indexes["subject"].get(node.subject_key, [])
         decision = _resolve_subject_window(node, candidates, cfg, alternatives)
@@ -584,6 +636,10 @@ def _resolve_subject_window(
         if best is None or delta < (best_delta or window):
             best = cand
             best_delta = delta
+        elif best_delta is not None and delta == best_delta:
+            if _node_sort_key(cand) < _node_sort_key(best):
+                best = cand
+                best_delta = delta
 
     if not best:
         return None
@@ -620,7 +676,15 @@ def _closest_parent_by_time(
         if cand.date_sent > node.date_sent:
             continue
         delta = node.date_sent - cand.date_sent
-        if best is None or delta < best_delta:
+        if (
+            best is None
+            or delta < best_delta
+            or (
+                best_delta is not None
+                and delta == best_delta
+                and _node_sort_key(cand) < _node_sort_key(best)
+            )
+        ):
             best = cand
             best_delta = delta
     return best
@@ -638,6 +702,8 @@ def _build_evidence(
         "references": node.references_norm,
         "quoted_hash": node.quoted_anchor_hash,
         "subject_key": node.subject_key,
+        "conversation_index": node.conversation_index,
+        "parent_conversation_index": parent.conversation_index,
         "parent_message_id": parent.message_id,
         "parent_email_id": str(parent.email_id),
     }
@@ -654,6 +720,7 @@ def _confidence_for_method(method: str) -> float:
     return {
         "InReplyTo": 0.98,
         "References": 0.96,
+        "ConversationIndex": 0.9,
         "QuotedHash": 0.85,
         "SubjectWindow": 0.6,
     }.get(method, 0.5)
@@ -709,9 +776,21 @@ def _assign_thread_groups(
 
 
 def _make_thread_group_id(root: ThreadNode) -> str:
-    key = root.message_id_norm or root.message_id or ""
+    key = root.message_id_norm or root.message_id
+    if not key and root.conversation_index:
+        key = _conversation_index_root(root.conversation_index)
+    if not key and root.content_hash:
+        key = f"content:{root.content_hash}"
     if not key:
-        key = root.subject_key or ""
+        key = root.subject_key
+    if not key:
+        participant_key = (
+            ",".join(sorted(root.participants)) if root.participants else ""
+        )
+        date_key = root.date_sent.isoformat() if root.date_sent else ""
+        sender_key = root.sender or ""
+        composite = "|".join([p for p in [sender_key, participant_key, date_key] if p])
+        key = composite or None
     if not key:
         key = str(root.email_id)
     digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
@@ -721,6 +800,7 @@ def _make_thread_group_id(root: ThreadNode) -> str:
 def _apply_thread_positions(
     nodes_by_id: dict[uuid.UUID, ThreadNode],
     updates: list[dict[str, Any]],
+    decisions: dict[uuid.UUID, ThreadLinkDecision],
 ) -> None:
     grouped: dict[str, list[ThreadNode]] = {}
     update_map: dict[uuid.UUID, dict[str, Any]] = {
@@ -737,14 +817,38 @@ def _apply_thread_positions(
         grouped.setdefault(group_id, []).append(node)
 
     for group_id, items in grouped.items():
-        items.sort(
-            key=lambda n: n.date_sent or datetime.min.replace(tzinfo=timezone.utc)
-        )
-        for idx, node in enumerate(items):
+        items_sorted = sorted(items, key=_node_sort_key)
+        for idx, node in enumerate(items_sorted):
             update = update_map.get(node.email_id)
             if update is not None:
                 update["thread_position"] = idx
-                update["thread_path"] = f"{idx:06d}"
+
+        items_by_id = {node.email_id: node for node in items}
+        children: dict[uuid.UUID, list[ThreadNode]] = {
+            node.email_id: [] for node in items
+        }
+        roots: list[ThreadNode] = []
+        for node in items:
+            decision = decisions.get(node.email_id)
+            parent_id = decision.parent_email_id if decision else None
+            if parent_id and parent_id in items_by_id and parent_id != node.email_id:
+                children[parent_id].append(node)
+            else:
+                roots.append(node)
+
+        roots.sort(key=_node_sort_key)
+        for key in children:
+            children[key].sort(key=_node_sort_key)
+
+        def _assign_paths(node: ThreadNode, path: str) -> None:
+            update = update_map.get(node.email_id)
+            if update is not None:
+                update["thread_path"] = path
+            for idx, child in enumerate(children.get(node.email_id, [])):
+                _assign_paths(child, f"{path}/{idx:06d}")
+
+        for idx, root in enumerate(roots):
+            _assign_paths(root, f"{idx:06d}")
 
 
 def _to_uuid(value: uuid.UUID | str | None) -> uuid.UUID | None:

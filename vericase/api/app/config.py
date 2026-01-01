@@ -201,6 +201,7 @@ class Settings(BaseSettings):
     PST_UPLOAD_WORKERS: int = 50  # Parallel S3 upload threads
     PST_SKIP_SEMANTIC_INDEXING: bool = True  # Skip during ingestion (run in background)
     PST_AGENT_LOG_ENABLED: bool = False  # Disable local debug logging in production
+    PST_AGENT_LOG_PATH: str | None = None  # Optional file path for local debug logs
 
     # PST local temp storage
     # Large PSTs are downloaded locally before pypff can open them. In containers,

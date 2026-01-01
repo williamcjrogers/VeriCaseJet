@@ -13,6 +13,7 @@ import tempfile
 import os
 import re
 import shutil
+from pathlib import Path
 from typing import Any
 from email.utils import parseaddr, getaddresses
 from sqlalchemy.orm import Session
@@ -71,8 +72,15 @@ def agent_log(
     if not _AGENT_LOG_ENABLED:
         return
     log_path = (
-        r"c:\Users\William\Documents\Projects\VeriCase Analysis\.cursor\debug.log"
+        os.getenv("PST_AGENT_LOG_PATH")
+        or getattr(settings, "PST_AGENT_LOG_PATH", None)
+        or os.getenv("VERICASE_DEBUG_LOG_PATH")
+        or str(Path(".cursor") / "debug.log")
     )
+    try:
+        Path(log_path).parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
     payload = {
         "id": f"log_{int(time.time() * 1000)}_{hash(message) % 10000}",
         "timestamp": int(time.time() * 1000),

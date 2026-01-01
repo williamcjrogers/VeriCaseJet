@@ -4,7 +4,9 @@ Provides aggregated overview of user's projects, cases, and activity
 """
 
 import logging
+import os
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from typing import Annotated, Any, Dict as TypingDict
 from uuid import UUID
 
@@ -52,8 +54,6 @@ def _ensure_tz_aware(dt: datetime | None) -> datetime:
 import json
 import time
 
-logger = logging.getLogger(__name__)
-
 
 def debug_log(
     hypothesis_id: str,
@@ -61,23 +61,18 @@ def debug_log(
     data: TypingDict[str, Any] | None = None,
     line_num: int | None = None,
 ) -> None:
+    if not bool(getattr(settings, "PST_AGENT_LOG_ENABLED", False)):
+        return
     log_path = (
-        r"c:\Users\William\Documents\Projects\VeriCase Analysis\.cursor\debug.log"
+        os.getenv("PST_AGENT_LOG_PATH")
+        or getattr(settings, "PST_AGENT_LOG_PATH", None)
+        or os.getenv("VERICASE_DEBUG_LOG_PATH")
+        or str(Path(".cursor") / "debug.log")
     )
-    # region agent log self-test
     try:
-        _ = int(time.time() * 1000)
-        test_entry = {
-            "id": "self_test",
-            "message": f"debug_log called for {hypothesis_id}",
-            "data": {},
-            "timestamp": _,
-        }
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(test_entry, default=str) + "\n")
-    except Exception as e:
-        print(f"DEBUG LOG SELF-TEST FAIL: {e} - cannot write to {log_path}")
-    # endregion
+        Path(log_path).parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
 
     _ = int(time.time() * 1000)
     entry_id = f"log_{_}_{int(time.time()) % 10000}"
@@ -96,14 +91,9 @@ def debug_log(
     try:
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, default=str) + "\n")
-    except Exception as e:
-        print(f"DEBUG LOG WRITE FAIL for {hypothesis_id}: {e}")
+    except Exception:
+        logger.debug("dashboard_api debug_log write failed", exc_info=True)
 
-
-# Module level log to confirm import
-debug_log("F", "Module dashboard_api.py loaded successfully", {}, 30)
-
-print("DEBUG: dashboard_api.py module imported and debug_log available")
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 DbDep = Annotated[Session, Depends(get_db)]
