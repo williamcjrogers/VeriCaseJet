@@ -16,12 +16,10 @@
     .app-content {
       background: var(--bg-white);
       border: 1px solid var(--border-default);
-      border-radius: 26px;
-      box-shadow:
-        0 4px 6px -1px rgba(0, 0, 0, 0.05),
-        0 2px 4px -2px rgba(0, 0, 0, 0.03);
-      margin: var(--space-4);
-      padding: var(--space-6);
+      border-radius: var(--radius-lg); /* Professional 8px, not 26px */
+      box-shadow: var(--shadow-sm); /* Subtle, not floating */
+      margin: var(--space-2); /* Tighter: 8px */
+      padding: var(--space-3); /* Tighter: 12px */
     }
 
     /* === COMPACT HEADER === */
@@ -29,8 +27,8 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 20px;
-      margin-bottom: 28px;
+      gap: 12px; /* Tighter: was 20px */
+      margin-bottom: 16px; /* Tighter: was 28px */
       flex-wrap: wrap;
     }
 
@@ -249,14 +247,14 @@
     /* === WORKSPACE GRID === */
     .workspace-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); /* Denser: was 300px */
+      gap: 10px; /* Tighter: was 16px */
     }
 
     .workspace-card {
       background: white;
-      border-radius: var(--radius-lg);
-      padding: 20px;
+      border-radius: var(--radius-md); /* Tighter corners */
+      padding: 14px; /* Denser: was 20px */
       border: 1px solid var(--gray-200);
       cursor: pointer;
       transition: all 0.2s ease;
@@ -630,25 +628,25 @@
     .empty-state {
       grid-column: 1 / -1;
       text-align: center;
-      padding: 48px 24px;
+      padding: 24px 20px; /* Tighter: was 48px 24px */
       background: rgba(255, 255, 255, 0.8);
-      border-radius: var(--radius-xl);
+      border-radius: var(--radius-lg); /* Professional: was xl */
       border: 1px dashed rgba(181, 155, 106, 0.3);
     }
 
     .empty-state.onboarding-state {
-      padding: 60px 40px;
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 246, 243, 0.9) 100%);
-      border: 2px dashed var(--vericase-teal);
-      border-radius: 24px;
+      padding: 32px 24px; /* Tighter: was 60px 40px */
+      background: var(--bg-secondary); /* Clean: no gradient */
+      border: 1px dashed var(--vericase-teal);
+      border-radius: var(--radius-lg); /* Professional: was 24px */
     }
 
     .onboarding-icon {
-      width: 80px;
-      height: 80px;
-      margin: 0 auto 24px;
-      background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-navy) 100%);
-      border-radius: 50%;
+      width: 48px; /* Smaller: was 80px */
+      height: 48px;
+      margin: 0 auto 16px; /* Tighter margin */
+      background: var(--vericase-teal); /* Solid: no gradient */
+      border-radius: var(--radius-md); /* Professional corners */
       display: flex;
       align-items: center;
       justify-content: center;

@@ -318,6 +318,92 @@ button,
 }
 
 /* ============================================
+   DIGITAL BARRISTER OVERRIDES
+   Forensic Truth Engine - Bloomberg meets Legal Stationery
+   ============================================ */
+
+/* App content container - professional corners, not playful */
+.app-content {
+  border-radius: var(--radius-lg) !important; /* 8px, not 26px */
+  padding: var(--space-3) !important; /* 12px, not 24px */
+  margin: var(--space-2) !important; /* 8px, not 16px */
+}
+
+/* Kill 999px pill shapes - use professional 6px corners */
+.search-chip,
+.filter-chip,
+.keyword-tag,
+.entity-pill,
+.search-filter,
+[class*="chip"]:not(.stat-pill) {
+  border-radius: var(--radius-md) !important; /* 6px */
+}
+
+/* Reduce shadow depth globally - subtle, not floating */
+[class*="card"]:not(.workspace-card),
+.modal-content,
+.dropdown-menu {
+  box-shadow: var(--shadow-sm) !important;
+}
+
+/* Tighter padding for dense work */
+.empty-state,
+.onboarding-state {
+  padding: 24px 20px !important;
+  border-radius: var(--radius-lg) !important;
+}
+
+/* AG-Grid density - Bloomberg Terminal style */
+.ag-theme-vericase,
+.ag-theme-alpine {
+  --ag-row-height: 36px !important;
+  --ag-header-height: 32px !important;
+  --ag-cell-horizontal-padding: 8px !important;
+}
+
+/* Workspace grid density */
+.workspace-grid {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+  gap: 10px !important;
+}
+
+/* Items grid density (workspace-hub) */
+.items-grid {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+  gap: 12px !important;
+}
+
+/* Reduce welcome banner bloat */
+.welcome-banner {
+  padding: 1rem 1.5rem !important;
+  margin-bottom: 1rem !important;
+}
+
+/* Detail panel - narrower for more grid space */
+.detail-panel,
+.context-panel {
+  width: 300px !important;
+  max-width: 300px !important;
+}
+
+/* Stats bar tighter */
+.stats-bar {
+  gap: 8px !important;
+  margin-bottom: 16px !important;
+}
+
+/* Header gaps reduced */
+.dashboard-header {
+  gap: 12px !important;
+  margin-bottom: 16px !important;
+}
+
+/* Section margins reduced */
+.search-section {
+  margin-bottom: 20px !important;
+}
+
+/* ============================================
    TYPOGRAPHY SYSTEM
    ============================================ */
 
