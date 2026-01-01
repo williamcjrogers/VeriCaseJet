@@ -38,13 +38,13 @@ function escapeHtml(unsafe) {
  * @returns {string} CSRF token
  */
 function getCsrfToken() {
-  let token = sessionStorage.getItem("csrf-token");
+  let token = localStorage.getItem("csrf-token");
   if (!token) {
     // Generate a cryptographically secure random token (64 hex characters = 32 bytes)
     token = Array.from(crypto.getRandomValues(new Uint8Array(32)))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
-    sessionStorage.setItem("csrf-token", token);
+    localStorage.setItem("csrf-token", token);
   }
   return token;
 }

@@ -103,7 +103,7 @@
         if (response.status === 401) {
           console.error("Authentication failed - redirecting to login");
           if (!window.location.pathname.includes("login")) {
-            ["vericase_token", "access_token", "token", "jwt"].forEach((key) =>
+            ["vericase_token", "access_token", "token", "jwt", "csrf-token"].forEach((key) =>
               localStorage.removeItem(key),
             );
             window.location.href = "/ui/login.html";
