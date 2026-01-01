@@ -35,7 +35,7 @@ spec:
       serviceAccountName: vericase-api-sa
       containers:
         - name: vericase-api
-          image: docker.io/wcjrogers/vericase-api@sha256:68785e213c0c565a9803844a3fcda2bb0b8ce20dd5e0cff297f0b264c32febc8
+          image: docker.io/wcjrogers/vericase-api@sha256:0eca5d308213d86cea38b5a732eae4495e8a88483c52c1bce71c1f8aab74408e
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
@@ -198,7 +198,7 @@ spec:
       serviceAccountName: vericase-api-sa
       containers:
         - name: vericase-worker
-          image: docker.io/wcjrogers/vericase-api@sha256:68785e213c0c565a9803844a3fcda2bb0b8ce20dd5e0cff297f0b264c32febc8
+          image: docker.io/wcjrogers/vericase-api@sha256:0eca5d308213d86cea38b5a732eae4495e8a88483c52c1bce71c1f8aab74408e
           imagePullPolicy: Always
           command: ["celery", "-A", "worker_app.worker:celery_app", "worker", "--loglevel=info", "--pool=prefork", "--concurrency=2", "-Q", "celery,pst_processing", "--max-tasks-per-child=5", "--max-memory-per-child=10485760"]
           # Workers optimized for 50GB+ PST processing
