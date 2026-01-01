@@ -111,16 +111,30 @@
       align-items: center;
       gap: 6px;
       padding: 8px 14px;
-      background: rgba(255, 255, 255, 0.9);
-      border: 1px solid rgba(181, 155, 106, 0.2);
-      border-radius: 999px;
-      font-size: 0.875rem;
+      background: #FFFFFF;
+      border: 1px solid var(--border-default);
+      border-left: 3px solid var(--gray-300);
+      border-radius: var(--radius-md);
+      font-size: 0.8125rem;
       color: var(--text-secondary);
-      box-shadow: 0 2px 6px rgba(15, 23, 32, 0.04);
+      box-shadow: var(--shadow-card);
+      transition: all 0.15s ease;
     }
 
+    .stat-pill:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+
+    /* Accent borders for each stat */
+    .stat-pill.projects { border-left-color: var(--vericase-navy); }
+    .stat-pill.cases { border-left-color: var(--vericase-gold); }
+    .stat-pill.deadlines { border-left-color: var(--status-warning); }
+    .stat-pill.documents { border-left-color: var(--vericase-teal); }
+    .stat-pill.members { border-left-color: #78716C; }
+
     .stat-pill i {
-      font-size: 0.8125rem;
+      font-size: 0.75rem;
       opacity: 0.7;
     }
 
@@ -1542,11 +1556,11 @@
       const team = workspaceTeam.length;
 
       statsBar.innerHTML = `
-        <div class="stat-pill"><i class="fas fa-project-diagram"></i> <strong>${projects}</strong> Projects</div>
-        <div class="stat-pill"><i class="fas fa-briefcase"></i> <strong>${cases}</strong> Cases</div>
-        <div class="stat-pill"><i class="fas fa-calendar-alt"></i> <strong>${deadlines}</strong> Deadlines</div>
-        <div class="stat-pill"><i class="fas fa-folder-open"></i> <strong>${docs}</strong> Documents</div>
-        <div class="stat-pill"><i class="fas fa-users"></i> <strong>${team}</strong> Members</div>
+        <div class="stat-pill projects"><i class="fas fa-project-diagram"></i> <strong>${projects}</strong> Projects</div>
+        <div class="stat-pill cases"><i class="fas fa-briefcase"></i> <strong>${cases}</strong> Cases</div>
+        <div class="stat-pill deadlines"><i class="fas fa-calendar-alt"></i> <strong>${deadlines}</strong> Deadlines</div>
+        <div class="stat-pill documents"><i class="fas fa-folder-open"></i> <strong>${docs}</strong> Documents</div>
+        <div class="stat-pill members"><i class="fas fa-users"></i> <strong>${team}</strong> Members</div>
       `;
     }
 
