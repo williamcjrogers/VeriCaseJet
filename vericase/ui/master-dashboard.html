@@ -2249,7 +2249,6 @@
     });
 
     let dashboardData = null;
-    let workspacesData = [];
     let searchQuery = "";
     let selectedType = "project";
     let predictiveOptions = { themes: [], outcomes: [] };
@@ -2528,7 +2527,6 @@
 
     // Track selected workspace for detail panel
     let selectedWorkspaceId = null;
-    let workspacesData = [];
 
     function renderWorkspaceRow(workspace) {
       const isSelected = selectedWorkspaceId === workspace.id;
@@ -2581,7 +2579,7 @@
 
     function selectWorkspace(workspaceId) {
       selectedWorkspaceId = workspaceId;
-      const workspace = workspacesData.find(ws => ws.id === workspaceId);
+      const workspace = (window.workspacesData || []).find(ws => ws.id === workspaceId);
 
       // Update row selection UI
       document.querySelectorAll('.workspace-row').forEach(row => {
@@ -2608,7 +2606,7 @@
 
     function renderWorkspaceDetail(workspaceId) {
       const panel = document.getElementById('workspaceDetailPanel');
-      const workspace = workspacesData.find(ws => ws.id === workspaceId);
+      const workspace = (window.workspacesData || []).find(ws => ws.id === workspaceId);
 
       if (!workspace) {
         panel.innerHTML = `
@@ -2743,9 +2741,6 @@
       const query = searchQuery.trim().toLowerCase();
       const hasQuery = query.length > 0;
       const list = Array.isArray(workspaces) ? workspaces : [];
-
-      // Store for detail panel access
-      workspacesData = list;
 
       // Filter workspaces by search query
       const filtered = hasQuery
