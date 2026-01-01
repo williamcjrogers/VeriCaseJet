@@ -239,6 +239,8 @@ class UltimatePSTProcessor:
         self.ingest_run_id: str | None = None
         self._stakeholders: list[Stakeholder] = []
         self._keywords: list[Keyword] = []
+        self._keyword_regex_cache: dict[tuple[str, str], re.Pattern[str]] = {}
+        self._invalid_keyword_regex: set[tuple[str, str]] = set()
 
         # Initialize semantic processing for deep research acceleration
         self.semantic_service: Any = None
@@ -814,6 +816,10 @@ class UltimatePSTProcessor:
         except Exception as e:
             had_error = True
             logger.error(f"PST processing failed: {e}", exc_info=True)
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
             # Try to save partial results
             try:
                 self._flush_buffers(force=True, stats=stats)
@@ -1254,12 +1260,28 @@ class UltimatePSTProcessor:
                     search_terms.extend(variations)
 
                 for term in search_terms:
-                    try:
-                        if re.search(term, search_text, re.IGNORECASE):
-                            matched.append(keyword)
-                            break
-                    except (re.error, TypeError):
+                    cache_key = (str(keyword.id), term)
+                    if cache_key in self._invalid_keyword_regex:
                         continue
+
+                    compiled = self._keyword_regex_cache.get(cache_key)
+                    if compiled is None:
+                        try:
+                            compiled = re.compile(term, re.IGNORECASE)
+                        except (re.error, TypeError) as exc:
+                            self._invalid_keyword_regex.add(cache_key)
+                            logger.warning(
+                                "Invalid keyword regex skipped (keyword_id=%s, term=%s): %s",
+                                keyword.id,
+                                term[:200],
+                                exc,
+                            )
+                            continue
+                        self._keyword_regex_cache[cache_key] = compiled
+
+                    if compiled.search(search_text):
+                        matched.append(keyword)
+                        break
             else:
                 search_terms = [keyword_name.lower()]
                 if keyword.variations:

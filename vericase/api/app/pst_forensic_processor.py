@@ -138,6 +138,8 @@ class ForensicPSTProcessor:
         self.scope_matcher: ScopeMatcher | None = None
         self.attachment_hashes = {}  # For deduplication
         self.ingest_run_id: str | None = None
+        self._keyword_regex_cache: dict[tuple[str, str], re.Pattern[str]] = {}
+        self._invalid_keyword_regex: set[tuple[str, str]] = set()
         cpu_based_default = max(8, (os.cpu_count() or 4) * 4)
         max_workers = (
             getattr(settings, "PST_UPLOAD_WORKERS", cpu_based_default)
@@ -1328,42 +1330,72 @@ class ForensicPSTProcessor:
         self, subject: str, body_text: str, keywords: list[Keyword]
     ) -> list[Keyword]:
         """Auto-tag email with matching keywords"""
-        matched = []
+        matched: list[Keyword] = []
 
-        search_text = f"{subject or ''} {body_text or ''}".lower()
+        search_text = f"{subject or ''} {body_text or ''}"
+        search_text_lower = search_text.lower()
 
         for keyword in keywords:
             # Build search terms (keyword + variations)
             keyword_name = (keyword.keyword_name or "").strip()
             if not keyword_name:
                 continue
-            search_terms = [keyword_name.lower()]
-
-            if keyword.variations:
-                variations = [
-                    v.strip().lower()
-                    for v in keyword.variations.split(",")
-                    if v and v.strip()
-                ]
-                search_terms.extend(variations)
 
             # Check if any term matches
-            for term in search_terms:
-                if keyword.is_regex:
-                    # Use regex matching
-                    try:
-                        if re.search(term, search_text, re.IGNORECASE):
-                            matched.append(keyword)
-                            break
-                    except (re.error, TypeError):
+            if keyword.is_regex:
+                search_terms = [keyword_name]
+                if keyword.variations:
+                    variations = [
+                        v.strip()
+                        for v in keyword.variations.split(",")
+                        if v and v.strip()
+                    ]
+                    search_terms.extend(variations)
+
+                for term in search_terms:
+                    cache_key = (str(keyword.id), term)
+                    if cache_key in self._invalid_keyword_regex:
                         continue
-                else:
-                    # Simple substring matching
-                    if term in search_text:
+
+                    compiled = self._keyword_regex_cache.get(cache_key)
+                    if compiled is None:
+                        try:
+                            compiled = re.compile(term, re.IGNORECASE)
+                        except (re.error, TypeError) as exc:
+                            self._invalid_keyword_regex.add(cache_key)
+                            logger.warning(
+                                "Invalid keyword regex skipped (keyword_id=%s, term=%s): %s",
+                                keyword.id,
+                                term[:200],
+                                exc,
+                            )
+                            continue
+                        self._keyword_regex_cache[cache_key] = compiled
+
+                    if compiled.search(search_text):
+                        matched.append(keyword)
+                        break
+            else:
+                search_terms = [keyword_name.lower()]
+                if keyword.variations:
+                    variations = [
+                        v.strip().lower()
+                        for v in keyword.variations.split(",")
+                        if v and v.strip()
+                    ]
+                    search_terms.extend(variations)
+
+                for term in search_terms:
+                    if term in search_text_lower:
                         matched.append(keyword)
                         break
 
-        return list(set(matched))  # Remove duplicates
+        unique: dict[str, Keyword] = {}
+        for keyword in matched:
+            key = str(keyword.id)
+            if key not in unique:
+                unique[key] = keyword
+        return list(unique.values())
 
     def _detect_content_type(self, filename: str, data: bytes) -> str:
         """Detect file content type from filename and magic bytes"""

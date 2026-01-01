@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
 from .models import EmailMessage, EmailThreadLink
 
@@ -307,7 +307,25 @@ def build_email_threads(
     case_uuid = _to_uuid(case_id)
     project_uuid = _to_uuid(project_id)
 
-    query = db.query(EmailMessage)
+    query = db.query(EmailMessage).options(
+        load_only(
+            EmailMessage.id,
+            EmailMessage.message_id,
+            EmailMessage.in_reply_to,
+            EmailMessage.email_references,
+            EmailMessage.conversation_index,
+            EmailMessage.subject,
+            EmailMessage.sender_email,
+            EmailMessage.recipients_to,
+            EmailMessage.recipients_cc,
+            EmailMessage.recipients_bcc,
+            EmailMessage.date_sent,
+            EmailMessage.date_received,
+            EmailMessage.content_hash,
+            EmailMessage.body_text_clean,
+            EmailMessage.body_text,
+        )
+    )
     if case_uuid:
         query = query.filter(EmailMessage.case_id == case_uuid)
     if project_uuid:
@@ -372,18 +390,22 @@ def build_email_threads(
 
     _apply_thread_positions(nodes_by_id, updates, decisions)
 
-    email_ids = [node.email_id for node in nodes]
-    if email_ids:
-        db.query(EmailThreadLink).filter(
-            EmailThreadLink.child_email_id.in_(email_ids)
-        ).delete(synchronize_session=False)
+    try:
+        email_ids = [node.email_id for node in nodes]
+        if email_ids:
+            db.query(EmailThreadLink).filter(
+                EmailThreadLink.child_email_id.in_(email_ids)
+            ).delete(synchronize_session=False)
 
-    if updates:
-        db.bulk_update_mappings(EmailMessage, updates)
-    if link_rows:
-        db.bulk_save_objects(link_rows)
+        if updates:
+            db.bulk_update_mappings(EmailMessage, updates)
+        if link_rows:
+            db.bulk_save_objects(link_rows)
 
-    db.commit()
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     stats.links_created = len(link_rows)
     stats.orphans = sum(

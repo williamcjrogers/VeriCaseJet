@@ -1243,7 +1243,7 @@ class EmailMessage(Base):
     thread_group_id: Mapped[str | None] = mapped_column(
         String(128), nullable=True, index=True
     )  # Stable thread grouping identifier
-    thread_path: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    thread_path: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     thread_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
     parent_message_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
     is_inclusive: Mapped[bool] = mapped_column(

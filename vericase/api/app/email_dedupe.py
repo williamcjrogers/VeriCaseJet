@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
 from .models import EmailAttachment, EmailMessage, EmailDedupeDecision
 
@@ -89,7 +89,22 @@ def dedupe_emails(
 ) -> DedupeStats:
     case_uuid = _to_uuid(case_id)
     project_uuid = _to_uuid(project_id)
-    query = db.query(EmailMessage)
+    query = db.query(EmailMessage).options(
+        load_only(
+            EmailMessage.id,
+            EmailMessage.message_id,
+            EmailMessage.subject,
+            EmailMessage.sender_email,
+            EmailMessage.sender_name,
+            EmailMessage.recipients_to,
+            EmailMessage.recipients_cc,
+            EmailMessage.recipients_bcc,
+            EmailMessage.date_sent,
+            EmailMessage.date_received,
+            EmailMessage.body_text_clean,
+            EmailMessage.body_text,
+        )
+    )
     if case_uuid:
         query = query.filter(EmailMessage.case_id == case_uuid)
     if project_uuid:
