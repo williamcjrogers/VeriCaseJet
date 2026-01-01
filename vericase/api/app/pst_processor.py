@@ -63,11 +63,8 @@ from .email_normalizer import (
 )
 from .email_headers import (
     decode_header_blob,
-    get_header_all,
-    get_header_first,
     parse_date_header,
     parse_received_headers,
-    parse_rfc822_headers,
     received_time_bounds,
     sha256_text,
 )
@@ -241,6 +238,22 @@ class UltimatePSTProcessor:
         self._keywords: list[Keyword] = []
         self._keyword_regex_cache: dict[tuple[str, str], re.Pattern[str]] = {}
         self._invalid_keyword_regex: set[tuple[str, str]] = set()
+        self._timings: dict[str, float] = {
+            "download_s": 0.0,
+            "open_s": 0.0,
+            "precount_s": 0.0,
+            "headers_s": 0.0,
+            "body_s": 0.0,
+            "attachments_s": 0.0,
+            "flush_s": 0.0,
+            "threading_s": 0.0,
+            "dedupe_s": 0.0,
+        }
+        self._counts: dict[str, int] = {
+            "messages_seen": 0,
+            "messages_skipped": 0,
+            "attachments_seen": 0,
+        }
 
         # Initialize semantic processing for deep research acceleration
         self.semantic_service: Any = None
@@ -289,6 +302,7 @@ class UltimatePSTProcessor:
         occurrences = list(self.message_occurrence_buffer)
         derived_messages = list(self.message_derived_buffer)
 
+        t0 = time.monotonic()
         try:
             # Flush in order of dependencies
             if raw_messages:
@@ -364,6 +378,64 @@ class UltimatePSTProcessor:
             self.evidence_buffer = []
 
             raise
+        finally:
+            self._timings["flush_s"] += time.monotonic() - t0
+
+    @staticmethod
+    def _parse_transport_headers_map(
+        headers_text: str | None, wanted: set[str] | None = None
+    ) -> dict[str, list[str]]:
+        """Parse RFC822 headers into a lower-cased multimap.
+
+        This is intentionally faster than `email.parser.HeaderParser` and supports
+        folded headers (continuation lines start with whitespace).
+        """
+        if not headers_text:
+            return {}
+        wanted_lc = {w.lower() for w in wanted} if wanted else None
+        header_map: dict[str, list[str]] = {}
+        current_name: str | None = None
+        current_value: list[str] = []
+
+        def flush() -> None:
+            nonlocal current_name, current_value
+            if not current_name:
+                current_value = []
+                return
+            value = " ".join(current_value).strip()
+            if value:
+                header_map.setdefault(current_name, []).append(value)
+            current_name = None
+            current_value = []
+
+        for raw_line in str(headers_text).splitlines():
+            if not raw_line:
+                continue
+            if raw_line.startswith((" ", "\t")):
+                if current_name:
+                    current_value.append(raw_line.strip())
+                continue
+            if ":" not in raw_line:
+                continue
+            flush()
+            name, rest = raw_line.split(":", 1)
+            name_lc = name.strip().lower()
+            if wanted_lc is not None and name_lc not in wanted_lc:
+                current_name = None
+                current_value = []
+                continue
+            current_name = name_lc
+            current_value = [rest.strip()]
+        flush()
+        return header_map
+
+    @staticmethod
+    def _header_first(header_map: dict[str, list[str]], name: str) -> str | None:
+        values = header_map.get(name.lower())
+        if not values:
+            return None
+        value = values[0].strip()
+        return value or None
 
     def _report_progress(
         self, pst_file_record: PSTFile | None, force: bool = False
@@ -463,6 +535,7 @@ class UltimatePSTProcessor:
         self.ingest_run_id = f"pst:{document_id}:{uuid.uuid4().hex}"
 
         start_time = datetime.now(timezone.utc)
+        start_monotonic = time.monotonic()
         document: Document | None = None
         pst_path: str | None = None
         had_error = False
@@ -607,6 +680,7 @@ class UltimatePSTProcessor:
             suffix=".pst", delete=False, dir=temp_dir
         ) as tmp:
             try:
+                t_dl = time.monotonic()
                 bucket_to_use = (
                     pst_s3_bucket
                     or (
@@ -621,6 +695,7 @@ class UltimatePSTProcessor:
                 self.s3.download_fileobj(
                     Bucket=bucket_to_use, Key=pst_s3_key, Fileobj=tmp
                 )
+                self._timings["download_s"] += time.monotonic() - t_dl
                 pst_path = tmp.name
                 # region agent log H11 download
                 size_bytes = (
@@ -660,7 +735,9 @@ class UltimatePSTProcessor:
             pst_file = pypff.file()
             if not pst_path:
                 raise RuntimeError("PST temp path was not created")
+            t_open = time.monotonic()
             pst_file.open(pst_path)
+            self._timings["open_s"] += time.monotonic() - t_open
 
             logger.info("PST opened successfully, processing folders...")
             # region agent log H12 open
@@ -675,7 +752,9 @@ class UltimatePSTProcessor:
             # Get root folder and (optionally) count total messages first
             root: Any = pst_file.get_root_folder()
             if getattr(settings, "PST_PRECOUNT_MESSAGES", False):
+                t_count = time.monotonic()
                 self.total_count = self._count_messages(root)
+                self._timings["precount_s"] += time.monotonic() - t_count
                 logger.info(f"Found {self.total_count} total messages to process")
                 # region agent log H12 count
                 agent_log(
@@ -725,7 +804,9 @@ class UltimatePSTProcessor:
 
             # Build thread relationships after all emails are extracted (CRITICAL - USP FEATURE!)
             logger.info("Building email thread relationships...")
+            t_thread = time.monotonic()
             thread_stats = self._build_thread_relationships(case_id, project_id)
+            self._timings["threading_s"] += time.monotonic() - t_thread
             # region agent log H13 threads
             agent_log(
                 "H13",
@@ -745,12 +826,14 @@ class UltimatePSTProcessor:
 
             # Deduplicate emails after threading (deterministic, evidence-logged)
             logger.info("Deduplicating emails...")
+            t_dedupe = time.monotonic()
             dedupe_stats = dedupe_emails(
                 self.db,
                 case_id=case_id,
                 project_id=project_id,
                 run_id="pst_processor",
             )
+            self._timings["dedupe_s"] += time.monotonic() - t_dedupe
             stats["dedupe_duplicates"] = dedupe_stats.duplicates_found
 
             # Wait for any pending S3 uploads
@@ -842,6 +925,26 @@ class UltimatePSTProcessor:
             raise
 
         finally:
+            total_s = time.monotonic() - start_monotonic
+            try:
+                logger.info(
+                    "PST timing: total=%.2fs download=%.2fs open=%.2fs precount=%.2fs headers=%.2fs body=%.2fs attachments=%.2fs flush=%.2fs threading=%.2fs dedupe=%.2fs msgs_seen=%d msgs_skipped=%d atts_seen=%d",
+                    total_s,
+                    self._timings.get("download_s", 0.0),
+                    self._timings.get("open_s", 0.0),
+                    self._timings.get("precount_s", 0.0),
+                    self._timings.get("headers_s", 0.0),
+                    self._timings.get("body_s", 0.0),
+                    self._timings.get("attachments_s", 0.0),
+                    self._timings.get("flush_s", 0.0),
+                    self._timings.get("threading_s", 0.0),
+                    self._timings.get("dedupe_s", 0.0),
+                    int(self._counts.get("messages_seen", 0)),
+                    int(self._counts.get("messages_skipped", 0)),
+                    int(self._counts.get("attachments_seen", 0)),
+                )
+            except Exception:
+                pass
             # Cleanup temp file
             try:
                 if pst_path and os.path.exists(pst_path):
@@ -949,6 +1052,7 @@ class UltimatePSTProcessor:
                     SystemError,
                     MemoryError,
                 ) as e:
+                    self._counts["messages_skipped"] += 1
                     logger.warning(
                         f"Skipping message {i} in {current_path}: {str(e)[:100]}"
                     )
@@ -1322,12 +1426,26 @@ class UltimatePSTProcessor:
         This saves ~90% storage compared to traditional PST extraction
         """
 
-        # Extract email headers
-        message_id = self._get_header(message, "Message-ID")
-        in_reply_to = self._get_header(message, "In-Reply-To")
-        references = self._get_header(message, "References")
+        self._counts["messages_seen"] += 1
+
+        # Extract email headers (single pass, fast path)
+        t_headers = time.monotonic()
         transport_headers_text = self._get_transport_headers_text(message)
-        parsed_headers = parse_rfc822_headers(transport_headers_text)
+        header_map = self._parse_transport_headers_map(
+            transport_headers_text,
+            wanted={
+                "message-id",
+                "in-reply-to",
+                "references",
+                "date",
+                "received",
+                "thread-topic",
+                "from",
+                "to",
+                "cc",
+                "bcc",
+            },
+        )
 
         def _strip_angles(value: str | None) -> str | None:
             if not value:
@@ -1337,30 +1455,23 @@ class UltimatePSTProcessor:
                 cleaned = cleaned[1:-1].strip()
             return cleaned or None
 
-        if parsed_headers:
-            if not message_id:
-                message_id = _strip_angles(
-                    get_header_first(parsed_headers, "Message-ID")
-                )
-            if not in_reply_to:
-                in_reply_to = _strip_angles(
-                    get_header_first(parsed_headers, "In-Reply-To")
-                )
-            if not references:
-                references = get_header_first(parsed_headers, "References")
+        message_id = _strip_angles(self._header_first(header_map, "message-id"))
+        in_reply_to = _strip_angles(self._header_first(header_map, "in-reply-to"))
+        references = self._header_first(header_map, "references")
 
         message_id = self._sanitize_text(message_id)
         in_reply_to = self._sanitize_text(in_reply_to)
         references = self._sanitize_text(references)
         folder_path = self._sanitize_text(folder_path) or folder_path
 
-        header_date = parse_date_header(get_header_first(parsed_headers, "Date"))
-        received_values = get_header_all(parsed_headers, "Received")
+        header_date = parse_date_header(self._header_first(header_map, "date"))
+        received_values = header_map.get("received", [])
         received_hops = (
             parse_received_headers(received_values) if received_values else []
         )
         received_first, received_last = received_time_bounds(received_hops)
         transport_headers_hash = sha256_text(transport_headers_text)
+        self._timings["headers_s"] += time.monotonic() - t_headers
 
         # Safely get attributes - pypff objects have limited attributes
         subject = self._sanitize_text(self._safe_get_attr(message, "subject", ""))
@@ -1371,7 +1482,13 @@ class UltimatePSTProcessor:
         # Sender/recipient extraction:
         # Prefer pypff message helper methods (more reliable than transport header parsing),
         # but fall back to transport headers when needed.
-        sender_email = self._sanitize_text(self._extract_sender_email(message))
+        sender_email = self._sanitize_text(
+            self._extract_sender_email(
+                message,
+                transport_headers_text=transport_headers_text,
+                header_map=header_map,
+            )
+        )
 
         def _normalize_address_list(raw: Any) -> list[str]:
             """Return a stable, de-duplicated list of email addresses (lower-cased).
@@ -1420,8 +1537,8 @@ class UltimatePSTProcessor:
             recipients = _normalize_address_list(rec_str)
             if recipients:
                 return recipients
-            # Fall back to transport headers
-            header_val = self._get_header(message, header_name)
+            # Fall back to transport headers (already parsed)
+            header_val = self._header_first(header_map, header_name)
             return _normalize_address_list(header_val)
 
         to_recipients = _extract_recipients("to", "To")
@@ -1469,7 +1586,7 @@ class UltimatePSTProcessor:
         except (AttributeError, TypeError, ValueError) as e:
             logger.debug("Failed to extract conversation index: %s", e, exc_info=True)
 
-        thread_topic = self._get_header(message, "Thread-Topic") or subject
+        thread_topic = self._header_first(header_map, "thread-topic") or subject
         thread_topic = self._sanitize_text(thread_topic)
 
         # Extract email data
@@ -1710,6 +1827,7 @@ class UltimatePSTProcessor:
         # =====================================================================
 
         # Extract body content deterministically; select the most complete top message.
+        t_body = time.monotonic()
         body_html = decode_maybe_bytes(
             self._safe_get_value(message, "get_html_body", None)
         )
@@ -1759,6 +1877,7 @@ class UltimatePSTProcessor:
 
         scope_preview = (body_text_clean or canonical_body or full_body_text).strip()
         scope_preview = scope_preview[:4000] if scope_preview else None
+        self._timings["body_s"] += time.monotonic() - t_body
 
         # Calculate spam score during ingestion (no AI, pure pattern matching)
         spam_info = self._calculate_spam_score(
@@ -1984,6 +2103,7 @@ class UltimatePSTProcessor:
 
         # Now process attachments with the email_message ID
         if num_attachments > 0:
+            t_atts = time.monotonic()
             try:
                 attachments_info = self._process_attachments(
                     message,
@@ -1995,6 +2115,7 @@ class UltimatePSTProcessor:
                     company_id,
                     stats,
                 )
+                self._counts["attachments_seen"] += int(num_attachments)
                 # Update email meta with attachment info
                 email_meta = email_message.meta or {}
                 email_meta["attachments"] = attachments_info
@@ -2006,6 +2127,8 @@ class UltimatePSTProcessor:
                 stats["errors"].append(
                     f"Attachment error in {folder_path}: {str(e)[:100]}"
                 )
+            finally:
+                self._timings["attachments_s"] += time.monotonic() - t_atts
 
         # Semantic indexing for deep research acceleration
         # Skip during initial PST processing for speed - can be done in background later
@@ -2662,7 +2785,13 @@ class UltimatePSTProcessor:
             pass
         return participants
 
-    def _extract_sender_email(self, message: Any) -> str | None:
+    def _extract_sender_email(
+        self,
+        message: Any,
+        *,
+        transport_headers_text: str | None = None,
+        header_map: dict[str, list[str]] | None = None,
+    ) -> str | None:
         """Best-effort sender email extraction.
 
         Prefer pypff sender helper methods/fields when available; fall back to transport headers.
@@ -2698,7 +2827,30 @@ class UltimatePSTProcessor:
             if email:
                 return email
 
-        # Fall back to headers
+        # Fall back to headers (avoid re-decoding if caller already has them)
+        try:
+            from_header = None
+            if header_map is not None:
+                vals = header_map.get("from", [])
+                from_header = vals[0] if vals else None
+            if not from_header and transport_headers_text:
+                # Fast regex for common case
+                match = re.search(
+                    r"(?im)^From:\s*(?:.*?<)?([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)",
+                    transport_headers_text,
+                )
+                if match:
+                    return match.group(1).strip().lower()
+            if from_header:
+                parsed = [
+                    addr.strip() for _, addr in getaddresses([from_header]) if addr
+                ]
+                for addr in parsed:
+                    if "@" in addr:
+                        return addr.strip().lower()
+        except Exception:
+            pass
+
         return self._extract_email_from_headers(message)
 
     def _extract_email_from_headers(self, message: Any) -> str | None:

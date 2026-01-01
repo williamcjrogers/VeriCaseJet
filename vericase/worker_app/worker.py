@@ -68,11 +68,17 @@ def _normalize_endpoint(url: str | None) -> str | None:
 
 # Initialize S3 client based on AWS mode
 use_aws = settings.USE_AWS_SERVICES or not settings.MINIO_ENDPOINT
+_s3_max_pool = int(os.getenv("S3_MAX_POOL_CONNECTIONS", "64") or "64")
+_s3_config = Config(
+    signature_version="s3v4",
+    max_pool_connections=_s3_max_pool,
+    retries={"max_attempts": 10, "mode": "adaptive"},
+)
 if use_aws:
     # AWS S3 mode: use IRSA for credentials (no endpoint_url, no explicit keys)
     s3 = boto3.client(
         "s3",
-        config=Config(signature_version="s3v4"),
+        config=_s3_config,
         region_name=settings.AWS_REGION,
     )
 else:
@@ -82,7 +88,7 @@ else:
         endpoint_url=_normalize_endpoint(settings.MINIO_ENDPOINT),
         aws_access_key_id=settings.MINIO_ACCESS_KEY,
         aws_secret_access_key=settings.MINIO_SECRET_KEY,
-        config=Config(signature_version="s3v4"),
+        config=_s3_config,
         region_name=settings.AWS_REGION,
     )
 
