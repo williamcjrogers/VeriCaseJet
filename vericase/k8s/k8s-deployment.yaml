@@ -1,5 +1,9 @@
 # VeriCase Kubernetes Deployment - PRODUCTION (Optimized)
 # Deploys to vericase namespace with full AWS Bedrock integration
+#
+# PREREQUISITE: Create the AWS CA bundle ConfigMap before deploying:
+#   curl -o /tmp/global-bundle.pem https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
+#   kubectl create configmap aws-ca-bundle --from-file=global-bundle.pem=/tmp/global-bundle.pem -n vericase
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -83,11 +87,11 @@ spec:
               value: ""
             # Redis/Celery Configuration (Non-cluster ElastiCache with TLS)
             - name: REDIS_URL
-              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_NONE"
+              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_REQUIRED&ssl_ca_certs=/etc/ssl/certs/aws/global-bundle.pem"
             - name: CELERY_BROKER_URL
-              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_NONE"
+              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_REQUIRED&ssl_ca_certs=/etc/ssl/certs/aws/global-bundle.pem"
             - name: CELERY_RESULT_BACKEND
-              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_NONE"
+              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_REQUIRED&ssl_ca_certs=/etc/ssl/certs/aws/global-bundle.pem"
             - name: CELERY_BROKER_USE_SSL
               value: "true"
             - name: CELERY_REDIS_BACKEND_USE_SSL
@@ -163,6 +167,14 @@ spec:
                 secretKeyRef:
                   name: vericase-secrets
                   key: JWT_SECRET
+          volumeMounts:
+            - name: aws-ca-bundle
+              mountPath: /etc/ssl/certs/aws
+              readOnly: true
+      volumes:
+        - name: aws-ca-bundle
+          configMap:
+            name: aws-ca-bundle
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -236,11 +248,11 @@ spec:
               value: ""
             # Redis/Celery Configuration (Non-cluster ElastiCache with TLS)
             - name: REDIS_URL
-              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_NONE"
+              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_REQUIRED&ssl_ca_certs=/etc/ssl/certs/aws/global-bundle.pem"
             - name: CELERY_BROKER_URL
-              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_NONE"
+              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_REQUIRED&ssl_ca_certs=/etc/ssl/certs/aws/global-bundle.pem"
             - name: CELERY_RESULT_BACKEND
-              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_NONE"
+              value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_REQUIRED&ssl_ca_certs=/etc/ssl/certs/aws/global-bundle.pem"
             - name: CELERY_BROKER_USE_SSL
               value: "true"
             - name: CELERY_REDIS_BACKEND_USE_SSL
@@ -313,6 +325,14 @@ spec:
                 secretKeyRef:
                   name: vericase-secrets
                   key: JWT_SECRET
+          volumeMounts:
+            - name: aws-ca-bundle
+              mountPath: /etc/ssl/certs/aws
+              readOnly: true
+      volumes:
+        - name: aws-ca-bundle
+          configMap:
+            name: aws-ca-bundle
 ---
 apiVersion: v1
 kind: Service

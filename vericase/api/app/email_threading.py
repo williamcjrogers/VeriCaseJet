@@ -179,10 +179,11 @@ def _conversation_index_parent(value: str | None) -> str | None:
     text = _normalize_conversation_index(value)
     if not text:
         return None
+    # Root conversation index is 44 chars; each child adds 10 chars
+    # If <= 44, this is a root with no parent
     if len(text) <= 44:
         return None
-    if len(text) < 10:
-        return None
+    # Strip the last 10-char child segment to get the parent
     return text[:-10]
 
 
