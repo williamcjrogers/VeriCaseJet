@@ -198,8 +198,18 @@ class Settings(BaseSettings):
 
     # PST processing optimization settings
     PST_BATCH_COMMIT_SIZE: int = 2500  # Messages per DB commit batch
-    PST_UPLOAD_WORKERS: int = 50  # Parallel S3 upload threads
+    # Parallel S3 upload threads (0 = auto sized based on CPU, capped).
+    PST_UPLOAD_WORKERS: int = 0
     PST_SKIP_SEMANTIC_INDEXING: bool = True  # Skip during ingestion (run in background)
+    # Threading/dedupe scope: "pst" (fast) or "project"/"case" (global, slower).
+    PST_THREADING_SCOPE: str = "pst"
+    PST_DEDUPE_SCOPE: str = "pst"
+    # Inline (CID) images are usually signatures/disclaimers and are extremely costly/noisy.
+    # Default off for speed + evidence signal-to-noise; set true if you want to retain them.
+    PST_INCLUDE_INLINE_ATTACHMENTS: bool = False
+    # Skip non-email MAPI items (tasks/appointments/etc) during PST ingest for speed and signal quality.
+    # Set false if you need to ingest *all* IPM.* items for a forensic workflow.
+    PST_SKIP_NON_EMAIL_ITEMS: bool = True
     PST_AGENT_LOG_ENABLED: bool = False  # Disable local debug logging in production
     PST_AGENT_LOG_PATH: str | None = None  # Optional file path for local debug logs
 

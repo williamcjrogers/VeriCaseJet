@@ -84,11 +84,13 @@ def dedupe_emails(
     *,
     case_id: uuid.UUID | str | None = None,
     project_id: uuid.UUID | str | None = None,
+    pst_file_id: uuid.UUID | str | None = None,
     config: DedupeConfig | None = None,
     run_id: str | None = None,
 ) -> DedupeStats:
     case_uuid = _to_uuid(case_id)
     project_uuid = _to_uuid(project_id)
+    pst_uuid = _to_uuid(pst_file_id)
     query = db.query(EmailMessage).options(
         load_only(
             EmailMessage.id,
@@ -109,6 +111,8 @@ def dedupe_emails(
         query = query.filter(EmailMessage.case_id == case_uuid)
     if project_uuid:
         query = query.filter(EmailMessage.project_id == project_uuid)
+    if pst_uuid:
+        query = query.filter(EmailMessage.pst_file_id == pst_uuid)
 
     emails = query.all()
     stats = DedupeStats(emails_total=len(emails))

@@ -138,6 +138,8 @@ class ForensicPSTProcessor:
         self.scope_matcher: ScopeMatcher | None = None
         self.attachment_hashes = {}  # For deduplication
         self.ingest_run_id: str | None = None
+        self._keyword_plain_terms_cache: dict[str, list[str]] = {}
+        self._keyword_regex_terms_cache: dict[str, list[str]] = {}
         self._keyword_regex_cache: dict[tuple[str, str], re.Pattern[str]] = {}
         self._invalid_keyword_regex: set[tuple[str, str]] = set()
         cpu_based_default = max(8, (os.cpu_count() or 4) * 4)
@@ -214,25 +216,58 @@ class ForensicPSTProcessor:
         self, pst_file: PSTFile
     ) -> tuple[list[Stakeholder], list[Keyword]]:
         try:
-            stakeholder_query = self.db.query(Stakeholder)
-            keyword_query = self.db.query(Keyword)
+            stakeholders: list[Stakeholder] = []
+            keywords: list[Keyword] = []
+
             if pst_file.case_id:
-                stakeholder_query = stakeholder_query.filter_by(
-                    case_id=pst_file.case_id
+                stakeholders.extend(
+                    self.db.query(Stakeholder)
+                    .filter(Stakeholder.case_id == pst_file.case_id)
+                    .all()
                 )
-                keyword_query = keyword_query.filter_by(case_id=pst_file.case_id)
-            elif pst_file.project_id:
-                stakeholder_query = stakeholder_query.filter_by(
-                    project_id=pst_file.project_id
+                keywords.extend(
+                    self.db.query(Keyword)
+                    .filter(Keyword.case_id == pst_file.case_id)
+                    .all()
                 )
-                keyword_query = keyword_query.filter_by(project_id=pst_file.project_id)
-            try:
-                return stakeholder_query.all(), keyword_query.all()
-            except Exception as e:
-                logger.error(f"Failed to load tagging assets: {e}")
-                return [], []
-        except Exception:
-            logger.error("Failed to load tagging assets: {e}")
+
+            if pst_file.project_id:
+                # Include project-level defaults even when processing a case-level PST.
+                # Convention: project-level assets set `project_id` and leave `case_id` NULL.
+                stakeholders.extend(
+                    self.db.query(Stakeholder)
+                    .filter(
+                        Stakeholder.project_id == pst_file.project_id,
+                        Stakeholder.case_id.is_(None),
+                    )
+                    .all()
+                )
+                keywords.extend(
+                    self.db.query(Keyword)
+                    .filter(
+                        Keyword.project_id == pst_file.project_id,
+                        Keyword.case_id.is_(None),
+                    )
+                    .all()
+                )
+
+            unique_stakeholders = {str(item.id): item for item in stakeholders}
+            unique_keywords = {str(item.id): item for item in keywords}
+            logger.info(
+                "Loaded tagging assets (pst_file_id=%s case_id=%s project_id=%s): stakeholders=%s keywords=%s",
+                getattr(pst_file, "id", None),
+                pst_file.case_id,
+                pst_file.project_id,
+                len(unique_stakeholders),
+                len(unique_keywords),
+            )
+            return list(unique_stakeholders.values()), list(unique_keywords.values())
+        except Exception as exc:
+            logger.error(
+                "Failed to load tagging assets (pst_file_id=%s): %s",
+                getattr(pst_file, "id", None),
+                exc,
+            )
             return [], []
 
     def _process_pst_path(
@@ -1298,12 +1333,11 @@ class ForensicPSTProcessor:
             all_emails.append(e)
 
         all_names = [n for n in names if n]
+        all_emails_lower = {e.lower() for e in all_emails if e}
 
         for stakeholder in stakeholders:
             # Match by email
-            if stakeholder.email and stakeholder.email.lower() in [
-                e.lower() for e in all_emails if e
-            ]:
+            if stakeholder.email and stakeholder.email.lower() in all_emails_lower:
                 matched.append(stakeholder)
                 continue
 
@@ -1337,20 +1371,24 @@ class ForensicPSTProcessor:
 
         for keyword in keywords:
             # Build search terms (keyword + variations)
+            keyword_id = str(keyword.id)
             keyword_name = (keyword.keyword_name or "").strip()
             if not keyword_name:
                 continue
 
             # Check if any term matches
             if keyword.is_regex:
-                search_terms = [keyword_name]
-                if keyword.variations:
-                    variations = [
-                        v.strip()
-                        for v in keyword.variations.split(",")
-                        if v and v.strip()
-                    ]
-                    search_terms.extend(variations)
+                search_terms = self._keyword_regex_terms_cache.get(keyword_id)
+                if search_terms is None:
+                    search_terms = [keyword_name]
+                    if keyword.variations:
+                        variations = [
+                            v.strip()
+                            for v in keyword.variations.split(",")
+                            if v and v.strip()
+                        ]
+                        search_terms.extend(variations)
+                    self._keyword_regex_terms_cache[keyword_id] = search_terms
 
                 for term in search_terms:
                     cache_key = (str(keyword.id), term)
@@ -1376,14 +1414,17 @@ class ForensicPSTProcessor:
                         matched.append(keyword)
                         break
             else:
-                search_terms = [keyword_name.lower()]
-                if keyword.variations:
-                    variations = [
-                        v.strip().lower()
-                        for v in keyword.variations.split(",")
-                        if v and v.strip()
-                    ]
-                    search_terms.extend(variations)
+                search_terms = self._keyword_plain_terms_cache.get(keyword_id)
+                if search_terms is None:
+                    search_terms = [keyword_name.lower()]
+                    if keyword.variations:
+                        variations = [
+                            v.strip().lower()
+                            for v in keyword.variations.split(",")
+                            if v and v.strip()
+                        ]
+                        search_terms.extend(variations)
+                    self._keyword_plain_terms_cache[keyword_id] = search_terms
 
                 for term in search_terms:
                     if term in search_text_lower:

@@ -14,10 +14,11 @@ import hashlib
 import logging
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
+import sqlalchemy as sa
 from sqlalchemy.orm import Session, load_only
 
 from .models import EmailMessage, EmailThreadLink
@@ -36,6 +37,11 @@ class ThreadingConfig:
     quoted_anchor_lines: int = 6
     subject_numeric_token_len: int = 4
     allow_conversation_index: bool = True
+    # Thread-path encoding controls.
+    # We store thread_path primarily for deterministic ordering. It must be bounded to avoid
+    # DB truncation failures (some deployments still have VARCHAR(64) from legacy schemas).
+    # Encoding is base36 with fixed width per thread-group (computed dynamically).
+    thread_path_max_len: int | None = None
 
 
 @dataclass
@@ -296,16 +302,40 @@ def build_email_threads(
     *,
     case_id: uuid.UUID | str | None = None,
     project_id: uuid.UUID | str | None = None,
+    pst_file_id: uuid.UUID | str | None = None,
     config: ThreadingConfig | None = None,
     run_id: str | None = None,
 ) -> ThreadingStats:
-    if not case_id and not project_id:
+    if not case_id and not project_id and not pst_file_id:
         return ThreadingStats()
 
     cfg = config or ThreadingConfig()
 
     case_uuid = _to_uuid(case_id)
     project_uuid = _to_uuid(project_id)
+    pst_uuid = _to_uuid(pst_file_id)
+
+    # Default thread_path_max_len from the database column (if VARCHAR); leave as None for TEXT.
+    # ThreadingConfig is frozen, so compute and (optionally) replace.
+    if cfg.thread_path_max_len is None:
+        try:
+            result = db.execute(
+                sa.text(
+                    """
+                    SELECT character_maximum_length
+                    FROM information_schema.columns
+                    WHERE table_name = 'email_messages'
+                      AND column_name = 'thread_path'
+                    """
+                )
+            )
+            length = result.scalar()
+            if length:
+                cfg = replace(cfg, thread_path_max_len=int(length))
+        except Exception:
+            # Best-effort only; do not block threading.
+            # Be conservative: legacy schemas used VARCHAR(64) which will hard-fail on overflow.
+            cfg = replace(cfg, thread_path_max_len=64)
 
     query = db.query(EmailMessage).options(
         load_only(
@@ -330,6 +360,8 @@ def build_email_threads(
         query = query.filter(EmailMessage.case_id == case_uuid)
     if project_uuid:
         query = query.filter(EmailMessage.project_id == project_uuid)
+    if pst_uuid:
+        query = query.filter(EmailMessage.pst_file_id == pst_uuid)
 
     emails = query.all()
     stats = ThreadingStats(emails_total=len(emails))
@@ -388,7 +420,12 @@ def build_email_threads(
                 )
             )
 
-    _apply_thread_positions(nodes_by_id, updates, decisions)
+    _apply_thread_positions(
+        nodes_by_id,
+        updates,
+        decisions,
+        thread_path_max_len=cfg.thread_path_max_len,
+    )
 
     try:
         email_ids = [node.email_id for node in nodes]
@@ -857,10 +894,50 @@ def _make_thread_group_id(root: ThreadNode) -> str:
     return f"thread_{digest[:32]}"
 
 
+_BASE36_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+
+def _base36_fixed(value: int, width: int) -> str:
+    if value < 0:
+        raise ValueError("base36 value must be >= 0")
+    if width <= 0:
+        raise ValueError("base36 width must be >= 1")
+    if value == 0:
+        return "0".rjust(width, "0")
+    digits: list[str] = []
+    v = value
+    while v:
+        v, rem = divmod(v, 36)
+        digits.append(_BASE36_ALPHABET[rem])
+    encoded = "".join(reversed(digits))
+    if len(encoded) >= width:
+        # If it doesn't fit, keep it unpadded (still deterministic); callers should ensure
+        # a group-wide width that is sufficient for all indexes.
+        return encoded
+    return encoded.rjust(width, "0")
+
+
+def _thread_path_compact(
+    segments: list[int],
+    *,
+    width: int,
+    max_len: int | None,
+) -> str:
+    path = "".join(_base36_fixed(seg, width) for seg in segments)
+    if max_len is None or len(path) <= max_len:
+        return path
+    digest = hashlib.sha1(path.encode("utf-8")).hexdigest()[:16]
+    # Keep a stable prefix for sort locality, then add a deterministic suffix.
+    keep = max(0, max_len - (1 + len(digest)))
+    return f"{path[:keep]}~{digest}"
+
+
 def _apply_thread_positions(
     nodes_by_id: dict[uuid.UUID, ThreadNode],
     updates: list[dict[str, Any]],
     decisions: dict[uuid.UUID, ThreadLinkDecision],
+    *,
+    thread_path_max_len: int | None,
 ) -> None:
     grouped: dict[str, list[ThreadNode]] = {}
     update_map: dict[uuid.UUID, dict[str, Any]] = {
@@ -900,17 +977,34 @@ def _apply_thread_positions(
         for key in children:
             children[key].sort(key=_node_sort_key)
 
+        # Compute a fixed base36 width for this group, so lexical ordering is preserved.
+        # Width is derived from the maximum sibling index (roots/children) in this group.
+        max_index = 0
+        if roots:
+            max_index = max(max_index, len(roots) - 1)
+        for node_id, kids in children.items():
+            if kids:
+                max_index = max(max_index, len(kids) - 1)
+        width = 1
+        while 36**width <= max_index:
+            width += 1
+        width = max(width, 1)
+
+        max_len = thread_path_max_len
+
         for idx, root in enumerate(roots):
-            stack: list[tuple[ThreadNode, str]] = [(root, f"{idx:06d}")]
+            stack: list[tuple[ThreadNode, list[int]]] = [(root, [idx])]
             while stack:
-                node, path = stack.pop()
+                node, segments = stack.pop()
                 update = update_map.get(node.email_id)
                 if update is not None:
-                    update["thread_path"] = path
+                    update["thread_path"] = _thread_path_compact(
+                        segments, width=width, max_len=max_len
+                    )
                 node_children = children.get(node.email_id, [])
                 # Stack is LIFO; push in reverse for stable left-to-right traversal.
                 for child_idx, child in reversed(list(enumerate(node_children))):
-                    stack.append((child, f"{path}/{child_idx:06d}"))
+                    stack.append((child, [*segments, child_idx]))
 
 
 def _break_parent_cycles(

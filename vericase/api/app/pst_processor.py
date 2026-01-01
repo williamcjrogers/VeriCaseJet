@@ -214,7 +214,15 @@ class UltimatePSTProcessor:
         )
 
         # Parallel upload executor (configurable via PST_UPLOAD_WORKERS)
-        upload_workers = getattr(settings, "PST_UPLOAD_WORKERS", 50) or 50
+        cpu_based_default = max(8, (os.cpu_count() or 4) * 4)
+        upload_workers = (
+            getattr(settings, "PST_UPLOAD_WORKERS", cpu_based_default)
+            or cpu_based_default
+        )
+        try:
+            upload_workers = min(int(upload_workers), 64)
+        except Exception:
+            upload_workers = cpu_based_default
         self.upload_executor = ThreadPoolExecutor(max_workers=upload_workers)
         self.upload_futures = []
 
@@ -236,6 +244,8 @@ class UltimatePSTProcessor:
         self.ingest_run_id: str | None = None
         self._stakeholders: list[Stakeholder] = []
         self._keywords: list[Keyword] = []
+        self._keyword_plain_terms_cache: dict[str, list[str]] = {}
+        self._keyword_regex_terms_cache: dict[str, list[str]] = {}
         self._keyword_regex_cache: dict[tuple[str, str], re.Pattern[str]] = {}
         self._invalid_keyword_regex: set[tuple[str, str]] = set()
         self._timings: dict[str, float] = {
@@ -254,6 +264,8 @@ class UltimatePSTProcessor:
             "messages_skipped": 0,
             "attachments_seen": 0,
         }
+        self._start_monotonic: float | None = None
+        self._last_rate_log: float = 0.0
 
         # Initialize semantic processing for deep research acceleration
         self.semantic_service: Any = None
@@ -485,6 +497,23 @@ class UltimatePSTProcessor:
                 conn.execute(stmt, params)
             self._last_progress_update = now
             self._last_progress_count = self.processed_count
+
+            # Periodic throughput/timing log (helps diagnose "stuck/slow" PSTs in prod).
+            if self._start_monotonic is not None:
+                if (now - self._last_rate_log) >= 30.0:
+                    elapsed = max(now - self._start_monotonic, 0.0001)
+                    rate = self.processed_count / elapsed
+                    logger.info(
+                        "PST progress: processed=%d/%s rate=%.2f msg/s headers=%.1fs body=%.1fs atts=%.1fs flush=%.1fs",
+                        self.processed_count,
+                        total_emails if total_emails is not None else "?",
+                        rate,
+                        self._timings.get("headers_s", 0.0),
+                        self._timings.get("body_s", 0.0),
+                        self._timings.get("attachments_s", 0.0),
+                        self._timings.get("flush_s", 0.0),
+                    )
+                    self._last_rate_log = now
         except Exception as exc:
             logger.debug(
                 "Failed to update PST progress for %s: %s", pst_file_record.id, exc
@@ -526,6 +555,7 @@ class UltimatePSTProcessor:
             "total_emails": 0,
             "total_attachments": 0,
             "unique_attachments": 0,  # After deduplication
+            "skipped_inline_attachments": 0,
             "threads_identified": 0,
             "size_saved": 0,  # Bytes saved by not storing email files
             "processing_time": 0.0,
@@ -536,6 +566,8 @@ class UltimatePSTProcessor:
 
         start_time = datetime.now(timezone.utc)
         start_monotonic = time.monotonic()
+        self._start_monotonic = start_monotonic
+        self._last_rate_log = start_monotonic
         document: Document | None = None
         pst_path: str | None = None
         had_error = False
@@ -805,7 +837,15 @@ class UltimatePSTProcessor:
             # Build thread relationships after all emails are extracted (CRITICAL - USP FEATURE!)
             logger.info("Building email thread relationships...")
             t_thread = time.monotonic()
-            thread_stats = self._build_thread_relationships(case_id, project_id)
+            thread_scope = (
+                str(getattr(settings, "PST_THREADING_SCOPE", "pst") or "pst")
+                .strip()
+                .lower()
+            )
+            thread_pst_id = pst_file_record.id if thread_scope == "pst" else None
+            thread_stats = self._build_thread_relationships(
+                case_id, project_id, pst_file_id=thread_pst_id
+            )
             self._timings["threading_s"] += time.monotonic() - t_thread
             # region agent log H13 threads
             agent_log(
@@ -814,6 +854,7 @@ class UltimatePSTProcessor:
                 {
                     "case_id": str(case_id) if case_id else None,
                     "project_id": str(project_id) if project_id else None,
+                    "thread_scope": thread_scope,
                     "threads_identified": thread_stats.threads_identified,
                     "links_created": thread_stats.links_created,
                     "total_emails": stats.get("total_emails"),
@@ -827,10 +868,17 @@ class UltimatePSTProcessor:
             # Deduplicate emails after threading (deterministic, evidence-logged)
             logger.info("Deduplicating emails...")
             t_dedupe = time.monotonic()
+            dedupe_scope = (
+                str(getattr(settings, "PST_DEDUPE_SCOPE", "pst") or "pst")
+                .strip()
+                .lower()
+            )
+            dedupe_pst_id = pst_file_record.id if dedupe_scope == "pst" else None
             dedupe_stats = dedupe_emails(
                 self.db,
                 case_id=case_id,
                 project_id=project_id,
+                pst_file_id=dedupe_pst_id,
                 run_id="pst_processor",
             )
             self._timings["dedupe_s"] += time.monotonic() - t_dedupe
@@ -1026,6 +1074,30 @@ class UltimatePSTProcessor:
             for i in range(num_messages):
                 try:
                     message = current_folder.get_sub_message(i)
+
+                    # Early filter: skip non-email MAPI items unless explicitly enabled.
+                    # This avoids wasting time ingesting IPM.Task/IPM.Appointment/etc as emails.
+                    if bool(getattr(settings, "PST_SKIP_NON_EMAIL_ITEMS", True)):
+                        message_class = self._safe_get_attr(
+                            message, "message_class", None
+                        )
+                        if message_class is None:
+                            message_class = self._safe_get_value(
+                                message, "get_message_class", None
+                            )
+                        message_class_text = decode_maybe_bytes(message_class)
+                        if message_class_text:
+                            mc_upper = str(message_class_text).upper()
+                            if "IPM.NOTE" not in mc_upper:
+                                self._counts["messages_skipped"] += 1
+                                try:
+                                    stats["skipped_non_email"] = (
+                                        int(stats.get("skipped_non_email", 0) or 0) + 1
+                                    )
+                                except Exception:
+                                    pass
+                                continue
+
                     _ = self._process_message(
                         message,
                         pst_file_record,
@@ -1242,21 +1314,58 @@ class UltimatePSTProcessor:
         self, pst_file: PSTFile
     ) -> tuple[list[Stakeholder], list[Keyword]]:
         try:
-            stakeholder_query = self.db.query(Stakeholder)
-            keyword_query = self.db.query(Keyword)
+            stakeholders: list[Stakeholder] = []
+            keywords: list[Keyword] = []
+
             if pst_file.case_id:
-                stakeholder_query = stakeholder_query.filter_by(
-                    case_id=pst_file.case_id
+                stakeholders.extend(
+                    self.db.query(Stakeholder)
+                    .filter(Stakeholder.case_id == pst_file.case_id)
+                    .all()
                 )
-                keyword_query = keyword_query.filter_by(case_id=pst_file.case_id)
-            elif pst_file.project_id:
-                stakeholder_query = stakeholder_query.filter_by(
-                    project_id=pst_file.project_id
+                keywords.extend(
+                    self.db.query(Keyword)
+                    .filter(Keyword.case_id == pst_file.case_id)
+                    .all()
                 )
-                keyword_query = keyword_query.filter_by(project_id=pst_file.project_id)
-            return stakeholder_query.all(), keyword_query.all()
+
+            if pst_file.project_id:
+                # Include project-level defaults even when processing a case-level PST.
+                # Convention: project-level assets set `project_id` and leave `case_id` NULL.
+                stakeholders.extend(
+                    self.db.query(Stakeholder)
+                    .filter(
+                        Stakeholder.project_id == pst_file.project_id,
+                        Stakeholder.case_id.is_(None),
+                    )
+                    .all()
+                )
+                keywords.extend(
+                    self.db.query(Keyword)
+                    .filter(
+                        Keyword.project_id == pst_file.project_id,
+                        Keyword.case_id.is_(None),
+                    )
+                    .all()
+                )
+
+            unique_stakeholders = {str(item.id): item for item in stakeholders}
+            unique_keywords = {str(item.id): item for item in keywords}
+            logger.info(
+                "Loaded tagging assets (pst_file_id=%s case_id=%s project_id=%s): stakeholders=%s keywords=%s",
+                getattr(pst_file, "id", None),
+                pst_file.case_id,
+                pst_file.project_id,
+                len(unique_stakeholders),
+                len(unique_keywords),
+            )
+            return list(unique_stakeholders.values()), list(unique_keywords.values())
         except Exception as exc:
-            logger.error("Failed to load tagging assets: %s", exc)
+            logger.error(
+                "Failed to load tagging assets (pst_file_id=%s): %s",
+                getattr(pst_file, "id", None),
+                exc,
+            )
             return [], []
 
     def _match_stakeholders(
@@ -1308,11 +1417,10 @@ class UltimatePSTProcessor:
             all_emails.append(email)
 
         all_names = [name for name in names if name]
+        all_emails_lower = {email.lower() for email in all_emails if email}
 
         for stakeholder in stakeholders:
-            if stakeholder.email and stakeholder.email.lower() in [
-                email.lower() for email in all_emails if email
-            ]:
+            if stakeholder.email and stakeholder.email.lower() in all_emails_lower:
                 matched.append(stakeholder)
                 continue
 
@@ -1350,18 +1458,22 @@ class UltimatePSTProcessor:
         search_text_lower = search_text.lower()
 
         for keyword in keywords:
+            keyword_id = str(keyword.id)
             keyword_name = (keyword.keyword_name or "").strip()
             if not keyword_name:
                 continue
             if keyword.is_regex:
-                search_terms = [keyword_name]
-                if keyword.variations:
-                    variations = [
-                        v.strip()
-                        for v in keyword.variations.split(",")
-                        if v and v.strip()
-                    ]
-                    search_terms.extend(variations)
+                search_terms = self._keyword_regex_terms_cache.get(keyword_id)
+                if search_terms is None:
+                    search_terms = [keyword_name]
+                    if keyword.variations:
+                        variations = [
+                            v.strip()
+                            for v in keyword.variations.split(",")
+                            if v and v.strip()
+                        ]
+                        search_terms.extend(variations)
+                    self._keyword_regex_terms_cache[keyword_id] = search_terms
 
                 for term in search_terms:
                     cache_key = (str(keyword.id), term)
@@ -1387,14 +1499,17 @@ class UltimatePSTProcessor:
                         matched.append(keyword)
                         break
             else:
-                search_terms = [keyword_name.lower()]
-                if keyword.variations:
-                    variations = [
-                        v.strip().lower()
-                        for v in keyword.variations.split(",")
-                        if v and v.strip()
-                    ]
-                    search_terms.extend(variations)
+                search_terms = self._keyword_plain_terms_cache.get(keyword_id)
+                if search_terms is None:
+                    search_terms = [keyword_name.lower()]
+                    if keyword.variations:
+                        variations = [
+                            v.strip().lower()
+                            for v in keyword.variations.split(",")
+                            if v and v.strip()
+                        ]
+                        search_terms.extend(variations)
+                    self._keyword_plain_terms_cache[keyword_id] = search_terms
 
                 for term in search_terms:
                     if term in search_text_lower:
@@ -2345,6 +2460,7 @@ class UltimatePSTProcessor:
         """
         attachments_info: list[dict[str, Any]] = []
         filtered_signatures = 0
+        skipped_inline = 0
 
         for i in range(message.number_of_attachments):
             try:
@@ -2379,6 +2495,21 @@ class UltimatePSTProcessor:
                 size_int = int(size) if size else 0
                 is_small = size_int > 0 and size_int < 500000  # 500KB threshold
                 is_inline = bool(content_id) and is_image and is_small
+
+                # Inline images are overwhelmingly signature noise and very expensive to store/index.
+                # Default behaviour is to skip them entirely (configurable).
+                include_inline = bool(
+                    getattr(settings, "PST_INCLUDE_INLINE_ATTACHMENTS", False)
+                )
+                if is_inline and not include_inline:
+                    skipped_inline += 1
+                    try:
+                        stats["skipped_inline_attachments"] = (
+                            int(stats.get("skipped_inline_attachments", 0)) + 1
+                        )
+                    except Exception:
+                        pass
+                    continue
 
                 # Read attachment data - pypff uses read_buffer method
                 attachment_data = None
@@ -2609,8 +2740,12 @@ class UltimatePSTProcessor:
                 logger.error(f"Error processing attachment {i}: {e}", exc_info=True)
                 stats["errors"].append(f"Attachment {i}: {str(e)}")
 
-        if filtered_signatures > 0:
-            logger.info(f"Filtered {filtered_signatures} signature/disclaimer images")
+        if filtered_signatures > 0 or skipped_inline > 0:
+            logger.debug(
+                "Filtered signature images=%d; skipped inline images=%d",
+                filtered_signatures,
+                skipped_inline,
+            )
 
         return attachments_info
 
@@ -2727,18 +2862,24 @@ class UltimatePSTProcessor:
             logger.error(f"Error indexing email to OpenSearch: {e}")
 
     def _build_thread_relationships(
-        self, case_id: UUID | str | None, project_id: UUID | str | None
+        self,
+        case_id: UUID | str | None,
+        project_id: UUID | str | None,
+        *,
+        pst_file_id: UUID | str | None = None,
     ) -> ThreadingStats:
         """Build deterministic email thread relationships with evidence."""
         logger.info(
-            "Building thread relationships for case_id=%s, project_id=%s",
+            "Building thread relationships for case_id=%s, project_id=%s, pst_file_id=%s",
             case_id,
             project_id,
+            pst_file_id,
         )
         stats = build_email_threads(
             self.db,
             case_id=case_id,
             project_id=project_id,
+            pst_file_id=pst_file_id,
             run_id="pst_processor",
         )
         logger.info(
