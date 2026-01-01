@@ -157,33 +157,33 @@
   --space-24: 6rem; /* 96px */
 
   /* ============================================
-       BORDER RADIUS
+       BORDER RADIUS - Professional (Structured)
        ============================================ */
-  --radius-sm: 0.25rem; /* 4px */
-  --radius-md: 0.5rem; /* 8px */
-  --radius-lg: 0.75rem; /* 12px */
-  --radius-xl: 1rem; /* 16px */
-  --radius-2xl: 1.5rem; /* 24px */
-  --radius-3xl: 2rem; /* 32px */
+  --radius-sm: 4px;
+  --radius-md: 6px;  /* The "Professional" Corner */
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
+  --radius-3xl: 16px;
   --radius-full: 9999px;
 
   /* ============================================
-       SHADOWS - Refined Depth
+       SHADOWS - Enhanced Depth
        ============================================ */
-  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-xs: 0 1px 2px rgba(28, 25, 23, 0.05);
   --shadow-sm:
-    0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+    0 1px 3px rgba(28, 25, 23, 0.08), 0 1px 2px rgba(28, 25, 23, 0.06);
   --shadow-md:
-    0 4px 6px -1px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+    0 4px 6px -1px rgba(28, 25, 23, 0.08), 0 2px 4px -2px rgba(28, 25, 23, 0.05);
   --shadow-card:
-    0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
+    0 2px 8px rgba(28, 25, 23, 0.08), 0 1px 3px rgba(28, 25, 23, 0.04);
   --shadow-lg:
-    0 10px 15px -3px rgba(15, 23, 42, 0.08),
-    0 4px 6px -4px rgba(15, 23, 42, 0.04);
+    0 10px 20px -4px rgba(28, 25, 23, 0.12),
+    0 4px 8px -4px rgba(28, 25, 23, 0.06);
   --shadow-xl:
-    0 20px 25px -5px rgba(15, 23, 42, 0.08),
-    0 8px 10px -6px rgba(15, 23, 42, 0.04);
-  --shadow-2xl: 0 25px 50px -12px rgba(15, 23, 42, 0.2);
+    0 20px 30px -6px rgba(28, 25, 23, 0.14),
+    0 8px 12px -6px rgba(28, 25, 23, 0.06);
+  --shadow-2xl: 0 25px 50px -12px rgba(28, 25, 23, 0.25);
 
   /* Colored Shadows */
   --shadow-teal: 0 4px 14px rgba(var(--vericase-teal-rgb), 0.25);
