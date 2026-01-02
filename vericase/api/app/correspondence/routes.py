@@ -36,6 +36,7 @@ from .services import (
     get_pst_status_service,
     list_pst_files_service,
     list_emails_service,
+    admin_rescue_pst_service,
     admin_cleanup_pst_service,
 )
 from .utils import (
@@ -157,6 +158,23 @@ async def get_pst_status(
     db: Session = Depends(get_db),
 ):
     return await get_pst_status_service(pst_file_id, db)
+
+
+@router.post("/pst/{pst_file_id}/admin/rescue")
+async def admin_rescue_pst(
+    pst_file_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Admin: finalize/fail a PST without re-upload.
+
+    Body:
+      action: "finalize" | "fail" (default "finalize")
+      force: bool (default false)
+      reason: str (only used for action="fail")
+    """
+    return await admin_rescue_pst_service(pst_file_id, body, db, user)
 
 
 @router.get("/pst/files", response_model=PSTFileListResponse)

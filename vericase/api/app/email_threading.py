@@ -42,6 +42,8 @@ class ThreadingConfig:
     # DB truncation failures (some deployments still have VARCHAR(64) from legacy schemas).
     # Encoding is base36 with fixed width per thread-group (computed dynamically).
     thread_path_max_len: int | None = None
+    # Some older deployments used VARCHAR(64) for parent_message_id; keep it bounded when needed.
+    parent_message_id_max_len: int | None = None
 
 
 @dataclass
@@ -337,6 +339,26 @@ def build_email_threads(
             # Be conservative: legacy schemas used VARCHAR(64) which will hard-fail on overflow.
             cfg = replace(cfg, thread_path_max_len=64)
 
+    if cfg.parent_message_id_max_len is None:
+        try:
+            result = db.execute(
+                sa.text(
+                    """
+                    SELECT character_maximum_length
+                    FROM information_schema.columns
+                    WHERE table_name = 'email_messages'
+                      AND column_name = 'parent_message_id'
+                    """
+                )
+            )
+            length = result.scalar()
+            if length:
+                cfg = replace(cfg, parent_message_id_max_len=int(length))
+        except Exception:
+            # Best-effort only; do not block threading.
+            # Be conservative for legacy schemas.
+            cfg = replace(cfg, parent_message_id_max_len=64)
+
     query = db.query(EmailMessage).options(
         load_only(
             EmailMessage.id,
@@ -394,6 +416,9 @@ def build_email_threads(
             parent_msg_id = nodes_by_id[parent_id].message_id
             if not parent_msg_id:
                 parent_msg_id = str(parent_id)
+        parent_msg_id = _bounded_text(
+            parent_msg_id, max_len=cfg.parent_message_id_max_len
+        )
 
         thread_group_id = thread_groups.get(node.email_id)
         thread_id = thread_group_id
@@ -930,6 +955,23 @@ def _thread_path_compact(
     # Keep a stable prefix for sort locality, then add a deterministic suffix.
     keep = max(0, max_len - (1 + len(digest)))
     return f"{path[:keep]}~{digest}"
+
+
+def _bounded_text(value: str | None, *, max_len: int | None) -> str | None:
+    """Return a deterministic, DB-safe string under max_len.
+
+    If max_len is None, returns value unchanged.
+    If value exceeds max_len, keeps a stable prefix and appends a short digest.
+    """
+    if value is None:
+        return None
+    if max_len is None or max_len <= 0:
+        return value
+    if len(value) <= max_len:
+        return value
+    digest = hashlib.sha1(value.encode("utf-8")).hexdigest()[:16]
+    keep = max(0, max_len - (1 + len(digest)))
+    return f"{value[:keep]}~{digest}"
 
 
 def _apply_thread_positions(

@@ -499,7 +499,10 @@ def ocr_and_index(doc_id: str):
 
 
 @celery_app.task(
-    name="worker_app.worker.process_pst_file", queue=settings.CELERY_PST_QUEUE
+    name="worker_app.worker.process_pst_file",
+    queue=settings.CELERY_PST_QUEUE,
+    soft_time_limit=getattr(settings, "PST_TASK_SOFT_TIME_LIMIT_S", 21600),
+    time_limit=getattr(settings, "PST_TASK_TIME_LIMIT_S", 22200),
 )
 def process_pst_file(
     doc_id: str, case_id: str | None = None, company_id: str | None = None

@@ -1959,13 +1959,17 @@ class UltimatePSTProcessor:
                 self._safe_get_attr(message, "plain_text_body", None)
             )
 
-        body_rtf = decode_maybe_bytes(
-            self._safe_get_value(message, "get_rtf_body", None)
-        )
-        if body_rtf is None:
+        # RTF extraction is comparatively expensive and can exacerbate libpff edge cases.
+        # Only attempt RTF when no plain/html body is available.
+        body_rtf = None
+        if not body_plain and not body_html:
             body_rtf = decode_maybe_bytes(
-                self._safe_get_attr(message, "rtf_body", None)
+                self._safe_get_value(message, "get_rtf_body", None)
             )
+            if body_rtf is None:
+                body_rtf = decode_maybe_bytes(
+                    self._safe_get_attr(message, "rtf_body", None)
+                )
 
         body_selection = select_best_body(
             plain_text=body_plain, html_body=body_html, rtf_body=body_rtf

@@ -43,5 +43,14 @@ class Settings:
     CELERY_PST_QUEUE = os.getenv("CELERY_PST_QUEUE", "pst_processing")
     TIKA_URL = os.getenv("TIKA_URL", "http://tika:9998")
 
+    # PST task guardrails (prevents "stuck for days" tasks).
+    # Soft limit raises in-task; hard limit force-kills the worker process.
+    PST_TASK_SOFT_TIME_LIMIT_S = int(
+        os.getenv("PST_TASK_SOFT_TIME_LIMIT_S", "21600") or "21600"
+    )  # default 6h
+    PST_TASK_TIME_LIMIT_S = int(
+        os.getenv("PST_TASK_TIME_LIMIT_S", "22200") or "22200"
+    )  # default 6h10m
+
 
 settings = Settings()

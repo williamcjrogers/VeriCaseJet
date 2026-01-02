@@ -290,6 +290,9 @@ class PSTProcessingStatus(BaseModel):
 
     pst_file_id: str
     status: str  # pending, processing, completed, failed
+    current_phase: str | None = (
+        None  # uploaded, extracting, parsing, indexing (UI hint)
+    )
     total_emails: int
     processed_emails: int
     progress_percent: float

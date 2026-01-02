@@ -2081,6 +2081,7 @@
       if (!id) return;
       if (action === "process") processPST(id);
       else if (action === "status") checkStatus(id);
+      else if (action === "rescue") rescuePST(id);
       else if (action === "error") showPSTError(id);
       else if (action === "view") viewEmails();
     });
@@ -3101,12 +3102,20 @@
         buttons.push(
           `<button class="btn-icon" data-action="status" data-id="${safeId}" title="Check Status"><i class="fas fa-sync-alt"></i></button>`,
         );
+        buttons.push(
+          `<button class="btn-icon" data-action="rescue" data-id="${safeId}" title="Admin Rescue (Finalize)"><i class="fas fa-life-ring"></i></button>`,
+        );
       }
 
       if (pst.processing_status === "failed") {
         buttons.push(
           `<button class="btn-icon" data-action="error" data-id="${safeId}" title="View Error"><i class="fas fa-exclamation-circle"></i></button>`,
         );
+        if ((pst.processed_emails || 0) > 0) {
+          buttons.push(
+            `<button class="btn-icon" data-action="rescue" data-id="${safeId}" title="Admin Rescue (Finalize)"><i class="fas fa-life-ring"></i></button>`,
+          );
+        }
       }
 
       if (pst.processing_status === "completed" && pst.processed_emails > 0) {
@@ -3174,6 +3183,36 @@
         loadPSTHistory();
       } catch (error) {
         alert("Failed to get status: " + error.message);
+      }
+    }
+
+    async function rescuePST(pstFileId) {
+      const ok = confirm(
+        "Admin rescue will finalize this PST based on emails already extracted into the database.\n\nContinue?",
+      );
+      if (!ok) return;
+
+      try {
+        const response = await fetch(
+          `${apiUrl}/api/correspondence/pst/${pstFileId}/admin/rescue`,
+          withAuth({
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "finalize" }),
+          }),
+        );
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || "Rescue failed");
+        }
+
+        const result = await response.json();
+        const toStatus = result.to_status || result.status || "completed";
+        ToastManager.success("PST rescued", `Status: ${toStatus}`);
+        loadPSTHistory();
+      } catch (error) {
+        alert("Failed to rescue PST: " + error.message);
       }
     }
 

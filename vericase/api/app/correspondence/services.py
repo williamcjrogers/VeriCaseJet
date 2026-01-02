@@ -653,6 +653,18 @@ async def get_pst_status_service(pst_file_id, db):
     if not pst_file:
         raise HTTPException(404, "PST file not found")
 
+    def _derive_phase(status_value: str, total: int, processed: int) -> str:
+        status_lc = (status_value or "").strip().lower()
+        if status_lc in {"uploaded", "pending"}:
+            return "uploaded"
+        if status_lc == "processing":
+            if total > 0 and processed >= total:
+                return "parsing"
+            return "extracting"
+        if status_lc == "completed":
+            return "indexing"
+        return status_lc or "uploaded"
+
     try:
         redis_client: Redis = Redis.from_url(settings.REDIS_URL)
         redis_key = f"pst:{pst_file_id}"
@@ -693,11 +705,20 @@ async def get_pst_status_service(pst_file_id, db):
             total_emails_val = (
                 pst_file.total_emails if pst_file.total_emails is not None else 0
             )
+            status_value = decoded_redis_data.get(
+                "status", pst_file.processing_status or "pending"
+            )
+            current_phase = decoded_redis_data.get(
+                "current_phase"
+            ) or decoded_redis_data.get("phase")
+            if not current_phase:
+                current_phase = _derive_phase(
+                    status_value, total_emails_val, processed_emails
+                )
             return PSTProcessingStatus(
                 pst_file_id=str(pst_file.id),
-                status=decoded_redis_data.get(
-                    "status", pst_file.processing_status or "pending"
-                ),
+                status=status_value,
+                current_phase=current_phase,
                 total_emails=total_emails_val,
                 processed_emails=processed_emails,
                 progress_percent=round(float(progress), 1),
@@ -717,10 +738,13 @@ async def get_pst_status_service(pst_file_id, db):
     )
     if total_emails > 0:
         progress = (float(processed_emails) / float(total_emails)) * 100.0
+    status_value = pst_file.processing_status or "pending"
+    current_phase = _derive_phase(status_value, total_emails, processed_emails)
 
     return PSTProcessingStatus(
         pst_file_id=str(pst_file.id),
-        status=pst_file.processing_status or "pending",
+        status=status_value,
+        current_phase=current_phase,
         total_emails=total_emails,
         processed_emails=processed_emails,
         progress_percent=round(float(progress), 1),
@@ -728,6 +752,124 @@ async def get_pst_status_service(pst_file_id, db):
             str(pst_file.error_message) if pst_file.error_message is not None else None
         ),
     )
+
+
+async def admin_rescue_pst_service(
+    pst_file_id: str, body: dict, db: Session, user: User
+) -> dict[str, Any]:
+    """Admin: finalize a stuck PST without re-upload/re-extract.
+
+    This is designed for the common failure mode where:
+      - extraction inserted most emails, then the worker died/hung
+      - `pst_files.processing_status` stays "processing" forever
+
+    Rescue strategy:
+      1) Count emails already inserted for this pst_file_id
+      2) Run threading + dedupe scoped to this PST
+      3) Mark pst_files as completed using the DB count as the truth
+    """
+
+    if str(getattr(user, "role", "")).upper() != "ADMIN":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    try:
+        pst_uuid = uuid.UUID(str(pst_file_id))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid pst_file_id") from exc
+
+    pst = db.query(PSTFile).filter(PSTFile.id == pst_uuid).first()
+    if not pst:
+        raise HTTPException(status_code=404, detail="PST file not found")
+
+    action = str(body.get("action") or "finalize").strip().lower()
+    force = bool(body.get("force", False))
+
+    before_status = str(pst.processing_status or "pending")
+    if before_status == "completed" and not force:
+        return {
+            "pst_file_id": str(pst.id),
+            "status": before_status,
+            "message": "PST already completed (use force=true to re-run finalize)",
+        }
+
+    if action not in {"finalize", "fail"}:
+        raise HTTPException(status_code=400, detail="Invalid action")
+
+    now = datetime.now()
+    emails_in_db = (
+        db.query(func.count(EmailMessage.id))
+        .filter(EmailMessage.pst_file_id == pst_uuid)
+        .scalar()
+    )
+    emails_in_db = int(emails_in_db or 0)
+
+    if action == "fail":
+        pst.processing_status = "failed"
+        pst.processing_completed_at = now
+        pst.error_message = (
+            str(body.get("reason"))
+            or "Admin marked PST as failed (manual intervention)"
+        )
+        db.commit()
+        return {
+            "pst_file_id": str(pst.id),
+            "from_status": before_status,
+            "to_status": "failed",
+            "emails_in_db": emails_in_db,
+        }
+
+    if emails_in_db <= 0:
+        pst.processing_status = "failed"
+        pst.processing_completed_at = now
+        pst.error_message = (
+            "Rescue failed: no extracted emails found in DB for this PST. "
+            "Re-upload or reset and reprocess."
+        )
+        db.commit()
+        raise HTTPException(status_code=409, detail=pst.error_message)
+
+    from ..email_threading import build_email_threads
+    from ..email_dedupe import dedupe_emails
+
+    thread_stats = build_email_threads(
+        db,
+        case_id=pst.case_id,
+        project_id=pst.project_id,
+        pst_file_id=pst_uuid,
+        run_id="admin_rescue",
+    )
+    dedupe_stats = dedupe_emails(
+        db,
+        case_id=pst.case_id,
+        project_id=pst.project_id,
+        pst_file_id=pst_uuid,
+        run_id="admin_rescue",
+    )
+
+    pst.processing_status = "completed"
+    pst.total_emails = emails_in_db
+    pst.processed_emails = emails_in_db
+    pst.processing_completed_at = now
+    pst.error_message = None
+    db.commit()
+
+    return {
+        "pst_file_id": str(pst.id),
+        "from_status": before_status,
+        "to_status": "completed",
+        "emails_in_db": emails_in_db,
+        "threading": {
+            "threads_identified": int(
+                getattr(thread_stats, "threads_identified", 0) or 0
+            ),
+            "links_created": int(getattr(thread_stats, "links_created", 0) or 0),
+        },
+        "dedupe": {
+            "emails_total": int(getattr(dedupe_stats, "emails_total", 0) or 0),
+            "duplicates_found": int(getattr(dedupe_stats, "duplicates_found", 0) or 0),
+            "groups_matched": int(getattr(dedupe_stats, "groups_matched", 0) or 0),
+        },
+    }
 
 
 async def admin_cleanup_pst_service(body: dict, db: Session, user: User) -> dict:
