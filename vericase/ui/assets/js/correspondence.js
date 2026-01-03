@@ -4031,10 +4031,7 @@ function initGrid() {
       filter: "agBooleanColumnFilter",
       headerTooltip: "Whether this email is marked as excluded",
       valueGetter: (p) => p.data?.meta?.exclusion?.excluded === true,
-      cellRenderer: (p) => {
-        if (p.value === true) return '<span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: 0.75rem; font-weight: 500;">Excluded</span>';
-        return '<span style="color: var(--text-muted);">-</span>';
-      },
+      valueFormatter: (p) => (p.value ? "Yes" : ""),
     },
     {
       headerName: "Exclusion Label",
@@ -4042,13 +4039,8 @@ function initGrid() {
       minWidth: 160,
       flex: 1,
       filter: "agTextColumnFilter",
-      filterParams: { buttons: ['reset', 'apply'], closeOnApply: true },
       headerTooltip: "Exclusion tag/label",
       valueGetter: (p) => p.data?.meta?.exclusion?.excluded_label || "",
-      cellRenderer: (p) => {
-        if (!p.value) return '<span style="color: var(--text-muted);">-</span>';
-        return `<span style="padding: 2px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: 0.75rem;">${escapeHtml(p.value)}</span>`;
-      },
     },
   ];
 
