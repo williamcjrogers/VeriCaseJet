@@ -23,6 +23,7 @@ metadata:
     component: api
 spec:
   replicas: 2
+  progressDeadlineSeconds: 1200  # 20 min - must exceed startupProbe (15 min)
   selector:
     matchLabels:
       app: vericase-api
