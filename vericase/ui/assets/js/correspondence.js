@@ -47,7 +47,7 @@ const gridReadyPromise = new Promise((resolve) => {
   );
   gridApi.refreshServerSide({ purge: true });
 })();
-let columnApi;
+// NOTE: columnApi is deprecated in AG Grid v31+. All column methods are now on gridApi.
 let allEmails = [];
 let currentViewMode = "all";
 let currentAttachment;
@@ -2372,8 +2372,8 @@ function sanitizeColumnState(state) {
 
 function getCurrentGridState() {
   return {
-    columnState: columnApi ? sanitizeColumnState(columnApi.getColumnState()) : [],
-    sortModel: gridApi?.getSortModel ? gridApi.getSortModel() : null,
+    columnState: gridApi?.getColumnState ? sanitizeColumnState(gridApi.getColumnState()) : [],
+    sortModel: gridApi?.getColumnState ? gridApi.getColumnState().filter(c => c.sort).map(c => ({ colId: c.colId, sort: c.sort, sortIndex: c.sortIndex })) : null,
     filterModel: gridApi?.getFilterModel ? gridApi.getFilterModel() : null,
   };
 }
@@ -2387,16 +2387,20 @@ function setActiveGridView(name) {
 }
 
 function applyGridView(view, options) {
-  if (!view || !columnApi || !gridApi) return;
+  if (!view || !gridApi) return;
   const opts = { toast: true, refresh: true, ...(options || {}) };
   const state = view.state || {};
 
   if (Array.isArray(state.columnState) && state.columnState.length) {
     const sanitized = sanitizeColumnState(state.columnState);
-    columnApi.applyColumnState({ state: sanitized, applyOrder: true });
+    gridApi.applyColumnState({ state: sanitized, applyOrder: true });
   }
-  if (gridApi.setSortModel) {
-    gridApi.setSortModel(state.sortModel || null);
+  // Apply sort via column state (setSortModel is deprecated in v31+)
+  if (Array.isArray(state.sortModel) && state.sortModel.length) {
+    gridApi.applyColumnState({
+      state: state.sortModel.map(s => ({ colId: s.colId, sort: s.sort, sortIndex: s.sortIndex })),
+      defaultState: { sort: null },
+    });
   }
   if (gridApi.setFilterModel) {
     gridApi.setFilterModel(state.filterModel || null);
@@ -2528,7 +2532,7 @@ window.openManageViews = function () {
 };
 
 window.saveGridConfiguration = function () {
-  if (!gridApi || !columnApi) return;
+  if (!gridApi) return;
   try {
     const name = window.prompt("Name this view", "");
     if (!name || !name.trim()) return;
@@ -2561,9 +2565,9 @@ window.resetGridConfiguration = function () {
   try {
     setActiveGridView(null);
     localStorage.removeItem("vc_correspondence_grid_state");
-    if (columnApi?.resetColumnState) columnApi.resetColumnState();
-    if (columnApi?.getAllColumns) {
-      const showState = columnApi.getAllColumns().map((col) => {
+    if (gridApi?.resetColumnState) gridApi.resetColumnState();
+    if (gridApi?.getColumns) {
+      const showState = gridApi.getColumns().map((col) => {
         const colId = col.getColId();
         return {
           colId,
@@ -2571,9 +2575,13 @@ window.resetGridConfiguration = function () {
           pinned: null,
         };
       });
-      columnApi.applyColumnState({ state: showState, applyOrder: false });
+      gridApi.applyColumnState({ state: showState, applyOrder: false });
     }
-    gridApi?.setSortModel?.([{ colId: "email_date", sort: "asc" }]);
+    // Use applyColumnState for sorting (setSortModel is deprecated)
+    gridApi?.applyColumnState?.({
+      state: [{ colId: "email_date", sort: "asc" }],
+      defaultState: { sort: null },
+    });
     gridApi?.refreshServerSide?.({ purge: true });
     updateViewsDropdown();
     if (window.VericaseUI) VericaseUI.Toast.success("Layout reset");
@@ -3658,6 +3666,16 @@ function initGrid() {
       minWidth: 220,
       flex: 1,
       filter: "agSetColumnFilter",
+      filterParams: {
+        // Load keyword values from API (optimized for 100k+ rows)
+        values: async (params) => {
+          const keywords = await ensureKeywordsLoaded();
+          return keywords.map(k => k.name || k.keyword || k.id).filter(Boolean);
+        },
+        refreshValuesOnOpen: true,
+        buttons: ['reset', 'apply'],
+        closeOnApply: true,
+      },
       headerTooltip: "Matched keywords (auto-tagged + manually added)",
       valueGetter: (p) => formatMatchedKeywords(p.data?.matched_keywords),
       cellRenderer: (p) => renderKeywordChips(p.data?.matched_keywords),
@@ -3668,7 +3686,12 @@ function initGrid() {
             headerName: "PST File",
             field: "pst_filename",
             sortable: true,
-            filter: "agSetColumnFilter",
+            // Use text filter for PST files (server-side compatible, no client-side value extraction)
+            filter: "agTextColumnFilter",
+            filterParams: {
+              buttons: ['reset', 'apply'],
+              closeOnApply: true,
+            },
             minWidth: 220,
             flex: 1,
             headerTooltip: "Source PST file (admin only)",
@@ -3928,7 +3951,9 @@ function initGrid() {
       minWidth: 220,
       flex: 1,
       filter: "agTextColumnFilter",
+      filterParams: { buttons: ['reset', 'apply'], closeOnApply: true },
       headerTooltip: "Mapped programme activity (as planned)",
+      cellRenderer: (p) => p.value ? `<span style="color: var(--vericase-teal);">${escapeHtml(p.value)}</span>` : '<span style="color: var(--text-muted);">-</span>',
     },
     {
       headerName: "Planned Finish",
@@ -3936,8 +3961,14 @@ function initGrid() {
       width: 160,
       sortable: true,
       filter: "agDateColumnFilter",
+      filterParams: { buttons: ['reset', 'apply'], closeOnApply: true },
       headerTooltip: "As-planned finish date",
-      valueFormatter: (p) => (p.value ? new Date(p.value).toLocaleDateString() : "-"),
+      valueFormatter: (p) => {
+        if (!p.value) return "-";
+        const d = new Date(p.value);
+        if (Number.isNaN(d.getTime())) return "-";
+        return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+      },
     },
     {
       headerName: "As-Built Activity",
@@ -3945,7 +3976,9 @@ function initGrid() {
       minWidth: 220,
       flex: 1,
       filter: "agTextColumnFilter",
+      filterParams: { buttons: ['reset', 'apply'], closeOnApply: true },
       headerTooltip: "Mapped as-built programme activity",
+      cellRenderer: (p) => p.value ? `<span style="color: var(--vericase-navy);">${escapeHtml(p.value)}</span>` : '<span style="color: var(--text-muted);">-</span>',
     },
     {
       headerName: "As-Built Finish",
@@ -3953,8 +3986,14 @@ function initGrid() {
       width: 160,
       sortable: true,
       filter: "agDateColumnFilter",
+      filterParams: { buttons: ['reset', 'apply'], closeOnApply: true },
       headerTooltip: "As-built finish date",
-      valueFormatter: (p) => (p.value ? new Date(p.value).toLocaleDateString() : "-"),
+      valueFormatter: (p) => {
+        if (!p.value) return "-";
+        const d = new Date(p.value);
+        if (Number.isNaN(d.getTime())) return "-";
+        return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+      },
     },
     {
       headerName: "Delay (days)",
@@ -3962,8 +4001,15 @@ function initGrid() {
       width: 130,
       sortable: true,
       filter: "agNumberColumnFilter",
+      filterParams: { buttons: ['reset', 'apply'], closeOnApply: true },
       headerTooltip: "Delay days (if populated)",
-      valueFormatter: (p) => (p.value === null || p.value === undefined ? "" : String(p.value)),
+      cellRenderer: (p) => {
+        if (p.value === null || p.value === undefined) return '<span style="color: var(--text-muted);">-</span>';
+        const days = Number(p.value);
+        if (days > 0) return `<span style="color: #dc2626; font-weight: 500;">+${days}</span>`;
+        if (days < 0) return `<span style="color: #16a34a; font-weight: 500;">${days}</span>`;
+        return `<span style="color: var(--text-muted);">0</span>`;
+      },
     },
     {
       headerName: "Critical Path",
@@ -3972,7 +4018,10 @@ function initGrid() {
       sortable: true,
       filter: "agBooleanColumnFilter",
       headerTooltip: "Critical path flag (if populated)",
-      valueFormatter: (p) => (p.value ? "Yes" : ""),
+      cellRenderer: (p) => {
+        if (p.value === true) return '<span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; background: #fee2e2; color: #991b1b; font-size: 0.75rem; font-weight: 500;"><i class="fas fa-exclamation-circle"></i> Critical</span>';
+        return '<span style="color: var(--text-muted);">-</span>';
+      },
     },
     {
       headerName: "Excluded",
@@ -3982,7 +4031,10 @@ function initGrid() {
       filter: "agBooleanColumnFilter",
       headerTooltip: "Whether this email is marked as excluded",
       valueGetter: (p) => p.data?.meta?.exclusion?.excluded === true,
-      valueFormatter: (p) => (p.value ? "Yes" : ""),
+      cellRenderer: (p) => {
+        if (p.value === true) return '<span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: 0.75rem; font-weight: 500;">Excluded</span>';
+        return '<span style="color: var(--text-muted);">-</span>';
+      },
     },
     {
       headerName: "Exclusion Label",
@@ -3990,8 +4042,13 @@ function initGrid() {
       minWidth: 160,
       flex: 1,
       filter: "agTextColumnFilter",
+      filterParams: { buttons: ['reset', 'apply'], closeOnApply: true },
       headerTooltip: "Exclusion tag/label",
       valueGetter: (p) => p.data?.meta?.exclusion?.excluded_label || "",
+      cellRenderer: (p) => {
+        if (!p.value) return '<span style="color: var(--text-muted);">-</span>';
+        return `<span style="padding: 2px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: 0.75rem;">${escapeHtml(p.value)}</span>`;
+      },
     },
   ];
 
@@ -4006,7 +4063,13 @@ function initGrid() {
       autoHeaderHeight: true,
     },
     rowModelType: "serverSide",
+    // Optimized for 100k+ rows: fetch 100 rows per block, keep max 10 blocks in memory (~1000 rows)
     cacheBlockSize: 100,
+    maxBlocksInCache: 10,
+    // Debounce rapid scrolling to avoid excessive API calls
+    blockLoadDebounceMillis: 200,
+    // Improve initial scroll estimation for large datasets
+    serverSideInitialRowCount: 1000,
     sideBar: {
       toolPanels: [
         {
@@ -4042,7 +4105,7 @@ function initGrid() {
     suppressRowClickSelection: false,
     onGridReady: (params) => {
       gridApi = params.api;
-      columnApi = params.columnApi;
+      // NOTE: params.columnApi is deprecated in AG Grid v31+. Use params.api for column operations.
 
       // Close sidebar by default
       params.api.setSideBarVisible(false);
@@ -4058,7 +4121,7 @@ function initGrid() {
           applyGridView(activeView, { toast: false, refresh: false });
         } else {
           const raw = localStorage.getItem("vc_correspondence_grid_state");
-          if (raw && columnApi) {
+          if (raw && gridApi) {
             const state = JSON.parse(raw);
             if (state.columnState) {
               const sanitized = state.columnState.map((col) => ({
@@ -4067,7 +4130,7 @@ function initGrid() {
                 pinned: null,
               }));
               // Keep the default column order; only restore widths/visibility/etc.
-              columnApi.applyColumnState({ state: sanitized, applyOrder: false });
+              gridApi.applyColumnState({ state: sanitized, applyOrder: false });
             }
           }
         }
@@ -4075,8 +4138,8 @@ function initGrid() {
         console.warn("Could not restore grid state:", e);
       }
 
-      if (columnApi?.getAllColumns) {
-        const showState = columnApi.getAllColumns().map((col) => {
+      if (gridApi?.getColumns) {
+        const showState = gridApi.getColumns().map((col) => {
           const colId = col.getColId();
           return {
             colId,
@@ -4085,13 +4148,16 @@ function initGrid() {
           };
         });
         if (showState.length) {
-          columnApi.applyColumnState({ state: showState, applyOrder: false });
+          gridApi.applyColumnState({ state: showState, applyOrder: false });
         }
       }
 
-      // Enforce default sort: oldest → newest.
+      // Enforce default sort: oldest → newest (using applyColumnState, setSortModel is deprecated)
       try {
-        gridApi.setSortModel?.([{ colId: "email_date", sort: "asc" }]);
+        gridApi.applyColumnState?.({
+          state: [{ colId: "email_date", sort: "asc" }],
+          defaultState: { sort: null },
+        });
       } catch {
         // ignore
       }
