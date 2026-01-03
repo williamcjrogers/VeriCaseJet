@@ -48,6 +48,14 @@ spec:
               memory: "6Gi"
               cpu: "2000m"
           # Health checks
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            # API startup runs DB checks + (optionally) migrations; allow long startup without liveness killing.
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 90 # 15 minutes
           livenessProbe:
             httpGet:
               path: /health
@@ -67,6 +75,9 @@ spec:
           env:
             # AWS Core Configuration
             - name: USE_AWS_SERVICES
+              value: "true"
+            # IMPORTANT: avoid running heavy SQL migrations on every pod start in production
+            - name: SKIP_SQL_MIGRATIONS
               value: "true"
             - name: AWS_REGION
               value: "eu-west-2"

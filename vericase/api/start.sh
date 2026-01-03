@@ -46,7 +46,9 @@ fi
 
 # Always run legacy SQL migrations to ensure base tables exist
 # This is safe because all CREATE statements use IF NOT EXISTS
-if [ -f "/code/apply_migrations.py" ]; then
+if [ "${SKIP_SQL_MIGRATIONS:-false}" = "true" ]; then
+  echo "Skipping legacy SQL migrations (SKIP_SQL_MIGRATIONS=true)"
+elif [ -f "/code/apply_migrations.py" ]; then
   echo "Applying SQL migrations to ensure all tables exist..."
   python /code/apply_migrations.py || echo "Warning: Some SQL migrations may have had issues (usually harmless)"
 fi
