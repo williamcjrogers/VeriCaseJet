@@ -388,6 +388,79 @@ async def list_keywords(
     }
 
 
+@router.get("/email-addresses")
+async def list_email_addresses(
+    case_id: Annotated[str | None, Query(description="Case ID")] = None,
+    project_id: Annotated[str | None, Query(description="Project ID")] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """List unique email addresses for filter UI dropdowns."""
+
+    from sqlalchemy import distinct
+
+    # Build base query with case/project filters
+    q = db.query(EmailMessage)
+    case_uuid = _safe_uuid(case_id, "case_id")
+    project_uuid = _safe_uuid(project_id, "project_id")
+    if case_uuid:
+        q = q.filter(EmailMessage.case_id == case_uuid)
+    if project_uuid:
+        q = q.filter(EmailMessage.project_id == project_uuid)
+
+    # Get unique senders
+    from_addrs = (
+        q.with_entities(distinct(EmailMessage.sender_email))
+        .filter(EmailMessage.sender_email.isnot(None))
+        .filter(EmailMessage.sender_email != "")
+        .order_by(EmailMessage.sender_email)
+        .limit(1000)
+        .all()
+    )
+    from_list = sorted([addr[0] for addr in from_addrs if addr[0]])
+
+    # Get unique TO recipients
+    to_addrs = (
+        q.with_entities(distinct(EmailMessage.recipient_emails))
+        .filter(EmailMessage.recipient_emails.isnot(None))
+        .filter(EmailMessage.recipient_emails != "")
+        .limit(2000)
+        .all()
+    )
+    # recipient_emails is often a comma-separated list, so split and flatten
+    to_set = set()
+    for addrs in to_addrs:
+        if addrs[0]:
+            for addr in addrs[0].split(","):
+                clean = addr.strip()
+                if clean:
+                    to_set.add(clean)
+    to_list = sorted(to_set)[:1000]
+
+    # Get unique CC recipients
+    cc_addrs = (
+        q.with_entities(distinct(EmailMessage.cc_emails))
+        .filter(EmailMessage.cc_emails.isnot(None))
+        .filter(EmailMessage.cc_emails != "")
+        .limit(2000)
+        .all()
+    )
+    cc_set = set()
+    for addrs in cc_addrs:
+        if addrs[0]:
+            for addr in addrs[0].split(","):
+                clean = addr.strip()
+                if clean:
+                    cc_set.add(clean)
+    cc_list = sorted(cc_set)[:1000]
+
+    return {
+        "from": from_list,
+        "to": to_list,
+        "cc": cc_list,
+    }
+
+
 @router.get("/emails/{email_id}/similar")
 async def get_similar_emails(
     email_id: str,

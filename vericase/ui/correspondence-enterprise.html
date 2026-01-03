@@ -38,17 +38,21 @@
   <!-- Main correspondence content wrapper -->
   <div id="correspondence-app" style="height: 100%; display: flex; flex-direction: column;">
 
-  <!-- Assistant Interface - Compact & Always Visible -->
+  <!-- Floating Toggle Button -->
+  <button id="aiFloatingToggleBtn" class="ai-floating-toggle" onclick="toggleAIChat()" title="Open VeriCase Assistant">
+    <i class="fas fa-brain"></i>
+  </button>
+
+  <!-- Assistant Interface - Sliding Panel from Right -->
   <div id="aiChatContainer">
     <div class="ai-bar">
-      <button id="aiChatToggleBtn" class="ai-toggle" onclick="toggleAIChat()" aria-expanded="true" aria-controls="aiChatPanel" title="Toggle suggestions panel">
-        <i class="fas fa-chevron-up" id="aiChatToggleIcon"></i>
-        <span id="aiChatToggleLabel">Hide VeriCase Assistant</span>
+      <button id="aiChatToggleBtn" class="ai-toggle" onclick="toggleAIChat()" aria-expanded="false" aria-controls="aiChatPanel" title="Close assistant panel">
+        <i class="fas fa-times" id="aiChatToggleIcon"></i>
       </button>
 
       <div class="ai-bar-brand">
         <div class="ai-icon">
-          <i class="fas fa-brain" style="color: white; font-size: 17px"></i>
+          <i class="fas fa-brain" style="color: white; font-size: 18px"></i>
         </div>
         <div class="ai-bar-text">
           <div class="ai-title">VeriCase Assistant</div>

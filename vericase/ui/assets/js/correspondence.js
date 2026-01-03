@@ -64,6 +64,7 @@ let selectedKeywordId = null;
 let stakeholdersCache = null;
 let keywordsCache = null;
 let keywordIndex = null;
+let emailAddressesCache = null;  // Cache for unique email addresses for filters
 
 // Linking target caches
 const linkTargetsCache = {
@@ -2149,6 +2150,32 @@ async function ensureKeywordsLoaded() {
   return keywordsCache;
 }
 
+async function ensureEmailAddressesLoaded() {
+  if (emailAddressesCache) return emailAddressesCache;
+  const params = new URLSearchParams();
+  if (projectId) params.set("project_id", projectId);
+  if (caseId) params.set("case_id", caseId);
+  const url = `${API_BASE}/api/correspondence/email-addresses${params.toString() ? `?${params}` : ""}`;
+  try {
+    const resp = await fetch(url, { headers: { ...getAuthHeaders() } });
+    if (!resp.ok) {
+      console.warn(`Failed to load email addresses (${resp.status}), using empty list`);
+      emailAddressesCache = { from: [], to: [], cc: [] };
+      return emailAddressesCache;
+    }
+    const data = await resp.json();
+    emailAddressesCache = {
+      from: Array.isArray(data?.from) ? data.from : [],
+      to: Array.isArray(data?.to) ? data.to : [],
+      cc: Array.isArray(data?.cc) ? data.cc : []
+    };
+  } catch (e) {
+    console.warn("Could not load email addresses for filters:", e);
+    emailAddressesCache = { from: [], to: [], cc: [] };
+  }
+  return emailAddressesCache;
+}
+
 function getSelectedEmailRows() {
   const rows = gridApi?.getSelectedRows ? gridApi.getSelectedRows() : [];
   return Array.isArray(rows) ? rows : [];
@@ -2610,15 +2637,21 @@ window.printEmails = function () {
 
 window.toggleAIChat = function () {
   const container = document.getElementById("aiChatContainer");
-  const btn = document.getElementById("aiChatToggleBtn");
-  const icon = document.getElementById("aiChatToggleIcon");
-  const label = document.getElementById("aiChatToggleLabel");
+  const floatingBtn = document.getElementById("aiFloatingToggleBtn");
+  const closeBtn = document.getElementById("aiChatToggleBtn");
   if (!container) return;
 
-  const isCollapsed = container.classList.toggle("ai-collapsed");
-  if (btn) btn.setAttribute("aria-expanded", String(!isCollapsed));
-  if (icon) icon.className = isCollapsed ? "fas fa-chevron-down" : "fas fa-chevron-up";
-  if (label) label.textContent = isCollapsed ? "Show Assistant" : "Hide Assistant";
+  const isVisible = container.classList.toggle("ai-visible");
+  
+  // Toggle floating button visibility
+  if (floatingBtn) {
+    floatingBtn.classList.toggle("hidden", isVisible);
+  }
+  
+  // Update close button aria attribute
+  if (closeBtn) {
+    closeBtn.setAttribute("aria-expanded", String(isVisible));
+  }
 };
 
 function setContextPanelCollapsed(collapsed) {
@@ -3014,7 +3047,7 @@ window.suggestExclusion = function () {
   if (aiInput) aiInput.value = q;
   // Ensure assistant panel visible
   const container = document.getElementById("aiChatContainer");
-  if (container && container.classList.contains("ai-collapsed")) {
+  if (container && !container.classList.contains("ai-visible")) {
     window.toggleAIChat?.();
   }
   window.aiQuickSearch?.();
@@ -3030,7 +3063,7 @@ window.analyzeSelection = function () {
   const aiInput = document.getElementById("aiQuery");
   if (aiInput) aiInput.value = q;
   const container = document.getElementById("aiChatContainer");
-  if (container && container.classList.contains("ai-collapsed")) {
+  if (container && !container.classList.contains("ai-visible")) {
     window.toggleAIChat?.();
   }
   window.aiQuickSearch?.();
@@ -3537,9 +3570,18 @@ function initGrid() {
       field: "email_from",
       sortable: true,
       filter: "agSetColumnFilter",
+      filterParams: {
+        values: async (params) => {
+          const addresses = await ensureEmailAddressesLoaded();
+          return addresses.from || [];
+        },
+        refreshValuesOnOpen: true,
+        buttons: ['reset', 'apply'],
+        closeOnApply: true,
+      },
       minWidth: 220,
       flex: 1,
-      headerTooltip: "Sender",
+      headerTooltip: "Sender - Click filter icon to see all senders",
       cellRenderer: (p) => formatEmailAddressCell(p.value),
     },
     {
@@ -3547,9 +3589,18 @@ function initGrid() {
       field: "email_to",
       sortable: true,
       filter: "agSetColumnFilter",
+      filterParams: {
+        values: async (params) => {
+          const addresses = await ensureEmailAddressesLoaded();
+          return addresses.to || [];
+        },
+        refreshValuesOnOpen: true,
+        buttons: ['reset', 'apply'],
+        closeOnApply: true,
+      },
       minWidth: 220,
       flex: 1,
-      headerTooltip: "Primary recipients",
+      headerTooltip: "Primary recipients - Click filter icon to see all recipients",
       cellRenderer: (p) => formatEmailAddressCell(p.value),
     },
     {
@@ -3557,9 +3608,18 @@ function initGrid() {
       field: "email_cc",
       sortable: true,
       filter: "agSetColumnFilter",
+      filterParams: {
+        values: async (params) => {
+          const addresses = await ensureEmailAddressesLoaded();
+          return addresses.cc || [];
+        },
+        refreshValuesOnOpen: true,
+        buttons: ['reset', 'apply'],
+        closeOnApply: true,
+      },
       minWidth: 200,
       flex: 1,
-      headerTooltip: "CC recipients",
+      headerTooltip: "CC recipients - Click filter icon to see all CC recipients",
       cellRenderer: (p) => formatEmailAddressCell(p.value),
     },
     {
