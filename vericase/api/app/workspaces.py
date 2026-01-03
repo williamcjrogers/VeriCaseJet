@@ -5,11 +5,14 @@ Manages workspace entities that group Projects and Cases together
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
+
+logger = logging.getLogger(__name__)
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -202,7 +205,7 @@ def list_workspaces(
                 "cases": [
                     {
                         "id": str(c.id),
-                        "name": c.case_name,
+                        "name": c.name,
                         "case_number": c.case_number,
                     }
                     for c in cases
@@ -260,157 +263,177 @@ def get_workspace(
     user: CurrentUser,
 ) -> dict[str, Any]:
     """Get workspace details with nested projects and cases"""
-    workspace = _require_workspace(db, workspace_id, user)
-
-    # Get projects
-    projects = db.query(Project).filter(Project.workspace_id == workspace.id).all()
-    project_list = []
-    for p in projects:
-        from .models import EmailMessage, EvidenceItem
-
-        email_count = (
-            db.query(func.count(EmailMessage.id))
-            .filter(EmailMessage.project_id == p.id)
-            .scalar()
-            or 0
+    try:
+        workspace = _require_workspace(db, workspace_id, user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(
+            "Error in _require_workspace for workspace_id=%s", workspace_id
         )
-        evidence_count = (
-            db.query(func.count(EvidenceItem.id))
-            .filter(EvidenceItem.project_id == p.id)
-            .scalar()
-            or 0
+        raise HTTPException(
+            status_code=500, detail=f"Failed to load workspace: {e}"
+        ) from e
+
+    try:
+        # Get projects
+        projects = db.query(Project).filter(Project.workspace_id == workspace.id).all()
+        project_list = []
+        for p in projects:
+            from .models import EmailMessage, EvidenceItem
+
+            email_count = (
+                db.query(func.count(EmailMessage.id))
+                .filter(EmailMessage.project_id == p.id)
+                .scalar()
+                or 0
+            )
+            evidence_count = (
+                db.query(func.count(EvidenceItem.id))
+                .filter(EvidenceItem.project_id == p.id)
+                .scalar()
+                or 0
+            )
+            project_list.append(
+                {
+                    "id": str(p.id),
+                    "name": p.project_name,
+                    "code": p.project_code,
+                    "description": None,  # Projects don't have description in current model
+                    "email_count": email_count,
+                    "evidence_count": evidence_count,
+                }
+            )
+
+        # Get cases
+        cases = db.query(Case).filter(Case.workspace_id == workspace.id).all()
+        case_list = []
+        for c in cases:
+            from .models import EmailMessage, EvidenceItem
+
+            email_count = (
+                db.query(func.count(EmailMessage.id))
+                .filter(EmailMessage.case_id == c.id)
+                .scalar()
+                or 0
+            )
+            evidence_count = (
+                db.query(func.count(EvidenceItem.id))
+                .filter(EvidenceItem.case_id == c.id)
+                .scalar()
+                or 0
+            )
+            case_list.append(
+                {
+                    "id": str(c.id),
+                    "name": c.name,
+                    "code": c.case_number,
+                    "description": c.description,
+                    "project_id": str(c.project_id) if c.project_id else None,
+                    "project_name": c.project_name,
+                    "email_count": email_count,
+                    "evidence_count": evidence_count,
+                }
+            )
+
+        # Get keywords
+        keywords = (
+            db.query(WorkspaceKeyword)
+            .filter(WorkspaceKeyword.workspace_id == workspace.id)
+            .all()
         )
-        project_list.append(
+        keyword_list = [
             {
-                "id": str(p.id),
-                "name": p.project_name,
-                "code": p.project_code,
-                "description": None,  # Projects don't have description in current model
-                "email_count": email_count,
-                "evidence_count": evidence_count,
+                "id": str(k.id),
+                "keyword_name": k.keyword_name,
+                "definition": k.definition,
+                "variations": k.variations,
+                "is_regex": k.is_regex,
             }
-        )
+            for k in keywords
+        ]
 
-    # Get cases
-    cases = db.query(Case).filter(Case.workspace_id == workspace.id).all()
-    case_list = []
-    for c in cases:
-        from .models import EmailMessage, EvidenceItem
-
-        email_count = (
-            db.query(func.count(EmailMessage.id))
-            .filter(EmailMessage.case_id == c.id)
-            .scalar()
-            or 0
+        # Get team members
+        team = (
+            db.query(WorkspaceTeamMember)
+            .filter(WorkspaceTeamMember.workspace_id == workspace.id)
+            .all()
         )
-        evidence_count = (
-            db.query(func.count(EvidenceItem.id))
-            .filter(EvidenceItem.case_id == c.id)
-            .scalar()
-            or 0
-        )
-        case_list.append(
+        team_list = [
             {
-                "id": str(c.id),
-                "name": c.name,
-                "code": c.case_number,
-                "description": c.description,
-                "project_id": str(c.project_id) if c.project_id else None,
-                "project_name": c.project_name,
-                "email_count": email_count,
-                "evidence_count": evidence_count,
+                "id": str(t.id),
+                "user_id": str(t.user_id) if t.user_id else None,
+                "role": t.role,
+                "name": t.name,
+                "email": t.email,
+                "organization": t.organization,
             }
+            for t in team
+        ]
+
+        # Get key dates
+        dates = (
+            db.query(WorkspaceKeyDate)
+            .filter(WorkspaceKeyDate.workspace_id == workspace.id)
+            .all()
         )
+        date_list = [
+            {
+                "id": str(d.id),
+                "date_type": d.date_type,
+                "label": d.label,
+                "date_value": d.date_value.isoformat() if d.date_value else None,
+                "description": d.description,
+            }
+            for d in dates
+        ]
 
-    # Get keywords
-    keywords = (
-        db.query(WorkspaceKeyword)
-        .filter(WorkspaceKeyword.workspace_id == workspace.id)
-        .all()
-    )
-    keyword_list = [
-        {
-            "id": str(k.id),
-            "keyword_name": k.keyword_name,
-            "definition": k.definition,
-            "variations": k.variations,
-            "is_regex": k.is_regex,
+        # Get stakeholders (JCT categories)
+        stakeholders = (
+            db.query(Stakeholder)
+            .filter(Stakeholder.project_id.in_([p.id for p in projects]))
+            .all()
+        )
+        stakeholder_list = [
+            {
+                "id": str(s.id),
+                "role": s.role,
+                "name": s.name,
+                "email": s.email,
+                "organization": s.organization,
+            }
+            for s in stakeholders
+        ]
+
+        return {
+            "id": str(workspace.id),
+            "name": workspace.name,
+            "code": workspace.code,
+            "description": workspace.description,
+            "contract_type": workspace.contract_type,
+            "status": workspace.status,
+            "projects": project_list,
+            "cases": case_list,
+            "keywords": keyword_list,
+            "team_members": team_list,
+            "key_dates": date_list,
+            "stakeholders": stakeholder_list,
+            "created_at": (
+                workspace.created_at.isoformat() if workspace.created_at else None
+            ),
+            "updated_at": (
+                workspace.updated_at.isoformat() if workspace.updated_at else None
+            ),
         }
-        for k in keywords
-    ]
-
-    # Get team members
-    team = (
-        db.query(WorkspaceTeamMember)
-        .filter(WorkspaceTeamMember.workspace_id == workspace.id)
-        .all()
-    )
-    team_list = [
-        {
-            "id": str(t.id),
-            "user_id": str(t.user_id) if t.user_id else None,
-            "role": t.role,
-            "name": t.name,
-            "email": t.email,
-            "organization": t.organization,
-        }
-        for t in team
-    ]
-
-    # Get key dates
-    dates = (
-        db.query(WorkspaceKeyDate)
-        .filter(WorkspaceKeyDate.workspace_id == workspace.id)
-        .all()
-    )
-    date_list = [
-        {
-            "id": str(d.id),
-            "date_type": d.date_type,
-            "label": d.label,
-            "date_value": d.date_value.isoformat() if d.date_value else None,
-            "description": d.description,
-        }
-        for d in dates
-    ]
-
-    # Get stakeholders (JCT categories)
-    stakeholders = (
-        db.query(Stakeholder)
-        .filter(Stakeholder.project_id.in_([p.id for p in projects]))
-        .all()
-    )
-    stakeholder_list = [
-        {
-            "id": str(s.id),
-            "role": s.role,
-            "name": s.name,
-            "email": s.email,
-            "organization": s.organization,
-        }
-        for s in stakeholders
-    ]
-
-    return {
-        "id": str(workspace.id),
-        "name": workspace.name,
-        "code": workspace.code,
-        "description": workspace.description,
-        "contract_type": workspace.contract_type,
-        "status": workspace.status,
-        "projects": project_list,
-        "cases": case_list,
-        "keywords": keyword_list,
-        "team_members": team_list,
-        "key_dates": date_list,
-        "stakeholders": stakeholder_list,
-        "created_at": (
-            workspace.created_at.isoformat() if workspace.created_at else None
-        ),
-        "updated_at": (
-            workspace.updated_at.isoformat() if workspace.updated_at else None
-        ),
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(
+            "Error fetching workspace details for workspace_id=%s", workspace_id
+        )
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching workspace details: {e}"
+        ) from e
 
 
 @router.put("/{workspace_id}")

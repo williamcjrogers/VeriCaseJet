@@ -1,0 +1,12 @@
+# Example S3 backend config for Terraform remote state + DynamoDB locking.
+#
+# Copy to `backend.hcl` (do not commit) and run:
+#   terraform init -backend-config=backend.hcl
+
+bucket         = "vericase-tfstate-526015377510-eu-west-2"
+key            = "terraform/pst-pipeline-v2/control-plane/terraform.tfstate"
+region         = "eu-west-2"
+dynamodb_table = "vericase-terraform-locks"
+encrypt        = true
+
+

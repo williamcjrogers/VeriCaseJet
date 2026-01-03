@@ -29,10 +29,10 @@ def reset_admin_password():
 
         # IMPORTANT:
         # - On container startup, we should NOT overwrite an existing admin user's
-        #   password unless explicitly requested.
-        # - If ADMIN_PASSWORD is provided, we will reset the password.
-        # - If ADMIN_RESET_FORCE=true, we will reset the password even if using
-        #   the default (ChangeMe123).
+        #   password unless explicitly requested via ADMIN_RESET_FORCE=true.
+        # - ADMIN_PASSWORD is only used for creating NEW admin users, or when
+        #   ADMIN_RESET_FORCE=true to reset existing users.
+        # - This prevents password resets on every pod restart/scale event.
         admin_password_env = os.getenv("ADMIN_PASSWORD")
         force_reset = str(os.getenv("ADMIN_RESET_FORCE", "")).strip().lower() in {
             "1",
@@ -40,7 +40,8 @@ def reset_admin_password():
             "yes",
             "y",
         }
-        should_reset_password = bool(admin_password_env) or force_reset
+        # Only reset existing users' passwords when explicitly forced
+        should_reset_password = force_reset
 
         # NOTE: We intentionally do not log the plaintext password.
         new_password = admin_password_env or "ChangeMe123"

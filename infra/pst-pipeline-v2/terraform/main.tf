@@ -2,12 +2,27 @@ provider "aws" {
   region = var.aws_region
 }
 
+data "aws_caller_identity" "current" {}
+
 locals {
   queue_name     = "${var.name_prefix}-pst-ingest-v2"
   dlq_name       = "${var.name_prefix}-pst-ingest-v2-dlq"
   sfn_name       = "${var.name_prefix}-pst-ingest-v2"
   pipe_name      = "${var.name_prefix}-pst-ingest-v2-pipe"
   log_group_name = "/aws/states/${var.name_prefix}-pst-ingest-v2"
+
+  sfn_definition_template = var.pipeline_mode == "single" ? "${path.module}/statemachine.single.asl.json.tftpl" : "${path.module}/statemachine.asl.json.tftpl"
+  sfn_definition_vars = var.pipeline_mode == "single" ? {
+    batch_job_queue_arn        = var.batch_job_queue_arn
+    process_job_definition_arn = var.process_job_definition_arn
+  } : {
+    batch_job_queue_arn        = var.batch_job_queue_arn
+    extract_job_definition_arn = var.extract_job_definition_arn
+    load_job_definition_arn    = var.load_job_definition_arn
+    thread_job_definition_arn  = var.thread_job_definition_arn
+    dedupe_job_definition_arn  = var.dedupe_job_definition_arn
+    index_job_definition_arn   = var.index_job_definition_arn
+  }
 }
 
 resource "aws_sqs_queue" "dlq" {
@@ -46,6 +61,7 @@ resource "aws_iam_role" "pipe_role" {
 }
 
 resource "aws_iam_role_policy" "pipe_policy" {
+  name = "PipePermissions"
   role = aws_iam_role.pipe_role.id
   policy = jsonencode({
     Version = "2012-10-17"
@@ -53,6 +69,7 @@ resource "aws_iam_role_policy" "pipe_policy" {
       {
         Effect = "Allow"
         Action = [
+          "sqs:GetQueueUrl",
           "sqs:ReceiveMessage",
           "sqs:DeleteMessage",
           "sqs:GetQueueAttributes",
@@ -84,6 +101,7 @@ resource "aws_iam_role" "sfn_role" {
 }
 
 resource "aws_iam_role_policy" "sfn_policy" {
+  name = "BatchPermissions"
   role = aws_iam_role.sfn_role.id
   policy = jsonencode({
     Version = "2012-10-17"
@@ -110,6 +128,20 @@ resource "aws_iam_role_policy" "sfn_policy" {
           "logs:DescribeLogGroups"
         ]
         Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "events:PutTargets",
+          "events:PutRule",
+          "events:DescribeRule",
+          "events:DeleteRule",
+          "events:RemoveTargets",
+          "events:ListTargetsByRule"
+        ]
+        Resource = [
+          "arn:aws:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:rule/StepFunctionsGetEventsForBatchJobsRule"
+        ]
       }
     ]
   })
@@ -119,14 +151,7 @@ resource "aws_sfn_state_machine" "pst_ingest" {
   name     = local.sfn_name
   role_arn = aws_iam_role.sfn_role.arn
 
-  definition = templatefile("${path.module}/statemachine.asl.json.tftpl", {
-    batch_job_queue_arn          = var.batch_job_queue_arn
-    extract_job_definition_arn   = var.extract_job_definition_arn
-    load_job_definition_arn      = var.load_job_definition_arn
-    thread_job_definition_arn    = var.thread_job_definition_arn
-    dedupe_job_definition_arn    = var.dedupe_job_definition_arn
-    index_job_definition_arn     = var.index_job_definition_arn
-  })
+  definition = templatefile(local.sfn_definition_template, local.sfn_definition_vars)
 
   logging_configuration {
     log_destination        = "${aws_cloudwatch_log_group.sfn.arn}:*"
@@ -148,6 +173,9 @@ resource "aws_pipes_pipe" "sqs_to_sfn" {
   }
 
   target_parameters {
+    # Ensure Step Functions receives the SQS message body as the execution input (body is JSON text).
+    # This avoids the common sharp-edge where the full SQS envelope is passed and $.pst_file_id fails.
+    input_template = "<$.body>"
     step_function_state_machine_parameters {
       invocation_type = "FIRE_AND_FORGET"
     }

@@ -35,7 +35,7 @@ spec:
       serviceAccountName: vericase-api-sa
       containers:
         - name: vericase-api
-          image: docker.io/wcjrogers/vericase-api@sha256:f27c9762e92da70dc6b624cf09c9ade6d47fa0a5a7d33e33b9c07baf8741c456
+          image: docker.io/wcjrogers/vericase-api@sha256:0de5d74f4553230c16fe0189484246c2b40f67f3df6cbe3dc261e5849ee43801
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
@@ -198,10 +198,12 @@ spec:
       serviceAccountName: vericase-api-sa
       containers:
         - name: vericase-worker
-          image: docker.io/wcjrogers/vericase-api@sha256:f27c9762e92da70dc6b624cf09c9ade6d47fa0a5a7d33e33b9c07baf8741c456
+          image: docker.io/wcjrogers/vericase-api@sha256:0de5d74f4553230c16fe0189484246c2b40f67f3df6cbe3dc261e5849ee43801
           imagePullPolicy: Always
-          command: ["celery", "-A", "worker_app.worker:celery_app", "worker", "--loglevel=info", "--pool=prefork", "--concurrency=2", "-Q", "celery,pst_processing", "--max-tasks-per-child=5", "--max-memory-per-child=10485760"]
-          # Workers optimized for 50GB+ PST processing
+          # IMPORTANT:
+          # We run a single Celery process per pod for PST parsing to avoid OOM kills.
+          # The previous settings (--concurrency=2 with --max-memory-per-child=10Gi) could exceed the 12Gi pod limit.
+          command: ["celery", "-A", "worker_app.worker:celery_app", "worker", "--loglevel=info", "--pool=prefork", "--concurrency=1", "-Q", "celery,pst_processing", "--max-tasks-per-child=5", "--max-memory-per-child=8388608"]
           resources:
             requests:
               memory: "4Gi"

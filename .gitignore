@@ -51,6 +51,18 @@ wheels/
 target/
 **/target/
 
+# Terraform (never commit state or local backend config)
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+backend.hcl
+
+# Never commit ad-hoc security notes (may contain real credentials)
+SECURITY_ALERT.md
+
 # Virtual environments
 venv/
 ENV/

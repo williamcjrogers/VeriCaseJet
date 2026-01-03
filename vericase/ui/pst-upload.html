@@ -2738,38 +2738,155 @@
     }
 
     async function uploadPSTMultipart(item) {
-      const initBody = {
-        filename: item.name,
-        file_size: item.size,
-        content_type: "application/vnd.ms-outlook",
+      // Persist multipart session state so we can resume after browser refresh/crash.
+      // Keyed by (scope + filename + size + lastModified) to avoid collisions.
+      const resumeScope = VeriCaseApp.projectId
+        ? `project:${VeriCaseApp.projectId}`
+        : VeriCaseApp.caseId
+          ? `case:${VeriCaseApp.caseId}`
+          : "unknown";
+      const lastModified =
+        item.file && typeof item.file.lastModified === "number"
+          ? item.file.lastModified
+          : 0;
+      const resumeKey = `vericase_pst_mpu:${resumeScope}:${item.name}:${item.size}:${lastModified}`;
+
+      const loadResume = () => {
+        try {
+          const raw = localStorage.getItem(resumeKey);
+          if (!raw) return null;
+          const parsed = JSON.parse(raw);
+          if (!parsed || parsed.version !== 1) return null;
+          if (parsed.file_size !== item.size) return null;
+          return parsed;
+        } catch (e) {
+          return null;
+        }
+      };
+      const saveResume = (state) => {
+        try {
+          localStorage.setItem(resumeKey, JSON.stringify(state));
+        } catch (e) {
+          // Ignore storage quota issues; upload can still proceed.
+        }
+      };
+      const clearResume = () => {
+        try {
+          localStorage.removeItem(resumeKey);
+        } catch (e) {}
       };
 
-      if (VeriCaseApp.projectId) initBody.project_id = VeriCaseApp.projectId;
-      else if (VeriCaseApp.caseId) initBody.case_id = VeriCaseApp.caseId;
+      let resumeState = loadResume();
+      let pst_file_id = resumeState?.pst_file_id || null;
+      let upload_id = resumeState?.upload_id || null;
+      let actualChunkSize = resumeState?.chunk_size || CHUNK_SIZE;
 
-      const initResp = await fetch(
-        `${apiUrl}/api/correspondence/pst/upload/multipart/init`,
-        withAuth({
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(initBody),
-        }),
-      );
+      // If we have a prior session, refresh parts from the server (authoritative) to resume safely.
+      if (pst_file_id && upload_id) {
+        try {
+          const partsResp = await fetch(
+            `${apiUrl}/api/correspondence/pst/upload/multipart/parts?pst_file_id=${encodeURIComponent(pst_file_id)}&upload_id=${encodeURIComponent(upload_id)}`,
+            withAuth({}),
+          );
+          if (partsResp.ok) {
+            const partsData = await partsResp.json();
+            const serverParts = Array.isArray(partsData?.parts) ? partsData.parts : [];
+            resumeState = {
+              version: 1,
+              pst_file_id,
+              upload_id,
+              filename: item.name,
+              file_size: item.size,
+              chunk_size: actualChunkSize,
+              parts: serverParts.map((p) => ({
+                ETag: String(p?.ETag || "").replace(/"/g, ""),
+                PartNumber: Number(p?.PartNumber || 0),
+              })),
+              created_at: resumeState?.created_at || Date.now(),
+              updated_at: Date.now(),
+            };
+            saveResume(resumeState);
+          } else {
+            // Upload no longer exists server-side (e.g., aborted/expired) – start fresh.
+            clearResume();
+            resumeState = null;
+            pst_file_id = null;
+            upload_id = null;
+          }
+        } catch (e) {
+          // Network/auth hiccup: keep local state and try continuing (best-effort).
+        }
+      }
 
-      if (!initResp.ok)
-        throw new Error("Failed to initialize multipart upload");
+      // Start a fresh multipart upload if we can't resume.
+      if (!pst_file_id || !upload_id) {
+        const initBody = {
+          filename: item.name,
+          file_size: item.size,
+          content_type: "application/vnd.ms-outlook",
+        };
 
-      const { pst_file_id, upload_id, chunk_size } = await initResp.json();
+        if (VeriCaseApp.projectId) initBody.project_id = VeriCaseApp.projectId;
+        else if (VeriCaseApp.caseId) initBody.case_id = VeriCaseApp.caseId;
+
+        const initResp = await fetch(
+          `${apiUrl}/api/correspondence/pst/upload/multipart/init`,
+          withAuth({
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(initBody),
+          }),
+        );
+
+        if (!initResp.ok) throw new Error("Failed to initialize multipart upload");
+
+        const initData = await initResp.json();
+        pst_file_id = initData?.pst_file_id;
+        upload_id = initData?.upload_id;
+        actualChunkSize = initData?.chunk_size || CHUNK_SIZE;
+
+        resumeState = {
+          version: 1,
+          pst_file_id,
+          upload_id,
+          filename: item.name,
+          file_size: item.size,
+          chunk_size: actualChunkSize,
+          parts: [],
+          created_at: Date.now(),
+          updated_at: Date.now(),
+        };
+        saveResume(resumeState);
+      }
+
       if (pst_file_id) {
         updateFileItem(item.id, { pst_file_id });
       }
-      const actualChunkSize = chunk_size || CHUNK_SIZE;
+
       const totalChunks = Math.ceil(item.size / actualChunkSize);
-      const parts = [];
+
+      // Build a canonical parts map (PartNumber -> {ETag, PartNumber}) for resume/complete.
+      const partsMap = new Map();
+      const normalizePart = (p) => {
+        if (!p) return null;
+        const pn = Number(p.PartNumber || p.partNumber || p.part_number || 0);
+        const et = String(p.ETag || p.etag || "").replace(/"/g, "");
+        if (!pn || !et) return null;
+        return { ETag: et, PartNumber: pn };
+      };
+      (resumeState?.parts || []).forEach((p) => {
+        const np = normalizePart(p);
+        if (np) partsMap.set(np.PartNumber, np);
+      });
 
       // Upload parts in parallel (up to 6 concurrent for large files 20GB+)
       const MAX_PART_CONCURRENCY = 6;
       const uploadPart = async (partNumber) => {
+        // Skip already-uploaded parts when resuming.
+        if (partsMap.has(partNumber)) {
+          return partsMap.get(partNumber);
+        }
+
         const start = (partNumber - 1) * actualChunkSize;
         const end = Math.min(start + actualChunkSize, item.size);
         const chunk = item.file.slice(start, end);
@@ -2796,22 +2913,48 @@
         if (!uploadResp.ok)
           throw new Error(`Failed to upload part ${partNumber}`);
 
-        const etag = uploadResp.headers.get("ETag") || `part${partNumber}`;
-        return { ETag: etag.replace(/"/g, ""), PartNumber: partNumber };
+        const rawEtag = uploadResp.headers.get("ETag");
+        if (!rawEtag) {
+          throw new Error(
+            "Missing ETag header from S3. Bucket CORS must ExposeHeaders: ETag.",
+          );
+        }
+
+        const part = { ETag: rawEtag.replace(/"/g, ""), PartNumber: partNumber };
+        partsMap.set(partNumber, part);
+
+        // Persist progress so we can resume later.
+        if (resumeState) {
+          resumeState.parts = Array.from(partsMap.values()).map((p) => ({
+            ETag: p.ETag,
+            PartNumber: p.PartNumber,
+          }));
+          resumeState.updated_at = Date.now();
+          saveResume(resumeState);
+        }
+
+        return part;
       };
 
       // Upload all parts with controlled concurrency
+      updateFileItem(item.id, {
+        progress: Math.round((partsMap.size / totalChunks) * 85),
+      });
       for (let i = 0; i < totalChunks; i += MAX_PART_CONCURRENCY) {
         const batch = [];
         for (let j = 0; j < MAX_PART_CONCURRENCY && i + j < totalChunks; j++) {
           batch.push(uploadPart(i + j + 1));
         }
-        const batchResults = await Promise.all(batch);
-        parts.push(...batchResults);
-        
-        const pct = Math.round((parts.length / totalChunks) * 85);
+        await Promise.all(batch);
+
+        const pct = Math.round((partsMap.size / totalChunks) * 85);
         updateFileItem(item.id, { progress: pct });
       }
+
+      // Build completion parts (only the fields the backend/boto3 accepts).
+      const parts = Array.from(partsMap.values())
+        .sort((a, b) => a.PartNumber - b.PartNumber)
+        .map((p) => ({ ETag: p.ETag, PartNumber: p.PartNumber }));
 
       // Complete multipart
       const completeResp = await fetch(
@@ -2834,6 +2977,9 @@
       }
 
       updateFileItem(item.id, { status: "processing", progress: 95 });
+
+      // Completion succeeded, clear resume state (prevents dangling resumes).
+      clearResume();
 
       if (!completionData?.processing_started) {
         await fetch(

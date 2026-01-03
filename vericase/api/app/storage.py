@@ -51,6 +51,10 @@ class S3ClientProtocol(Protocol):
 
     def upload_part(self, *args: Any, **kwargs: Any) -> Any: ...
 
+    def list_parts(self, *args: Any, **kwargs: Any) -> dict[str, Any]: ...
+
+    def abort_multipart_upload(self, *args: Any, **kwargs: Any) -> Any: ...
+
     def complete_multipart_upload(
         self, *args: Any, **kwargs: Any
     ) -> dict[str, Any]: ...
@@ -407,6 +411,75 @@ def multipart_complete(
         UploadId=upload_id,
         MultipartUpload={"Parts": parts},
     )
+
+
+def multipart_abort(key: str, upload_id: str, bucket: str | None = None) -> None:
+    """Abort a multipart upload (best-effort)."""
+    target_bucket = bucket or settings.MINIO_BUCKET
+    ensure_bucket_once(target_bucket)
+    try:
+        s3().abort_multipart_upload(Bucket=target_bucket, Key=key, UploadId=upload_id)
+    except ClientError as e:
+        # Treat missing uploads as already-aborted to keep cleanup idempotent.
+        response = cast(dict[str, Any], e.response)
+        error_dict = cast(dict[str, Any], response.get("Error", {}))
+        code = str(error_dict.get("Code") or "")
+        if code in {"NoSuchUpload", "404"}:
+            return
+        raise
+
+
+def multipart_list_parts(
+    key: str,
+    upload_id: str,
+    bucket: str | None = None,
+    *,
+    max_parts: int = 1000,
+) -> list[dict[str, Any]]:
+    """List uploaded parts for a multipart upload (paginated)."""
+    target_bucket = bucket or settings.MINIO_BUCKET
+    ensure_bucket_once(target_bucket)
+
+    client = s3()
+    out: list[dict[str, Any]] = []
+    part_number_marker: int | None = None
+
+    while True:
+        params: dict[str, Any] = {
+            "Bucket": target_bucket,
+            "Key": key,
+            "UploadId": upload_id,
+            "MaxParts": max_parts,
+        }
+        if part_number_marker is not None:
+            params["PartNumberMarker"] = part_number_marker
+
+        resp = client.list_parts(**params)
+        parts = cast(list[dict[str, Any]], resp.get("Parts") or [])
+        for p in parts:
+            etag = str(p.get("ETag") or "").replace('"', "")
+            part_no = int(p.get("PartNumber") or 0)
+            if not part_no:
+                continue
+            out.append(
+                {
+                    "ETag": etag,
+                    "PartNumber": part_no,
+                    # Helpful for UI/diagnostics; ignored by CompleteMultipartUpload.
+                    "Size": int(p.get("Size") or 0),
+                }
+            )
+
+        if not resp.get("IsTruncated"):
+            break
+
+        next_marker = resp.get("NextPartNumberMarker")
+        if next_marker is None:
+            break
+        part_number_marker = int(next_marker)
+
+    out.sort(key=lambda x: int(x.get("PartNumber") or 0))
+    return out
 
 
 def delete_object(key: str, *, bucket: str | None = None) -> None:

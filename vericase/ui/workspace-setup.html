@@ -1,966 +1,1005 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Workspace Setup | VeriCase</title>
-    <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="brand-styles.css?v=6" />
-    <link rel="stylesheet" href="design-system.css?v=6" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VeriCase | Initialize Workspace</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script src="vericase-ui.js"></script>
-    <script src="nav-shell.js"></script>
     <script src="config.js"></script>
     <script src="app-state.js"></script>
+
     <style>
-      :root {
-        --vc-teal: var(--vericase-teal);
-        --vc-navy: var(--vericase-navy);
-        --vc-gold: #8b7355;
-        --bg-primary: #f8f6f3;
-        --bg-card: #ffffff;
-        --text-primary: var(--vc-navy);
-        --text-secondary: #4a5568;
-        --text-muted: #718096;
-        --border-color: #e2e8f0;
-      }
-
-      body {
-        font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-        background: var(--bg-primary);
-        color: var(--text-primary);
-        min-height: 100vh;
-      }
-
-      .container {
-        max-width: 1400px;
-        margin: 2rem auto;
-        padding: 0 2rem;
-      }
-
-      .page-header {
-        margin-bottom: 2rem;
-      }
-
-      .page-title {
-        color: var(--vericase-navy);
-        font-size: 2rem;
-        margin-bottom: 0.5rem;
-      }
-
-      .page-subtitle {
-        color: var(--text-secondary);
-        margin-bottom: 1rem;
-      }
-
-      /* Tab Navigation */
-      .tabs-nav {
-        display: flex;
-        gap: 0;
-        border-bottom: 2px solid var(--gray-200);
-        margin-bottom: 0;
-        background: white;
-        border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-        overflow-x: auto;
-      }
-
-      .tab-btn {
-        padding: 1rem 1.5rem;
-        background: transparent;
-        border: none;
-        cursor: pointer;
-        font-weight: 500;
-        color: var(--text-secondary);
-        transition: all 0.2s;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        border-bottom: 3px solid transparent;
-        margin-bottom: -2px;
-        white-space: nowrap;
-      }
-
-      .tab-btn:hover {
-        color: var(--vericase-teal);
-        background: var(--gray-50);
-      }
-
-      .tab-btn.active {
-        color: var(--vericase-teal);
-        border-bottom-color: var(--vericase-teal);
-        background: white;
-      }
-
-      .tab-btn i {
-        font-size: 1rem;
-      }
-
-      /* Tab Content */
-      .tab-content {
-        display: none;
-        background: white;
-        border-radius: 0 0 var(--radius-xl) var(--radius-xl);
-        box-shadow: var(--shadow-lg);
-        border: 1px solid var(--gray-100);
-        border-top: none;
-        padding: 2rem;
-      }
-
-      .tab-content.active {
-        display: block;
-      }
-
-      /* Form Styles */
-      .form-group {
-        margin-bottom: 1.5rem;
-      }
-
-      .form-label {
-        display: block;
-        font-size: 0.875rem;
-        font-weight: 600;
-        color: var(--text-primary);
-        margin-bottom: 0.5rem;
-      }
-
-      .form-input,
-      .form-select,
-      .form-textarea {
-        width: 100%;
-        padding: 0.625rem 0.875rem;
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        font-size: 0.875rem;
-        font-family: inherit;
-        background: white;
-        transition: border-color 0.2s;
-      }
-
-      .form-textarea {
-        resize: vertical;
-        min-height: 100px;
-      }
-
-      .form-input:focus,
-      .form-select:focus,
-      .form-textarea:focus {
-        outline: none;
-        border-color: var(--vc-teal);
-        box-shadow: 0 0 0 3px rgba(var(--vericase-teal-rgb), 0.1);
-      }
-
-      .helper-text {
-        font-size: 0.75rem;
-        color: var(--text-muted);
-        margin-top: 0.35rem;
-      }
-
-      .form-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1rem;
-      }
-
-      /* Table Styles */
-      .data-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 1rem;
-      }
-
-      .data-table th,
-      .data-table td {
-        padding: 0.75rem;
-        text-align: left;
-        border-bottom: 1px solid var(--border-color);
-      }
-
-      .data-table th {
-        font-weight: 600;
-        font-size: 0.8125rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--text-muted);
-        background: var(--gray-50);
-      }
-
-      .data-table tr:hover {
-        background: var(--gray-50);
-      }
-
-      .data-table input {
-        width: 100%;
-        padding: 0.5rem;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        font-size: 0.875rem;
-      }
-
-      /* Buttons */
-      .btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.625rem 1rem;
-        border: none;
-        border-radius: 8px;
-        font-size: 0.875rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-      }
-
-      .btn-primary {
-        background: linear-gradient(135deg, var(--vc-teal) 0%, #0a7b79 100%);
-        color: white;
-        box-shadow: 0 2px 8px rgba(var(--vericase-teal-rgb), 0.3);
-      }
-
-      .btn-primary:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(var(--vericase-teal-rgb), 0.4);
-      }
-
-      .btn-secondary {
-        background: white;
-        color: var(--text-primary);
-        border: 1px solid var(--border-color);
-      }
-
-      .btn-secondary:hover {
-        background: var(--gray-50);
-      }
-
-      .btn-icon {
-        padding: 0.5rem;
-        width: 32px;
-        height: 32px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .btn-danger {
-        background: #dc2626;
-        color: white;
-      }
-
-      .btn-danger:hover {
-        background: #b91c1c;
-      }
-
-      /* Action buttons */
-      .action-buttons {
-        display: flex;
-        gap: 1rem;
-        margin-top: 2rem;
-        padding-top: 2rem;
-        border-top: 1px solid var(--border-color);
-      }
-
-      /* Empty state */
-      .empty-state {
-        text-align: center;
-        padding: 3rem 2rem;
-        color: var(--text-muted);
-      }
-
-      .empty-state i {
-        font-size: 3rem;
-        margin-bottom: 1rem;
-        opacity: 0.5;
-      }
-
-      /* Linked items list */
-      .linked-items {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-      }
-
-      .linked-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0.875rem;
-        background: var(--gray-50);
-        border-radius: 8px;
-        border: 1px solid var(--border-color);
-      }
-
-      .linked-item-info {
-        flex: 1;
-      }
-
-      .linked-item-title {
-        font-weight: 600;
-        color: var(--text-primary);
-        margin-bottom: 0.25rem;
-      }
-
-      .linked-item-meta {
-        font-size: 0.75rem;
-        color: var(--text-muted);
-      }
-
-      .linked-items-title {
-        margin-top: 2rem;
-        margin-bottom: 1rem;
-        font-size: 1.25rem;
-        color: var(--text-primary);
-      }
-
-      .next-steps {
-        margin-top: 2rem;
-        padding: 1.5rem;
-        border: 1px solid var(--gray-100);
-        border-radius: var(--radius-lg);
-        background: var(--gray-50);
-      }
-
-      .next-steps h3 {
-        margin: 0 0 0.5rem;
-        font-size: 1.1rem;
-      }
-
-      .next-steps p {
-        margin: 0 0 1rem;
-        color: var(--text-secondary);
-      }
-
-      .next-steps-actions {
-        display: flex;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-      }
-
-      .next-steps-helper {
-        margin-top: 0.5rem;
-        display: none;
-      }
-
-      .link-existing {
-        margin-top: 1rem;
-        padding: 1rem;
-        border: 1px solid var(--gray-100);
-        border-radius: var(--radius-lg);
-        background: white;
-      }
-
-      .link-existing-title {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        font-weight: 700;
-        margin: 0 0 0.75rem 0;
-        color: var(--text-primary);
-      }
-
-      .link-existing .form-row {
-        align-items: end;
-      }
-
-      .linked-item-badge {
-        display: inline-block;
-        padding: 0.25rem 0.5rem;
-        border-radius: 4px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        margin-right: 0.5rem;
-      }
-
-      .badge-project {
-        background: rgba(47, 134, 200, 0.15);
-        color: #2f86c8;
-      }
-
-      .badge-case {
-        background: rgba(var(--vericase-teal-rgb), 0.15);
-        color: var(--vericase-teal);
-      }
-
-      @keyframes pulse-highlight {
-        0% {
-          box-shadow: 0 0 0 0 rgba(var(--vericase-teal-rgb), 0.4);
+        :root {
+            --navy: #0F172A;
+            --gold: #C5A065;
+            --stone: #FAFAF9;
+            --slate: #64748B;
+            --border: #E2E8F0;
+            --success: #10B981;
+            --error: #EF4444;
         }
-        70% {
-          box-shadow: 0 0 0 10px rgba(var(--vericase-teal-rgb), 0);
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--stone);
+            background-image: radial-gradient(#E5E7EB 1px, transparent 1px);
+            background-size: 24px 24px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
         }
-        100% {
-          box-shadow: 0 0 0 0 rgba(var(--vericase-teal-rgb), 0);
+
+        .case-file-container {
+            width: 1100px;
+            max-width: 100%;
+            min-height: 700px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            display: flex;
+            overflow: hidden;
+            border: 1px solid #CBD5E1;
         }
-      }
+
+        .form-section {
+            flex: 2;
+            padding: 48px;
+            overflow-y: auto;
+        }
+
+        .context-panel {
+            flex: 1;
+            background-color: var(--navy);
+            color: white;
+            padding: 48px 32px;
+            position: relative;
+            border-left: 4px solid var(--gold);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
+            min-width: 300px;
+        }
+
+        h1 {
+            font-family: 'Source Serif 4', serif;
+            font-size: 28px;
+            color: var(--navy);
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .sub-head {
+            color: var(--slate);
+            font-size: 14px;
+            margin-bottom: 32px;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--navy);
+            margin-bottom: 8px;
+            margin-top: 24px;
+        }
+
+        label:first-of-type { margin-top: 0; }
+
+        .input-group { position: relative; }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background-color: #F8FAFC;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            color: var(--navy);
+            transition: all 0.2s;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--navy);
+            background-color: #fff;
+            box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.05);
+        }
+
+        input:disabled, select:disabled, textarea:disabled {
+            background-color: #E2E8F0;
+            cursor: not-allowed;
+        }
+
+        .helper-text {
+            font-size: 12px;
+            color: var(--slate);
+            margin-top: 6px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .linked-items-section {
+            margin-top: 32px;
+        }
+
+        .linked-items-title {
+            font-family: 'Source Serif 4', serif;
+            font-size: 18px;
+            color: var(--navy);
+            margin-bottom: 12px;
+        }
+
+        .empty-slot {
+            border: 2px dashed #CBD5E1;
+            border-radius: 6px;
+            padding: 32px;
+            text-align: center;
+            background: #F8FAFC;
+            color: var(--slate);
+            font-size: 13px;
+        }
+
+        .linked-items {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .linked-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: #F8FAFC;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+
+        .linked-item-info { flex: 1; }
+
+        .linked-item-title {
+            font-weight: 600;
+            color: var(--navy);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .linked-item-meta {
+            font-size: 12px;
+            color: var(--slate);
+            margin-top: 2px;
+        }
+
+        .linked-item-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-project {
+            background: rgba(47, 134, 200, 0.15);
+            color: #2f86c8;
+        }
+
+        .badge-case {
+            background: rgba(197, 160, 101, 0.2);
+            color: #8b7355;
+        }
+
+        .btn {
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.15s;
+        }
+
+        .btn-primary {
+            background-color: var(--navy);
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.2);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 10px -1px rgba(15, 23, 42, 0.25);
+        }
+
+        .btn-primary:disabled {
+            background-color: #94A3B8;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background-color: #F1F5F9;
+            color: var(--navy);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background-color: #E2E8F0;
+        }
+
+        .btn-icon {
+            padding: 8px;
+            width: 32px;
+            height: 32px;
+        }
+
+        .action-bar {
+            margin-top: 48px;
+            border-top: 1px solid var(--border);
+            padding-top: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .action-bar-left {
+            display: flex;
+            gap: 12px;
+        }
+
+        .next-steps {
+            margin-top: 24px;
+            padding: 16px;
+            background: #F8FAFC;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+
+        .next-steps.highlight {
+            border-color: var(--gold);
+            animation: pulse-highlight 2s ease-in-out;
+        }
+
+        .next-steps-title {
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--navy);
+            margin-bottom: 8px;
+        }
+
+        .next-steps-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* Context Panel Styling */
+        .guide-step {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+
+        .guide-step.active { opacity: 1; }
+        .guide-step.completed { opacity: 0.8; }
+
+        .step-num {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-family: 'Source Serif 4', serif;
+            flex-shrink: 0;
+            font-weight: 600;
+        }
+
+        .guide-step.active .step-num {
+            background: var(--gold);
+            border-color: var(--gold);
+            color: var(--navy);
+        }
+
+        .guide-step.completed .step-num {
+            background: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+
+        .step-content { flex: 1; }
+
+        .step-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .step-desc {
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        .security-notice {
+            font-size: 11px;
+            opacity: 0.5;
+            line-height: 1.5;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .link-existing-section {
+            margin-top: 16px;
+            padding: 16px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+
+        .link-existing-title {
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--navy);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .link-existing-row {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .link-existing-row .input-group { flex: 1; }
+        .link-existing-row .input-group label { margin-top: 0; }
+
+        @keyframes pulse-highlight {
+            0% { box-shadow: 0 0 0 0 rgba(197, 160, 101, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(197, 160, 101, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(197, 160, 101, 0); }
+        }
+
+        @media (max-width: 900px) {
+            .case-file-container {
+                flex-direction: column;
+                height: auto;
+            }
+            .context-panel {
+                border-left: none;
+                border-top: 4px solid var(--gold);
+                min-width: auto;
+            }
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
-  </head>
-  <body>
-    <main id="main-content">
-      <div class="container">
-        <div class="page-header">
-          <h1 class="page-title" id="workspaceTitle">Workspace Setup</h1>
-          <p class="page-subtitle" id="workspaceSubtitle">Create a workspace. Projects and cases are configured on their own pages.</p>
-        </div>
+</head>
+<body>
 
-        <!-- Workspace Overview -->
-        <div class="tab-content active" id="tab-overview">
-          <form id="overviewForm">
-            <div class="form-group">
-              <label class="form-label" for="workspaceName">Workspace Name *</label>
-              <input type="text" class="form-input" id="workspaceName" required />
-            </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label" for="workspaceCode">Workspace Code (optional)</label>
-                <input type="text" class="form-input" id="workspaceCode" />
-                <div class="helper-text">Auto-generated if left blank.</div>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="contractType">Contract Type</label>
-                <select class="form-select" id="contractType">
-                  <option value="">Select...</option>
-                  <option value="JCT">JCT</option>
-                  <option value="NEC">NEC</option>
-                  <option value="FIDIC">FIDIC</option>
-                  <option value="Custom">Custom</option>
-                </select>
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="workspaceDescription">Description</label>
-              <textarea class="form-textarea" id="workspaceDescription" rows="4"></textarea>
-            </div>
+    <div class="case-file-container">
 
-            <h3 class="linked-items-title">Linked Projects & Cases</h3>
-            <div id="linkedItemsContainer" class="linked-items">
-              <div class="empty-state">
-                <i class="fas fa-folder-open"></i>
-                <div>No projects or cases linked yet</div>
-              </div>
+        <div class="form-section">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                <h1 id="pageTitle">Initialize Workspace</h1>
+                <span id="stepIndicator" style="font-size:12px; font-weight:600; color:var(--slate); background:#F1F5F9; padding:4px 12px; border-radius:4px;">New Workspace</span>
             </div>
+            <p class="sub-head" id="pageSubtitle">Establish the container for evidence, timeline analysis, and dispute resolution.</p>
 
-            <div class="link-existing" id="linkExistingProjectSection" hidden>
-              <div class="link-existing-title">
-                <i class="fas fa-right-left" aria-hidden="true"></i>
-                <span>Move an existing project into this workspace</span>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label" for="existingProjectSelect">Project</label>
-                  <select class="form-select" id="existingProjectSelect" aria-label="Select existing project">
-                    <option value="">Loading projects...</option>
-                  </select>
-                  <div class="helper-text">Projects keep their emails/evidence. Workspaces just group projects and cases.</div>
+            <form id="workspaceForm" onsubmit="return false;">
+                <div class="input-group">
+                    <label>Workspace Name <span style="color:var(--gold)">*</span></label>
+                    <input type="text" id="workspaceName" placeholder="e.g. Welbourne Tottenham Hale - Adjudication 01" autofocus required>
                 </div>
-                <div class="form-group">
-                  <label class="form-label" for="linkProjectBtn">Action</label>
-                  <button class="btn btn-secondary" type="button" id="linkProjectBtn" onclick="linkExistingProject()">
-                    <i class="fas fa-right-left" aria-hidden="true"></i> Move project
-                  </button>
+
+                <div class="form-grid">
+                    <div class="input-group">
+                        <label>Workspace Code</label>
+                        <input type="text" id="workspaceCode" placeholder="e.g. WEL-2025-001">
+                        <div class="helper-text">Auto-generated if left blank.</div>
+                    </div>
+                    <div class="input-group">
+                        <label>Contract Form</label>
+                        <select id="contractType" aria-label="Contract Form">
+                            <option value="">Select Contract...</option>
+                            <option value="JCT Design & Build 2016">JCT Design & Build 2016</option>
+                            <option value="JCT">JCT (Other)</option>
+                            <option value="NEC4 ECC Option A">NEC4 ECC Option A</option>
+                            <option value="NEC4 ECC Option C">NEC4 ECC Option C</option>
+                            <option value="NEC">NEC (Other)</option>
+                            <option value="FIDIC Yellow Book">FIDIC Yellow Book</option>
+                            <option value="FIDIC">FIDIC (Other)</option>
+                            <option value="Custom">Custom</option>
+                        </select>
+                    </div>
                 </div>
-              </div>
-            </div>
 
-            <div class="next-steps">
-              <h3>Next steps</h3>
-              <p>Create a project or case on its own page.</p>
-              <div class="next-steps-actions">
-                <button class="btn btn-primary" type="button" id="nextProjectSetupBtn" onclick="openProjectSetupFromWorkspace()">
-                  <i class="fas fa-diagram-project"></i> Project setup
-                </button>
-                <button class="btn btn-secondary" type="button" id="nextCaseSetupBtn" onclick="openCaseSetupFromWorkspace()">
-                  <i class="fas fa-briefcase"></i> Case setup
-                </button>
-              </div>
-              <div class="helper-text next-steps-helper" id="nextStepsHelper">Create the workspace first to add projects or cases.</div>
-            </div>
-          </form>
+                <div class="input-group">
+                    <label>Description & Scope</label>
+                    <textarea id="workspaceDescription" rows="4" placeholder="Briefly describe the scope of the dispute or project..."></textarea>
+                </div>
+
+                <div class="linked-items-section">
+                    <div class="linked-items-title">Linked Projects & Cases</div>
+                    <div id="linkedItemsContainer">
+                        <div class="empty-slot">
+                            <i class="ph ph-briefcase" style="font-size: 24px; margin-bottom:8px; display:block; opacity:0.5;"></i>
+                            No projects or cases linked yet. <br> You can link items after the workspace is created.
+                        </div>
+                    </div>
+
+                    <div id="linkExistingSection" class="link-existing-section" style="display: none;">
+                        <div class="link-existing-title">
+                            <i class="ph ph-arrows-left-right"></i>
+                            Move an existing project into this workspace
+                        </div>
+                        <div class="link-existing-row">
+                            <div class="input-group">
+                                <label>Select Project</label>
+                                <select id="existingProjectSelect">
+                                    <option value="">Loading projects...</option>
+                                </select>
+                            </div>
+                            <button type="button" class="btn btn-secondary" id="linkProjectBtn" onclick="linkExistingProject()">
+                                <i class="ph ph-arrows-left-right"></i> Move
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="next-steps" id="nextStepsSection">
+                        <div class="next-steps-title">Add Projects or Cases</div>
+                        <div class="next-steps-actions">
+                            <button type="button" class="btn btn-secondary" id="addProjectBtn" onclick="openProjectSetup()" disabled>
+                                <i class="ph ph-folders"></i> New Project
+                            </button>
+                            <button type="button" class="btn btn-secondary" id="addCaseBtn" onclick="openCaseSetup()" disabled>
+                                <i class="ph ph-briefcase"></i> New Case
+                            </button>
+                        </div>
+                        <div class="helper-text" id="nextStepsHelper" style="margin-top: 8px;">
+                            Save the workspace first to add projects or cases.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="action-bar">
+                    <div class="action-bar-left">
+                        <button type="button" class="btn btn-secondary" onclick="goBack()">
+                            <i class="ph ph-arrow-left"></i> Back
+                        </button>
+                    </div>
+                    <button type="button" class="btn btn-primary" id="saveBtn" onclick="saveWorkspace()">
+                        <i class="ph ph-plus"></i> Create Workspace
+                    </button>
+                </div>
+            </form>
         </div>
 
-        <!-- Action Buttons -->
-        <div class="action-buttons">
-          <button class="btn btn-primary" id="saveWorkspaceBtn" onclick="saveWorkspace()">
-            <i class="fas fa-save"></i> Save Changes
-          </button>
-          <button class="btn btn-secondary" onclick="window.location.href='master-dashboard.html'">
-            <i class="fas fa-arrow-left"></i> Back to Dashboard
-          </button>
+        <div class="context-panel">
+
+            <i class="ph ph-scales" style="position: absolute; top: -20px; right: -20px; font-size: 250px; color: #FFFFFF; opacity: 0.05; transform: rotate(15deg); pointer-events: none;"></i>
+
+            <div style="position: relative; z-index: 10;">
+                <i class="ph ph-bank" style="font-size: 48px; margin-bottom: 24px; color: var(--gold);"></i>
+                <h3 style="font-family:'Source Serif 4', serif; font-size: 20px; margin-bottom: 24px;">Setup Guide</h3>
+
+                <div class="guide-step active" id="step1">
+                    <div class="step-num">1</div>
+                    <div class="step-content">
+                        <div class="step-title">Workspace Definition</div>
+                        <div class="step-desc">Define the high-level container for the matter.</div>
+                    </div>
+                </div>
+
+                <div class="guide-step" id="step2">
+                    <div class="step-num">2</div>
+                    <div class="step-content">
+                        <div class="step-title">Link Projects & Cases</div>
+                        <div class="step-desc">Add or move projects and cases into this workspace.</div>
+                    </div>
+                </div>
+
+                <div class="guide-step" id="step3">
+                    <div class="step-num">3</div>
+                    <div class="step-content">
+                        <div class="step-title">Configure Evidence</div>
+                        <div class="step-desc">Upload documents, emails, and programme data.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="security-notice">
+                <i class="ph ph-lock-key" style="font-size: 14px; flex-shrink: 0;"></i>
+                <span>This workspace is secure. Audit logging will begin immediately upon creation.</span>
+            </div>
         </div>
-      </div>
-    </main>
+
+    </div>
 
     <script>
-      let workspaceId = null;
-      let workspaceData = null;
-      let isNewWorkspace = false;
-      let codeManuallyEdited = false;
-      let lastAutoCode = "";
+        let workspaceId = null;
+        let workspaceData = null;
+        let isNewWorkspace = true;
+        let codeManuallyEdited = false;
+        let lastAutoCode = "";
 
-      function getAuthHeaders() {
-        const token = localStorage.getItem("vericase_token") || localStorage.getItem("token") || localStorage.getItem("jwt");
-        return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
-      }
-
-      function escapeHtml(text) {
-        const div = document.createElement("div");
-        div.textContent = text;
-        return div.innerHTML;
-      }
-
-      function buildWorkspaceCode(name) {
-        const cleaned = String(name || "")
-          .replace(/[^a-zA-Z0-9]+/g, " ")
-          .trim();
-        const parts = cleaned ? cleaned.split(/\s+/) : [];
-        const abbrev = parts
-          .map((part) => part.slice(0, 3))
-          .join("")
-          .slice(0, 6)
-          .toUpperCase();
-        const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
-        return `${abbrev || "WS"}-${suffix}`;
-      }
-
-      function syncAutoCode() {
-        const nameInput = document.getElementById("workspaceName");
-        const codeInput = document.getElementById("workspaceCode");
-        if (!nameInput || !codeInput || codeManuallyEdited) return;
-
-        const nextCode = buildWorkspaceCode(nameInput.value);
-        if (!codeInput.value || codeInput.value === lastAutoCode) {
-          codeInput.value = nextCode;
-          lastAutoCode = nextCode;
+        function getAuthHeaders() {
+            const token = localStorage.getItem("vericase_token") || localStorage.getItem("token") || localStorage.getItem("jwt");
+            return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
         }
-      }
 
-      function setSaveButtonState() {
-        const button = document.getElementById("saveWorkspaceBtn");
-        if (!button) return;
-        button.innerHTML = isNewWorkspace
-          ? '<i class="fas fa-plus"></i> Create Workspace'
-          : '<i class="fas fa-save"></i> Save Changes';
-      }
-
-      function setCurrentWorkspaceStorage() {
-        if (!workspaceId) return;
-        try {
-          localStorage.setItem("currentWorkspaceId", workspaceId);
-          if (workspaceData?.name) {
-            localStorage.setItem("currentWorkspaceName", workspaceData.name);
-          }
-        } catch {
-          // ignore storage failures
+        function escapeHtml(text) {
+            const div = document.createElement("div");
+            div.textContent = text;
+            return div.innerHTML;
         }
-      }
 
-      function updateNextStepsState() {
-        const projectBtn = document.getElementById("nextProjectSetupBtn");
-        const caseBtn = document.getElementById("nextCaseSetupBtn");
-        const helper = document.getElementById("nextStepsHelper");
-        const enabled = Boolean(workspaceId);
-
-        if (projectBtn) projectBtn.disabled = !enabled;
-        if (caseBtn) caseBtn.disabled = !enabled;
-        if (helper) helper.style.display = enabled ? "none" : "block";
-      }
-
-      function setLinkExistingSectionState() {
-        const section = document.getElementById("linkExistingProjectSection");
-        if (!section) return;
-        section.hidden = !workspaceId;
-      }
-
-      async function loadProjectsForLinking() {
-        setLinkExistingSectionState();
-        const section = document.getElementById("linkExistingProjectSection");
-        const select = document.getElementById("existingProjectSelect");
-        const btn = document.getElementById("linkProjectBtn");
-
-        if (!workspaceId || !section || !select) return;
-
-        select.innerHTML = '<option value="">Loading projects...</option>';
-        if (btn) btn.disabled = true;
-
-        try {
-          const response = await fetch("/api/projects", { headers: getAuthHeaders() });
-          if (!response.ok) {
-            throw new Error("Failed to load projects");
-          }
-
-          const projects = await response.json();
-          const linkedIds = new Set((workspaceData?.projects || []).map(p => String(p.id)));
-          const available = (Array.isArray(projects) ? projects : [])
-            .filter(p => p && p.id && !linkedIds.has(String(p.id)));
-
-          if (!available.length) {
-            select.innerHTML = '<option value="">No other projects available</option>';
-            return;
-          }
-
-          select.innerHTML = '<option value="">-- Select a project --</option>';
-          available.forEach((p) => {
-            const name = escapeHtml(p.project_name || p.name || "Untitled Project");
-            const code = escapeHtml(p.project_code || p.code || "");
-            const label = code ? `${name} (${code})` : name;
-            select.innerHTML += `<option value="${p.id}">${label}</option>`;
-          });
-        } catch (error) {
-          console.error("Error loading projects for linking:", error);
-          select.innerHTML = '<option value="">Unable to load projects</option>';
-        } finally {
-          if (btn) btn.disabled = false;
+        function buildWorkspaceCode(name) {
+            const cleaned = String(name || "")
+                .replace(/[^a-zA-Z0-9]+/g, " ")
+                .trim();
+            const parts = cleaned ? cleaned.split(/\s+/) : [];
+            const abbrev = parts
+                .map((part) => part.slice(0, 3))
+                .join("")
+                .slice(0, 6)
+                .toUpperCase();
+            const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+            return `${abbrev || "WS"}-${suffix}`;
         }
-      }
 
-      async function linkExistingProject() {
-        try {
-          if (!workspaceId) {
-            VericaseUI.Toast.info("Create/save the workspace first, then link an existing project.");
-            return;
-          }
+        function syncAutoCode() {
+            const nameInput = document.getElementById("workspaceName");
+            const codeInput = document.getElementById("workspaceCode");
+            if (!nameInput || !codeInput || codeManuallyEdited) return;
 
-          const select = document.getElementById("existingProjectSelect");
-          const projectId = (select?.value || "").trim();
-          if (!projectId) {
-            VericaseUI.Toast.error("Please select a project to move");
-            return;
-          }
+            const nextCode = buildWorkspaceCode(nameInput.value);
+            if (!codeInput.value || codeInput.value === lastAutoCode) {
+                codeInput.value = nextCode;
+                lastAutoCode = nextCode;
+            }
+        }
 
-          const btn = document.getElementById("linkProjectBtn");
-          const originalText = btn?.innerHTML;
-          if (btn) {
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Moving...';
-          }
+        function updateUIState() {
+            const saveBtn = document.getElementById("saveBtn");
+            const stepIndicator = document.getElementById("stepIndicator");
+            const pageTitle = document.getElementById("pageTitle");
+            const pageSubtitle = document.getElementById("pageSubtitle");
+            const addProjectBtn = document.getElementById("addProjectBtn");
+            const addCaseBtn = document.getElementById("addCaseBtn");
+            const nextStepsHelper = document.getElementById("nextStepsHelper");
+            const linkExistingSection = document.getElementById("linkExistingSection");
+            const step1 = document.getElementById("step1");
+            const step2 = document.getElementById("step2");
 
-          const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/projects/${encodeURIComponent(projectId)}`, {
-            method: "PUT",
-            headers: getAuthHeaders(),
-          });
+            if (isNewWorkspace) {
+                saveBtn.innerHTML = '<i class="ph ph-plus"></i> Create Workspace';
+                stepIndicator.textContent = "New Workspace";
+                pageTitle.textContent = "Initialize Workspace";
+                pageSubtitle.textContent = "Establish the container for evidence, timeline analysis, and dispute resolution.";
+                addProjectBtn.disabled = true;
+                addCaseBtn.disabled = true;
+                nextStepsHelper.style.display = "block";
+                linkExistingSection.style.display = "none";
+                step1.classList.add("active");
+                step1.classList.remove("completed");
+                step2.classList.remove("active");
+            } else {
+                saveBtn.innerHTML = '<i class="ph ph-floppy-disk"></i> Save Changes';
+                stepIndicator.textContent = "Editing";
+                pageTitle.textContent = workspaceData?.name || "Workspace Setup";
+                pageSubtitle.textContent = `Configure workspace settings and linked items.`;
+                addProjectBtn.disabled = false;
+                addCaseBtn.disabled = false;
+                nextStepsHelper.style.display = "none";
+                linkExistingSection.style.display = "block";
+                step1.classList.remove("active");
+                step1.classList.add("completed");
+                step2.classList.add("active");
+            }
+        }
 
-          if (!response.ok) {
-            let detail = "Failed to move project";
+        function setCurrentWorkspaceStorage() {
+            if (!workspaceId) return;
             try {
-              const raw = await response.text();
-              if (raw) {
-                try {
-                  const parsed = JSON.parse(raw);
-                  detail = parsed?.detail || parsed?.message || detail;
-                } catch {
-                  detail = raw;
+                localStorage.setItem("currentWorkspaceId", workspaceId);
+                if (workspaceData?.name) {
+                    localStorage.setItem("currentWorkspaceName", workspaceData.name);
                 }
-              }
             } catch {
-              // ignore
+                // ignore storage failures
             }
-            throw new Error(detail);
-          }
-
-          VericaseUI.Toast.success("Project moved into workspace");
-          await loadWorkspace();
-        } catch (error) {
-          console.error("Error moving project:", error);
-          VericaseUI.Toast.error(error.message || "Failed to move project");
-        } finally {
-          const btn = document.getElementById("linkProjectBtn");
-          if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-right-left" aria-hidden="true"></i> Move project';
-          }
-        }
-      }
-
-      function openProjectSetupFromWorkspace() {
-        if (!workspaceId) {
-          VericaseUI.Toast.info("Create the workspace first, then add a project.");
-          return;
-        }
-        window.location.href = `project-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
-      }
-
-      function openCaseSetupFromWorkspace() {
-        if (!workspaceId) {
-          VericaseUI.Toast.info("Create the workspace first, then add a case.");
-          return;
-        }
-        window.location.href = `case-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
-      }
-
-
-      async function loadWorkspace() {
-        const params = new URLSearchParams(window.location.search);
-        workspaceId = params.get("workspaceId");
-
-        if (!workspaceId) {
-          isNewWorkspace = true;
-          workspaceData = { projects: [], cases: [] };
-          document.getElementById("workspaceTitle").textContent = "Create Workspace";
-          document.getElementById("workspaceSubtitle").textContent = "Add a name to get started. Projects and cases are configured separately.";
-          document.getElementById("linkedItemsContainer").innerHTML = `
-            <div class="empty-state">
-              <i class="fas fa-folder-open"></i>
-              <div>Link projects or cases after you create the workspace</div>
-            </div>
-          `;
-          setSaveButtonState();
-          updateNextStepsState();
-          setLinkExistingSectionState();
-          return;
         }
 
-        try {
-          const response = await fetch(`/api/workspaces/${workspaceId}`, {
-            headers: getAuthHeaders()
-          });
+        async function loadProjectsForLinking() {
+            const select = document.getElementById("existingProjectSelect");
+            const btn = document.getElementById("linkProjectBtn");
 
-          if (!response.ok) {
-            throw new Error("Failed to load workspace");
-          }
+            if (!workspaceId || !select) return;
 
-          workspaceData = await response.json();
-          
-          // Populate form
-          document.getElementById("workspaceName").value = workspaceData.name || "";
-          document.getElementById("workspaceCode").value = workspaceData.code || "";
-          document.getElementById("contractType").value = workspaceData.contract_type || "";
-          document.getElementById("workspaceDescription").value = workspaceData.description || "";
-          document.getElementById("workspaceTitle").textContent = workspaceData.name || "Workspace Setup";
-          document.getElementById("workspaceSubtitle").textContent = `Workspace details for ${workspaceData.name || "this workspace"}`;
-          codeManuallyEdited = true;
-          lastAutoCode = workspaceData.code || "";
-          isNewWorkspace = false;
-          setSaveButtonState();
-          setCurrentWorkspaceStorage();
-          updateNextStepsState();
+            select.innerHTML = '<option value="">Loading projects...</option>';
+            if (btn) btn.disabled = true;
 
-          // Render linked items
-          renderLinkedItems();
-          // Populate "move existing project" selector
-          loadProjectsForLinking();
-        } catch (error) {
-          console.error("Error loading workspace:", error);
-          VericaseUI.Toast.error("Failed to load workspace");
-        }
-      }
-
-      function renderLinkedItems() {
-        const container = document.getElementById("linkedItemsContainer");
-        const projects = workspaceData.projects || [];
-        const cases = workspaceData.cases || [];
-
-        if (projects.length === 0 && cases.length === 0) {
-          container.innerHTML = `
-            <div class="empty-state">
-              <i class="fas fa-folder-open"></i>
-              <div>No projects or cases linked yet</div>
-            </div>
-          `;
-          return;
-        }
-
-        let html = "";
-        projects.forEach(p => {
-          html += `
-            <div class="linked-item">
-              <div class="linked-item-info">
-                <div class="linked-item-title">
-                  <span class="linked-item-badge badge-project">Project</span>
-                  ${escapeHtml(p.name)}
-                </div>
-                <div class="linked-item-meta">${escapeHtml(p.code)}</div>
-              </div>
-              <button class="btn btn-secondary btn-icon" onclick="openProject('${p.id}')" title="Open Project">
-                <i class="fas fa-external-link-alt"></i>
-              </button>
-            </div>
-          `;
-        });
-
-        cases.forEach(c => {
-          html += `
-            <div class="linked-item">
-              <div class="linked-item-info">
-                <div class="linked-item-title">
-                  <span class="linked-item-badge badge-case">Case</span>
-                  ${escapeHtml(c.name)}
-                </div>
-                <div class="linked-item-meta">${escapeHtml(c.code)}</div>
-              </div>
-              <button class="btn btn-secondary btn-icon" onclick="openCase('${c.id}')" title="Open Case">
-                <i class="fas fa-external-link-alt"></i>
-              </button>
-            </div>
-          `;
-        });
-
-        container.innerHTML = html;
-      }
-
-      function openProject(projectId) {
-        window.location.href = `projectdashboard.html?projectId=${projectId}`;
-      }
-
-      function openCase(caseId) {
-        window.location.href = `projectdashboard.html?caseId=${caseId}`;
-      }
-
-      async function saveWorkspace() {
-        try {
-          const nameValue = document.getElementById("workspaceName").value.trim();
-          if (!nameValue) {
-            VericaseUI.Toast.error("Please enter a workspace name");
-            return;
-          }
-
-          const codeValue = document.getElementById("workspaceCode").value.trim();
-          const resolvedCode = codeValue || buildWorkspaceCode(nameValue);
-          if (!codeValue) {
-            document.getElementById("workspaceCode").value = resolvedCode;
-            lastAutoCode = resolvedCode;
-          }
-
-          const updatePayload = {
-            name: nameValue,
-            code: resolvedCode,
-            description: document.getElementById("workspaceDescription").value,
-            contract_type: document.getElementById("contractType").value
-          };
-
-          const headers = getAuthHeaders();
-          let createdNow = false;
-          let usedFallback = false;
-
-          if (!workspaceId) {
-            let createResponse = await fetch("/api/workspaces", {
-              method: "POST",
-              headers,
-              body: JSON.stringify(updatePayload)
-            });
-
-            if (createResponse.status === 404 || createResponse.status === 405) {
-              usedFallback = true;
-              const projectPayload = {
-                project_name: nameValue,
-                project_code: resolvedCode,
-                contract_type: updatePayload.contract_type || null
-              };
-              createResponse = await fetch("/api/projects", {
-                method: "POST",
-                headers,
-                body: JSON.stringify(projectPayload)
-              });
-            }
-
-            if (!createResponse.ok) {
-              const errorData = await createResponse.json();
-              throw new Error(errorData.detail || "Failed to create workspace");
-            }
-
-            const created = await createResponse.json();
-            if (usedFallback) {
-              VericaseUI.Toast.success("Project created. Workspace setup will be available once workspaces are enabled.");
-              window.location.href = "master-dashboard.html";
-              return;
-            }
-
-            workspaceId = created.id;
-            createdNow = true;
-            isNewWorkspace = false;
-            setSaveButtonState();
-
-            const url = new URL(window.location.href);
-            url.searchParams.set("workspaceId", workspaceId);
-            history.replaceState(null, "", url.toString());
-          } else {
-            const updateResponse = await fetch(`/api/workspaces/${workspaceId}`, {
-              method: "PUT",
-              headers,
-              body: JSON.stringify(updatePayload)
-            });
-
-            if (!updateResponse.ok) {
-              let detail = "Failed to update workspace";
-              try {
-                const raw = await updateResponse.text();
-                if (raw) {
-                  try {
-                    const parsed = JSON.parse(raw);
-                    detail = parsed?.detail || parsed?.message || detail;
-                  } catch {
-                    detail = raw;
-                  }
+            try {
+                const response = await fetch("/api/projects", { headers: getAuthHeaders() });
+                if (!response.ok) {
+                    throw new Error("Failed to load projects");
                 }
-              } catch {
-                // ignore
-              }
-              throw new Error(detail);
+
+                const projects = await response.json();
+                const linkedIds = new Set((workspaceData?.projects || []).map(p => String(p.id)));
+                const available = (Array.isArray(projects) ? projects : [])
+                    .filter(p => p && p.id && !linkedIds.has(String(p.id)));
+
+                if (!available.length) {
+                    select.innerHTML = '<option value="">No other projects available</option>';
+                    return;
+                }
+
+                select.innerHTML = '<option value="">-- Select a project --</option>';
+                available.forEach((p) => {
+                    const name = escapeHtml(p.project_name || p.name || "Untitled Project");
+                    const code = escapeHtml(p.project_code || p.code || "");
+                    const label = code ? `${name} (${code})` : name;
+                    select.innerHTML += `<option value="${p.id}">${label}</option>`;
+                });
+            } catch (error) {
+                console.error("Error loading projects for linking:", error);
+                select.innerHTML = '<option value="">Unable to load projects</option>';
+            } finally {
+                if (btn) btn.disabled = false;
             }
-          }
+        }
 
-          VericaseUI.Toast.success(createdNow ? "Workspace created successfully" : "Workspace saved successfully");
-          setCurrentWorkspaceStorage();
-          updateNextStepsState();
-          
-          // Reload data
-          await loadWorkspace();
+        async function linkExistingProject() {
+            try {
+                if (!workspaceId) {
+                    VericaseUI.Toast.info("Create the workspace first, then link projects.");
+                    return;
+                }
 
-          if (createdNow) {
-            const nextSteps = document.querySelector(".next-steps");
-            if (nextSteps) {
-              nextSteps.scrollIntoView({ behavior: "smooth", block: "center" });
-              nextSteps.style.animation = "pulse-highlight 2s ease-in-out";
-              nextSteps.style.border = "2px solid var(--vericase-teal)";
-              VericaseUI.Toast.info("Now add a project or case to get started!");
-              setTimeout(() => {
-                nextSteps.style.animation = "";
-                nextSteps.style.border = "";
-              }, 2000);
+                const select = document.getElementById("existingProjectSelect");
+                const projectId = (select?.value || "").trim();
+                if (!projectId) {
+                    VericaseUI.Toast.error("Please select a project to move");
+                    return;
+                }
+
+                const btn = document.getElementById("linkProjectBtn");
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Moving...';
+                }
+
+                const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/projects/${encodeURIComponent(projectId)}`, {
+                    method: "PUT",
+                    headers: getAuthHeaders(),
+                });
+
+                if (!response.ok) {
+                    let detail = "Failed to move project";
+                    try {
+                        const raw = await response.text();
+                        if (raw) {
+                            try {
+                                const parsed = JSON.parse(raw);
+                                detail = parsed?.detail || parsed?.message || detail;
+                            } catch {
+                                detail = raw;
+                            }
+                        }
+                    } catch {}
+                    throw new Error(detail);
+                }
+
+                VericaseUI.Toast.success("Project moved into workspace");
+                await loadWorkspace();
+            } catch (error) {
+                console.error("Error moving project:", error);
+                VericaseUI.Toast.error(error.message || "Failed to move project");
+            } finally {
+                const btn = document.getElementById("linkProjectBtn");
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="ph ph-arrows-left-right"></i> Move';
+                }
             }
-          }
-        } catch (error) {
-          console.error("Error saving workspace:", error);
-          VericaseUI.Toast.error("Failed to save workspace: " + error.message);
-        }
-      }
-
-      // Initialize on page load
-      document.addEventListener("DOMContentLoaded", () => {
-        const nameInput = document.getElementById("workspaceName");
-        const params = new URLSearchParams(window.location.search);
-        const isOnboarding = params.get("onboarding") === "true";
-
-        if (isOnboarding && !params.get("workspaceId")) {
-          const header = document.querySelector(".page-header");
-          if (header) {
-            const welcomeBanner = document.createElement("div");
-            welcomeBanner.className = "onboarding-banner";
-            welcomeBanner.innerHTML = `
-              <div style="background: linear-gradient(135deg, rgba(var(--vericase-teal-rgb), 0.1), rgba(31, 111, 120, 0.05)); border: 1px solid rgba(var(--vericase-teal-rgb), 0.3); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem;">
-                <h2 style="margin: 0 0 0.5rem; color: var(--vericase-teal); font-size: 1.25rem;">
-                  <i class="fas fa-rocket"></i> Welcome to VeriCase!
-                </h2>
-                <p style="margin: 0; color: var(--text-secondary);">
-                  Let's set up your first workspace. A workspace organizes your projects and cases.
-                  Enter a name below, save it, then you can add your first project or case.
-                </p>
-              </div>
-            `;
-            header.insertBefore(welcomeBanner, header.firstChild);
-          }
         }
 
-        const codeInput = document.getElementById("workspaceCode");
-        if (nameInput) {
-          nameInput.addEventListener("input", syncAutoCode);
+        function openProjectSetup() {
+            if (!workspaceId) {
+                VericaseUI.Toast.info("Create the workspace first, then add a project.");
+                return;
+            }
+            window.location.href = `project-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
         }
-        if (codeInput) {
-          codeInput.addEventListener("input", () => {
-            codeManuallyEdited = codeInput.value.trim().length > 0 && codeInput.value !== lastAutoCode;
-          });
+
+        function openCaseSetup() {
+            if (!workspaceId) {
+                VericaseUI.Toast.info("Create the workspace first, then add a case.");
+                return;
+            }
+            window.location.href = `case-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
         }
-        loadWorkspace();
-      });
+
+        function goBack() {
+            window.location.href = "master-dashboard.html";
+        }
+
+        async function loadWorkspace() {
+            const params = new URLSearchParams(window.location.search);
+            workspaceId = params.get("workspaceId");
+
+            if (!workspaceId) {
+                isNewWorkspace = true;
+                workspaceData = { projects: [], cases: [] };
+                updateUIState();
+                renderLinkedItems();
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/workspaces/${workspaceId}`, {
+                    headers: getAuthHeaders()
+                });
+
+                if (!response.ok) {
+                    let detail = `Failed to load workspace (${response.status})`;
+                    try {
+                        const errorData = await response.json();
+                        detail = errorData.detail || detail;
+                    } catch {}
+                    throw new Error(detail);
+                }
+
+                workspaceData = await response.json();
+
+                document.getElementById("workspaceName").value = workspaceData.name || "";
+                document.getElementById("workspaceCode").value = workspaceData.code || "";
+                document.getElementById("contractType").value = workspaceData.contract_type || "";
+                document.getElementById("workspaceDescription").value = workspaceData.description || "";
+
+                codeManuallyEdited = true;
+                lastAutoCode = workspaceData.code || "";
+                isNewWorkspace = false;
+
+                updateUIState();
+                setCurrentWorkspaceStorage();
+                renderLinkedItems();
+                loadProjectsForLinking();
+            } catch (error) {
+                console.error("Error loading workspace:", error);
+                VericaseUI.Toast.error(error.message || "Failed to load workspace");
+            }
+        }
+
+        function renderLinkedItems() {
+            const container = document.getElementById("linkedItemsContainer");
+            const projects = workspaceData?.projects || [];
+            const cases = workspaceData?.cases || [];
+
+            if (projects.length === 0 && cases.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-slot">
+                        <i class="ph ph-briefcase" style="font-size: 24px; margin-bottom:8px; display:block; opacity:0.5;"></i>
+                        No projects or cases linked yet. <br> ${isNewWorkspace ? 'You can link items after the workspace is created.' : 'Add a project or case below.'}
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '<div class="linked-items">';
+
+            projects.forEach(p => {
+                html += `
+                    <div class="linked-item">
+                        <div class="linked-item-info">
+                            <div class="linked-item-title">
+                                <span class="linked-item-badge badge-project">Project</span>
+                                ${escapeHtml(p.name || p.project_name || 'Untitled')}
+                            </div>
+                            <div class="linked-item-meta">${escapeHtml(p.code || p.project_code || '')}</div>
+                        </div>
+                        <button class="btn btn-secondary btn-icon" onclick="openProject('${p.id}')" title="Open Project">
+                            <i class="ph ph-arrow-square-out"></i>
+                        </button>
+                    </div>
+                `;
+            });
+
+            cases.forEach(c => {
+                html += `
+                    <div class="linked-item">
+                        <div class="linked-item-info">
+                            <div class="linked-item-title">
+                                <span class="linked-item-badge badge-case">Case</span>
+                                ${escapeHtml(c.name || c.case_name || 'Untitled')}
+                            </div>
+                            <div class="linked-item-meta">${escapeHtml(c.code || c.case_code || '')}</div>
+                        </div>
+                        <button class="btn btn-secondary btn-icon" onclick="openCase('${c.id}')" title="Open Case">
+                            <i class="ph ph-arrow-square-out"></i>
+                        </button>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function openProject(projectId) {
+            window.location.href = `projectdashboard.html?projectId=${projectId}`;
+        }
+
+        function openCase(caseId) {
+            window.location.href = `projectdashboard.html?caseId=${caseId}`;
+        }
+
+        async function saveWorkspace() {
+            try {
+                const nameValue = document.getElementById("workspaceName").value.trim();
+                if (!nameValue) {
+                    VericaseUI.Toast.error("Please enter a workspace name");
+                    document.getElementById("workspaceName").focus();
+                    return;
+                }
+
+                const codeValue = document.getElementById("workspaceCode").value.trim();
+                const resolvedCode = codeValue || buildWorkspaceCode(nameValue);
+                if (!codeValue) {
+                    document.getElementById("workspaceCode").value = resolvedCode;
+                    lastAutoCode = resolvedCode;
+                }
+
+                const saveBtn = document.getElementById("saveBtn");
+                const originalBtnHtml = saveBtn.innerHTML;
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="ph ph-spinner ph-spin"></i> Saving...';
+
+                const payload = {
+                    name: nameValue,
+                    code: resolvedCode,
+                    description: document.getElementById("workspaceDescription").value,
+                    contract_type: document.getElementById("contractType").value
+                };
+
+                const headers = getAuthHeaders();
+                let createdNow = false;
+
+                if (!workspaceId) {
+                    // Create new workspace
+                    let createResponse = await fetch("/api/workspaces", {
+                        method: "POST",
+                        headers,
+                        body: JSON.stringify(payload)
+                    });
+
+                    // Fallback to projects API if workspaces not available
+                    if (createResponse.status === 404 || createResponse.status === 405) {
+                        const projectPayload = {
+                            project_name: nameValue,
+                            project_code: resolvedCode,
+                            contract_type: payload.contract_type || null
+                        };
+                        createResponse = await fetch("/api/projects", {
+                            method: "POST",
+                            headers,
+                            body: JSON.stringify(projectPayload)
+                        });
+
+                        if (createResponse.ok) {
+                            VericaseUI.Toast.success("Project created successfully");
+                            window.location.href = "master-dashboard.html";
+                            return;
+                        }
+                    }
+
+                    if (!createResponse.ok) {
+                        const errorData = await createResponse.json();
+                        throw new Error(errorData.detail || "Failed to create workspace");
+                    }
+
+                    const created = await createResponse.json();
+                    workspaceId = created.id;
+                    createdNow = true;
+                    isNewWorkspace = false;
+
+                    const url = new URL(window.location.href);
+                    url.searchParams.set("workspaceId", workspaceId);
+                    history.replaceState(null, "", url.toString());
+                } else {
+                    // Update existing workspace
+                    const updateResponse = await fetch(`/api/workspaces/${workspaceId}`, {
+                        method: "PUT",
+                        headers,
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!updateResponse.ok) {
+                        let detail = "Failed to update workspace";
+                        try {
+                            const raw = await updateResponse.text();
+                            if (raw) {
+                                try {
+                                    const parsed = JSON.parse(raw);
+                                    detail = parsed?.detail || parsed?.message || detail;
+                                } catch {
+                                    detail = raw;
+                                }
+                            }
+                        } catch {}
+                        throw new Error(detail);
+                    }
+                }
+
+                VericaseUI.Toast.success(createdNow ? "Workspace created successfully" : "Workspace saved");
+                setCurrentWorkspaceStorage();
+                await loadWorkspace();
+
+                if (createdNow) {
+                    const nextSteps = document.getElementById("nextStepsSection");
+                    if (nextSteps) {
+                        nextSteps.classList.add("highlight");
+                        nextSteps.scrollIntoView({ behavior: "smooth", block: "center" });
+                        VericaseUI.Toast.info("Now add a project or case to get started!");
+                        setTimeout(() => nextSteps.classList.remove("highlight"), 2500);
+                    }
+                }
+            } catch (error) {
+                console.error("Error saving workspace:", error);
+                VericaseUI.Toast.error(error.message || "Failed to save workspace");
+            } finally {
+                const saveBtn = document.getElementById("saveBtn");
+                saveBtn.disabled = false;
+                updateUIState();
+            }
+        }
+
+        // Initialize
+        document.addEventListener("DOMContentLoaded", () => {
+            const nameInput = document.getElementById("workspaceName");
+            const codeInput = document.getElementById("workspaceCode");
+
+            if (nameInput) {
+                nameInput.addEventListener("input", syncAutoCode);
+            }
+            if (codeInput) {
+                codeInput.addEventListener("input", () => {
+                    codeManuallyEdited = codeInput.value.trim().length > 0 && codeInput.value !== lastAutoCode;
+                });
+            }
+
+            loadWorkspace();
+        });
     </script>
-  </body>
-</html>
 
+</body>
+</html>

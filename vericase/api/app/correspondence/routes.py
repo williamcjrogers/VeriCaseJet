@@ -31,7 +31,9 @@ from .services import (
     init_pst_upload_service,
     init_pst_multipart_upload_service,
     get_pst_multipart_part_url_service,
+    list_pst_multipart_parts_service,
     complete_pst_multipart_upload_service,
+    abort_pst_multipart_upload_service,
     start_pst_processing_service,
     get_pst_status_service,
     list_pst_files_service,
@@ -46,6 +48,9 @@ from .utils import (
     PSTMultipartInitResponse,
     PSTMultipartPartResponse,
     PSTMultipartCompleteRequest,
+    PSTMultipartAbortRequest,
+    PSTMultipartAbortResponse,
+    PSTMultipartPartsResponse,
     PSTProcessingStatus,
     PSTFileListResponse,
     EmailListResponse,
@@ -136,12 +141,35 @@ async def get_pst_multipart_part_url(
     )
 
 
+@router.get("/pst/upload/multipart/parts", response_model=PSTMultipartPartsResponse)
+async def list_pst_multipart_parts(
+    pst_file_id: str = Query(..., description="PST file ID"),
+    upload_id: str = Query(..., description="Multipart upload ID"),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    _ = user  # enforce auth
+    return await list_pst_multipart_parts_service(pst_file_id, upload_id, db)
+
+
 @router.post("/pst/upload/multipart/complete")
 async def complete_pst_multipart_upload(
     request: PSTMultipartCompleteRequest,
     db: Session = Depends(get_db),
 ):
     return await complete_pst_multipart_upload_service(request, db)
+
+
+@router.post("/pst/upload/multipart/abort", response_model=PSTMultipartAbortResponse)
+async def abort_pst_multipart_upload(
+    request: PSTMultipartAbortRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    _ = user  # enforce auth
+    return await abort_pst_multipart_upload_service(
+        request.pst_file_id, request.upload_id, db
+    )
 
 
 @router.post("/pst/{pst_file_id}/process")

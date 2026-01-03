@@ -26,6 +26,8 @@ from ..models import (
     User,
 )
 from ..storage import (
+    multipart_abort,
+    multipart_list_parts,
     multipart_complete,
     multipart_start,
     presign_part,
@@ -548,14 +550,97 @@ async def get_pst_multipart_part_url_service(pst_file_id, upload_id, part_number
     return PSTMultipartPartResponse(url=url, part_number=part_number)
 
 
+async def list_pst_multipart_parts_service(
+    pst_file_id: str, upload_id: str, db: Session
+):
+    """List already-uploaded multipart parts (for client-side resume)."""
+    pst_file = db.query(PSTFile).filter_by(id=pst_file_id).first()
+    if not pst_file:
+        raise HTTPException(404, "PST file not found")
+
+    try:
+        parts = multipart_list_parts(
+            pst_file.s3_key, upload_id, bucket=pst_file.s3_bucket
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to list multipart parts pst_file_id=%s upload_id=%s: %s",
+            pst_file_id,
+            upload_id,
+            exc,
+        )
+        raise HTTPException(404, f"Multipart upload not found: {exc}") from exc
+
+    return {
+        "pst_file_id": pst_file_id,
+        "upload_id": upload_id,
+        "parts": parts,
+    }
+
+
+async def abort_pst_multipart_upload_service(
+    pst_file_id: str, upload_id: str, db: Session
+):
+    """Abort a multipart upload (best-effort), and mark PST as failed/aborted."""
+    pst_file = db.query(PSTFile).filter_by(id=pst_file_id).first()
+    if not pst_file:
+        raise HTTPException(404, "PST file not found")
+
+    try:
+        multipart_abort(pst_file.s3_key, upload_id, bucket=pst_file.s3_bucket)
+    except Exception as exc:
+        logger.warning(
+            "Failed to abort multipart upload pst_file_id=%s upload_id=%s: %s",
+            pst_file_id,
+            upload_id,
+            exc,
+        )
+        # Still mark as failed to avoid dangling "pending" rows for users.
+        pst_file.processing_status = PSTStatus.FAILED.value
+        pst_file.error_message = f"Multipart abort failed: {exc}"
+        db.commit()
+        raise HTTPException(502, f"Abort failed: {exc}") from exc
+
+    pst_file.processing_status = PSTStatus.FAILED.value
+    pst_file.error_message = "Upload aborted"
+    db.commit()
+
+    return {
+        "success": True,
+        "pst_file_id": pst_file_id,
+        "upload_id": upload_id,
+        "message": "Multipart upload aborted",
+    }
+
+
 async def complete_pst_multipart_upload_service(request, db):
     pst_file = db.query(PSTFile).filter_by(id=request.pst_file_id).first()
     if not pst_file:
         raise HTTPException(404, "PST file not found")
 
     try:
+        # Defensive: only pass the fields boto3 accepts for completion.
+        cleaned_parts: list[dict[str, Any]] = []
+        for p in request.parts or []:
+            if not isinstance(p, dict):
+                continue
+            etag = p.get("ETag") or p.get("etag")
+            part_no = p.get("PartNumber") or p.get("part_number") or p.get("partNumber")
+            if not etag or not part_no:
+                continue
+            try:
+                cleaned_parts.append(
+                    {"ETag": str(etag).replace('"', ""), "PartNumber": int(part_no)}
+                )
+            except Exception:
+                continue
+        cleaned_parts.sort(key=lambda x: int(x.get("PartNumber") or 0))
+
         multipart_complete(
-            pst_file.s3_key, request.upload_id, request.parts, bucket=pst_file.s3_bucket
+            pst_file.s3_key,
+            request.upload_id,
+            cleaned_parts,
+            bucket=pst_file.s3_bucket,
         )
 
         pst_file.processing_status = "pending"

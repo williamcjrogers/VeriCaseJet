@@ -1,0 +1,29 @@
+{
+  "Comment": "VeriCase PST ingest v2 - Phase 1 (single-stage) runs the forensic Python processor in AWS Batch. Input comes from SQS via EventBridge Pipes.",
+  "StartAt": "ProcessPST",
+  "States": {
+    "ProcessPST": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::batch:submitJob.sync",
+      "Parameters": {
+        "JobName.$": "States.Format('pst-process-{}', $.pst_file_id)",
+        "JobQueue": "${batch_job_queue_arn}",
+        "JobDefinition": "${process_job_definition_arn}",
+        "ContainerOverrides": {
+          "Environment": [
+            { "Name": "PST_FILE_ID", "Value.$": "$.pst_file_id" },
+            { "Name": "PROJECT_ID", "Value.$": "$.project_id" },
+            { "Name": "CASE_ID", "Value.$": "$.case_id" },
+            { "Name": "SOURCE_BUCKET", "Value.$": "$.source_bucket" },
+            { "Name": "SOURCE_KEY", "Value.$": "$.source_key" },
+            { "Name": "OUTPUT_BUCKET", "Value.$": "$.output_bucket" },
+            { "Name": "OUTPUT_PREFIX", "Value.$": "$.output_prefix" }
+          ]
+        }
+      },
+      "End": true
+    }
+  }
+}
+
+

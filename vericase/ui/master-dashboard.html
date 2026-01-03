@@ -871,35 +871,97 @@
     }
 
     .empty-state.onboarding-state {
-      padding: 32px 24px; /* Tighter: was 60px 40px */
-      background: var(--bg-secondary); /* Clean: no gradient */
-      border: 1px dashed var(--vericase-teal);
-      border-radius: var(--radius-lg); /* Professional: was 24px */
+      /* === BONDED PAPER STRATEGY === */
+      padding: 64px 40px;
+      background-color: var(--vericase-cream); /* Stone White */
+      background-image: radial-gradient(var(--gray-200) 1px, transparent 1px);
+      background-size: 24px 24px; /* Ledger paper dot grid texture */
+
+      /* Gold letterhead top border */
+      border-top: 3px solid var(--vericase-gold);
+      border-left: 1px solid var(--gray-200);
+      border-right: 1px solid var(--gray-200);
+      border-bottom: 1px solid var(--gray-200);
+      border-radius: var(--radius-lg);
+
+      position: relative;
+      overflow: hidden; /* Clips the watermark */
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    /* Watermark - massive faint icon */
+    .empty-state.onboarding-state::before {
+      content: '\f66f'; /* Font Awesome fa-landmark */
+      font-family: 'Font Awesome 6 Free', 'Font Awesome 5 Free';
+      font-weight: 900;
+      position: absolute;
+      right: -40px;
+      bottom: -40px;
+      font-size: 300px;
+      color: var(--vericase-navy);
+      opacity: 0.03; /* Barely visible, adds expensive feel */
+      transform: rotate(-15deg);
+      pointer-events: none;
+      z-index: 1;
     }
 
     .onboarding-icon {
-      width: 48px; /* Smaller: was 80px */
-      height: 48px;
-      margin: 0 auto 16px; /* Tighter margin */
-      background: var(--vericase-teal); /* Solid: no gradient */
-      border-radius: var(--radius-md); /* Professional corners */
+      /* Engraved/stamped into paper effect */
+      position: relative;
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 32px;
       display: flex;
       align-items: center;
       justify-content: center;
+      border-radius: 50%;
+      background: #FFFFFF;
+      /* Inset shadow makes it look stamped into the paper */
+      box-shadow:
+        0 0 0 1px var(--gray-200),
+        0 10px 15px -3px rgba(0, 0, 0, 0.05),
+        inset 0 2px 4px rgba(0, 0, 0, 0.05);
+      z-index: 10;
     }
 
     .onboarding-icon i {
-      font-size: 2rem;
-      color: white;
+      font-size: 36px;
+      color: var(--vericase-navy);
+    }
+
+    .onboarding-title {
+      font-family: var(--font-serif);
+      font-weight: 600;
+      font-size: 28px;
+      color: var(--vericase-navy);
+      margin-bottom: 16px;
+      letter-spacing: -0.5px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .onboarding-description {
+      font-family: var(--font-sans);
+      color: var(--text-secondary);
+      font-size: 15px;
+      line-height: 1.6;
+      max-width: 460px;
+      margin: 0 auto 40px auto;
+      position: relative;
+      z-index: 10;
     }
 
     .onboarding-steps {
       display: flex;
       flex-direction: column;
       gap: 12px;
-      max-width: 400px;
-      margin: 24px auto 32px;
+      max-width: 420px;
+      margin: 0 auto 40px;
       text-align: left;
+      position: relative;
+      z-index: 10;
     }
 
     .onboarding-step {
@@ -907,16 +969,16 @@
       align-items: center;
       gap: 12px;
       padding: 12px 16px;
-      background: white;
-      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: var(--radius-md);
       border: 1px solid var(--gray-200);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
     }
 
     .step-number {
       width: 28px;
       height: 28px;
-      background: var(--vericase-teal);
+      background: var(--vericase-navy);
       color: white;
       border-radius: 50%;
       display: flex;
@@ -1955,53 +2017,6 @@
 
       <!-- Sidebar -->
       <aside class="dashboard-sidebar">
-        <!-- Quick Start -->
-        <div class="quick-start-card">
-          <div class="quick-start-header">
-            <div class="quick-start-title">
-              <i class="fas fa-rocket" aria-hidden="true"></i>
-              Quick Start
-            </div>
-          </div>
-          <div class="context-indicator no-context" id="contextIndicator">
-            <div class="context-dot"></div>
-            <div class="context-text"><strong>No workspace selected</strong></div>
-          </div>
-          <nav class="quick-start-actions">
-            <button class="quick-action" data-action="create-workspace">
-              <div class="quick-action-icon"><i class="fas fa-plus" aria-hidden="true"></i></div>
-              <div class="quick-action-text">
-                <div class="quick-action-label">Create Workspace</div>
-                <div class="quick-action-desc">Start a new project or case</div>
-              </div>
-            </button>
-            <a href="pst-upload.html" class="quick-action locked" data-requires-context="true" data-contexts="project,case">
-              <div class="quick-action-icon"><i class="fas fa-upload" aria-hidden="true"></i></div>
-              <div class="quick-action-text">
-                <div class="quick-action-label">Upload Evidence</div>
-                <div class="quick-action-desc">PST, EML, MSG, documents</div>
-              </div>
-              <span class="quick-action-badge">Select workspace</span>
-            </a>
-            <a href="vericase-analysis.html" class="quick-action locked" data-requires-context="true" data-contexts="project">
-              <div class="quick-action-icon"><i class="fas fa-microscope" aria-hidden="true"></i></div>
-              <div class="quick-action-text">
-                <div class="quick-action-label">Deep Research</div>
-                <div class="quick-action-desc">AI-powered investigation</div>
-              </div>
-              <span class="quick-action-badge">Select project</span>
-            </a>
-            <a href="correspondence-enterprise.html" class="quick-action locked" data-requires-context="true" data-contexts="project,case">
-              <div class="quick-action-icon"><i class="fas fa-envelope-open-text" aria-hidden="true"></i></div>
-              <div class="quick-action-text">
-                <div class="quick-action-label">Correspondence</div>
-                <div class="quick-action-desc">Email thread analysis</div>
-              </div>
-              <span class="quick-action-badge">Select workspace</span>
-            </a>
-          </nav>
-        </div>
-
         <!-- VeriCase Assistant -->
         <div class="ai-card">
           <div class="ai-card-header">
@@ -2278,40 +2293,7 @@
     }
 
     function updateQuickActions() {
-      const ctx = getContextSummary();
-      const indicator = document.getElementById("contextIndicator");
-
-      if (ctx.hasContext) {
-        indicator.classList.remove("no-context");
-        indicator.innerHTML = `
-          <div class="context-dot"></div>
-          <div class="context-text"><strong>${ctx.type === "case" ? "Case" : "Project"}:</strong> ${escapeHtml(ctx.name)}</div>
-        `;
-      } else {
-        indicator.classList.add("no-context");
-        indicator.innerHTML = `
-          <div class="context-dot"></div>
-          <div class="context-text"><strong>No workspace selected</strong></div>
-        `;
-      }
-
-      document.querySelectorAll(".quick-action[data-requires-context]").forEach(a => {
-        const allowedContexts = (a.dataset.contexts || "").split(",").map(v => v.trim()).filter(Boolean);
-        const isAllowed = ctx.hasContext && (allowedContexts.length === 0 || allowedContexts.includes(ctx.type));
-
-        if (isAllowed) {
-          a.classList.remove("locked");
-          const badge = a.querySelector(".quick-action-badge");
-          if (badge) badge.style.display = "none";
-          if (a.dataset.baseUrl) a.setAttribute("href", a.dataset.baseUrl);
-        } else {
-          a.classList.add("locked");
-          const badge = a.querySelector(".quick-action-badge");
-          if (badge) badge.style.display = "";
-          if (!a.dataset.baseUrl) a.dataset.baseUrl = a.getAttribute("href");
-          a.setAttribute("href", "#");
-        }
-      });
+      // Quick Start panel removed - function kept for compatibility
     }
 
     async function loadDashboard() {
@@ -2766,28 +2748,28 @@
             <p class="empty-text">Try a different search term</p>
           </div>
         ` : `
-          <div class="empty-state onboarding-state" style="padding: 40px;">
+          <div class="empty-state onboarding-state">
             <div class="onboarding-icon">
-              <i class="fas fa-rocket"></i>
+              <i class="fas fa-landmark"></i>
             </div>
-            <div class="empty-title">Welcome to VeriCase</div>
-            <p class="empty-text">Start by creating your first workspace. Workspaces organize your projects and cases for dispute analysis.</p>
+            <h2 class="onboarding-title">Initialize Workspace</h2>
+            <p class="onboarding-description">Begin by establishing a secure environment. This workspace will serve as the container for your dispute cases, evidence repository, and analysis timelines.</p>
             <div class="onboarding-steps">
               <div class="onboarding-step">
                 <span class="step-number">1</span>
-                <span class="step-text">Create a <strong>Workspace</strong> to group related work</span>
+                <span class="step-text">Create a <strong>Workspace</strong> to group related matters</span>
               </div>
               <div class="onboarding-step">
                 <span class="step-number">2</span>
-                <span class="step-text">Add <strong>Projects</strong> or <strong>Cases</strong> to your workspace</span>
+                <span class="step-text">Add <strong>Projects</strong> or <strong>Cases</strong> to organize your evidence</span>
               </div>
               <div class="onboarding-step">
                 <span class="step-number">3</span>
-                <span class="step-text">Upload evidence and start analyzing</span>
+                <span class="step-text">Upload documents and begin analysis</span>
               </div>
             </div>
-            <button class="btn btn-vericase btn-lg" onclick="window.location.href='workspace-setup.html'">
-              <i class="fas fa-plus"></i> Create Your First Workspace
+            <button class="btn btn-navy btn-lg" onclick="window.location.href='workspace-setup.html'">
+              <i class="fas fa-plus-circle"></i> Create New Workspace
             </button>
           </div>
         `;

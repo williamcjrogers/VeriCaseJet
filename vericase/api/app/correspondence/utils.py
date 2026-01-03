@@ -285,6 +285,30 @@ class PSTMultipartCompleteRequest(BaseModel):
     parts: list[dict[str, Any]]  # List of {ETag, PartNumber}
 
 
+class PSTMultipartAbortRequest(BaseModel):
+    """Request to abort a multipart upload (cleanup / user cancel)."""
+
+    pst_file_id: str
+    upload_id: str
+
+
+class PSTMultipartAbortResponse(BaseModel):
+    """Response for aborting a multipart upload."""
+
+    success: bool = True
+    pst_file_id: str
+    upload_id: str
+    message: str
+
+
+class PSTMultipartPartsResponse(BaseModel):
+    """Response listing uploaded parts for resuming multipart uploads."""
+
+    pst_file_id: str
+    upload_id: str
+    parts: list[dict[str, Any]]  # List of {ETag, PartNumber, Size}
+
+
 class PSTProcessingStatus(BaseModel):
     """PST processing status"""
 

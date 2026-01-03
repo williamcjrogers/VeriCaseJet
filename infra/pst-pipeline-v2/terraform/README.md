@@ -1,13 +1,18 @@
-# PST Pipeline V2 – Terraform (Skeleton)
+# PST Pipeline V2 – Terraform (Control Plane)
 
 Creates the **SQS → EventBridge Pipe → Step Functions** control plane for PST ingestion V2.
 
 This module intentionally **does not** create your compute (Batch/ECS) by default; instead you
 provide ARNs for:
 - Batch job queue
-- Batch job definitions (extract/load/thread/dedupe/index)
+- Batch job definition(s)
 
 That keeps this repo’s IaC safe to land without forcing an immediate infra change.
+
+## Pipeline Modes (Safety)
+
+- **`pipeline_mode = "single"` (default)**: Phase 1 “V2 now” — one Batch job that runs the existing forensic Python processor once.
+- **`pipeline_mode = "multistage"`**: future Extract/Load/Thread/Dedupe/Index orchestration (requires separate job definitions).
 
 ## What You Get
 - SQS queue + DLQ
@@ -34,15 +39,17 @@ The Pipe passes the SQS message body as Step Functions input. Minimum fields:
 ## Usage
 ```bash
 cd infra/pst-pipeline-v2/terraform
+
+# 1) Configure remote state (recommended):
+#    cp backend.hcl.example backend.hcl
+#    terraform init -backend-config=backend.hcl
+
 terraform init
 terraform plan \
   -var aws_region=eu-west-2 \
   -var batch_job_queue_arn=arn:aws:batch:...:job-queue/... \
-  -var extract_job_definition_arn=arn:aws:batch:...:job-definition/pst-extractor:1 \
-  -var load_job_definition_arn=arn:aws:batch:...:job-definition/pst-loader:1 \
-  -var thread_job_definition_arn=arn:aws:batch:...:job-definition/pst-thread:1 \
-  -var dedupe_job_definition_arn=arn:aws:batch:...:job-definition/pst-dedupe:1 \
-  -var index_job_definition_arn=arn:aws:batch:...:job-definition/pst-index:1
+  -var pipeline_mode=single \
+  -var process_job_definition_arn=arn:aws:batch:...:job-definition/vericase-pst-process-python:1
 ```
 
 Apply when ready:
