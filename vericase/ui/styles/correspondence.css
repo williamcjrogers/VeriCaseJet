@@ -594,10 +594,9 @@ body::before {
   cursor: pointer;
   transition: all 0.15s ease;
   text-decoration: none;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Allow text wrapping for long filenames */
+  white-space: normal;
+  word-break: break-word;
 }
 
 /* Light crayon palette for attachments */
@@ -646,10 +645,9 @@ body::before {
   background: #f3f4f6;
   color: var(--text-secondary);
   font-size: 0.8rem;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Allow text wrapping for long filenames */
+  white-space: normal;
+  word-break: break-word;
 }
 
 .priority-high { color: var(--danger); font-weight: 600; }
@@ -667,12 +665,15 @@ body::before {
 }
 
 .context-panel.collapsed {
-  width: 48px;
+  width: 0;
+  border-left: none;
 }
 
-.context-panel.collapsed .context-panel-content {
+.context-panel.collapsed .context-panel-content,
+.context-panel.collapsed .context-panel-header {
   opacity: 0;
   pointer-events: none;
+  visibility: hidden;
 }
 
 .context-panel.collapsed .context-toggle-label {
