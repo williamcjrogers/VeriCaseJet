@@ -80,6 +80,10 @@ const DEFAULT_HIDDEN_COLUMNS = new Set([
   "has_attachments",
 ]);
 
+// Grid performance: fixed row heights (avoid autoHeight measurement on large datasets)
+const ROW_HEIGHT_COLLAPSED = 96;
+const ROW_HEIGHT_EXPANDED = 360;
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -3525,17 +3529,17 @@ window.markAsExcluded = async function () {
 };
 
 // Toggle body cell expansion
-window.toggleBodyCell = function (rowId) {
+window.toggleBodyCell = async function (rowId) {
   if (!gridApi) return;
   const rowNode = gridApi.getRowNode(rowId);
   if (!rowNode || !rowNode.data) return;
 
   // Toggle expansion state
-  rowNode.data._bodyExpanded = !rowNode.data._bodyExpanded;
+  const willExpand = !rowNode.data._bodyExpanded;
+  rowNode.data._bodyExpanded = willExpand;
 
-  // Reset row height to auto (null) so it recalculates based on new content
-  // Using null for both expanded and collapsed states lets autoHeight work
-  rowNode.setRowHeight(null);
+  // Use fixed heights to avoid expensive DOM measurement from autoHeight.
+  rowNode.setRowHeight(willExpand ? ROW_HEIGHT_EXPANDED : ROW_HEIGHT_COLLAPSED);
 
   // Force cell refresh and row height recalculation
   gridApi.refreshCells({
@@ -3544,6 +3548,31 @@ window.toggleBodyCell = function (rowId) {
     suppressFlash: true
   });
   gridApi.onRowHeightChanged();
+
+  // Lazy-load full body on expand (keeps initial grid payload small + fast).
+  if (willExpand && rowNode.data?.id && !rowNode.data._bodyFullLoaded && !rowNode.data._bodyLoading) {
+    rowNode.data._bodyLoading = true;
+    rowNode.data._bodyLoadError = null;
+    gridApi.refreshCells({ rowNodes: [rowNode], force: true, suppressFlash: true });
+    try {
+      const resp = await fetch(`${API_BASE}/api/correspondence/emails/${rowNode.data.id}`, { headers: getAuthHeaders() });
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}`);
+      }
+      const detail = await resp.json();
+      const full = detail?.body_text_clean || detail?.body_text || "";
+      if (full) {
+        // Store in email_body so existing render helpers pick it up (and keep normalized rendering).
+        rowNode.data.email_body = normalizeBodyWhitespace(String(full));
+      }
+      rowNode.data._bodyFullLoaded = true;
+    } catch (e) {
+      rowNode.data._bodyLoadError = e?.message || String(e);
+    } finally {
+      rowNode.data._bodyLoading = false;
+      gridApi.refreshCells({ rowNodes: [rowNode], force: true, suppressFlash: true });
+    }
+  }
 };
 
 // Context panel placeholders to prevent dead controls
@@ -4234,8 +4263,7 @@ function initGrid() {
       flex: 2,
       filter: "agTextColumnFilter",
       headerTooltip: "Email body preview (expand to view formatted message)",
-      wrapText: true,
-      autoHeight: true,
+      wrapText: false,
       cellClass: "body-cell",
       cellRenderer: (p) => {
         const previewSource = getBodyPreviewText(p.data) || "";
@@ -4259,13 +4287,15 @@ function initGrid() {
               >
                 <i class="fas ${icon}"></i>
               </button>
-              <div style="flex: 1; color: var(--text-secondary); white-space: normal; word-break: break-word; line-height: 1.5;">
+              <div style="flex: 1; color: var(--text-secondary); word-break: break-word; line-height: 1.5; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
                 ${escapeHtml(preview)}${ellipsis}
               </div>
             </div>
           `;
         }
 
+        const isLoading = p.node.data?._bodyLoading === true;
+        const loadErr = p.node.data?._bodyLoadError;
         const expandedHtml = formatEmailBodyText(getBodyTextValue(p.data));
 
         return `
@@ -4277,7 +4307,9 @@ function initGrid() {
             >
               <i class="fas ${icon}"></i>
             </button>
-            <div class="email-html-content" style="flex: 1; white-space: normal; word-break: break-word; line-height: 1.6;">
+            <div class="email-html-content" style="flex: 1; word-break: break-word; line-height: 1.6; max-height: 300px; overflow: auto; padding-right: 4px;">
+              ${isLoading ? `<div style="font-size:0.85rem; color: var(--text-muted); margin-bottom: 6px;"><i class="fas fa-spinner fa-spin"></i> Loading full body…</div>` : ""}
+              ${loadErr ? `<div style="font-size:0.85rem; color: #b91c1c; margin-bottom: 6px;">Failed to load full body (${escapeHtml(String(loadErr))}). Showing preview.</div>` : ""}
               ${expandedHtml}
             </div>
           </div>
@@ -4291,8 +4323,7 @@ function initGrid() {
       flex: 3,
       filter: "agTextColumnFilter",
       headerTooltip: "Full email thread body (legacy)",
-      wrapText: true,
-      autoHeight: true,
+      wrapText: false,
       cellClass: 'body-cell',
       cellRenderer: (p) => {
         const body = p.data?.email_body || p.data?.body_text_clean || p.data?.body_text || "";
@@ -4350,8 +4381,7 @@ function initGrid() {
       sortable: false,
       filter: false,
       headerTooltip: "Matched stakeholders from this email",
-      wrapText: true,
-      autoHeight: true,
+      wrapText: false,
       cellRenderer: (p) => {
         const stakeholderIds = Array.isArray(p.data?.matched_stakeholders) ? p.data.matched_stakeholders : [];
         if (!stakeholderIds.length) return '<span style="color: var(--text-muted);">-</span>';
@@ -4426,8 +4456,7 @@ function initGrid() {
       sortable: false,
       filter: false,
       headerTooltip: "Attachment file names",
-      wrapText: true,
-      autoHeight: true,
+      wrapText: false,
       valueGetter: (p) => {
         const attachments = Array.isArray(p.data?.attachments) ? p.data.attachments : [];
         const names = attachments
@@ -4449,7 +4478,7 @@ function initGrid() {
           .filter((a) => a.fileName);
 
         return `
-          <div class="attachment-grid-list">
+          <div class="attachment-grid-list" style="max-height: 120px; overflow: auto; padding-right: 4px;">
             ${items
               .map((item) => {
                 const safeName = escapeHtml(item.fileName);
@@ -4620,6 +4649,9 @@ function initGrid() {
     // Required for Server-Side Row Model selection (keeps row identity stable across blocks).
     // The API returns a stable UUID string for each row in `id`.
     getRowId: (params) => params.data?.id,
+    // Avoid expensive auto-height measurement; keep the grid responsive even at 100k+ rows.
+    getRowHeight: (params) =>
+      params?.data?._bodyExpanded ? ROW_HEIGHT_EXPANDED : ROW_HEIGHT_COLLAPSED,
     rowSelection: "multiple",
     rowMultiSelectWithClick: true,
     suppressRowClickSelection: false,

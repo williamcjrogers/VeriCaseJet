@@ -7,11 +7,12 @@ import logging
 import os
 import uuid
 import asyncio
+import time
 from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import HTTPException, UploadFile
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, selectinload, load_only
 from sqlalchemy import func, or_
 from boto3.s3.transfer import TransferConfig
 
@@ -146,6 +147,94 @@ def _build_email_row(
         pst_file_id=str(e.pst_file_id) if e.pst_file_id else None,
         pst_filename=pst_filename,
     )
+
+
+def _truncate_text(value: str | None, max_chars: int) -> str | None:
+    if not value:
+        return value
+    text = str(value)
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars]
+
+
+def _build_email_row_server_side(
+    e: EmailMessage,
+    *,
+    attachment_items: list[dict[str, Any]] | None = None,
+    linked_to_count: int | None = None,
+    pst_filename: str | None = None,
+    body_max_chars: int = 4000,
+) -> dict[str, Any]:
+    """
+    Lightweight row payload for the AG Grid server-side row model.
+
+    Critical: do NOT include full `body_text` / `body_html` in this response. Those fields
+    can be very large and will slow down the correspondence grid dramatically. The full
+    body is available via the email detail endpoint and is fetched on demand.
+    """
+
+    meta: dict[str, Any] = e.meta if isinstance(e.meta, dict) else {}
+    exclusion = compute_correspondence_exclusion(meta, e.subject)
+
+    sender_display: str | None
+    if e.sender_name and e.sender_email:
+        sender_display = f"{e.sender_name} <{e.sender_email}>"
+    else:
+        sender_display = e.sender_name or e.sender_email
+
+    attachments_payload = attachment_items or []
+
+    # Prefer a cleaned "display" body preview, but keep it bounded.
+    from ..email_normalizer import clean_email_body_for_display
+
+    body_display = clean_email_body_for_display(
+        body_text_clean=e.body_text_clean,
+        body_text=e.body_preview,
+        body_html=None,
+    )
+    email_body = _truncate_text((body_display or "").strip(), body_max_chars) or ""
+
+    return {
+        "id": str(e.id),
+        "subject": e.subject,
+        "sender_email": e.sender_email,
+        "sender_name": e.sender_name,
+        "content_hash": e.content_hash,
+        "date_sent": e.date_sent,
+        "has_attachments": bool(e.has_attachments),
+        "matched_stakeholders": e.matched_stakeholders,
+        "matched_keywords": e.matched_keywords,
+        "importance": e.importance,
+        # Minimal meta: only what's required for the grid (exclusion badge/filters).
+        "meta": {"exclusion": exclusion},
+        # AG Grid compatibility fields
+        "email_subject": e.subject,
+        "email_from": sender_display,
+        "email_to": _join_recipients(e.recipients_to),
+        "email_cc": _join_recipients(e.recipients_cc),
+        "email_date": e.date_sent,
+        "email_body": email_body,
+        "attachments": attachments_payload,
+        "attachment_count": len(attachments_payload),
+        "linked_to_count": linked_to_count,
+        # Programme/critical path fields (mapped from EmailMessage columns)
+        "programme_activity": e.as_planned_activity,
+        "as_built_activity": e.as_built_activity,
+        "as_planned_finish_date": e.as_planned_finish_date,
+        "as_built_finish_date": e.as_built_finish_date,
+        "delay_days": e.delay_days,
+        "is_critical_path": e.is_critical_path,
+        # Notes: quick-win storage in metadata; can be migrated to a first-class column later.
+        "notes": (
+            meta.get("notes")
+            if isinstance(meta, dict) and isinstance(meta.get("notes"), str)
+            else None
+        ),
+        "thread_id": e.thread_group_id or e.thread_id,
+        "pst_file_id": str(e.pst_file_id) if e.pst_file_id else None,
+        "pst_filename": pst_filename,
+    }
 
 
 def _apply_ag_grid_text_filter(query, column, spec: dict[str, Any]):
@@ -1402,11 +1491,41 @@ async def list_emails_server_side_service(
 ) -> ServerSideResponse:
     """Server-side row model endpoint for the Correspondence Enterprise grid."""
 
+    t0 = time.perf_counter()
     case_uuid = _safe_uuid(case_id, "case_id")
     project_uuid = _safe_uuid(project_id, "project_id")
 
     # Base query used for grid data.
-    q = db.query(EmailMessage).options(selectinload(EmailMessage.attachments))
+    q = db.query(EmailMessage).options(
+        load_only(
+            EmailMessage.id,
+            EmailMessage.pst_file_id,
+            EmailMessage.case_id,
+            EmailMessage.project_id,
+            EmailMessage.subject,
+            EmailMessage.sender_email,
+            EmailMessage.sender_name,
+            EmailMessage.recipients_to,
+            EmailMessage.recipients_cc,
+            EmailMessage.date_sent,
+            EmailMessage.body_text_clean,
+            EmailMessage.body_preview,
+            EmailMessage.content_hash,
+            EmailMessage.has_attachments,
+            EmailMessage.matched_stakeholders,
+            EmailMessage.matched_keywords,
+            EmailMessage.importance,
+            EmailMessage.as_planned_activity,
+            EmailMessage.as_built_activity,
+            EmailMessage.as_planned_finish_date,
+            EmailMessage.as_built_finish_date,
+            EmailMessage.delay_days,
+            EmailMessage.is_critical_path,
+            EmailMessage.thread_id,
+            EmailMessage.thread_group_id,
+            EmailMessage.meta,
+        )
+    )
 
     # Correlated subquery for evidence link count (used for sort/filter only).
     linked_count_expr = (
@@ -1567,7 +1686,8 @@ async def list_emails_server_side_service(
             if filter_type in {"date", "text"}:
                 q = _apply_ag_grid_date_filter(q, EmailMessage.date_sent, spec_raw)
 
-    total_for_grid = int(q.count())
+    # IMPORTANT: Do NOT COUNT(*) the full filtered dataset for every block request.
+    # That is extremely expensive at 100k+ rows and causes the correspondence page to stall.
 
     # Sorting.
     sort_model: list[dict[str, Any]] = request.sortModel or []
@@ -1636,6 +1756,10 @@ async def list_emails_server_side_service(
     page_size = max(1, end - start)
 
     emails = q.offset(start).limit(page_size).all()
+    # lastRow semantics:
+    # - return -1 when we don't know the total yet (more rows likely exist)
+    # - return the exact row count only when we've reached the end of the dataset
+    last_row = (start + len(emails)) if len(emails) < page_size else -1
     pst_filename_by_id: dict[uuid.UUID, str] = {}
     pst_ids = {e.pst_file_id for e in emails if e.pst_file_id}
     if pst_ids:
@@ -1699,12 +1823,12 @@ async def list_emails_server_side_service(
         }
 
     rows = [
-        _build_email_row(
+        _build_email_row_server_side(
             e,
             attachment_items=attachments_by_email.get(e.id, []),
             linked_to_count=link_counts_by_email.get(e.id, 0),
             pst_filename=pst_filename_by_id.get(e.pst_file_id),
-        ).model_dump()
+        )
         for e in emails
     ]
 
@@ -1766,7 +1890,30 @@ async def list_emails_server_side_service(
             "dateRange": _date_range_to_text(dmin, dmax),
         }
 
-    return ServerSideResponse(rows=rows, lastRow=total_for_grid, stats=stats)
+    elapsed = time.perf_counter() - t0
+    if elapsed >= 2.0:
+        logger.warning(
+            "Slow correspondence server-side request: %.2fs start=%s size=%s fetched=%s lastRow=%s case=%s project=%s search=%s",
+            elapsed,
+            start,
+            page_size,
+            len(emails),
+            last_row,
+            case_id,
+            project_id,
+            bool(search),
+        )
+    else:
+        logger.debug(
+            "Correspondence server-side request: %.2fs start=%s size=%s fetched=%s lastRow=%s",
+            elapsed,
+            start,
+            page_size,
+            len(emails),
+            last_row,
+        )
+
+    return ServerSideResponse(rows=rows, lastRow=last_row, stats=stats)
 
 
 async def get_email_detail_service(email_id: str, db: Session):
