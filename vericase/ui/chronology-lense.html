@@ -805,7 +805,7 @@
             window.VericaseShell.inject({
               title: 'The Chronology Lense\u2122',
               breadcrumbs: [
-                { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+                { label: "Home", url: "master-dashboard.html", icon: "fa-th-large" },
                 { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
                 { label: 'The Chronology Lense\u2122', icon: "fa-history" }
               ]
@@ -893,7 +893,7 @@
               ${event.description ? `<div class="event-description">${escapeHtml(event.description)}</div>` : ''}
               ${event.parties_involved && event.parties_involved.length > 0 ? `
                 <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">
-                  <i class="fas fa-users"></i> ${event.parties_involved.join(', ')}
+                  <i class="fas fa-id-badge"></i> ${event.parties_involved.join(', ')}
                 </div>
               ` : ''}
             </td>

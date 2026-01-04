@@ -111,7 +111,7 @@
       {
         id: "refine",
         name: "VeriCase Refinement",
-        icon: "fa-magic",
+        icon: "fa-magnifying-glass",
         url: "ai-refinement-wizard.html",
       },
       {

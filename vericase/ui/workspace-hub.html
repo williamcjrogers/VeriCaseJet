@@ -1166,7 +1166,7 @@
         <span class="tab-count" id="documentsCount">0</span>
       </button>
       <button class="hub-tab" data-tab="team" onclick="switchTab('team')">
-        <i class="fas fa-users"></i>
+        <i class="fas fa-id-badge"></i>
         Team
         <span class="tab-count" id="teamCount">0</span>
       </button>
@@ -1293,7 +1293,7 @@
         <section class="hub-section">
           <div class="section-header">
             <div class="section-title">
-              <i class="fas fa-users" aria-hidden="true"></i>
+              <i class="fas fa-id-badge" aria-hidden="true"></i>
               Team Members
             </div>
             <div class="section-actions">
@@ -1560,7 +1560,7 @@
         <div class="stat-pill cases"><i class="fas fa-briefcase"></i> <strong>${cases}</strong> Cases</div>
         <div class="stat-pill deadlines"><i class="fas fa-calendar-alt"></i> <strong>${deadlines}</strong> Deadlines</div>
         <div class="stat-pill documents"><i class="fas fa-folder-open"></i> <strong>${docs}</strong> Documents</div>
-        <div class="stat-pill members"><i class="fas fa-users"></i> <strong>${team}</strong> Members</div>
+        <div class="stat-pill members"><i class="fas fa-id-badge"></i> <strong>${team}</strong> Members</div>
       `;
     }
 
@@ -2004,7 +2004,7 @@
       if (workspaceTeam.length === 0) {
         grid.innerHTML = `
           <div class="empty-state" style="grid-column: 1 / -1;">
-            <i class="fas fa-users empty-icon"></i>
+            <i class="fas fa-id-badge empty-icon"></i>
             <div class="empty-title">No Team Members</div>
             <div class="empty-desc">Invite colleagues to collaborate on this workspace.</div>
             <button class="btn btn-vericase" onclick="showInviteModal()">

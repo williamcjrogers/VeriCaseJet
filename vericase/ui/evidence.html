@@ -1599,7 +1599,7 @@
           <h3>Evidence Details</h3>
           <div class="detail-header-actions">
             <button class="btn btn-ghost btn-icon btn-sm" id="extractMetadataBtn" title="Extract Metadata">
-              <i class="fas fa-magic"></i>
+              <i class="fas fa-magnifying-glass"></i>
             </button>
             <button class="close-btn" id="closeDetailBtn" title="Close" type="button" onclick="hideDetail()">
               <i class="fas fa-times"></i>
@@ -2029,7 +2029,7 @@
       },
       meeting_minutes: {
         label: "Meeting Minutes",
-        icon: "fa-users",
+        icon: "fa-id-badge",
         color: "#1e40af",
       },
       site_instruction: {
@@ -4264,7 +4264,7 @@
                 ` : ""}
                 ${extraction.parties && extraction.parties.length > 0 ? `
                   <div class="suggestion-item-meta">
-                    <i class="fas fa-users"></i>
+                    <i class="fas fa-id-badge"></i>
                     <strong>Stakeholders:</strong> ${extraction.parties.slice(0, 3).map(p => escapeHtml(String(p))).join(", ")}
                     ${extraction.parties.length > 3 ? ` +${extraction.parties.length - 3} more` : ""}
                   </div>
@@ -4447,7 +4447,7 @@
         VericaseUI.Toast.error("Failed to extract metadata");
       } finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-magic"></i>';
+        btn.innerHTML = '<i class="fas fa-magnifying-glass"></i>';
       }
     }
 
@@ -4524,7 +4524,7 @@
       VericaseShell.inject({
         title: '',
         breadcrumbs: [
-          { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+          { label: "Home", url: "master-dashboard.html", icon: "fa-th-large" },
           { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
           { label: "Evidence Repository", icon: "fa-folder-tree" },
         ],

@@ -86,7 +86,7 @@
         {
           id: "dashboard",
           label: "Master Dashboard",
-          icon: "fa-home",
+          icon: "fa-th-large",
           url: "master-dashboard.html",
         },
       ],
@@ -162,7 +162,7 @@
         {
           id: "stakeholders",
           label: "Stakeholders",
-          icon: "fa-users",
+          icon: "fa-id-badge",
           url: "stakeholders.html",
           contexts: ["project", "case"],
         },
@@ -183,7 +183,7 @@
         {
           id: "workspace-setup",
           label: "Workspace Setup",
-          icon: "fa-magic",
+          icon: "fa-magnifying-glass",
           url: "workspace-setup.html",
           requiresContext: true,
           contexts: ["project", "case"],
@@ -191,7 +191,7 @@
         {
           id: "refinement",
           label: "VeriCase Refine",
-          icon: "fa-wand-magic-sparkles",
+          icon: "fa-magnifying-glass",
           url: "ai-refinement-wizard.html",
         },
         {
@@ -218,7 +218,7 @@
         {
           id: "users",
           label: "Users",
-          icon: "fa-users",
+          icon: "fa-id-badge",
           url: "admin-users.html",
         },
       ],

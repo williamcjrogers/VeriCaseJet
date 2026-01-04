@@ -2003,7 +2003,7 @@
         VericaseShell.inject({
           title: '',
           breadcrumbs: [
-            { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+            { label: "Home", url: "master-dashboard.html", icon: "fa-th-large" },
             { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
             { label: "Claims & Matters", icon: "fa-balance-scale" },
           ],
@@ -2619,7 +2619,7 @@
 
               <div class="ai-tools-bar">
                 <button class="btn btn-outline btn-sm" onclick="aiSummarize('${claim.id}')">
-                  <i class="fas fa-magic"></i> Summarize
+                  <i class="fas fa-magnifying-glass"></i> Summarize
                 </button>
                 <button class="btn btn-outline btn-sm" onclick="aiSuggestEvidence('${claim.id}')">
                   <i class="fas fa-lightbulb"></i> Suggest Evidence
@@ -4309,7 +4309,7 @@
           resultArea.innerHTML = `
             <div class="ai-result-box">
               <div class="ai-result-header">
-                <h5><i class="fas fa-magic"></i> AI Summary</h5>
+                <h5><i class="fas fa-magnifying-glass"></i> AI Summary</h5>
                 <button class="btn btn-ghost btn-sm" onclick="this.closest('.ai-result-box').remove()">
                   <i class="fas fa-times"></i>
                 </button>

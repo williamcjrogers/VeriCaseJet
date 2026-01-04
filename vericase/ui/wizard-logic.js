@@ -584,7 +584,7 @@ function renderProjectStakeholders() {
         
         <h3>Key Stakeholders & Parties</h3>
         <div class="guidance-note">
-            <i class="fas fa-users"></i> <strong>Who to include:</strong> List all key parties involved in this workspace. This helps identify correspondence and relationships.
+            <i class="fas fa-id-badge"></i> <strong>Who to include:</strong> List all key parties involved in this workspace. This helps identify correspondence and relationships.
             <br><strong>Examples:</strong> Main Contractor (United Living), Employer's Agent (Smith & Co), Client (City Council), Subcontractors, NHBC, Building Control, etc.
         </div>
         
@@ -760,7 +760,7 @@ function renderCaseLegalTeam() {
         <h2>Step 2 of 4 — Legal Team</h2>
         
         <div class="guidance-note">
-            <i class="fas fa-users"></i> <strong>Who to include:</strong> List all legal team members and key parties involved in the case.
+            <i class="fas fa-id-badge"></i> <strong>Who to include:</strong> List all legal team members and key parties involved in the case.
             <br><strong>Examples:</strong> Solicitor (Smith & Co), Barrister (John Doe QC), Expert Witness (Dr. Jane Smith), Adjudicator, Opposing Counsel, etc.
         </div>
         
@@ -1333,7 +1333,7 @@ function generateWorkspaceReviewSummary() {
         </div>
         
         <div class="summary-section">
-            <h3><i class="fas fa-users"></i> Stakeholders</h3>
+            <h3><i class="fas fa-id-badge"></i> Stakeholders</h3>
             ${(stakeholdersData.stakeholders || [])
       .map(
         (s) =>

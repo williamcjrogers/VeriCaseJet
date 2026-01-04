@@ -1359,7 +1359,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
                   <i class="fas fa-calendar-alt"></i> Programme
                 </span>
                 <span class="focus-tag" data-focus="witnesses">
-                  <i class="fas fa-users"></i> Key Witnesses
+                  <i class="fas fa-id-badge"></i> Key Witnesses
                 </span>
               </div>
             </div>
@@ -1592,7 +1592,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
           window.VericaseShell.inject({
             title: '',
             breadcrumbs: [
-              { label: "Home", url: "master-dashboard.html", icon: "fa-home" },
+              { label: "Home", url: "master-dashboard.html", icon: "fa-th-large" },
               { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
               { label: "Deep Analysis", icon: "fa-microscope" }
             ]
@@ -1918,7 +1918,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
           return { icon: "fa-link", color: "#8b5cf6" }; // Purple - causation
         }
         if (text.includes("who") || text.includes("witness") || text.includes("person") || text.includes("party") || text.includes("parties")) {
-          return { icon: "fa-users", color: "#ec4899" }; // Pink - people
+          return { icon: "fa-id-badge", color: "#ec4899" }; // Pink - people
         }
         if (text.includes("contract") || text.includes("clause") || text.includes("obligation") || text.includes("liability")) {
           return { icon: "fa-file-contract", color: "#f59e0b" }; // Amber - contracts
@@ -1971,7 +1971,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
           'communications': 'fa-envelope',
           'variations': 'fa-exchange-alt',
           'programme': 'fa-calendar-alt',
-          'witnesses': 'fa-users',
+          'witnesses': 'fa-id-badge',
           'defects': 'fa-exclamation-triangle',
           'delay': 'fa-hourglass-half',
           'contract': 'fa-file-contract',

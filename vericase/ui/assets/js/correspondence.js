@@ -3522,17 +3522,20 @@ window.toggleBodyCell = function (rowId) {
   if (!gridApi) return;
   const rowNode = gridApi.getRowNode(rowId);
   if (!rowNode || !rowNode.data) return;
-  
+
   // Toggle expansion state
   rowNode.data._bodyExpanded = !rowNode.data._bodyExpanded;
-  
+
+  // Reset row height to auto (null) so it recalculates based on new content
+  // Using null for both expanded and collapsed states lets autoHeight work
+  rowNode.setRowHeight(null);
+
   // Force cell refresh and row height recalculation
-  gridApi.refreshCells({ 
-    rowNodes: [rowNode], 
+  gridApi.refreshCells({
+    rowNodes: [rowNode],
     force: true,
-    suppressFlash: true 
+    suppressFlash: true
   });
-  rowNode.setRowHeight(rowNode.data._bodyExpanded ? null : undefined);
   gridApi.onRowHeightChanged();
 };
 

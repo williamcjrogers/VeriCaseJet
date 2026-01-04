@@ -407,9 +407,16 @@
     <div class="case-file-container">
 
         <div class="form-section">
+            <nav class="breadcrumb" id="breadcrumbNav" style="margin-bottom: 12px; font-size: 13px;">
+                <a href="master-dashboard.html" style="color: var(--gold); text-decoration: none;">
+                    <i class="ph ph-squares-four"></i> Dashboard
+                </a>
+                <span style="color: var(--slate); margin: 0 8px;">›</span>
+                <span style="color: var(--slate);" id="breadcrumbCurrent">New Workspace</span>
+            </nav>
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
                 <h1 id="pageTitle">Initialize Workspace</h1>
-                <span id="stepIndicator" style="font-size:12px; font-weight:600; color:var(--slate); background:#F1F5F9; padding:4px 12px; border-radius:4px;">New Workspace</span>
+                <span id="stepIndicator" style="font-size:12px; font-weight:600; color:var(--slate); background:#F1F5F9; padding:4px 12px; border-radius:4px;">Step 1 of 3</span>
             </div>
             <p class="sub-head" id="pageSubtitle">Establish the container for evidence, timeline analysis, and dispute resolution.</p>
 
@@ -421,9 +428,8 @@
 
                 <div class="form-grid">
                     <div class="input-group">
-                        <label>Workspace Code</label>
+                        <label>Matter Reference</label>
                         <input type="text" id="workspaceCode" placeholder="e.g. WEL-2025-001">
-                        <div class="helper-text">Auto-generated if left blank.</div>
                     </div>
                     <div class="input-group">
                         <label>Contract Form</label>
@@ -447,11 +453,11 @@
                 </div>
 
                 <div class="linked-items-section">
-                    <div class="linked-items-title">Linked Projects & Cases</div>
+                    <div class="linked-items-title">Linked Cases</div>
                     <div id="linkedItemsContainer">
                         <div class="empty-slot">
-                            <i class="ph ph-briefcase" style="font-size: 24px; margin-bottom:8px; display:block; opacity:0.5;"></i>
-                            No projects or cases linked yet. <br> You can link items after the workspace is created.
+                            <i class="ph ph-folder-open" style="font-size: 24px; margin-bottom:8px; display:block; opacity:0.5;"></i>
+                            No cases linked yet.<br>You can link cases after the workspace is initialized.
                         </div>
                     </div>
 
@@ -521,16 +527,16 @@
                 <div class="guide-step" id="step2">
                     <div class="step-num">2</div>
                     <div class="step-content">
-                        <div class="step-title">Link Projects & Cases</div>
-                        <div class="step-desc">Add or move projects and cases into this workspace.</div>
+                        <div class="step-title">Evidence Parameters</div>
+                        <div class="step-desc">Set date ranges and document types.</div>
                     </div>
                 </div>
 
                 <div class="guide-step" id="step3">
                     <div class="step-num">3</div>
                     <div class="step-content">
-                        <div class="step-title">Configure Evidence</div>
-                        <div class="step-desc">Upload documents, emails, and programme data.</div>
+                        <div class="step-title">Team Access</div>
+                        <div class="step-desc">Assign counsel and experts.</div>
                     </div>
                 </div>
             </div>
