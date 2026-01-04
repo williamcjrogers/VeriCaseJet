@@ -139,6 +139,226 @@ function getFileIconClass(filename) {
   return iconMap[ext] || "fas fa-file";
 }
 
+// Store current Excel workbook for sheet switching
+let currentExcelWorkbook = null;
+
+// Render Excel file preview using SheetJS
+async function renderExcelPreview(url, fileName) {
+  const container = document.getElementById("officePreviewContainer");
+  const tabsContainer = document.getElementById("excelSheetTabs");
+  if (!container) return;
+
+  try {
+    // Fetch the file as array buffer
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Failed to fetch file");
+    const arrayBuffer = await response.arrayBuffer();
+
+    // Parse with SheetJS
+    if (typeof XLSX === "undefined") {
+      throw new Error("SheetJS library not loaded");
+    }
+
+    const workbook = XLSX.read(arrayBuffer, { type: "array" });
+    currentExcelWorkbook = workbook;
+
+    // Create sheet tabs if multiple sheets
+    if (workbook.SheetNames.length > 1 && tabsContainer) {
+      tabsContainer.innerHTML = workbook.SheetNames.map((name, idx) =>
+        `<button onclick="switchExcelSheet('${name.replace(/'/g, "\\'")}', this)"
+                style="padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 500;
+                       ${idx === 0 ? 'background: white; color: #217346;' : 'background: rgba(255,255,255,0.2); color: white;'}"
+                ${idx === 0 ? 'class="active-sheet"' : ''}>
+          ${escapeHtml(name)}
+        </button>`
+      ).join("");
+    }
+
+    // Render first sheet
+    renderExcelSheet(workbook.SheetNames[0]);
+
+  } catch (error) {
+    console.error("Excel preview error:", error);
+    container.innerHTML = `
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #6b7280; padding: 40px;">
+        <i class="fas fa-exclamation-triangle" style="font-size: 3rem; color: #ef4444; margin-bottom: 16px;"></i>
+        <p style="margin: 0 0 8px 0; font-weight: 600; color: #374151;">Unable to preview spreadsheet</p>
+        <p style="margin: 0; text-align: center; font-size: 0.875rem;">${escapeHtml(error.message)}</p>
+      </div>`;
+  }
+}
+
+// Render a specific Excel sheet
+function renderExcelSheet(sheetName) {
+  const container = document.getElementById("officePreviewContainer");
+  if (!container || !currentExcelWorkbook) return;
+
+  const worksheet = currentExcelWorkbook.Sheets[sheetName];
+  if (!worksheet) return;
+
+  // Convert to HTML table
+  const html = XLSX.utils.sheet_to_html(worksheet, { editable: false });
+
+  // Style the table for better presentation
+  container.innerHTML = `
+    <style>
+      #officePreviewContainer table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.8125rem;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      #officePreviewContainer th,
+      #officePreviewContainer td {
+        border: 1px solid #e5e7eb;
+        padding: 6px 10px;
+        text-align: left;
+        white-space: nowrap;
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #officePreviewContainer th {
+        background: #f3f4f6;
+        font-weight: 600;
+        color: #374151;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+      #officePreviewContainer tr:nth-child(even) {
+        background: #f9fafb;
+      }
+      #officePreviewContainer tr:hover {
+        background: #e5f3ff;
+      }
+    </style>
+    ${html}
+  `;
+}
+
+// Switch between Excel sheets
+window.switchExcelSheet = function(sheetName, btn) {
+  renderExcelSheet(sheetName);
+
+  // Update tab styling
+  const tabsContainer = document.getElementById("excelSheetTabs");
+  if (tabsContainer) {
+    tabsContainer.querySelectorAll("button").forEach(b => {
+      b.style.background = "rgba(255,255,255,0.2)";
+      b.style.color = "white";
+    });
+    if (btn) {
+      btn.style.background = "white";
+      btn.style.color = "#217346";
+    }
+  }
+};
+
+// Render Word document preview using Mammoth.js
+async function renderWordPreview(url, fileName) {
+  const container = document.getElementById("officePreviewContainer");
+  if (!container) return;
+
+  try {
+    // Fetch the file as array buffer
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Failed to fetch file");
+    const arrayBuffer = await response.arrayBuffer();
+
+    // Parse with Mammoth.js
+    if (typeof mammoth === "undefined") {
+      throw new Error("Mammoth.js library not loaded");
+    }
+
+    const result = await mammoth.convertToHtml({ arrayBuffer });
+
+    // Style the Word content
+    container.innerHTML = `
+      <style>
+        #officePreviewContainer .word-content {
+          font-family: 'Cambria', 'Georgia', serif;
+          font-size: 0.95rem;
+          line-height: 1.8;
+          color: #1f2937;
+          max-width: 800px;
+          margin: 0 auto;
+        }
+        #officePreviewContainer .word-content h1 {
+          font-size: 1.75rem;
+          font-weight: 700;
+          margin: 1.5em 0 0.5em;
+          color: #111827;
+        }
+        #officePreviewContainer .word-content h2 {
+          font-size: 1.375rem;
+          font-weight: 600;
+          margin: 1.25em 0 0.5em;
+          color: #1f2937;
+        }
+        #officePreviewContainer .word-content h3 {
+          font-size: 1.125rem;
+          font-weight: 600;
+          margin: 1em 0 0.5em;
+          color: #374151;
+        }
+        #officePreviewContainer .word-content p {
+          margin: 0 0 1em;
+        }
+        #officePreviewContainer .word-content table {
+          border-collapse: collapse;
+          width: 100%;
+          margin: 1em 0;
+        }
+        #officePreviewContainer .word-content th,
+        #officePreviewContainer .word-content td {
+          border: 1px solid #d1d5db;
+          padding: 8px 12px;
+          text-align: left;
+        }
+        #officePreviewContainer .word-content th {
+          background: #f3f4f6;
+          font-weight: 600;
+        }
+        #officePreviewContainer .word-content ul,
+        #officePreviewContainer .word-content ol {
+          margin: 0.5em 0 1em;
+          padding-left: 2em;
+        }
+        #officePreviewContainer .word-content li {
+          margin: 0.25em 0;
+        }
+        #officePreviewContainer .word-content img {
+          max-width: 100%;
+          height: auto;
+          margin: 1em 0;
+        }
+        #officePreviewContainer .word-content a {
+          color: #2563eb;
+          text-decoration: underline;
+        }
+      </style>
+      <div class="word-content">
+        ${result.value}
+      </div>
+    `;
+
+    // Log any conversion warnings
+    if (result.messages && result.messages.length > 0) {
+      console.warn("Mammoth conversion warnings:", result.messages);
+    }
+
+  } catch (error) {
+    console.error("Word preview error:", error);
+    container.innerHTML = `
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #6b7280; padding: 40px;">
+        <i class="fas fa-exclamation-triangle" style="font-size: 3rem; color: #ef4444; margin-bottom: 16px;"></i>
+        <p style="margin: 0 0 8px 0; font-weight: 600; color: #374151;">Unable to preview document</p>
+        <p style="margin: 0; text-align: center; font-size: 0.875rem;">${escapeHtml(error.message)}</p>
+      </div>`;
+  }
+}
+
 function rebuildKeywordIndex() {
   const map = new Map();
   if (Array.isArray(keywordsCache)) {
@@ -1237,38 +1457,103 @@ window.previewAttachment = async function (
                             </button>
                           </div>
                         </div>`;
-    } else if (isOffice) {
-      // Office documents - show extracted text if available, otherwise prompt download
-      const officeText = preview.preview_content || (ocrData && ocrData.text);
-      if (officeText) {
-        const displayText = officeText.length > 10000 ? officeText.substring(0, 10000) + "\n..." : officeText;
-        previewHTML += `
-                        <div style="flex: 1; display: flex; flex-direction: column; background: #f9fafb; border-radius: 8px; overflow: hidden;">
-                          <div style="padding: 12px 16px; background: #e5e7eb; border-bottom: 1px solid #d1d5db; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-file-word" style="color: #2563eb;"></i>
-                            <span style="font-weight: 600; color: #374151;">Document Preview (Extracted Text)</span>
+    } else if (isExcel) {
+      // Excel files - render using SheetJS
+      const excelIcon = lowerName.endsWith('.csv') ? 'fa-file-csv' : 'fa-file-excel';
+      previewHTML += `
+                        <div style="flex: 1; display: flex; flex-direction: column; background: white; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb;">
+                          <div style="padding: 12px 16px; background: linear-gradient(135deg, #217346 0%, #185c37 100%); display: flex; align-items: center; justify-content: space-between;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                              <i class="fas ${excelIcon}" style="color: white; font-size: 1.25rem;"></i>
+                              <span style="font-weight: 600; color: white;">${escapeHtml(fileName || 'Excel Spreadsheet')}</span>
+                            </div>
+                            <div id="excelSheetTabs" style="display: flex; gap: 4px;"></div>
                           </div>
-                          <pre style="flex: 1; margin: 0; padding: 16px; color: #374151; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 0.9rem; line-height: 1.7; overflow: auto; white-space: pre-wrap; word-break: break-word; background: white;">${escapeHtml(displayText)}</pre>
+                          <div id="officePreviewContainer" style="flex: 1; overflow: auto; background: white;">
+                            <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #6b7280;">
+                              <div class="spinner" style="margin-right: 12px;"></div> Loading spreadsheet...
+                            </div>
+                          </div>
                           <div style="display:flex; justify-content:flex-end; gap:10px; padding:10px 12px; background: #f3f4f6; border-top: 1px solid #e5e7eb;">
                             <button onclick="window.open('${downloadUrl || url}', '_blank')"
-                                    style="background: #2563eb; color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                                    style="background: #217346; color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-weight: 600;">
                               <i class="fas fa-download"></i> Download Original
                             </button>
                           </div>
                         </div>`;
-      } else {
-        previewHTML += `
-                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f9fafb; border-radius: 8px; padding: 40px;">
-                            <i class="fas fa-file-word" style="font-size: 4rem; color: #2563eb; margin-bottom: 20px;"></i>
-                            <p style="color: #374151; font-weight: 600; margin-bottom: 8px;">${escapeHtml(fileName || 'Office Document')}</p>
-                            <p style="color: #6b7280; margin-bottom: 20px; text-align: center;">Office documents require download to view</p>
+      // Load and render Excel after DOM update
+      setTimeout(() => renderExcelPreview(url, fileName), 50);
+    } else if (isWord) {
+      // Word documents - render using Mammoth.js
+      previewHTML += `
+                        <div style="flex: 1; display: flex; flex-direction: column; background: white; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb;">
+                          <div style="padding: 12px 16px; background: linear-gradient(135deg, #2b579a 0%, #1e3f6f 100%); display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-file-word" style="color: white; font-size: 1.25rem;"></i>
+                            <span style="font-weight: 600; color: white;">${escapeHtml(fileName || 'Word Document')}</span>
+                          </div>
+                          <div id="officePreviewContainer" style="flex: 1; overflow: auto; padding: 24px 32px; background: white;">
+                            <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #6b7280;">
+                              <div class="spinner" style="margin-right: 12px;"></div> Loading document...
+                            </div>
+                          </div>
+                          <div style="display:flex; justify-content:flex-end; gap:10px; padding:10px 12px; background: #f3f4f6; border-top: 1px solid #e5e7eb;">
                             <button onclick="window.open('${downloadUrl || url}', '_blank')"
-                                    style="background: #2563eb; color: white; border: none; padding: 12px 24px;
-                                           border-radius: 6px; cursor: pointer; font-weight: 500;">
-                                <i class="fas fa-download"></i> Download File
+                                    style="background: #2b579a; color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                              <i class="fas fa-download"></i> Download Original
                             </button>
+                          </div>
                         </div>`;
-      }
+      // Load and render Word doc after DOM update
+      setTimeout(() => renderWordPreview(url, fileName), 50);
+    } else if (isPowerPoint) {
+      // PowerPoint - show extracted text/slides info
+      const pptText = preview.preview_content || (ocrData && ocrData.text);
+      const slideCount = preview.page_count;
+      previewHTML += `
+                        <div style="flex: 1; display: flex; flex-direction: column; background: white; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb;">
+                          <div style="padding: 12px 16px; background: linear-gradient(135deg, #d24726 0%, #b7361a 100%); display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-file-powerpoint" style="color: white; font-size: 1.25rem;"></i>
+                            <span style="font-weight: 600; color: white;">${escapeHtml(fileName || 'PowerPoint Presentation')}</span>
+                            ${slideCount ? `<span style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; color: white;">${slideCount} slides</span>` : ''}
+                          </div>
+                          <div id="officePreviewContainer" style="flex: 1; overflow: auto; padding: 24px; background: #f8f9fa;">
+                            ${pptText ? `<pre style="margin: 0; white-space: pre-wrap; word-break: break-word; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 0.9rem; line-height: 1.7; color: #374151;">${escapeHtml(pptText)}</pre>` :
+                              `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #6b7280;">
+                                <i class="fas fa-file-powerpoint" style="font-size: 4rem; color: #d24726; margin-bottom: 16px;"></i>
+                                <p style="margin: 0 0 8px 0; font-weight: 600; color: #374151;">PowerPoint Preview</p>
+                                <p style="margin: 0; text-align: center;">Download to view the full presentation</p>
+                              </div>`}
+                          </div>
+                          <div style="display:flex; justify-content:flex-end; gap:10px; padding:10px 12px; background: #f3f4f6; border-top: 1px solid #e5e7eb;">
+                            <button onclick="window.open('${downloadUrl || url}', '_blank')"
+                                    style="background: #d24726; color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                              <i class="fas fa-download"></i> Download Original
+                            </button>
+                          </div>
+                        </div>`;
+    } else if (isOffice) {
+      // Generic Office fallback
+      const officeText = preview.preview_content || (ocrData && ocrData.text);
+      previewHTML += `
+                        <div style="flex: 1; display: flex; flex-direction: column; background: white; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb;">
+                          <div style="padding: 12px 16px; background: #6b7280; display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-file-alt" style="color: white; font-size: 1.25rem;"></i>
+                            <span style="font-weight: 600; color: white;">${escapeHtml(fileName || 'Office Document')}</span>
+                          </div>
+                          <div style="flex: 1; overflow: auto; padding: 24px; background: #f8f9fa;">
+                            ${officeText ? `<pre style="margin: 0; white-space: pre-wrap; word-break: break-word; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 0.9rem; line-height: 1.7; color: #374151;">${escapeHtml(officeText)}</pre>` :
+                              `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #6b7280;">
+                                <i class="fas fa-file-alt" style="font-size: 4rem; color: #6b7280; margin-bottom: 16px;"></i>
+                                <p style="margin: 0;">Download to view this document</p>
+                              </div>`}
+                          </div>
+                          <div style="display:flex; justify-content:flex-end; gap:10px; padding:10px 12px; background: #f3f4f6; border-top: 1px solid #e5e7eb;">
+                            <button onclick="window.open('${downloadUrl || url}', '_blank')"
+                                    style="background: #6b7280; color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                              <i class="fas fa-download"></i> Download Original
+                            </button>
+                          </div>
+                        </div>`;
     } else if (isAudio) {
       previewHTML += `
                         <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f9fafb; border-radius: 8px; padding: 40px;">
