@@ -701,6 +701,27 @@ def _populate_ai_settings_from_env(force_update: bool = False):
 def startup():
     logger.info("Starting VeriCase API...")
 
+    # IMPORTANT (K8s deploy reliability):
+    # When running in production we start the container via `/code/start.sh`, which already:
+    # - waits for Postgres
+    # - runs Alembic migrations
+    # - optionally runs legacy SQL migrations
+    # - bootstraps the admin user
+    # - syncs AI settings
+    #
+    # This FastAPI startup hook performs additional *schema/infra bootstrap* work
+    # (create_all, ALTER TABLEs, auto-schema-sync, etc). Those operations can block on
+    # Postgres locks (especially ALTER TABLE) and prevent Uvicorn from binding to :8000,
+    # which causes Kubernetes startup/readiness probes to fail and rollouts to hang.
+    #
+    # We treat `SKIP_SQL_MIGRATIONS=true` as "fast production startup" and skip the
+    # FastAPI startup bootstrap entirely.
+    if os.getenv("SKIP_SQL_MIGRATIONS", "").strip().lower() in ("1", "true", "yes"):
+        logger.info(
+            "SKIP_SQL_MIGRATIONS=true -> skipping FastAPI startup bootstrap to keep startup non-blocking"
+        )
+        return
+
     try:
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created")
