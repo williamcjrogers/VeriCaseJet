@@ -1934,7 +1934,12 @@ class UltimatePSTProcessor:
         )  # Subject-only check first
 
         other_project_value = other_project_label or spam_info.get("other_project")
-        if spam_info.get("is_spam") or other_project_value:
+        # Only short-circuit ingestion for *hidden* spam (high-confidence) and other-project matches.
+        # Medium/low-confidence "spam" categories (e.g. out-of-office) should still be ingested so
+        # evidence/attachments aren't lost.
+        if (
+            spam_info.get("is_spam") and spam_info.get("is_hidden")
+        ) or other_project_value:
             return _buffer_excluded_email(spam_info, other_project_value)
 
         # =====================================================================
@@ -2004,7 +2009,9 @@ class UltimatePSTProcessor:
         )
         other_project_label = _detect_other_project(scope_preview)
         other_project_value = other_project_label or spam_info.get("other_project")
-        if spam_info.get("is_spam") or other_project_value:
+        if (
+            spam_info.get("is_spam") and spam_info.get("is_hidden")
+        ) or other_project_value:
             return _buffer_excluded_email(spam_info, other_project_value)
 
         matched_stakeholders: list[Stakeholder] = []

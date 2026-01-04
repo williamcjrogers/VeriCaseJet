@@ -792,7 +792,12 @@ class ForensicPSTProcessor:
                 body=None,
             )
 
-            if bool(spam_result.get("is_spam")) or other_project_label:
+            # Only short-circuit ingestion for *hidden* spam (high-confidence) and other-project matches.
+            # Medium/low-confidence "spam" categories (e.g. out-of-office) should still be ingested so
+            # evidence/attachments aren't lost.
+            if (
+                bool(spam_result.get("is_spam")) and bool(spam_result.get("is_hidden"))
+            ) or other_project_label:
                 num_attachments = 0
                 try:
                     num_attachments = int(message.get_number_of_attachments() or 0)
