@@ -371,20 +371,28 @@ def strip_signature(text: str) -> tuple[str, str]:
             return bool(re.fullmatch(r"[A-Za-z][A-Za-z .'\-]{1,49}", stripped))
 
         pull_idx = sig_start - 1
-        pulled_any = False
+        pulled_signoff = False
         while pull_idx >= 0 and pull_idx >= sig_start - 3:
             prev = lines[pull_idx].strip()
             if not prev:
                 pull_idx -= 1
                 continue
-            if signoff_re.search(prev) or looks_like_name(prev):
+            if signoff_re.search(prev):
                 sig_start = pull_idx
-                pulled_any = True
+                pulled_signoff = True
+                pull_idx -= 1
+                continue
+            if looks_like_name(prev):
+                sig_start = pull_idx
                 pull_idx -= 1
                 continue
             break
 
-        if pulled_any:
+        # CRITICAL: do not treat pulled name/title lines as proof of a sign-off.
+        # We only consider a "signoff" present when we actually matched a signoff phrase
+        # like "Kind regards,". Otherwise, blocks like "John Smith\nSoftware Engineer\nABC Ltd"
+        # (no signoff) can be incorrectly stripped as a signature.
+        if pulled_signoff:
             any_signoff = True
 
         sig_block = "\n".join(lines[sig_start : sig_end + 1]).strip()
