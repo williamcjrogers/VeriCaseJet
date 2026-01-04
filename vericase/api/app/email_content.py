@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html as html_lib
 import logging
 import re
 from dataclasses import dataclass
@@ -66,15 +67,15 @@ def decode_maybe_bytes(value: Any) -> str | None:
     return text.replace("\x00", "").replace("\u0000", "")
 
 
-def html_to_text(html: str | None) -> str:
-    if not html:
+def html_to_text(html_body: str | None) -> str:
+    if not html_body:
         return ""
     # Keep it deterministic and dependency-light; bs4 can be added later if needed.
-    cleaned = _HTML_STYLE_RE.sub(" ", html)
+    cleaned = _HTML_STYLE_RE.sub(" ", html_body)
     cleaned = _HTML_BREAK_RE.sub("\n", cleaned)
     cleaned = _HTML_TAG_RE.sub(" ", cleaned)
     # Decode entities early so downstream heuristics (banners/signatures) see real whitespace.
-    cleaned = html.unescape(cleaned)
+    cleaned = html_lib.unescape(cleaned)
     cleaned = cleaned.replace("\r\n", "\n").replace("\r", "\n")
     cleaned = re.sub(r"[^\S\n]+", " ", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)

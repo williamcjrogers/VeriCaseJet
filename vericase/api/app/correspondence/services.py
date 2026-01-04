@@ -761,7 +761,18 @@ async def get_pst_status_service(pst_file_id, db):
         return status_lc or "uploaded"
 
     try:
-        redis_client: Redis = Redis.from_url(settings.REDIS_URL)
+        # redis-py is strict about ssl_cert_reqs values; our env historically used
+        # CERT_REQUIRED in the URL. Normalize to keep progress working.
+        redis_url = settings.REDIS_URL or ""
+        redis_url = redis_url.replace(
+            "ssl_cert_reqs=CERT_REQUIRED", "ssl_cert_reqs=required"
+        )
+        redis_url = redis_url.replace("ssl_cert_reqs=CERT_NONE", "ssl_cert_reqs=none")
+        redis_url = redis_url.replace(
+            "ssl_cert_reqs=CERT_OPTIONAL", "ssl_cert_reqs=optional"
+        )
+
+        redis_client: Redis = Redis.from_url(redis_url)
         redis_key = f"pst:{pst_file_id}"
         redis_data: dict[bytes, bytes] = redis_client.hgetall(redis_key)
 
