@@ -159,6 +159,29 @@ def _update_status(doc_id: str, status: str, excerpt: str | None = None):
             )
 
 
+def _merge_document_metadata(doc_id: str, patch: dict) -> None:
+    """Merge a small JSON patch into documents.metadata (best-effort)."""
+    import json
+
+    try:
+        patch_json = json.dumps(patch)
+    except Exception:
+        return
+
+    with engine.begin() as conn:
+        # metadata is stored as JSON in many deployments; merge via jsonb then cast back.
+        conn.execute(
+            text(
+                """
+                UPDATE documents
+                SET metadata = (COALESCE(metadata::jsonb, '{}'::jsonb) || :patch::jsonb)::json
+                WHERE id::text = :i
+                """
+            ),
+            {"patch": patch_json, "i": doc_id},
+        )
+
+
 def _fetch_doc(doc_id: str):
     import json
 
@@ -166,7 +189,7 @@ def _fetch_doc(doc_id: str):
         row = (
             conn.execute(
                 text(
-                    "SELECT id::text, filename, content_type, bucket, s3_key, path, created_at, metadata, owner_user_id FROM documents WHERE id::text=:i"
+                    "SELECT id::text, filename, content_type, bucket, s3_key, path, created_at, status::text as status, text_excerpt, metadata, owner_user_id FROM documents WHERE id::text=:i"
                 ),
                 {"i": doc_id},
             )
@@ -185,6 +208,51 @@ def _fetch_doc(doc_id: str):
         elif not doc.get("metadata"):
             doc["metadata"] = {}
         return doc
+
+
+def _put_text_sidecar(
+    bucket: str, key: str, text_value: str
+) -> tuple[str, str, str, int]:
+    import hashlib
+
+    raw = (text_value or "").encode("utf-8", errors="replace")
+    sha = hashlib.sha256(raw).hexdigest()
+    s3.put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=raw,
+        ContentType="text/plain; charset=utf-8",
+    )
+    return bucket, key, sha, len(raw)
+
+
+def _try_parse_json_from_text(text_value: str) -> dict | None:
+    import json
+    import re
+
+    if not text_value:
+        return None
+    raw = text_value.strip()
+    # Try direct JSON first
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            return parsed
+        return {"value": parsed}
+    except Exception:
+        pass
+
+    # Try to extract the first JSON object block
+    m = re.search(r"\{[\s\S]*\}", raw)
+    if not m:
+        return None
+    try:
+        parsed = json.loads(m.group(0))
+        if isinstance(parsed, dict):
+            return parsed
+        return {"value": parsed}
+    except Exception:
+        return None
 
 
 def _fetch_pst_file(pst_id: str):
@@ -504,7 +572,265 @@ def ocr_and_index(doc_id: str):
         doc.get("owner_user_id"),
     )
     _update_status(doc_id, "READY", excerpt)
+
+    # Non-blocking enrichment (Bedrock / BDA) as an add-on layer
+    if getattr(settings, "ENABLE_DOCUMENT_ENRICHMENT", False):
+        try:
+            # Store extracted text sidecar so enrichers can fetch it without OpenSearch dependency.
+            if text and len(text) >= getattr(
+                settings, "BEDROCK_DOC_ENRICH_MIN_CHARS", 500
+            ):
+                sidecar_key = f"document-text/{doc_id}.txt"
+                b, k, sha, size_bytes = _put_text_sidecar(
+                    doc["bucket"], sidecar_key, text
+                )
+                _merge_document_metadata(
+                    doc_id,
+                    {
+                        "extracted_text": {
+                            "bucket": b,
+                            "key": k,
+                            "sha256": sha,
+                            "bytes": size_bytes,
+                        }
+                    },
+                )
+
+            enrich_document.delay(doc_id)
+        except Exception as exc:
+            logger.warning("Failed to enqueue document enrichment (non-fatal): %s", exc)
     return {"id": doc_id, "chars": len(text or "")}
+
+
+@celery_app.task(
+    name="worker_app.worker.enrich_document", queue=settings.ENRICHMENT_QUEUE
+)
+def enrich_document(doc_id: str):
+    """Best-effort enrichment: prefer BDA if configured, else use Bedrock LLM."""
+    doc = _fetch_doc(doc_id)
+    if not doc:
+        return
+
+    meta = doc.get("metadata") if isinstance(doc.get("metadata"), dict) else {}
+    if not isinstance(meta, dict):
+        meta = {}
+
+    # Idempotency: if we already have enrichment, don't redo unless explicitly forced later.
+    if (
+        isinstance(meta.get("enrichment"), dict)
+        and meta["enrichment"].get("status") == "ok"
+    ):
+        return
+
+    # Load extracted text (prefer sidecar)
+    extracted = ""
+    try:
+        ext = (
+            meta.get("extracted_text")
+            if isinstance(meta.get("extracted_text"), dict)
+            else None
+        )
+        if ext and ext.get("bucket") and ext.get("key"):
+            obj = s3.get_object(Bucket=str(ext["bucket"]), Key=str(ext["key"]))
+            extracted = obj["Body"].read().decode("utf-8", errors="replace")
+    except Exception:
+        extracted = ""
+
+    if not extracted:
+        extracted = (
+            (doc.get("text_excerpt") or "")
+            if isinstance(doc.get("text_excerpt"), str)
+            else ""
+        )
+
+    extracted = (extracted or "").strip()
+    if len(extracted) < getattr(settings, "BEDROCK_DOC_ENRICH_MIN_CHARS", 500):
+        _merge_document_metadata(
+            doc_id,
+            {"enrichment": {"status": "skipped", "reason": "insufficient_text"}},
+        )
+        return
+
+    # Try BDA first if configured
+    if getattr(settings, "BDA_DOC_ENRICH_ENABLED", False):
+        try:
+            result = _enrich_with_bda(doc)
+            _merge_document_metadata(
+                doc_id, {"enrichment": {"status": "ok", "method": "bda", **result}}
+            )
+            return
+        except Exception as exc:
+            _merge_document_metadata(
+                doc_id,
+                {
+                    "enrichment": {
+                        "status": "error",
+                        "method": "bda",
+                        "error": str(exc)[:500],
+                    }
+                },
+            )
+            # fall through to Bedrock LLM
+
+    if getattr(settings, "BEDROCK_DOC_ENRICH_ENABLED", False):
+        try:
+            result = _enrich_with_bedrock_llm(doc, extracted)
+            _merge_document_metadata(
+                doc_id, {"enrichment": {"status": "ok", "method": "bedrock", **result}}
+            )
+            return
+        except Exception as exc:
+            _merge_document_metadata(
+                doc_id,
+                {
+                    "enrichment": {
+                        "status": "error",
+                        "method": "bedrock",
+                        "error": str(exc)[:500],
+                    }
+                },
+            )
+            return
+
+    _merge_document_metadata(
+        doc_id, {"enrichment": {"status": "skipped", "reason": "disabled"}}
+    )
+
+
+def _enrich_with_bda(doc: dict) -> dict:
+    """Invoke Bedrock Data Automation on the original document S3 object (sync API)."""
+    import json
+    import time
+
+    if not getattr(settings, "BDA_PROJECT_ARN", ""):
+        raise RuntimeError("BDA_PROJECT_ARN not set")
+    if not getattr(settings, "BDA_PROFILE_ARN", ""):
+        raise RuntimeError("BDA_PROFILE_ARN not set")
+    if not getattr(settings, "BDA_KMS_KEY_ID", ""):
+        raise RuntimeError("BDA_KMS_KEY_ID not set")
+
+    bda = boto3.client(
+        "bedrock-data-automation-runtime", region_name=settings.BDA_REGION
+    )
+
+    s3_uri = f"s3://{doc['bucket']}/{doc['s3_key']}"
+    blueprints = []
+    if getattr(settings, "BDA_BLUEPRINT_ARN", ""):
+        bp = {
+            "blueprintArn": settings.BDA_BLUEPRINT_ARN,
+            "stage": settings.BDA_BLUEPRINT_STAGE,
+        }
+        if getattr(settings, "BDA_BLUEPRINT_VERSION", ""):
+            bp["version"] = settings.BDA_BLUEPRINT_VERSION
+        blueprints.append(bp)
+
+    started = time.time()
+    resp = bda.invoke_data_automation(
+        inputConfiguration={"s3Uri": s3_uri},
+        dataAutomationConfiguration={
+            "dataAutomationProjectArn": settings.BDA_PROJECT_ARN,
+            "stage": settings.BDA_STAGE,
+        },
+        blueprints=blueprints,
+        dataAutomationProfileArn=settings.BDA_PROFILE_ARN,
+        encryptionConfiguration={"kmsKeyId": settings.BDA_KMS_KEY_ID},
+    )
+    duration_ms = int((time.time() - started) * 1000)
+
+    # Store small excerpts inline; larger payloads are stored as JSON in metadata (still bounded).
+    payload = json.dumps(resp)
+    payload_trunc = payload[:100000]
+
+    out_segments = resp.get("outputSegments") or []
+    std_excerpt = ""
+    cust_excerpt = ""
+    if out_segments and isinstance(out_segments, list):
+        seg0 = out_segments[0] if isinstance(out_segments[0], dict) else {}
+        std_excerpt = str(seg0.get("standardOutput") or "")[:5000]
+        cust_excerpt = str(seg0.get("customOutput") or "")[:5000]
+
+    return {
+        "model": {"bda_region": settings.BDA_REGION, "stage": settings.BDA_STAGE},
+        "timing_ms": duration_ms,
+        "bda": {
+            "semanticModality": resp.get("semanticModality"),
+            "outputSegments": [
+                {
+                    "customOutputStatus": s.get("customOutputStatus"),
+                    "standardOutputExcerpt": str(s.get("standardOutput") or "")[:5000],
+                    "customOutputExcerpt": str(s.get("customOutput") or "")[:5000],
+                }
+                for s in (out_segments[:5] if isinstance(out_segments, list) else [])
+                if isinstance(s, dict)
+            ],
+            "raw_json_trunc": payload_trunc,
+        },
+        "standard_output_excerpt": std_excerpt,
+        "custom_output_excerpt": cust_excerpt,
+    }
+
+
+def _enrich_with_bedrock_llm(doc: dict, extracted_text: str) -> dict:
+    """Use Bedrock LLM to produce a compact JSON enrichment payload from extracted text."""
+    import asyncio
+    import time
+
+    from vericase.api.app.ai_providers.bedrock import BedrockProvider  # type: ignore
+
+    model_id = getattr(settings, "BEDROCK_DOC_ENRICH_MODEL_ID", "")
+    max_tokens = int(getattr(settings, "BEDROCK_DOC_ENRICH_MAX_TOKENS", 800) or 800)
+    max_chars = int(getattr(settings, "BEDROCK_DOC_ENRICH_MAX_CHARS", 20000) or 20000)
+
+    text_slice = extracted_text[:max_chars]
+
+    system = (
+        "You are a forensic-safe document enrichment engine.\n"
+        "Return STRICT JSON only. Do not include markdown.\n"
+        "Never invent facts; if unknown, use null or empty arrays.\n"
+        "Schema:\n"
+        "{"
+        '"document_type": string|null,'
+        '"summary": string|null,'
+        '"key_dates": [string],'
+        '"entities": [{"type": string, "value": string}],'
+        '"actions": [string],'
+        '"confidence": number'
+        "}"
+    )
+
+    prompt = (
+        f"Filename: {doc.get('filename')}\n"
+        f"Content-Type: {doc.get('content_type')}\n\n"
+        "Extracted text:\n"
+        "-----\n"
+        f"{text_slice}\n"
+        "-----\n"
+        "Return JSON now."
+    )
+
+    provider = BedrockProvider(region=os.getenv("AWS_REGION", "us-east-1"))
+    started = time.time()
+    raw = asyncio.run(
+        provider.invoke(
+            model_id=model_id,
+            prompt=prompt,
+            max_tokens=max_tokens,
+            temperature=0.0,
+            system_prompt=system,
+        )
+    )
+    duration_ms = int((time.time() - started) * 1000)
+
+    parsed = _try_parse_json_from_text(raw) or {}
+    return {
+        "model": {
+            "model_id": model_id,
+            "max_tokens": max_tokens,
+            "max_chars": max_chars,
+        },
+        "timing_ms": duration_ms,
+        "bedrock": {"raw_trunc": (raw or "")[:10000], "parsed": parsed},
+    }
 
 
 @celery_app.task(

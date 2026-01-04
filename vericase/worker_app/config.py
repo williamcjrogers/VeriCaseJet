@@ -67,5 +67,42 @@ class Settings:
         os.getenv("PST_TASK_TIME_LIMIT_S", "22200") or "22200"
     )  # default 6h10m
 
+    # Optional post-OCR enrichment (non-blocking, best-effort)
+    ENABLE_DOCUMENT_ENRICHMENT = (
+        os.getenv("ENABLE_DOCUMENT_ENRICHMENT", "false").lower() == "true"
+    )
+
+    # Bedrock LLM enrichment (fallback/default when BDA not configured)
+    BEDROCK_DOC_ENRICH_ENABLED = (
+        os.getenv("BEDROCK_DOC_ENRICH_ENABLED", "false").lower() == "true"
+    )
+    BEDROCK_DOC_ENRICH_MODEL_ID = os.getenv(
+        "BEDROCK_DOC_ENRICH_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0"
+    )
+    BEDROCK_DOC_ENRICH_MAX_TOKENS = int(
+        os.getenv("BEDROCK_DOC_ENRICH_MAX_TOKENS", "800") or "800"
+    )
+    BEDROCK_DOC_ENRICH_MAX_CHARS = int(
+        os.getenv("BEDROCK_DOC_ENRICH_MAX_CHARS", "20000") or "20000"
+    )
+    BEDROCK_DOC_ENRICH_MIN_CHARS = int(
+        os.getenv("BEDROCK_DOC_ENRICH_MIN_CHARS", "500") or "500"
+    )
+
+    # Bedrock Data Automation (BDA) enrichment (requires a project/profile/KMS config)
+    BDA_DOC_ENRICH_ENABLED = (
+        os.getenv("BDA_DOC_ENRICH_ENABLED", "false").lower() == "true"
+    )
+    BDA_REGION = os.getenv("BDA_REGION", os.getenv("AWS_REGION", "us-east-1"))
+    BDA_PROJECT_ARN = os.getenv("BDA_PROJECT_ARN", "")
+    BDA_PROFILE_ARN = os.getenv("BDA_PROFILE_ARN", "")
+    BDA_STAGE = os.getenv("BDA_STAGE", "LIVE")
+    BDA_BLUEPRINT_ARN = os.getenv("BDA_BLUEPRINT_ARN", "")
+    BDA_BLUEPRINT_VERSION = os.getenv("BDA_BLUEPRINT_VERSION", "")
+    BDA_BLUEPRINT_STAGE = os.getenv("BDA_BLUEPRINT_STAGE", "LIVE")
+    BDA_KMS_KEY_ID = os.getenv("BDA_KMS_KEY_ID", "")
+    # Separate queue so enrichment never starves OCR/PST extraction
+    ENRICHMENT_QUEUE = os.getenv("ENRICHMENT_QUEUE", "enrichment")
+
 
 settings = Settings()
