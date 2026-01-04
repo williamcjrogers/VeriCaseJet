@@ -5,6 +5,7 @@ Correspondence API Services
 
 import logging
 import os
+import re
 import uuid
 import asyncio
 from datetime import datetime, timedelta
@@ -92,7 +93,33 @@ def _build_email_row(
     attachments_payload = attachment_items or []
 
     # The UI uses these AG Grid compatibility fields.
-    email_body = e.body_text_clean or e.body_text or ""
+    # Prefer a cleaned "display" body, but keep the raw body in dedicated fields.
+    from ..email_content import split_reply as _split_reply
+    from ..email_content import strip_signature as _strip_signature
+    from ..email_normalizer import clean_body_text as _clean_body_text
+
+    def _content_score(value: str) -> int:
+        # Match the selection heuristic used in email_content._new_content_score
+        core = re.sub(r"[^0-9A-Za-z]+", "", value or "")
+        return len(core)
+
+    def _display_body(*candidates: str | None) -> str:
+        best_text = ""
+        best_score = -1
+        for cand in candidates:
+            if not cand:
+                continue
+            cleaned = _clean_body_text(cand) or ""
+            top, _quoted, _marker = _split_reply(cleaned)
+            body, _sig = _strip_signature(top)
+            body = body.strip()
+            score = _content_score(body)
+            if score > best_score:
+                best_score = score
+                best_text = body
+        return best_text
+
+    email_body = _display_body(e.body_text_clean, e.body_text, e.body_html) or ""
 
     return EmailMessageSummary(
         id=str(e.id),
@@ -1803,6 +1830,33 @@ async def get_email_detail_service(email_id: str, db: Session):
                 continue
             atts.append(att_data)
 
+    # Compute a display-first body (cleaned banners/entities/signatures) while preserving raw.
+    from ..email_content import split_reply as _split_reply
+    from ..email_content import strip_signature as _strip_signature
+    from ..email_normalizer import clean_body_text as _clean_body_text
+
+    def _content_score(value: str) -> int:
+        core = re.sub(r"[^0-9A-Za-z]+", "", value or "")
+        return len(core)
+
+    def _display_body(*candidates: str | None) -> str | None:
+        best_text = ""
+        best_score = -1
+        for cand in candidates:
+            if not cand:
+                continue
+            cleaned = _clean_body_text(cand) or ""
+            top, _quoted, _marker = _split_reply(cleaned)
+            body, _sig = _strip_signature(top)
+            body = body.strip()
+            score = _content_score(body)
+            if score > best_score:
+                best_score = score
+                best_text = body
+        return best_text or None
+
+    body_display = _display_body(email.body_text_clean, full_body_text, full_body_html)
+
     return EmailMessageDetail(
         id=str(email.id),
         subject=email.subject,
@@ -1812,9 +1866,10 @@ async def get_email_detail_service(email_id: str, db: Session):
         recipients_cc=email.recipients_cc or [],
         date_sent=email.date_sent,
         date_received=email.date_received,
-        body_text=full_body_text,
+        body_text=body_display or full_body_text,
         body_html=full_body_html,
-        body_text_clean=email.body_text_clean,
+        body_text_clean=body_display or email.body_text_clean,
+        body_text_full=full_body_text,
         content_hash=email.content_hash,
         has_attachments=bool(email.has_attachments),
         attachments=atts,

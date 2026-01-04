@@ -73,6 +73,8 @@ def html_to_text(html: str | None) -> str:
     cleaned = _HTML_STYLE_RE.sub(" ", html)
     cleaned = _HTML_BREAK_RE.sub("\n", cleaned)
     cleaned = _HTML_TAG_RE.sub(" ", cleaned)
+    # Decode entities early so downstream heuristics (banners/signatures) see real whitespace.
+    cleaned = html.unescape(cleaned)
     cleaned = cleaned.replace("\r\n", "\n").replace("\r", "\n")
     cleaned = re.sub(r"[^\S\n]+", " ", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
@@ -136,6 +138,127 @@ def strip_signature(text: str) -> tuple[str, str]:
         return "", ""
     match = _SIGNATURE_SPLIT_RE.search(text)
     if not match:
+        # Heuristic signature stripping for common corporate signatures that don't use "--".
+        # This is intentionally conservative: it only strips when we detect clear contact info
+        # clustered at the bottom of the message.
+        normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+        lines = [ln.rstrip() for ln in normalized.split("\n")]
+        if len(lines) < 6:
+            return text.strip(), ""
+
+        # Work backwards from the last non-empty line, up to a bounded window.
+        end = len(lines) - 1
+        while end >= 0 and not lines[end].strip():
+            end -= 1
+        if end <= 2:
+            return text.strip(), ""
+
+        start_search = max(0, end - 14)
+        window = lines[start_search : end + 1]
+
+        email_re = re.compile(
+            r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE
+        )
+        url_re = re.compile(r"(?i)\b(?:https?://\S+|www\.\S+)\b")
+        phone_re = re.compile(r"(?i)(?:\+?\d[\d\s().-]{7,}\d)")
+        postcode_re = re.compile(r"(?i)\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b")  # UK-ish
+        title_re = re.compile(
+            r"(?i)\b(manager|director|engineer|assistant|contracts?|commercial|project|site|qs|surveyor)\b"
+        )
+        signoff_re = re.compile(
+            r"(?i)^\s*(kind regards|regards|best regards|many thanks|thanks|cheers|yours sincerely|yours faithfully)\b"
+        )
+
+        def line_sig_score(line: str) -> int:
+            if not line or not line.strip():
+                return 0
+            s = 0
+            if email_re.search(line):
+                s += 3
+            if url_re.search(line):
+                s += 2
+            if phone_re.search(line):
+                s += 2
+            if postcode_re.search(line):
+                s += 1
+            if title_re.search(line):
+                s += 1
+            if re.search(r"(?i)\b(ltd|limited|inc|plc)\b", line):
+                s += 1
+            return s
+
+        # Identify a candidate signature block at the bottom.
+        sig_end = end
+        sig_start = sig_end
+        strong_lines = 0
+        any_signoff = False
+
+        # Walk upwards until lines stop looking like signature/contact info.
+        for i in range(len(window) - 1, -1, -1):
+            line = window[i].strip()
+            if not line:
+                # Allow a single blank line inside the block, but stop if we've already
+                # collected something and hit a "separator" gap.
+                if sig_start < sig_end:
+                    break
+                continue
+
+            if signoff_re.search(line):
+                any_signoff = True
+                sig_start = start_search + i
+                continue
+
+            score = line_sig_score(line)
+            if score <= 0:
+                break
+            if score >= 2:
+                strong_lines += 1
+            sig_start = start_search + i
+
+        # Validate: require strong contact signal(s) and enough separation from body.
+        # Also pull in any immediately preceding sign-off/name lines (common pattern:
+        # "Kind regards,\nJohn Smith\n<contact info>").
+        def looks_like_name(line: str) -> bool:
+            stripped = (line or "").strip()
+            if not stripped:
+                return False
+            if len(stripped) > 50:
+                return False
+            # Avoid swallowing real content lines; keep to "name-ish" tokens.
+            if re.search(r"[@:/\\d]", stripped):
+                return False
+            return bool(re.fullmatch(r"[A-Za-z][A-Za-z .'\-]{1,49}", stripped))
+
+        pull_idx = sig_start - 1
+        pulled_any = False
+        while pull_idx >= 0 and pull_idx >= sig_start - 3:
+            prev = lines[pull_idx].strip()
+            if not prev:
+                pull_idx -= 1
+                continue
+            if signoff_re.search(prev) or looks_like_name(prev):
+                sig_start = pull_idx
+                pulled_any = True
+                pull_idx -= 1
+                continue
+            break
+
+        if pulled_any:
+            any_signoff = True
+
+        sig_block = "\n".join(lines[sig_start : sig_end + 1]).strip()
+        body_block = "\n".join(lines[:sig_start]).rstrip()
+
+        # Require at least one "hard" contact indicator (email/url/phone) and either:
+        # - a signoff line, or
+        # - 2+ strong signature lines (e.g., phone + email).
+        hard = bool(email_re.search(sig_block) or url_re.search(sig_block))
+        has_phone = bool(phone_re.search(sig_block))
+        if (hard or has_phone) and (any_signoff or strong_lines >= 2):
+            # Also ensure we don't strip when the remaining body would be empty.
+            if len(re.sub(r"[^0-9A-Za-z]+", "", body_block)) >= 20:
+                return body_block.strip(), sig_block
+
         return text.strip(), ""
     body = text[: match.start()].rstrip()
     signature = text[match.start() :].strip()

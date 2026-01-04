@@ -421,6 +421,8 @@ class EmailMessageDetail(BaseModel):
     body_text: str | None
     body_html: str | None
     body_text_clean: str | None = None
+    # Raw full body text (may include quotes/signatures/boilerplate). Kept for audit/forensics.
+    body_text_full: str | None = None
     content_hash: str | None = None
     has_attachments: bool
     attachments: list[dict[str, Any]]
