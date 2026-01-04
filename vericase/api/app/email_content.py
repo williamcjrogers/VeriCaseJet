@@ -395,7 +395,24 @@ def strip_signature(text: str) -> tuple[str, str]:
         # - 2+ strong signature lines (e.g., phone + email).
         hard = bool(email_re.search(sig_block) or url_re.search(sig_block))
         has_phone = bool(phone_re.search(sig_block))
-        if (hard or has_phone) and (any_signoff or strong_lines >= 2):
+        sig_lines = [ln.strip() for ln in sig_block.splitlines() if ln.strip()]
+        # Some signatures have no explicit contact info (no email/URL/phone), but do have:
+        # "Kind regards," + Name + Title/Company. Treat these as signatures only when there's
+        # meaningful body content above them.
+        soft_sig_lines = sum(
+            1
+            for ln in sig_lines
+            if looks_like_name(ln)
+            or title_re.search(ln)
+            or re.search(r"(?i)\b(ltd|limited|inc|plc)\b", ln)
+        )
+        contactless_signature = bool(
+            any_signoff and soft_sig_lines >= 2 and len(sig_lines) <= 10
+        )
+
+        if contactless_signature or (
+            (hard or has_phone) and (any_signoff or strong_lines >= 2)
+        ):
             # Also ensure we don't strip when the remaining body would be empty.
             if len(re.sub(r"[^0-9A-Za-z]+", "", body_block)) >= 20:
                 return body_block.strip(), sig_block
