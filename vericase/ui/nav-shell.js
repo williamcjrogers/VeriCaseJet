@@ -183,7 +183,7 @@
         {
           id: "workspace-setup",
           label: "Workspace Setup",
-          icon: "fa-magnifying-glass",
+          icon: "fa-diagram-project",
           url: "workspace-setup.html",
           requiresContext: true,
           contexts: ["project", "case"],
@@ -191,7 +191,7 @@
         {
           id: "refinement",
           label: "VeriCase Refine",
-          icon: "fa-magnifying-glass",
+          icon: "fa-wand-magic-sparkles",
           url: "ai-refinement-wizard.html",
         },
         {
