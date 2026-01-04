@@ -346,6 +346,15 @@
       color: var(--vericase-teal-dark);
     }
 
+    .collection-item.default-category {
+      border-left: 3px solid var(--vericase-teal);
+      margin-left: 4px;
+    }
+
+    .collection-item.default-category i {
+      color: var(--vericase-teal);
+    }
+
     .collection-item i {
       font-size: 1rem;
       width: 20px;
@@ -1180,6 +1189,198 @@
       word-break: break-word;
     }
 
+    /* Settings Modal */
+    .settings-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: var(--z-modal);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .settings-modal {
+      background: white;
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 600px;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+    }
+
+    .settings-modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--gray-200);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .settings-modal-header h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--vericase-navy);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .settings-modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .settings-modal-footer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--gray-200);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .settings-section {
+      margin-bottom: 24px;
+    }
+
+    .settings-section:last-child {
+      margin-bottom: 0;
+    }
+
+    .settings-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .settings-section-header h4 {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .settings-section-header h4 i {
+      color: var(--vericase-teal);
+    }
+
+    .settings-hint {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .settings-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      margin-bottom: 8px;
+    }
+
+    .settings-toggle input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--vericase-teal);
+    }
+
+    .patterns-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .pattern-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      font-size: 0.8125rem;
+    }
+
+    .pattern-item.readonly {
+      background: var(--gray-100);
+      color: var(--text-muted);
+    }
+
+    .pattern-text {
+      flex: 1;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+
+    .pattern-category {
+      padding: 2px 8px;
+      background: rgba(var(--vericase-teal-rgb), 0.1);
+      color: var(--vericase-teal-dark);
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 500;
+    }
+
+    .pattern-count {
+      padding: 2px 6px;
+      background: var(--gray-200);
+      color: var(--text-muted);
+      border-radius: 999px;
+      font-size: 0.65rem;
+      font-weight: 600;
+    }
+
+    .pattern-item .btn-delete {
+      padding: 4px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    .pattern-item .btn-delete:hover {
+      background: rgba(220, 38, 38, 0.1);
+      color: #dc2626;
+    }
+
+    .patterns-empty {
+      text-align: center;
+      padding: 16px;
+      color: var(--text-muted);
+      font-size: 0.8125rem;
+    }
+
+    .category-settings-btn {
+      padding: 4px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 0.875rem;
+    }
+
+    .category-settings-btn:hover {
+      color: var(--vericase-teal);
+      background: rgba(var(--vericase-teal-rgb), 0.1);
+    }
+
+    .settings-modal-overlay.hidden {
+      display: none !important;
+    }
+
     /* Link Cards */
     .link-card {
       background: var(--gray-50);
@@ -1370,7 +1571,10 @@
             <input type="checkbox" id="autoCategorizeToggle" />
             <span class="toggle-label">Auto-categorize</span>
           </label>
-          <button class="btn btn-sm btn-ghost" id="createSubfolderBtn" title="Create Subfolder">
+          <button type="button" class="category-settings-btn" onclick="openCategorySettings()" title="Auto-categorization settings">
+            <i class="fas fa-cog"></i>
+          </button>
+          <button type="button" class="btn btn-sm btn-ghost" id="createSubfolderBtn" title="Create Subfolder">
             <i class="fas fa-plus"></i>
           </button>
         </div>
@@ -1482,6 +1686,99 @@
     <div class="preview-modal-body">
       <div class="preview-modal-content" id="previewModalContent">
         <!-- Populated dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Auto-Categorization Settings Modal -->
+  <div class="settings-modal-overlay hidden" id="categorySettingsModal">
+    <div class="settings-modal">
+      <div class="settings-modal-header">
+        <h3><i class="fas fa-cog"></i> Auto-Categorization Settings</h3>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="closeCategorySettings()" title="Close settings">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="settings-modal-body">
+        <!-- Learning Toggle -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <h4><i class="fas fa-brain"></i> Learning</h4>
+          </div>
+          <label class="settings-toggle">
+            <input type="checkbox" id="learningEnabledToggle" checked />
+            <span>Learn from my categorizations</span>
+          </label>
+          <p class="settings-hint">When enabled, the system learns patterns from files you categorize to improve future suggestions.</p>
+        </div>
+
+        <!-- Custom Patterns -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <h4><i class="fas fa-filter"></i> Custom Patterns</h4>
+            <button type="button" class="btn btn-sm btn-vericase" onclick="addCustomPattern()" title="Add custom pattern">
+              <i class="fas fa-plus"></i> Add
+            </button>
+          </div>
+          <p class="settings-hint">Define your own patterns to match filenames. Use regex syntax (e.g., "report.*2024" matches "report_jan_2024").</p>
+          <div class="patterns-list" id="customPatternsList">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Learned Patterns -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <h4><i class="fas fa-graduation-cap"></i> Learned Patterns</h4>
+            <button type="button" class="btn btn-sm btn-ghost" onclick="clearLearnedPatterns()" title="Clear all learned patterns">
+              <i class="fas fa-trash"></i> Clear
+            </button>
+          </div>
+          <p class="settings-hint">Patterns learned from your categorizations. Patterns used 2+ times will be applied automatically.</p>
+          <div class="patterns-list" id="learnedPatternsList">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Built-in Patterns (read-only) -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <h4><i class="fas fa-list"></i> Built-in Patterns</h4>
+          </div>
+          <p class="settings-hint">Default patterns that are always available. Custom and learned patterns take priority.</p>
+          <div class="patterns-list builtin-patterns">
+            <div class="pattern-item readonly">
+              <span class="pattern-text">meeting, minutes, mom</span>
+              <span class="pattern-category">Meeting Minutes</span>
+            </div>
+            <div class="pattern-item readonly">
+              <span class="pattern-text">progress report, monthly report</span>
+              <span class="pattern-category">Progress Reports</span>
+            </div>
+            <div class="pattern-item readonly">
+              <span class="pattern-text">valuation, interim cert</span>
+              <span class="pattern-category">Client Valuations</span>
+            </div>
+            <div class="pattern-item readonly">
+              <span class="pattern-text">change, variation, vo</span>
+              <span class="pattern-category">Change</span>
+            </div>
+            <div class="pattern-item readonly">
+              <span class="pattern-text">drawing, dwg, plan</span>
+              <span class="pattern-category">Drawings</span>
+            </div>
+            <div class="pattern-item readonly">
+              <span class="pattern-text">spec, specification</span>
+              <span class="pattern-category">Specifications</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="settings-modal-footer">
+        <button type="button" class="btn btn-ghost" onclick="closeCategorySettings()">Close</button>
+        <button type="button" class="btn btn-vericase" onclick="saveCategorySettings()">
+          <i class="fas fa-save"></i> Save Settings
+        </button>
       </div>
     </div>
   </div>
@@ -1895,6 +2192,145 @@
       return div.innerHTML;
     }
 
+    // Infer category from evidence item based on filename patterns and metadata
+    function inferCategory(item) {
+      if (!item) return null;
+
+      const filename = (item.filename || item.title || "").toLowerCase();
+      const evidenceType = (item.evidence_type || "").toLowerCase();
+      const mimeType = (item.mime_type || "").toLowerCase();
+
+      // Load config to get custom and learned patterns
+      const config = loadEvidenceConfig();
+
+      // 1. First check custom patterns (highest priority - user defined)
+      if (config.customPatterns && config.customPatterns.length > 0) {
+        for (const {pattern, category} of config.customPatterns) {
+          try {
+            const regex = new RegExp(pattern, "i");
+            if (regex.test(filename)) {
+              return category;
+            }
+          } catch (e) {
+            console.warn(`Invalid custom pattern: ${pattern}`, e);
+          }
+        }
+      }
+
+      // 2. Check learned patterns (high count patterns first - learned from user)
+      if (config.learnedPatterns && config.learnedPatterns.length > 0) {
+        // Only use patterns that have been used at least twice
+        const reliablePatterns = config.learnedPatterns.filter(p => (p.count || 1) >= 2);
+        for (const {pattern, category} of reliablePatterns) {
+          try {
+            const regex = new RegExp(pattern, "i");
+            if (regex.test(filename)) {
+              return category;
+            }
+          } catch (e) {
+            console.warn(`Invalid learned pattern: ${pattern}`, e);
+          }
+        }
+      }
+
+      // 3. Built-in patterns (default fallback)
+      const builtInPatterns = [
+        { pattern: /meeting|minutes|mom/i, category: "Meeting Minutes" },
+        { pattern: /progress.*report|monthly.*report|weekly.*report/i, category: "Progress Reports" },
+        { pattern: /client.*valuation|valuation.*cert|interim.*cert/i, category: "Client Valuations" },
+        { pattern: /client.*payment|payment.*cert/i, category: "Client Payment Certificates" },
+        { pattern: /change|variation|vo|instruction/i, category: "Change" },
+        { pattern: /subcontractor.*valuation|sub.*valuation|subc.*val/i, category: "Subcontractor Valuations" },
+        { pattern: /subcontractor.*payment|sub.*payment|subc.*pay/i, category: "Subcontractor Payment Certificates" },
+        { pattern: /site.*instruction|si\d|architect.*instruction|ai\d/i, category: "Site Instructions" },
+        { pattern: /drawing|dwg|plan|elevation|section|detail/i, category: "Drawings" },
+        { pattern: /spec|specification/i, category: "Specifications" },
+      ];
+
+      for (const {pattern, category} of builtInPatterns) {
+        if (pattern.test(filename)) {
+          return category;
+        }
+      }
+
+      // 4. Evidence type mapping (lowest priority)
+      if (evidenceType === "meeting_minutes") return "Meeting Minutes";
+      if (evidenceType === "drawing") return "Drawings";
+      if (evidenceType === "specification") return "Specifications";
+      if (evidenceType === "payment_certificate") return "Client Payment Certificates";
+      if (evidenceType === "valuation") return "Client Valuations";
+
+      return null;
+    }
+
+    // Auto-categorize all uncategorized evidence items
+    async function runAutoCategorization() {
+      const toggle = document.getElementById("autoCategorizeToggle");
+      if (!toggle.checked) return;
+
+      VericaseUI.Toast.info("Starting auto-categorization...");
+
+      try {
+        // Fetch uncategorized items
+        const query = new URLSearchParams();
+        if (projectId) query.append("project_id", projectId);
+        if (caseId) query.append("case_id", caseId);
+
+        const response = await fetch(
+          `${apiUrl}/api/evidence/items/server-side?${query.toString()}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              startRow: 0,
+              endRow: 500,
+              filterModel: { category: { filter: "", type: "blank" } }
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch evidence items");
+        }
+
+        const data = await response.json();
+        const items = data.rows || [];
+        let categorized = 0;
+
+        // Process items and suggest categories
+        for (const item of items) {
+          if (item.category) continue;
+
+          const suggestedCategory = inferCategory(item);
+          if (suggestedCategory) {
+            try {
+              const updateResponse = await fetch(`${apiUrl}/api/evidence/${item.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ category: suggestedCategory }),
+              });
+              if (updateResponse.ok) {
+                categorized++;
+              }
+            } catch (e) {
+              console.warn(`Failed to categorize ${item.id}:`, e);
+            }
+          }
+        }
+
+        if (categorized > 0) {
+          VericaseUI.Toast.success(`Auto-categorized ${categorized} items`);
+          refreshGridData();
+          loadCollections();
+        } else {
+          VericaseUI.Toast.info("No items could be auto-categorized");
+        }
+      } catch (error) {
+        console.error("Auto-categorization failed:", error);
+        VericaseUI.Toast.error("Auto-categorization failed");
+      }
+    }
+
     function getFilingCollections() {
       const skip = new Set([
         "all evidence",
@@ -2021,12 +2457,229 @@
       }
       return {
         autoCategorize: false,
+        customPatterns: [], // User-defined patterns: [{pattern: "string", category: "Category Name"}]
+        learnedPatterns: [], // Learned from user categorizations: [{pattern: "string", category: "Category Name", count: 1}]
+        learningEnabled: true, // Whether to learn from user categorizations
       };
     }
 
     function saveEvidenceConfig(config) {
       const key = getEvidenceConfigKey();
       localStorage.setItem(key, JSON.stringify(config));
+    }
+
+    // Extract potential patterns from a filename for learning
+    function extractPatternsFromFilename(filename) {
+      if (!filename) return [];
+      const patterns = [];
+      const name = filename.toLowerCase().replace(/\.[^/.]+$/, ""); // Remove extension
+
+      // Extract meaningful words (3+ chars, not common words)
+      const stopWords = new Set(["the", "and", "for", "from", "with", "this", "that", "are", "was", "were", "been", "have", "has", "had", "will", "would", "could", "should", "may", "might", "must", "shall", "can", "need", "pdf", "doc", "docx", "xls", "xlsx"]);
+      const words = name.split(/[^a-z0-9]+/).filter(w => w.length >= 3 && !stopWords.has(w));
+
+      // Add individual significant words as patterns
+      words.forEach(word => {
+        if (word.length >= 4) {
+          patterns.push(word);
+        }
+      });
+
+      // Add two-word combinations for more specificity
+      for (let i = 0; i < words.length - 1; i++) {
+        patterns.push(`${words[i]}.*${words[i + 1]}`);
+      }
+
+      return patterns.slice(0, 5); // Limit to top 5 patterns
+    }
+
+    // Learn from user categorization
+    function learnFromCategorization(filename, category) {
+      if (!filename || !category) return;
+
+      const config = loadEvidenceConfig();
+      if (!config.learningEnabled) return;
+
+      const patterns = extractPatternsFromFilename(filename);
+      if (patterns.length === 0) return;
+
+      // Initialize learned patterns if not exists
+      if (!config.learnedPatterns) config.learnedPatterns = [];
+
+      // Add or update learned patterns
+      patterns.forEach(pattern => {
+        const existing = config.learnedPatterns.find(
+          p => p.pattern === pattern && p.category === category
+        );
+        if (existing) {
+          existing.count = (existing.count || 1) + 1;
+        } else {
+          config.learnedPatterns.push({ pattern, category, count: 1 });
+        }
+      });
+
+      // Keep only top patterns (limit to 100 to prevent storage bloat)
+      config.learnedPatterns.sort((a, b) => (b.count || 1) - (a.count || 1));
+      config.learnedPatterns = config.learnedPatterns.slice(0, 100);
+
+      saveEvidenceConfig(config);
+      console.log(`[Auto-categorize] Learned patterns from "${filename}" → ${category}`);
+    }
+
+    // ============================================
+    // CATEGORY SETTINGS MODAL
+    // ============================================
+
+    const defaultCategories = [
+      "Meeting Minutes",
+      "Progress Reports",
+      "Client Valuations",
+      "Client Payment Certificates",
+      "Change",
+      "Subcontractor Valuations",
+      "Subcontractor Payment Certificates",
+      "Site Instructions",
+      "Drawings",
+      "Specifications"
+    ];
+
+    function openCategorySettings() {
+      const modal = document.getElementById("categorySettingsModal");
+      modal.classList.remove("hidden");
+      populateSettingsModal();
+    }
+
+    function closeCategorySettings() {
+      const modal = document.getElementById("categorySettingsModal");
+      modal.classList.add("hidden");
+    }
+
+    function populateSettingsModal() {
+      const config = loadEvidenceConfig();
+
+      // Set learning toggle
+      const learningToggle = document.getElementById("learningEnabledToggle");
+      learningToggle.checked = config.learningEnabled !== false;
+
+      // Render custom patterns
+      renderCustomPatterns(config.customPatterns || []);
+
+      // Render learned patterns
+      renderLearnedPatterns(config.learnedPatterns || []);
+    }
+
+    function renderCustomPatterns(patterns) {
+      const container = document.getElementById("customPatternsList");
+      if (!patterns || patterns.length === 0) {
+        container.innerHTML = '<div class="patterns-empty">No custom patterns defined. Click "Add" to create one.</div>';
+        return;
+      }
+
+      container.innerHTML = patterns.map((p, idx) => `
+        <div class="pattern-item">
+          <span class="pattern-text">${escapeHtml(p.pattern)}</span>
+          <span class="pattern-category">${escapeHtml(p.category)}</span>
+          <button type="button" class="btn-delete" onclick="deleteCustomPattern(${idx})" title="Delete pattern">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      `).join("");
+    }
+
+    function renderLearnedPatterns(patterns) {
+      const container = document.getElementById("learnedPatternsList");
+      if (!patterns || patterns.length === 0) {
+        container.innerHTML = '<div class="patterns-empty">No patterns learned yet. Categorize some files to start learning.</div>';
+        return;
+      }
+
+      // Show top 20 learned patterns
+      const topPatterns = patterns.slice(0, 20);
+      container.innerHTML = topPatterns.map((p, idx) => `
+        <div class="pattern-item">
+          <span class="pattern-text">${escapeHtml(p.pattern)}</span>
+          <span class="pattern-category">${escapeHtml(p.category)}</span>
+          <span class="pattern-count">×${p.count || 1}</span>
+          <button type="button" class="btn-delete" onclick="deleteLearnedPattern(${idx})" title="Delete pattern">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      `).join("");
+    }
+
+    function addCustomPattern() {
+      const pattern = prompt("Enter pattern (regex syntax, e.g., 'report.*2024'):");
+      if (!pattern || !pattern.trim()) return;
+
+      // Validate regex
+      try {
+        new RegExp(pattern.trim());
+      } catch (e) {
+        VericaseUI.Toast.error("Invalid regex pattern: " + e.message);
+        return;
+      }
+
+      // Select category
+      const category = prompt(
+        "Select category:\n" +
+        defaultCategories.map((c, i) => `${i + 1}. ${c}`).join("\n") +
+        "\n\nEnter number or custom category name:"
+      );
+      if (!category || !category.trim()) return;
+
+      let finalCategory = category.trim();
+      const num = parseInt(finalCategory);
+      if (num >= 1 && num <= defaultCategories.length) {
+        finalCategory = defaultCategories[num - 1];
+      }
+
+      const config = loadEvidenceConfig();
+      if (!config.customPatterns) config.customPatterns = [];
+      config.customPatterns.push({ pattern: pattern.trim(), category: finalCategory });
+      saveEvidenceConfig(config);
+
+      renderCustomPatterns(config.customPatterns);
+      VericaseUI.Toast.success(`Pattern added: "${pattern.trim()}" → ${finalCategory}`);
+    }
+
+    function deleteCustomPattern(index) {
+      const config = loadEvidenceConfig();
+      if (config.customPatterns && config.customPatterns[index]) {
+        config.customPatterns.splice(index, 1);
+        saveEvidenceConfig(config);
+        renderCustomPatterns(config.customPatterns);
+        VericaseUI.Toast.success("Pattern deleted");
+      }
+    }
+
+    function deleteLearnedPattern(index) {
+      const config = loadEvidenceConfig();
+      if (config.learnedPatterns && config.learnedPatterns[index]) {
+        config.learnedPatterns.splice(index, 1);
+        saveEvidenceConfig(config);
+        renderLearnedPatterns(config.learnedPatterns);
+        VericaseUI.Toast.success("Pattern deleted");
+      }
+    }
+
+    function clearLearnedPatterns() {
+      if (!confirm("Are you sure you want to clear all learned patterns? This cannot be undone.")) {
+        return;
+      }
+      const config = loadEvidenceConfig();
+      config.learnedPatterns = [];
+      saveEvidenceConfig(config);
+      renderLearnedPatterns([]);
+      VericaseUI.Toast.success("All learned patterns cleared");
+    }
+
+    function saveCategorySettings() {
+      const config = loadEvidenceConfig();
+      const learningToggle = document.getElementById("learningEnabledToggle");
+      config.learningEnabled = learningToggle.checked;
+      saveEvidenceConfig(config);
+      VericaseUI.Toast.success("Settings saved");
+      closeCategorySettings();
     }
 
     function applySavedGridState() {
@@ -2140,8 +2793,9 @@
           {
             field: "filename",
             headerName: "Name",
-            flex: 2,
-            minWidth: 200,
+            width: 280,
+            minWidth: 180,
+            maxWidth: 400,
             cellRenderer: (params) => {
               if (!params.data) return "-";
               const mimeType = safeGet(params.data, "mime_type", "");
@@ -2243,7 +2897,7 @@
           },
           {
             field: "extracted_parties",
-            headerName: "Parties",
+            headerName: "Stakeholders",
             width: 160,
             cellRenderer: (params) => {
               const parties = params.value;
@@ -2256,17 +2910,35 @@
             },
           },
           {
-            field: "extracted_amounts",
-            headerName: "Amounts",
-            width: 120,
+            field: "category",
+            headerName: "Category",
+            width: 150,
+            editable: true,
+            cellEditor: "agSelectCellEditor",
+            cellEditorParams: {
+              values: [
+                "",
+                "Meeting Minutes",
+                "Progress Reports",
+                "Client Valuations",
+                "Client Payment Certificates",
+                "Change",
+                "Subcontractor Valuations",
+                "Subcontractor Payment Certificates",
+                "Site Instructions",
+                "Drawings",
+                "Specifications"
+              ]
+            },
+            valueGetter: (params) => {
+              // Try to get category from various possible fields
+              return params.data?.category || params.data?.collection_name || "";
+            },
             cellRenderer: (params) => {
-              const amounts = params.value;
-              if (!amounts || !Array.isArray(amounts) || amounts.length === 0)
+              const category = params.value;
+              if (!category)
                 return '<span style="color: var(--text-muted);">—</span>';
-              const display = amounts[0];
-              const extra =
-                amounts.length > 1 ? ` +${amounts.length - 1}` : "";
-              return `<span style="color: #16a34a; font-weight: 500; font-size: 0.75rem;">${display}${extra}</span>`;
+              return `<span style="color: var(--vericase-teal); font-weight: 500; font-size: 0.75rem;"><i class="fas fa-folder" style="margin-right: 4px;"></i>${escapeHtml(category)}</span>`;
             },
           },
           {
@@ -2443,6 +3115,39 @@
             autoFitGrid();
           } catch (e) {
             console.warn("Grid size adjustment failed:", e);
+          }
+        },
+        // Handle category changes when user edits the category cell
+        onCellValueChanged: async (params) => {
+          if (params.colDef.field === "category" && params.data?.id) {
+            const evidenceId = params.data.id;
+            const newCategory = params.newValue || "";
+            const filename = params.data.filename || params.data.title || "";
+            try {
+              const response = await fetch(`${apiUrl}/api/evidence/${evidenceId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ category: newCategory }),
+              });
+              if (response.ok) {
+                VericaseUI.Toast.success(`Category updated to "${newCategory || 'None'}"`);
+                // Learn from this categorization for future auto-categorization
+                if (newCategory && filename) {
+                  learnFromCategorization(filename, newCategory);
+                }
+                // Refresh collections to update counts
+                loadCollections();
+              } else {
+                const error = await response.json();
+                VericaseUI.Toast.error(error.detail || "Failed to update category");
+                // Revert the cell value on error
+                params.node.setDataValue("category", params.oldValue);
+              }
+            } catch (error) {
+              console.error("Error updating category:", error);
+              VericaseUI.Toast.error("Failed to update category");
+              params.node.setDataValue("category", params.oldValue);
+            }
           }
         },
       };
@@ -2640,11 +3345,13 @@
           try {
             const activeCollection = document.querySelector(".collection-item.active");
             const collectionId = activeCollection?.dataset.id;
+            const categoryFilter = activeCollection?.dataset.category;
 
             const query = new URLSearchParams();
             if (projectId) query.append("project_id", projectId);
             if (caseId) query.append("case_id", caseId);
             if (collectionId) query.append("collection_id", collectionId);
+            if (categoryFilter) query.append("category", categoryFilter);
             query.append("include_email_info", "false");
 
             const body = {
@@ -2721,12 +3428,40 @@
       });
       collectionsCache = filtered;
 
+      // Default category folders that should always be shown
+      const defaultCategories = [
+        "Meeting Minutes",
+        "Progress Reports",
+        "Client Valuations",
+        "Client Payment Certificates",
+        "Change",
+        "Subcontractor Valuations",
+        "Subcontractor Payment Certificates",
+        "Site Instructions",
+        "Drawings",
+        "Specifications"
+      ];
+
       let html = `
                 <div class="collection-item active" data-id="">
                     <i class="fas fa-folder"></i>
                     All Evidence
                 </div>
             `;
+
+      // Add default categories (create collection objects for any that don't exist yet)
+      defaultCategories.forEach((catName) => {
+        const existing = filtered.find(c => c.name?.toLowerCase() === catName.toLowerCase());
+        if (!existing) {
+          html += `
+                    <div class="collection-item default-category" data-id="" data-category="${escapeHtml(catName)}">
+                        <i class="fas fa-folder"></i>
+                        ${escapeHtml(catName)}
+                        <span class="collection-count">0</span>
+                    </div>
+                `;
+        }
+      });
 
       // Check if auto-categorize is enabled (load from saved config per project/case)
       const evidenceConfig = loadEvidenceConfig();
@@ -3530,7 +4265,7 @@
                 ${extraction.parties && extraction.parties.length > 0 ? `
                   <div class="suggestion-item-meta">
                     <i class="fas fa-users"></i>
-                    <strong>Parties:</strong> ${extraction.parties.slice(0, 3).map(p => escapeHtml(String(p))).join(", ")}
+                    <strong>Stakeholders:</strong> ${extraction.parties.slice(0, 3).map(p => escapeHtml(String(p))).join(", ")}
                     ${extraction.parties.length > 3 ? ` +${extraction.parties.length - 3} more` : ""}
                   </div>
                 ` : ""}
@@ -3833,15 +4568,25 @@
         autoCategorizeToggle.checked = evidenceConfig.autoCategorize || false;
       }
 
-      // Auto-categorize toggle - save per project/case
+      // Auto-categorize toggle - save per project/case and run categorization
       document.getElementById("autoCategorizeToggle").addEventListener("change", (e) => {
         const config = loadEvidenceConfig();
         config.autoCategorize = e.target.checked;
         saveEvidenceConfig(config);
-        
+
         // Re-render collections with hierarchy if enabled
         if (collectionsCache.length > 0) {
           renderCollections(collectionsCache);
+        }
+
+        // Run auto-categorization when enabled
+        if (e.target.checked) {
+          const confirmed = confirm(
+            "Auto-categorize will analyze uncategorized evidence items and assign categories based on filename patterns.\n\nDo you want to run auto-categorization now?"
+          );
+          if (confirmed) {
+            runAutoCategorization();
+          }
         }
       });
 

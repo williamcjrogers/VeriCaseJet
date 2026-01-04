@@ -920,6 +920,16 @@ body::before {
 }
 
 /* Context Panel Styles - Narrower for density */
+/* Wrapper: ensure it collapses with its child */
+#context-panel-component {
+  flex: none;
+  transition: width 0.3s ease;
+}
+
+#context-panel-component:has(.context-panel.collapsed) {
+  width: 0 !important;
+}
+
 .context-panel {
   width: 260px; /* Was 380px - tighter for Bloomberg density */
   background: var(--surface);
@@ -937,6 +947,7 @@ body::before {
 
 .context-panel.collapsed {
   width: 0;
+  min-width: 0;
   border-left: none;
 }
 

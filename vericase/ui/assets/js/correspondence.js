@@ -89,6 +89,56 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+// Get Font Awesome icon class for a file based on extension
+function getFileIconClass(filename) {
+  const ext = (filename || "").toLowerCase().split(".").pop();
+  const iconMap = {
+    // Documents
+    pdf: "fas fa-file-pdf",
+    doc: "fas fa-file-word",
+    docx: "fas fa-file-word",
+    xls: "fas fa-file-excel",
+    xlsx: "fas fa-file-excel",
+    ppt: "fas fa-file-powerpoint",
+    pptx: "fas fa-file-powerpoint",
+    // Text
+    txt: "fas fa-file-alt",
+    csv: "fas fa-file-csv",
+    json: "fas fa-file-code",
+    xml: "fas fa-file-code",
+    html: "fas fa-file-code",
+    md: "fas fa-file-alt",
+    // Images
+    png: "fas fa-file-image",
+    jpg: "fas fa-file-image",
+    jpeg: "fas fa-file-image",
+    gif: "fas fa-file-image",
+    svg: "fas fa-file-image",
+    webp: "fas fa-file-image",
+    bmp: "fas fa-file-image",
+    tiff: "fas fa-file-image",
+    // Media
+    mp3: "fas fa-file-audio",
+    wav: "fas fa-file-audio",
+    ogg: "fas fa-file-audio",
+    mp4: "fas fa-file-video",
+    avi: "fas fa-file-video",
+    mov: "fas fa-file-video",
+    webm: "fas fa-file-video",
+    // Archives
+    zip: "fas fa-file-archive",
+    rar: "fas fa-file-archive",
+    "7z": "fas fa-file-archive",
+    tar: "fas fa-file-archive",
+    gz: "fas fa-file-archive",
+    // Email
+    msg: "fas fa-envelope",
+    eml: "fas fa-envelope",
+    pst: "fas fa-envelope-open-text",
+  };
+  return iconMap[ext] || "fas fa-file";
+}
+
 function rebuildKeywordIndex() {
   const map = new Map();
   if (Array.isArray(keywordsCache)) {
@@ -366,6 +416,46 @@ function splitEmailAddresses(value) {
   if (final) results.push(final);
 
   return results;
+}
+
+/**
+ * Extract domain/company name from an email address.
+ * e.g., "john@example.com" → "example.com"
+ */
+function extractDomainFromEmail(email) {
+  if (!email || typeof email !== 'string') return null;
+  const atIndex = email.lastIndexOf('@');
+  if (atIndex === -1) return null;
+  return email.substring(atIndex + 1).toLowerCase();
+}
+
+/**
+ * Extract unique stakeholder domains from From, To, and Cc fields.
+ * Returns an array of unique domain names.
+ */
+function extractStakeholders(emailFrom, emailTo, emailCc) {
+  const domains = new Set();
+
+  // Helper to process a field (which may contain multiple addresses)
+  const processField = (value) => {
+    if (!value) return;
+    const addresses = splitEmailAddresses(value);
+    for (const addr of addresses) {
+      const parsed = parseEmailAddress(addr);
+      if (parsed && parsed.email) {
+        const domain = extractDomainFromEmail(parsed.email);
+        if (domain) {
+          domains.add(domain);
+        }
+      }
+    }
+  };
+
+  processField(emailFrom);
+  processField(emailTo);
+  processField(emailCc);
+
+  return Array.from(domains).sort();
 }
 
 /**
@@ -955,6 +1045,17 @@ async function getEvidenceDownloadUrl(evidenceId) {
   };
 }
 
+// Get full evidence data including preview URL (inline disposition for viewing)
+async function getEvidenceFullData(evidenceId) {
+  const resp = await fetch(`${API_BASE}/api/evidence/items/${evidenceId}/full`, {
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
+  if (!resp.ok) throw new Error("Failed to get evidence data");
+  return resp.json();
+}
+
 function showLoading(isLoading) {
   const el = document.getElementById("loadingOverlay");
   if (!el) return;
@@ -1048,9 +1149,9 @@ window.previewAttachment = async function (
   document.addEventListener("keydown", attachmentPreviewKeyHandler);
 
   try {
-    // Load both the file URL and OCR text in parallel
-    const [fileData, ocrData] = await Promise.all([
-      getEvidenceDownloadUrl(documentId),
+    // Load both the full evidence data and OCR text in parallel
+    const [fullData, ocrData] = await Promise.all([
+      getEvidenceFullData(documentId),
       fetch(`${API_BASE}/api/evidence/items/${documentId}/text-content?max_length=50000`, {
         headers: {
           ...getAuthHeaders(),
@@ -1060,10 +1161,32 @@ window.previewAttachment = async function (
         .catch(() => null),
     ]);
 
-    const { url } = fileData;
+    // Use preview_url (inline disposition) for viewing, download_url for downloads
+    const preview = fullData.preview || {};
+    const previewUrl = preview.preview_url;
+    const downloadUrl = fullData.download_url || preview.download_url;
+    const previewType = preview.preview_type || "unsupported";
+    const mimeType = preview.mime_type || "";
+
+    // Fallback to filename detection if preview_type is unsupported
     const lowerName = (fileName || "").toLowerCase();
-    const isImage = /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/.test(lowerName);
-    const isPdf = /\.pdf$/.test(lowerName);
+    const isImage = previewType === "image" || /\.(png|jpg|jpeg|gif|webp|bmp|svg|tiff?)$/i.test(lowerName);
+    const isPdf = previewType === "pdf" || /\.pdf$/i.test(lowerName);
+    const isText = previewType === "text" || /\.(txt|csv|json|xml|html|md|log|ini|cfg|yaml|yml)$/i.test(lowerName);
+    const isOffice = previewType === "office";
+    const isAudio = previewType === "audio" || mimeType.startsWith("audio/");
+    const isVideo = previewType === "video" || mimeType.startsWith("video/");
+
+    // Specific Office type detection
+    const isExcel = /\.(xlsx?|xls|xlsm|xlsb|csv)$/i.test(lowerName) ||
+                    mimeType.includes("spreadsheet") || mimeType.includes("excel");
+    const isWord = /\.(docx?|doc|rtf)$/i.test(lowerName) ||
+                   mimeType.includes("wordprocessing") || mimeType.includes("msword");
+    const isPowerPoint = /\.(pptx?|ppt)$/i.test(lowerName) ||
+                         mimeType.includes("presentation") || mimeType.includes("powerpoint");
+
+    // Use preview URL for inline viewing, fallback to download URL
+    const url = previewUrl || downloadUrl;
 
     // Build preview HTML with OCR panel
     let previewHTML =
@@ -1076,19 +1199,24 @@ window.previewAttachment = async function (
     if (isImage) {
       previewHTML += `
                         <div style="flex: 1; display: flex; align-items: center; justify-content: center; background: #f3f4f6; border-radius: 8px; overflow: hidden;">
-                            <img src="${url}" loading="lazy" style="max-width: 100%; max-height: 100%; object-fit: contain;"/>
+                            <img src="${url}" loading="lazy" style="max-width: 100%; max-height: 100%; object-fit: contain;" alt="${escapeHtml(fileName || 'Image')}"/>
                         </div>`;
     } else if (isPdf) {
-      // Render PDF inline (most browsers support this). If the browser blocks it,
-      // the fallback open-in-new-tab button is still provided.
+      // Render PDF inline using object tag with iframe fallback
       previewHTML += `
                         <div style="flex: 1; display: flex; flex-direction: column; background: #111827; border-radius: 8px; overflow: hidden;">
-                          <iframe
-                            title="${escapeHtml(fileName || "PDF")}" 
-                            src="${url}"
-                            style="width: 100%; height: 100%; border: 0; background: #111827;"
-                            loading="lazy"
-                          ></iframe>
+                          <object
+                            data="${url}#toolbar=1&navpanes=0"
+                            type="application/pdf"
+                            style="width: 100%; height: 100%; border: 0; background: white;"
+                          >
+                            <iframe
+                              title="${escapeHtml(fileName || "PDF")}"
+                              src="${url}#toolbar=1&navpanes=0"
+                              style="width: 100%; height: 100%; border: 0; background: white;"
+                              loading="lazy"
+                            ></iframe>
+                          </object>
                           <div style="display:flex; justify-content:flex-end; gap:10px; padding:10px 12px; background: #0b1220; border-top: 1px solid rgba(255,255,255,0.08);">
                             <button onclick="window.open('${url}', '_blank')"
                                     style="background: rgba(59, 130, 246, 0.92); color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-weight: 600;">
@@ -1096,12 +1224,89 @@ window.previewAttachment = async function (
                             </button>
                           </div>
                         </div>`;
-    } else {
+    } else if (isText && ocrData && ocrData.text) {
+      // Show text content directly from OCR/extracted text
+      const textContent = ocrData.text.length > 10000 ? ocrData.text.substring(0, 10000) + "\n..." : ocrData.text;
+      previewHTML += `
+                        <div style="flex: 1; display: flex; flex-direction: column; background: #0b1220; border-radius: 8px; overflow: hidden;">
+                          <pre style="flex: 1; margin: 0; padding: 16px; color: #e5e7eb; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.85rem; line-height: 1.6; overflow: auto; white-space: pre-wrap; word-break: break-word;">${escapeHtml(textContent)}</pre>
+                          <div style="display:flex; justify-content:flex-end; gap:10px; padding:10px 12px; background: #0a0f18; border-top: 1px solid rgba(255,255,255,0.08);">
+                            <button onclick="window.open('${downloadUrl || url}', '_blank')"
+                                    style="background: #10b981; color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                              <i class="fas fa-download"></i> Download
+                            </button>
+                          </div>
+                        </div>`;
+    } else if (isOffice) {
+      // Office documents - show extracted text if available, otherwise prompt download
+      const officeText = preview.preview_content || (ocrData && ocrData.text);
+      if (officeText) {
+        const displayText = officeText.length > 10000 ? officeText.substring(0, 10000) + "\n..." : officeText;
+        previewHTML += `
+                        <div style="flex: 1; display: flex; flex-direction: column; background: #f9fafb; border-radius: 8px; overflow: hidden;">
+                          <div style="padding: 12px 16px; background: #e5e7eb; border-bottom: 1px solid #d1d5db; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-file-word" style="color: #2563eb;"></i>
+                            <span style="font-weight: 600; color: #374151;">Document Preview (Extracted Text)</span>
+                          </div>
+                          <pre style="flex: 1; margin: 0; padding: 16px; color: #374151; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 0.9rem; line-height: 1.7; overflow: auto; white-space: pre-wrap; word-break: break-word; background: white;">${escapeHtml(displayText)}</pre>
+                          <div style="display:flex; justify-content:flex-end; gap:10px; padding:10px 12px; background: #f3f4f6; border-top: 1px solid #e5e7eb;">
+                            <button onclick="window.open('${downloadUrl || url}', '_blank')"
+                                    style="background: #2563eb; color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                              <i class="fas fa-download"></i> Download Original
+                            </button>
+                          </div>
+                        </div>`;
+      } else {
+        previewHTML += `
+                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f9fafb; border-radius: 8px; padding: 40px;">
+                            <i class="fas fa-file-word" style="font-size: 4rem; color: #2563eb; margin-bottom: 20px;"></i>
+                            <p style="color: #374151; font-weight: 600; margin-bottom: 8px;">${escapeHtml(fileName || 'Office Document')}</p>
+                            <p style="color: #6b7280; margin-bottom: 20px; text-align: center;">Office documents require download to view</p>
+                            <button onclick="window.open('${downloadUrl || url}', '_blank')"
+                                    style="background: #2563eb; color: white; border: none; padding: 12px 24px;
+                                           border-radius: 6px; cursor: pointer; font-weight: 500;">
+                                <i class="fas fa-download"></i> Download File
+                            </button>
+                        </div>`;
+      }
+    } else if (isAudio) {
       previewHTML += `
                         <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f9fafb; border-radius: 8px; padding: 40px;">
-                            <div style="font-size: 3rem; margin-bottom: 20px;">📎</div>
+                            <i class="fas fa-music" style="font-size: 4rem; color: #8b5cf6; margin-bottom: 20px;"></i>
+                            <p style="color: #374151; font-weight: 600; margin-bottom: 16px;">${escapeHtml(fileName || 'Audio File')}</p>
+                            <audio controls style="width: 100%; max-width: 400px; margin-bottom: 16px;">
+                              <source src="${url}" type="${mimeType || 'audio/mpeg'}">
+                              Your browser does not support audio playback.
+                            </audio>
+                            <button onclick="window.open('${downloadUrl || url}', '_blank')"
+                                    style="background: #8b5cf6; color: white; border: none; padding: 10px 20px;
+                                           border-radius: 6px; cursor: pointer; font-weight: 500;">
+                                <i class="fas fa-download"></i> Download
+                            </button>
+                        </div>`;
+    } else if (isVideo) {
+      previewHTML += `
+                        <div style="flex: 1; display: flex; flex-direction: column; background: #111827; border-radius: 8px; overflow: hidden;">
+                          <video controls style="width: 100%; height: 100%; background: #000;">
+                            <source src="${url}" type="${mimeType || 'video/mp4'}">
+                            Your browser does not support video playback.
+                          </video>
+                          <div style="display:flex; justify-content:flex-end; gap:10px; padding:10px 12px; background: #0b1220; border-top: 1px solid rgba(255,255,255,0.08);">
+                            <button onclick="window.open('${downloadUrl || url}', '_blank')"
+                                    style="background: #10b981; color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                              <i class="fas fa-download"></i> Download
+                            </button>
+                          </div>
+                        </div>`;
+    } else {
+      // Unsupported file type - show download option
+      const fileIcon = getFileIconClass(fileName || "");
+      previewHTML += `
+                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f9fafb; border-radius: 8px; padding: 40px;">
+                            <i class="${fileIcon}" style="font-size: 4rem; color: #6b7280; margin-bottom: 20px;"></i>
+                            <p style="color: #374151; font-weight: 600; margin-bottom: 8px;">${escapeHtml(fileName || 'File')}</p>
                             <p style="color: #6b7280; margin-bottom: 20px; text-align: center;">Preview not available for this file type</p>
-                            <button onclick="window.open('${url}', '_blank')" 
+                            <button onclick="window.open('${downloadUrl || url}', '_blank')"
                                     style="background: #10b981; color: white; border: none; padding: 12px 24px;
                                            border-radius: 6px; cursor: pointer; font-weight: 500;">
                                 <i class="fas fa-download"></i> Download File
@@ -2668,6 +2873,13 @@ function setContextPanelCollapsed(collapsed) {
   if (!panel) return;
   panel.classList.toggle("collapsed", Boolean(collapsed));
   if (icon) icon.className = collapsed ? "fas fa-chevron-left" : "fas fa-chevron-right";
+
+  // After transition completes, resize the grid to fill available space
+  setTimeout(() => {
+    if (gridApi) {
+      gridApi.sizeColumnsToFit();
+    }
+  }, 320); // Slightly longer than the 0.3s CSS transition
 }
 
 window.toggleContextPanel = function () {
@@ -3629,6 +3841,27 @@ function initGrid() {
       flex: 1,
       headerTooltip: "CC recipients - Click filter icon to see all CC recipients",
       cellRenderer: (p) => formatEmailAddressCell(p.value),
+    },
+    {
+      headerName: "Stakeholders",
+      field: "_stakeholders",
+      sortable: true,
+      filter: "agSetColumnFilter",
+      width: 180,
+      headerTooltip: "Unique domains/companies from From, To, and Cc",
+      valueGetter: (p) => {
+        if (!p.data) return [];
+        return extractStakeholders(p.data.email_from, p.data.email_to, p.data.email_cc);
+      },
+      cellRenderer: (p) => {
+        const stakeholders = p.value;
+        if (!stakeholders || !Array.isArray(stakeholders) || stakeholders.length === 0) {
+          return '<span style="color: var(--text-muted);">—</span>';
+        }
+        const display = stakeholders.slice(0, 2).join(", ");
+        const extra = stakeholders.length > 2 ? ` +${stakeholders.length - 2}` : "";
+        return `<span style="color: var(--vericase-teal); font-size: 0.75rem;">${display}${extra}</span>`;
+      },
     },
     {
       headerName: "Subject",
