@@ -228,7 +228,6 @@ def _put_text_sidecar(
 
 def _try_parse_json_from_text(text_value: str) -> dict | None:
     import json
-    import re
 
     if not text_value:
         return None
@@ -242,17 +241,66 @@ def _try_parse_json_from_text(text_value: str) -> dict | None:
     except Exception:
         pass
 
-    # Try to extract the first JSON object block
-    m = re.search(r"\{[\s\S]*\}", raw)
-    if not m:
+    def _extract_balanced_json_object(s: str, start_idx: int) -> tuple[str, int] | None:
+        """Return (substring, end_idx_inclusive) for the first balanced {...} starting at start_idx."""
+
+        depth = 0
+        in_string = False
+        escape = False
+
+        for i in range(start_idx, len(s)):
+            ch = s[i]
+            if in_string:
+                if escape:
+                    escape = False
+                    continue
+                if ch == "\\":
+                    escape = True
+                    continue
+                if ch == '"':
+                    in_string = False
+                continue
+
+            if ch == '"':
+                in_string = True
+                continue
+
+            if ch == "{":
+                depth += 1
+                continue
+
+            if ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return s[start_idx : i + 1], i
+                continue
+
         return None
-    try:
-        parsed = json.loads(m.group(0))
-        if isinstance(parsed, dict):
-            return parsed
-        return {"value": parsed}
-    except Exception:
-        return None
+
+    # Try to extract the first JSON object block.
+    # Note: We intentionally do NOT use a greedy regex like r"\{[\s\S]*\}" because it will
+    # capture from the first "{" to the last "}" and can swallow non-JSON brace content.
+    start = 0
+    while True:
+        start = raw.find("{", start)
+        if start < 0:
+            return None
+
+        balanced = _extract_balanced_json_object(raw, start)
+        if not balanced:
+            start += 1
+            continue
+
+        candidate, end_idx = balanced
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict):
+                return parsed
+            return {"value": parsed}
+        except Exception:
+            # Continue searching in case the first balanced {...} isn't JSON (e.g. "{high}").
+            start = end_idx + 1
+            continue
 
 
 def _fetch_pst_file(pst_id: str):
@@ -575,11 +623,10 @@ def ocr_and_index(doc_id: str):
 
     # Non-blocking enrichment (Bedrock / BDA) as an add-on layer
     if getattr(settings, "ENABLE_DOCUMENT_ENRICHMENT", False):
-        try:
-            # Store extracted text sidecar so enrichers can fetch it without OpenSearch dependency.
-            if text and len(text) >= getattr(
-                settings, "BEDROCK_DOC_ENRICH_MIN_CHARS", 500
-            ):
+        # Store extracted text sidecar so enrichers can fetch it without OpenSearch dependency.
+        # Best-effort only: enrichment can still run using text_excerpt fallback.
+        if text and len(text) >= getattr(settings, "BEDROCK_DOC_ENRICH_MIN_CHARS", 500):
+            try:
                 sidecar_key = f"document-text/{doc_id}.txt"
                 b, k, sha, size_bytes = _put_text_sidecar(
                     doc["bucket"], sidecar_key, text
@@ -595,7 +642,13 @@ def ocr_and_index(doc_id: str):
                         }
                     },
                 )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to store extracted text sidecar (non-fatal): %s", exc
+                )
 
+        # Always enqueue enrichment even if sidecar/metadata writes fail.
+        try:
             enrich_document.delay(doc_id)
         except Exception as exc:
             logger.warning("Failed to enqueue document enrichment (non-fatal): %s", exc)
