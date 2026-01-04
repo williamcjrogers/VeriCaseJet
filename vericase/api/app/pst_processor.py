@@ -2862,8 +2862,9 @@ class UltimatePSTProcessor:
                 id=f"email_{email_message.id}",
                 refresh=False,
             )
-        except (ConnectionError, TimeoutError, ValueError) as e:
-            logger.error(f"Error indexing email to OpenSearch: {e}")
+        except Exception as e:
+            # OpenSearch indexing must never break PST extraction; treat as best-effort.
+            logger.warning("Error indexing email to OpenSearch (non-fatal): %s", e)
 
     def _build_thread_relationships(
         self,

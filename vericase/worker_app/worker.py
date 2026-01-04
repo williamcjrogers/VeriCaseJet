@@ -276,7 +276,16 @@ def _index_document(
         "metadata": metadata or {},
         "text": text,
     }
-    os_client.index(index=settings.OPENSEARCH_INDEX, id=doc_id, body=body, refresh=True)
+    try:
+        os_client.index(  # type: ignore[union-attr]
+            index=settings.OPENSEARCH_INDEX,
+            id=doc_id,
+            body=body,
+            refresh=True,
+        )
+    except Exception as exc:
+        # Best-effort: OCR output should still be persisted to Postgres even if OpenSearch is down.
+        logger.warning("OpenSearch index failed for %s (non-fatal): %s", doc_id, exc)
 
 
 def _count_pdf_pages(file_bytes: bytes) -> int:
