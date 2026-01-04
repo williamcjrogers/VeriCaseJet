@@ -75,6 +75,21 @@ def _join_recipients(values: list[str] | None) -> str | None:
     return ", ".join([v for v in values if v]) or None
 
 
+def _recipient_display_from_meta(meta: dict[str, Any], key: str) -> str | None:
+    """Best-effort display fallback for To/Cc/Bcc when we don't have parseable SMTP addresses."""
+    try:
+        recips = meta.get("recipients_display")
+        if isinstance(recips, dict):
+            value = recips.get(key)
+            if isinstance(value, str):
+                cleaned = value.strip()
+                if cleaned:
+                    return cleaned[:2000]
+    except Exception:
+        return None
+    return None
+
+
 def _build_email_row(
     e: EmailMessage,
     attachment_items: list[dict[str, Any]] | None = None,
@@ -83,6 +98,12 @@ def _build_email_row(
 ) -> EmailMessageSummary:
     meta: dict[str, Any] = e.meta if isinstance(e.meta, dict) else {}
     exclusion = compute_correspondence_exclusion(meta, e.subject)
+    email_to_display = _join_recipients(
+        e.recipients_to
+    ) or _recipient_display_from_meta(meta, "to")
+    email_cc_display = _join_recipients(
+        e.recipients_cc
+    ) or _recipient_display_from_meta(meta, "cc")
 
     sender_display = None
     if e.sender_name and e.sender_email:
@@ -122,8 +143,8 @@ def _build_email_row(
         meta={**meta, "exclusion": exclusion},
         email_subject=e.subject,
         email_from=sender_display,
-        email_to=_join_recipients(e.recipients_to),
-        email_cc=_join_recipients(e.recipients_cc),
+        email_to=email_to_display,
+        email_cc=email_cc_display,
         email_date=e.date_sent,
         email_body=email_body,
         attachments=attachments_payload,
@@ -176,6 +197,12 @@ def _build_email_row_server_side(
 
     meta: dict[str, Any] = e.meta if isinstance(e.meta, dict) else {}
     exclusion = compute_correspondence_exclusion(meta, e.subject)
+    email_to_display = _join_recipients(
+        e.recipients_to
+    ) or _recipient_display_from_meta(meta, "to")
+    email_cc_display = _join_recipients(
+        e.recipients_cc
+    ) or _recipient_display_from_meta(meta, "cc")
 
     sender_display: str | None
     if e.sender_name and e.sender_email:
@@ -188,12 +215,28 @@ def _build_email_row_server_side(
     # Prefer a cleaned "display" body preview, but keep it bounded.
     from ..email_normalizer import clean_email_body_for_display
 
+    preview_text = e.body_preview
+    # If the preview looks like HTML, pass it as HTML so the normalizer can
+    # reliably extract readable text.
+    preview_html = None
+    try:
+        if preview_text and "<" in preview_text[:2000] and ">" in preview_text[:2000]:
+            preview_html = preview_text
+    except Exception:
+        preview_html = None
+
     body_display = clean_email_body_for_display(
         body_text_clean=e.body_text_clean,
-        body_text=e.body_preview,
-        body_html=None,
+        body_text=preview_text,
+        body_html=preview_html,
     )
-    email_body = _truncate_text((body_display or "").strip(), body_max_chars) or ""
+    # Never return an empty body preview if we have *any* stored body signal.
+    # This prevents the grid from showing a column of "-" when `clean_email_body_for_display`
+    # decides the best display body is empty.
+    if not body_display:
+        body_display = e.body_text_clean or preview_text or ""
+
+    email_body = _truncate_text((body_display or "").strip(), body_max_chars) or None
 
     return {
         "id": str(e.id),
@@ -211,8 +254,8 @@ def _build_email_row_server_side(
         # AG Grid compatibility fields
         "email_subject": e.subject,
         "email_from": sender_display,
-        "email_to": _join_recipients(e.recipients_to),
-        "email_cc": _join_recipients(e.recipients_cc),
+        "email_to": email_to_display,
+        "email_cc": email_cc_display,
         "email_date": e.date_sent,
         "email_body": email_body,
         "attachments": attachments_payload,
@@ -1936,7 +1979,13 @@ async def get_email_detail_service(email_id: str, db: Session):
 
     if email.body_full_s3_key:
         try:
-            bucket = settings.S3_BUCKET  # or attachments bucket
+            # Bodies may be offloaded to a dedicated bucket (S3_EMAIL_BODY_BUCKET).
+            meta = email.meta if isinstance(email.meta, dict) else {}
+            bucket = (
+                meta.get("body_offload_bucket")
+                or getattr(settings, "S3_EMAIL_BODY_BUCKET", None)
+                or settings.S3_BUCKET
+            )
             body_data = get_object(bucket, email.body_full_s3_key)
             full_body_text = body_data.decode("utf-8")
             # Optionally reconstruct HTML if needed, but use text for now

@@ -629,6 +629,43 @@ class ForensicPSTProcessor:
             recipients_cc = self._extract_recipients(message, "cc", transport_headers)
             recipients_bcc = self._extract_recipients(message, "bcc", transport_headers)
 
+            # Preserve UI-friendly recipient display fallback (names-only Exchange messages are common).
+            # Keep recipients_to/cc/bcc as SMTP addresses only; store raw/display in metadata for UI.
+            def _recipient_display(recipient_type: str) -> str | None:
+                raw_val: str | None = None
+                try:
+                    if recipient_type == "to":
+                        raw_val = message.get_recipient_string() or None
+                    elif recipient_type == "cc":
+                        raw_val = message.get_cc_string() or None
+                    elif recipient_type == "bcc":
+                        raw_val = message.get_bcc_string() or None
+                except Exception:
+                    raw_val = None
+
+                if not raw_val and transport_headers:
+                    header_name = {"to": "To", "cc": "Cc", "bcc": "Bcc"}.get(
+                        recipient_type
+                    )
+                    if header_name:
+                        try:
+                            raw_val = self._extract_header(
+                                transport_headers, header_name
+                            )
+                        except Exception:
+                            raw_val = raw_val
+
+                if not raw_val:
+                    return None
+                cleaned = str(raw_val).replace("\x00", "").strip()
+                return cleaned[:2000] if cleaned else None
+
+            recipients_display: dict[str, str] = {}
+            for _k in ("to", "cc", "bcc"):
+                _v = _recipient_display(_k)
+                if _v:
+                    recipients_display[_k] = _v
+
             # Get dates
             date_sent = message.get_delivery_time()
             date_received = message.get_client_submit_time()
@@ -764,6 +801,7 @@ class ForensicPSTProcessor:
                     meta={
                         "normalizer_version": NORMALIZER_VERSION,
                         "normalizer_ruleset_hash": NORMALIZER_RULESET_HASH,
+                        "recipients_display": recipients_display or None,
                         "status": derived_status,
                         "excluded": True,
                         "is_hidden": True,
@@ -1030,6 +1068,7 @@ class ForensicPSTProcessor:
                 meta={
                     "normalizer_version": NORMALIZER_VERSION,
                     "normalizer_ruleset_hash": NORMALIZER_RULESET_HASH,
+                    "recipients_display": recipients_display or None,
                 },
             )
 

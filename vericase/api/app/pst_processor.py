@@ -1660,6 +1660,28 @@ class UltimatePSTProcessor:
         cc_recipients = _extract_recipients("cc", "Cc")
         bcc_recipients = _extract_recipients("bcc", "Bcc")
 
+        # Preserve a UI-friendly recipient display fallback (names-only Exchange messages are common).
+        # We keep recipients_to/cc/bcc as *SMTP addresses only* for hashing/dedupe, but store the
+        # raw/display strings in metadata so the correspondence grid can show something even when
+        # no parseable emails exist.
+        def _recipient_display_string(
+            recipient_type: str, header_name: str
+        ) -> str | None:
+            raw_val = _recipient_string(recipient_type) or self._header_first(
+                header_map, header_name
+            )
+            raw_val = self._sanitize_text(raw_val)
+            if not raw_val:
+                return None
+            raw_val = raw_val.strip()
+            return raw_val[:2000] if raw_val else None
+
+        recipients_display: dict[str, str] = {}
+        for _k, _hn in (("to", "To"), ("cc", "Cc"), ("bcc", "Bcc")):
+            _v = _recipient_display_string(_k, _hn)
+            if _v:
+                recipients_display[_k] = _v
+
         # Get dates - pypff has delivery_time (Received) and client_submit_time (Sent)
         # For forensic accuracy, we must map these correctly to date_sent and date_received
         date_sent_raw = self._safe_get_attr(message, "client_submit_time", None)
@@ -1871,6 +1893,7 @@ class UltimatePSTProcessor:
                 pst_message_path=folder_path,
                 meta={
                     "thread_topic": thread_topic,
+                    "recipients_display": recipients_display or None,
                     "normalizer_version": NORMALIZER_VERSION,
                     "normalizer_ruleset_hash": NORMALIZER_RULESET_HASH,
                     "transport_headers_sha256": transport_headers_hash,
@@ -2177,6 +2200,8 @@ class UltimatePSTProcessor:
                 ),
             }
         )
+        if recipients_display:
+            meta_payload["recipients_display"] = recipients_display
         if spam_is_hidden:
             # Correspondence visibility convention
             meta_payload["status"] = derived_status
