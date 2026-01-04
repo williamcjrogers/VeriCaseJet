@@ -22,6 +22,8 @@ defusedxml==0.7.1  # Secure XML parsing
 PyPDF2==3.0.1
 reportlab==4.4.5
 python-magic==0.4.27
+# Email body parsing / cleaning (reply chains, signatures, disclaimers)
+mail-parser-reply==1.36
 # Note: pypff (libpff-python) for PST processing is optional and platform-specific
 # Install separately if needed: pip install libpff-python
 sentence-transformers==5.1.2

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import lru_cache
 import hashlib
 import html
 import json
@@ -125,6 +126,118 @@ def clean_body_text(text: str | None) -> str | None:
     text = re.sub(r"\n{3,}", "\n\n", text)
 
     return text.strip()
+
+
+try:
+    # Best-in-class reply parsing (headers/quotes/signatures/disclaimers), with multi-language support.
+    # Optional dependency; code falls back to lightweight heuristics if missing.
+    from mailparser_reply import EmailReplyParser as _EmailReplyParser  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    _EmailReplyParser = None
+
+
+@lru_cache(maxsize=16)
+def _get_reply_parser(languages_key: str) -> object | None:
+    if _EmailReplyParser is None:
+        return None
+    languages = [lang for lang in (languages_key or "").split(",") if lang]
+    if not languages:
+        languages = ["en"]
+    try:
+        return _EmailReplyParser(languages=languages)
+    except Exception:
+        return None
+
+
+def _display_score(value: str) -> int:
+    if not value:
+        return 0
+    core = re.sub(r"[^0-9A-Za-z]+", "", value)
+    return len(core)
+
+
+def clean_email_body_for_display(
+    *,
+    body_text_clean: str | None,
+    body_text: str | None,
+    body_html: str | None,
+    languages: list[str] | None = None,
+) -> str | None:
+    """
+    Produce a best-effort *display* body:
+    - Decodes HTML entities / strips HTML tags
+    - Removes common external-email banners and disclaimer blocks
+    - Attempts to drop quoted reply chains + signatures (best-effort)
+
+    Important: this is UI-facing. Do NOT use this output as a forensic source-of-truth.
+    Always preserve the raw `body_text` / `body_html` separately.
+    """
+
+    from .email_content import split_reply as _split_reply
+    from .email_content import strip_signature as _strip_signature
+
+    candidates: list[str] = []
+    for value in (body_text_clean, body_text, body_html):
+        if value and isinstance(value, str):
+            candidates.append(value)
+
+    # Fast path: if stored body_text_clean already has meaningful content, prefer it.
+    # (Avoid heavy processing on list views.)
+    if body_text_clean:
+        cleaned = clean_body_text(body_text_clean) or ""
+        top, _quoted, _marker = _split_reply(cleaned)
+        body, _sig = _strip_signature(top)
+        body = body.strip()
+        if _display_score(body) >= 40:
+            return body
+
+    best = ""
+    best_score = -1
+
+    parser = None
+    languages_key = ",".join(languages or ["en"])
+    parser_obj = _get_reply_parser(languages_key)
+    if parser_obj is not None:
+        parser = parser_obj
+
+    for value in candidates:
+        cleaned = clean_body_text(value) or ""
+        if not cleaned:
+            continue
+
+        display = ""
+        # Use the best-in-class parser when available, but keep robust fallbacks.
+        if parser is not None:
+            try:
+                parsed = parser.parse_reply(text=cleaned)  # type: ignore[attr-defined]
+                if isinstance(parsed, str):
+                    display = parsed
+                elif hasattr(parsed, "body"):
+                    display = str(getattr(parsed, "body") or "")
+                elif hasattr(parsed, "full_body"):
+                    display = str(getattr(parsed, "full_body") or "")
+            except Exception:
+                display = ""
+
+        if display:
+            # Regardless of parser output, apply our conservative signature trimming to
+            # remove "Kind regards, Name + contact" blocks that are extremely common in
+            # UK/Outlook corp datasets.
+            top, _quoted, _marker = _split_reply(display)
+            body, _sig = _strip_signature(top)
+            display = body.strip()
+        else:
+            # Fallback: split reply + strip signature heuristics.
+            top, _quoted, _marker = _split_reply(cleaned)
+            body, _sig = _strip_signature(top)
+            display = body.strip()
+
+        score = _display_score(display)
+        if score > best_score:
+            best_score = score
+            best = display
+
+    return best.strip() or None
 
 
 def build_content_hash(

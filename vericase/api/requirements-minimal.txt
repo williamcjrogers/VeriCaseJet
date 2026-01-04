@@ -19,4 +19,6 @@ python-jose==3.3.0
 defusedxml==0.7.1
 PyPDF2==3.0.1
 reportlab==4.1.0
+# Email body parsing / cleaning (reply chains, signatures, disclaimers)
+mail-parser-reply==1.36
 requests-aws4auth==1.2.3
