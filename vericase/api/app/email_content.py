@@ -10,16 +10,48 @@ logger = logging.getLogger(__name__)
 
 BodySource = Literal["plain", "html", "rtf", "none"]
 
+try:
+    # Optional, but pinned in requirements for best-in-class HTML -> text cleaning.
+    from bs4 import BeautifulSoup  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    BeautifulSoup = None
+
 
 _REPLY_SPLIT_RE = re.compile(
     r"(?mi)^\s*>?\s*On .+ wrote:"
+    r"|^\s*>?\s*Le .+ a \xE9crit\s*:"  # FR
+    r"|^\s*>?\s*El .+ escribi[o\xF3]\s*:"  # ES
+    r"|^\s*>?\s*Am .+ schrieb\s*:"  # DE
+    r"|^\s*>?\s*Il .+ ha scritto\s*:"  # IT
+    r"|^\s*>?\s*Em .+ escreveu\s*:"  # PT
+    r"|^\s*>?\s*Op .+ schreef\s*:"  # NL
     r"|^\s*>?\s*From:\s"
+    r"|^\s*>?\s*Von:\s"  # DE
+    r"|^\s*>?\s*De:\s"  # FR/ES/PT
+    r"|^\s*>?\s*Da:\s"  # IT
+    r"|^\s*>?\s*Van:\s"  # NL
     r"|^\s*>?\s*Sent:\s"
+    r"|^\s*>?\s*Gesendet:\s"  # DE
+    r"|^\s*>?\s*Envoy\xE9:\s"  # FR
+    r"|^\s*>?\s*Enviado:\s"  # ES/PT
+    r"|^\s*>?\s*Inviato:\s"  # IT
+    r"|^\s*>?\s*Verzonden:\s"  # NL
     r"|^\s*>?\s*To:\s"
+    r"|^\s*>?\s*An:\s"  # DE
+    r"|^\s*>?\s*\xC0:\s"  # FR "À:"
+    r"|^\s*>?\s*Para:\s"  # ES/PT
+    r"|^\s*>?\s*A:\s"  # IT
+    r"|^\s*>?\s*Aan:\s"  # NL
     r"|^\s*>?\s*Cc:\s"
     r"|^\s*>?\s*Bcc:\s"
     r"|^\s*>?\s*Subject:\s"
+    r"|^\s*>?\s*Betreff:\s"  # DE
+    r"|^\s*>?\s*Objet:\s"  # FR
+    r"|^\s*>?\s*Asunto:\s"  # ES
+    r"|^\s*>?\s*Oggetto:\s"  # IT
+    r"|^\s*>?\s*Onderwerp:\s"  # NL
     r"|^\s*>?\s*Date:\s"
+    r"|^\s*>?\s*Datum:\s"  # DE/NL
     r"|^-----Original Message-----"
     r"|^----- Forwarded message -----"
     r"|^Begin forwarded message",
@@ -67,10 +99,108 @@ def decode_maybe_bytes(value: Any) -> str | None:
     return text.replace("\x00", "").replace("\u0000", "")
 
 
+def _html_to_text_bs4(html_body: str) -> str:
+    # Decode entities early so downstream heuristics see real whitespace.
+    decoded = html_lib.unescape(html_body or "")
+    soup = BeautifulSoup(decoded, "html.parser")  # type: ignore[misc]
+
+    # Remove non-content
+    for tag in soup.find_all(
+        ["script", "style", "head", "title", "meta", "link", "noscript"]
+    ):
+        try:
+            tag.decompose()
+        except Exception:
+            pass
+
+    # Remove common quoted/reply blocks
+    for tag in soup.find_all("blockquote"):
+        try:
+            tag.decompose()
+        except Exception:
+            pass
+
+    def _is_quoteish_class(value: object) -> bool:
+        try:
+            if value is None:
+                return False
+            parts: list[str] = []
+            if isinstance(value, str):
+                parts = [value]
+            elif isinstance(value, (list, tuple)):
+                parts = [str(v) for v in value]
+            joined = " ".join(parts).lower()
+            return any(
+                k in joined
+                for k in (
+                    "gmail_quote",
+                    "yahoo_quoted",
+                    "wordsection1",
+                    "divrplyfwdmsg",
+                    "mso",
+                )
+            )
+        except Exception:
+            return False
+
+    for tag in soup.find_all(["div", "span"], class_=_is_quoteish_class):
+        try:
+            tag.decompose()
+        except Exception:
+            pass
+
+    # Normalize line breaks
+    for br in soup.find_all("br"):
+        br.replace_with("\n")
+
+    # Block-level tags should end with a newline to preserve paragraph structure
+    block_names = {
+        "p",
+        "div",
+        "tr",
+        "table",
+        "thead",
+        "tbody",
+        "tfoot",
+        "section",
+        "article",
+        "header",
+        "footer",
+        "pre",
+    }
+    for tag in soup.find_all(list(block_names)):
+        try:
+            tag.append("\n")
+        except Exception:
+            pass
+
+    # Lists: add simple bullet prefixes
+    for li in soup.find_all("li"):
+        try:
+            li.insert(0, "- ")
+            li.append("\n")
+        except Exception:
+            pass
+
+    text = soup.get_text()  # uses inserted newlines
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = text.replace("\xa0", " ")
+    text = re.sub(r"[^\S\n]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
 def html_to_text(html_body: str | None) -> str:
     if not html_body:
         return ""
-    # Keep it deterministic and dependency-light; bs4 can be added later if needed.
+    if BeautifulSoup is not None:
+        try:
+            return _html_to_text_bs4(html_body)
+        except Exception:
+            # Fall back to deterministic regex stripping below.
+            pass
+
+    # Deterministic fallback (dependency-light)
     cleaned = _HTML_STYLE_RE.sub(" ", html_body)
     cleaned = _HTML_BREAK_RE.sub("\n", cleaned)
     cleaned = _HTML_TAG_RE.sub(" ", cleaned)
@@ -85,6 +215,16 @@ def html_to_text(html_body: str | None) -> str:
 def strip_html_quote_blocks(html: str | None) -> str:
     if not html:
         return ""
+    if BeautifulSoup is not None:
+        try:
+            soup = BeautifulSoup(html, "html.parser")  # type: ignore[misc]
+            for tag in soup.find_all("blockquote"):
+                tag.decompose()
+            for tag in soup.find_all(["div", "span"], class_=lambda c: c and any(k in " ".join(c).lower() for k in ("gmail_quote", "yahoo_quoted", "wordsection1", "divrplyfwdmsg"))):  # type: ignore[arg-type]
+                tag.decompose()
+            return str(soup)
+        except Exception:
+            pass
     return _HTML_QUOTE_BLOCK_RE.sub(" ", html)
 
 

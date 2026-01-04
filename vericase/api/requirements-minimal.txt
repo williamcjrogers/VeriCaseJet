@@ -21,4 +21,5 @@ PyPDF2==3.0.1
 reportlab==4.1.0
 # Email body parsing / cleaning (reply chains, signatures, disclaimers)
 mail-parser-reply==1.36
+beautifulsoup4==4.12.3  # Robust HTML -> text for email bodies (display cleaning)
 requests-aws4auth==1.2.3

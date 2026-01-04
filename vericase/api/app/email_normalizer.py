@@ -5,6 +5,7 @@ import hashlib
 import html
 import json
 import logging
+import os
 import re
 from datetime import datetime
 
@@ -175,9 +176,17 @@ def clean_email_body_for_display(
 
     from .email_content import split_reply as _split_reply
     from .email_content import strip_signature as _strip_signature
+    from .email_content import html_to_text as _html_to_text
 
     candidates: list[str] = []
-    for value in (body_text_clean, body_text, body_html):
+    html_as_text = None
+    if body_html and isinstance(body_html, str):
+        try:
+            html_as_text = _html_to_text(body_html)
+        except Exception:
+            html_as_text = None
+
+    for value in (body_text_clean, body_text, html_as_text):
         if value and isinstance(value, str):
             candidates.append(value)
 
@@ -195,6 +204,14 @@ def clean_email_body_for_display(
     best_score = -1
 
     parser = None
+    if languages is None:
+        env_langs = os.getenv("EMAIL_REPLY_LANGUAGES", "")
+        if env_langs.strip():
+            languages = [s.strip() for s in env_langs.split(",") if s.strip()]
+        else:
+            # Safe default: English + common EU corp mailboxes (kept deterministic).
+            languages = ["en", "fr", "de", "es", "it", "pt", "nl"]
+
     languages_key = ",".join(languages or ["en"])
     parser_obj = _get_reply_parser(languages_key)
     if parser_obj is not None:
