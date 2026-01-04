@@ -1,6 +1,21 @@
 import os
 
 
+def _normalize_redis_url(url: str | None) -> str | None:
+    """Normalize Redis SSL query params to match redis-py expectations.
+
+    Some environments set `ssl_cert_reqs=CERT_REQUIRED` (etc.) in REDIS_URL. redis-py
+    expects `required|optional|none` (or None). Normalizing here keeps Celery stable.
+    """
+    if not url:
+        return url
+    return (
+        url.replace("ssl_cert_reqs=CERT_REQUIRED", "ssl_cert_reqs=required")
+        .replace("ssl_cert_reqs=CERT_OPTIONAL", "ssl_cert_reqs=optional")
+        .replace("ssl_cert_reqs=CERT_NONE", "ssl_cert_reqs=none")
+    )
+
+
 class Settings:
     # AWS mode flag - when true, use AWS S3 (IRSA) instead of MinIO
     USE_AWS_SERVICES = os.getenv("USE_AWS_SERVICES", "false").lower() == "true"
@@ -36,7 +51,7 @@ class Settings:
     OPENSEARCH_INDEX = os.getenv("OPENSEARCH_INDEX", "documents")
 
     # Other services
-    REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+    REDIS_URL = _normalize_redis_url(os.getenv("REDIS_URL", "redis://redis:6379/0"))
     # Default queue name matches the worker's default binding ("celery")
     CELERY_QUEUE = os.getenv("CELERY_QUEUE", "celery")
     # Dedicated queue for PST processing (kept separate for scalability)

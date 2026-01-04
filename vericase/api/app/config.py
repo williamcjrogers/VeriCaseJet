@@ -189,6 +189,26 @@ class Settings(BaseSettings):
     CELERY_PST_QUEUE: str = "pst_processing"
     TIKA_URL: str = "http://tika:9998"
 
+    @field_validator("REDIS_URL")
+    @classmethod
+    def normalize_redis_url(cls, v: str) -> str:
+        """Normalize Redis SSL query params to match redis-py expectations.
+
+        Some deployments historically used `ssl_cert_reqs=CERT_REQUIRED` (etc.) in the
+        URL. redis-py expects `required|optional|none` (or None). If we don't normalize
+        this, Celery and status/progress reads can fail to connect to Redis.
+        """
+        if not v:
+            return v
+
+        # Fast path: only touch URLs that contain the legacy values.
+        # Keep this conservative to avoid unintended rewrites.
+        return (
+            v.replace("ssl_cert_reqs=CERT_REQUIRED", "ssl_cert_reqs=required")
+            .replace("ssl_cert_reqs=CERT_OPTIONAL", "ssl_cert_reqs=optional")
+            .replace("ssl_cert_reqs=CERT_NONE", "ssl_cert_reqs=none")
+        )
+
     # PST ingestion performance
     # When true (default), pre-traverse the PST to count total messages for progress %
     # tracking. Disable to avoid the extra full pass on very large PSTs.

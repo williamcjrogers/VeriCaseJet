@@ -2731,10 +2731,23 @@
       updateFileItem(item.id, { status: "processing", progress: 95 });
 
       // Start processing
-      await fetch(
+      const processResp = await fetch(
         `${apiUrl}/api/correspondence/pst/${pst_file_id}/process`,
         withAuth({ method: "POST" }),
       );
+      if (!processResp.ok) {
+        let detail = "";
+        try {
+          detail = await processResp.text();
+        } catch (e) {
+          detail = "";
+        }
+        throw new Error(
+          `Failed to start PST processing (HTTP ${processResp.status})${
+            detail ? `: ${detail}` : ""
+          }`,
+        );
+      }
     }
 
     async function uploadPSTMultipart(item) {
@@ -2982,10 +2995,23 @@
       clearResume();
 
       if (!completionData?.processing_started) {
-        await fetch(
+        const processResp = await fetch(
           `${apiUrl}/api/correspondence/pst/${pst_file_id}/process`,
           withAuth({ method: "POST" }),
         );
+        if (!processResp.ok) {
+          let detail = "";
+          try {
+            detail = await processResp.text();
+          } catch (e) {
+            detail = "";
+          }
+          throw new Error(
+            `Failed to start PST processing (HTTP ${processResp.status})${
+              detail ? `: ${detail}` : ""
+            }`,
+          );
+        }
       }
     }
 
@@ -3297,7 +3323,19 @@
           `${apiUrl}/api/correspondence/pst/${pstFileId}/process`,
           withAuth({ method: "POST" }),
         );
-        if (!response.ok) throw new Error("Failed to start processing");
+        if (!response.ok) {
+          let detail = "";
+          try {
+            detail = await response.text();
+          } catch (e) {
+            detail = "";
+          }
+          throw new Error(
+            `Failed to start processing (HTTP ${response.status})${
+              detail ? `: ${detail}` : ""
+            }`,
+          );
+        }
         alert("Processing started!");
         loadPSTHistory();
       } catch (error) {

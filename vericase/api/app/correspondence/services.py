@@ -720,11 +720,27 @@ async def start_pst_processing_service(pst_file_id, db):
     else:
         raise HTTPException(400, "PST file not linked to any project or case")
 
-    task = celery_app.send_task(
-        "worker_app.worker.process_pst_file",
-        args=[pst_file_id],
-        queue=settings.CELERY_PST_QUEUE,
-    )
+    try:
+        task = celery_app.send_task(
+            "worker_app.worker.process_pst_file",
+            args=[pst_file_id],
+            queue=settings.CELERY_PST_QUEUE,
+        )
+    except Exception as exc:
+        # Persist the enqueue failure so the UI/status endpoint can surface it.
+        try:
+            pst_file.processing_status = "failed"
+            pst_file.error_message = f"Failed to enqueue PST processing: {exc}"
+            pst_file.processing_started_at = datetime.now()
+            pst_file.processing_completed_at = datetime.now()
+            db.commit()
+        except Exception:
+            # Best-effort; don't mask the original error.
+            pass
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to enqueue PST processing task (Celery/Redis unavailable)",
+        ) from exc
 
     pst_file.processing_status = "pending"
     pst_file.error_message = None
