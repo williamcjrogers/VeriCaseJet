@@ -510,7 +510,14 @@ function cleanEmailBodyText(text) {
 }
 
 function getBodyTextValue(data) {
-  const raw = data?.body_text_clean || data?.body_text || data?.email_body || "";
+  // Prefer server-computed display body when present.
+  // This is derived using the latest backend cleaning pipeline (HTML->text, multi-language reply parsing).
+  // Do NOT run aggressive client-side stripping on it; only normalize whitespace for rendering.
+  if (data?.email_body) {
+    return normalizeBodyWhitespace(String(data.email_body));
+  }
+
+  const raw = data?.body_text_clean || data?.body_text || "";
   return cleanEmailBodyText(raw);
 }
 
@@ -4288,7 +4295,7 @@ function initGrid() {
       autoHeight: true,
       cellClass: 'body-cell',
       cellRenderer: (p) => {
-        const body = p.data?.body_text_clean || p.data?.body_text || p.data?.email_body || "";
+        const body = p.data?.email_body || p.data?.body_text_clean || p.data?.body_text || "";
         if (!body) return '<span style="color: var(--text-muted);">—</span>';
         
         const rowId = p.node.id;
