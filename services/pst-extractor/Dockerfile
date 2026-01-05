@@ -11,7 +11,7 @@ RUN cargo build --release
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    readpst \
+    pst-utils \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
