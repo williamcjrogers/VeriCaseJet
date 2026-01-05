@@ -7,7 +7,12 @@ RUN mkdir -p src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release
 
 COPY src ./src
-RUN cargo build --release
+# Cargo rebuilds based on file modification times. Because we generate a dummy
+# src/main.rs during the dependency-caching step, the copied real sources can
+# have older mtimes (from the host), causing Cargo to *skip rebuilding* and
+# leaving us with a no-op binary. Touch sources after copy to force rebuild.
+RUN find src -type f -exec touch {} + \
+  && cargo build --release
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \

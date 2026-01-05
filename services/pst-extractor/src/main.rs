@@ -3,7 +3,7 @@ use aws_sdk_s3::primitives::ByteStream;
 use clap::Parser;
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use mailparse::ParsedMail;
+use mailparse::{MailHeaderMap, ParsedMail};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::fs::{self, File};
@@ -323,7 +323,7 @@ fn is_attachment_part(part: &ParsedMail) -> bool {
     has_filename
 }
 
-fn collect_attachment_parts<'a>(mail: &'a ParsedMail, out: &mut Vec<&'a ParsedMail>) {
+fn collect_attachment_parts<'a>(mail: &'a ParsedMail<'a>, out: &mut Vec<&'a ParsedMail<'a>>) {
     if mail.subparts.is_empty() {
         if is_attachment_part(mail) {
             out.push(mail);
@@ -405,6 +405,15 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     let started = Instant::now();
 
+    eprintln!(
+        "pst-extractor starting pst_file_id={} source=s3://{}/{} output=s3://{}/{}",
+        args.pst_file_id, args.source_bucket, args.source_key, args.output_bucket, args.output_prefix
+    );
+
+    eprintln!(
+        "loading AWS config (if this hangs locally, set AWS_EC2_METADATA_DISABLED=true to skip IMDS)..."
+    );
+
     let cfg = aws_config::load_from_env().await;
     let s3 = aws_sdk_s3::Client::new(&cfg);
 
@@ -415,9 +424,18 @@ async fn main() -> Result<()> {
     fs::create_dir_all(&out_dir).context("create out dir")?;
 
     let pst_path = work_root.join("input.pst");
+    eprintln!(
+        "downloading PST to {} (s3://{}/{})...",
+        pst_path.display(),
+        args.source_bucket,
+        args.source_key
+    );
     download_file(&s3, &args.source_bucket, &args.source_key, &pst_path).await?;
 
+    eprintln!("running readpst into {}...", extract_dir.display());
     run_readpst(&args.readpst_path, &pst_path, &extract_dir)?;
+
+    eprintln!("parsing extracted mail files...");
 
     let ndjson_path = out_dir.join("emails.ndjson.gz");
     let csv_path = out_dir.join("emails.csv.gz");
@@ -749,6 +767,11 @@ async fn main() -> Result<()> {
     )
     .await?;
     upload_file(&s3, &args.output_bucket, &manifest_key, &manifest_path).await?;
+
+    eprintln!(
+        "uploads complete (emails_total={} attachments_total={})",
+        emails_total, attachments_total
+    );
 
     println!(
         "OK pst_file_id={} emails_total={} attachments_total={} duration_s={:.2}",
