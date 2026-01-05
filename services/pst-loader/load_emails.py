@@ -1,4 +1,5 @@
 import gzip
+import base64
 import os
 import sys
 
@@ -18,8 +19,28 @@ def _require(name: str) -> str:
     return value
 
 
+def _require_database_url() -> str:
+    """
+    Prefer DATABASE_URL, but allow DATABASE_URL_B64 for compatibility with existing
+    Batch job definitions that store connection strings base64-encoded.
+    """
+
+    direct = os.getenv("DATABASE_URL")
+    if direct:
+        return direct
+
+    b64 = os.getenv("DATABASE_URL_B64")
+    if b64:
+        try:
+            return base64.b64decode(b64).decode("utf-8")
+        except Exception as exc:
+            raise RuntimeError("Invalid DATABASE_URL_B64") from exc
+
+    raise RuntimeError("Missing required env var: DATABASE_URL (or DATABASE_URL_B64)")
+
+
 def main() -> int:
-    database_url = _normalize_db_url(_require("DATABASE_URL"))
+    database_url = _normalize_db_url(_require_database_url())
     pst_file_id = _require("PST_FILE_ID")
     output_bucket = _require("OUTPUT_BUCKET")
     output_prefix = _require("OUTPUT_PREFIX").lstrip("/")

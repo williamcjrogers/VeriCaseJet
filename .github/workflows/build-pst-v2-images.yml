@@ -1,0 +1,107 @@
+name: Build PST V2 Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/pst-extractor/**"
+      - "services/pst-loader/**"
+      - ".github/workflows/build-pst-v2-images.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: build-pst-v2-images-main
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: pst-extractor
+            context: ./services/pst-extractor
+            dockerfile: ./services/pst-extractor/Dockerfile
+            docker_image: wcjrogers/vericase-pst-extractor
+            ghcr_image: ghcr.io/${{ github.repository_owner }}/vericase-pst-extractor
+          - name: pst-loader
+            context: ./services/pst-loader
+            dockerfile: ./services/pst-loader/Dockerfile
+            docker_image: wcjrogers/vericase-pst-loader
+            ghcr_image: ghcr.io/${{ github.repository_owner }}/vericase-pst-loader
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preflight checks (required secrets)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${{ secrets.DOCKER_PAT }}" ]; then
+            echo "Missing required GitHub Secret: DOCKER_PAT" >&2
+            exit 1
+          fi
+          echo "Preflight OK"
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKER_USER || 'wcjrogers' }}
+          password: ${{ secrets.DOCKER_PAT }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ matrix.docker_image }}
+            ${{ matrix.ghcr_image }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ github.sha }}
+            type=raw,value={{date 'YYYYMMDD-HHmmss'}}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "## 📦 PST V2 Image Published"
+            echo ""
+            echo "**Service:** \`${{ matrix.name }}\`"
+            echo ""
+            echo "**Docker Hub:** \`${{ matrix.docker_image }}:${{ github.sha }}\`"
+            echo "**GHCR:** \`${{ matrix.ghcr_image }}:${{ github.sha }}\`"
+            echo ""
+            echo "**Digest:** \`${{ steps.build.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+
