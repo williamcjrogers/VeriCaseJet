@@ -1,4 +1,5 @@
-FROM rust:1.75-bookworm AS build
+# NOTE: Cargo.lock currently resolves AWS SDK crates that require rustc >= 1.88.
+FROM rust:1.88-bookworm AS build
 WORKDIR /src
 
 COPY Cargo.toml Cargo.lock* ./
