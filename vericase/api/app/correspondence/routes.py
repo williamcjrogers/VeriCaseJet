@@ -278,6 +278,7 @@ async def list_emails_server_side(
     keyword_id: Annotated[
         str | None, Query(description="Filter by keyword (server-side)")
     ] = None,
+    domain: Annotated[str | None, Query(description="Filter by email domain")] = None,
     include_hidden: Annotated[
         bool, Query(description="Include excluded/hidden emails")
     ] = False,
@@ -293,6 +294,7 @@ async def list_emails_server_side(
         search=search,
         stakeholder_id=stakeholder_id,
         keyword_id=keyword_id,
+        domain=domain,
         include_hidden=include_hidden,
         db=db,
     )
@@ -482,10 +484,92 @@ async def list_email_addresses(
                     cc_set.add(clean)
     cc_list = sorted(cc_set)[:1000]
 
+    # Extract unique domains from all addresses
+    all_addresses = set(from_list) | to_set | cc_set
+    domains = set()
+    for addr in all_addresses:
+        if "@" in addr:
+            domain = addr.split("@")[-1].lower().strip()
+            if domain:
+                domains.add(domain)
+    domain_list = sorted(domains)
+
     return {
         "from": from_list,
         "to": to_list,
         "cc": cc_list,
+        "domains": domain_list,
+    }
+
+
+@router.get("/domains")
+async def list_email_domains(
+    case_id: Annotated[str | None, Query(description="Case ID")] = None,
+    project_id: Annotated[str | None, Query(description="Project ID")] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """List unique email domains from all correspondence for stakeholder filtering."""
+
+    from sqlalchemy import distinct
+
+    q = db.query(EmailMessage)
+    case_uuid = _safe_uuid(case_id, "case_id")
+    project_uuid = _safe_uuid(project_id, "project_id")
+    if case_uuid:
+        q = q.filter(EmailMessage.case_id == case_uuid)
+    if project_uuid:
+        q = q.filter(EmailMessage.project_id == project_uuid)
+
+    domains = set()
+
+    # Extract from sender emails
+    from_addrs = (
+        q.with_entities(distinct(EmailMessage.sender_email))
+        .filter(EmailMessage.sender_email.isnot(None))
+        .filter(EmailMessage.sender_email != "")
+        .limit(5000)
+        .all()
+    )
+    for addr in from_addrs:
+        if addr[0] and "@" in addr[0]:
+            domain = addr[0].split("@")[-1].lower().strip()
+            if domain:
+                domains.add(domain)
+
+    # Extract from recipient emails (ARRAY column)
+    to_rows = (
+        q.with_entities(EmailMessage.recipients_to)
+        .filter(EmailMessage.recipients_to.isnot(None))
+        .limit(5000)
+        .all()
+    )
+    for row in to_rows:
+        if row[0]:
+            for addr in row[0]:
+                if addr and "@" in addr:
+                    domain = addr.split("@")[-1].lower().strip()
+                    if domain:
+                        domains.add(domain)
+
+    # Extract from CC emails (ARRAY column)
+    cc_rows = (
+        q.with_entities(EmailMessage.recipients_cc)
+        .filter(EmailMessage.recipients_cc.isnot(None))
+        .limit(5000)
+        .all()
+    )
+    for row in cc_rows:
+        if row[0]:
+            for addr in row[0]:
+                if addr and "@" in addr:
+                    domain = addr.split("@")[-1].lower().strip()
+                    if domain:
+                        domains.add(domain)
+
+    return {
+        "domains": sorted(domains),
+        "count": len(domains),
     }
 
 

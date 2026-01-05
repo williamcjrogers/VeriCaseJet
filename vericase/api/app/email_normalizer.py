@@ -27,8 +27,14 @@ _BANNER_PATTERNS = [
     r"(?mi)^.*(?:email|message)\s+looks\s+safe.*$",
     r"(?mi)^\s*this email originated outside.*$",
     r"(?mi)^\s*this email originated from outside.*$",
+    r"(?mi)^\s*this email originated outside the organisation.*$",
+    r"(?mi)^\s*this email originated outside the organization.*$",
     r"(?mi)^\s*do not (?:click|open) (?:links?|attachments?).*$",
+    r"(?mi)^\s*don'?t (?:click|open) (?:links?|attachments?).*$",
+    r"(?mi)^\s*(?:click|open) (?:links?|attachments?) (?:unless|only).*$",
     r"(?mi)^\s*attachments? and links? .* (?:unsafe|suspicious|dangerous).*$",
+    r"(?mi)^\s*unless (?:you|the) (?:recogni[sz]e|content is expected).*$",
+    r"(?mi)^\s*unless (?:the )?(?:content is expected|sender).*safe.*$",
 ]
 
 _FOOTER_MARKERS = [
@@ -157,6 +163,50 @@ def _display_score(value: str) -> int:
     return len(core)
 
 
+def _is_mostly_boilerplate(text: str) -> bool:
+    """
+    Heuristic to detect if text is mostly external-email banner/disclaimer boilerplate.
+    Returns True if the text appears to be primarily banner text without meaningful content.
+    """
+    if not text or len(text) < 20:
+        return False
+
+    text_lower = text.lower()
+    text_stripped = re.sub(r"[^0-9A-Za-z]+", "", text)
+    if len(text_stripped) < 30:
+        # Very short text is likely not meaningful content
+        return True
+
+    # Count banner marker matches
+    banner_matches = 0
+    for pattern in _BANNER_PATTERNS:
+        if re.search(pattern, text, flags=re.IGNORECASE | re.MULTILINE):
+            banner_matches += 1
+
+    # If multiple banner patterns match and the text is short, likely mostly boilerplate
+    if banner_matches >= 2 and len(text_stripped) < 100:
+        return True
+
+    # Check for common banner phrases without much other content
+    banner_phrases = [
+        "external email",
+        "caution",
+        "do not click",
+        "don't click",
+        "unless you recognise",
+        "unless you recognize",
+        "expected and known to be safe",
+        "message originated outside",
+        "originated from outside",
+    ]
+    phrase_count = sum(1 for phrase in banner_phrases if phrase in text_lower)
+    # If 3+ banner phrases and text is mostly short/structured like a banner, likely boilerplate
+    if phrase_count >= 3 and len(text_stripped) < 150:
+        return True
+
+    return False
+
+
 def clean_email_body_for_display(
     *,
     body_text_clean: str | None,
@@ -200,9 +250,6 @@ def clean_email_body_for_display(
         if _display_score(body) >= 40:
             return body
 
-    best = ""
-    best_score = -1
-
     parser = None
     if languages is None:
         env_langs = os.getenv("EMAIL_REPLY_LANGUAGES", "")
@@ -217,6 +264,9 @@ def clean_email_body_for_display(
     if parser_obj is not None:
         parser = parser_obj
 
+    candidate_results: list[tuple[str, int, bool]] = (
+        []
+    )  # (display, score, is_boilerplate)
     for value in candidates:
         cleaned = clean_body_text(value) or ""
         if not cleaned:
@@ -250,11 +300,26 @@ def clean_email_body_for_display(
             display = body.strip()
 
         score = _display_score(display)
-        if score > best_score:
-            best_score = score
-            best = display
+        is_boilerplate = _is_mostly_boilerplate(display)
+        candidate_results.append((display, score, is_boilerplate))
 
-    return best.strip() or None
+    # Boilerplate guard: never return mostly-boilerplate text if a better candidate exists
+    # Prefer candidates with meaningful content over banner-only text
+    non_boilerplate_candidates = [
+        (d, s) for d, s, is_bp in candidate_results if not is_bp
+    ]
+    if non_boilerplate_candidates:
+        # Prefer the highest-scoring non-boilerplate candidate
+        best_display, best_score = max(non_boilerplate_candidates, key=lambda x: x[1])
+        return best_display.strip() or None
+
+    # Fallback: if all candidates are boilerplate, return the highest-scoring one
+    # (better than returning empty)
+    if candidate_results:
+        best_display, best_score, _ = max(candidate_results, key=lambda x: x[1])
+        return best_display.strip() or None
+
+    return None
 
 
 def build_content_hash(

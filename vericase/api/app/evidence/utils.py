@@ -82,6 +82,8 @@ def _column_map() -> dict[str, Any]:
         "processing_status": EvidenceItem.processing_status,
         "evidence_type": EvidenceItem.evidence_type,
         "file_type": EvidenceItem.file_type,
+        "mime_type": EvidenceItem.mime_type,
+        "document_category": EvidenceItem.document_category,
         "file_size": EvidenceItem.file_size,
         "is_starred": EvidenceItem.is_starred,
         "created_at": EvidenceItem.created_at,
@@ -158,6 +160,10 @@ def _apply_ag_filters(query: Any, filter_model: dict[str, Any]) -> Any:
 
         if filter_type == "text":
             value = f.get("filter")
+            # Handle blank filter type (NULL or empty string)
+            if f_type == "blank":
+                query = query.filter(or_(column.is_(None), column == ""))
+                continue
             if value is None:
                 continue
             like_val = f"%{value}%"
@@ -165,6 +171,8 @@ def _apply_ag_filters(query: Any, filter_model: dict[str, Any]) -> Any:
                 query = query.filter(column == value)
             elif f_type == "startsWith":
                 query = query.filter(column.ilike(f"{value}%"))
+            elif f_type == "notBlank":
+                query = query.filter(and_(column.isnot(None), column != ""))
             else:  # contains default
                 query = query.filter(column.ilike(like_val))
 

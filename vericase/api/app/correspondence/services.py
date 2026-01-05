@@ -13,7 +13,7 @@ from typing import Any
 
 from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session, selectinload, load_only
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, String
 from boto3.s3.transfer import TransferConfig
 
 from ..config import settings
@@ -1529,6 +1529,7 @@ async def list_emails_server_side_service(
     search: str | None,
     stakeholder_id: str | None,
     keyword_id: str | None,
+    domain: str | None,
     include_hidden: bool,
     db: Session,
 ) -> ServerSideResponse:
@@ -1638,6 +1639,18 @@ async def list_emails_server_side_service(
         q_visible = q_visible.filter(
             EmailMessage.matched_keywords.contains([keyword_id])
         )
+
+    # Domain filter: match emails where domain appears in sender, to, or cc
+    if domain:
+        domain_pattern = f"%@{domain}%"
+        domain_filter = or_(
+            EmailMessage.sender_email.ilike(domain_pattern),
+            func.cast(EmailMessage.recipients_to, String).ilike(domain_pattern),
+            func.cast(EmailMessage.recipients_cc, String).ilike(domain_pattern),
+        )
+        q = q.filter(domain_filter)
+        q_all = q_all.filter(domain_filter)
+        q_visible = q_visible.filter(domain_filter)
 
     if not include_hidden:
         q = q.filter(build_correspondence_visibility_filter())

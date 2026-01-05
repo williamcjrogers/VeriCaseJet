@@ -57,11 +57,15 @@ let lastIncludeHiddenState = false;
 let attachmentPreviewKeyHandler = null;
 let smartFilterFields = new Set();
 let smartFilterLastText = "";
+let emailBodyViewMode = "raw"; // "raw" (forensic default) or "cleaned" (display)
+let currentEmailDetailData = null; // Store current detail data for toggle
 
 // Server-side filter state (drives AG Grid SSRM endpoint query params)
 let selectedStakeholderId = null;
+let selectedDomain = null;  // Domain filter (extracted from emails)
 let selectedKeywordId = null;
 let stakeholdersCache = null;
+let domainsCache = null;  // Cache for email domains
 let keywordsCache = null;
 let keywordIndex = null;
 let emailAddressesCache = null;  // Cache for unique email addresses for filters
@@ -541,6 +545,66 @@ function formatEmailBodyText(text) {
   return parts
     .map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`)
     .join("");
+}
+
+/**
+ * Format raw body text for forensic display - preserves EVERYTHING (no filtering, no trimming content).
+ * Only escapes HTML for security and converts newlines to <br> for display.
+ * Evidence preservation: all text is visible by scrolling.
+ */
+function formatRawBodyText(text) {
+  if (!text || typeof text !== "string") return "";
+  // Normalize line endings only (CRLF -> LF) but preserve all content
+  const value = text.replace(/\r\n/g, "\n");
+  // Escape HTML for security, convert newlines to <br>, preserve all whitespace and structure
+  return escapeHtml(value).replace(/\n/g, "<br>");
+}
+
+/**
+ * Safely convert HTML to plain text without executing scripts.
+ * Creates a temporary DOM element, sets innerHTML (which escapes scripts),
+ * then extracts textContent for plain text.
+ */
+function htmlToTextSafe(html) {
+  if (!html || typeof html !== "string") return "";
+  const tmp = document.createElement("div");
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || "";
+}
+
+/**
+ * Format recipient array (list of strings) into display string.
+ */
+function formatRecipients(recipients) {
+  if (!recipients) return "-";
+  if (Array.isArray(recipients) && recipients.length > 0) {
+    return recipients.join(", ");
+  }
+  if (typeof recipients === "string" && recipients.trim()) {
+    return recipients;
+  }
+  return "-";
+}
+
+/**
+ * Get raw forensic body (source-of-truth) from email data - UNALTERED.
+ * Prefers body_text_full, falls back to body_text, then safe HTML->text conversion.
+ * Evidence preservation: returns complete unaltered text (only trims leading/trailing whitespace for display).
+ */
+function getRawBodyText(data) {
+  // Prefer body_text_full (raw forensic source)
+  if (data?.body_text_full && typeof data.body_text_full === "string") {
+    return data.body_text_full;
+  }
+  // Fall back to body_text (also raw)
+  if (data?.body_text && typeof data.body_text === "string") {
+    return data.body_text;
+  }
+  // Last resort: safe HTML->text conversion (never executes HTML)
+  if (data?.body_html && typeof data.body_html === "string") {
+    return htmlToTextSafe(data.body_html);
+  }
+  return "";
 }
 
 function formatFileSize(bytes) {
@@ -1979,7 +2043,7 @@ const createServerSideDatasource = () => {
         const queryParams = new URLSearchParams();
         if (projectId) queryParams.append("project_id", projectId);
         if (caseId) queryParams.append("case_id", caseId);
-        if (selectedStakeholderId) queryParams.append("stakeholder_id", selectedStakeholderId);
+        if (selectedDomain) queryParams.append("domain", selectedDomain);
         if (selectedKeywordId) queryParams.append("keyword_id", selectedKeywordId);
         const quickFilterEl = document.getElementById("quickFilter");
         const quickSearch = quickFilterEl ? quickFilterEl.value.trim() : "";
@@ -2082,6 +2146,13 @@ async function openEmailDetailById(emailId, fallbackRow) {
   }
 }
 
+function toggleEmailBodyView() {
+  emailBodyViewMode = emailBodyViewMode === "raw" ? "cleaned" : "raw";
+  if (currentEmailDetailData) {
+    renderEmailDetail(currentEmailDetailData);
+  }
+}
+
 function renderEmailDetail(data) {
   const panel = document.getElementById("detailPanel");
   const content = document.getElementById("detailContent");
@@ -2089,11 +2160,19 @@ function renderEmailDetail(data) {
 
   panel.classList.remove("hidden");
 
+  // Store current data for toggle
+  currentEmailDetailData = data;
+
   const emailId = data?.id || data?.email_id || data?.emailId || null;
   const subject = data?.subject || data?.email_subject || "(No subject)";
   const from = data?.email_from || data?.sender_email || "-";
-  const to = data?.email_to || "-";
-  const cc = data?.email_cc || "-";
+  
+  // Use recipients_to/recipients_cc arrays (forensic source), fallback to legacy email_to/email_cc
+  const recipientsTo = data?.recipients_to || (data?.email_to ? [data.email_to] : []);
+  const recipientsCc = data?.recipients_cc || (data?.email_cc ? [data.email_cc] : []);
+  const to = formatRecipients(recipientsTo);
+  const cc = formatRecipients(recipientsCc);
+  
   const when = data?.email_date || data?.date_sent || null;
   const dateText = when
     ? new Date(when).toLocaleString("en-GB", {
@@ -2108,8 +2187,16 @@ function renderEmailDetail(data) {
   const excluded = data?.meta?.exclusion?.excluded === true;
   const excludedLabel = data?.meta?.exclusion?.excluded_label || null;
 
-  const bodyText = getBodyTextValue(data);
-  const safeBody = formatEmailBodyText(bodyText);
+  // Body: Raw (forensic default - FULL unaltered) or Cleaned (display convenience)
+  const rawBodyText = getRawBodyText(data);
+  const cleanedBodyText = data?.body_text_clean || getBodyTextValue(data) || "";
+  const bodyText = emailBodyViewMode === "raw" ? rawBodyText : cleanedBodyText;
+  // Use raw formatter for evidence preservation (no filtering/hiding), cleaned formatter for display
+  const safeBody = emailBodyViewMode === "raw" 
+    ? formatRawBodyText(bodyText) 
+    : formatEmailBodyText(bodyText);
+  const viewModeLabel = emailBodyViewMode === "raw" ? "Raw (Full)" : "Cleaned";
+  const toggleLabel = emailBodyViewMode === "raw" ? "Show Cleaned" : "Show Raw (Full)";
 
   const attachments = Array.isArray(data?.attachments) ? data.attachments : [];
   const attHtml = attachments.length
@@ -2160,10 +2247,10 @@ function renderEmailDetail(data) {
         ${excluded ? `<div style="margin-top:0.25rem; color: var(--warning); font-weight:600;">Excluded${excludedLabel ? ` • ${excludedLabel}` : ""}</div>` : ""}
       </div>
       <div style="font-size:0.875rem; color: var(--text-secondary); line-height:1.4;">
-        <div><strong>From:</strong> ${from}</div>
-        <div><strong>To:</strong> ${to}</div>
-        <div><strong>CC:</strong> ${cc}</div>
-        <div><strong>Date:</strong> ${dateText}</div>
+        <div><strong>From:</strong> ${escapeHtml(from)}</div>
+        <div><strong>To:</strong> ${escapeHtml(to)}</div>
+        <div><strong>CC:</strong> ${escapeHtml(cc)}</div>
+        <div><strong>Date:</strong> ${escapeHtml(dateText)}</div>
       </div>
       <div style="border-top: 1px solid var(--border); padding-top: 0.75rem;">
         <div style="display:flex; align-items:center; justify-content:space-between; gap: 0.75rem;">
@@ -2179,8 +2266,13 @@ function renderEmailDetail(data) {
         </div>
       </div>
       <div style="border-top: 1px solid var(--border); padding-top: 0.75rem;">
-        <div style="font-weight:600; margin-bottom: 0.5rem;">Body</div>
-        <div style="font-size:0.9rem; color: var(--text); line-height:1.6;">${safeBody}</div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap: 0.75rem; margin-bottom: 0.5rem;">
+          <div style="font-weight:600;">Body <span style="font-weight:400; color: var(--text-muted); font-size:0.875rem;">(${viewModeLabel})</span></div>
+          <button class="btn btn-ghost" type="button" onclick="toggleEmailBodyView();" style="font-size:0.875rem;">
+            ${toggleLabel}
+          </button>
+        </div>
+        <div style="font-size:0.9rem; color: var(--text); line-height:1.6;">${safeBody || "<span style='color: var(--text-muted); font-style: italic;'>No body content available</span>"}</div>
       </div>
       <div style="border-top: 1px solid var(--border); padding-top: 0.75rem;">
         <div style="font-weight:600; margin-bottom: 0.5rem;">Attachments</div>
@@ -2637,6 +2729,19 @@ async function ensureStakeholdersLoaded() {
   return stakeholdersCache;
 }
 
+async function ensureDomainsLoaded() {
+  if (Array.isArray(domainsCache)) return domainsCache;
+  const params = new URLSearchParams();
+  if (projectId) params.set("project_id", projectId);
+  if (caseId) params.set("case_id", caseId);
+  const url = `${API_BASE}/api/correspondence/domains${params.toString() ? `?${params}` : ""}`;
+  const resp = await fetch(url, { headers: { ...getAuthHeaders() } });
+  if (!resp.ok) throw new Error(`Failed to load domains (${resp.status})`);
+  const data = await resp.json();
+  domainsCache = Array.isArray(data?.domains) ? data.domains : [];
+  return domainsCache;
+}
+
 async function ensureKeywordsLoaded() {
   if (Array.isArray(keywordsCache)) return keywordsCache;
   const params = new URLSearchParams();
@@ -2693,6 +2798,11 @@ function setStakeholderFilter(id) {
   gridApi?.refreshServerSide?.({ purge: true });
 }
 
+function setDomainFilter(domain) {
+  selectedDomain = domain || null;
+  gridApi?.refreshServerSide?.({ purge: true });
+}
+
 function setKeywordFilter(id) {
   selectedKeywordId = id || null;
   gridApi?.refreshServerSide?.({ purge: true });
@@ -2700,54 +2810,52 @@ function setKeywordFilter(id) {
 
 window.showStakeholderFilter = async function () {
   try {
-    const items = await ensureStakeholdersLoaded();
-    const current = selectedStakeholderId;
+    const domains = await ensureDomainsLoaded();
+    const current = selectedDomain;
 
     const { modal, close } = showModal({
-      title: "Filter by stakeholder",
+      title: "Filter by domain",
       widthPx: 720,
       bodyHtml: `
-        <input id="vcStakeholderSearch" class="input" style="width:100%; margin-bottom: 12px;" placeholder="Search stakeholders..." />
-        <div id="vcStakeholderList" style="max-height: 55vh; overflow:auto; border: 1px solid var(--border-default); border-radius: var(--radius-lg);"></div>
+        <input id="vcDomainSearch" class="input" style="width:100%; margin-bottom: 12px;" placeholder="Search domains..." />
+        <div id="vcDomainList" style="max-height: 55vh; overflow:auto; border: 1px solid var(--border-default); border-radius: var(--radius-lg);"></div>
       `,
       footerHtml: `
-        <button class="btn btn-ghost" id="vcStakeholderClear">Clear</button>
-        <button class="btn btn-vericase" id="vcStakeholderClose">Done</button>
+        <button class="btn btn-ghost" id="vcDomainClear">Clear</button>
+        <button class="btn btn-vericase" id="vcDomainClose">Done</button>
       `,
     });
 
-    const listEl = modal.querySelector("#vcStakeholderList");
-    const searchEl = modal.querySelector("#vcStakeholderSearch");
+    const listEl = modal.querySelector("#vcDomainList");
+    const searchEl = modal.querySelector("#vcDomainSearch");
 
     const render = () => {
       const q = (searchEl.value || "").toLowerCase().trim();
       const filtered = !q
-        ? items
-        : items.filter((s) => {
-            const hay = `${s.name || ""} ${s.organization || ""} ${s.role || ""} ${s.email || ""}`.toLowerCase();
-            return hay.includes(q);
-          });
+        ? domains
+        : domains.filter((d) => d.toLowerCase().includes(q));
 
       listEl.innerHTML = filtered
         .slice(0, 500)
-        .map((s) => {
-          const active = String(s.id) === String(current);
-          const title = `${escapeHtml(s.name || "(Unnamed)")}`;
-          const meta = [s.role, s.organization, s.email].filter(Boolean).map(escapeHtml).join(" • ");
+        .map((d) => {
+          const active = d === current;
           return `
-            <button class="dropdown-item" data-id="${escapeHtml(s.id)}" style="display:block; width:100%; text-align:left; border-bottom: 1px solid var(--border-default); ${active ? "background: rgba(59,130,246,0.08);" : ""}">
-              <div style="font-weight:600;">${title}</div>
-              ${meta ? `<div style="font-size: 0.8125rem; color: var(--text-secondary);">${meta}</div>` : ""}
+            <button class="dropdown-item" data-domain="${escapeHtml(d)}" style="display:block; width:100%; text-align:left; border-bottom: 1px solid var(--border-default); padding: 12px 16px; ${active ? "background: rgba(59,130,246,0.08);" : ""}">
+              <div style="font-weight:600;">${escapeHtml(d)}</div>
             </button>
           `;
         })
         .join("");
 
-      listEl.querySelectorAll("button[data-id]").forEach((btn) => {
+      if (filtered.length === 0) {
+        listEl.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--text-secondary);">No domains found</div>`;
+      }
+
+      listEl.querySelectorAll("button[data-domain]").forEach((btn) => {
         btn.addEventListener("click", () => {
-          const id = btn.getAttribute("data-id");
-          setStakeholderFilter(id);
-          toastSuccess("Stakeholder filter applied");
+          const domain = btn.getAttribute("data-domain");
+          setDomainFilter(domain);
+          toastSuccess(`Filtering by ${domain}`);
           close();
         });
       });
@@ -2755,16 +2863,16 @@ window.showStakeholderFilter = async function () {
 
     render();
     searchEl.addEventListener("input", render);
-    modal.querySelector("#vcStakeholderClear").addEventListener("click", () => {
-      setStakeholderFilter(null);
-      toastSuccess("Stakeholder filter cleared");
+    modal.querySelector("#vcDomainClear").addEventListener("click", () => {
+      setDomainFilter(null);
+      toastSuccess("Domain filter cleared");
       close();
     });
-    modal.querySelector("#vcStakeholderClose").addEventListener("click", close);
+    modal.querySelector("#vcDomainClose").addEventListener("click", close);
     setTimeout(() => searchEl.focus(), 0);
   } catch (e) {
     console.error(e);
-    toastError("Could not load stakeholders");
+    toastError("Could not load domains");
   }
 };
 
