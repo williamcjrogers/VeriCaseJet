@@ -35,6 +35,9 @@ Write outputs:
 `s3://<pipeline-bucket>/pst-v2/<pst_file_id>/`
 - `emails.ndjson.gz` (audit / reprocess)
 - `emails.csv.gz` (DB bulk load)
+- `attachments.ndjson.gz` (audit / reprocess)
+- `attachments.csv.gz` (DB bulk load)
+- `attachments/<email_id>/<attachment_id>__<filename>` (raw attachment objects; SHA256 in CSV/manifest)
 - `manifest.json` (counts, timings, checksums, version)
 
 ## Loader Strategy (Postgres/Aurora)

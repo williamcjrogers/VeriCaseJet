@@ -9,6 +9,9 @@ It:
 3. Parses exported EML files and emits:
    - `emails.ndjson.gz` (audit/reprocess)
    - `emails.csv.gz` (DB bulk-load)
+   - `attachments.ndjson.gz` (audit/reprocess)
+   - `attachments.csv.gz` (DB bulk-load)
+   - raw attachment objects under `OUTPUT_PREFIX/attachments/`
    - `manifest.json`
 4. Uploads outputs to S3 under `OUTPUT_PREFIX`
 
