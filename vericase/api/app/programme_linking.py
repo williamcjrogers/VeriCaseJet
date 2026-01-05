@@ -147,7 +147,16 @@ _CURRENT_TYPES = {
 def pick_baseline_and_current_programmes(
     programmes: Iterable[Any],
 ) -> tuple[Any | None, Any | None]:
-    """Pick baseline and current programmes from an iterable of Programme ORM objects."""
+    """Pick baseline and current programmes from an iterable of Programme ORM objects.
+
+    Returns:
+        (baseline, current) tuple where:
+        - baseline is the earliest baseline/as_planned programme (or earliest overall if none typed)
+        - current is the latest as_built/actual programme, or None if no as_built exists
+
+    Important: If no as_built type programme exists, current will be None.
+    This prevents baseline data from incorrectly populating as_built fields.
+    """
     programmes_list = [p for p in programmes]
     if not programmes_list:
         return (None, None)
@@ -172,22 +181,18 @@ def pick_baseline_and_current_programmes(
         in _CURRENT_TYPES
     ]
 
+    # Baseline: prefer explicitly typed baseline, fallback to earliest programme
     baseline = (
         min(baseline_candidates, key=_programme_sort_key)
         if baseline_candidates
         else min(programmes_list, key=_programme_sort_key)
     )
-    current = (
-        max(current_candidates, key=_programme_sort_key)
-        if current_candidates
-        else max(programmes_list, key=_programme_sort_key)
-    )
 
-    # If both resolve to the same record and we have multiple programmes, pick a distinct current.
-    if baseline is current and len(programmes_list) > 1:
-        sorted_all = sorted(programmes_list, key=_programme_sort_key)
-        baseline = sorted_all[0]
-        current = sorted_all[-1]
+    # Current/As-built: ONLY use if we have an explicit as_built type programme
+    # Do NOT fallback to baseline - this prevents baseline from populating as_built fields
+    current = (
+        max(current_candidates, key=_programme_sort_key) if current_candidates else None
+    )
 
     return (baseline, current)
 
@@ -274,23 +279,29 @@ def link_emails_to_programme_activities(
             )
 
     baseline, current = pick_baseline_and_current_programmes(programmes)
-    if baseline is None or current is None:
+    # Only skip if no baseline available - current (as_built) is optional
+    if baseline is None:
         return {
             "status": "skipped",
-            "reason": "No programmes available for linking",
+            "reason": "No baseline programme available for linking",
             "project_id": project_id,
             "case_id": case_id,
             "inferred_case_id": str(inferred_case_uuid) if inferred_case_uuid else None,
         }
 
     baseline_critical = set(getattr(baseline, "critical_path", None) or [])
-    current_critical = set(getattr(current, "critical_path", None) or [])
+    current_critical = (
+        set(getattr(current, "critical_path", None) or []) if current else set()
+    )
 
     baseline_windows = build_activity_windows(
         getattr(baseline, "activities", None), baseline_critical
     )
-    current_windows = build_activity_windows(
-        getattr(current, "activities", None), current_critical
+    # Only build current windows if we have an as_built programme
+    current_windows = (
+        build_activity_windows(getattr(current, "activities", None), current_critical)
+        if current
+        else []
     )
 
     stats: dict[str, Any] = {
@@ -299,7 +310,8 @@ def link_emails_to_programme_activities(
         "case_id": case_id,
         "inferred_case_id": str(inferred_case_uuid) if inferred_case_uuid else None,
         "baseline_programme_id": str(getattr(baseline, "id", "")),
-        "current_programme_id": str(getattr(current, "id", "")),
+        "current_programme_id": str(getattr(current, "id", "")) if current else None,
+        "has_as_built_programme": current is not None,
         "total_emails": 0,
         "processed": 0,
         "updated": 0,
@@ -314,15 +326,21 @@ def link_emails_to_programme_activities(
     )
 
     if not overwrite_existing:
-        email_query = email_query.filter(
-            or_(
-                EmailMessage.as_planned_activity.is_(None),
-                EmailMessage.as_built_activity.is_(None),
-                EmailMessage.as_planned_finish_date.is_(None),
-                EmailMessage.as_built_finish_date.is_(None),
-                EmailMessage.delay_days.is_(None),
+        # Only filter for missing fields that we can actually populate
+        missing_conditions = [
+            EmailMessage.as_planned_activity.is_(None),
+            EmailMessage.as_planned_finish_date.is_(None),
+        ]
+        # Only include as_built conditions if we have an as_built programme
+        if current is not None:
+            missing_conditions.extend(
+                [
+                    EmailMessage.as_built_activity.is_(None),
+                    EmailMessage.as_built_finish_date.is_(None),
+                    EmailMessage.delay_days.is_(None),
+                ]
             )
-        )
+        email_query = email_query.filter(or_(*missing_conditions))
 
     total_count = (
         db.query(func.count(EmailMessage.id)).filter(email_scope_filter).scalar() or 0

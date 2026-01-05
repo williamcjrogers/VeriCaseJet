@@ -730,6 +730,9 @@
             <i class="fas fa-link"></i>
             Sync to Correspondence
           </button>
+          <button class="btn btn-ghost" onclick="resyncLinkEmails()" title="Re-sync and overwrite existing mappings (use if data was mapped incorrectly)">
+            <i class="fas fa-sync-alt"></i>
+          </button>
           <button class="btn btn-secondary" id="compareBtn" disabled>
             <i class="fas fa-exchange-alt"></i>
             Compare Programmes
@@ -1422,34 +1425,40 @@
       // ============================================
       // SYNC EMAIL LINKING FUNCTIONALITY
       // ============================================
-      
-      async function syncLinkEmails() {
+
+      async function syncLinkEmails(overwrite = false) {
         if (!ensureContextSelected("sync emails to programme")) return;
-        
+
         const syncBtn = document.getElementById('syncCorrespondenceBtn');
         const originalHtml = syncBtn.innerHTML;
         syncBtn.disabled = true;
         syncBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
-        
+
         try {
           const token = localStorage.getItem('token');
           // Use the sync endpoint (runs immediately, no Celery required)
-          const endpoint = contextType === 'case' 
-            ? `${apiUrl}/api/cases/${contextId}/programmes/link-emails-sync`
-            : `${apiUrl}/api/projects/${contextId}/programmes/link-emails-sync`;
-          
+          const endpoint = contextType === 'case'
+            ? `${apiUrl}/api/cases/${contextId}/programmes/link-emails-sync?overwrite=${overwrite}`
+            : `${apiUrl}/api/projects/${contextId}/programmes/link-emails-sync?overwrite=${overwrite}`;
+
           const response = await fetch(endpoint, {
             method: 'POST',
             headers: token ? { 'Authorization': `Bearer ${token}` } : {}
           });
-          
+
           if (response.ok) {
             const result = await response.json();
             const stats = result.result || {};
-            
+
             if (stats.status === 'completed') {
+              const hasAsBuilt = stats.has_as_built_programme;
               showToast("success", `Linked ${stats.updated || 0} emails to programme activities!`);
-              showToast("info", "Refresh Correspondence tab to see Programme Activity columns.");
+
+              if (!hasAsBuilt) {
+                showToast("info", "As-Planned fields populated. Upload an As-Built programme to populate actual dates.");
+              } else {
+                showToast("info", "Refresh Correspondence tab to see Programme Activity columns.");
+              }
             } else if (stats.status === 'skipped') {
               showToast("warning", stats.reason || "No programmes available for linking. Upload a baseline programme first.");
             } else {
@@ -1465,6 +1474,13 @@
         } finally {
           syncBtn.disabled = false;
           syncBtn.innerHTML = originalHtml;
+        }
+      }
+
+      async function resyncLinkEmails() {
+        // Re-sync with overwrite to fix incorrectly mapped data
+        if (confirm('This will re-link all emails and overwrite existing programme activity mappings. Continue?')) {
+          await syncLinkEmails(true);
         }
       }
 
