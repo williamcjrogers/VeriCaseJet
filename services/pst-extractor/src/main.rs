@@ -560,7 +560,7 @@ async fn main() -> Result<()> {
 
             writeln!(
                 csv,
-                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
                 csv_escape(&id),
                 csv_escape(&args.pst_file_id),
                 csv_escape(&args.project_id),
