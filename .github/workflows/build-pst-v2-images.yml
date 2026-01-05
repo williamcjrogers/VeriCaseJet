@@ -63,6 +63,9 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Log in to Amazon ECR
+        # Requires IAM permissions on the GitHub OIDC role:
+        # - ecr:GetAuthorizationToken (Resource: "*")
+        # - ecr:* upload actions on the target repositories
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Log in to GitHub Container Registry
