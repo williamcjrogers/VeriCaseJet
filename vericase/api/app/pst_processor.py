@@ -1862,7 +1862,7 @@ class UltimatePSTProcessor:
                     canonical_body_full=None,
                     banner_stripped_body=None,
                     content_hash_phase1=derived_hash,
-                    thread_id_header=message_id,
+                    thread_id_header=message_id[:128] if message_id else None,
                     thread_confidence="header" if message_id else None,
                     qc_flags={"excluded": True, "reason": derived_status},
                 )
@@ -2125,7 +2125,7 @@ class UltimatePSTProcessor:
                 canonical_body_full=None,
                 banner_stripped_body=body_text_clean or None,
                 content_hash_phase1=content_hash,
-                thread_id_header=message_id,
+                thread_id_header=message_id[:128] if message_id else None,
                 thread_confidence="header" if message_id else None,
                 qc_flags={
                     "body_source": body_selection.selected_source,
