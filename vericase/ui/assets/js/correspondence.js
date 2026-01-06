@@ -4851,6 +4851,8 @@ function initGrid() {
 
   const gridOptions = {
     columnDefs,
+    // AG Grid v35: Use legacy themes (CSS-based ag-theme-alpine) instead of new Theming API
+    theme: "legacy",
     defaultColDef: {
       resizable: true,
       sortable: true,
@@ -4858,6 +4860,13 @@ function initGrid() {
       floatingFilter: false,
       wrapHeaderText: true,
       autoHeaderHeight: true,
+    },
+    // v34.3+ Auto-size strategy: Fit columns to grid width on initial load
+    // This replaces manual sizeColumnsToFit() and works better with SSRM
+    autoSizeStrategy: {
+      type: "fitGridWidth",
+      defaultMinWidth: 80,
+      defaultMaxWidth: 500,
     },
     rowModelType: "serverSide",
     // Optimized for 100k+ rows: fetch 100 rows per block, keep max 10 blocks in memory (~1000 rows)
@@ -4900,9 +4909,13 @@ function initGrid() {
     // Avoid expensive auto-height measurement; keep the grid responsive even at 100k+ rows.
     getRowHeight: (params) =>
       params?.data?._bodyExpanded ? ROW_HEIGHT_EXPANDED : ROW_HEIGHT_COLLAPSED,
-    rowSelection: "multiple",
-    rowMultiSelectWithClick: true,
-    suppressRowClickSelection: false,
+    // v35 Row Selection API: Object-based configuration
+    rowSelection: {
+      mode: "multiRow",
+      enableClickSelection: true,
+      checkboxes: false,    // Disable checkbox column for cleaner email list UI
+      headerCheckbox: false,
+    },
     onGridReady: (params) => {
       gridApi = params.api;
       // NOTE: params.columnApi is deprecated in AG Grid v31+. Use params.api for column operations.
@@ -4968,12 +4981,8 @@ function initGrid() {
     },
 
     onFirstDataRendered: () => {
-      // Size columns to fit available width on initial load
-      // Note: autoSizeAllColumns() doesn't work reliably with SSRM because only partial data is loaded
-      // Instead, use sizeColumnsToFit() which distributes columns based on flex/minWidth settings
-      if (gridApi) {
-        gridApi.sizeColumnsToFit();
-      }
+      // v35: autoSizeStrategy handles initial column sizing automatically
+      // Keep sizeColumnsToFit() as a fallback for window resize scenarios
       // Keep Quick Actions collapsed unless explicitly opened.
       setContextPanelCollapsed(true);
     },

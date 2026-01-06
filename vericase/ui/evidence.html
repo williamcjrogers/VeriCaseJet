@@ -10,9 +10,9 @@
   <meta name="build-version" content="2.0.4-<?php echo time(); ?>" />
   <title>VeriCase - Evidence Repository</title>
 
-  <!-- AG-Grid Enterprise CSS (v31.0.0) -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-grid.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/styles/ag-theme-alpine.css" />
+  <!-- AG-Grid Enterprise CSS (v35.0.0) - Latest with improved SSRM support -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@35.0.0/styles/ag-grid.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@35.0.0/styles/ag-theme-alpine.css" />
   <!-- Custom VeriCase theme extends Alpine -->
   <link rel="stylesheet" href="ag-theme-vericase.css?v=3" />
 
@@ -1448,7 +1448,8 @@
       }
     }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@31.0.0/dist/ag-grid-enterprise.min.js"></script>
+  <!-- AG-Grid Enterprise Script (v35.0.0) -->
+  <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise@35.0.0/dist/ag-grid-enterprise.min.js"></script>
 </head>
 
 <body class="preload">
@@ -2844,8 +2845,15 @@
       };
 
       const gridOptions = {
+        // AG Grid v35: Use legacy themes (CSS-based ag-theme-alpine) instead of new Theming API
+        theme: "legacy",
         rowModelType: "serverSide",
         cacheBlockSize: 100,
+        // v34.3+ Auto-size strategy: Fit columns to grid width on initial load
+        autoSizeStrategy: {
+          type: "fitGridWidth",
+          defaultMinWidth: 60,
+        },
         getRowId: (params) => {
           const id = params.data?.id;
           return id ? String(id) : undefined;
@@ -3141,8 +3149,12 @@
           cellStyle: { "white-space": "normal", "line-height": "1.35" },
         },
         // Suppress errors for missing row data
-        suppressRowClickSelection: false,
-        rowSelection: "single",
+        // v35 Row Selection API: Object-based configuration
+        rowSelection: {
+          mode: "singleRow",
+          enableClickSelection: true,
+          checkboxes: false,
+        },
         animateRows: true,
         suppressRowTransform: true,
         sideBar: {
