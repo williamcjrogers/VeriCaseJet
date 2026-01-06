@@ -2515,15 +2515,7 @@ function extractSmartFilterTerm(rawText) {
 
   // Clean up the term
   term = term.trim();
-  term = term.replace(/^(filter|find|show|give|fetch|get|search)\s+(me\s+)?(all\s+)?/i, "");
-  term = term.replace(/^(list|display)\s+/i, "");
-  
-  // Remove date expressions so they don't become text search terms
-  term = term.replace(/\blast\s+(?:(\d+)\s+)?(day|week|month|year)s?\b/gi, "");
-  term = term.replace(/\bthis\s+(week|month|year)\b/gi, "");
-  term = term.replace(/\b(before|after|since)\s+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/gi, "");
-  term = term.replace(/\b(in|from|year)\s*(\d{4})\b/gi, "");
-
+  term = term.replace(/^(filter|find|show|include|exclude|hide|remove)\b[:\s]*/i, "");
   term = term.replace(/\b(in|within|from)\s+(the\s+)?(subject|body|email|emails|from|to|cc)(\s+(and|or)\s+(the\s+)?(subject|body|from|to|cc))*.*$/i, "");
   term = term.replace(/\b(subject|body|emails?)\b/gi, "");
   term = term.replace(/^(that|which|where)\s+/i, "");
@@ -2540,10 +2532,10 @@ function parseSmartFilterDate(rawText) {
   const now = new Date();
   const result = { from: null, to: null };
 
-  // "last N days/weeks/months/years" or "last week/month/year" (implied 1)
-  const lastPeriod = lower.match(/\blast\s+(?:(\d+)\s+)?(day|week|month|year)s?\b/);
+  // "last N days/weeks/months/years"
+  const lastPeriod = lower.match(/\blast\s+(\d+)\s+(day|week|month|year)s?\b/);
   if (lastPeriod) {
-    const num = parseInt(lastPeriod[1] || "1", 10);
+    const num = parseInt(lastPeriod[1], 10);
     const unit = lastPeriod[2];
     const from = new Date(now);
     if (unit === "day") from.setDate(from.getDate() - num);
@@ -3739,7 +3731,6 @@ window.markAsExcluded = async function () {
   try {
     const resp = await fetch(`${API_BASE}/api/correspondence/emails/bulk/exclude`, {
       method: "POST",
-      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeaders(),
@@ -3980,7 +3971,6 @@ async function bulkSetCategoryAction() {
   try {
     const resp = await fetch(`${API_BASE}/api/correspondence/emails/bulk/set-category`, {
       method: "POST",
-      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeaders(),
@@ -4090,7 +4080,6 @@ async function bulkAddKeywordsAction() {
     try {
       const resp = await fetch(`${API_BASE}/api/correspondence/emails/bulk/add-keywords`, {
         method: "POST",
-        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           ...getAuthHeaders(),
@@ -4560,15 +4549,15 @@ function initGrid() {
         const title = isExpanded ? "Collapse" : "Expand";
 
         return `
-          <div style="display: block; position: relative; width: 100%;">
+          <div style="display: flex; align-items: start; gap: 8px; width: 100%;">
             <button
               onclick="toggleBodyCell('${rowId}'); event.stopPropagation();"
-              style="position: absolute; top: 0; left: 0; z-index: 10; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); cursor: pointer; font-size: 0.75rem;"
+              style="flex-shrink: 0; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); cursor: pointer; font-size: 0.75rem;"
               title="${title}"
             >
               <i class="fas ${icon}"></i>
             </button>
-            <div class="email-html-content" style="width: 100%; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto; padding-left: 40px; padding-right: 4px;">
+            <div class="email-html-content" style="flex: 1; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto; padding-right: 4px;">
               ${isLoading ? `<div style="font-size:0.85rem; color: var(--text-muted); margin-bottom: 6px;"><i class="fas fa-spinner fa-spin"></i> Loading full body…</div>` : ""}
               ${loadErr ? `<div style="font-size:0.85rem; color: #b91c1c; margin-bottom: 6px;">Failed to load full body (${escapeHtml(String(loadErr))}). Showing preview.</div>` : ""}
               ${bodyHtml || '<span style="color: var(--text-muted); font-style: italic;">No body content</span>'}
@@ -4599,15 +4588,15 @@ function initGrid() {
         const title = isExpanded ? 'Collapse' : 'Expand';
         
         return `
-          <div style="display: block; position: relative; width: 100%;">
+          <div style="display: flex; align-items: start; gap: 8px; width: 100%;">
             <button 
               onclick="toggleBodyCell('${rowId}'); event.stopPropagation();" 
-              style="position: absolute; top: 0; left: 0; z-index: 10; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); cursor: pointer; font-size: 0.75rem;"
+              style="flex-shrink: 0; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); cursor: pointer; font-size: 0.75rem;"
               title="${title}"
             >
               <i class="fas ${icon}"></i>
             </button>
-            <div style="width: 100%; white-space: pre-wrap; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto; padding-left: 40px; padding-right: 4px;">
+            <div style="flex: 1; white-space: pre-wrap; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto;">
               ${escapeHtml(body)}
             </div>
           </div>
@@ -4883,9 +4872,6 @@ function initGrid() {
       defaultMinWidth: 80,
       defaultMaxWidth: 500,
     },
-    // Enterprise Features: Integrated Charts & Range Selection
-    enableCharts: true,
-    cellSelection: true,
     rowModelType: "serverSide",
     // SSRM configuration for large datasets:
     // - cacheBlockSize: 100 rows per fetch (matches evidence grid)
