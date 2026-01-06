@@ -279,7 +279,8 @@ def clean_email_body_for_display(
         cleaned = re.sub(r"[^\S\n]+", " ", cleaned)
         cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
         cleaned = cleaned.strip()
-        if _display_score(cleaned) >= 20:  # Lower threshold - content already processed
+        # Only use body_text_clean if it has meaningful content AND is not boilerplate
+        if _display_score(cleaned) >= 20 and not _is_mostly_boilerplate(cleaned):
             return cleaned
 
     parser = None

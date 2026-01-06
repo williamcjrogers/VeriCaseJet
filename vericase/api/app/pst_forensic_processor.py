@@ -896,8 +896,54 @@ class ForensicPSTProcessor:
             # For performance: Only create preview, skip HTML parsing during ingestion
             canonical_body = ""
 
-            # Fast path: Just extract a preview from plain text
-            if body_text:
+            # Helper: Check if text is mostly boilerplate (CAUTION banners, signatures, etc.)
+            def _is_mostly_boilerplate_text(text: str) -> bool:
+                """Heuristic to detect if text is mostly external-email banner/disclaimer."""
+                if not text or len(text) < 20:
+                    return True
+                text_stripped = re.sub(r"[^0-9A-Za-z]+", "", text)
+                if len(text_stripped) < 30:
+                    return True
+                text_lower = text.lower()
+                boilerplate_phrases = [
+                    "external email",
+                    "caution",
+                    "do not click",
+                    "don't click",
+                    "unless you recognise",
+                    "unless you recognize",
+                    "expected and known to be safe",
+                    "message originated outside",
+                    "originated from outside",
+                    "disclaimer",
+                ]
+                phrase_count = sum(1 for p in boilerplate_phrases if p in text_lower)
+                # If 2+ boilerplate phrases and text is short, it's boilerplate
+                if phrase_count >= 2 and len(text_stripped) < 200:
+                    return True
+                # If the text is primarily the CAUTION banner
+                if (
+                    "external email" in text_lower
+                    and phrase_count >= 1
+                    and len(text_stripped) < 250
+                ):
+                    return True
+                return False
+
+            # Extract text from HTML if needed
+            html_as_text = None
+            if body_html:
+                html_as_text = re.sub(
+                    r"<style[^>]*>.*?</style>",
+                    "",
+                    body_html,
+                    flags=re.DOTALL | re.IGNORECASE,
+                )
+                html_as_text = re.sub(r"<[^>]+>", " ", html_as_text)
+                html_as_text = re.sub(r"\s+", " ", html_as_text).strip()
+
+            # Choose best source: prefer body_text unless it's mostly boilerplate
+            if body_text and not _is_mostly_boilerplate_text(body_text):
                 canonical_body = body_text
                 # Quick split on reply markers
                 try:
@@ -907,10 +953,20 @@ class ForensicPSTProcessor:
                     canonical_body = re.sub(r"\s+", " ", canonical_body).strip()
                 except re.error:
                     pass
-            elif body_html:
-                # Fallback: Strip HTML tags quickly (no BeautifulSoup for speed)
-                canonical_body = re.sub(r"<[^>]+>", " ", body_html)
-                canonical_body = re.sub(r"\s+", " ", canonical_body).strip()
+            elif html_as_text:
+                # Use HTML-derived text (body_text was empty or boilerplate)
+                canonical_body = html_as_text
+                # Also split replies from HTML-derived text
+                try:
+                    reply_split_pattern = r"(?mi)^On .+ wrote:|^From:\s|^Sent:\s|^-----Original Message-----"
+                    parts = re.split(reply_split_pattern, canonical_body, maxsplit=1)
+                    canonical_body = parts[0] if parts else canonical_body
+                    canonical_body = re.sub(r"\s+", " ", canonical_body).strip()
+                except re.error:
+                    pass
+            elif body_text:
+                # Fallback: use body_text even if boilerplate (better than nothing)
+                canonical_body = body_text
 
             body_text_clean = clean_body_text(canonical_body)
             if body_text_clean is not None:
