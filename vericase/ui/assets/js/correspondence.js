@@ -2258,15 +2258,15 @@ function renderEmailDetail(data) {
       // Escape for srcdoc attribute
       const escapedDoc = fullHtmlDoc.replace(/"/g, '&quot;');
       
-      bodyContent = \`<iframe 
+      bodyContent = `<iframe 
         sandbox="allow-same-origin allow-popups" 
         style="width:100%; min-height:400px; max-height:80vh; border:1px solid var(--border); border-radius:8px; background:#fff;"
         srcdoc="\${escapedDoc}"
         onload="try { this.style.height = Math.min(this.contentWindow.document.body.scrollHeight + 32, window.innerHeight * 0.8) + 'px'; } catch(e) {}"
-      ></iframe>\`;
+      ></iframe>`;
     } else {
       // Fallback to raw text if no HTML available
-      bodyContent = formatRawBodyText(rawBodyText) || \`<span style='color: var(--text-muted); font-style: italic;'>No HTML body available - showing raw text</span>\`;
+      bodyContent = formatRawBodyText(rawBodyText) || `<span style='color: var(--text-muted); font-style: italic;'>No HTML body available - showing raw text</span>`;
     }
   } else if (emailBodyViewMode === "raw") {
     viewModeLabel = "Raw (Full)";
