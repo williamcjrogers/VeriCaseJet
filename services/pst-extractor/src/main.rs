@@ -519,6 +519,7 @@ async fn download_file(s3: &aws_sdk_s3::Client, bucket: &str, key: &str, path: &
 fn run_readpst(readpst_path: &str, pst_path: &Path, out_dir: &Path) -> Result<()> {
     let status = Command::new(readpst_path)
         .args([
+            "-8", // Force UTF-8 output encoding for proper character handling
             "-o",
             out_dir
                 .to_str()

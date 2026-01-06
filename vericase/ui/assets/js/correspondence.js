@@ -57,7 +57,7 @@ let lastIncludeHiddenState = false;
 let attachmentPreviewKeyHandler = null;
 let smartFilterFields = new Set();
 let smartFilterLastText = "";
-let emailBodyViewMode = "raw"; // "raw" (forensic default) or "cleaned" (display)
+let emailBodyViewMode = "outlook"; // "outlook" (HTML as Outlook would show), "raw" (full text), or "cleaned" (display)
 let currentEmailDetailData = null; // Store current detail data for toggle
 
 // Server-side filter state (drives AG Grid SSRM endpoint query params)
@@ -2147,7 +2147,14 @@ async function openEmailDetailById(emailId, fallbackRow) {
 }
 
 function toggleEmailBodyView() {
-  emailBodyViewMode = emailBodyViewMode === "raw" ? "cleaned" : "raw";
+  // Cycle through: outlook -> raw -> cleaned -> outlook
+  if (emailBodyViewMode === "outlook") {
+    emailBodyViewMode = "raw";
+  } else if (emailBodyViewMode === "raw") {
+    emailBodyViewMode = "cleaned";
+  } else {
+    emailBodyViewMode = "outlook";
+  }
   if (currentEmailDetailData) {
     renderEmailDetail(currentEmailDetailData);
   }
@@ -2187,16 +2194,91 @@ function renderEmailDetail(data) {
   const excluded = data?.meta?.exclusion?.excluded === true;
   const excludedLabel = data?.meta?.exclusion?.excluded_label || null;
 
-  // Body: Raw (forensic default - FULL unaltered) or Cleaned (display convenience)
+  // Body: Outlook (HTML as rendered), Raw (forensic - FULL unaltered text), or Cleaned (display convenience)
   const rawBodyText = getRawBodyText(data);
   const cleanedBodyText = data?.body_text_clean || getBodyTextValue(data) || "";
-  const bodyText = emailBodyViewMode === "raw" ? rawBodyText : cleanedBodyText;
-  // Use raw formatter for evidence preservation (no filtering/hiding), cleaned formatter for display
-  const safeBody = emailBodyViewMode === "raw" 
-    ? formatRawBodyText(bodyText) 
-    : formatEmailBodyText(bodyText);
-  const viewModeLabel = emailBodyViewMode === "raw" ? "Raw (Full)" : "Cleaned";
-  const toggleLabel = emailBodyViewMode === "raw" ? "Show Cleaned" : "Show Raw (Full)";
+  const bodyHtml = data?.body_html || ""; // Original HTML body from Outlook/email client
+  
+  // Determine view mode label and toggle button text for 3-way cycle
+  let viewModeLabel, toggleLabel, bodyContent;
+  if (emailBodyViewMode === "outlook") {
+    viewModeLabel = "Outlook View";
+    toggleLabel = "Show Raw";
+    // Render HTML in a sandboxed iframe for security with Outlook-like styling
+    if (bodyHtml) {
+      // Build a complete HTML document with proper structure for Outlook-faithful rendering
+      const outlookStyles = `
+        <style>
+          /* Reset and Outlook-like defaults */
+          body {
+            margin: 0;
+            padding: 12px 16px;
+            font-family: 'Segoe UI', Calibri, Arial, sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #1f1f1f;
+            background: #ffffff;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+          }
+          /* Preserve formatting in pre/code */
+          pre, code {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+          }
+          /* Tables like Outlook */
+          table {
+            border-collapse: collapse;
+          }
+          td, th {
+            padding: 2px 4px;
+          }
+          /* Images should fit */
+          img {
+            max-width: 100%;
+            height: auto;
+          }
+          /* Links styling */
+          a {
+            color: #0563C1;
+            text-decoration: underline;
+          }
+          /* Blockquotes for replied content */
+          blockquote {
+            margin: 0.5em 0 0.5em 1em;
+            padding-left: 1em;
+            border-left: 2px solid #ccc;
+          }
+        </style>
+      `;
+      
+      // Build the complete HTML document
+      const fullHtmlDoc = '<!DOCTYPE html><html><head><meta charset="UTF-8"><base target="_blank">' + outlookStyles + '</head><body>' + bodyHtml + '</body></html>';
+      
+      // Escape for srcdoc attribute
+      const escapedDoc = fullHtmlDoc.replace(/"/g, '&quot;');
+      
+      bodyContent = \`<iframe 
+        sandbox="allow-same-origin allow-popups" 
+        style="width:100%; min-height:400px; max-height:80vh; border:1px solid var(--border); border-radius:8px; background:#fff;"
+        srcdoc="\${escapedDoc}"
+        onload="try { this.style.height = Math.min(this.contentWindow.document.body.scrollHeight + 32, window.innerHeight * 0.8) + 'px'; } catch(e) {}"
+      ></iframe>\`;
+    } else {
+      // Fallback to raw text if no HTML available
+      bodyContent = formatRawBodyText(rawBodyText) || \`<span style='color: var(--text-muted); font-style: italic;'>No HTML body available - showing raw text</span>\`;
+    }
+  } else if (emailBodyViewMode === "raw") {
+    viewModeLabel = "Raw (Full)";
+    toggleLabel = "Show Cleaned";
+    bodyContent = formatRawBodyText(rawBodyText);
+  } else {
+    // "cleaned" mode
+    viewModeLabel = "Cleaned";
+    toggleLabel = "Show Outlook";
+    bodyContent = formatEmailBodyText(cleanedBodyText);
+  }
+  const safeBody = bodyContent;
 
   const attachments = Array.isArray(data?.attachments) ? data.attachments : [];
   const attHtml = attachments.length

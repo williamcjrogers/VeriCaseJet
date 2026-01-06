@@ -33,6 +33,7 @@ from ..storage import (
     multipart_start,
     presign_part,
     presign_put,
+    presign_get,
     s3,
 )
 from ..tasks import celery_app
@@ -1972,6 +1973,66 @@ async def list_emails_server_side_service(
     return ServerSideResponse(rows=rows, lastRow=last_row, stats=stats)
 
 
+def _replace_cid_with_presigned_urls(
+    html_body: str | None, attachments: list
+) -> str | None:
+    """
+    Replace cid: references in HTML body with presigned S3 URLs.
+
+    This enables inline images (like signature logos) to display properly
+    when rendering the email in an iframe/Outlook view mode.
+
+    Args:
+        html_body: The HTML body content of the email
+        attachments: List of EmailAttachment objects with content_id, s3_bucket, s3_key
+
+    Returns:
+        HTML body with cid: references replaced by presigned URLs
+    """
+    import re
+
+    if not html_body or not attachments:
+        return html_body
+
+    # Build a mapping from content_id -> presigned URL
+    cid_to_url: dict[str, str] = {}
+    for att in attachments:
+        content_id = getattr(att, "content_id", None)
+        s3_bucket = getattr(att, "s3_bucket", None)
+        s3_key = getattr(att, "s3_key", None)
+
+        if content_id and s3_bucket and s3_key:
+            # Clean the content_id (some have angle brackets)
+            clean_cid = content_id.strip().strip("<>").strip()
+            if clean_cid:
+                try:
+                    # Generate presigned URL with 1 hour expiry
+                    url = presign_get(s3_key, expires=3600, bucket=s3_bucket)
+                    cid_to_url[clean_cid] = url
+                except Exception as e:
+                    logger.debug(
+                        f"Failed to generate presigned URL for CID {clean_cid}: {e}"
+                    )
+
+    if not cid_to_url:
+        return html_body
+
+    # Replace cid: references in src attributes
+    # Pattern matches: src="cid:xxx" or src='cid:xxx'
+    def replace_cid(match):
+        quote = match.group(1)
+        cid = match.group(2)
+        if cid in cid_to_url:
+            return f"src={quote}{cid_to_url[cid]}{quote}"
+        return match.group(0)  # Return unchanged if no match
+
+    # Match src="cid:content_id" patterns
+    pattern = r'src=(["\'])cid:([^"\']+)\1'
+    result = re.sub(pattern, replace_cid, html_body, flags=re.IGNORECASE)
+
+    return result
+
+
 async def get_email_detail_service(email_id: str, db: Session):
     from sqlalchemy.orm import selectinload
     from ..storage import get_object
@@ -2058,6 +2119,12 @@ async def get_email_detail_service(email_id: str, db: Session):
         body_html=full_body_html,
     )
 
+    # Replace cid: references in HTML with presigned S3 URLs for inline images
+    # This enables signature logos and embedded images to display in Outlook view mode
+    full_body_html_with_images = _replace_cid_with_presigned_urls(
+        full_body_html, email.attachments or []
+    )
+
     return EmailMessageDetail(
         id=str(email.id),
         subject=email.subject,
@@ -2068,7 +2135,7 @@ async def get_email_detail_service(email_id: str, db: Session):
         date_sent=email.date_sent,
         date_received=email.date_received,
         body_text=body_display or full_body_text,
-        body_html=full_body_html,
+        body_html=full_body_html_with_images,
         body_text_clean=body_display or email.body_text_clean,
         body_text_full=full_body_text,
         content_hash=email.content_hash,
