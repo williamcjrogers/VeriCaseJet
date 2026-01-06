@@ -1590,6 +1590,14 @@ async def list_emails_server_side_service(
         or_(EmailMessage.subject.is_(None), ~EmailMessage.subject.like("IPM.%"))
     )
 
+    # Exclude PST loader notification emails (system artifacts, not real correspondence)
+    q = q.filter(
+        or_(
+            EmailMessage.sender_email.is_(None),
+            EmailMessage.sender_email != "pst-loader@vericase",
+        )
+    )
+
     # Always exclude duplicates/spam/other-project emails from correspondence.
     q = q.filter(build_correspondence_hard_exclusion_filter())
 

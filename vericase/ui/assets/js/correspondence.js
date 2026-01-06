@@ -35,17 +35,13 @@ const gridReadyPromise = new Promise((resolve) => {
   // Wait for grid to be ready using promise (no polling)
   await gridReadyPromise;
 
-  // Preload keywords so the grid can render keyword chips immediately.
-  try {
-    await ensureKeywordsLoaded();
-  } catch (e) {
-    console.warn("[Correspondence] Could not preload keywords:", e);
-  }
+  // Keywords and stakeholders are now preloaded in onGridReady callback
+  // which also triggers a cell refresh after caches are populated.
+  
   console.log(
-    "[Correspondence] Grid ready, refreshing with project:",
+    "[Correspondence] Grid ready with project:",
     projectId,
   );
-  gridApi.refreshServerSide({ purge: true });
 })();
 // NOTE: columnApi is deprecated in AG Grid v31+. All column methods are now on gridApi.
 let allEmails = [];
@@ -3305,7 +3301,7 @@ window.resetGridConfiguration = function () {
     }
     // Use applyColumnState for sorting (setSortModel is deprecated)
     gridApi?.applyColumnState?.({
-      state: [{ colId: "email_date", sort: "asc" }],
+      state: [{ colId: "email_date", sort: "desc" }],  // Newest first
       defaultState: { sort: null },
     });
     gridApi?.refreshServerSide?.({ purge: true });
@@ -4325,8 +4321,8 @@ function initGrid() {
   const sidebarBtn = document.querySelector('[ref="eSideBarButton"]');
   if (sidebarBtn) sidebarBtn.click();
 
-  // Pre-load stakeholders cache for the Stakeholders column renderer
-  ensureStakeholdersLoaded().catch((e) => console.warn("Stakeholders cache preload failed:", e));
+  // NOTE: Stakeholders cache is now pre-loaded in initState() before grid refresh.
+  // This ensures the cache is populated when cells first render.
 
   const gridDiv = document.getElementById("emailGrid");
   if (!gridDiv || !window.agGrid) {
@@ -4354,7 +4350,7 @@ function initGrid() {
       filter: "agDateColumnFilter",
       width: 180,
       minWidth: 100,
-      sort: "asc",
+      sort: "desc",  // Newest first
       sortIndex: 0,
       headerTooltip: "Sent date/time",
       cellRenderer: (p) => {
@@ -4869,11 +4865,14 @@ function initGrid() {
       defaultMaxWidth: 500,
     },
     rowModelType: "serverSide",
-    // Optimized for 100k+ rows: fetch 100 rows per block, keep max 10 blocks in memory (~1000 rows)
+    // SSRM configuration for large datasets:
+    // - cacheBlockSize: 100 rows per fetch (matches evidence grid)
+    // - No maxBlocksInCache limit: allows smooth scrolling through large datasets
+    //   without constant refetching. Previously limited to 10 blocks (~1000 rows)
+    //   which caused visible loading on every scroll through 100k+ emails.
     cacheBlockSize: 100,
-    maxBlocksInCache: 10,
     // Debounce rapid scrolling to avoid excessive API calls
-    blockLoadDebounceMillis: 200,
+    blockLoadDebounceMillis: 100,
     // Improve initial scroll estimation for large datasets
     serverSideInitialRowCount: 1000,
     sideBar: {
@@ -4965,10 +4964,10 @@ function initGrid() {
         }
       }
 
-      // Enforce default sort: oldest → newest (using applyColumnState, setSortModel is deprecated)
+      // Enforce default sort: newest first (using applyColumnState, setSortModel is deprecated)
       try {
         gridApi.applyColumnState?.({
-          state: [{ colId: "email_date", sort: "asc" }],
+          state: [{ colId: "email_date", sort: "desc" }],  // Newest first
           defaultState: { sort: null },
         });
       } catch {
@@ -4977,12 +4976,35 @@ function initGrid() {
 
       gridApi.setGridOption("serverSideDatasource", createServerSideDatasource());
       updateViewsDropdown();
+      
+      // Preload keywords and stakeholders BEFORE resolving grid ready.
+      // This ensures the caches are populated when SSRM renders the first cells.
+      // Load in background (don't block grid initialization), but refresh after loaded.
+      Promise.all([
+        ensureKeywordsLoaded(),
+        ensureStakeholdersLoaded()
+      ]).then(() => {
+        // Force a cell refresh so keyword/stakeholder chips show names instead of IDs
+        if (gridApi) {
+          gridApi.refreshCells({ force: true });
+        }
+      }).catch(e => {
+        console.warn("[Correspondence] Could not preload keywords/stakeholders:", e);
+      });
+      
       resolveGridReady();
     },
 
     onFirstDataRendered: () => {
       // v35: autoSizeStrategy handles initial column sizing automatically
-      // Keep sizeColumnsToFit() as a fallback for window resize scenarios
+      // Fallback: also call sizeColumnsToFit() to ensure columns fill grid width
+      try {
+        if (gridApi) {
+          gridApi.sizeColumnsToFit();
+        }
+      } catch (e) {
+        console.warn("Could not size columns to fit:", e);
+      }
       // Keep Quick Actions collapsed unless explicitly opened.
       setContextPanelCollapsed(true);
     },

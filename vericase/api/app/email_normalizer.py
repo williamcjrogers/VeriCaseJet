@@ -77,18 +77,37 @@ NORMALIZER_RULESET_HASH = hashlib.sha256(_RULESET_PAYLOAD).hexdigest()
 
 
 def strip_footer_noise(text: str | None) -> str:
+    """Strip footer/disclaimer noise from email body.
+
+    FIXED: Now finds the EARLIEST footer marker position in a single pass,
+    instead of iteratively cutting at each pattern (which caused progressive
+    truncation). Also requires minimum 50 alphanumeric characters before cutting
+    to avoid stripping legitimate short emails.
+    """
     if not text:
         return ""
 
     cleaned = text.replace("\r\n", "\n").replace("\r", "\n")
 
+    # Remove banner patterns (these are inline removals, not truncation)
     for pattern in _BANNER_PATTERNS:
         cleaned = re.sub(pattern, "", cleaned)
 
+    # Find the EARLIEST footer marker position across ALL patterns (single pass)
+    earliest_cut = len(cleaned)
     for pattern in _FOOTER_MARKERS:
         match = re.search(pattern, cleaned, flags=re.IGNORECASE | re.MULTILINE)
-        if match:
-            cleaned = cleaned[: match.start()].rstrip()
+        if match and match.start() < earliest_cut:
+            earliest_cut = match.start()
+
+    # Only cut if we have meaningful content before the footer
+    # Require at least 50 alphanumeric characters to prevent over-stripping
+    if earliest_cut < len(cleaned):
+        candidate = cleaned[:earliest_cut].rstrip()
+        alphanumeric_count = len(re.sub(r"[^0-9A-Za-z]+", "", candidate))
+        if alphanumeric_count >= 50:
+            cleaned = candidate
+        # Otherwise keep the full text - footer is part of a short email
 
     cleaned = re.sub(r"(?m)^\s*[-_]{2,}\s*$", "", cleaned)
     cleaned = re.sub(r"(?m)^\s*$", "", cleaned)
@@ -241,14 +260,21 @@ def clean_email_body_for_display(
             candidates.append(value)
 
     # Fast path: if stored body_text_clean already has meaningful content, prefer it.
-    # (Avoid heavy processing on list views.)
+    # IMPORTANT: body_text_clean is ALREADY processed during PST ingestion via
+    # select_best_body() which calls split_reply() and strip_signature().
+    # DO NOT re-apply these transformations - it causes double/triple stripping
+    # that destroys short email content while preserving only signatures.
     if body_text_clean:
-        cleaned = clean_body_text(body_text_clean) or ""
-        top, _quoted, _marker = _split_reply(cleaned)
-        body, _sig = _strip_signature(top)
-        body = body.strip()
-        if _display_score(body) >= 40:
-            return body
+        # Only apply light cleaning (HTML entities, whitespace normalization)
+        # Do NOT call split_reply or strip_signature again!
+        cleaned = body_text_clean.strip()
+        # Remove any HTML entities and normalize whitespace
+        cleaned = html.unescape(cleaned)
+        cleaned = re.sub(r"[^\S\n]+", " ", cleaned)
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+        cleaned = cleaned.strip()
+        if _display_score(cleaned) >= 20:  # Lower threshold - content already processed
+            return cleaned
 
     parser = None
     if languages is None:

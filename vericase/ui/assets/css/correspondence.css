@@ -372,6 +372,9 @@ body::before {
   /* Allow children to shrink within flex layouts so the grid can calculate height correctly */
   min-height: 0;
   height: 100%;
+  /* Ensure content doesn't bleed under the fixed sidebar when scrolling horizontally */
+  min-width: 0;
+  position: relative;
 }
 
 /* Grid Container */
@@ -386,12 +389,16 @@ body::before {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  /* Prevent horizontal overflow that bleeds under the sidebar when scrolling */
+  overflow: hidden;
 }
 
 #emailGrid {
   height: 100%;
   flex: 1;
   min-height: 0;
+  /* Contain AG Grid's horizontal scroll within this element */
+  overflow: hidden;
 }
 
 /* Detail Panel */
