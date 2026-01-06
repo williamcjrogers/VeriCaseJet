@@ -61,6 +61,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            flex-shrink: 0;
         }
 
         /* === STATS BAR - COMPACT === */
@@ -2404,12 +2405,17 @@
 
         async function loadData() {
             try {
-                const response = await fetch("/api/dashboard/overview", { headers: getAuthHeaders() });
-                if (!response.ok) {
-                    throw new Error(`Dashboard request failed (${response.status})`);
+                // Fetch both dashboard overview (for permissions/user) and workspaces (for accurate stats)
+                const [overviewResponse, workspacesResponse] = await Promise.all([
+                    fetch("/api/dashboard/overview", { headers: getAuthHeaders() }),
+                    fetch("/api/workspaces", { headers: getAuthHeaders() })
+                ]);
+
+                if (!overviewResponse.ok) {
+                    throw new Error(`Dashboard request failed (${overviewResponse.status})`);
                 }
 
-                const data = await response.json();
+                const data = await overviewResponse.json();
                 dashboardData = data;
 
                 if (data.user && data.user.role) {
@@ -2422,10 +2428,26 @@
                     document.getElementById("greetingTitle").textContent = `Welcome back, ${data.user.display_name}`;
                 }
 
-                // Update Stats
-                document.getElementById("statProjects").textContent = formatCount(data.stats?.total_projects || 0);
-                document.getElementById("statCases").textContent = formatCount(data.stats?.total_cases || 0);
-                document.getElementById("statEmails").textContent = formatCount(data.stats?.total_emails || 0);
+                // Update Stats - use workspaces data for consistency with Master Dashboard
+                let totalProjects = 0;
+                let totalCases = 0;
+                let totalEmails = 0;
+
+                if (workspacesResponse.ok) {
+                    const workspacesData = await workspacesResponse.json();
+                    totalProjects = workspacesData.reduce((sum, ws) => sum + (ws.project_count || 0), 0);
+                    totalCases = workspacesData.reduce((sum, ws) => sum + (ws.case_count || 0), 0);
+                    totalEmails = workspacesData.reduce((sum, ws) => sum + (ws.email_count || 0), 0);
+                } else {
+                    // Fallback to dashboard overview stats
+                    totalProjects = data.stats?.total_projects || 0;
+                    totalCases = data.stats?.total_cases || 0;
+                    totalEmails = data.stats?.total_emails || 0;
+                }
+
+                document.getElementById("statProjects").textContent = formatCount(totalProjects);
+                document.getElementById("statCases").textContent = formatCount(totalCases);
+                document.getElementById("statEmails").textContent = formatCount(totalEmails);
 
                 renderDeadlines(data.upcoming_deadlines || data.deadlines || []);
             } catch (e) {

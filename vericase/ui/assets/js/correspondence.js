@@ -4932,6 +4932,10 @@ function initGrid() {
     },
 
     onFirstDataRendered: () => {
+      // Autosize columns to fit content on initial load
+      if (gridApi) {
+        gridApi.autoSizeAllColumns();
+      }
       // Keep Quick Actions collapsed unless explicitly opened.
       setContextPanelCollapsed(true);
     },

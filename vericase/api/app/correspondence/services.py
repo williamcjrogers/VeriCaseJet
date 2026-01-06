@@ -1940,7 +1940,7 @@ async def list_emails_server_side_service(
         )
 
         stats = {
-            "total": total_all,
+            "total": total_visible,  # Show visible emails, not all (excluded ones are shown separately)
             "excludedCount": excluded_count,
             "uniqueThreads": unique_threads_count,
             "withAttachments": with_attachments_count,
