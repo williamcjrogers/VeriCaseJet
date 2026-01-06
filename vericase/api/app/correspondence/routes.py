@@ -967,35 +967,3 @@ async def get_email_detail(
     from .services import get_email_detail_service
 
     return await get_email_detail_service(email_id, db)
-
-
-@router.post("/admin/backfill-body-text")
-async def backfill_body_text(
-    project_id: str | None = Query(
-        None, description="Optional project ID to limit backfill"
-    ),
-    batch_size: int = Query(100, description="Batch size for processing"),
-    apply: bool = Query(
-        False, description="Set to true to actually apply changes (default is dry-run)"
-    ),
-    user: User = Depends(current_user),
-    db: Session = Depends(get_db),
-):
-    """
-    Admin endpoint to backfill body_text from body_html for emails that have
-    NULL body_text but have HTML content.
-
-    This fixes emails that were imported before the HTML-to-text conversion
-    was working correctly.
-
-    By default, this is a DRY-RUN. Set apply=true to actually update records.
-    """
-    from .services import backfill_body_text_service
-
-    return await backfill_body_text_service(
-        project_id=project_id,
-        batch_size=batch_size,
-        dry_run=not apply,
-        db=db,
-        user=user,
-    )

@@ -115,13 +115,6 @@
       },
       items: [
         {
-          id: "workspace-hub",
-          label: "Workspace Hub",
-          icon: "fa-th-large",
-          url: "workspace-hub.html",
-          contexts: ["workspace", "project", "case"],  // Show in all workspace contexts
-        },
-        {
           id: "dashboard",
           label: (ctx) =>
             ctx?.type === "case" ? "Case Dashboard" : "Project Dashboard",
@@ -255,17 +248,10 @@
     const urlParams = new URLSearchParams(window.location.search);
     const urlCaseId = (urlParams.get("caseId") || "").trim();
     const urlProjectId = (urlParams.get("projectId") || "").trim();
-    const urlWorkspaceId = (urlParams.get("workspaceId") || "").trim();
     const logContext = (ctx) => {
       console.log("[FLOW] NavShell context:", ctx);
       return ctx;
     };
-
-    // Check for workspace context (for hub pages)
-    const currentPage = getCurrentPage();
-    if (currentPage === "workspace-hub.html" && urlWorkspaceId && urlWorkspaceId !== "undefined" && urlWorkspaceId !== "null") {
-      return logContext({ type: "workspace", id: urlWorkspaceId });
-    }
 
     if (urlCaseId && urlCaseId !== "undefined" && urlCaseId !== "null") {
       return logContext({ type: "case", id: urlCaseId });
@@ -407,11 +393,6 @@
     // Without a selected workspace, avoid showing project-only/case-only items.
     if (!hasContext) {
       return contexts.includes("project") && contexts.includes("case");
-    }
-
-    // Handle workspace context type (for workspace-hub.html)
-    if (ctxType === "workspace") {
-      return contexts.includes("workspace");
     }
 
     return contexts.includes(ctxType);
