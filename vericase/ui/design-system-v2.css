@@ -924,7 +924,7 @@ select.input {
    RESPONSIVE
    ============================================ */
 
-@media (max-width: 1024px) {
+@media (max-width: 640px) {
     .app-main {
         margin-left: 0;
     }
@@ -952,7 +952,7 @@ select.input {
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 640px) {
     .table-row {
         grid-template-columns: 1fr;
         gap: 8px;

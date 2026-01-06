@@ -13,7 +13,22 @@ Write-Host "`nChecking Workspace MCP Config..." -ForegroundColor Yellow
 $workspaceMcp = Join-Path ".vscode" "mcp.json"
 if (Test-Path $workspaceMcp) {
   $mcpContent = Get-Content $workspaceMcp -Raw | ConvertFrom-Json
-  $serverCount = ($mcpContent.mcp.servers | Get-Member -MemberType NoteProperty).Count
+
+  function Get-McpServersObject($obj) {
+    if ($null -eq $obj) { return $null }
+    if ($obj.servers) { return $obj.servers }
+    if ($obj.mcp -and $obj.mcp.servers) { return $obj.mcp.servers }
+    return $null
+  }
+
+  $serversObj = Get-McpServersObject $mcpContent
+  if (-not $serversObj) {
+    Write-Host ("  Found {0}" -f $workspaceMcp) -ForegroundColor Yellow
+    Write-Host "  Could not find servers in mcp.json (expected 'servers' or 'mcp.servers')." -ForegroundColor Yellow
+    $serverCount = 0
+  } else {
+    $serverCount = ($serversObj | Get-Member -MemberType NoteProperty).Count
+  }
   Write-Host ("  Found {0}" -f $workspaceMcp) -ForegroundColor Green
   Write-Host ("  Server count: {0}" -f $serverCount) -ForegroundColor Green
   Write-Host ("  Last modified: {0}" -f (Get-Item $workspaceMcp).LastWriteTime) -ForegroundColor Gray
@@ -58,7 +73,7 @@ Write-Host "`nChecking MCP Executables..." -ForegroundColor Yellow
 $expectedServers = @(
   "awslabs.core-mcp-server.exe",
   "awslabs.ec2-mcp-server.exe",
-  "awslabs.s3-mcp-server.exe",
+  "awslabs-s3-mcp-server.exe",
   "ecs-mcp-server.exe"
 )
 $missingCount = 0

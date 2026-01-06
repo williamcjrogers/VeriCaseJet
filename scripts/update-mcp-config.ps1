@@ -217,12 +217,24 @@ $awsServers = @{
 # Read existing config
 $config = Get-Content $mcpConfigPath -Raw | ConvertFrom-Json
 
+function Get-McpServersObject($obj) {
+    if ($null -eq $obj) { return $null }
+    if ($obj.servers) { return $obj.servers }
+    if ($obj.mcp -and $obj.mcp.servers) { return $obj.mcp.servers }
+    return $null
+}
+
+$serversObj = Get-McpServersObject $config
+if (-not $serversObj) {
+    throw "Could not find servers in $mcpConfigPath (expected 'servers' or 'mcp.servers')."
+}
+
 # Add new servers (skip if already exists)
 $addedCount = 0
 foreach ($serverName in $awsServers.Keys) {
-    if (-not $config.mcp.servers.PSObject.Properties[$serverName]) {
+    if (-not $serversObj.PSObject.Properties[$serverName]) {
         Write-Host "Adding $serverName..." -ForegroundColor Green
-        $config.mcp.servers | Add-Member -MemberType NoteProperty -Name $serverName -Value $awsServers[$serverName]
+        $serversObj | Add-Member -MemberType NoteProperty -Name $serverName -Value $awsServers[$serverName]
         $addedCount++
     } else {
         Write-Host "Skipping $serverName (already exists)" -ForegroundColor Yellow

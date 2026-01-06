@@ -38,3 +38,24 @@ docker run --rm \
   pst-extractor
 ```
 
+## Run tests
+
+### Recommended on Windows (Docker)
+
+Running `cargo test` natively on Windows can fail if your Rust toolchain is the GNU target
+(`x86_64-pc-windows-gnu`) and you don't have `dlltool.exe` available.
+
+This repo's simplest, most repeatable path is to run the tests in a Linux Rust container:
+
+```bash
+# from services/pst-extractor/
+docker run --rm -v "$PWD:/src" -w /src rust:1.88-bookworm cargo test
+```
+
+### Native (if you already have Rust set up)
+
+```bash
+cd services/pst-extractor
+cargo test
+```
+

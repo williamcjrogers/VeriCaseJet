@@ -37,8 +37,7 @@ if ($WriteVSCodeConfig) {
 
     if ((-not (Test-Path $mcpConfigPath)) -or $Force) {
         $mcpConfig = @{
-            mcp = @{
-                inputs  = @(
+            inputs  = @(
                     @{
                         type        = 'promptString'
                         id          = 'sqlite_db_path'
@@ -88,24 +87,29 @@ if ($WriteVSCodeConfig) {
                         default     = '${env:USERPROFILE}/.ssh/known_hosts'
                     }
                 )
-                servers = @{
+            servers = @{
                     fetch  = @{
+                        type    = 'stdio'
                         command = '${workspaceFolder}/.venv/Scripts/python.exe'
                         args    = @('-m', 'mcp_server_fetch')
                     }
                     time   = @{
+                        type    = 'stdio'
                         command = '${workspaceFolder}/.venv/Scripts/python.exe'
                         args    = @('-m', 'mcp_server_time')
                     }
                     git    = @{
+                        type    = 'stdio'
                         command = '${workspaceFolder}/.venv/Scripts/python.exe'
                         args    = @('-m', 'mcp_server_git', '--repository', '${workspaceFolder}')
                     }
                     sqlite = @{
+                        type    = 'stdio'
                         command = '${workspaceFolder}/.venv/Scripts/python.exe'
                         args    = @('-m', 'mcp_server_sqlite.server', '--db-path', '${input:sqlite_db_path}')
                     }
                     'awslabs.core-mcp-server' = @{
+                        type    = 'stdio'
                         command = '${workspaceFolder}/.venv/Scripts/awslabs.core-mcp-server.exe'
                         args    = @()
                         env     = @{
@@ -115,6 +119,7 @@ if ($WriteVSCodeConfig) {
                         }
                     }
                     'awslabs.ccapi-mcp-server' = @{
+                        type    = 'stdio'
                         command = '${workspaceFolder}/.venv/Scripts/awslabs.ccapi-mcp-server.exe'
                         args    = @('--readonly')
                         env     = @{
@@ -124,6 +129,7 @@ if ($WriteVSCodeConfig) {
                         }
                     }
                     ssh = @{
+                        type    = 'stdio'
                         command = '${workspaceFolder}/.venv/Scripts/python.exe'
                         args    = @('-m', 'mcp_ssh_server', '--transport', 'stdio')
                         env     = @{
@@ -136,7 +142,6 @@ if ($WriteVSCodeConfig) {
                         }
                     }
                 }
-            }
         }
 
         $mcpConfig | ConvertTo-Json -Depth 10 | Set-Content -Path $mcpConfigPath -Encoding UTF8

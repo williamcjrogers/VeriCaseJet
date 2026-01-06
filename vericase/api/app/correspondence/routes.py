@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 import io
 import csv
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 from ..csrf import verify_csrf_token
 from ..security import current_user, get_db
@@ -366,10 +367,24 @@ async def list_stakeholders(
     q = db.query(Stakeholder)
     case_uuid = _safe_uuid(case_id, "case_id")
     project_uuid = _safe_uuid(project_id, "project_id")
-    if case_uuid:
+
+    # Match the PST processor logic: when viewing at case level, include both
+    # case-level stakeholders AND project-level defaults (where case_id IS NULL).
+    if case_uuid and project_uuid:
+        q = q.filter(
+            or_(
+                Stakeholder.case_id == case_uuid,
+                (Stakeholder.project_id == project_uuid)
+                & (Stakeholder.case_id.is_(None)),
+            )
+        )
+    elif case_uuid:
         q = q.filter(Stakeholder.case_id == case_uuid)
-    if project_uuid:
-        q = q.filter(Stakeholder.project_id == project_uuid)
+    elif project_uuid:
+        # Project-level only: case_id must be NULL
+        q = q.filter(
+            Stakeholder.project_id == project_uuid, Stakeholder.case_id.is_(None)
+        )
 
     items = q.order_by(Stakeholder.name.asc()).limit(5000).all()
     return {
@@ -398,10 +413,21 @@ async def list_keywords(
     q = db.query(Keyword)
     case_uuid = _safe_uuid(case_id, "case_id")
     project_uuid = _safe_uuid(project_id, "project_id")
-    if case_uuid:
+
+    # Match the PST processor logic: when viewing at case level, include both
+    # case-level keywords AND project-level defaults (where case_id IS NULL).
+    if case_uuid and project_uuid:
+        q = q.filter(
+            or_(
+                Keyword.case_id == case_uuid,
+                (Keyword.project_id == project_uuid) & (Keyword.case_id.is_(None)),
+            )
+        )
+    elif case_uuid:
         q = q.filter(Keyword.case_id == case_uuid)
-    if project_uuid:
-        q = q.filter(Keyword.project_id == project_uuid)
+    elif project_uuid:
+        # Project-level only: case_id must be NULL
+        q = q.filter(Keyword.project_id == project_uuid, Keyword.case_id.is_(None))
 
     items = q.order_by(Keyword.keyword_name.asc()).limit(5000).all()
     return {

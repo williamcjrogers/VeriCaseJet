@@ -5,7 +5,7 @@ param(
     # Write a repo-local canonical copy (gitignored) at .mcp/mcp.json
     [switch]$WriteCanonical = $true,
 
-    # Generate/merge VS Code/Cline workspace config at .vscode/mcp.json (mcp.servers schema)
+    # Generate/merge VS Code workspace config at .vscode/mcp.json (VS Code schema: top-level inputs/servers)
     [switch]$WriteVSCodeCline = $true,
 
     # Sync to KiloCode local config at .kilocode/mcp.local.json (gitignored)
@@ -34,6 +34,31 @@ function Read-Json([string]$Path) {
 function Write-Json([string]$Path, $Obj, [int]$Depth = 30) {
     Ensure-Dir (Split-Path $Path -Parent)
     $Obj | ConvertTo-Json -Depth $Depth | Set-Content -Path $Path -Encoding UTF8
+}
+
+function Normalize-VSCodeWorkspaceMcp($obj) {
+    if (-not $obj) {
+        return [pscustomobject]@{ inputs = @(); servers = [pscustomobject]@{} }
+    }
+
+    # Already new schema
+    if ($obj.servers) {
+        if (-not $obj.inputs) { $obj | Add-Member -MemberType NoteProperty -Name inputs -Value @() }
+        return $obj
+    }
+
+    # Older nested schema: { mcp: { inputs: [...], servers: {...} } }
+    if ($obj.mcp -and $obj.mcp.servers) {
+        $inputs = @()
+        if ($obj.mcp.inputs) { $inputs = $obj.mcp.inputs }
+        return [pscustomobject]@{
+            inputs  = $inputs
+            servers = $obj.mcp.servers
+        }
+    }
+
+    # Unknown shape; create a minimal shell.
+    return [pscustomobject]@{ inputs = @(); servers = [pscustomobject]@{} }
 }
 
 function Normalize-McpServers($mcpServers) {
@@ -94,23 +119,37 @@ if (-not (Test-Path $SourceMcpJson)) {
 $src = Read-Json $SourceMcpJson
 if (-not $src) { throw "Failed to parse JSON: $SourceMcpJson" }
 
-if (-not $src.mcpServers) {
-    throw "Source config does not contain 'mcpServers': $SourceMcpJson"
+# Support both schemas:
+# - Cursor/KiloCode schema: { mcpServers: { ... }, inputs?: [...] }
+# - VS Code schema:        { servers: { ... }, inputs?: [...] }
+$srcMcpServers = $null
+$srcInputs = $null
+
+if ($src.mcpServers) {
+    $srcMcpServers = $src.mcpServers
+    $srcInputs = $src.inputs
+} elseif ($src.servers) {
+    $srcMcpServers = $src.servers
+    $srcInputs = $src.inputs
+} else {
+    throw "Source config does not contain 'mcpServers' or 'servers': $SourceMcpJson"
 }
 
-$src.mcpServers = Normalize-McpServers $src.mcpServers
+$srcMcpServers = Normalize-McpServers $srcMcpServers
 
 if ($WriteCanonical) {
     $canonicalPath = Join-Path $repoRoot '.mcp\mcp.json'
+    $canonSrc = [pscustomobject]@{ mcpServers = $srcMcpServers }
+    if ($srcInputs) { $canonSrc | Add-Member -MemberType NoteProperty -Name inputs -Value $srcInputs }
     if ((Test-Path $canonicalPath) -and (-not $Force)) {
         # Merge (keep existing but refresh servers/inputs from source)
         $canon = Read-Json $canonicalPath
         if (-not $canon) { $canon = [pscustomobject]@{} }
-        $canon.mcpServers = $src.mcpServers
-        if ($src.inputs) { $canon.inputs = $src.inputs }
+        $canon.mcpServers = $canonSrc.mcpServers
+        if ($canonSrc.inputs) { $canon.inputs = $canonSrc.inputs }
         Write-Json $canonicalPath $canon
     } else {
-        Write-Json $canonicalPath $src
+        Write-Json $canonicalPath $canonSrc
     }
     Write-Host "Wrote canonical MCP config: $canonicalPath"
 }
@@ -120,25 +159,22 @@ if ($WriteVSCodeCline) {
     $dst = Read-Json $dstPath
 
     if ($Force -or (-not $dst)) {
-        $dst = [pscustomobject]@{ mcp = [pscustomobject]@{ inputs = @(); servers = [pscustomobject]@{} } }
-    } elseif (-not $dst.mcp) {
-        $dst | Add-Member -MemberType NoteProperty -Name mcp -Value ([pscustomobject]@{ inputs=@(); servers=[pscustomobject]@{} })
+        $dst = [pscustomobject]@{ inputs = @(); servers = [pscustomobject]@{} }
+    } else {
+        $dst = Normalize-VSCodeWorkspaceMcp $dst
     }
 
-    if (-not $dst.mcp.inputs) { $dst.mcp | Add-Member -MemberType NoteProperty -Name inputs -Value @() }
-    if (-not $dst.mcp.servers) { $dst.mcp | Add-Member -MemberType NoteProperty -Name servers -Value ([pscustomobject]@{}) }
-
     # Merge inputs from user config into workspace config (dedupe by id).
-    $dst.mcp.inputs = Merge-Inputs $dst.mcp.inputs $src.inputs
+    $dst.inputs = Merge-Inputs $dst.inputs $srcInputs
 
     # Merge servers: bring all user servers into workspace config.
-    foreach ($p in $src.mcpServers.PSObject.Properties) {
+    foreach ($p in $srcMcpServers.PSObject.Properties) {
         $name = $p.Name
         $cfg = $p.Value
-        if (-not $dst.mcp.servers.PSObject.Properties[$name]) {
-            $dst.mcp.servers | Add-Member -MemberType NoteProperty -Name $name -Value $cfg
+        if (-not $dst.servers.PSObject.Properties[$name]) {
+            $dst.servers | Add-Member -MemberType NoteProperty -Name $name -Value $cfg
         } else {
-            $dst.mcp.servers.$name = $cfg
+            $dst.servers.$name = $cfg
         }
     }
 
@@ -150,7 +186,9 @@ if ($WriteKiloLocal) {
     $kiloLocal = Join-Path $repoRoot '.kilocode\mcp.local.json'
     # Prefer canonical if present
     $canonicalPath = Join-Path $repoRoot '.mcp\mcp.json'
-    $srcForKilo = if (Test-Path $canonicalPath) { Read-Json $canonicalPath } else { $src }
+    $fallback = [pscustomobject]@{ mcpServers = $srcMcpServers }
+    if ($srcInputs) { $fallback | Add-Member -MemberType NoteProperty -Name inputs -Value $srcInputs }
+    $srcForKilo = if (Test-Path $canonicalPath) { Read-Json $canonicalPath } else { $fallback }
     Write-Json $kiloLocal $srcForKilo
     Write-Host "Wrote KiloCode local MCP config: $kiloLocal"
 }
@@ -158,7 +196,9 @@ if ($WriteKiloLocal) {
 if ($WriteCursorGlobal) {
     $cursorPath = Join-Path $env:USERPROFILE '.cursor\mcp.json'
     $canonicalPath = Join-Path $repoRoot '.mcp\mcp.json'
-    $srcForCursor = if (Test-Path $canonicalPath) { Read-Json $canonicalPath } else { $src }
+    $fallback = [pscustomobject]@{ mcpServers = $srcMcpServers }
+    if ($srcInputs) { $fallback | Add-Member -MemberType NoteProperty -Name inputs -Value $srcInputs }
+    $srcForCursor = if (Test-Path $canonicalPath) { Read-Json $canonicalPath } else { $fallback }
     Write-Json $cursorPath $srcForCursor
     Write-Host "Wrote Cursor global MCP config: $cursorPath"
 }

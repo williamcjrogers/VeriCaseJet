@@ -125,41 +125,176 @@ fn header_all(mail: &ParsedMail, name: &str) -> Vec<String> {
         .collect()
 }
 
-fn best_text_part(mail: &ParsedMail) -> Option<String> {
-    // Prefer text/plain leaf parts.
-    if mail.subparts.is_empty() {
-        let ctype = mail.ctype.mimetype.to_ascii_lowercase();
-        if ctype.starts_with("text/plain") || ctype == "text/plain" {
-            return mail.get_body().ok().map(|s| s.to_string());
-        }
-        return None;
-    }
-    for part in &mail.subparts {
-        if let Some(text) = best_text_part(part) {
-            if !text.is_empty() {
-                return Some(text);
-            }
-        }
-    }
-    None
+fn is_attachment_disposition(part: &ParsedMail) -> bool {
+    let cd = header_first(part, "Content-Disposition")
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    cd.trim_start().starts_with("attachment")
 }
 
-fn best_html_part(mail: &ParsedMail) -> Option<String> {
-    if mail.subparts.is_empty() {
-        let ctype = mail.ctype.mimetype.to_ascii_lowercase();
-        if ctype.starts_with("text/html") || ctype == "text/html" {
-            return mail.get_body().ok().map(|s| s.to_string());
+fn normalize_newlines(text: &str) -> String {
+    text.replace("\r\n", "\n").replace('\r', "\n")
+}
+
+fn core_alnum_len(text: &str) -> usize {
+    text.chars().filter(|c| c.is_ascii_alphanumeric()).count()
+}
+
+fn strip_external_banner_lines(text: &str) -> String {
+    // Very conservative: only drop lines that *strongly* look like external-email warnings.
+    // We do not attempt full disclaimer stripping here (that's handled downstream in the API).
+    let normalized = normalize_newlines(text);
+    let mut kept: Vec<&str> = Vec::new();
+    for line in normalized.lines() {
+        let l = line.trim().to_ascii_lowercase();
+        if l.is_empty() {
+            kept.push(line);
+            continue;
         }
-        return None;
+
+        let looks_like_external_banner = (l.contains("external email")
+            && (l.contains("caution") || l.contains("warning") || l.contains("external sender") || l.contains("originated")))
+            || l.starts_with("caution") && l.contains("external")
+            || l.starts_with("warning") && l.contains("external")
+            || l.starts_with("this email originated")
+            || l.starts_with("do not click")
+            || l.starts_with("don't click")
+            || l.contains("unless you recognise")
+            || l.contains("unless you recognize")
+            || l.contains("expected and known to be safe");
+
+        if looks_like_external_banner {
+            continue;
+        }
+        kept.push(line);
     }
-    for part in &mail.subparts {
-        if let Some(html) = best_html_part(part) {
-            if !html.is_empty() {
-                return Some(html);
+    kept.join("\n")
+}
+
+fn is_mostly_external_banner(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    if !lower.contains("external") {
+        return false;
+    }
+    let core_total = core_alnum_len(text);
+    let core_stripped = core_alnum_len(&strip_external_banner_lines(text));
+
+    // If stripping banner-like lines removes almost everything and the overall body is short,
+    // treat it as banner-only.
+    core_total > 0 && core_total < 220 && core_stripped < 40
+}
+
+fn html_to_text_rough(html: &str) -> String {
+    // Cheap tag stripper used ONLY for scoring. This is not a full HTML->text conversion.
+    // (Display conversion happens server-side.)
+    let mut out = String::with_capacity(html.len().min(32_768));
+    let mut in_tag = false;
+    for ch in html.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ => {
+                if !in_tag {
+                    out.push(ch);
+                }
             }
         }
     }
-    None
+    out
+}
+
+fn collect_text_bodies<'a>(
+    mail: &'a ParsedMail<'a>,
+    mime_prefix: &str,
+    out: &mut Vec<String>,
+) {
+    if mail.subparts.is_empty() {
+        let ctype = mail.ctype.mimetype.to_ascii_lowercase();
+        if (ctype == mime_prefix) || ctype.starts_with(mime_prefix) {
+            // Avoid mistakenly selecting text/plain attachments as the message body.
+            if is_attachment_disposition(mail) {
+                return;
+            }
+            if let Ok(body) = mail.get_body() {
+                let b = body.to_string();
+                if !b.trim().is_empty() {
+                    out.push(b);
+                }
+            }
+        }
+        return;
+    }
+    for part in &mail.subparts {
+        collect_text_bodies(part, mime_prefix, out);
+    }
+}
+
+fn choose_best_body_text(mail: &ParsedMail) -> Option<String> {
+    let mut candidates: Vec<String> = Vec::new();
+    collect_text_bodies(mail, "text/plain", &mut candidates);
+    if candidates.is_empty() {
+        return None;
+    }
+
+    // Prefer the candidate with the most meaningful content *after* stripping obvious banners.
+    // If all are banner-like, keep the longest (better than returning empty).
+    let mut best_idx: usize = 0;
+    let mut best_score: usize = 0;
+    for (idx, c) in candidates.iter().enumerate() {
+        let stripped = strip_external_banner_lines(c);
+        let score = core_alnum_len(&stripped);
+        if score > best_score {
+            best_score = score;
+            best_idx = idx;
+        }
+    }
+    Some(candidates.swap_remove(best_idx))
+}
+
+fn choose_best_body_html(mail: &ParsedMail) -> Option<String> {
+    let mut candidates: Vec<String> = Vec::new();
+    collect_text_bodies(mail, "text/html", &mut candidates);
+    if candidates.is_empty() {
+        return None;
+    }
+    let mut best_idx: usize = 0;
+    let mut best_score: usize = 0;
+    for (idx, c) in candidates.iter().enumerate() {
+        // Score based on rough text content length (ignoring tags) after stripping banner lines.
+        let as_text = html_to_text_rough(c);
+        let stripped = strip_external_banner_lines(&as_text);
+        let score = core_alnum_len(&stripped);
+        if score > best_score {
+            best_score = score;
+            best_idx = idx;
+        }
+    }
+    Some(candidates.swap_remove(best_idx))
+}
+
+fn select_email_bodies(mail: &ParsedMail) -> (Option<String>, Option<String>) {
+    let mut body_text = choose_best_body_text(mail);
+    let body_html = choose_best_body_html(mail);
+
+    // If the chosen text/plain body is just an external-email banner, but we have a
+    // meaningful HTML body, prefer deriving a text body from the HTML. This improves
+    // downstream previews (which often prefer body_text) while still preserving HTML.
+    if let (Some(ref bt), Some(ref bh)) = (&body_text, &body_html) {
+        if is_mostly_external_banner(bt) {
+            let html_text = html_to_text_rough(bh);
+            let stripped = strip_external_banner_lines(&html_text);
+            let candidate = stripped.trim();
+
+            // Keep a conservative floor so we don't replace with near-empty noise.
+            if core_alnum_len(candidate) >= 20 {
+                body_text = Some(candidate.to_string());
+            } else {
+                body_text = None;
+            }
+        }
+    }
+
+    (body_text, body_html)
 }
 
 fn stable_uuid(seed: &str) -> Uuid {
@@ -533,6 +668,8 @@ async fn main() -> Result<()> {
             );
             let id = stable_uuid(&seed).to_string();
 
+            let (body_text, body_html) = select_email_bodies(&mail);
+
             let record = EmailRecord {
                 id: id.clone(),
                 pst_file_id: args.pst_file_id.clone(),
@@ -558,8 +695,8 @@ async fn main() -> Result<()> {
                 date: date_header.clone(),
                 date_epoch,
                 received: header_all(&mail, "Received"),
-                body_text: best_text_part(&mail),
-                body_html: best_html_part(&mail),
+                body_text,
+                body_html,
                 sender_email,
                 sender_name,
             };
@@ -569,7 +706,10 @@ async fn main() -> Result<()> {
 
             // CSV row – escape quotes by doubling them (RFC4180).
             fn csv_escape(value: &str) -> String {
-                let needs_quotes = value.contains(',') || value.contains('"') || value.contains('\n');
+                let needs_quotes = value.contains(',')
+                    || value.contains('"')
+                    || value.contains('\n')
+                    || value.contains('\r');
                 if !needs_quotes {
                     return value.to_string();
                 }
@@ -782,4 +922,108 @@ async fn main() -> Result<()> {
     );
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn selects_non_banner_plain_text_over_banner_only_part() {
+        let raw = concat!(
+            "From: Sender <s@example.com>\r\n",
+            "To: You <y@example.com>\r\n",
+            "Subject: Test\r\n",
+            "MIME-Version: 1.0\r\n",
+            "Content-Type: multipart/mixed; boundary=BOUND\r\n",
+            "\r\n",
+            "--BOUND\r\n",
+            "Content-Type: text/plain; charset=utf-8\r\n",
+            "\r\n",
+            "CAUTION: EXTERNAL EMAIL\r\n",
+            "Do not click links unless you recognize the sender\r\n",
+            "\r\n",
+            "--BOUND\r\n",
+            "Content-Type: multipart/alternative; boundary=ALT\r\n",
+            "\r\n",
+            "--ALT\r\n",
+            "Content-Type: text/plain; charset=utf-8\r\n",
+            "\r\n",
+            "Hello team,\r\n",
+            "This is the real body text.\r\n",
+            "--ALT\r\n",
+            "Content-Type: text/html; charset=utf-8\r\n",
+            "\r\n",
+            "<html><body><p>Hello team,</p><p>This is the real body text.</p></body></html>\r\n",
+            "--ALT--\r\n",
+            "--BOUND--\r\n"
+        )
+        .as_bytes();
+
+        let mail = mailparse::parse_mail(raw).expect("parse_mail");
+        let (bt, _bh) = select_email_bodies(&mail);
+        let bt = bt.expect("expected body text");
+        assert!(bt.contains("real body"));
+        assert!(!is_mostly_external_banner(&bt));
+    }
+
+    #[test]
+    fn drops_banner_only_plain_when_html_has_meaningful_content() {
+        let raw = concat!(
+            "From: Sender <s@example.com>\r\n",
+            "To: You <y@example.com>\r\n",
+            "Subject: Test\r\n",
+            "MIME-Version: 1.0\r\n",
+            "Content-Type: multipart/alternative; boundary=ALT\r\n",
+            "\r\n",
+            "--ALT\r\n",
+            "Content-Type: text/plain; charset=utf-8\r\n",
+            "\r\n",
+            "CAUTION: EXTERNAL EMAIL\r\n",
+            "Do not click links unless you recognize the sender\r\n",
+            "--ALT\r\n",
+            "Content-Type: text/html; charset=utf-8\r\n",
+            "\r\n",
+            "<html><body><p>Real content is only in HTML.</p></body></html>\r\n",
+            "--ALT--\r\n"
+        )
+        .as_bytes();
+
+        let mail = mailparse::parse_mail(raw).expect("parse_mail");
+        let (bt, bh) = select_email_bodies(&mail);
+
+        let bt = bt.expect("expected derived text body");
+        assert!(!is_mostly_external_banner(&bt));
+        assert!(bt.to_ascii_lowercase().contains("real content"));
+        assert!(bh.is_some(), "expected HTML body");
+    }
+
+    #[test]
+    fn ignores_text_plain_attachments_when_selecting_body() {
+        let raw = concat!(
+            "From: Sender <s@example.com>\r\n",
+            "To: You <y@example.com>\r\n",
+            "Subject: Test\r\n",
+            "MIME-Version: 1.0\r\n",
+            "Content-Type: multipart/mixed; boundary=BOUND\r\n",
+            "\r\n",
+            "--BOUND\r\n",
+            "Content-Type: text/plain; charset=utf-8\r\n",
+            "\r\n",
+            "Body text here.\r\n",
+            "--BOUND\r\n",
+            "Content-Type: text/plain; charset=utf-8\r\n",
+            "Content-Disposition: attachment; filename=\"note.txt\"\r\n",
+            "\r\n",
+            "This is an attached note and should not be selected as the body.\r\n",
+            "--BOUND--\r\n"
+        )
+        .as_bytes();
+
+        let mail = mailparse::parse_mail(raw).expect("parse_mail");
+        let (bt, _bh) = select_email_bodies(&mail);
+        let bt = bt.expect("expected body text");
+        assert!(bt.contains("Body text here"));
+        assert!(!bt.contains("attached note"));
+    }
 }

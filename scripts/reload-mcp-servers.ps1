@@ -23,7 +23,20 @@ if (!(Test-Path $settingsConfig)) {
 $mcp = Get-Content $mcpConfig | ConvertFrom-Json
 $settings = Get-Content $settingsConfig | ConvertFrom-Json
 
-$serverCount = ($mcp.mcp.servers | Get-Member -MemberType NoteProperty).Count
+function Get-McpServersObject($obj) {
+    if ($null -eq $obj) { return $null }
+    if ($obj.servers) { return $obj.servers }
+    if ($obj.mcp -and $obj.mcp.servers) { return $obj.mcp.servers }
+    return $null
+}
+
+$serversObj = Get-McpServersObject $mcp
+if (-not $serversObj) {
+    Write-Host "  ❌ ERROR: Could not find MCP servers in $mcpConfig (expected 'servers' or 'mcp.servers')." -ForegroundColor Red
+    exit 1
+}
+
+$serverCount = ($serversObj | Get-Member -MemberType NoteProperty).Count
 Write-Host "  ✅ Found mcp.json with $serverCount servers" -ForegroundColor Green
 
 # Step 2: Verify workspace-only discovery
@@ -65,7 +78,7 @@ Write-Host "  ✅ Found $exeCount MCP executables" -ForegroundColor Green
 # Step 5: List configured vs available servers
 Write-Host "`n📊 Step 5: Server Status..." -ForegroundColor Yellow
 
-$configuredServers = $mcp.mcp.servers | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name
+$configuredServers = $serversObj | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name
 $availableExes = $mcpExes | Select-Object -ExpandProperty Name | ForEach-Object { $_ -replace '\.exe$', '' }
 
 $awsServers = $configuredServers | Where-Object { $_ -like 'awslabs*' }

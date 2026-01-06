@@ -6,6 +6,18 @@
 (function () {
   "use strict";
 
+
+  // Base URL for assets colocated with this script (e.g. /ui/).
+  // This avoids broken relative paths when a page is served from a nested route.
+  const SHELL_BASE_URL = (() => {
+    try {
+      const scriptSrc = document.currentScript && document.currentScript.src;
+      if (scriptSrc) return new URL("./", scriptSrc).toString();
+    } catch (e) {
+      // Ignore and fall back to relative URLs.
+    }
+    return "";
+  })();
   // ==========================================
   // Error Tracking & Telemetry
   // ==========================================
@@ -503,11 +515,15 @@
           `;
     }
 
+    const logoSrc = SHELL_BASE_URL
+      ? `${SHELL_BASE_URL}assets/LOGOTOBEUSED.png`
+      : "assets/LOGOTOBEUSED.png";
+
     return `
             <aside class="app-sidebar" id="appSidebar">
                 <div class="sidebar-header">
                     <a href="master-dashboard.html" class="sidebar-logo">
-                    <img src="/ui/assets/LOGOTOBEUSED.png" alt="VeriCase" />
+            <img src="${logoSrc}" alt="VeriCase" />
                     </a>
                 </div>
                 ${projectContext}
@@ -735,7 +751,9 @@
     loadCurrentProjectName();
 
     // Setup responsive sidebar toggle
-    const mediaQuery = window.matchMedia("(max-width: 1024px)");
+    // Use the off-canvas drawer only on very small screens; on wider viewports the hamburger collapses the sidebar.
+    // This avoids the "nothing renders" feeling in narrow preview panes while still keeping phones usable.
+    const mediaQuery = window.matchMedia("(max-width: 640px)");
     const sidebar = document.getElementById("appSidebar");
     const toggle = document.getElementById("sidebarToggle");
 
