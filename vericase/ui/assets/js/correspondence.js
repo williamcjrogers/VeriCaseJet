@@ -428,6 +428,12 @@ function renderKeywordChips(value) {
 const REPLY_SPLIT_REGEX =
   /^(?:\s*>?\s*On .+ wrote:|\s*>?\s*From:\s|\s*>?\s*Sent:\s|\s*>?\s*To:\s|\s*>?\s*Cc:\s|\s*>?\s*Subject:\s|\s*>?\s*Disclaimer From:\s|-----Original Message-----|----- Forwarded message -----|Begin forwarded message)/mi;
 const BANNER_PATTERNS = [
+  // EXACT match for common external email banners (highest priority)
+  /^\s*EXTERNAL\s+EMAIL\s*:\s*Don'?t\s+click\s+links\s+or\s+open\s+attachments\s+unless\s+the\s+content\s+is\s+expected\s+and\s+known\s+to\s+be\s+safe\.?\s*$/gmi,
+  /^\s*\[?\s*EXTERNAL\s*\]?\s*:?\s*Don'?t\s+click\s+links.*$/gmi,
+  // Catch ANY line containing "EXTERNAL EMAIL" followed by warning text
+  /^.*EXTERNAL\s+EMAIL\s*:.*(?:click|links?|attachments?|safe).*$/gmi,
+  // Original patterns
   /^\s*\[?\s*caution[:\-]?\s*external email[\s\]]?.*$/gmi,
   /^\s*\[?\s*warning[:\-]?\s*external email[\s\]]?.*$/gmi,
   /^\s*\[?\s*external sender[\s\]]?.*$/gmi,
@@ -437,6 +443,8 @@ const BANNER_PATTERNS = [
   /^\s*this email originated outside.*$/gmi,
   /^\s*this email originated from outside.*$/gmi,
   /^\s*do not (?:click|open) (?:links?|attachments?).*$/gmi,
+  /^\s*don'?t (?:click|open) (?:links?|attachments?).*$/gmi,
+  /^.*expected\s+and\s+known\s+to\s+be\s+safe.*$/gmi,
   /^\s*attachments? and links? .* (?:unsafe|suspicious|dangerous).*$/gmi,
 ];
 const FOOTER_MARKERS = [
@@ -2165,7 +2173,7 @@ const createServerSideDatasource = () => {
 async function openEmailDetailById(emailId, fallbackRow) {
   if (!emailId) return;
   try {
-    const resp = await fetch(`${API_BASE}/api/correspondence/emails/${emailId}`, { headers: getAuthHeaders() });
+    const resp = await fetch(`${API_BASE}/api/correspondence/emails/${emailId}`, { credentials: "include", headers: getAuthHeaders() });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const detailData = await resp.json();
     renderEmailDetail(detailData);
@@ -2835,7 +2843,7 @@ async function ensureStakeholdersLoaded() {
   if (projectId) params.set("project_id", projectId);
   if (caseId) params.set("case_id", caseId);
   const url = `${API_BASE}/api/correspondence/stakeholders${params.toString() ? `?${params}` : ""}`;
-  const resp = await fetch(url, { headers: { ...getAuthHeaders() } });
+  const resp = await fetch(url, { credentials: "include", headers: { ...getAuthHeaders() } });
   if (!resp.ok) throw new Error(`Failed to load stakeholders (${resp.status})`);
   const data = await resp.json();
   stakeholdersCache = Array.isArray(data?.items) ? data.items : [];
@@ -2848,7 +2856,7 @@ async function ensureDomainsLoaded() {
   if (projectId) params.set("project_id", projectId);
   if (caseId) params.set("case_id", caseId);
   const url = `${API_BASE}/api/correspondence/domains${params.toString() ? `?${params}` : ""}`;
-  const resp = await fetch(url, { headers: { ...getAuthHeaders() } });
+  const resp = await fetch(url, { credentials: "include", headers: { ...getAuthHeaders() } });
   if (!resp.ok) throw new Error(`Failed to load domains (${resp.status})`);
   const data = await resp.json();
   domainsCache = Array.isArray(data?.domains) ? data.domains : [];
@@ -2861,7 +2869,7 @@ async function ensureKeywordsLoaded() {
   if (projectId) params.set("project_id", projectId);
   if (caseId) params.set("case_id", caseId);
   const url = `${API_BASE}/api/correspondence/keywords${params.toString() ? `?${params}` : ""}`;
-  const resp = await fetch(url, { headers: { ...getAuthHeaders() } });
+  const resp = await fetch(url, { credentials: "include", headers: { ...getAuthHeaders() } });
   if (!resp.ok) throw new Error(`Failed to load keywords (${resp.status})`);
   const data = await resp.json();
   keywordsCache = Array.isArray(data?.items) ? data.items : [];
@@ -2876,7 +2884,7 @@ async function ensureEmailAddressesLoaded() {
   if (caseId) params.set("case_id", caseId);
   const url = `${API_BASE}/api/correspondence/email-addresses${params.toString() ? `?${params}` : ""}`;
   try {
-    const resp = await fetch(url, { headers: { ...getAuthHeaders() } });
+    const resp = await fetch(url, { credentials: "include", headers: { ...getAuthHeaders() } });
     if (!resp.ok) {
       console.warn(`Failed to load email addresses (${resp.status}), using empty list`);
       emailAddressesCache = { from: [], to: [], cc: [] };
@@ -3723,6 +3731,7 @@ window.markAsExcluded = async function () {
   try {
     const resp = await fetch(`${API_BASE}/api/correspondence/emails/bulk/exclude`, {
       method: "POST",
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeaders(),
@@ -3776,7 +3785,7 @@ window.toggleBodyCell = async function (rowId) {
     rowNode.data._bodyLoadError = null;
     gridApi.refreshCells({ rowNodes: [rowNode], force: true, suppressFlash: true });
     try {
-      const resp = await fetch(`${API_BASE}/api/correspondence/emails/${rowNode.data.id}`, { headers: getAuthHeaders() });
+      const resp = await fetch(`${API_BASE}/api/correspondence/emails/${rowNode.data.id}`, { credentials: "include", headers: getAuthHeaders() });
       if (!resp.ok) {
         throw new Error(`HTTP ${resp.status}`);
       }
@@ -3932,7 +3941,7 @@ async function showSimilarEmailsModal() {
       btn.addEventListener("click", async () => {
         const id = btn.getAttribute("data-id");
         try {
-          const resp2 = await fetch(`${API_BASE}/api/correspondence/emails/${id}`, { headers: { ...getAuthHeaders() } });
+          const resp2 = await fetch(`${API_BASE}/api/correspondence/emails/${id}`, { credentials: "include", headers: { ...getAuthHeaders() } });
           if (!resp2.ok) throw new Error(`HTTP ${resp2.status}`);
           const detail = await resp2.json();
           renderEmailDetail(detail);
@@ -3963,6 +3972,7 @@ async function bulkSetCategoryAction() {
   try {
     const resp = await fetch(`${API_BASE}/api/correspondence/emails/bulk/set-category`, {
       method: "POST",
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeaders(),
@@ -4072,6 +4082,7 @@ async function bulkAddKeywordsAction() {
     try {
       const resp = await fetch(`${API_BASE}/api/correspondence/emails/bulk/add-keywords`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           ...getAuthHeaders(),
@@ -4169,7 +4180,7 @@ async function loadLinkTargetsForSelectedType() {
 
     if (type === "matter") {
       if (!Array.isArray(linkTargetsCache.matter)) {
-        const resp = await fetch(`${API_BASE}/api/claims/matters?${params}`, { headers: { ...getAuthHeaders() } });
+        const resp = await fetch(`${API_BASE}/api/claims/matters?${params}`, { credentials: "include", headers: { ...getAuthHeaders() } });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
         linkTargetsCache.matter = Array.isArray(data?.items) ? data.items : [];
@@ -4178,7 +4189,7 @@ async function loadLinkTargetsForSelectedType() {
       targetEl.innerHTML = `<option value="">Select target...</option>` + items.map((m) => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name || m.id)}</option>`).join("");
     } else if (type === "claim") {
       if (!Array.isArray(linkTargetsCache.claim)) {
-        const resp = await fetch(`${API_BASE}/api/claims/heads-of-claim?${params}`, { headers: { ...getAuthHeaders() } });
+        const resp = await fetch(`${API_BASE}/api/claims/heads-of-claim?${params}`, { credentials: "include", headers: { ...getAuthHeaders() } });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
         linkTargetsCache.claim = Array.isArray(data?.items) ? data.items : [];
@@ -4536,8 +4547,9 @@ function initGrid() {
         // Format body for display - use full HTML formatting in both states
         const bodyHtml = formatEmailBodyText(getBodyTextValue(p.data));
         
-        // Collapsed: smaller max-height with scroll, Expanded: larger max-height with scroll
+        // Collapsed: hide overflow (no scrollbar), Expanded: show scroll on far right of grid
         const maxHeight = isExpanded ? "300px" : "60px";
+        const overflow = isExpanded ? "auto" : "hidden";
         const title = isExpanded ? "Collapse" : "Expand";
 
         return `
@@ -4549,7 +4561,7 @@ function initGrid() {
             >
               <i class="fas ${icon}"></i>
             </button>
-            <div class="email-html-content" style="flex: 1; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto; padding-right: 4px;">
+            <div class="email-html-content" style="flex: 1; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: ${overflow}; padding-right: 4px;">
               ${isLoading ? `<div style="font-size:0.85rem; color: var(--text-muted); margin-bottom: 6px;"><i class="fas fa-spinner fa-spin"></i> Loading full body…</div>` : ""}
               ${loadErr ? `<div style="font-size:0.85rem; color: #b91c1c; margin-bottom: 6px;">Failed to load full body (${escapeHtml(String(loadErr))}). Showing preview.</div>` : ""}
               ${bodyHtml || '<span style="color: var(--text-muted); font-style: italic;">No body content</span>'}
@@ -4575,8 +4587,9 @@ function initGrid() {
         const isExpanded = p.node.data?._bodyExpanded || false;
         const icon = isExpanded ? 'fa-compress-alt' : 'fa-expand-alt';
         
-        // No truncation - show full content with scrolling
+        // Collapsed: hide overflow, Expanded: show scroll
         const maxHeight = isExpanded ? "300px" : "60px";
+        const overflow = isExpanded ? "auto" : "hidden";
         const title = isExpanded ? 'Collapse' : 'Expand';
         
         return `
@@ -4588,7 +4601,7 @@ function initGrid() {
             >
               <i class="fas ${icon}"></i>
             </button>
-            <div style="flex: 1; white-space: pre-wrap; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto;">
+            <div style="flex: 1; white-space: pre-wrap; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: ${overflow};">
               ${escapeHtml(body)}
             </div>
           </div>

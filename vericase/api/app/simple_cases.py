@@ -43,6 +43,7 @@ from .models import (
     ContentiousMatter,
     HeadOfClaim,
     RefinementSessionDB,
+    MessageOccurrence,
 )
 
 logger = logging.getLogger(__name__)
@@ -1028,6 +1029,12 @@ def delete_project(project_id: str, db: DbDep) -> dict[str, str]:
                 EmailAttachment.email_message_id.in_(email_ids)
             ).delete(synchronize_session=False)
 
+        # Clear source_email_id references in evidence_items before deleting emails
+        if email_ids:
+            db.query(EvidenceItem).filter(
+                EvidenceItem.source_email_id.in_(email_ids)
+            ).update({EvidenceItem.source_email_id: None}, synchronize_session=False)
+
         # Delete email messages
         db.query(EmailMessage).filter(EmailMessage.project_id == project_uuid).delete(
             synchronize_session=False
@@ -1084,6 +1091,14 @@ def delete_project(project_id: str, db: DbDep) -> dict[str, str]:
             ).delete(synchronize_session=False)
         except Exception:
             pass  # Column may not exist yet
+
+        # Delete message occurrences (references project)
+        try:
+            db.query(MessageOccurrence).filter(
+                MessageOccurrence.project_id == project_uuid
+            ).delete(synchronize_session=False)
+        except Exception:
+            pass  # Table may not exist yet
 
         # Delete the project
         db.delete(project)

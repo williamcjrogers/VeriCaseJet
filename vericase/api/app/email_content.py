@@ -62,8 +62,9 @@ _SIGNATURE_SPLIT_RE = re.compile(
     r"(?mi)^\s*(--\s*$|__+\s*$|sent from my\b|sent via\b)"
 )
 
+# NOTE: Removed WordSection1 - it's MS Word's main content container, not a quote block
 _HTML_QUOTE_BLOCK_RE = re.compile(
-    r"(?is)<blockquote\b[^>]*>.*?</blockquote>|<div\b[^>]*(?:gmail_quote|yahoo_quoted|WordSection1|divRplyFwdMsg)[^>]*>.*?</div>"
+    r"(?is)<blockquote\b[^>]*>.*?</blockquote>|<div\b[^>]*(?:gmail_quote|yahoo_quoted|divRplyFwdMsg)[^>]*>.*?</div>"
 )
 
 _HTML_TAG_RE = re.compile(r"(?is)<[^>]+>")
@@ -121,6 +122,7 @@ def _html_to_text_bs4(html_body: str) -> str:
             pass
 
     def _is_quoteish_class(value: object) -> bool:
+        """Check if class indicates a quoted/reply block (NOT main content)."""
         try:
             if value is None:
                 return False
@@ -130,14 +132,15 @@ def _html_to_text_bs4(html_body: str) -> str:
             elif isinstance(value, (list, tuple)):
                 parts = [str(v) for v in value]
             joined = " ".join(parts).lower()
+            # NOTE: Removed "wordsection1" and "mso" - these are MS Word/Outlook
+            # content containers, NOT quoted reply blocks. Removing them was
+            # stripping all email body content from Word-generated emails.
             return any(
                 k in joined
                 for k in (
                     "gmail_quote",
                     "yahoo_quoted",
-                    "wordsection1",
                     "divrplyfwdmsg",
-                    "mso",
                 )
             )
         except Exception:
@@ -220,7 +223,8 @@ def strip_html_quote_blocks(html: str | None) -> str:
             soup = BeautifulSoup(html, "html.parser")  # type: ignore[misc]
             for tag in soup.find_all("blockquote"):
                 tag.decompose()
-            for tag in soup.find_all(["div", "span"], class_=lambda c: c and any(k in " ".join(c).lower() for k in ("gmail_quote", "yahoo_quoted", "wordsection1", "divrplyfwdmsg"))):  # type: ignore[arg-type]
+            # NOTE: Removed wordsection1 - it's MS Word's main content container, not a quote
+            for tag in soup.find_all(["div", "span"], class_=lambda c: c and any(k in " ".join(c).lower() for k in ("gmail_quote", "yahoo_quoted", "divrplyfwdmsg"))):  # type: ignore[arg-type]
                 tag.decompose()
             return str(soup)
         except Exception:

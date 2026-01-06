@@ -11,9 +11,15 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-NORMALIZER_VERSION = "2025-12-22-v1"
+NORMALIZER_VERSION = "2026-01-06-v1"
 
 _BANNER_PATTERNS = [
+    # EXACT match for common external email banners (highest priority)
+    r"(?mi)^\s*EXTERNAL\s+EMAIL\s*:\s*Don'?t\s+click\s+links\s+or\s+open\s+attachments\s+unless\s+the\s+content\s+is\s+expected\s+and\s+known\s+to\s+be\s+safe\.?\s*$",
+    r"(?mi)^\s*\[?\s*EXTERNAL\s*\]?\s*:?\s*Don'?t\s+click\s+links.*$",
+    # Catch ANY line containing "EXTERNAL EMAIL" followed by warning text
+    r"(?mi)^.*EXTERNAL\s+EMAIL\s*:.*(?:click|links?|attachments?|safe).*$",
+    # Original patterns
     r"(?mi)^\s*\[?\s*caution[:\-]?\s*external email[\s\]]?.*$",
     r"(?mi)^\s*\[?\s*warning[:\-]?\s*external email[\s\]]?.*$",
     r"(?mi)^\s*\[?\s*external sender[\s\]]?.*$",

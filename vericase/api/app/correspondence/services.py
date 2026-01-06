@@ -2154,3 +2154,97 @@ async def get_email_detail_service(email_id: str, db: Session):
         importance=email.importance,
         pst_message_path=email.pst_message_path,
     )
+
+
+async def backfill_body_text_service(
+    project_id: str | None,
+    batch_size: int,
+    dry_run: bool,
+    db: Session,
+    user: User,
+) -> dict:
+    """
+    Backfill body_text from body_html for emails that have NULL body_text.
+    This is an admin-only operation to fix emails imported before the HTML->text
+    conversion was working correctly.
+    """
+    from ..email_content import select_best_body
+    from ..email_normalizer import normalise
+
+    # Build base query for emails needing backfill
+    query = db.query(EmailMessage).filter(
+        EmailMessage.body_text.is_(None),
+        EmailMessage.body_html.isnot(None),
+    )
+
+    if project_id:
+        query = query.filter(EmailMessage.project_id == project_id)
+
+    # Count total
+    total_count = query.count()
+    if total_count == 0:
+        return {
+            "status": "success",
+            "message": "No emails need backfill",
+            "total_found": 0,
+            "updated": 0,
+            "errors": 0,
+            "dry_run": dry_run,
+        }
+
+    # Process in batches
+    updated = 0
+    errors = 0
+    error_details = []
+
+    offset = 0
+    while offset < total_count:
+        emails = query.offset(offset).limit(batch_size).all()
+        if not emails:
+            break
+
+        for email in emails:
+            try:
+                # Convert HTML to text
+                body_selection = select_best_body(
+                    plain_text=None,
+                    html_body=email.body_html,
+                    rtf_body=None,
+                )
+
+                body_text = body_selection.full_text or ""
+                if body_text:
+                    if not dry_run:
+                        email.body_text = body_text
+                        # Also update body_text_clean if it's empty
+                        if not email.body_text_clean:
+                            email.body_text_clean = normalise(
+                                body_selection.top_text or body_text
+                            )
+                    updated += 1
+
+            except Exception as e:
+                errors += 1
+                error_details.append(
+                    {
+                        "email_id": str(email.id),
+                        "error": str(e),
+                    }
+                )
+                if len(error_details) > 10:
+                    error_details = error_details[:10]  # Keep only first 10 errors
+
+        if not dry_run:
+            db.commit()
+
+        offset += batch_size
+
+    return {
+        "status": "success",
+        "message": f"Backfill {'completed' if not dry_run else 'dry-run completed'}",
+        "total_found": total_count,
+        "updated": updated,
+        "errors": errors,
+        "error_details": error_details if errors > 0 else None,
+        "dry_run": dry_run,
+    }
