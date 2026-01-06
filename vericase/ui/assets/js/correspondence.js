@@ -11,10 +11,48 @@ const isAdmin = true; // Open access mode
 
 // Promise-based grid ready mechanism (no polling)
 let gridApi;
+let gridDivEl;
 let resolveGridReady;
 const gridReadyPromise = new Promise((resolve) => {
   resolveGridReady = resolve;
 });
+
+// Column sizing helper
+// sizeColumnsToFit() is a no-op (or throws warnings) if the grid container isn't yet measurable.
+// This scheduler retries until the grid has a real width, and debounces rapid resize events.
+const AUTOSIZE_FIT_MAX_ATTEMPTS = 25;
+const AUTOSIZE_FIT_RETRY_MS = 50;
+const AUTOSIZE_FIT_DEBOUNCE_MS = 60;
+let pendingSizeToFitTimer = null;
+
+function scheduleSizeColumnsToFit(reason, attempt = 0) {
+  if (!gridApi) return;
+  const el = gridDivEl || document.getElementById("emailGrid");
+  if (!el) return;
+
+  const width = el.clientWidth || 0;
+  // When the grid is inside a flex container that hasn't settled yet, width can be 0.
+  if (width <= 0) {
+    if (attempt < AUTOSIZE_FIT_MAX_ATTEMPTS) {
+      setTimeout(() => scheduleSizeColumnsToFit(reason, attempt + 1), AUTOSIZE_FIT_RETRY_MS);
+    } else {
+      console.warn("[Correspondence] sizeColumnsToFit skipped - grid not measurable", {
+        reason,
+        width,
+      });
+    }
+    return;
+  }
+
+  if (pendingSizeToFitTimer) clearTimeout(pendingSizeToFitTimer);
+  pendingSizeToFitTimer = setTimeout(() => {
+    try {
+      gridApi.sizeColumnsToFit();
+    } catch (e) {
+      console.warn("Could not size columns to fit:", e);
+    }
+  }, AUTOSIZE_FIT_DEBOUNCE_MS);
+}
 
 // Initialize state immediately
 (async function initState() {
@@ -3401,9 +3439,7 @@ function setContextPanelCollapsed(collapsed) {
 
   // After transition completes, resize the grid to fill available space
   setTimeout(() => {
-    if (gridApi) {
-      gridApi.sizeColumnsToFit();
-    }
+    scheduleSizeColumnsToFit("context-panel-transition");
   }, 320); // Slightly longer than the 0.3s CSS transition
 }
 
@@ -4341,6 +4377,9 @@ function initGrid() {
     return;
   }
 
+  // Keep a reference so sizing logic can verify measurability.
+  gridDivEl = gridDiv;
+
   // Set AG Grid Enterprise license key (must happen before grid creation)
   try {
     const agKey = window.VeriCaseConfig
@@ -4928,6 +4967,11 @@ function initGrid() {
       checkboxes: false,    // Disable checkbox column for cleaner email list UI
       headerCheckbox: false,
     },
+    onGridSizeChanged: () => {
+      // Runs when the grid's container changes size (e.g. first paint, window resize,
+      // context panel transitions). Make sure columns still fill the available width.
+      scheduleSizeColumnsToFit("grid-size-changed");
+    },
     onGridReady: (params) => {
       gridApi = params.api;
       // NOTE: params.columnApi is deprecated in AG Grid v31+. Use params.api for column operations.
@@ -4989,6 +5033,10 @@ function initGrid() {
 
       gridApi.setGridOption("serverSideDatasource", createServerSideDatasource());
       updateViewsDropdown();
+
+      // Initial sizing often races layout (nav shell injection / flex settling). Schedule a fit
+      // that will retry until the grid has a measurable width.
+      scheduleSizeColumnsToFit("grid-ready");
       
       // Preload keywords and stakeholders BEFORE resolving grid ready.
       // This ensures the caches are populated when SSRM renders the first cells.
@@ -5009,17 +5057,12 @@ function initGrid() {
     },
 
     onFirstDataRendered: () => {
-      // v35: autoSizeStrategy handles initial column sizing automatically
-      // Fallback: also call sizeColumnsToFit() to ensure columns fill grid width
-      try {
-        if (gridApi) {
-          gridApi.sizeColumnsToFit();
-        }
-      } catch (e) {
-        console.warn("Could not size columns to fit:", e);
-      }
       // Keep Quick Actions collapsed unless explicitly opened.
       setContextPanelCollapsed(true);
+
+      // Ensure columns fill the grid on first render (especially when SSRM + flex layout
+      // means the first render can occur before the container width stabilizes).
+      scheduleSizeColumnsToFit("first-data-rendered");
     },
     onSelectionChanged: () => {
       const selected = gridApi ? gridApi.getSelectedRows() : [];
