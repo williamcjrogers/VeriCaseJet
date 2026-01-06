@@ -3683,6 +3683,40 @@ window.toggleBodyCell = async function (rowId) {
   }
 };
 
+// Expand all email body cells in the grid
+window.expandAllBodies = function () {
+  if (!gridApi) return;
+  const rowNodes = [];
+  gridApi.forEachNode((node) => {
+    if (node.data && !node.data._bodyExpanded) {
+      node.data._bodyExpanded = true;
+      node.setRowHeight(ROW_HEIGHT_EXPANDED);
+      rowNodes.push(node);
+    }
+  });
+  if (rowNodes.length) {
+    gridApi.refreshCells({ rowNodes, force: true, suppressFlash: true });
+    gridApi.onRowHeightChanged();
+  }
+};
+
+// Collapse all email body cells in the grid
+window.collapseAllBodies = function () {
+  if (!gridApi) return;
+  const rowNodes = [];
+  gridApi.forEachNode((node) => {
+    if (node.data && node.data._bodyExpanded) {
+      node.data._bodyExpanded = false;
+      node.setRowHeight(ROW_HEIGHT_COLLAPSED);
+      rowNodes.push(node);
+    }
+  });
+  if (rowNodes.length) {
+    gridApi.refreshCells({ rowNodes, force: true, suppressFlash: true });
+    gridApi.onRowHeightChanged();
+  }
+};
+
 // Context panel placeholders to prevent dead controls
 window.showSimilarEmails = function () {
   void showSimilarEmailsModal();
@@ -4370,55 +4404,41 @@ function initGrid() {
       minWidth: 300,
       flex: 2,
       filter: "agTextColumnFilter",
-      headerTooltip: "Email body preview (expand to view formatted message)",
+      headerTooltip: "Email body (click expand icon for larger view)",
       wrapText: false,
       cellClass: "body-cell",
       cellRenderer: (p) => {
-        const previewSource = getBodyPreviewText(p.data) || "";
-        if (!previewSource) {
+        const bodyText = getBodyPreviewText(p.data) || "";
+        if (!bodyText) {
           return '<span style="color: var(--text-muted);">-</span>';
         }
 
         const rowId = p.node.id;
         const isExpanded = p.node.data?._bodyExpanded || false;
         const icon = isExpanded ? "fa-compress-alt" : "fa-expand-alt";
-
-        if (!isExpanded) {
-          const preview = previewSource.substring(0, 240).replace(/\s+/g, " ").trim();
-          const ellipsis = previewSource.length > 240 ? "..." : "";
-          return `
-            <div style="display: flex; align-items: start; gap: 8px; width: 100%;">
-              <button
-                onclick="toggleBodyCell('${rowId}'); event.stopPropagation();"
-                style="flex-shrink: 0; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); cursor: pointer; font-size: 0.75rem;"
-                title="Expand"
-              >
-                <i class="fas ${icon}"></i>
-              </button>
-              <div style="flex: 1; color: var(--text-secondary); word-break: break-word; line-height: 1.5; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;">
-                ${escapeHtml(preview)}${ellipsis}
-              </div>
-            </div>
-          `;
-        }
-
         const isLoading = p.node.data?._bodyLoading === true;
         const loadErr = p.node.data?._bodyLoadError;
-        const expandedHtml = formatEmailBodyText(getBodyTextValue(p.data));
+
+        // Format body for display - use full HTML formatting in both states
+        const bodyHtml = formatEmailBodyText(getBodyTextValue(p.data));
+        
+        // Collapsed: smaller max-height with scroll, Expanded: larger max-height with scroll
+        const maxHeight = isExpanded ? "300px" : "60px";
+        const title = isExpanded ? "Collapse" : "Expand";
 
         return `
           <div style="display: flex; align-items: start; gap: 8px; width: 100%;">
             <button
               onclick="toggleBodyCell('${rowId}'); event.stopPropagation();"
               style="flex-shrink: 0; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); cursor: pointer; font-size: 0.75rem;"
-              title="Collapse"
+              title="${title}"
             >
               <i class="fas ${icon}"></i>
             </button>
-            <div class="email-html-content" style="flex: 1; word-break: break-word; line-height: 1.6; max-height: 300px; overflow: auto; padding-right: 4px;">
+            <div class="email-html-content" style="flex: 1; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto; padding-right: 4px;">
               ${isLoading ? `<div style="font-size:0.85rem; color: var(--text-muted); margin-bottom: 6px;"><i class="fas fa-spinner fa-spin"></i> Loading full body…</div>` : ""}
               ${loadErr ? `<div style="font-size:0.85rem; color: #b91c1c; margin-bottom: 6px;">Failed to load full body (${escapeHtml(String(loadErr))}). Showing preview.</div>` : ""}
-              ${expandedHtml}
+              ${bodyHtml || '<span style="color: var(--text-muted); font-style: italic;">No body content</span>'}
             </div>
           </div>
         `;
@@ -4440,20 +4460,22 @@ function initGrid() {
         const rowId = p.node.id;
         const isExpanded = p.node.data?._bodyExpanded || false;
         const icon = isExpanded ? 'fa-compress-alt' : 'fa-expand-alt';
-        const text = isExpanded ? body : body.substring(0, 200).replace(/\s+/g, ' ').trim();
-        const ellipsis = !isExpanded && body.length > 200 ? '...' : '';
+        
+        // No truncation - show full content with scrolling
+        const maxHeight = isExpanded ? "300px" : "60px";
+        const title = isExpanded ? 'Collapse' : 'Expand';
         
         return `
           <div style="display: flex; align-items: start; gap: 8px; width: 100%;">
             <button 
               onclick="toggleBodyCell('${rowId}'); event.stopPropagation();" 
               style="flex-shrink: 0; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); cursor: pointer; font-size: 0.75rem;"
-              title="${isExpanded ? 'Collapse' : 'Expand'}"
+              title="${title}"
             >
               <i class="fas ${icon}"></i>
             </button>
-            <div style="flex: 1; white-space: ${isExpanded ? 'pre-wrap' : 'normal'}; word-break: break-word; line-height: 1.5;">
-              ${escapeHtml(text)}${ellipsis}
+            <div style="flex: 1; white-space: pre-wrap; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto;">
+              ${escapeHtml(body)}
             </div>
           </div>
         `;
