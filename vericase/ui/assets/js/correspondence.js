@@ -389,12 +389,26 @@ function formatMatchedKeywords(value) {
   return labels.join(", ");
 }
 
+// Vibrant color palette for keywords - each keyword gets a unique color
+const KEYWORD_COLORS = [
+  { bg: '#DBEAFE', border: '#3B82F6', text: '#1E40AF' },  // Blue
+  { bg: '#FEF3C7', border: '#F59E0B', text: '#92400E' },  // Amber
+  { bg: '#D1FAE5', border: '#10B981', text: '#065F46' },  // Green
+  { bg: '#FCE7F3', border: '#EC4899', text: '#9F1239' },  // Pink
+  { bg: '#E0E7FF', border: '#6366F1', text: '#3730A3' },  // Indigo
+  { bg: '#FED7AA', border: '#F97316', text: '#9A3412' },  // Orange
+  { bg: '#E9D5FF', border: '#A855F7', text: '#6B21A8' },  // Purple
+  { bg: '#CCFBF1', border: '#14B8A6', text: '#134E4A' },  // Teal
+  { bg: '#FECACA', border: '#EF4444', text: '#991B1B' },  // Red
+  { bg: '#BBF7D0', border: '#22C55E', text: '#166534' },  // Lime
+];
+
 function renderKeywordChips(value) {
   const ids = Array.isArray(value) ? value : [];
   if (!ids.length) return '<span style="color: var(--text-muted);">-</span>';
 
   const chips = ids
-    .map((id) => {
+    .map((id, index) => {
       const item = keywordIndex?.get(String(id));
       const name = item?.name || String(id);
       const tooltip = item?.definition
@@ -403,11 +417,16 @@ function renderKeywordChips(value) {
           ? `${item.variations}`
           : "";
       const titleAttr = tooltip ? ` title="${escapeHtml(tooltip)}"` : "";
-      return `<span${titleAttr} style="display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; border: 1px solid rgba(var(--vericase-teal-rgb), 0.25); background: rgba(var(--vericase-teal-rgb), 0.08); color: var(--vc-teal-dark); font-size: 0.75rem; line-height: 1.2; white-space: nowrap;">${escapeHtml(name)}</span>`;
+      
+      // Assign color based on keyword ID hash for consistency, or use index as fallback
+      const colorIndex = (typeof id === 'string' ? id.charCodeAt(0) : id) % KEYWORD_COLORS.length;
+      const colors = KEYWORD_COLORS[colorIndex];
+      
+      return `<span${titleAttr} style="display:inline-flex; align-items:center; padding:4px 12px; border-radius:999px; border: 2px solid ${colors.border}; background: ${colors.bg}; color: ${colors.text}; font-size: 0.8125rem; font-weight: 600; line-height: 1.3; white-space: nowrap; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">${escapeHtml(name)}</span>`;
     })
     .join(" ");
 
-  return `<div style="display:flex; flex-wrap:wrap; gap:6px;">${chips}</div>`;
+  return `<div style="display:flex; flex-wrap:wrap; gap:8px; padding:2px 0;">${chips}</div>`;
 }
 
 const REPLY_SPLIT_REGEX =
@@ -517,12 +536,28 @@ function cleanEmailBodyText(text) {
   return normalizeBodyWhitespace(noFooter);
 }
 
+/**
+ * Strip CAUTION/EXTERNAL EMAIL banners for grid display only.
+ * Evidence is preserved in the Email Details modal (getRawBodyText).
+ */
+function stripBannersForGrid(text) {
+  if (!text) return "";
+  let cleaned = String(text);
+  BANNER_PATTERNS.forEach((pattern) => {
+    cleaned = cleaned.replace(pattern, "");
+  });
+  // Clean up excess whitespace after banner removal
+  cleaned = cleaned.replace(/^\s*$/gm, "");
+  cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
+  return cleaned.trim();
+}
+
 function getBodyTextValue(data) {
   // Prefer server-computed display body when present.
   // This is derived using the latest backend cleaning pipeline (HTML->text, multi-language reply parsing).
-  // Do NOT run aggressive client-side stripping on it; only normalize whitespace for rendering.
+  // Strip CAUTION banners for grid preview (evidence preserved in modal via getRawBodyText).
   if (data?.email_body) {
-    return normalizeBodyWhitespace(String(data.email_body));
+    return stripBannersForGrid(normalizeBodyWhitespace(String(data.email_body)));
   }
 
   const raw = data?.body_text_clean || data?.body_text || "";
@@ -4933,9 +4968,11 @@ function initGrid() {
     },
 
     onFirstDataRendered: () => {
-      // Autosize columns to fit content on initial load
+      // Size columns to fit available width on initial load
+      // Note: autoSizeAllColumns() doesn't work reliably with SSRM because only partial data is loaded
+      // Instead, use sizeColumnsToFit() which distributes columns based on flex/minWidth settings
       if (gridApi) {
-        gridApi.autoSizeAllColumns();
+        gridApi.sizeColumnsToFit();
       }
       // Keep Quick Actions collapsed unless explicitly opened.
       setContextPanelCollapsed(true);
