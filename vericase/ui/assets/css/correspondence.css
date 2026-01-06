@@ -217,9 +217,16 @@ body::before {
   background: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 0.4rem 0.5rem;
-  min-width: 360px;
-  max-width: 520px;
+  padding: 0.4rem 0.75rem;
+  min-width: 400px;
+  max-width: 800px;
+  flex: 1;
+  transition: all 0.2s ease;
+}
+
+.smart-filter:focus-within {
+  border-color: var(--vc-teal);
+  box-shadow: 0 0 0 3px rgba(var(--vericase-teal-rgb), 0.12);
 }
 
 .smart-filter i {
@@ -812,10 +819,11 @@ body::before {
   width: 100%;
 }
 
-/* Ensure expand button stays visible and doesn't get pushed out */
+/* Ensure expand button stays visible */
 .body-cell button {
-  position: sticky;
-  top: 8px;
+  /* position: sticky; removed to fix vertical alignment */
+  /* top: 8px; removed */
+  align-self: flex-start;
   flex-shrink: 0;
   z-index: 2;
   background: var(--bg-secondary) !important;
@@ -840,7 +848,6 @@ body::before {
   min-width: 0;
   word-break: break-word;
   line-height: 1.5;
-  overflow: hidden; /* Hide scrollbars in collapsed state */
 }
 
 /* When body is expanded, limit max height and add scroll */

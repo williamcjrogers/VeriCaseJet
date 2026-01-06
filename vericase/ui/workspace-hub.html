@@ -1491,12 +1491,12 @@
           localStorage.setItem("currentWorkspaceName", workspaceData.name || "Workspace");
         } catch { /* ignore */ }
 
-        // Extract data
-        workspaceDeadlines = workspaceData.deadlines || [];
-        workspaceDocuments = workspaceData.documents || [];
-        workspaceTeam = workspaceData.users || workspaceData.team || [];
-        workspaceNotes = workspaceData.notes || [];
-        workspaceActivity = workspaceData.activity || [];
+        // Extract data - map backend field names to what render functions expect
+        workspaceDeadlines = workspaceData.key_dates || [];     // Backend returns key_dates
+        workspaceDocuments = [];                                 // Not yet supported by backend
+        workspaceTeam = workspaceData.team_members || [];       // Backend returns team_members
+        workspaceNotes = [];                                     // Not yet supported by backend
+        workspaceActivity = [];                                  // Not yet supported by backend
 
         // Aggregate deadlines from cases too
         const cases = workspaceData.cases || [];
@@ -1528,6 +1528,22 @@
 
       } catch (err) {
         console.error("Failed to load workspace:", err);
+        // Show user-friendly error instead of perpetual loading state
+        document.getElementById("workspaceName").textContent = "Error Loading Workspace";
+        document.getElementById("workspaceCode").textContent = "";
+        const statsBar = document.getElementById("statsBar");
+        if (statsBar) {
+          statsBar.innerHTML = `
+            <div class="empty-state" style="width:100%; text-align:center; padding:2rem;">
+              <i class="fas fa-exclamation-triangle empty-icon" style="font-size:2rem; color:var(--danger); margin-bottom:1rem;"></i>
+              <div class="empty-title" style="font-size:1.1rem; font-weight:600; margin-bottom:0.5rem;">Could not load workspace</div>
+              <div class="empty-desc" style="color:var(--text-muted); margin-bottom:1rem;">${err.message || 'Please check your connection and try again.'}</div>
+              <a href="master-dashboard.html" class="btn btn-vericase">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+              </a>
+            </div>
+          `;
+        }
         VericaseUI.Toast.error("Failed to load workspace");
       }
     }

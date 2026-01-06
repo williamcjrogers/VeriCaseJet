@@ -11,48 +11,10 @@ const isAdmin = true; // Open access mode
 
 // Promise-based grid ready mechanism (no polling)
 let gridApi;
-let gridDivEl;
 let resolveGridReady;
 const gridReadyPromise = new Promise((resolve) => {
   resolveGridReady = resolve;
 });
-
-// Column sizing helper
-// sizeColumnsToFit() is a no-op (or throws warnings) if the grid container isn't yet measurable.
-// This scheduler retries until the grid has a real width, and debounces rapid resize events.
-const AUTOSIZE_FIT_MAX_ATTEMPTS = 25;
-const AUTOSIZE_FIT_RETRY_MS = 50;
-const AUTOSIZE_FIT_DEBOUNCE_MS = 60;
-let pendingSizeToFitTimer = null;
-
-function scheduleSizeColumnsToFit(reason, attempt = 0) {
-  if (!gridApi) return;
-  const el = gridDivEl || document.getElementById("emailGrid");
-  if (!el) return;
-
-  const width = el.clientWidth || 0;
-  // When the grid is inside a flex container that hasn't settled yet, width can be 0.
-  if (width <= 0) {
-    if (attempt < AUTOSIZE_FIT_MAX_ATTEMPTS) {
-      setTimeout(() => scheduleSizeColumnsToFit(reason, attempt + 1), AUTOSIZE_FIT_RETRY_MS);
-    } else {
-      console.warn("[Correspondence] sizeColumnsToFit skipped - grid not measurable", {
-        reason,
-        width,
-      });
-    }
-    return;
-  }
-
-  if (pendingSizeToFitTimer) clearTimeout(pendingSizeToFitTimer);
-  pendingSizeToFitTimer = setTimeout(() => {
-    try {
-      gridApi.sizeColumnsToFit();
-    } catch (e) {
-      console.warn("Could not size columns to fit:", e);
-    }
-  }, AUTOSIZE_FIT_DEBOUNCE_MS);
-}
 
 // Initialize state immediately
 (async function initState() {
@@ -2211,7 +2173,7 @@ const createServerSideDatasource = () => {
 async function openEmailDetailById(emailId, fallbackRow) {
   if (!emailId) return;
   try {
-    const resp = await fetch(`${API_BASE}/api/correspondence/emails/${emailId}`, { credentials: "include", headers: getAuthHeaders() });
+    const resp = await fetch(`${API_BASE}/api/correspondence/emails/${emailId}`, { headers: getAuthHeaders() });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const detailData = await resp.json();
     renderEmailDetail(detailData);
@@ -2553,7 +2515,15 @@ function extractSmartFilterTerm(rawText) {
 
   // Clean up the term
   term = term.trim();
-  term = term.replace(/^(filter|find|show|include|exclude|hide|remove)\b[:\s]*/i, "");
+  term = term.replace(/^(filter|find|show|give|fetch|get|search)\s+(me\s+)?(all\s+)?/i, "");
+  term = term.replace(/^(list|display)\s+/i, "");
+  
+  // Remove date expressions so they don't become text search terms
+  term = term.replace(/\blast\s+(?:(\d+)\s+)?(day|week|month|year)s?\b/gi, "");
+  term = term.replace(/\bthis\s+(week|month|year)\b/gi, "");
+  term = term.replace(/\b(before|after|since)\s+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/gi, "");
+  term = term.replace(/\b(in|from|year)\s*(\d{4})\b/gi, "");
+
   term = term.replace(/\b(in|within|from)\s+(the\s+)?(subject|body|email|emails|from|to|cc)(\s+(and|or)\s+(the\s+)?(subject|body|from|to|cc))*.*$/i, "");
   term = term.replace(/\b(subject|body|emails?)\b/gi, "");
   term = term.replace(/^(that|which|where)\s+/i, "");
@@ -2570,10 +2540,10 @@ function parseSmartFilterDate(rawText) {
   const now = new Date();
   const result = { from: null, to: null };
 
-  // "last N days/weeks/months/years"
-  const lastPeriod = lower.match(/\blast\s+(\d+)\s+(day|week|month|year)s?\b/);
+  // "last N days/weeks/months/years" or "last week/month/year" (implied 1)
+  const lastPeriod = lower.match(/\blast\s+(?:(\d+)\s+)?(day|week|month|year)s?\b/);
   if (lastPeriod) {
-    const num = parseInt(lastPeriod[1], 10);
+    const num = parseInt(lastPeriod[1] || "1", 10);
     const unit = lastPeriod[2];
     const from = new Date(now);
     if (unit === "day") from.setDate(from.getDate() - num);
@@ -2881,7 +2851,7 @@ async function ensureStakeholdersLoaded() {
   if (projectId) params.set("project_id", projectId);
   if (caseId) params.set("case_id", caseId);
   const url = `${API_BASE}/api/correspondence/stakeholders${params.toString() ? `?${params}` : ""}`;
-  const resp = await fetch(url, { credentials: "include", headers: { ...getAuthHeaders() } });
+  const resp = await fetch(url, { headers: { ...getAuthHeaders() } });
   if (!resp.ok) throw new Error(`Failed to load stakeholders (${resp.status})`);
   const data = await resp.json();
   stakeholdersCache = Array.isArray(data?.items) ? data.items : [];
@@ -2894,7 +2864,7 @@ async function ensureDomainsLoaded() {
   if (projectId) params.set("project_id", projectId);
   if (caseId) params.set("case_id", caseId);
   const url = `${API_BASE}/api/correspondence/domains${params.toString() ? `?${params}` : ""}`;
-  const resp = await fetch(url, { credentials: "include", headers: { ...getAuthHeaders() } });
+  const resp = await fetch(url, { headers: { ...getAuthHeaders() } });
   if (!resp.ok) throw new Error(`Failed to load domains (${resp.status})`);
   const data = await resp.json();
   domainsCache = Array.isArray(data?.domains) ? data.domains : [];
@@ -2907,7 +2877,7 @@ async function ensureKeywordsLoaded() {
   if (projectId) params.set("project_id", projectId);
   if (caseId) params.set("case_id", caseId);
   const url = `${API_BASE}/api/correspondence/keywords${params.toString() ? `?${params}` : ""}`;
-  const resp = await fetch(url, { credentials: "include", headers: { ...getAuthHeaders() } });
+  const resp = await fetch(url, { headers: { ...getAuthHeaders() } });
   if (!resp.ok) throw new Error(`Failed to load keywords (${resp.status})`);
   const data = await resp.json();
   keywordsCache = Array.isArray(data?.items) ? data.items : [];
@@ -2922,7 +2892,7 @@ async function ensureEmailAddressesLoaded() {
   if (caseId) params.set("case_id", caseId);
   const url = `${API_BASE}/api/correspondence/email-addresses${params.toString() ? `?${params}` : ""}`;
   try {
-    const resp = await fetch(url, { credentials: "include", headers: { ...getAuthHeaders() } });
+    const resp = await fetch(url, { headers: { ...getAuthHeaders() } });
     if (!resp.ok) {
       console.warn(`Failed to load email addresses (${resp.status}), using empty list`);
       emailAddressesCache = { from: [], to: [], cc: [] };
@@ -3439,7 +3409,9 @@ function setContextPanelCollapsed(collapsed) {
 
   // After transition completes, resize the grid to fill available space
   setTimeout(() => {
-    scheduleSizeColumnsToFit("context-panel-transition");
+    if (gridApi) {
+      gridApi.sizeColumnsToFit();
+    }
   }, 320); // Slightly longer than the 0.3s CSS transition
 }
 
@@ -3821,7 +3793,7 @@ window.toggleBodyCell = async function (rowId) {
     rowNode.data._bodyLoadError = null;
     gridApi.refreshCells({ rowNodes: [rowNode], force: true, suppressFlash: true });
     try {
-      const resp = await fetch(`${API_BASE}/api/correspondence/emails/${rowNode.data.id}`, { credentials: "include", headers: getAuthHeaders() });
+      const resp = await fetch(`${API_BASE}/api/correspondence/emails/${rowNode.data.id}`, { headers: getAuthHeaders() });
       if (!resp.ok) {
         throw new Error(`HTTP ${resp.status}`);
       }
@@ -3977,7 +3949,7 @@ async function showSimilarEmailsModal() {
       btn.addEventListener("click", async () => {
         const id = btn.getAttribute("data-id");
         try {
-          const resp2 = await fetch(`${API_BASE}/api/correspondence/emails/${id}`, { credentials: "include", headers: { ...getAuthHeaders() } });
+          const resp2 = await fetch(`${API_BASE}/api/correspondence/emails/${id}`, { headers: { ...getAuthHeaders() } });
           if (!resp2.ok) throw new Error(`HTTP ${resp2.status}`);
           const detail = await resp2.json();
           renderEmailDetail(detail);
@@ -4216,7 +4188,7 @@ async function loadLinkTargetsForSelectedType() {
 
     if (type === "matter") {
       if (!Array.isArray(linkTargetsCache.matter)) {
-        const resp = await fetch(`${API_BASE}/api/claims/matters?${params}`, { credentials: "include", headers: { ...getAuthHeaders() } });
+        const resp = await fetch(`${API_BASE}/api/claims/matters?${params}`, { headers: { ...getAuthHeaders() } });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
         linkTargetsCache.matter = Array.isArray(data?.items) ? data.items : [];
@@ -4225,7 +4197,7 @@ async function loadLinkTargetsForSelectedType() {
       targetEl.innerHTML = `<option value="">Select target...</option>` + items.map((m) => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name || m.id)}</option>`).join("");
     } else if (type === "claim") {
       if (!Array.isArray(linkTargetsCache.claim)) {
-        const resp = await fetch(`${API_BASE}/api/claims/heads-of-claim?${params}`, { credentials: "include", headers: { ...getAuthHeaders() } });
+        const resp = await fetch(`${API_BASE}/api/claims/heads-of-claim?${params}`, { headers: { ...getAuthHeaders() } });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
         linkTargetsCache.claim = Array.isArray(data?.items) ? data.items : [];
@@ -4376,9 +4348,6 @@ function initGrid() {
     console.error("AG Grid not available or grid element missing");
     return;
   }
-
-  // Keep a reference so sizing logic can verify measurability.
-  gridDivEl = gridDiv;
 
   // Set AG Grid Enterprise license key (must happen before grid creation)
   try {
@@ -4586,21 +4555,20 @@ function initGrid() {
         // Format body for display - use full HTML formatting in both states
         const bodyHtml = formatEmailBodyText(getBodyTextValue(p.data));
         
-        // Collapsed: hide overflow (no scrollbar), Expanded: show scroll on far right of grid
+        // Collapsed: smaller max-height with scroll, Expanded: larger max-height with scroll
         const maxHeight = isExpanded ? "300px" : "60px";
-        const overflow = isExpanded ? "auto" : "hidden";
         const title = isExpanded ? "Collapse" : "Expand";
 
         return `
-          <div style="display: flex; align-items: start; gap: 8px; width: 100%;">
+          <div style="display: block; position: relative; width: 100%;">
             <button
               onclick="toggleBodyCell('${rowId}'); event.stopPropagation();"
-              style="flex-shrink: 0; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); cursor: pointer; font-size: 0.75rem;"
+              style="position: absolute; top: 0; left: 0; z-index: 10; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); cursor: pointer; font-size: 0.75rem;"
               title="${title}"
             >
               <i class="fas ${icon}"></i>
             </button>
-            <div class="email-html-content" style="flex: 1; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: ${overflow}; padding-right: 4px;">
+            <div class="email-html-content" style="width: 100%; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto; padding-left: 40px; padding-right: 4px;">
               ${isLoading ? `<div style="font-size:0.85rem; color: var(--text-muted); margin-bottom: 6px;"><i class="fas fa-spinner fa-spin"></i> Loading full body…</div>` : ""}
               ${loadErr ? `<div style="font-size:0.85rem; color: #b91c1c; margin-bottom: 6px;">Failed to load full body (${escapeHtml(String(loadErr))}). Showing preview.</div>` : ""}
               ${bodyHtml || '<span style="color: var(--text-muted); font-style: italic;">No body content</span>'}
@@ -4626,21 +4594,20 @@ function initGrid() {
         const isExpanded = p.node.data?._bodyExpanded || false;
         const icon = isExpanded ? 'fa-compress-alt' : 'fa-expand-alt';
         
-        // Collapsed: hide overflow, Expanded: show scroll
+        // No truncation - show full content with scrolling
         const maxHeight = isExpanded ? "300px" : "60px";
-        const overflow = isExpanded ? "auto" : "hidden";
         const title = isExpanded ? 'Collapse' : 'Expand';
         
         return `
-          <div style="display: flex; align-items: start; gap: 8px; width: 100%;">
+          <div style="display: block; position: relative; width: 100%;">
             <button 
               onclick="toggleBodyCell('${rowId}'); event.stopPropagation();" 
-              style="flex-shrink: 0; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); cursor: pointer; font-size: 0.75rem;"
+              style="position: absolute; top: 0; left: 0; z-index: 10; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); cursor: pointer; font-size: 0.75rem;"
               title="${title}"
             >
               <i class="fas ${icon}"></i>
             </button>
-            <div style="flex: 1; white-space: pre-wrap; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: ${overflow};">
+            <div style="width: 100%; white-space: pre-wrap; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto; padding-left: 40px; padding-right: 4px;">
               ${escapeHtml(body)}
             </div>
           </div>
@@ -4916,6 +4883,9 @@ function initGrid() {
       defaultMinWidth: 80,
       defaultMaxWidth: 500,
     },
+    // Enterprise Features: Integrated Charts & Range Selection
+    enableCharts: true,
+    cellSelection: true,
     rowModelType: "serverSide",
     // SSRM configuration for large datasets:
     // - cacheBlockSize: 100 rows per fetch (matches evidence grid)
@@ -4966,11 +4936,6 @@ function initGrid() {
       enableClickSelection: true,
       checkboxes: false,    // Disable checkbox column for cleaner email list UI
       headerCheckbox: false,
-    },
-    onGridSizeChanged: () => {
-      // Runs when the grid's container changes size (e.g. first paint, window resize,
-      // context panel transitions). Make sure columns still fill the available width.
-      scheduleSizeColumnsToFit("grid-size-changed");
     },
     onGridReady: (params) => {
       gridApi = params.api;
@@ -5033,10 +4998,6 @@ function initGrid() {
 
       gridApi.setGridOption("serverSideDatasource", createServerSideDatasource());
       updateViewsDropdown();
-
-      // Initial sizing often races layout (nav shell injection / flex settling). Schedule a fit
-      // that will retry until the grid has a measurable width.
-      scheduleSizeColumnsToFit("grid-ready");
       
       // Preload keywords and stakeholders BEFORE resolving grid ready.
       // This ensures the caches are populated when SSRM renders the first cells.
@@ -5057,12 +5018,17 @@ function initGrid() {
     },
 
     onFirstDataRendered: () => {
+      // v35: autoSizeStrategy handles initial column sizing automatically
+      // Fallback: also call sizeColumnsToFit() to ensure columns fill grid width
+      try {
+        if (gridApi) {
+          gridApi.sizeColumnsToFit();
+        }
+      } catch (e) {
+        console.warn("Could not size columns to fit:", e);
+      }
       // Keep Quick Actions collapsed unless explicitly opened.
       setContextPanelCollapsed(true);
-
-      // Ensure columns fill the grid on first render (especially when SSRM + flex layout
-      // means the first render can occur before the container width stabilizes).
-      scheduleSizeColumnsToFit("first-data-rendered");
     },
     onSelectionChanged: () => {
       const selected = gridApi ? gridApi.getSelectedRows() : [];
