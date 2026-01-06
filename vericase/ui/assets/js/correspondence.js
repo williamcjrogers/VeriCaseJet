@@ -2261,7 +2261,7 @@ function renderEmailDetail(data) {
       bodyContent = `<iframe 
         sandbox="allow-same-origin allow-popups" 
         style="width:100%; min-height:400px; max-height:80vh; border:1px solid var(--border); border-radius:8px; background:#fff;"
-        srcdoc="\${escapedDoc}"
+        srcdoc="${escapedDoc}"
         onload="try { this.style.height = Math.min(this.contentWindow.document.body.scrollHeight + 32, window.innerHeight * 0.8) + 'px'; } catch(e) {}"
       ></iframe>`;
     } else {
@@ -4318,6 +4318,7 @@ function initGrid() {
       sortable: true,
       filter: "agDateColumnFilter",
       width: 180,
+      minWidth: 100,
       sort: "asc",
       sortIndex: 0,
       headerTooltip: "Sent date/time",
