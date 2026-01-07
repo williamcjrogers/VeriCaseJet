@@ -5086,12 +5086,22 @@ function initGrid() {
         { statusPanel: 'agSelectedRowCountComponent', align: 'right' }
       ]
     },
-    // v34.3+ Auto-size strategy: Fit columns to grid width on initial load
-    // This replaces manual sizeColumnsToFit() and works better with SSRM
+    // v35 Auto-size strategy: Fit columns to grid width on initial load and resize
+    // With flex columns, this ensures proportional distribution that fills the viewport
     autoSizeStrategy: {
       type: "fitGridWidth",
-      defaultMinWidth: 80,
-      defaultMaxWidth: 500,
+      defaultMinWidth: 100,
+      defaultMaxWidth: 600,
+      columnLimits: [
+        { colId: "email_date", minWidth: 140, maxWidth: 180 },
+        { colId: "email_from", minWidth: 180, maxWidth: 350 },
+        { colId: "email_to", minWidth: 180, maxWidth: 350 },
+        { colId: "email_cc", minWidth: 150, maxWidth: 300 },
+        { colId: "email_subject", minWidth: 250, maxWidth: 600 },
+        { colId: "body_text_clean", minWidth: 300, maxWidth: 800 },
+        { colId: "matched_keywords", minWidth: 150, maxWidth: 300 },
+        { colId: "notes", minWidth: 150, maxWidth: 300 },
+      ],
     },
     rowModelType: "serverSide",
     // SSRM configuration for large datasets:
@@ -5226,16 +5236,34 @@ function initGrid() {
 
     onFirstDataRendered: () => {
       // v35: autoSizeStrategy handles initial column sizing automatically
-      // Fallback: also call sizeColumnsToFit() to ensure columns fill grid width
+      // Re-apply sizing after first data rendered to ensure columns fill viewport
       try {
         if (gridApi) {
-          gridApi.sizeColumnsToFit();
+          // First, try to auto-size visible columns based on header + first few rows
+          const allColumnIds = gridApi.getColumns()?.map(col => col.getColId()) || [];
+          if (allColumnIds.length) {
+            gridApi.autoSizeColumns(allColumnIds, false); // false = skip header
+          }
+          // Then fit to grid width to fill remaining space
+          setTimeout(() => {
+            if (gridApi) gridApi.sizeColumnsToFit();
+          }, 100);
         }
       } catch (e) {
-        console.warn("Could not size columns to fit:", e);
+        console.warn("Could not size columns:", e);
       }
       // Keep Quick Actions collapsed unless explicitly opened.
       setContextPanelCollapsed(true);
+    },
+    onGridSizeChanged: () => {
+      // Re-fit columns when grid container size changes (window resize, panel toggle, etc.)
+      if (gridApi) {
+        try {
+          gridApi.sizeColumnsToFit();
+        } catch (e) {
+          // Ignore - grid may be in transition
+        }
+      }
     },
     onSelectionChanged: () => {
       const selected = gridApi ? gridApi.getSelectedRows() : [];
