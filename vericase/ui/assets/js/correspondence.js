@@ -2691,6 +2691,89 @@ function parseSmartFilter(rawText) {
   return { filterModel };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ADVANCED FILTER (AG Grid Enterprise Feature)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Toggle the AG Grid Advanced Filter Builder UI
+ */
+window.toggleAdvancedFilter = function() {
+  if (!gridApi) {
+    toastError("Grid not ready yet.");
+    return;
+  }
+  // AG Grid v35 API for showing the advanced filter builder
+  if (typeof gridApi.showAdvancedFilterBuilder === 'function') {
+    gridApi.showAdvancedFilterBuilder();
+  } else {
+    toastError("Advanced Filter requires AG Grid Enterprise. Update grid options if needed.");
+  }
+};
+
+/**
+ * Show help modal explaining the Advanced Filter feature
+ */
+window.showAdvancedFilterHelp = function() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'advancedFilterHelpModal';
+  modal.innerHTML = `
+    <div class="modal" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3><i class="fas fa-wand-magic-sparkles" style="color: var(--vc-teal);"></i> Advanced Filter</h3>
+        <button class="modal-close" onclick="document.getElementById('advancedFilterHelpModal').remove()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom: 1rem; color: var(--text-secondary);">
+          Build powerful, complex queries using AND/OR logic across all columns.
+        </p>
+        
+        <h4 style="margin-bottom: 0.75rem; color: var(--vc-navy);">
+          <i class="fas fa-lightbulb" style="color: var(--vc-gold);"></i> Example Queries
+        </h4>
+        <ul style="list-style: none; padding: 0; margin-bottom: 1.5rem;">
+          <li style="padding: 0.5rem; background: var(--bg-secondary); border-radius: 6px; margin-bottom: 0.5rem;">
+            <code style="color: var(--vc-teal);">From</code> contains <strong>(NAME)</strong> AND <code style="color: var(--vc-teal);">Date</code> in <strong>(YEAR)</strong>
+          </li>
+          <li style="padding: 0.5rem; background: var(--bg-secondary); border-radius: 6px; margin-bottom: 0.5rem;">
+            <code style="color: var(--vc-teal);">Subject</code> contains <strong>(KEYWORD)</strong> OR <code style="color: var(--vc-teal);">Body</code> contains <strong>(KEYWORD)</strong>
+          </li>
+          <li style="padding: 0.5rem; background: var(--bg-secondary); border-radius: 6px; margin-bottom: 0.5rem;">
+            <code style="color: var(--vc-teal);">Has Attachments</code> = Yes AND <code style="color: var(--vc-teal);">Date</code> before <strong>(DATE)</strong>
+          </li>
+          <li style="padding: 0.5rem; background: var(--bg-secondary); border-radius: 6px;">
+            <code style="color: var(--vc-teal);">From</code> contains <strong>(SENDER)</strong> AND <code style="color: var(--vc-teal);">To</code> contains <strong>(RECIPIENT)</strong>
+          </li>
+        </ul>
+        
+        <h4 style="margin-bottom: 0.75rem; color: var(--vc-navy);">
+          <i class="fas fa-keyboard"></i> How to Use
+        </h4>
+        <ol style="padding-left: 1.25rem; color: var(--text-secondary);">
+          <li style="margin-bottom: 0.5rem;">Click <strong>Advanced Filter</strong> to open the query builder</li>
+          <li style="margin-bottom: 0.5rem;">Select a column from the dropdown</li>
+          <li style="margin-bottom: 0.5rem;">Choose a condition (contains, equals, before, after, etc.)</li>
+          <li style="margin-bottom: 0.5rem;">Enter your value</li>
+          <li style="margin-bottom: 0.5rem;">Click <strong>+ Add Condition</strong> to combine with AND/OR</li>
+          <li>Click <strong>Apply</strong> when ready</li>
+        </ol>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="document.getElementById('advancedFilterHelpModal').remove(); toggleAdvancedFilter();">
+          <i class="fas fa-wand-magic-sparkles"></i> Open Advanced Filter
+        </button>
+        <button class="btn btn-ghost" onclick="document.getElementById('advancedFilterHelpModal').remove()">
+          Close
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+};
+
 window.applySmartFilter = function () {
   if (!gridApi || !gridApi.getFilterModel || !gridApi.setFilterModel) {
     toastError("Grid not ready yet.");
@@ -2735,6 +2818,100 @@ window.clearSmartFilter = function () {
   gridApi.setFilterModel(model);
   gridApi.refreshServerSide({ purge: true });
   toastInfo("Smart filter cleared.");
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI QUERY (AWS Bedrock-powered Natural Language Filtering)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Execute AI-powered natural language query against the grid.
+ * Sends query to backend, which uses AWS Bedrock (Claude) to generate
+ * an AG Grid filter expression. Only column schema is sent, NOT email data.
+ */
+window.executeAIQuery = async function() {
+  const input = document.getElementById("aiQueryInput");
+  const statusEl = document.getElementById("aiQueryStatus");
+  const query = input ? input.value.trim() : "";
+  
+  if (!query) {
+    toastError("Please enter a query for AI filtering.");
+    return;
+  }
+  
+  if (!gridApi) {
+    toastError("Grid not ready yet.");
+    return;
+  }
+  
+  // Show loading state
+  if (statusEl) {
+    statusEl.textContent = "⏳ AI thinking...";
+    statusEl.className = "ai-query-status";
+  }
+  
+  try {
+    const response = await fetch(`${API_BASE}/ai/grid-query`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${AUTH_TOKEN}`,
+      },
+      body: JSON.stringify({ query }),
+    });
+    
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${response.status}`);
+    }
+    
+    const result = await response.json();
+    
+    if (!result.success) {
+      if (statusEl) {
+        statusEl.textContent = "❌ " + (result.explanation || "Failed");
+        statusEl.className = "ai-query-status error";
+      }
+      toastError(result.explanation || "AI query failed.");
+      return;
+    }
+    
+    // Apply the AI-generated filter model
+    const currentModel = gridApi.getFilterModel() || {};
+    
+    // Merge AI filters with existing filters
+    const newModel = { ...currentModel, ...result.filter_model };
+    gridApi.setFilterModel(newModel);
+    gridApi.refreshServerSide({ purge: true });
+    
+    // Show success
+    if (statusEl) {
+      statusEl.textContent = "✓ " + result.explanation;
+      statusEl.className = "ai-query-status success";
+    }
+    toastSuccess("AI filter applied: " + result.explanation);
+    
+  } catch (err) {
+    console.error("AI query failed:", err);
+    if (statusEl) {
+      statusEl.textContent = "❌ " + err.message;
+      statusEl.className = "ai-query-status error";
+    }
+    toastError("AI query failed: " + err.message);
+  }
+};
+
+/**
+ * Clear AI query input and status
+ */
+window.clearAIQuery = function() {
+  const input = document.getElementById("aiQueryInput");
+  const statusEl = document.getElementById("aiQueryStatus");
+  if (input) input.value = "";
+  if (statusEl) {
+    statusEl.textContent = "";
+    statusEl.className = "ai-query-status";
+  }
 };
 
 window.setViewMode = function (mode) {
@@ -4891,13 +5068,23 @@ function initGrid() {
     columnDefs,
     // AG Grid v35: Use legacy themes (CSS-based ag-theme-alpine) instead of new Theming API
     theme: "legacy",
+    // Enable Advanced Filter (Enterprise feature) - allows complex AND/OR queries
+    enableAdvancedFilter: true,
     defaultColDef: {
       resizable: true,
       sortable: true,
       filter: true,
-      floatingFilter: false,
+      floatingFilter: true,  // Enable inline filter inputs below headers
       wrapHeaderText: true,
       autoHeaderHeight: true,
+    },
+    // Status bar with row count info
+    statusBar: {
+      statusPanels: [
+        { statusPanel: 'agTotalRowCountComponent', align: 'left' },
+        { statusPanel: 'agFilteredRowCountComponent', align: 'center' },
+        { statusPanel: 'agSelectedRowCountComponent', align: 'right' }
+      ]
     },
     // v34.3+ Auto-size strategy: Fit columns to grid width on initial load
     // This replaces manual sizeColumnsToFit() and works better with SSRM

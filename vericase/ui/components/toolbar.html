@@ -24,6 +24,31 @@
       </button>
     </div>
 
+    <!-- Advanced Filter Toggle -->
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="toggleAdvancedFilter()" title="Open Advanced Filter Builder">
+        <i class="fas fa-wand-magic-sparkles"></i> Advanced Filter
+      </button>
+      <button class="btn btn-icon btn-ghost" onclick="showAdvancedFilterHelp()" title="Learn about Advanced Filter">
+        <i class="fas fa-circle-question"></i>
+      </button>
+    </div>
+
+    <!-- AI Query (AWS Bedrock powered) -->
+    <div class="ai-query-box" id="aiQueryBox">
+      <i class="fas fa-robot" style="color: var(--vericase-teal);"></i>
+      <input
+        type="text"
+        id="aiQueryInput"
+        placeholder="AI: 'emails from John about payment in 2024...'"
+        onkeydown="if (event.key === 'Enter') { event.preventDefault(); executeAIQuery(); }"
+      />
+      <button class="btn btn-accent btn-sm" onclick="executeAIQuery()" title="Ask AI to filter">
+        <i class="fas fa-bolt"></i> AI Filter
+      </button>
+      <span id="aiQueryStatus" class="ai-query-status"></span>
+    </div>
+
     <!-- Essential Filters -->
     <div class="toolbar-dropdown" id="filterDropdown">
       <button class="btn" onclick="toggleFilterDropdown()" title="Filter">

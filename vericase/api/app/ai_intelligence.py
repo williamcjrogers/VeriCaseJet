@@ -728,3 +728,246 @@ async def batch_classify_documents(
     db.commit()
 
     return {"classified": len(results), "results": results}
+
+
+# ============================================================================
+# AG Grid AI Filter Query (AI Toolkit Integration)
+# ============================================================================
+
+
+class GridQueryRequest(BaseModel):
+    """Request to translate natural language into AG Grid filter expression"""
+
+    query: str
+    grid_columns: Optional[List[Dict]] = None  # Optional column schema override
+
+
+class GridFilterExpression(BaseModel):
+    """AG Grid compatible filter expression"""
+
+    filterType: str  # 'text', 'number', 'date', 'set'
+    type: Optional[str] = None  # 'contains', 'equals', 'greaterThan', etc.
+    filter: Optional[str] = None
+    filterTo: Optional[str] = None
+    values: Optional[List[str]] = None  # For set filters
+    operator: Optional[str] = None  # 'AND' or 'OR'
+    condition1: Optional[Dict] = None
+    condition2: Optional[Dict] = None
+
+
+class GridQueryResponse(BaseModel):
+    """Response with AG Grid filter model"""
+
+    success: bool
+    filter_model: Dict[str, Dict]  # { columnField: filterExpression }
+    explanation: str
+    raw_query: str
+
+
+# Column schema for the correspondence grid
+CORRESPONDENCE_GRID_SCHEMA = {
+    "columns": [
+        {
+            "field": "email_date",
+            "headerName": "Date",
+            "type": "date",
+            "description": "Email sent date/time",
+        },
+        {
+            "field": "email_from",
+            "headerName": "From",
+            "type": "text",
+            "description": "Sender email address",
+        },
+        {
+            "field": "email_to",
+            "headerName": "To",
+            "type": "text",
+            "description": "Primary recipient email addresses",
+        },
+        {
+            "field": "email_cc",
+            "headerName": "Cc",
+            "type": "text",
+            "description": "CC recipient email addresses",
+        },
+        {
+            "field": "email_subject",
+            "headerName": "Subject",
+            "type": "text",
+            "description": "Email subject line",
+        },
+        {
+            "field": "body_text_clean",
+            "headerName": "Body",
+            "type": "text",
+            "description": "Email body content",
+        },
+        {
+            "field": "matched_keywords",
+            "headerName": "Keywords",
+            "type": "set",
+            "description": "Matched keywords/tags",
+        },
+        {
+            "field": "pst_filename",
+            "headerName": "PST File",
+            "type": "text",
+            "description": "Source PST file name",
+        },
+        {
+            "field": "notes",
+            "headerName": "Notes",
+            "type": "text",
+            "description": "Internal notes",
+        },
+        {
+            "field": "has_attachments",
+            "headerName": "Has Attachments",
+            "type": "boolean",
+            "description": "Whether email has attachments",
+        },
+        {
+            "field": "programme_activity",
+            "headerName": "Programme Activity",
+            "type": "text",
+            "description": "Mapped programme activity",
+        },
+    ]
+}
+
+
+GRID_FILTER_PROMPT = """You are an AG Grid filter expression generator for a legal correspondence management system.
+
+Given a natural language query, generate a valid AG Grid filterModel object.
+
+AVAILABLE COLUMNS:
+{columns_json}
+
+AG GRID FILTER TYPES:
+- Text filters: {{ "filterType": "text", "type": "contains|equals|notContains|startsWith|endsWith", "filter": "value" }}
+- Date filters: {{ "filterType": "date", "type": "equals|greaterThan|lessThan|inRange", "dateFrom": "YYYY-MM-DD", "dateTo": "YYYY-MM-DD" }}
+- Number filters: {{ "filterType": "number", "type": "equals|greaterThan|lessThan|inRange", "filter": 123, "filterTo": 456 }}
+- Set filters: {{ "filterType": "set", "values": ["value1", "value2"] }}
+- Boolean: {{ "filterType": "boolean", "filter": true }}
+
+COMBINING CONDITIONS on same column:
+{{ "filterType": "text", "operator": "AND", "condition1": {{...}}, "condition2": {{...}} }}
+
+EXAMPLES:
+Query: "emails from john@example.com in 2024"
+Response: {{
+  "email_from": {{ "filterType": "text", "type": "contains", "filter": "john@example.com" }},
+  "email_date": {{ "filterType": "date", "type": "inRange", "dateFrom": "2024-01-01", "dateTo": "2024-12-31" }}
+}}
+
+Query: "emails about construction delays with attachments"
+Response: {{
+  "email_subject": {{ "filterType": "text", "operator": "OR", "condition1": {{ "filterType": "text", "type": "contains", "filter": "construction" }}, "condition2": {{ "filterType": "text", "type": "contains", "filter": "delay" }} }},
+  "has_attachments": {{ "filterType": "boolean", "filter": true }}
+}}
+
+Query: "emails to contractor mentioning payment"
+Response: {{
+  "email_to": {{ "filterType": "text", "type": "contains", "filter": "contractor" }},
+  "body_text_clean": {{ "filterType": "text", "type": "contains", "filter": "payment" }}
+}}
+
+USER QUERY: {user_query}
+
+Respond with ONLY a valid JSON object (no markdown, no explanation). The JSON should be the filterModel to apply."""
+
+
+@router.post("/grid-query", response_model=GridQueryResponse)
+async def ai_grid_query(
+    request: GridQueryRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """
+    Translate natural language query into AG Grid filter expression.
+
+    Uses AWS Bedrock (Claude) to understand the query and generate
+    appropriate AG Grid filterModel compatible with the correspondence grid.
+
+    This endpoint ONLY receives column schema, NOT actual email data.
+    """
+    try:
+        # Use provided columns or default schema
+        columns = request.grid_columns or CORRESPONDENCE_GRID_SCHEMA["columns"]
+        columns_json = json.dumps(columns, indent=2)
+
+        # Build the prompt
+        prompt = GRID_FILTER_PROMPT.format(
+            columns_json=columns_json, user_query=request.query
+        )
+
+        # Call AI to generate filter expression
+        response = await complete_chat(
+            messages=[{"role": "user", "content": prompt}],
+            system_prompt="You are a filter expression generator. Output only valid JSON.",
+            db=db,
+            temperature=0.1,  # Low temperature for consistent output
+            max_tokens=1000,
+        )
+
+        # Parse the response
+        response_text = response.strip()
+
+        # Clean up markdown code blocks if present
+        if response_text.startswith("```"):
+            lines = response_text.split("\n")
+            response_text = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
+
+        try:
+            filter_model = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse AI filter response: {e}")
+            return GridQueryResponse(
+                success=False,
+                filter_model={},
+                explanation=f"Could not parse filter expression: {str(e)}",
+                raw_query=request.query,
+            )
+
+        # Validate column fields exist
+        valid_fields = {col["field"] for col in columns}
+        filtered_model = {k: v for k, v in filter_model.items() if k in valid_fields}
+
+        if not filtered_model:
+            return GridQueryResponse(
+                success=False,
+                filter_model={},
+                explanation="No valid filters could be generated for your query. Try being more specific about which fields to filter.",
+                raw_query=request.query,
+            )
+
+        # Generate human-readable explanation
+        explanation_parts = []
+        for field, expr in filtered_model.items():
+            col_name = next(
+                (c["headerName"] for c in columns if c["field"] == field), field
+            )
+            filter_type = expr.get("type", expr.get("filterType", "filter"))
+            filter_val = expr.get(
+                "filter", expr.get("dateFrom", expr.get("values", ""))
+            )
+            explanation_parts.append(f"{col_name}: {filter_type} '{filter_val}'")
+
+        explanation = "Filtering by: " + ", ".join(explanation_parts)
+
+        return GridQueryResponse(
+            success=True,
+            filter_model=filtered_model,
+            explanation=explanation,
+            raw_query=request.query,
+        )
+
+    except Exception as e:
+        logger.error(f"AI grid query failed: {e}")
+        return GridQueryResponse(
+            success=False,
+            filter_model={},
+            explanation=f"AI query failed: {str(e)}",
+            raw_query=request.query,
+        )
