@@ -88,13 +88,13 @@ spec:
             - name: AWS_S3_REGION_NAME
               value: "eu-west-2"
             - name: S3_BUCKET
-              value: "vericase-docs"
+              value: "vericase-data"
             - name: S3_PST_BUCKET
-              value: "vericase-docs"
+              value: "vericase-data"
             - name: S3_REGION
               value: "eu-west-2"
             - name: MINIO_BUCKET
-              value: "vericase-docs"
+              value: "vericase-data"
             - name: MINIO_ENDPOINT
               value: ""
             # Redis/Celery Configuration (Non-cluster ElastiCache with TLS)
@@ -251,13 +251,13 @@ spec:
             - name: AWS_S3_REGION_NAME
               value: "eu-west-2"
             - name: S3_BUCKET
-              value: "vericase-docs"
+              value: "vericase-data"
             - name: S3_PST_BUCKET
-              value: "vericase-docs"
+              value: "vericase-data"
             - name: S3_REGION
               value: "eu-west-2"
             - name: MINIO_BUCKET
-              value: "vericase-docs"
+              value: "vericase-data"
             - name: MINIO_ENDPOINT
               value: ""
             # Redis/Celery Configuration (Non-cluster ElastiCache with TLS)
