@@ -192,6 +192,8 @@ def _is_mostly_boilerplate(text: str) -> bool:
     """
     Heuristic to detect if text is mostly external-email banner/disclaimer boilerplate.
     Returns True if the text appears to be primarily banner text without meaningful content.
+    Also detects legal disclaimers/confidentiality notices that sometimes get stored
+    in body_text_clean instead of actual email content.
     """
     if not text or len(text) < 20:
         return False
@@ -201,6 +203,66 @@ def _is_mostly_boilerplate(text: str) -> bool:
     if len(text_stripped) < 30:
         # Very short text is likely not meaningful content
         return True
+
+    # CRITICAL: Detect legal disclaimers/confidentiality notices
+    # These sometimes get incorrectly stored in body_text_clean during PST parsing
+    disclaimer_phrases = [
+        "contents of this email",
+        "files transmitted with it are confidential",
+        "confidential and may be privileged",
+        "intended for the exclusive use",
+        "exclusive use of the individual or entity",
+        "if you have received this",
+        "received this email in error",
+        "received this message in error",
+        "notify the sender immediately",
+        "please notify the sender",
+        "delete any digital copies",
+        "destroy any paper copies",
+        "intended recipient is prohibited",
+        "taking action in reliance upon",
+        "dissemination or other use",
+        "review, re-transmission",
+        "registered in england and wales",
+        "registered number",
+        "registered office is",
+        "company registered in",
+    ]
+    disclaimer_count = sum(1 for phrase in disclaimer_phrases if phrase in text_lower)
+    # If 3+ disclaimer phrases, this is definitely legal boilerplate, not email content
+    if disclaimer_count >= 3:
+        return True
+    # Even 2 disclaimer phrases is suspicious if text doesn't start with greeting
+    if disclaimer_count >= 2:
+        # Check if text starts with typical email greeting
+        first_50 = text[:50].lower().strip()
+        has_greeting = any(
+            first_50.startswith(g)
+            for g in [
+                "hi",
+                "hello",
+                "dear",
+                "good morning",
+                "good afternoon",
+                "thanks",
+                "thank you",
+                "please",
+                "yes",
+                "no",
+                "ok",
+                "as discussed",
+                "further to",
+                "following",
+                "regarding",
+                "i hope",
+                "hope you",
+                "just",
+                "fyi",
+                "see attached",
+            ]
+        )
+        if not has_greeting:
+            return True
 
     # Count banner marker matches
     banner_matches = 0
