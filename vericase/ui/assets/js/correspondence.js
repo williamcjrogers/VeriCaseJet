@@ -4547,17 +4547,34 @@ function initGrid() {
         // Collapsed: smaller max-height with scroll, Expanded: larger max-height with scroll
         const maxHeight = isExpanded ? "300px" : "60px";
         const title = isExpanded ? "Collapse" : "Expand";
+        const contentId = `body-content-${rowId}`;
 
         return `
           <div style="display: flex; align-items: start; gap: 8px; width: 100%;">
-            <button
-              onclick="toggleBodyCell('${rowId}'); event.stopPropagation();"
-              style="flex-shrink: 0; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); cursor: pointer; font-size: 0.75rem;"
-              title="${title}"
-            >
-              <i class="fas ${icon}"></i>
-            </button>
-            <div class="email-html-content" style="flex: 1; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto; padding-right: 4px;">
+            <div class="body-cell-controls" style="display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0;">
+              <button
+                onclick="toggleBodyCell('${rowId}'); event.stopPropagation();"
+                style="padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); cursor: pointer; font-size: 0.75rem;"
+                title="${title}"
+              >
+                <i class="fas ${icon}"></i>
+              </button>
+              <button
+                onclick="document.getElementById('${contentId}').scrollTop -= 30; event.stopPropagation();"
+                class="body-scroll-btn"
+                title="Scroll up"
+              >
+                <i class="fas fa-caret-up"></i>
+              </button>
+              <button
+                onclick="document.getElementById('${contentId}').scrollTop += 30; event.stopPropagation();"
+                class="body-scroll-btn"
+                title="Scroll down"
+              >
+                <i class="fas fa-caret-down"></i>
+              </button>
+            </div>
+            <div id="${contentId}" class="email-html-content" style="flex: 1; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto; padding-right: 4px;">
               ${isLoading ? `<div style="font-size:0.85rem; color: var(--text-muted); margin-bottom: 6px;"><i class="fas fa-spinner fa-spin"></i> Loading full body…</div>` : ""}
               ${loadErr ? `<div style="font-size:0.85rem; color: #b91c1c; margin-bottom: 6px;">Failed to load full body (${escapeHtml(String(loadErr))}). Showing preview.</div>` : ""}
               ${bodyHtml || '<span style="color: var(--text-muted); font-style: italic;">No body content</span>'}
@@ -4586,17 +4603,34 @@ function initGrid() {
         // No truncation - show full content with scrolling
         const maxHeight = isExpanded ? "300px" : "60px";
         const title = isExpanded ? 'Collapse' : 'Expand';
+        const contentId = `thread-body-content-${rowId}`;
         
         return `
           <div style="display: flex; align-items: start; gap: 8px; width: 100%;">
-            <button 
-              onclick="toggleBodyCell('${rowId}'); event.stopPropagation();" 
-              style="flex-shrink: 0; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); cursor: pointer; font-size: 0.75rem;"
-              title="${title}"
-            >
-              <i class="fas ${icon}"></i>
-            </button>
-            <div style="flex: 1; white-space: pre-wrap; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto;">
+            <div class="body-cell-controls" style="display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0;">
+              <button 
+                onclick="toggleBodyCell('${rowId}'); event.stopPropagation();" 
+                style="padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); cursor: pointer; font-size: 0.75rem;"
+                title="${title}"
+              >
+                <i class="fas ${icon}"></i>
+              </button>
+              <button
+                onclick="document.getElementById('${contentId}').scrollTop -= 30; event.stopPropagation();"
+                class="body-scroll-btn"
+                title="Scroll up"
+              >
+                <i class="fas fa-caret-up"></i>
+              </button>
+              <button
+                onclick="document.getElementById('${contentId}').scrollTop += 30; event.stopPropagation();"
+                class="body-scroll-btn"
+                title="Scroll down"
+              >
+                <i class="fas fa-caret-down"></i>
+              </button>
+            </div>
+            <div id="${contentId}" style="flex: 1; white-space: pre-wrap; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto; padding-right: 4px;">
               ${escapeHtml(body)}
             </div>
           </div>

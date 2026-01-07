@@ -812,6 +812,15 @@ body::before {
   width: 100%;
 }
 
+/* Body cell controls container - keeps expand + scroll buttons together */
+.body-cell-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
 /* Ensure expand button stays visible and doesn't get pushed out */
 .body-cell button {
   position: sticky;
@@ -832,6 +841,33 @@ body::before {
   background: var(--bg-tertiary) !important;
   border-color: var(--vc-teal) !important;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Scroll control buttons in body cell */
+.body-scroll-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 16px;
+  padding: 2px 4px !important;
+  font-size: 0.65rem !important;
+  color: var(--text-muted);
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 3px !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.body-scroll-btn:hover {
+  background: var(--bg-tertiary) !important;
+  border-color: var(--vc-teal) !important;
+  color: var(--vc-teal);
+}
+
+.body-scroll-btn i {
+  font-size: 10px;
 }
 
 /* Content area in body cell */
