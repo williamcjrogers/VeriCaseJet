@@ -371,13 +371,17 @@ def clean_email_body_for_display(
         # Use the best-in-class parser when available, but keep robust fallbacks.
         if parser is not None:
             try:
-                parsed = parser.parse_reply(text=cleaned)  # type: ignore[attr-defined]
-                if isinstance(parsed, str):
-                    display = parsed
-                elif hasattr(parsed, "body"):
-                    display = str(getattr(parsed, "body") or "")
-                elif hasattr(parsed, "full_body"):
-                    display = str(getattr(parsed, "full_body") or "")
+                # Use .read() to get EmailMessage with full parsing, then get .body
+                # which strips headers, signatures, and disclaimers.
+                # Note: parse_reply() returns just the string content without stripping.
+                parsed_msg = parser.read(text=cleaned)  # type: ignore[attr-defined]
+                if parsed_msg and hasattr(parsed_msg, "replies") and parsed_msg.replies:
+                    first_reply = parsed_msg.replies[0]
+                    # .body removes signatures/disclaimers; .content keeps them
+                    if hasattr(first_reply, "body"):
+                        display = str(first_reply.body or "")
+                    elif hasattr(first_reply, "content"):
+                        display = str(first_reply.content or "")
             except Exception:
                 display = ""
 

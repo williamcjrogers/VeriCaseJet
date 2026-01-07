@@ -43,6 +43,7 @@ reportlab==4.4.5        # PDF creation
 python-magic==0.4.27    # File type detection
 aiohttp==3.13.2          # Async HTTP client used by ai_models
 beautifulsoup4==4.12.3  # HTML parsing for email body cleaning
+mail-parser-reply==1.36  # Email reply parsing (strip signatures, disclaimers, quoted text)
 # Note: pypff (libpff-python) for PST processing is optional and platform-specific
 # Install separately if needed: pip install libpff-python
 python-dateutil==2.9.0.post0
