@@ -93,6 +93,48 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+/**
+ * Sanitize email HTML to remove embedded images (signatures, tracking pixels, etc.)
+ * Uses DOMPurify to strip:
+ * - All <img> tags (embedded signature images, tracking pixels)
+ * - Images with cid: or data: URLs (inline attachments)
+ * - Common signature patterns
+ * Preserves text content and safe HTML structure.
+ */
+function sanitizeEmailHtml(html) {
+  if (!html || typeof html !== "string") return "";
+  
+  // Check if DOMPurify is available
+  if (typeof DOMPurify === "undefined") {
+    console.warn("DOMPurify not available, returning escaped HTML");
+    return escapeHtml(html);
+  }
+  
+  // Use DOMPurify to sanitize and strip images
+  const clean = DOMPurify.sanitize(html, {
+    // Forbid img tags entirely (removes signature images, tracking pixels)
+    FORBID_TAGS: ["img", "picture", "source", "svg", "object", "embed"],
+    // Also forbid attributes that could load external resources
+    FORBID_ATTR: ["background", "poster"],
+    // Allow safe HTML elements for email rendering
+    ALLOWED_TAGS: [
+      "a", "abbr", "address", "article", "b", "blockquote", "br", "caption",
+      "cite", "code", "col", "colgroup", "dd", "del", "dfn", "div", "dl", "dt",
+      "em", "figcaption", "figure", "footer", "h1", "h2", "h3", "h4", "h5", "h6",
+      "header", "hr", "i", "ins", "kbd", "li", "mark", "nav", "ol", "p", "pre",
+      "q", "s", "samp", "section", "small", "span", "strong", "sub", "sup",
+      "table", "tbody", "td", "tfoot", "th", "thead", "time", "tr", "u", "ul",
+      "var", "wbr", "font", "center", "#text"
+    ],
+    // Keep content when removing forbidden tags
+    KEEP_CONTENT: true,
+    // Additional security
+    ALLOW_DATA_ATTR: false,
+  });
+  
+  return clean;
+}
+
 // Get Font Awesome icon class for a file based on extension
 function getFileIconClass(filename) {
   const ext = (filename || "").toLowerCase().split(".").pop();
@@ -2291,8 +2333,11 @@ function renderEmailDetail(data) {
         </style>
       `;
       
+      // Sanitize HTML to remove embedded images (signatures, tracking pixels)
+      const sanitizedBodyHtml = sanitizeEmailHtml(bodyHtml);
+      
       // Build the complete HTML document
-      const fullHtmlDoc = '<!DOCTYPE html><html><head><meta charset="UTF-8"><base target="_blank">' + outlookStyles + '</head><body>' + bodyHtml + '</body></html>';
+      const fullHtmlDoc = '<!DOCTYPE html><html><head><meta charset="UTF-8"><base target="_blank">' + outlookStyles + '</head><body>' + sanitizedBodyHtml + '</body></html>';
       
       // Escape for srcdoc attribute
       const escapedDoc = fullHtmlDoc.replace(/"/g, '&quot;');
