@@ -80,9 +80,9 @@ const DEFAULT_HIDDEN_COLUMNS = new Set([
   "has_attachments",
 ]);
 
-// Grid performance: fixed row heights (avoid autoHeight measurement on large datasets)
+// Grid performance: fixed collapsed height, expanded uses auto-height for content fit
 const ROW_HEIGHT_COLLAPSED = 96;
-const ROW_HEIGHT_EXPANDED = 360;
+const ROW_HEIGHT_EXPANDED = null; // null = auto-fit to content
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -3944,8 +3944,8 @@ window.toggleBodyCell = async function (rowId) {
   const willExpand = !rowNode.data._bodyExpanded;
   rowNode.data._bodyExpanded = willExpand;
 
-  // Use fixed heights to avoid expensive DOM measurement from autoHeight.
-  rowNode.setRowHeight(willExpand ? ROW_HEIGHT_EXPANDED : ROW_HEIGHT_COLLAPSED);
+  // Use null height when expanded to let AG Grid auto-fit to content
+  rowNode.setRowHeight(willExpand ? null : ROW_HEIGHT_COLLAPSED);
 
   // Force cell refresh and row height recalculation
   gridApi.refreshCells({
@@ -3988,7 +3988,7 @@ window.expandAllBodies = function () {
   gridApi.forEachNode((node) => {
     if (node.data && !node.data._bodyExpanded) {
       node.data._bodyExpanded = true;
-      node.setRowHeight(ROW_HEIGHT_EXPANDED);
+      node.setRowHeight(null); // Auto-fit to content
       rowNodes.push(node);
     }
   });
@@ -4704,7 +4704,8 @@ function initGrid() {
       flex: 2,
       filter: "agTextColumnFilter",
       headerTooltip: "Email body (click expand icon for larger view)",
-      wrapText: false,
+      wrapText: true, // Enable text wrapping for auto-height to work
+      autoHeight: true, // Auto-fit row height to content
       cellClass: "body-cell",
       cellRenderer: (p) => {
         const bodyText = getBodyPreviewText(p.data) || "";
@@ -4721,8 +4722,8 @@ function initGrid() {
         // Format body for display - use full HTML formatting in both states
         const bodyHtml = formatEmailBodyText(getBodyTextValue(p.data));
         
-        // Collapsed: smaller max-height with scroll, Expanded: larger max-height with scroll
-        const maxHeight = isExpanded ? "300px" : "60px";
+        // Collapsed: smaller max-height with scroll, Expanded: no max-height (auto-fit)
+        const maxHeight = isExpanded ? "none" : "60px";
         const title = isExpanded ? "Collapse" : "Expand";
         const contentId = `body-content-${rowId}`;
 
@@ -4761,7 +4762,8 @@ function initGrid() {
       flex: 3,
       filter: "agTextColumnFilter",
       headerTooltip: "Full email thread body (legacy)",
-      wrapText: false,
+      wrapText: true, // Enable text wrapping for auto-height
+      autoHeight: true, // Auto-fit row height to content
       cellClass: 'body-cell',
       cellRenderer: (p) => {
         const body = p.data?.email_body || p.data?.body_text_clean || p.data?.body_text || "";
@@ -4771,8 +4773,8 @@ function initGrid() {
         const isExpanded = p.node.data?._bodyExpanded || false;
         const icon = isExpanded ? 'fa-compress-alt' : 'fa-expand-alt';
         
-        // No truncation - show full content with scrolling
-        const maxHeight = isExpanded ? "300px" : "60px";
+        // No truncation - show full content, auto-fit when expanded
+        const maxHeight = isExpanded ? "none" : "60px";
         const title = isExpanded ? 'Collapse' : 'Expand';
         const contentId = `thread-body-content-${rowId}`;
         
@@ -5134,7 +5136,7 @@ function initGrid() {
     getRowId: (params) => params.data?.id,
     // Avoid expensive auto-height measurement; keep the grid responsive even at 100k+ rows.
     getRowHeight: (params) =>
-      params?.data?._bodyExpanded ? ROW_HEIGHT_EXPANDED : ROW_HEIGHT_COLLAPSED,
+      params?.data?._bodyExpanded ? undefined : ROW_HEIGHT_COLLAPSED, // undefined = auto-fit
     // v35 Row Selection API: Object-based configuration
     rowSelection: {
       mode: "multiRow",
