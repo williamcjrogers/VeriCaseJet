@@ -216,26 +216,18 @@ def _build_email_row_server_side(
     # Prefer a cleaned "display" body preview, but keep it bounded.
     from ..email_normalizer import clean_email_body_for_display
 
-    preview_text = e.body_preview
-    # If the preview looks like HTML, pass it as HTML so the normalizer can
-    # reliably extract readable text.
-    preview_html = None
-    try:
-        if preview_text and "<" in preview_text[:2000] and ">" in preview_text[:2000]:
-            preview_html = preview_text
-    except Exception:
-        preview_html = None
-
+    # Use the actual body_html field if available - this contains the full email content.
+    # body_preview often contains only CAUTION banners for external emails.
     body_display = clean_email_body_for_display(
         body_text_clean=e.body_text_clean,
-        body_text=preview_text,
-        body_html=preview_html,
+        body_text=e.body_text,
+        body_html=e.body_html,
     )
     # Never return an empty body preview if we have *any* stored body signal.
     # This prevents the grid from showing a column of "-" when `clean_email_body_for_display`
     # decides the best display body is empty.
     if not body_display:
-        body_display = e.body_text_clean or preview_text or ""
+        body_display = e.body_text_clean or e.body_preview or ""
 
     email_body = _truncate_text((body_display or "").strip(), body_max_chars) or None
 
