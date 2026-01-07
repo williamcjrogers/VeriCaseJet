@@ -885,52 +885,32 @@ body::before {
   width: 100%;
 }
 
-/* Body cell controls container - keeps expand + scroll buttons together */
+/* Body cell controls container - positioned on far right */
 .body-cell-controls {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
-/* Ensure expand button stays visible and doesn't get pushed out */
-.body-cell button {
-  position: sticky;
-  top: 8px;
-  flex-shrink: 0;
-  z-index: 2;
-  background: var(--bg-secondary) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 4px;
-  padding: 4px 8px;
-  cursor: pointer;
-  font-size: 0.75rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  transition: all 0.15s ease;
-}
-
-.body-cell button:hover {
-  background: var(--bg-tertiary) !important;
-  border-color: var(--vc-teal) !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-/* Scroll control buttons in body cell */
+/* Scroll control buttons in body cell - compact inline design */
 .body-scroll-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 16px;
-  padding: 2px 4px !important;
-  font-size: 0.65rem !important;
+  width: 18px;
+  height: 14px;
+  padding: 1px 2px !important;
+  font-size: 0.6rem !important;
   color: var(--text-muted);
   background: var(--bg-secondary) !important;
   border: 1px solid var(--border) !important;
-  border-radius: 3px !important;
+  border-radius: 2px !important;
   cursor: pointer;
   transition: all 0.15s ease;
+  box-shadow: none !important;
 }
 
 .body-scroll-btn:hover {
@@ -940,11 +920,41 @@ body::before {
 }
 
 .body-scroll-btn i {
+  font-size: 9px;
+  line-height: 1;
+}
+
+/* Expand button in body cell controls */
+.body-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 2px !important;
+  font-size: 0.65rem !important;
+  color: var(--text-secondary);
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 3px !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-top: 2px;
+  box-shadow: none !important;
+}
+
+.body-expand-btn:hover {
+  background: var(--bg-tertiary) !important;
+  border-color: var(--vc-teal) !important;
+  color: var(--vc-teal);
+}
+
+.body-expand-btn i {
   font-size: 10px;
 }
 
 /* Content area in body cell */
-.body-cell > div > div:last-child {
+.body-cell > div > div:first-child {
   flex: 1;
   min-width: 0;
   word-break: break-word;
@@ -952,7 +962,7 @@ body::before {
 }
 
 /* When body is expanded, limit max height and add scroll */
-.body-cell[data-expanded="true"] > div > div:last-child {
+.body-cell[data-expanded="true"] > div > div:first-child {
   max-height: 400px;
   overflow-y: auto;
   padding-right: 4px;
