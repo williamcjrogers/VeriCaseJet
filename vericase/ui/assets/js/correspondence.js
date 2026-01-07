@@ -4551,6 +4551,11 @@ function initGrid() {
 
         return `
           <div style="display: flex; align-items: start; gap: 8px; width: 100%;">
+            <div id="${contentId}" class="email-html-content" style="flex: 1; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto; padding-right: 4px;">
+              ${isLoading ? `<div style="font-size:0.85rem; color: var(--text-muted); margin-bottom: 6px;"><i class="fas fa-spinner fa-spin"></i> Loading full body…</div>` : ""}
+              ${loadErr ? `<div style="font-size:0.85rem; color: #b91c1c; margin-bottom: 6px;">Failed to load full body (${escapeHtml(String(loadErr))}). Showing preview.</div>` : ""}
+              ${bodyHtml || '<span style="color: var(--text-muted); font-style: italic;">No body content</span>'}
+            </div>
             <div class="body-cell-controls" style="display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0;">
               <button
                 onclick="toggleBodyCell('${rowId}'); event.stopPropagation();"
@@ -4573,11 +4578,6 @@ function initGrid() {
               >
                 <i class="fas fa-caret-down"></i>
               </button>
-            </div>
-            <div id="${contentId}" class="email-html-content" style="flex: 1; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto; padding-right: 4px;">
-              ${isLoading ? `<div style="font-size:0.85rem; color: var(--text-muted); margin-bottom: 6px;"><i class="fas fa-spinner fa-spin"></i> Loading full body…</div>` : ""}
-              ${loadErr ? `<div style="font-size:0.85rem; color: #b91c1c; margin-bottom: 6px;">Failed to load full body (${escapeHtml(String(loadErr))}). Showing preview.</div>` : ""}
-              ${bodyHtml || '<span style="color: var(--text-muted); font-style: italic;">No body content</span>'}
             </div>
           </div>
         `;
@@ -4607,6 +4607,9 @@ function initGrid() {
         
         return `
           <div style="display: flex; align-items: start; gap: 8px; width: 100%;">
+            <div id="${contentId}" style="flex: 1; white-space: pre-wrap; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto; padding-right: 4px;">
+              ${escapeHtml(body)}
+            </div>
             <div class="body-cell-controls" style="display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0;">
               <button 
                 onclick="toggleBodyCell('${rowId}'); event.stopPropagation();" 
@@ -4629,9 +4632,6 @@ function initGrid() {
               >
                 <i class="fas fa-caret-down"></i>
               </button>
-            </div>
-            <div id="${contentId}" style="flex: 1; white-space: pre-wrap; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto; padding-right: 4px;">
-              ${escapeHtml(body)}
             </div>
           </div>
         `;
