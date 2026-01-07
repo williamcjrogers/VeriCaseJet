@@ -121,6 +121,13 @@ def _html_to_text_bs4(html_body: str) -> str:
             pass
 
     def _is_quoteish_class(value: object) -> bool:
+        """
+        Detect classes that indicate quoted/forwarded email content.
+
+        Note: We intentionally do NOT strip "mso" or "wordsection1" classes
+        because Microsoft Outlook uses these for ALL content, not just quotes.
+        Stripping them would remove the entire email body.
+        """
         try:
             if value is None:
                 return False
@@ -130,14 +137,13 @@ def _html_to_text_bs4(html_body: str) -> str:
             elif isinstance(value, (list, tuple)):
                 parts = [str(v) for v in value]
             joined = " ".join(parts).lower()
+            # Only match actual quote/forward indicators, NOT generic MS Office classes
             return any(
                 k in joined
                 for k in (
                     "gmail_quote",
                     "yahoo_quoted",
-                    "wordsection1",
-                    "divrplyfwdmsg",
-                    "mso",
+                    "divrplyfwdmsg",  # Outlook's reply/forward marker div
                 )
             )
         except Exception:
