@@ -4734,23 +4734,11 @@ function initGrid() {
               ${loadErr ? `<div style="font-size:0.85rem; color: #b91c1c; margin-bottom: 6px;">Failed to load full body (${escapeHtml(String(loadErr))}). Showing preview.</div>` : ""}
               ${bodyHtml || '<span style="color: var(--text-muted); font-style: italic;">No body content</span>'}
             </div>
-            <div class="body-cell-controls">
-              <button
-                onclick="document.getElementById('${contentId}').scrollTop -= 30; event.stopPropagation();"
-                class="body-scroll-btn"
-                title="Scroll up"
-              ><i class="fas fa-caret-up"></i></button>
-              <button
-                onclick="document.getElementById('${contentId}').scrollTop += 30; event.stopPropagation();"
-                class="body-scroll-btn"
-                title="Scroll down"
-              ><i class="fas fa-caret-down"></i></button>
-              <button
-                onclick="toggleBodyCell('${rowId}'); event.stopPropagation();"
-                class="body-expand-btn"
-                title="${title}"
-              ><i class="fas ${icon}"></i></button>
-            </div>
+            <button
+              onclick="toggleBodyCell('${rowId}'); event.stopPropagation();"
+              class="body-expand-btn"
+              title="${title}"
+            ><i class="fas ${icon}"></i></button>
           </div>
         `;
       },
@@ -4783,23 +4771,11 @@ function initGrid() {
             <div id="${contentId}" style="flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; line-height: 1.5; max-height: ${maxHeight}; overflow: auto; padding-right: 4px;">
               ${escapeHtml(body)}
             </div>
-            <div class="body-cell-controls">
-              <button
-                onclick="document.getElementById('${contentId}').scrollTop -= 30; event.stopPropagation();"
-                class="body-scroll-btn"
-                title="Scroll up"
-              ><i class="fas fa-caret-up"></i></button>
-              <button
-                onclick="document.getElementById('${contentId}').scrollTop += 30; event.stopPropagation();"
-                class="body-scroll-btn"
-                title="Scroll down"
-              ><i class="fas fa-caret-down"></i></button>
-              <button
-                onclick="toggleBodyCell('${rowId}'); event.stopPropagation();"
-                class="body-expand-btn"
-                title="${title}"
-              ><i class="fas ${icon}"></i></button>
-            </div>
+            <button
+              onclick="toggleBodyCell('${rowId}'); event.stopPropagation();"
+              class="body-expand-btn"
+              title="${title}"
+            ><i class="fas ${icon}"></i></button>
           </div>
         `;
       },

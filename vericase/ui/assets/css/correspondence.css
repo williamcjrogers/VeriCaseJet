@@ -885,61 +885,22 @@ body::before {
   width: 100%;
 }
 
-/* Body cell controls container - positioned on far right */
-.body-cell-controls {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
-/* Scroll control buttons in body cell - compact inline design */
-.body-scroll-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 14px;
-  padding: 1px 2px !important;
-  font-size: 0.6rem !important;
-  color: var(--text-muted);
-  background: var(--bg-secondary) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 2px !important;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  box-shadow: none !important;
-}
-
-.body-scroll-btn:hover {
-  background: var(--bg-tertiary) !important;
-  border-color: var(--vc-teal) !important;
-  color: var(--vc-teal);
-}
-
-.body-scroll-btn i {
-  font-size: 9px;
-  line-height: 1;
-}
-
-/* Expand button in body cell controls */
+/* Expand button in body cell */
 .body-expand-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   padding: 2px !important;
-  font-size: 0.65rem !important;
+  font-size: 0.7rem !important;
   color: var(--text-secondary);
   background: var(--bg-secondary) !important;
   border: 1px solid var(--border) !important;
   border-radius: 3px !important;
   cursor: pointer;
   transition: all 0.15s ease;
-  margin-top: 2px;
+  flex-shrink: 0;
   box-shadow: none !important;
 }
 
@@ -950,7 +911,7 @@ body::before {
 }
 
 .body-expand-btn i {
-  font-size: 10px;
+  font-size: 11px;
 }
 
 /* Content area in body cell */
