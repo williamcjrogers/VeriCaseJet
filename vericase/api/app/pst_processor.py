@@ -723,7 +723,26 @@ class UltimatePSTProcessor:
                     or getattr(settings, "S3_PST_BUCKET", "")
                     or settings.S3_BUCKET
                 )
-                logger.info(f"Downloading PST from s3://{bucket_to_use}/{pst_s3_key}")
+                logger.info(
+                    f"Downloading PST from s3://{bucket_to_use}/{pst_s3_key} "
+                    f"(pst_s3_bucket={pst_s3_bucket}, record_bucket={getattr(pst_file_record, 's3_bucket', None) if pst_file_record else None})"
+                )
+                # Verify object exists before attempting download
+                try:
+                    head = self.s3.head_object(Bucket=bucket_to_use, Key=pst_s3_key)
+                    logger.info(
+                        f"PST object verified: size={head.get('ContentLength', 0)} bytes"
+                    )
+                except Exception as head_err:
+                    logger.error(
+                        f"PST object not found before download! "
+                        f"bucket={bucket_to_use}, key={pst_s3_key}, error={head_err}"
+                    )
+                    raise RuntimeError(
+                        f"PST file not found in storage (bucket={bucket_to_use}, key={pst_s3_key}). "
+                        f"The upload may have failed or the file was deleted."
+                    ) from head_err
+
                 self.s3.download_fileobj(
                     Bucket=bucket_to_use, Key=pst_s3_key, Fileobj=tmp
                 )

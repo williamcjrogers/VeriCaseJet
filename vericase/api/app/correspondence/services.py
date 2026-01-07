@@ -771,12 +771,43 @@ async def complete_pst_multipart_upload_service(request, db):
                 continue
         cleaned_parts.sort(key=lambda x: int(x.get("PartNumber") or 0))
 
-        multipart_complete(
+        if not cleaned_parts:
+            raise HTTPException(400, "No valid parts provided for multipart completion")
+
+        logger.info(
+            f"Completing multipart upload for PST {request.pst_file_id}: "
+            f"bucket={pst_file.s3_bucket}, key={pst_file.s3_key}, "
+            f"upload_id={request.upload_id}, parts_count={len(cleaned_parts)}"
+        )
+
+        completion_result = multipart_complete(
             pst_file.s3_key,
             request.upload_id,
             cleaned_parts,
             bucket=pst_file.s3_bucket,
         )
+
+        # Verify the object actually exists after completion
+        from ..storage import s3 as get_s3_client
+
+        try:
+            head_result = get_s3_client().head_object(
+                Bucket=pst_file.s3_bucket, Key=pst_file.s3_key
+            )
+            logger.info(
+                f"PST upload verified: s3://{pst_file.s3_bucket}/{pst_file.s3_key} "
+                f"({head_result.get('ContentLength', 0)} bytes)"
+            )
+        except Exception as verify_err:
+            logger.error(
+                f"PST multipart completed but object not found! "
+                f"bucket={pst_file.s3_bucket}, key={pst_file.s3_key}, "
+                f"completion_result={completion_result}, error={verify_err}"
+            )
+            raise HTTPException(
+                500,
+                f"Multipart upload completed but object verification failed: {verify_err}",
+            )
 
         pst_file.processing_status = "pending"
         db.commit()
