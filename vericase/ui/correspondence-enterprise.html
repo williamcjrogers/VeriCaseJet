@@ -27,14 +27,18 @@
   <script src="vericase-ui.js"></script>
   <script src="nav-shell.js"></script>
 
-  <!-- DOMPurify for HTML sanitization -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+  <!-- DOMPurify for HTML sanitization (defer to not block rendering) -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js" 
+    integrity="sha512-jB0TkTBeQC9ZSkBqDhdmfTv1qdfbWpGE72yJ/01Srq6hEzZIz2xkz1e57p9ai7IeHMwEG7HpzG6NdptChif5Pg==" 
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
-  <!-- Office Document Preview Libraries -->
-  <!-- SheetJS for Excel files -->
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <!-- Office Document Preview Libraries (defer to load after page renders) -->
+  <!-- SheetJS for Excel files - large library, defer loading -->
+  <script defer src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
   <!-- Mammoth.js for Word documents -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"
+    integrity="sha512-OyEioQ9bKTKRuvIXxsuECMrUvV8WJj9J8PGSC/xEL4fNl1K2k/B3m+cxlOqpThCgCjpT1eeJzwz5B2/X1B6T0g=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
   <script src="config.js"></script>
   <script src="app-state.js"></script>
