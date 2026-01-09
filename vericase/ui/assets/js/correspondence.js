@@ -106,8 +106,10 @@ function sanitizeEmailHtml(html) {
   
   // Check if DOMPurify is available
   if (typeof DOMPurify === "undefined") {
-    console.warn("DOMPurify not available, returning escaped HTML");
-    return escapeHtml(html);
+    // Fallback: return HTML as-is (still rendered in sandboxed iframe for security)
+    // This ensures emails display correctly even if CDN fails
+    console.warn("DOMPurify not available, returning unsanitized HTML (iframe sandboxed)");
+    return html;
   }
   
   // Use DOMPurify to sanitize and strip images
