@@ -106,10 +106,16 @@ function sanitizeEmailHtml(html) {
   
   // Check if DOMPurify is available
   if (typeof DOMPurify === "undefined") {
-    // Fallback: return HTML as-is (still rendered in sandboxed iframe for security)
-    // This ensures emails display correctly even if CDN fails
-    console.warn("DOMPurify not available, returning unsanitized HTML (iframe sandboxed)");
-    return html;
+    // Fallback: manually strip image-related content
+    console.warn("DOMPurify not available, using fallback image stripping");
+    // Remove <img> tags and their content
+    let cleaned = html.replace(/<img[^>]*>/gi, "");
+    // Remove <picture>, <source>, <svg>, <object>, <embed> tags
+    cleaned = cleaned.replace(/<(picture|source|svg|object|embed)[^>]*>[\s\S]*?<\/\1>/gi, "");
+    cleaned = cleaned.replace(/<(picture|source|svg|object|embed)[^>]*\/?>/gi, "");
+    // Remove inline style background-image properties
+    cleaned = cleaned.replace(/background(-image)?\s*:\s*[^;]*url\([^)]*\)[^;]*(;|")/gi, "$2");
+    return cleaned;
   }
   
   // Use DOMPurify to sanitize and strip images
@@ -134,7 +140,11 @@ function sanitizeEmailHtml(html) {
     ALLOW_DATA_ATTR: false,
   });
   
-  return clean;
+  // Post-process: strip any remaining background-image in inline styles
+  // (DOMPurify doesn't strip url() from style attributes by default)
+  const stripped = clean.replace(/background(-image)?\s*:\s*[^;]*url\([^)]*\)[^;]*(;|")/gi, "$2");
+  
+  return stripped;
 }
 
 // Get Font Awesome icon class for a file based on extension
@@ -1489,11 +1499,19 @@ window.previewAttachment = async function (
   attachmentId,
   fileName,
 ) {
+  console.log("previewAttachment called:", { evidenceId, attachmentId, fileName });
+  
   const modal = document.getElementById("attachmentPreviewModal");
   const previewContent = document.getElementById("previewContent");
   const previewTitle = document.getElementById("previewTitle");
+  
+  console.log("Modal elements:", { modal: !!modal, previewContent: !!previewContent, previewTitle: !!previewTitle });
+  
   if (!modal || !previewContent || !previewTitle) {
     console.warn("Attachment preview modal is missing from DOM");
+    // Try to load modals dynamically if missing
+    const modalsContainer = document.getElementById("modals-component");
+    console.log("modals-component container:", modalsContainer ? "found" : "not found", modalsContainer?.innerHTML?.substring(0, 100));
     return;
   }
 
@@ -2316,11 +2334,7 @@ function renderEmailDetail(data) {
           td, th {
             padding: 2px 4px;
           }
-          /* Images should fit */
-          img {
-            max-width: 100%;
-            height: auto;
-          }
+          /* Note: img tags are stripped by sanitizeEmailHtml for signature/tracking removal */
           /* Links styling */
           a {
             color: #0563C1;
