@@ -30,8 +30,8 @@ class Settings(BaseSettings):
         default=None,
         description=("MinIO/S3 secret key - MUST be provided via environment variable"),
     )
-    MINIO_BUCKET: str = "vericase-docs"
-    S3_BUCKET: str = "vericase-docs"  # Alias for MINIO_BUCKET
+    MINIO_BUCKET: str = "vericase-data"
+    S3_BUCKET: str = "vericase-data"  # Alias for MINIO_BUCKET
     S3_ENDPOINT: str = "http://minio:9000"  # Alias for MINIO_ENDPOINT
     S3_ACCESS_KEY: str | None = Field(
         default=None,

@@ -1,7 +1,24 @@
 # Correspondence Enterprise UI Review
 
 ## Executive Summary
-The correspondence-enterprise.html interface is a sophisticated email management system with strong visual design and extensive functionality. However, there are opportunities for improvement in accessibility, code organization, and mobile responsiveness.
+`correspondence-enterprise.html` delivers a feature-rich email review surface (AG Grid + detail panel + context actions + AI assist). The UI is visually polished and “enterprise-grade”, but there are still opportunities to improve accessibility, mobile ergonomics, and maintainability.
+
+### Current Page Structure (important context)
+As of the current implementation, `correspondence-enterprise.html` is a **loader page**:
+- Injects the app shell/navigation (`nav-shell.js`)
+- Loads UI fragments from `vericase/ui/components/` (toolbar, grid, panels, modals)
+- Boots the experience via `vericase/ui/assets/js/correspondence.js`
+
+## AI Refinement Handoff (Wizard → Correspondence)
+When the AI Refinement Wizard completes, it routes users to `correspondence-enterprise.html` with `refined=true`. Today:
+
+- **`refined=true` is not consumed** by the correspondence UI JS (no `refined` handling in `assets/js/correspondence.js`), so the flag has no direct behavior impact.
+- The “filtered emails” experience after refinement is achieved indirectly via **default visibility rules**:
+  - The grid uses `POST /api/correspondence/emails/server-side`.
+  - The UI only adds `include_hidden=true` when the user disables the “hide excluded” behavior; by default, excluded/hidden emails remain hidden server-side.
+- **Stats semantics:** the server returns `total` = visible emails and `excludedCount` = hidden delta; the UI updates the stats bar using `data.stats` when `startRow == 0`.
+- **UX recommendation:** if arriving with `refined=true`, show a toast/badge explaining “Refinement applied — some emails were hidden” and how to reveal them.
+- **Potential mismatch:** Smart Filter supports phrases like “show/include excluded” (sets a filter model) but does not toggle `include_hidden`, so users may expect excluded emails to appear and still not see them until they explicitly disable hiding excluded emails.
 
 ---
 
@@ -40,31 +57,18 @@ The correspondence-enterprise.html interface is a sophisticated email management
 
 ### 1. **Code Organization** (High Priority)
 
-**Issues:**
-- 3000+ lines in a single HTML file
-- Mixed inline styles and CSS classes
-- JavaScript embedded in HTML (should be external)
-- Difficult to maintain and test
+**Reality check (current structure):**
+- `correspondence-enterprise.html` is now a lightweight loader page (shell injection + component HTML fragments + external JS).
+- The bulk of UI behavior lives in `vericase/ui/assets/js/correspondence.js` (large monolith; ~5.3k lines).
 
-**Recommendations:**
-```
-correspondence-enterprise/
-├── index.html (structure only)
-├── styles/
-│   ├── base.css
-│   ├── components.css
-│   ├── grid.css
-│   └── modals.css
-├── scripts/
-│   ├── grid-config.js
-│   ├── ai-chat.js
-│   ├── context-panel.js
-│   └── modals.js
-└── components/
-    ├── email-preview.js
-    ├── attachment-viewer.js
-    └── command-palette.js
-```
+**Issues:**
+- Core UI logic is concentrated in one JS file, making it harder to test and safely evolve.
+- There appear to be multiple “correspondence” asset paths (`ui/assets/js/…` vs `ui/scripts/…`, `ui/assets/css/…` vs `ui/styles/…`), increasing the chance of drift.
+
+**Recommendations (future work):**
+- Keep the loader + `components/` fragment approach (it’s already a solid separation for layout).
+- Split `assets/js/correspondence.js` into feature modules (grid, filters, detail panel, context panel, AI chat, modals) and bundle.
+- Choose one canonical location for correspondence assets and delete/redirect the legacy copies.
 
 ### 2. **Accessibility** (High Priority)
 
@@ -423,8 +427,8 @@ Improve expand/collapse experience:
 ## 🔧 Technical Debt
 
 ### High Priority
-1. **Separate CSS into external file** (currently 1000+ lines inline)
-2. **Extract JavaScript into modules** (currently 2000+ lines inline)
+1. **Split / modularize correspondence JS** (`vericase/ui/assets/js/correspondence.js` is large and handles many concerns)
+2. **Consolidate correspondence assets** (avoid drift between `ui/assets/*` and `ui/scripts|styles/*`)
 3. **Add proper error boundaries** (grid crashes affect whole page)
 4. **Implement proper state management** (too many global variables)
 
@@ -494,7 +498,8 @@ The correspondence-enterprise.html interface is **feature-rich and visually poli
 5. 🔵 Visual refinements (nice-to-have enhancements)
 
 **Next Steps:**
-- [ ] Extract CSS and JS into separate files
+- [ ] Split `assets/js/correspondence.js` into modules (or at least isolate major features behind clearer boundaries)
+- [ ] Consolidate correspondence assets (remove drift between `ui/assets/*` and `ui/scripts|styles/*`)
 - [ ] Add ARIA labels and keyboard navigation
 - [ ] Create mobile-responsive breakpoints
 - [ ] Implement proper error boundaries

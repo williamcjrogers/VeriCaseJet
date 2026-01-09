@@ -734,8 +734,7 @@ def startup():
                 getattr(settings, "S3_BUCKET", None),
                 getattr(settings, "S3_PST_BUCKET", None),
                 getattr(settings, "S3_ATTACHMENTS_BUCKET", None),
-                "vericase-docs",
-                "vericase-docs-prod-526015377510",
+                "vericase-data",  # Production AWS bucket
             }
             for b in sorted({b for b in candidate_buckets if b}):
                 ensure_bucket_once(b)
