@@ -50,7 +50,7 @@ from .models import (
     MessageDerived,
 )
 from .config import settings
-from .spam_filter import classify_email, extract_other_project, SpamResult
+from .ai_spam_filter import classify_email_ai_sync, SpamResult
 from .project_scoping import ScopeMatcher, build_scope_matcher
 from .email_threading import build_email_threads, ThreadingStats
 from .email_dedupe import dedupe_emails
@@ -1221,19 +1221,16 @@ class UltimatePSTProcessor:
         - other_project: str | None (detected project name if category is other_projects)
         - is_hidden: bool (should be hidden from correspondence view)
         """
-        # Use the centralized spam classifier
-        result: SpamResult = classify_email(subject, sender_email, body)
-
-        # Extract other_project name if this is an other_projects match
-        other_project: str | None = None
-        if result["category"] == "other_projects":
-            other_project = extract_other_project(subject)
+        # Use the centralized spam classifier (AI Based now)
+        result: SpamResult = classify_email_ai_sync(
+            subject or "", sender_email or "", body or "", self.db
+        )
 
         return {
             "spam_score": result["score"],
             "is_spam": result["is_spam"],
             "spam_reasons": [result["category"]] if result["category"] else [],
-            "other_project": other_project,
+            "other_project": result.get("extracted_entity"),
             "is_hidden": result["is_hidden"],
         }
 

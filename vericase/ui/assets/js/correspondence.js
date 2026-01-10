@@ -2109,7 +2109,7 @@ async function uploadProgramme() {
     if (!response.ok) throw new Error("Upload failed");
 
     const result = await response.json();
-    statusDiv.innerHTML = `<span style="color: green;">Success! Programme uploaded. ID: ${result.id}</span>`;
+    statusDiv.innerHTML = `<span style="color: green;">Success! Programme uploaded. ID: ${escapeHtml(String(result.id))}</span>`;
 
     // Refresh grid to show new data if any linking happened
     setTimeout(() => {
@@ -2118,7 +2118,7 @@ async function uploadProgramme() {
     }, 1500);
   } catch (error) {
     console.error("Upload error:", error);
-    statusDiv.innerHTML = `<span style="color: red;">Error: ${error.message}</span>`;
+    statusDiv.innerHTML = `<span style="color: red;">Error: ${escapeHtml(error.message)}</span>`;
     if (window.VericaseUI) {
       VericaseUI.Toast.error("Failed to upload programme. Please try again.");
     }
@@ -2991,6 +2991,13 @@ window.setViewMode = function (mode) {
 window.toggleFilterDropdown = function () {
   const menu = document.getElementById("filterDropdownMenu");
   const wrapper = document.getElementById("filterDropdown");
+  if (menu) menu.classList.toggle("show");
+  if (wrapper) wrapper.classList.toggle("open");
+};
+
+window.toggleUploadDropdown = function () {
+  const menu = document.getElementById("uploadDropdownMenu");
+  const wrapper = document.getElementById("uploadDropdown");
   if (menu) menu.classList.toggle("show");
   if (wrapper) wrapper.classList.toggle("open");
 };
@@ -5306,7 +5313,7 @@ function initGrid() {
           previewEl.innerHTML = `<div class="context-empty-state"><i class="fas fa-mouse-pointer"></i><p>Select emails for actions</p></div>`;
         } else {
           const items = selected.slice(0, 5).map((r) => {
-            const subj = r.email_subject || "(No subject)";
+            const subj = escapeHtml(r.email_subject || "(No subject)");
             return `<div style="font-size:0.8125rem; padding:0.35rem 0; border-bottom:1px solid var(--border);">${subj}</div>`;
           }).join("");
           const more = selected.length > 5 ? `<div style="font-size:0.8rem; color: var(--text-muted); padding-top:0.5rem;">+${selected.length - 5} more</div>` : "";

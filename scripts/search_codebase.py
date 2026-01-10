@@ -9,6 +9,17 @@ client = QdrantClient(
     api_key=os.getenv("QDRANT_API_KEY", ""),
 )
 
+# Debug logging
+print(
+    "DEBUG: Qdrant URL: https://b5412748-1bf2-4a06-9a94-5ebf25ac2d5f.eu-west-2-0.aws.cloud.qdrant.io"
+)
+api_key = os.getenv("QDRANT_API_KEY")
+print(f"DEBUG: Qdrant API Key present: {bool(api_key)}")
+if api_key:
+    print(f"DEBUG: Qdrant API Key length: {len(api_key)}")
+else:
+    print("DEBUG: Qdrant API Key is MISSING")
+
 model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
 query = "email authentication and user login"
 embedding = list(model.embed([query]))[0]

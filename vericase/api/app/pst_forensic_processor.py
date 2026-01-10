@@ -42,7 +42,7 @@ from .email_normalizer import (
     clean_body_text,
     strip_footer_noise,
 )
-from .spam_filter import classify_email
+from .ai_spam_filter import classify_email_ai_sync
 from .project_scoping import ScopeMatcher, build_scope_matcher
 
 try:
@@ -824,11 +824,16 @@ class ForensicPSTProcessor:
                 self.batch_buffer.append(email_msg)
 
             other_project_label = _detect_other_project()
-            spam_result = classify_email(
-                subject=subject,
-                sender=sender_email_addr or sender_name,
-                body=None,
+            spam_result = classify_email_ai_sync(
+                subject=subject or "",
+                sender=sender_email_addr or sender_name or "",
+                body_preview="",
+                db=self.db,
             )
+
+            # Use AI detection for generic 'other projects' if ScopeMatcher missed it
+            if not other_project_label and spam_result.get("extracted_entity"):
+                other_project_label = spam_result.get("extracted_entity")
 
             # Only short-circuit ingestion for *hidden* spam (high-confidence) and other-project matches.
             # Medium/low-confidence "spam" categories (e.g. out-of-office) should still be ingested so

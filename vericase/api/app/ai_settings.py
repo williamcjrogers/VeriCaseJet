@@ -295,6 +295,28 @@ class AISettings:
             },
         },
         # ------------------------------------------------------------------
+        # AI FILTER - Smart AI-based Spam/Filter (Replacing Regex)
+        # ------------------------------------------------------------------
+        "ai_filter": {
+            "enabled": True,
+            "display_name": "AI Filter",
+            "description": "AI-powered email filtering to detecting spam and low-value content",
+            "category": "filtering",
+            "provider": "gemini",
+            "model": "gemini-2.5-flash-lite",
+            "max_tokens": 500,
+            "temperature": 0.0,
+            "max_duration_seconds": 10,
+            "fallback_chain": [
+                ("bedrock", "amazon.nova-micro-v1:0"),
+                ("openai", "gpt-5-mini"),
+            ],
+            "features": {
+                "spam_detection": True,
+                "marketing_detection": True,
+            },
+        },
+        # ------------------------------------------------------------------
         # AUTO CLASSIFICATION - Document categorization
         # ------------------------------------------------------------------
         "auto_classification": {

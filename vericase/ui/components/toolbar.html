@@ -49,6 +49,21 @@
       <span id="aiQueryStatus" class="ai-query-status"></span>
     </div>
 
+    <!-- Upload Actions -->
+    <div class="toolbar-dropdown" id="uploadDropdown">
+      <button class="btn btn-primary" onclick="toggleUploadDropdown()" title="Upload Data">
+        <i class="fas fa-cloud-upload-alt"></i> Upload
+      </button>
+      <div class="dropdown-menu" id="uploadDropdownMenu">
+        <button class="dropdown-item" onclick="window.location.href='pst-upload.html'; closeAllDropdowns()">
+          <i class="fas fa-envelope"></i> Upload PST (Email)
+        </button>
+        <button class="dropdown-item" onclick="uploadProgramme(); closeAllDropdowns()">
+          <i class="fas fa-project-diagram"></i> Upload Programme
+        </button>
+      </div>
+    </div>
+
     <!-- Essential Filters -->
     <div class="toolbar-dropdown" id="filterDropdown">
       <button class="btn" onclick="toggleFilterDropdown()" title="Filter">
