@@ -547,11 +547,45 @@ async def list_evidence_service(
 ):
     query = db.query(EvidenceItem)
     if not include_hidden:
+        # Filter out evidence items that are directly marked as hidden
         query = query.filter(
             or_(
                 EvidenceItem.meta.is_(None),
                 EvidenceItem.meta.op("->>")("spam").is_(None),
                 EvidenceItem.meta.op("->")("spam").op("->>")("is_hidden") != "true",
+            )
+        )
+        # Also filter out evidence whose source email is hidden/excluded
+        # Use outerjoin so evidence without a source email is still included
+        query = query.outerjoin(
+            EmailMessage, EvidenceItem.source_email_id == EmailMessage.id
+        ).filter(
+            or_(
+                EvidenceItem.source_email_id.is_(None),  # No source email - keep it
+                and_(
+                    # Source email exists but is not hidden
+                    or_(
+                        EmailMessage.meta.is_(None),
+                        EmailMessage.meta.op("->")("spam")
+                        .op("->>")("is_hidden")
+                        .is_(None),
+                        EmailMessage.meta.op("->")("spam").op("->>")("is_hidden")
+                        != "true",
+                    ),
+                    or_(
+                        EmailMessage.meta.is_(None),
+                        EmailMessage.meta.op("->")("spam")
+                        .op("->>")("user_override")
+                        .is_(None),
+                        EmailMessage.meta.op("->")("spam").op("->>")("user_override")
+                        != "hidden",
+                    ),
+                    or_(
+                        EmailMessage.meta.is_(None),
+                        EmailMessage.meta.op("->>")("is_hidden").is_(None),
+                        EmailMessage.meta.op("->>")("is_hidden") != "true",
+                    ),
+                ),
             )
         )
     if search:
@@ -828,11 +862,44 @@ async def get_evidence_server_side_service(
             raise HTTPException(status_code=400, detail="Invalid collection_id format")
     base_query = db.query(EvidenceItem)
     if not include_hidden:
+        # Filter out evidence items that are directly marked as hidden
         base_query = base_query.filter(
             or_(
                 EvidenceItem.meta.is_(None),
                 EvidenceItem.meta.op("->>")("spam").is_(None),
                 EvidenceItem.meta.op("->")("spam").op("->>")("is_hidden") != "true",
+            )
+        )
+        # Also filter out evidence whose source email is hidden/excluded
+        base_query = base_query.outerjoin(
+            EmailMessage, EvidenceItem.source_email_id == EmailMessage.id
+        ).filter(
+            or_(
+                EvidenceItem.source_email_id.is_(None),  # No source email - keep it
+                and_(
+                    # Source email exists but is not hidden
+                    or_(
+                        EmailMessage.meta.is_(None),
+                        EmailMessage.meta.op("->")("spam")
+                        .op("->>")("is_hidden")
+                        .is_(None),
+                        EmailMessage.meta.op("->")("spam").op("->>")("is_hidden")
+                        != "true",
+                    ),
+                    or_(
+                        EmailMessage.meta.is_(None),
+                        EmailMessage.meta.op("->")("spam")
+                        .op("->>")("user_override")
+                        .is_(None),
+                        EmailMessage.meta.op("->")("spam").op("->>")("user_override")
+                        != "hidden",
+                    ),
+                    or_(
+                        EmailMessage.meta.is_(None),
+                        EmailMessage.meta.op("->>")("is_hidden").is_(None),
+                        EmailMessage.meta.op("->>")("is_hidden") != "true",
+                    ),
+                ),
             )
         )
     if project_uuid is not None:
