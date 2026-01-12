@@ -11,8 +11,8 @@
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
     <style>
-        /* === CONTROL CENTRE - COCKPIT LAYOUT === */
-        /* Double-panel "War Room" design with intelligence sidebar */
+        /* === CONTROL CENTRE - PREMIUM SINGLE-COLUMN === */
+        /* Clean layout with letterhead styling */
 
         .app-content {
             background-color: var(--vericase-cream);
@@ -23,137 +23,8 @@
             border-radius: 0;
             box-shadow: none;
             margin: 0;
-            padding: 0;
-            display: flex;
+            padding: 40px 48px;
             min-height: 100vh;
-            overflow: hidden;
-        }
-
-        /* === COCKPIT TWO-PANEL LAYOUT === */
-        .cockpit-stage {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-        }
-
-        .cockpit-main {
-            flex: 1;
-            padding: 48px 60px;
-            overflow-y: auto;
-            border-right: 1px solid var(--border-default);
-            max-width: calc(100% - 380px);
-        }
-
-        /* === INTELLIGENCE PANEL (Right Sidebar) === */
-        .cockpit-intel {
-            width: 380px;
-            min-width: 380px;
-            background: var(--vericase-navy);
-            color: white;
-            display: flex;
-            flex-direction: column;
-            border-left: 4px solid var(--vericase-gold);
-            box-shadow: -20px 0 40px rgba(0, 0, 0, 0.15);
-            z-index: 10;
-        }
-
-        .intel-header {
-            padding: 40px 32px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .intel-header-title {
-            font-family: var(--font-serif);
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: white;
-            margin: 0 0 8px;
-        }
-
-        .intel-header-subtitle {
-            font-size: 0.8125rem;
-            color: rgba(255, 255, 255, 0.7);
-        }
-
-        .intel-header-subtitle strong {
-            color: var(--vericase-gold);
-        }
-
-        .intel-body {
-            flex: 1;
-            padding: 32px;
-            overflow-y: auto;
-        }
-
-        .intel-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 6px;
-            padding: 20px;
-            margin-bottom: 16px;
-        }
-
-        .intel-card-title {
-            color: var(--vericase-gold);
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .intel-card-heading {
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: white;
-            margin-bottom: 4px;
-        }
-
-        .intel-card-text {
-            font-size: 0.8125rem;
-            line-height: 1.5;
-            color: rgba(255, 255, 255, 0.7);
-        }
-
-        .intel-card-text strong {
-            color: white;
-        }
-
-        .btn-gold {
-            background: var(--vericase-gold);
-            color: var(--vericase-navy);
-            border: none;
-            width: 100%;
-            padding: 12px;
-            border-radius: 6px;
-            font-weight: 600;
-            font-size: 0.8125rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            margin-top: 12px;
-            transition: all 0.2s;
-        }
-
-        .btn-gold:hover {
-            background: var(--vericase-gold-light);
-            transform: translateY(-1px);
-        }
-
-        /* Responsive: hide intel panel on smaller screens */
-        @media (max-width: 1200px) {
-            .cockpit-intel {
-                display: none;
-            }
-            .cockpit-main {
-                max-width: 100%;
-                border-right: none;
-            }
         }
 
         /* === HEADER === */
@@ -1798,11 +1669,8 @@
 
 <body>
     <main id="main-content">
-        <div class="cockpit-stage">
-            <!-- Main Content Area -->
-            <div class="cockpit-main">
-                <!-- Dashboard Header -->
-                <header class="dashboard-header">
+        <!-- Dashboard Header -->
+        <header class="dashboard-header">
             <div class="dashboard-greeting">
                 <div class="greeting-kicker">
                     <i class="fas fa-compass vericase-tick" aria-hidden="true"></i>
@@ -2192,61 +2060,6 @@
 
             </section>
         </div>
-            </div><!-- /cockpit-main -->
-
-            <!-- Intelligence Panel (Right Sidebar) -->
-            <aside class="cockpit-intel">
-                <div class="intel-header">
-                    <h2 class="intel-header-title">Active Intelligence</h2>
-                    <p class="intel-header-subtitle">Monitoring <strong>Control Centre</strong> activity</p>
-                </div>
-                <div class="intel-body">
-                    <!-- Priority Alert -->
-                    <div class="intel-card">
-                        <div class="intel-card-title">
-                            <i class="fas fa-circle-exclamation"></i> Getting Started
-                        </div>
-                        <div class="intel-card-heading">Create Your First Workspace</div>
-                        <p class="intel-card-text">
-                            Start by creating a workspace to organize your projects and cases. Workspaces contain all your evidence, correspondence, and team collaboration.
-                        </p>
-                        <button class="btn-gold" type="button" data-action="open-setup">
-                            <i class="fas fa-plus"></i> Create Workspace
-                        </button>
-                    </div>
-
-                    <!-- Quick Actions -->
-                    <div class="intel-card">
-                        <div class="intel-card-title">
-                            <i class="fas fa-bolt"></i> Quick Actions
-                        </div>
-                        <div class="intel-card-text">
-                            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
-                                <a href="master-dashboard.html" style="color: var(--vericase-gold); text-decoration: none; display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                                    <i class="fas fa-columns"></i> Master Dashboard
-                                </a>
-                                <a href="#" style="color: rgba(255,255,255,0.7); text-decoration: none; display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                                    <i class="fas fa-folder-tree"></i> Evidence Vault
-                                </a>
-                                <a href="#" style="color: rgba(255,255,255,0.7); text-decoration: none; display: flex; align-items: center; gap: 8px; padding: 8px 0;">
-                                    <i class="fas fa-envelope-open-text"></i> Correspondence
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Tip -->
-                    <div class="intel-card" style="border-left: 3px solid var(--vericase-gold);">
-                        <div class="intel-card-title">
-                            <i class="fas fa-lightbulb"></i> Tip
-                        </div>
-                        <p class="intel-card-text">
-                            Use the <strong>Quick start guide</strong> button to walk through the setup process step-by-step.
-                        </p>
-                    </div>
-                </div>
-            </aside>
-        </div><!-- /cockpit-stage -->
     </main>
 
     <!-- Interactive Guide Overlay -->
