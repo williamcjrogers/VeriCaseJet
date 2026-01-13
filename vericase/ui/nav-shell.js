@@ -96,16 +96,16 @@
           url: COMMAND_CENTER_PAGE,
         },
         {
-          id: "workspace-hub",
-          label: "Workspace Hub",
-          icon: "fa-layer-group",
-          url: "workspace-hub.html",
-        },
-        {
           id: "dashboard",
           label: "Master Dashboard",
           icon: "fa-th-large",
           url: "master-dashboard.html",
+        },
+        {
+          id: "workspace-hub",
+          label: "Workspace Hub",
+          icon: "fa-layer-group",
+          url: "workspace-hub.html",
         },
       ],
     },

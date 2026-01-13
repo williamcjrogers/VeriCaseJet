@@ -221,6 +221,81 @@
       font-size: 0.625rem;
     }
 
+    /* === QUICK ACTIONS === */
+    .quick-actions-section {
+      margin-bottom: 32px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .quick-actions-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    @media (max-width: 1200px) {
+      .quick-actions-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 600px) {
+      .quick-actions-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .quick-action-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 18px;
+      background: white;
+      border: 1px solid var(--border-default);
+      border-radius: 8px;
+      text-decoration: none;
+      transition: all 0.2s;
+      box-shadow: 2px 2px 0px rgba(15, 23, 42, 0.03);
+    }
+
+    .quick-action-card:hover {
+      border-color: var(--vericase-teal);
+      box-shadow: 4px 4px 0px rgba(15, 23, 42, 0.06);
+      transform: translateY(-2px);
+    }
+
+    .quick-action-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+
+    .quick-action-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .quick-action-title {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: var(--vericase-navy);
+      margin-bottom: 2px;
+    }
+
+    .quick-action-desc {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     /* === MAIN CONTENT LAYOUT === */
     .dashboard-layout {
       display: grid;
@@ -1981,6 +2056,48 @@
       </div>
     </section>
 
+    <!-- Quick Actions -->
+    <section class="quick-actions-section">
+      <div class="quick-actions-grid">
+        <a href="workspace-setup.html" class="quick-action-card">
+          <div class="quick-action-icon" style="background: rgba(31, 111, 120, 0.1); color: var(--vericase-teal);">
+            <i class="fas fa-plus"></i>
+          </div>
+          <div class="quick-action-content">
+            <div class="quick-action-title">New Workspace</div>
+            <div class="quick-action-desc">Create a workspace for a new matter</div>
+          </div>
+        </a>
+        <a href="#" class="quick-action-card" id="quickUploadBtn">
+          <div class="quick-action-icon" style="background: rgba(197, 160, 101, 0.15); color: var(--vericase-gold);">
+            <i class="fas fa-upload"></i>
+          </div>
+          <div class="quick-action-content">
+            <div class="quick-action-title">Upload Documents</div>
+            <div class="quick-action-desc">Add PST files or evidence</div>
+          </div>
+        </a>
+        <a href="ai-copilot.html" class="quick-action-card">
+          <div class="quick-action-icon" style="background: rgba(15, 23, 42, 0.08); color: var(--vericase-navy);">
+            <i class="fas fa-robot"></i>
+          </div>
+          <div class="quick-action-content">
+            <div class="quick-action-title">AI Copilot</div>
+            <div class="quick-action-desc">Ask questions across all cases</div>
+          </div>
+        </a>
+        <a href="admin-users.html" class="quick-action-card">
+          <div class="quick-action-icon" style="background: rgba(120, 113, 108, 0.1); color: #78716C;">
+            <i class="fas fa-users-cog"></i>
+          </div>
+          <div class="quick-action-content">
+            <div class="quick-action-title">Manage Team</div>
+            <div class="quick-action-desc">Add users and set permissions</div>
+          </div>
+        </a>
+      </div>
+    </section>
+
     <!-- Main Layout -->
     <div class="dashboard-layout">
       <!-- Workspaces (Primary Content) - Master-Detail Layout -->
@@ -2016,7 +2133,7 @@
       </section>
 
       <!-- Recent Activity Section -->
-      <section class="activity-section" id="activitySection" style="display: none;">
+      <section class="activity-section" id="activitySection">
         <h2 class="section-title">
           <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
           Recent Activity
@@ -2030,7 +2147,7 @@
       </section>
 
       <!-- KPIs and Urgent Items Section -->
-      <section class="kpis-section" id="kpisSection" style="display: none;">
+      <section class="kpis-section" id="kpisSection">
         <div class="section-row">
           <div class="kpis-column">
             <h2 class="section-title">
@@ -2453,12 +2570,8 @@
         renderWorkspaces(workspacesData);
         console.log("[FLOW] MasterDashboard loaded:", workspacesData.length, "workspaces, context:", getContextSummary());
         
-        // Load recent activity and KPIs (placeholder for now)
-        // These sections will be populated when backend APIs are ready
-        if (workspacesData.length > 0) {
-          document.getElementById("activitySection").style.display = "block";
-          document.getElementById("kpisSection").style.display = "block";
-        }
+        // Activity and KPIs sections are always visible
+        // Data will be populated when backend APIs are ready
       } catch (error) {
         console.error("Dashboard load failed", error);
         document.getElementById("workspaceGrid").innerHTML = `
