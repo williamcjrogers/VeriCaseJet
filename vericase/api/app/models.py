@@ -721,11 +721,11 @@ class Evidence(Base):
     as_planned_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=False), nullable=True
     )
-    as_planned_activity: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    as_planned_activity: Mapped[str | None] = mapped_column(String(255), nullable=True)
     as_built_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=False), nullable=True
     )
-    as_built_activity: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    as_built_activity: Mapped[str | None] = mapped_column(String(255), nullable=True)
     delay_days: Mapped[int | None] = mapped_column(
         Integer, nullable=True, server_default="0"
     )
@@ -1059,6 +1059,7 @@ class WorkspaceKeyword(Base):
         Text, nullable=True
     )  # Comma-separated variations
     is_regex: Mapped[bool] = mapped_column(Boolean, default=False)
+
     workspace: Mapped[Workspace] = relationship("Workspace")
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -1087,6 +1088,7 @@ class WorkspaceTeamMember(Base):
     name: Mapped[str] = mapped_column(String(512), nullable=False)
     email: Mapped[str | None] = mapped_column(String(512), nullable=True)
     organization: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
     workspace: Mapped[Workspace] = relationship("Workspace")
     user: Mapped[User | None] = relationship("User")
     created_at: Mapped[datetime | None] = mapped_column(
@@ -1176,9 +1178,7 @@ class PSTFile(Base):
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True
     )
-    s3_bucket: Mapped[str | None] = mapped_column(
-        String(128), nullable=True
-    )  # Fixed: DB allows NULL
+    s3_bucket: Mapped[str | None] = mapped_column(String(128), nullable=True)
     s3_key: Mapped[str] = mapped_column(String(2048), nullable=False)
     file_size_bytes: Mapped[int | None] = mapped_column(
         "file_size_bytes", BigInteger, nullable=True
@@ -1589,9 +1589,8 @@ class MessageDerived(Base):
     )
     content_hash_phase1: Mapped[str | None] = mapped_column(String(128), nullable=True)
     content_hash_phase2: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    thread_id_header: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    thread_confidence: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    qc_flags: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    dep_uri: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
+
     derived_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -1605,12 +1604,12 @@ class MessageDerived(Base):
         Index("idx_message_derived_raw_id", "raw_id"),
         Index("idx_message_derived_hash_p1", "content_hash_phase1"),
         Index("idx_message_derived_hash_p2", "content_hash_phase2"),
-        Index("idx_message_derived_thread_header", "thread_id_header"),
+        Index("idx_message_derived_dep_uri", "dep_uri"),
     )
 
 
 class AttachmentRaw(Base):
-    """Raw attachment artefact linked to a raw message."""
+    """Raw attachment artefacted linked to a raw message."""
 
     __tablename__ = "attachment_raw"
 
@@ -2351,10 +2350,10 @@ class EvidenceCorrespondenceLink(Base):
 
     # Audit
     linked_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
     )
     verified_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
     )
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -2406,10 +2405,10 @@ class EvidenceRelation(Base):
 
     # Audit
     created_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
     )
     verified_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
     )
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -2452,7 +2451,7 @@ class EvidenceCollectionItem(Base):
 
     # Audit
     added_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
     )
     added_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -2491,7 +2490,7 @@ class EvidenceActivityLog(Base):
 
     # Actor
     user_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
     )
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -2507,9 +2506,9 @@ class EvidenceActivityLog(Base):
     user: Mapped[User | None] = relationship("User")
 
 
-# =============================================================================
+# ==============================================================================
 # Contentious Matters and Heads of Claim Module
-# =============================================================================
+# ==============================================================================
 
 
 class MatterStatus(str, PyEnum):
@@ -2601,7 +2600,7 @@ class ContentiousMatter(Base):
         DateTime(timezone=True), onupdate=func.now()
     )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
     )
 
     # Relationships
@@ -2690,7 +2689,7 @@ class HeadOfClaim(Base):
         DateTime(timezone=True), onupdate=func.now()
     )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
     )
 
     # Relationships
@@ -2763,7 +2762,7 @@ class ItemClaimLink(Base):
         DateTime(timezone=True), onupdate=func.now()
     )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
     )
 
     # Relationships
@@ -2844,7 +2843,7 @@ class ItemComment(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
     )
 
     # Relationships
@@ -2934,11 +2933,13 @@ class CommentReadStatus(Base):
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     claim_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("heads_of_claim.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     last_read_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -2998,9 +2999,9 @@ class UserNotificationPreferences(Base):
     __table_args__ = (Index("idx_notification_prefs_user", "user_id"),)
 
 
-# =============================================================================
+# ==============================================================================
 # AI Refinement Session Storage
-# =============================================================================
+# ==============================================================================
 
 
 class RefinementSessionDB(Base):
@@ -3049,14 +3050,98 @@ class RefinementSessionDB(Base):
     )
 
 
-# =============================================================================
+# ==============================================================================
 # AI Optimization Tracking
-# =============================================================================
+# ==============================================================================
 
 
-# =============================================================================
+class CorpusLearningResult(Base):
+    """
+    Persistent storage for corpus learning results.
+
+    Caches learned corpus profiles to avoid re-learning on every analysis.
+    Invalidated by content_hash when emails change.
+    """
+
+    __tablename__ = "corpus_learning_results"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+
+    # Scope (either project_id OR case_id, not both)
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cases.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
+    # Corpus statistics
+    email_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    learned_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    # Learned data (stored as JSONB for flexibility)
+    entity_distributions: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )  # {persons: [...], organizations: [...], locations: [...]}
+
+    cluster_data: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB, nullable=True
+    )  # List of cluster objects
+
+    corpus_centroid: Mapped[list[float] | None] = mapped_column(
+        JSONB, nullable=True
+    )  # 1024-dim embedding vector
+
+    communication_graph: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )  # {edges: {...}, central_nodes: [...], peripheral_nodes: [...]}
+
+    domain_distribution: Mapped[dict[str, int] | None] = mapped_column(
+        JSONB, nullable=True
+    )  # domain -> email count
+
+    core_domains: Mapped[list[str] | None] = mapped_column(
+        JSONB, nullable=True
+    )  # Top 80% domains
+
+    sentiment_baseline: Mapped[dict[str, float] | None] = mapped_column(
+        JSONB, nullable=True
+    )  # {positive: 0.x, negative: 0.x, ...}
+
+    # Statistics for outlier detection
+    avg_emails_per_sender: Mapped[float | None] = mapped_column(Float, nullable=True)
+    std_emails_per_sender: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Content hash for cache invalidation
+    # If email_ids change, hash changes, cached result is invalidated
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+
+    # Timestamps
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_corpus_learning_project", "project_id"),
+        Index("idx_corpus_learning_case", "case_id"),
+        Index("idx_corpus_learning_hash", "content_hash"),
+    )
+
+
+# ==============================================================================
 # Case Law Intelligence Layer
-# =============================================================================
+# ==============================================================================
 
 
 class CaseLaw(Base):
@@ -3082,7 +3167,7 @@ class CaseLaw(Base):
     )
     judge: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
-    # Storage References
+    # Storage references
     s3_bucket: Mapped[str] = mapped_column(String(128), nullable=False)
     s3_key_raw: Mapped[str] = mapped_column(
         String(2048), nullable=False
@@ -3095,7 +3180,7 @@ class CaseLaw(Base):
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     full_text_preview: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # AI & Processing Status
+    # AI & Processing status
     embedding_status: Mapped[str] = mapped_column(
         String(50), default="pending"
     )  # pending, embedded, failed
@@ -3104,7 +3189,7 @@ class CaseLaw(Base):
     )  # pending, extracted, failed
     kb_ingestion_job_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
-    # Structured Extraction (Pattern Mining)
+    # Structured extraction (pattern mining)
     # Storing as JSONB for flexibility, can be mirrored to OpenSearch
     extracted_analysis: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB, nullable=True
@@ -3181,3 +3266,8 @@ class AIOptimizationEvent(Base):
         Index("idx_ai_opt_provider_model", "provider", "model_id"),
         Index("idx_ai_opt_provider_created", "provider", "created_at"),
     )
+
+
+# =============================================================================
+# Contract Intelligence Models
+# =============================================================================

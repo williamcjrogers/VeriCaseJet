@@ -99,7 +99,7 @@ from .simple_cases import router as simple_cases_router
 from .programmes import router as programmes_router
 from .correspondence.routes import (
     router as correspondence_router,
-)  # PST Analysis endpoints
+)  # PST analysis endpoints
 from .ai_refinement import (
     router as ai_refinement_router,
 )  # Enhanced AI refinement with intelligent questioning
@@ -128,17 +128,15 @@ from .workspaces import router as workspaces_router  # Workspaces API
 from .enhanced_api_routes import (
     aws_router,
 )  # AWS AI Services (Bedrock, Textract, Comprehend, etc.)
-
-try:
-    from .aws_services import get_aws_services  # AWS Services Manager
-except ImportError:
-    get_aws_services = None
 from .ai_models_api import router as ai_models_router  # 2025 AI Models API
 from .ai_optimization import (
     router as ai_optimization_router,
 )  # AI Optimization Tracking
 from .routers.caselaw import router as caselaw_router  # Case Law Intelligence
 from .routers.lex import router as lex_router  # Lex legislation/caselaw API
+from .routers.contract_intelligence import (
+    router as contract_intelligence_router,
+)  # Contract Intelligence API
 
 logger = logging.getLogger(__name__)
 bearer = HTTPBearer(auto_error=False)
@@ -355,8 +353,7 @@ app.include_router(workspaces_router)  # Workspaces API
 app.include_router(ai_optimization_router)  # AI Optimization Tracking
 app.include_router(caselaw_router)  # Case Law Intelligence
 app.include_router(lex_router)  # Lex legislation/caselaw API
-
-# NOTE: unified_router is no longer exported from correspondence.
+app.include_router(contract_intelligence_router)  # Contract Intelligence API
 
 origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 if origins:
@@ -1011,13 +1008,13 @@ def startup():
                                     if callable(default_val):
                                         default = ""  # Skip callable defaults
                                     elif isinstance(default_val, bool):
-                                        default = f"DEFAULT {str(default_val).upper()}"
+                                        default = str(default_val).upper()
                                     elif isinstance(default_val, str):
-                                        default = f"DEFAULT '{default_val}'"
+                                        default = f"'{default_val}'"
                                     else:
-                                        default = f"DEFAULT {default_val}"
+                                        default = str(default_val)
 
-                            sql = f'ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS "{col_name}" {col_type} {default}'
+                            sql = f'ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS "{col_name}" {col_type} {_nullable} {default}'
                             logger.info(f"  Adding column: {table_name}.{col_name}")
                             conn.execute(text(sql))
                             conn.commit()
@@ -2291,7 +2288,7 @@ def list_folders(db: Session = Depends(get_db), user: User = Depends(current_use
                     "name": get_folder_name(folder_path),
                     "parent_path": get_parent_path(folder_path),
                     "document_count": 0,
-                    "is_empty": False,
+                    "is_empty": True,
                     "created_at": None,
                 }
     for (path,) in doc_paths:
@@ -2307,14 +2304,11 @@ def list_folders(db: Session = Depends(get_db), user: User = Depends(current_use
                 "is_empty": True,
                 "created_at": folder.created_at,
             }
-        else:
+        elif not folder_map[folder.path]["created_at"]:
             folder_map[folder.path]["created_at"] = folder.created_at
-    for folder_path in folder_map:
-        if folder_map[folder_path]["document_count"] == 0:
-            folder_map[folder_path]["is_empty"] = True
-    folders = [FolderInfo(**f) for f in folder_map.values()]
-    folders.sort(key=lambda f: f.path)
-    return FolderListResponse(folders=folders)
+    outcomes = [FolderInfo(**v) for k, v in folder_map.items() if v["is_empty"]]
+    outcomes.sort(key=lambda f: f.path)
+    return FolderListResponse(folders=outcomes)
 
 
 # Utility routes

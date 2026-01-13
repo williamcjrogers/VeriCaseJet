@@ -944,6 +944,7 @@ class UltimatePSTProcessor:
                     index_project_emails_semantic,
                     index_case_emails_semantic,
                     apply_spam_filter_batch,
+                    apply_contract_intelligence_batch,
                 )
 
                 if project_id:
@@ -951,11 +952,17 @@ class UltimatePSTProcessor:
                     index_project_emails_semantic.delay(str(project_id))
                     logger.info(f"Queueing spam filter for project {project_id}")
                     apply_spam_filter_batch.delay(project_id=str(project_id))
+                    logger.info(
+                        f"Queueing contract intelligence for project {project_id}"
+                    )
+                    apply_contract_intelligence_batch.delay(project_id=str(project_id))
                 elif case_id:
                     logger.info(f"Queueing semantic indexing for case {case_id}")
                     index_case_emails_semantic.delay(str(case_id))
                     logger.info(f"Queueing spam filter for case {case_id}")
                     apply_spam_filter_batch.delay(case_id=str(case_id))
+                    logger.info(f"Queueing contract intelligence for case {case_id}")
+                    apply_contract_intelligence_batch.delay(case_id=str(case_id))
             except Exception as task_error:
                 logger.warning(f"Failed to queue post-processing tasks: {task_error}")
 
@@ -1471,7 +1478,6 @@ class UltimatePSTProcessor:
         """Auto-tag email with matching keywords."""
         matched: list[Keyword] = []
         search_text = f"{subject or ''} {body_text or ''}"
-        search_text_lower = search_text.lower()
 
         for keyword in keywords:
             keyword_id = str(keyword.id)
@@ -1528,7 +1534,7 @@ class UltimatePSTProcessor:
                     self._keyword_plain_terms_cache[keyword_id] = search_terms
 
                 for term in search_terms:
-                    if term in search_text_lower:
+                    if term in search_text.lower():
                         matched.append(keyword)
                         break
 
@@ -1708,12 +1714,6 @@ class UltimatePSTProcessor:
             date_sent_raw = date_received_raw
         if not date_received_raw and date_sent_raw:
             date_received_raw = date_sent_raw
-
-        # Final fallback to creation time
-        if not date_sent_raw:
-            date_sent_raw = self._safe_get_attr(message, "creation_time", None)
-            if not date_received_raw:
-                date_received_raw = date_sent_raw
 
         # Ensure timezone awareness (UTC)
         if date_sent_raw and date_sent_raw.tzinfo is None:
@@ -2478,7 +2478,7 @@ class UltimatePSTProcessor:
 
         # Inline images with content_id are usually embedded in email body (signatures)
         # BUT: Only filter if they're also small (to preserve genuine embedded diagrams)
-        if content_id and size and size < 100000:  # 100KB threshold for cid: images
+        if content_id and size and size < 500000:  # 500KB threshold for cid: images
             if content_type and content_type.startswith("image/"):
                 logger.debug(f"Filtering inline image: {filename} (cid:{content_id})")
                 return True
@@ -2831,15 +2831,6 @@ class UltimatePSTProcessor:
                         current_value.append(line.strip())
                     elif ":" in line:
                         # New header - check if we found what we're looking for
-                        if (
-                            current_header
-                            and current_header.lower() == header_name.lower()
-                        ):
-                            value = " ".join(current_value)
-                            if value.startswith("<") and value.endswith(">"):
-                                value = value[1:-1]
-                            return value
-                        # Start new header
                         colon_idx = line.index(":")
                         current_header = line[:colon_idx].strip()
                         current_value = [line[colon_idx + 1 :].strip()]
@@ -3042,6 +3033,7 @@ class UltimatePSTProcessor:
                 for addr in parsed:
                     if "@" in addr:
                         return addr.strip().lower()
+
         except Exception:
             pass
 

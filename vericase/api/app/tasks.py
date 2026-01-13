@@ -832,3 +832,148 @@ def link_emails_to_programme_activities_task(
         return {"status": "failed", "error": str(e)}
     finally:
         db.close()
+
+
+@celery_app.task(bind=True, name="apply_contract_intelligence_batch")
+def apply_contract_intelligence_batch(
+    self,
+    project_id: str | None = None,
+    case_id: str | None = None,
+    batch_size: int = 100,
+) -> dict[str, Any]:
+    """
+    Background task to apply contract intelligence to emails.
+
+    Analyzes emails for contract clauses, risks, and entitlements.
+
+    Args:
+        project_id: UUID of the project (optional)
+        case_id: UUID of the case (optional)
+        batch_size: Number of emails to process per batch
+
+    Returns:
+        Dict with analysis statistics
+    """
+    from .db import SessionLocal
+    from .models import EmailMessage, Case
+    from .contract_intelligence.models import ProjectContract
+    from .contract_intelligence.auto_tagger import auto_tagger
+    from sqlalchemy import func
+    import uuid
+
+    entity_type = "project" if project_id else "case"
+    entity_id = project_id or case_id
+
+    if not entity_id:
+        return {"status": "failed", "error": "Must provide project_id or case_id"}
+
+    logger.info(
+        f"Starting contract intelligence analysis for {entity_type} {entity_id}"
+    )
+
+    db = SessionLocal()
+    stats = {
+        "total_emails": 0,
+        "processed": 0,
+        "risks_identified": 0,
+        "entitlements_identified": 0,
+        "errors": 0,
+    }
+
+    try:
+        project_contract = None
+
+        # Build query based on entity type
+        if project_id:
+            base_filter = EmailMessage.project_id == uuid.UUID(project_id)
+            # Find active contract for this project
+            project_contract = (
+                db.query(ProjectContract)
+                .filter(
+                    ProjectContract.project_id == uuid.UUID(project_id),
+                    ProjectContract.is_active == True,
+                )
+                .first()
+            )
+        else:
+            base_filter = EmailMessage.case_id == uuid.UUID(case_id)
+            # Find project from case to get contract
+            case = db.query(Case).get(uuid.UUID(case_id))
+            if case and case.project_id:
+                project_contract = (
+                    db.query(ProjectContract)
+                    .filter(
+                        ProjectContract.project_id == case.project_id,
+                        ProjectContract.is_active == True,
+                    )
+                    .first()
+                )
+
+        if not project_contract:
+            logger.warning(f"No active contract found for {entity_type} {entity_id}")
+            return {"status": "skipped", "reason": "No active contract found"}
+
+        # Get total count
+        total_count = (
+            db.query(func.count(EmailMessage.id)).filter(base_filter).scalar()
+        ) or 0
+
+        stats["total_emails"] = total_count
+        logger.info(f"Found {total_count} emails to analyze for contract intelligence")
+
+        # Process in batches
+        offset = 0
+        while offset < total_count:
+            emails = (
+                db.query(EmailMessage)
+                .filter(base_filter)
+                .order_by(EmailMessage.id)
+                .offset(offset)
+                .limit(batch_size)
+                .all()
+            )
+
+            if not emails:
+                break
+
+            for email in emails:
+                try:
+                    analysis = auto_tagger.analyze_correspondence(
+                        db, email, project_contract
+                    )
+                    if analysis:
+                        stats["processed"] += 1
+                        if analysis.risk_score and analysis.risk_score > 0:
+                            stats["risks_identified"] += 1
+                        if (
+                            analysis.entitlement_score
+                            and analysis.entitlement_score > 0
+                        ):
+                            stats["entitlements_identified"] += 1
+
+                except Exception as e:
+                    logger.warning(f"Failed to analyze email {email.id}: {e}")
+                    stats["errors"] += 1
+
+            offset += batch_size
+
+            # Update task progress
+            progress = int((offset / total_count) * 100)
+            self.update_state(
+                state="PROGRESS",
+                meta={
+                    "current": offset,
+                    "total": total_count,
+                    "percent": progress,
+                    "risks": stats["risks_identified"],
+                },
+            )
+
+        logger.info(f"Contract intelligence analysis complete: {stats}")
+        return {"status": "completed", "stats": stats}
+
+    except Exception as e:
+        logger.exception(f"Contract intelligence analysis failed: {e}")
+        return {"status": "failed", "error": str(e)}
+    finally:
+        db.close()

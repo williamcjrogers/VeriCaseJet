@@ -1,0 +1,1 @@
+{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["arn:aws:iam::526015377510:role/vericase-eks-pod-role"]},"Action":"es:ESHttp*","Resource":"arn:aws:es:eu-west-2:526015377510:domain/vericase-opensearch/*"}]}

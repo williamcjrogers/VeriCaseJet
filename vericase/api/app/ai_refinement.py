@@ -56,6 +56,7 @@ from .models import (
     Keyword,
     User,
     RefinementSessionDB,
+    CorpusLearningResult,
 )
 from .ai_settings import (
     get_ai_api_key,
@@ -2324,19 +2325,21 @@ async def start_ai_analysis(
     """
     Start AI-powered analysis of project or case emails.
 
-    Supports bulk processing of hundreds of thousands of emails:
-    - Set max_emails_to_analyze=0 for unlimited
-    - Set run_in_background=true for async processing (recommended for >10k emails)
-    - Set batch_size to control memory usage (default 10,000)
+    Uses learning-first approach:
+    1. LEARNS from the corpus (entities, clusters, communication graph)
+    2. DETECTS anomalies using learned patterns (not regex)
+    3. SUGGESTS only clear statistical outliers with explanations
 
     Returns a session ID immediately. Poll /session/{session_id} for progress.
     """
+    import asyncio
+
     scope_type, scope_id, profile = _resolve_refinement_scope(
         db, request.project_id, request.case_id
     )
     scope_label = "case" if scope_type == "case" else "project"
 
-    # Get email count to determine processing strategy (excluding spam/hidden/other_project)
+    # Get email count (excluding spam/hidden/other_project)
     email_count = (
         db.query(EmailMessage)
         .filter(_email_scope_filter(scope_type, scope_id))
@@ -2347,13 +2350,6 @@ async def start_ai_analysis(
     if email_count == 0:
         raise HTTPException(400, f"No emails found in {scope_label}")
 
-    # Calculate actual emails to process
-    max_emails = request.max_emails_to_analyze
-    if max_emails <= 0:
-        max_emails = email_count  # Unlimited = process all
-    else:
-        max_emails = min(max_emails, email_count)
-
     # Create session
     session_id = str(uuid.uuid4())
     session = RefinementSession(
@@ -2362,132 +2358,39 @@ async def start_ai_analysis(
         user_id=str(user.id),
         status="analyzing",
         progress={
-            "total_emails": max_emails,
-            "processed_emails": 0,
+            "total_emails": email_count,
             "phase": "initializing",
+            "phase_progress": 0.0,
         },
     )
     _refinement_sessions[session_id] = session
     _save_session_to_db(session, db)
 
-    # Determine if we should run in background
-    use_background = request.run_in_background or max_emails > 10000
+    # Always run learning-first analysis in background
+    logger.info(
+        f"Starting learning-first analysis: {email_count} emails in {scope_label}"
+    )
 
-    if use_background:
-        # Run in background for large datasets
-        logger.info(
-            f"Starting background bulk analysis: {max_emails} emails, "
-            f"batch_size={request.batch_size}"
-        )
-
-        import asyncio
-
-        # Schedule the background task
-        asyncio.create_task(
-            _run_bulk_analysis_background(
-                session_id=session_id,
-                scope_id=scope_id,
-                user_id=str(user.id),
-                include_spam_detection=request.include_spam_detection,
-                include_project_detection=request.include_project_detection,
-                max_emails=max_emails,
-                batch_size=request.batch_size,
-            )
-        )
-
-        return AnalysisResponse(
+    asyncio.create_task(
+        _run_learning_first_analysis(
             session_id=session_id,
-            status="analyzing",
-            message=f"Bulk analysis started for {max_emails:,} emails. Poll /session/{session_id} for progress.",
-            next_questions=[],
-            summary={
-                "total_emails": max_emails,
-                "mode": "background",
-                "batch_size": request.batch_size,
-            },
+            scope_id=scope_id,
+            scope_type=scope_type,
+            user_id=str(user.id),
+            force_relearn=False,
         )
+    )
 
-    # Synchronous processing for smaller datasets
-    try:
-        engine = AIRefinementEngine(db, profile, scope_type=scope_type)
-
-        # Load emails directly for small datasets (excluding spam/hidden/other_project)
-        emails = (
-            db.query(EmailMessage)
-            .filter(_email_scope_filter(scope_type, scope_id))
-            .filter(_exclude_spam_filter(EmailMessage))
-            .order_by(EmailMessage.date_sent.desc())
-            .limit(max_emails)
-            .all()
-        )
-
-        # Run analysis tasks
-        detected_projects: list[DetectedItem] = []
-        detected_spam: list[DetectedItem] = []
-        detected_domains: list[DetectedItem] = []
-        detected_people: list[DetectedItem] = []
-
-        if request.include_project_detection:
-            detected_projects = await engine.analyze_for_other_projects(emails)
-
-        if request.include_spam_detection:
-            detected_spam = await engine.analyze_for_spam(emails)
-
-        detected_domains, detected_people = await engine.analyze_domains_and_people(
-            emails
-        )
-
-        detected_duplicates = await engine.analyze_for_duplicates(emails)
-
-        questions = await engine.generate_intelligent_questions(
-            session,
-            detected_projects,
-            detected_spam,
-            detected_domains,
-            detected_people,
-            detected_duplicates,
-            len(emails),
-        )
-
-        session.analysis_results = {
-            "total_emails": len(emails),
-            "detected_projects": [p.model_dump() for p in detected_projects],
-            "detected_spam": [s.model_dump() for s in detected_spam],
-            "detected_domains": [d.model_dump() for d in detected_domains],
-            "detected_people": [p.model_dump() for p in detected_people],
-            "detected_duplicates": [d.model_dump() for d in detected_duplicates],
-        }
-        session.questions_asked = questions
-        session.status = "awaiting_answers"
-        session.current_stage = (
-            RefinementStage.PROJECT_CROSS_REF
-            if detected_projects
-            else RefinementStage.SPAM_DETECTION
-        )
-
-        _save_session_to_db(session, db)
-
-        return AnalysisResponse(
-            session_id=session_id,
-            status="ready",
-            message=f"Analysis complete. Analyzed {len(emails):,} emails and generated {len(questions)} questions.",
-            next_questions=questions,
-            summary={
-                "total_emails": len(emails),
-                "duplicates_found": len(detected_duplicates),
-                "other_projects_found": len(detected_projects),
-                "spam_sources_found": len(detected_spam),
-                "unknown_domains": len(detected_domains),
-                "unknown_people": len(detected_people),
-            },
-        )
-
-    except Exception as e:
-        logger.exception(f"AI analysis failed: {e}")
-        session.status = "failed"
-        session.error_message = str(e)
-        _save_session_to_db(session, db)
-        raise HTTPException(500, f"Analysis failed: {str(e)}")
+    return AnalysisResponse(
+        session_id=session_id,
+        status="analyzing",
+        message=f"Learning-first analysis started for {email_count:,} emails. Poll /session/{session_id} for progress.",
+        next_questions=[],
+        summary={
+            "total_emails": email_count,
+            "mode": "learning_first",
+        },
+    )
 
 
 @router.post("/answer")
@@ -2914,3 +2817,424 @@ async def cancel_session(
         del _refinement_sessions[session_id]
 
     return {"success": True, "message": "Session cancelled"}
+
+
+# =============================================================================
+# Learning-First Refinement (V2) - New Architecture
+# =============================================================================
+
+
+class AnalysisRequestV2(BaseModel):
+    """Request for learning-first analysis."""
+
+    project_id: str | None = None
+    case_id: str | None = None
+    force_relearn: bool = False  # Force re-learning even if cached
+
+
+class AnalysisResponseV2(BaseModel):
+    """Response from learning-first analysis."""
+
+    session_id: str
+    status: str
+    message: str
+    corpus_profile_id: str | None = None
+    detection_summary: dict[str, Any] = Field(default_factory=dict)
+    categories: list[dict[str, Any]] = Field(default_factory=list)
+
+
+def _get_cached_corpus_profile(
+    db: Session,
+    project_id: str | None,
+    case_id: str | None,
+    current_email_hash: str,
+) -> CorpusLearningResult | None:
+    """Check for cached corpus learning result."""
+    query = db.query(CorpusLearningResult)
+
+    if case_id:
+        query = query.filter(CorpusLearningResult.case_id == case_id)
+    elif project_id:
+        query = query.filter(CorpusLearningResult.project_id == project_id)
+    else:
+        return None
+
+    # Check if hash matches (cache still valid)
+    result = query.filter(
+        CorpusLearningResult.content_hash == current_email_hash
+    ).first()
+
+    return result
+
+
+def _save_corpus_profile(
+    db: Session,
+    profile,  # CorpusProfile from corpus_learning.py
+) -> CorpusLearningResult:
+    """Save corpus learning result to database."""
+
+    # Check if exists
+    existing = (
+        db.query(CorpusLearningResult)
+        .filter(
+            CorpusLearningResult.project_id == profile.project_id
+            if profile.project_id
+            else CorpusLearningResult.case_id == profile.case_id
+        )
+        .first()
+    )
+
+    if existing:
+        # Update existing
+        existing.email_count = profile.email_count
+        existing.learned_at = profile.learned_at
+        existing.entity_distributions = profile.entity_distribution.to_dict()
+        existing.cluster_data = [c.to_dict() for c in profile.clusters]
+        existing.corpus_centroid = profile.corpus_centroid
+        existing.communication_graph = profile.communication_graph.to_dict()
+        existing.domain_distribution = profile.domain_counts
+        existing.core_domains = profile.core_domains
+        existing.sentiment_baseline = profile.sentiment_baseline.to_dict()
+        existing.avg_emails_per_sender = profile.avg_emails_per_sender
+        existing.std_emails_per_sender = profile.std_emails_per_sender
+        existing.content_hash = profile.content_hash
+        db.commit()
+        return existing
+    else:
+        # Create new
+        import uuid as uuid_module
+
+        result = CorpusLearningResult(
+            id=uuid_module.uuid4(),
+            project_id=(
+                uuid_module.UUID(profile.project_id) if profile.project_id else None
+            ),
+            case_id=uuid_module.UUID(profile.case_id) if profile.case_id else None,
+            email_count=profile.email_count,
+            learned_at=profile.learned_at,
+            entity_distributions=profile.entity_distribution.to_dict(),
+            cluster_data=[c.to_dict() for c in profile.clusters],
+            corpus_centroid=profile.corpus_centroid,
+            communication_graph=profile.communication_graph.to_dict(),
+            domain_distribution=profile.domain_counts,
+            core_domains=profile.core_domains,
+            sentiment_baseline=profile.sentiment_baseline.to_dict(),
+            avg_emails_per_sender=profile.avg_emails_per_sender,
+            std_emails_per_sender=profile.std_emails_per_sender,
+            content_hash=profile.content_hash,
+        )
+        db.add(result)
+        db.commit()
+        return result
+
+
+async def _run_learning_first_analysis(
+    session_id: str,
+    scope_id: str,
+    scope_type: str,
+    user_id: str,
+    force_relearn: bool,
+) -> None:
+    """
+    Background task for learning-first analysis.
+
+    Phase 1: Learn corpus (Comprehend NER, embeddings, clustering)
+    Phase 2: Detect anomalies using learned patterns
+    Phase 3: Generate smart suggestions with explanations
+    """
+    import time
+    from .db import SessionLocal
+    from .corpus_learning import CorpusLearningEngine
+    from .intelligent_detection import IntelligentDetectionEngine
+    from .smart_suggestions import SmartSuggestionEngine
+
+    db = SessionLocal()
+
+    try:
+        session = _refinement_sessions.get(session_id)
+        if not session:
+            logger.error(f"Session {session_id} not found")
+            return
+
+        start_time = time.time()
+
+        # Resolve scope
+        try:
+            resolved_type, resolved_id, profile = _resolve_refinement_scope_from_id(
+                db, scope_id
+            )
+        except HTTPException as exc:
+            session.status = "failed"
+            session.error_message = str(exc.detail)
+            _save_session_to_db(session, db)
+            return
+
+        # Update progress
+        def update_progress(phase: str, progress: float) -> None:
+            session.progress["phase"] = phase
+            session.progress["phase_progress"] = progress
+            session.progress["last_update"] = datetime.now(timezone.utc).isoformat()
+            _save_session_to_db(session, db)
+
+        update_progress("initializing", 0.0)
+
+        # Phase 1: Learn corpus
+        logger.info(f"Starting corpus learning for {scope_type} {scope_id}")
+        update_progress("learning_corpus", 0.0)
+
+        learning_engine = CorpusLearningEngine(db)
+        corpus_profile = await learning_engine.learn_corpus(
+            project_id=scope_id if scope_type == "project" else None,
+            case_id=scope_id if scope_type == "case" else None,
+            progress_callback=lambda phase, prog: update_progress(
+                f"learning:{phase}", prog * 0.5  # Learning is 50% of total
+            ),
+        )
+
+        # Save corpus profile
+        saved_profile = _save_corpus_profile(db, corpus_profile)
+        logger.info(f"Corpus learning complete: {corpus_profile.email_count} emails")
+
+        # Phase 2: Detect anomalies
+        update_progress("detecting_anomalies", 0.5)
+
+        detection_engine = IntelligentDetectionEngine(db, corpus_profile)
+        detection_result = await detection_engine.detect_all()
+
+        logger.info(
+            f"Detection complete: {detection_result.outliers_found} outliers found"
+        )
+
+        # Phase 3: Generate suggestions
+        update_progress("generating_suggestions", 0.8)
+
+        suggestion_engine = SmartSuggestionEngine(db, corpus_profile)
+        detection_result = await suggestion_engine.enhance_detection_result(
+            detection_result
+        )
+        summary = suggestion_engine.generate_summary(detection_result)
+
+        # Update session with results
+        elapsed = time.time() - start_time
+        session.analysis_results = {
+            "corpus_profile_id": str(saved_profile.id),
+            "total_emails": corpus_profile.email_count,
+            "processing_time_seconds": elapsed,
+            "detection_result": detection_result.to_dict(),
+            "summary": summary,
+            "visualization": {
+                "clusters": suggestion_engine.generate_cluster_visualization_data(),
+                "communication_graph": suggestion_engine.generate_communication_graph_data(),
+            },
+        }
+
+        # Generate questions from detection results
+        questions = _generate_questions_from_detection(detection_result, corpus_profile)
+        session.questions_asked = questions
+        session.status = "awaiting_answers"
+        session.progress["phase"] = "complete"
+        session.progress["phase_progress"] = 1.0
+
+        _save_session_to_db(session, db)
+
+        logger.info(
+            f"Learning-first analysis complete: {corpus_profile.email_count} emails "
+            f"in {elapsed:.1f}s, {detection_result.outliers_found} outliers"
+        )
+
+    except Exception as e:
+        logger.exception(f"Learning-first analysis failed: {e}")
+        if session_id in _refinement_sessions:
+            session = _refinement_sessions[session_id]
+            session.status = "failed"
+            session.error_message = str(e)
+            _save_session_to_db(session, db)
+    finally:
+        db.close()
+
+
+def _generate_questions_from_detection(
+    detection,  # DetectionResult
+    corpus_profile,  # CorpusProfile
+) -> list[RefinementQuestion]:
+    """Generate questions from detection results."""
+    questions: list[RefinementQuestion] = []
+
+    # Question about other projects
+    if detection.other_project_candidates:
+        total_emails = sum(c.email_count for c in detection.other_project_candidates)
+        items = [
+            DetectedItem(
+                id=c.id,
+                item_type="other_project",
+                name=c.cluster_label,
+                description=f"Cluster of {c.email_count} emails - {c.cluster_label}",
+                sample_emails=[{"subject": s} for s in c.sample_subjects[:3]],
+                email_count=c.email_count,
+                confidence=(
+                    ConfidenceLevel.HIGH
+                    if c.confidence >= 0.85
+                    else ConfidenceLevel.MEDIUM
+                ),
+                ai_reasoning=f"Z-score: {c.z_score:.1f}, unique orgs: {len(c.unique_organizations)}",
+                recommended_action=c.recommended_action,
+                metadata={"cluster_id": c.cluster_id},
+            )
+            for c in detection.other_project_candidates
+        ]
+
+        questions.append(
+            RefinementQuestion(
+                id=f"q_{uuid.uuid4().hex[:8]}",
+                question_text=f"I identified {len(detection.other_project_candidates)} cluster(s) that appear to be different projects ({total_emails} emails). Exclude these?",
+                question_type="multi_select",
+                context="These clusters have unique organizations and are statistically distinct from your main project.",
+                options=[
+                    {"value": "exclude_all", "label": "Exclude all"},
+                    {"value": "select_individual", "label": "Let me select"},
+                    {"value": "keep_all", "label": "Keep all"},
+                ],
+                detected_items=items,
+                priority=1,
+                stage=RefinementStage.PROJECT_CROSS_REF,
+            )
+        )
+
+    # Question about spam
+    if detection.spam_candidates:
+        total_spam = sum(c.email_count for c in detection.spam_candidates)
+        items = [
+            DetectedItem(
+                id=c.id,
+                item_type="spam_newsletter",
+                name=c.sender_email,
+                description=f"Spam from {c.sender_domain} ({c.email_count} emails)",
+                sample_emails=[{"subject": s} for s in c.sample_subjects[:3]],
+                email_count=c.email_count,
+                confidence=(
+                    ConfidenceLevel.HIGH
+                    if c.confidence >= 0.85
+                    else ConfidenceLevel.MEDIUM
+                ),
+                ai_reasoning=f"Peripheral sender, no replies, indicators: {', '.join(c.indicators_found[:2])}",
+                recommended_action=c.recommended_action,
+            )
+            for c in detection.spam_candidates
+        ]
+
+        questions.append(
+            RefinementQuestion(
+                id=f"q_{uuid.uuid4().hex[:8]}",
+                question_text=f"I identified {total_spam} likely spam/newsletter emails from {len(detection.spam_candidates)} senders. Remove these?",
+                question_type="multi_select",
+                context="These senders are peripheral to your main communication and show spam patterns.",
+                options=[
+                    {"value": "exclude_all", "label": f"Remove all {total_spam} spam"},
+                    {"value": "select_individual", "label": "Let me review"},
+                    {"value": "keep_all", "label": "Keep all"},
+                ],
+                detected_items=items,
+                priority=2,
+                stage=RefinementStage.SPAM_DETECTION,
+            )
+        )
+
+    # Question about duplicates
+    if detection.duplicate_groups:
+        total_dups = sum(g.duplicate_count for g in detection.duplicate_groups)
+        items = [
+            DetectedItem(
+                id=g.id,
+                item_type="duplicate_email",
+                name=g.subject or "No subject",
+                description=f"{g.duplicate_count} duplicates of email from {g.sender}",
+                sample_emails=[],
+                email_count=g.duplicate_count + 1,  # Include original
+                confidence=ConfidenceLevel.HIGH,
+                ai_reasoning=f"Level {g.dedupe_level} match (message-id/content hash)",
+                recommended_action="remove_duplicates",
+                metadata={"original_id": g.original_email_id},
+            )
+            for g in detection.duplicate_groups[:20]
+        ]
+
+        questions.append(
+            RefinementQuestion(
+                id=f"q_{uuid.uuid4().hex[:8]}",
+                question_text=f"I found {total_dups} duplicate emails in {len(detection.duplicate_groups)} groups. Remove duplicates?",
+                question_type="multi_select",
+                context="Duplicates identified by message-id and content hash. One copy of each will be kept.",
+                options=[
+                    {
+                        "value": "remove_all",
+                        "label": f"Remove all {total_dups} duplicates",
+                    },
+                    {"value": "select_individual", "label": "Let me review"},
+                    {"value": "keep_all", "label": "Keep all"},
+                ],
+                detected_items=items,
+                priority=3,
+                stage=RefinementStage.FINAL_REVIEW,
+            )
+        )
+
+    return questions
+
+
+@router.post("/analyze-v2", response_model=AnalysisResponseV2)
+async def start_learning_first_analysis(
+    request: AnalysisRequestV2,
+    background_tasks: BackgroundTasks,
+    user: Annotated[User, Depends(current_user)],
+    db: Annotated[Session, Depends(get_db)],
+):
+    """
+    Start learning-first analysis (V2).
+
+    This new approach:
+    1. LEARNS from the corpus first (entities, clusters, communication graph)
+    2. DETECTS anomalies using learned patterns (not regex)
+    3. SUGGESTS only clear statistical outliers with LLM explanations
+
+    Use this instead of /analyze for better, more intelligent refinement.
+    """
+    import asyncio
+
+    scope_type, scope_id, profile = _resolve_refinement_scope(
+        db, request.project_id, request.case_id
+    )
+
+    # Create session
+    session_id = str(uuid.uuid4())
+    session = RefinementSession(
+        id=session_id,
+        project_id=scope_id,
+        user_id=str(user.id),
+        status="analyzing",
+        progress={
+            "phase": "initializing",
+            "phase_progress": 0.0,
+        },
+    )
+    _refinement_sessions[session_id] = session
+    _save_session_to_db(session, db)
+
+    # Run in background
+    asyncio.create_task(
+        _run_learning_first_analysis(
+            session_id=session_id,
+            scope_id=scope_id,
+            scope_type=scope_type,
+            user_id=str(user.id),
+            force_relearn=request.force_relearn,
+        )
+    )
+
+    return AnalysisResponseV2(
+        session_id=session_id,
+        status="analyzing",
+        message="Learning-first analysis started. Poll /session/{session_id} for progress.",
+        corpus_profile_id=None,
+        detection_summary={},
+        categories=[],
+    )

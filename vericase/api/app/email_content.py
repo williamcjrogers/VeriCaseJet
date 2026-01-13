@@ -655,6 +655,23 @@ def select_best_body(
     top_wo_sig, signature = strip_signature(top)
     diag["signature_len"] = len(signature)
 
+    # If the chosen "top" is only a banner/disclaimer (common with Exchange external-email
+    # warnings), later cleaning can reduce it to empty. In those cases, prefer a
+    # banner/boilerplate-stripped version of the *full* body so the UI and indexing
+    # have meaningful content.
+    try:
+        from .email_normalizer import strip_footer_noise as _strip_footer_noise
+
+        top_meaningful = _strip_footer_noise(top_wo_sig).strip()
+        if not top_meaningful:
+            full_meaningful = _strip_footer_noise(full).strip()
+            if full_meaningful and _new_content_score(full_meaningful) > 0:
+                top_wo_sig = full_meaningful
+    except (
+        Exception
+    ):  # pragma: no cover - defensive; selection must remain deterministic
+        pass
+
     return BodySelection(
         selected_source=best_source,
         full_text=full or "",

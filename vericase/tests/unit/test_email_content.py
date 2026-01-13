@@ -30,6 +30,30 @@ class TestEmailContent(unittest.TestCase):
         self.assertIn("Thanks for the update", selection.top_text)
         self.assertEqual(selection.signature_text, "")
 
+    def test_external_email_banner_only_top_falls_back_to_full(self) -> None:
+        # Regression: some mail gateways prepend an EXTERNAL EMAIL banner line.
+        # If reply-splitting hits a header-like marker (e.g. "From:") right after
+        # the banner, top_text can become *only* the banner. Downstream cleaning
+        # strips the banner and produces an empty body_text_clean unless we fall
+        # back to meaningful content from the full body.
+        plain = (
+            "EXTERNAL EMAIL:\n"
+            " Don't click links or open attachments unless the content is expected and known to be safe.\n"
+            "From: Microsoft Teams\n"
+            "Meeting ID: 123 456 789\n"
+            "Passcode: abc123\n"
+        )
+
+        selection = select_best_body(
+            plain_text=plain,
+            html_body=None,
+            rtf_body=None,
+        )
+
+        self.assertIn("Microsoft Teams", selection.top_text)
+        self.assertIn("Meeting ID", selection.top_text)
+        self.assertNotIn("EXTERNAL EMAIL", selection.top_text)
+
     def test_empty_bodies_select_none(self) -> None:
         selection = select_best_body(
             plain_text=None,
