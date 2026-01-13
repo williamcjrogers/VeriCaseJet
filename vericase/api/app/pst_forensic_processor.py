@@ -1176,9 +1176,53 @@ class ForensicPSTProcessor:
 
         try:
             filename = (
-                attachment.get_name() or "attachment_{stats['total_attachments']}"
+                attachment.get_name()
+                or f"attachment_{stats.get('total_attachments', 0)}"
             )
             size = attachment.get_size()
+
+            # Best-effort: try to obtain a content-id from the attachment. pypff's
+            # Python surface varies by build/version, so we probe a few common names.
+            content_id = None
+            for getter_name in (
+                "get_content_id",
+                "get_content_identifier",
+                "get_content_identifier_string",
+                "get_identifier",
+            ):
+                if hasattr(attachment, getter_name):
+                    try:
+                        val = getattr(attachment, getter_name)()
+                        if val:
+                            content_id = str(val)
+                            break
+                    except Exception:
+                        continue
+
+            include_inline = bool(
+                getattr(settings, "PST_INCLUDE_INLINE_ATTACHMENTS", False)
+            )
+
+            # Inline detection: CID images and signature/logo-like small images are noisy.
+            filename_l = (filename or "").lower()
+            is_inline = bool(content_id)
+            if re.match(
+                r"^(image|img)\d{3,}\.(png|jpe?g|gif|bmp|tiff?|webp)$", filename_l
+            ):
+                is_inline = True
+            if re.match(r"^att\d{5,}\.(png|jpe?g|gif|bmp|tiff?|webp)$", filename_l):
+                is_inline = True
+            if any(
+                k in filename_l
+                for k in ("signature", "sig", "logo", "spacer", "tracking")
+            ):
+                is_inline = True
+            # Early skip based on filename/Content-ID alone (fast path).
+            if is_inline and not include_inline:
+                stats["skipped_inline_attachments"] = (
+                    int(stats.get("skipped_inline_attachments", 0)) + 1
+                )
+                return
 
             # Get attachment data
             try:
@@ -1196,6 +1240,21 @@ class ForensicPSTProcessor:
             content_type = (
                 self._detect_content_type(filename, data) or "application/octet-stream"
             )
+
+            # Refine inline detection using content type + size (signature/logo images).
+            if content_type.startswith("image/"):
+                # Many inline signature images are tiny; be conservative but helpful.
+                if size and size <= 300_000:
+                    if any(
+                        k in filename_l
+                        for k in ("signature", "sig", "logo", "image", "img")
+                    ):
+                        is_inline = True
+            if is_inline and not include_inline:
+                stats["skipped_inline_attachments"] = (
+                    int(stats.get("skipped_inline_attachments", 0)) + 1
+                )
+                return
 
             # Check if we've seen this attachment before
             seen_before = file_hash in self.attachment_hashes
@@ -1261,9 +1320,9 @@ class ForensicPSTProcessor:
                 s3_key=s3_key,
                 has_been_ocred=False,
                 attachment_hash=file_hash,
-                is_inline=False,
-                content_id=None,
-                is_duplicate=(file_hash in self.attachment_hashes),
+                is_inline=is_inline,
+                content_id=content_id,
+                is_duplicate=seen_before,
             )
 
             self.batch_buffer.append(attachment_record)

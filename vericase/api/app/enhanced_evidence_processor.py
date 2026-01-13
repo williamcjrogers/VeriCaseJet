@@ -23,6 +23,7 @@ class EnhancedEvidenceProcessor:
         self, evidence_id: str, db: Session
     ) -> Dict[str, Any]:
         """Complete evidence processing pipeline using all AWS services"""
+        evidence: EvidenceItem | None = None
         try:
             # Get evidence item
             evidence = (
@@ -62,6 +63,8 @@ class EnhancedEvidenceProcessor:
             evidence.extracted_metadata = enhanced_metadata
             evidence.extracted_text = full_text
             evidence.processing_status = "ready"
+            evidence.processing_error = None
+            evidence.ocr_completed = True
             evidence.ai_analyzed = True
             evidence.processed_at = datetime.utcnow()
 
@@ -123,6 +126,15 @@ class EnhancedEvidenceProcessor:
 
         except Exception as e:
             logger.error(f"Enhanced evidence processing failed: {e}")
+            try:
+                if evidence is not None:
+                    evidence.processing_status = "error"
+                    evidence.processing_error = str(e)
+                    db.commit()
+            except Exception as persist_exc:
+                logger.warning(
+                    f"Failed to persist evidence processing error for {evidence_id}: {persist_exc}"
+                )
             return {"error": str(e)}
 
     async def process_email_thread(self, thread_id: str, db: Session) -> Dict[str, Any]:
@@ -450,10 +462,17 @@ class EnhancedEvidenceProcessor:
 
             # This would typically upload to S3 in the format expected by Bedrock KB
             logger.info(f"Prepared evidence {evidence.id} for Bedrock KB ingestion")
+            logger.debug(
+                "Bedrock KB document prepared: id=%s title=%s s3=%s",
+                document_data.get("id"),
+                document_data.get("title"),
+                document_data.get("metadata", {}).get("s3_location"),
+            )
 
             # Trigger ingestion job
             await self.aws.ingest_to_knowledge_base(
-                [document_data], self.knowledge_base_id, self.data_source_id
+                kb_id=self.knowledge_base_id,
+                ds_id=self.data_source_id,
             )
 
         except Exception as e:

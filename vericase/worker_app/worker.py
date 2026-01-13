@@ -133,9 +133,38 @@ if settings.USE_TEXTRACT and use_aws:
 else:
     textract = None
 
-# Initialize OpenSearch client with TLS support
+# Initialize OpenSearch client with TLS + (optional) AWS SigV4 signing
+_os_http_auth = None
+try:
+    host = settings.OPENSEARCH_HOST
+    is_aws_host = host.endswith(".es.amazonaws.com") or host.endswith(
+        ".aoss.amazonaws.com"
+    )
+    if use_aws or is_aws_host:
+        try:
+            from requests_aws4auth import AWS4Auth
+
+            region = getattr(settings, "AWS_REGION", "us-east-1")
+            service = "aoss" if host.endswith(".aoss.amazonaws.com") else "es"
+            creds = boto3.Session(region_name=region).get_credentials()
+            if creds is not None:
+                frozen = creds.get_frozen_credentials()
+                _os_http_auth = AWS4Auth(
+                    frozen.access_key,
+                    frozen.secret_key,
+                    region,
+                    service,
+                    session_token=frozen.token,
+                )
+        except Exception as e:
+            logger.warning("Failed to initialize AWS SigV4 auth for OpenSearch: %s", e)
+except Exception:
+    # Best-effort only; worker will continue and OpenSearch features may be unavailable.
+    pass
+
 os_client = OpenSearch(
     hosts=[{"host": settings.OPENSEARCH_HOST, "port": settings.OPENSEARCH_PORT}],
+    http_auth=_os_http_auth,
     http_compress=True,
     use_ssl=settings.OPENSEARCH_USE_SSL,
     verify_certs=settings.OPENSEARCH_VERIFY_CERTS,

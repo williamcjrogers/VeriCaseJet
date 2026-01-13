@@ -56,6 +56,10 @@ let smartFilterLastText = "";
 let emailBodyViewMode = "outlook"; // "outlook" (HTML as Outlook would show), "raw" (full text), or "cleaned" (display)
 let currentEmailDetailData = null; // Store current detail data for toggle
 
+// Column sizing: auto-size by default, but don't stomp on saved views.
+let restoredColumnState = false;
+let didInitialAutoSize = false;
+
 // Server-side filter state (drives AG Grid SSRM endpoint query params)
 let selectedStakeholderId = null;
 let selectedDomain = null;  // Domain filter (extracted from emails)
@@ -1568,19 +1572,55 @@ window.previewAttachment = async function (
   fileName,
 ) {
   console.log("previewAttachment called:", { evidenceId, attachmentId, fileName });
-  
-  const modal = document.getElementById("attachmentPreviewModal");
-  const previewContent = document.getElementById("previewContent");
-  const previewTitle = document.getElementById("previewTitle");
+
+  let modal = document.getElementById("attachmentPreviewModal");
+  let previewContent = document.getElementById("previewContent");
+  let previewTitle = document.getElementById("previewTitle");
   
   console.log("Modal elements:", { modal: !!modal, previewContent: !!previewContent, previewTitle: !!previewTitle });
   
   if (!modal || !previewContent || !previewTitle) {
-    console.warn("Attachment preview modal is missing from DOM");
-    // Try to load modals dynamically if missing
+    console.warn("Attachment preview modal is missing from DOM - attempting to load modals");
+
     const modalsContainer = document.getElementById("modals-component");
-    console.log("modals-component container:", modalsContainer ? "found" : "not found", modalsContainer?.innerHTML?.substring(0, 100));
-    return;
+    console.log(
+      "modals-component container:",
+      modalsContainer ? "found" : "not found",
+      modalsContainer?.innerHTML?.substring(0, 100),
+    );
+
+    try {
+      if (modalsContainer) {
+        // If the container is empty or missing the preview modal markup, reload it.
+        const hasPreviewModalAlready = !!document.getElementById("attachmentPreviewModal");
+        if (!hasPreviewModalAlready) {
+          if (typeof window.loadComponent === "function") {
+            await window.loadComponent("modals-component", "components/modals.html");
+          } else {
+            const resp = await fetch("components/modals.html");
+            if (resp.ok) {
+              modalsContainer.innerHTML = await resp.text();
+            }
+          }
+          // Yield once so the browser can parse/attach the inserted HTML.
+          await new Promise((r) => setTimeout(r, 0));
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to lazy-load modals component:", e);
+    }
+
+    // Retry DOM lookups after attempted lazy-load.
+    modal = document.getElementById("attachmentPreviewModal");
+    previewContent = document.getElementById("previewContent");
+    previewTitle = document.getElementById("previewTitle");
+
+    if (!modal || !previewContent || !previewTitle) {
+      if (window.VericaseUI?.Toast) {
+        window.VericaseUI.Toast.error("Preview UI failed to load. Please refresh the page.");
+      }
+      return;
+    }
   }
 
   // In the current API, attachments are served as evidence items.
@@ -1596,7 +1636,8 @@ window.previewAttachment = async function (
   // Show modal
   modal.style.display = "flex";
   modal.setAttribute("aria-hidden", "false");
-  previewTitle.textContent = `Preview: ${fileName}`;
+  const titleName = fileName || "Attachment";
+  previewTitle.textContent = `Preview: ${titleName}`;
   previewContent.innerHTML =
     '<div style="text-align: center; padding: 50px;"><div class="spinner"></div><p style="margin-top: 20px; color: #6b7280;">Loading preview and OCR text...</p></div>';
 
@@ -2248,34 +2289,7 @@ const createServerSideDatasource = () => {
           data.rows.length,
           "rows, lastRow:",
           data.lastRow,
-          "stats:",
-          data.stats,
         );
-
-        // Update statistics on first load
-        if (params.request.startRow === 0 && data.stats) {
-          console.log("[Grid] Updating stats:", data.stats);
-          document.getElementById("totalEmails").textContent = (
-            data.stats.total || 0
-          ).toLocaleString();
-
-          const excludedEl = document.getElementById("excludedCount");
-          if (excludedEl && data.stats.excludedCount !== undefined) {
-            excludedEl.textContent =
-              data.stats.excludedCount === null
-                ? "-"
-                : (data.stats.excludedCount || 0).toLocaleString();
-          }
-
-          document.getElementById("uniqueThreads").textContent = (
-            data.stats.uniqueThreads || 0
-          ).toLocaleString();
-          document.getElementById("withAttachments").textContent = (
-            data.stats.withAttachments || 0
-          ).toLocaleString();
-          document.getElementById("dateRange").textContent =
-            data.stats.dateRange || "-";
-        }
 
         params.success({
           rowData: data.rows,
@@ -5038,6 +5052,9 @@ function initGrid() {
         const attachments = filterRealAttachments(rawAttachments);
         if (!attachments.length) return '<span style="color: var(--text-muted);">-</span>';
 
+        const isExpanded = Boolean(p.node?.data?._bodyExpanded);
+        const maxCollapsed = 3;
+
         const items = attachments
           .map((a) => ({
             evidenceId: a?.evidenceId || a?.id || "",
@@ -5048,9 +5065,20 @@ function initGrid() {
           }))
           .filter((a) => a.fileName);
 
+        const showCount = isExpanded ? items.length : Math.min(items.length, maxCollapsed);
+        const moreCount = Math.max(0, items.length - showCount);
+        const visible = items.slice(0, showCount);
+
+        const rowId = p.data?.id ? String(p.data.id) : "";
+        const jsRowId = rowId.replace(/'/g, "\\'");
+
+        const moreHtml = (!isExpanded && moreCount > 0 && rowId)
+          ? `<button type="button" class="attachment-grid-more" onclick="toggleBodyCell('${jsRowId}'); event.stopPropagation();" title="Expand row to view all attachments">(+${moreCount} more)</button>`
+          : "";
+
         return `
-          <div class="attachment-grid-list" style="max-height: 120px; overflow: auto; padding-right: 4px;">
-            ${items
+          <div class="attachment-grid-list attachment-grid-list--stacked">
+            ${visible
               .map((item) => {
                 const safeName = escapeHtml(item.fileName);
                 const jsName = String(item.fileName).replace(/'/g, "\\'");
@@ -5069,6 +5097,7 @@ function initGrid() {
                 `;
               })
               .join("")}
+            ${moreHtml}
           </div>
         `;
       },
@@ -5197,9 +5226,10 @@ function initGrid() {
     // v35 Auto-size strategy: Fit columns to grid width on initial load and resize
     // With flex columns, this ensures proportional distribution that fills the viewport
     autoSizeStrategy: {
-      type: "fitGridWidth",
-      defaultMinWidth: 100,
-      defaultMaxWidth: 600,
+      // Prefer content-based sizing for readability (and to avoid expensive reflows on resize).
+      type: "fitCellContents",
+      defaultMinWidth: 90,
+      defaultMaxWidth: 900,
       columnLimits: [
         { colId: "email_date", minWidth: 140, maxWidth: 180 },
         { colId: "email_from", minWidth: 180, maxWidth: 350 },
@@ -5278,6 +5308,7 @@ function initGrid() {
           : null;
         if (activeView) {
           applyGridView(activeView, { toast: false, refresh: false });
+          restoredColumnState = true;
         } else {
           const raw = localStorage.getItem("vc_correspondence_grid_state");
           if (raw && gridApi) {
@@ -5290,11 +5321,22 @@ function initGrid() {
               }));
               // Keep the default column order; only restore widths/visibility/etc.
               gridApi.applyColumnState({ state: sanitized, applyOrder: false });
+              restoredColumnState = true;
             }
           }
         }
       } catch (e) {
         console.warn("Could not restore grid state:", e);
+      }
+
+      // If we restored a saved view/state, keep those widths stable.
+      // (autoSizeStrategy would otherwise re-run and override user-chosen sizes.)
+      if (restoredColumnState) {
+        try {
+          gridApi.setGridOption("autoSizeStrategy", null);
+        } catch {
+          // ignore
+        }
       }
 
       if (gridApi?.getColumns) {
@@ -5343,35 +5385,32 @@ function initGrid() {
     },
 
     onFirstDataRendered: () => {
-      // v35: autoSizeStrategy handles initial column sizing automatically
-      // Re-apply sizing after first data rendered to ensure columns fill viewport
+      // Auto-size columns once by default.
+      // Important: do NOT size-to-fit on every resize; it causes jank and overrides user widths.
+      if (didInitialAutoSize || restoredColumnState) {
+        setContextPanelCollapsed(true);
+        return;
+      }
+      didInitialAutoSize = true;
       try {
         if (gridApi) {
-          // First, try to auto-size visible columns based on header + first few rows
-          const allColumnIds = gridApi.getColumns()?.map(col => col.getColId()) || [];
+          const allColumnIds = gridApi.getColumns()?.map((col) => col.getColId()) || [];
           if (allColumnIds.length) {
-            gridApi.autoSizeColumns(allColumnIds, false); // false = skip header
+            // Flex columns fight auto-sizing; clear flex so content widths stick.
+            const state = allColumnIds.map((colId) => ({ colId, flex: null }));
+            gridApi.applyColumnState({ state, applyOrder: false });
+            // Size based on header + currently rendered rows (fast; avoids scanning whole dataset).
+            gridApi.autoSizeColumns(allColumnIds, false);
           }
-          // Then fit to grid width to fill remaining space
-          setTimeout(() => {
-            if (gridApi) gridApi.sizeColumnsToFit();
-          }, 100);
         }
       } catch (e) {
-        console.warn("Could not size columns:", e);
+        console.warn("Could not auto-size columns:", e);
       }
       // Keep Quick Actions collapsed unless explicitly opened.
       setContextPanelCollapsed(true);
     },
     onGridSizeChanged: () => {
-      // Re-fit columns when grid container size changes (window resize, panel toggle, etc.)
-      if (gridApi) {
-        try {
-          gridApi.sizeColumnsToFit();
-        } catch (e) {
-          // Ignore - grid may be in transition
-        }
-      }
+      // Intentionally no-op: keep user/auto-sized widths stable to avoid scroll jank.
     },
     onSelectionChanged: () => {
       const selected = gridApi ? gridApi.getSelectedRows() : [];

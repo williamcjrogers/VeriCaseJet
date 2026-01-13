@@ -171,14 +171,50 @@ class Settings(BaseSettings):
         if not self.S3_SECRET_KEY:
             self.S3_SECRET_KEY = self.MINIO_SECRET_KEY
 
+        # Normalize OpenSearch endpoint settings.
+        # Accept either:
+        #   OPENSEARCH_URL=https://domain:443
+        #   OPENSEARCH_HOST=https://domain:443
+        #   OPENSEARCH_HOST=domain, OPENSEARCH_PORT=443
+        try:
+            from urllib.parse import urlparse
+
+            raw = (self.OPENSEARCH_URL or self.OPENSEARCH_HOST or "").strip()
+            if raw and "://" in raw:
+                parsed = urlparse(raw)
+                if parsed.hostname:
+                    self.OPENSEARCH_HOST = parsed.hostname
+                if parsed.port:
+                    self.OPENSEARCH_PORT = int(parsed.port)
+                elif parsed.scheme:
+                    self.OPENSEARCH_PORT = (
+                        443 if parsed.scheme.lower() == "https" else 80
+                    )
+                if parsed.scheme:
+                    self.OPENSEARCH_USE_SSL = parsed.scheme.lower() == "https"
+                if parsed.username and not self.OPENSEARCH_USER:
+                    self.OPENSEARCH_USER = parsed.username
+                if parsed.password and not self.OPENSEARCH_PASSWORD:
+                    self.OPENSEARCH_PASSWORD = parsed.password
+        except Exception:
+            # Keep settings as-is; OpenSearch will be disabled/unavailable if misconfigured.
+            pass
+
         return self
 
     # OpenSearch settings
+    # NOTE: Some environments provide a full URL (https://domain:443). We accept
+    # either hostname or URL and normalize it in ensure_required_credentials.
+    OPENSEARCH_URL: str | None = None
     OPENSEARCH_HOST: str = "opensearch"
     OPENSEARCH_PORT: int = 9200
     OPENSEARCH_USE_SSL: bool = False
     OPENSEARCH_VERIFY_CERTS: bool = False
     OPENSEARCH_INDEX: str = "documents"
+
+    # Optional basic auth (typically local/dev OpenSearch).
+    OPENSEARCH_USER: str | None = None
+    OPENSEARCH_PASSWORD: str | None = None
 
     # Other services
     REDIS_URL: str = "redis://redis:6379/0"

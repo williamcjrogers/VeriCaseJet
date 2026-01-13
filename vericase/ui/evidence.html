@@ -2197,7 +2197,7 @@
     function inferCategory(item) {
       if (!item) return null;
 
-      const filename = (item.filename || item.title || "").toLowerCase();
+      const haystack = `${item.filename || ""} ${item.title || ""}`.toLowerCase();
       const evidenceType = (item.evidence_type || "").toLowerCase();
       const mimeType = (item.mime_type || "").toLowerCase();
 
@@ -2209,7 +2209,7 @@
         for (const {pattern, category} of config.customPatterns) {
           try {
             const regex = new RegExp(pattern, "i");
-            if (regex.test(filename)) {
+            if (regex.test(haystack)) {
               return category;
             }
           } catch (e) {
@@ -2225,7 +2225,7 @@
         for (const {pattern, category} of reliablePatterns) {
           try {
             const regex = new RegExp(pattern, "i");
-            if (regex.test(filename)) {
+            if (regex.test(haystack)) {
               return category;
             }
           } catch (e) {
@@ -2249,7 +2249,7 @@
       ];
 
       for (const {pattern, category} of builtInPatterns) {
-        if (pattern.test(filename)) {
+        if (pattern.test(haystack)) {
           return category;
         }
       }
@@ -3650,6 +3650,9 @@
         if (response.ok) {
           VericaseUI.Toast.success("Subfolder created successfully");
           await loadCollections();
+          if (selectedEvidence) {
+            renderMetadata(selectedEvidence, null);
+          }
         } else {
           const error = await response.json();
           VericaseUI.Toast.error(error.detail || "Failed to create subfolder");
@@ -4213,8 +4216,14 @@
 
       // Filing
       const filingCollections = getFilingCollections();
-      if (filingCollections.length) {
-        html += `
+      const filingOptionsHtml = filingCollections.length
+        ? `<option value="">Select collection...</option>${filingCollections
+            .map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
+            .join("")}`
+        : `<option value="">No collections yet — create one</option>`;
+      const filingDisabled = filingCollections.length ? "" : "disabled";
+
+      html += `
                     <div class="detail-section">
                         <div class="detail-section-header">
                             <i class="fas fa-folder-open"></i>
@@ -4222,20 +4231,17 @@
                         </div>
                         <div class="detail-item">
                             <div class="detail-label">Collection</div>
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                <select id="collectionSelect" class="filter-select" style="flex: 1; min-width: 0;">
-                                    <option value="">Select collection...</option>
-                                    ${filingCollections
-                                      .map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
-                                      .join("")}
+                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                <select id="collectionSelect" class="filter-select" style="flex: 1; min-width: 0;" ${filingDisabled}>
+                                    ${filingOptionsHtml}
                                 </select>
-                                <button class="btn btn-vericase btn-sm" id="assignCollectionBtn">File</button>
-                                <button class="btn btn-ghost btn-sm" id="autoFileBtn">Auto-file</button>
+                                <button class="btn btn-vericase btn-sm" id="assignCollectionBtn" ${filingDisabled}>File</button>
+                                <button class="btn btn-ghost btn-sm" id="autoFileBtn" ${filingDisabled}>Auto-file</button>
+                                <button class="btn btn-ghost btn-sm" type="button" onclick="createSubfolder()">New folder</button>
                             </div>
                         </div>
                     </div>
                 `;
-      }
 
       // Linked Correspondence
       if (detail.correspondence_links?.length > 0) {

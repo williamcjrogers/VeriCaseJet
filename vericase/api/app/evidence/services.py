@@ -389,6 +389,18 @@ async def complete_evidence_upload_service(request, db):
         )
         evidence_item.extracted_metadata = metadata
         evidence_item.metadata_extracted_at = datetime.now()
+        mime_raw = metadata.get("mime_type")
+        if mime_raw is not None:
+            mime = str(mime_raw)
+            evidence_item.mime_type = mime
+            if mime.startswith("image/"):
+                evidence_item.evidence_type = "image"
+            elif mime == "application/pdf":
+                evidence_item.evidence_type = "pdf"
+            elif "word" in mime or mime.endswith(".document"):
+                evidence_item.evidence_type = "word_document"
+            elif "excel" in mime or "spreadsheet" in mime:
+                evidence_item.evidence_type = "spreadsheet"
         if metadata.get("title") and not evidence_item.title:
             evidence_item.title = metadata["title"]
         if metadata.get("author") and not evidence_item.author:
@@ -407,9 +419,19 @@ async def complete_evidence_upload_service(request, db):
                 evidence_item.document_date = datetime.combine(
                     doc_date_val, datetime.min.time()
                 )
+        evidence_item.processing_error = None
         evidence_item.processing_status = "processed"
         db.commit()
     except Exception as e:
+        evidence_item.processing_status = "error"
+        evidence_item.processing_error = str(e)
+        evidence_item.extracted_metadata = {
+            "extraction_status": "error",
+            "extraction_error": str(e),
+            "filename": evidence_item.filename,
+            "mime_type": evidence_item.mime_type,
+        }
+        db.commit()
         logger.error(f"Auto-extraction failed for {evidence_item.id}: {e}")
     logger.info(f"Created evidence item: {evidence_item.id}")
     return {
@@ -508,6 +530,18 @@ async def direct_upload_evidence_service(
         )
         evidence_item.extracted_metadata = metadata
         evidence_item.metadata_extracted_at = datetime.now()
+        mime_raw = metadata.get("mime_type")
+        if mime_raw is not None:
+            mime = str(mime_raw)
+            evidence_item.mime_type = mime
+            if mime.startswith("image/"):
+                evidence_item.evidence_type = "image"
+            elif mime == "application/pdf":
+                evidence_item.evidence_type = "pdf"
+            elif "word" in mime or mime.endswith(".document"):
+                evidence_item.evidence_type = "word_document"
+            elif "excel" in mime or "spreadsheet" in mime:
+                evidence_item.evidence_type = "spreadsheet"
         if metadata.get("title") and not evidence_item.title:
             evidence_item.title = metadata["title"]
         if metadata.get("author") and not evidence_item.author:
@@ -526,9 +560,19 @@ async def direct_upload_evidence_service(
                 evidence_item.document_date = datetime.combine(
                     doc_date_val, datetime.min.time()
                 )
+        evidence_item.processing_error = None
         evidence_item.processing_status = "processed"
         db.commit()
     except Exception as e:
+        evidence_item.processing_status = "error"
+        evidence_item.processing_error = str(e)
+        evidence_item.extracted_metadata = {
+            "extraction_status": "error",
+            "extraction_error": str(e),
+            "filename": evidence_item.filename,
+            "mime_type": evidence_item.mime_type,
+        }
+        db.commit()
         logger.error(f"Auto-extraction failed for {evidence_item.id}: {e}")
     return {
         "id": str(evidence_item.id),
@@ -930,11 +974,18 @@ async def get_evidence_server_side_service(
             EvidenceCollectionItem.evidence_item_id == EvidenceItem.id,
         ).filter(EvidenceCollectionItem.collection_id == collection_uuid)
     filtered_query = _apply_ag_filters(base_query, request.filterModel)
-    total = filtered_query.count()
     sorted_query = _apply_ag_sorting(filtered_query, request.sortModel)
-    block_size = max(request.endRow - request.startRow, 0) or 100
-    page_query = sorted_query.offset(request.startRow).limit(block_size)
+
+    start_row = max(0, int(getattr(request, "startRow", 0) or 0))
+    end_row = max(start_row, int(getattr(request, "endRow", 0) or (start_row + 100)))
+    block_size = max(end_row - start_row, 0) or 100
+
+    page_query = sorted_query.offset(start_row).limit(block_size)
     items = page_query.all()
+    # lastRow semantics:
+    # - return -1 when we don't know the total yet (more rows likely exist)
+    # - return the exact row count only when we've reached the end of the dataset
+    last_row = (start_row + len(items)) if len(items) < block_size else -1
     item_ids = [item.id for item in items]
     source_email_ids = [item.source_email_id for item in items if item.source_email_id]
     correspondence_counts = {}
@@ -1083,17 +1134,7 @@ async def get_evidence_server_side_service(
             }
         )
     stats = {}
-    if request.startRow == 0:
-        stats["total"] = total
-        by_status_raw = (
-            db.query(EvidenceItem.processing_status, func.count(EvidenceItem.id))
-            .group_by(EvidenceItem.processing_status)
-            .all()
-        )
-        stats["by_status"] = {
-            str(row[0]): int(row[1]) for row in by_status_raw if row[0] is not None
-        }
-    return ServerSideEvidenceResponse(rows=rows, lastRow=total, stats=stats)
+    return ServerSideEvidenceResponse(rows=rows, lastRow=last_row, stats=stats)
 
 
 async def get_evidence_download_url_service(evidence_id, db):
@@ -2087,6 +2128,8 @@ async def get_evidence_metadata_service(evidence_id, db, user, extract_fresh):
 
 
 async def get_evidence_preview_service(evidence_id, db, user):
+    import mimetypes
+
     try:
         evidence_uuid = uuid.UUID(evidence_id)
     except ValueError:
@@ -2094,7 +2137,11 @@ async def get_evidence_preview_service(evidence_id, db, user):
     item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
     if not item:
         raise HTTPException(404, "Evidence item not found")
-    mime_type = item.mime_type or "application/octet-stream"
+    stored_mime_type = item.mime_type or "application/octet-stream"
+    guessed_mime_type = mimetypes.guess_type(item.filename)[0]
+    mime_type = stored_mime_type
+    if stored_mime_type == "application/octet-stream" and guessed_mime_type:
+        mime_type = guessed_mime_type
     preview_type = "unsupported"
     preview_url = None
     preview_content = None
@@ -2190,6 +2237,7 @@ async def trigger_metadata_extraction_service(evidence_id, db, user):
         mime_raw = metadata.get("mime_type")
         if mime_raw is not None:
             mime = str(mime_raw)
+            item.mime_type = mime
             if mime.startswith("image/"):
                 item.evidence_type = "image"
             elif mime == "application/pdf":
@@ -2234,16 +2282,41 @@ async def trigger_metadata_extraction_service(evidence_id, db, user):
             if parties:
                 item.extracted_parties = _merge_parties(item.extracted_parties, parties)
         item.processing_status = "processed"
+        item.processing_error = None
         db.commit()
+
+        # Optional AWS-enhanced OCR/analysis for PDFs/images (Textract/Comprehend/etc.).
+        # This upgrades evidence from "processed" metadata-only into a real "ready" state
+        # with extracted_text when AWS services are configured.
+        if (
+            settings.USE_TEXTRACT
+            and item.mime_type
+            and (
+                item.mime_type == "application/pdf"
+                or item.mime_type.startswith("image/")
+            )
+        ):
+            try:
+                from ..enhanced_evidence_processor import enhanced_processor
+
+                _ = await enhanced_processor.process_evidence_item(evidence_id, db)
+            except Exception as aws_exc:
+                logger.warning(
+                    f"AWS enhanced evidence processing failed for {evidence_id}: {aws_exc}"
+                )
+
         return {"evidence_id": evidence_id, "status": "completed", "metadata": metadata}
     except Exception as e:
         logger.error(f"Error extracting metadata for {evidence_id}: {e}")
         item.processing_status = "error"
+        item.processing_error = str(e)
         db.commit()
         raise HTTPException(500, f"Metadata extraction failed: {str(e)}")
 
 
 async def get_evidence_thumbnail_service(evidence_id, db, user, size):
+    import mimetypes
+
     try:
         evidence_uuid = uuid.UUID(evidence_id)
     except ValueError:
@@ -2251,7 +2324,11 @@ async def get_evidence_thumbnail_service(evidence_id, db, user, size):
     item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
     if not item:
         raise HTTPException(404, "Evidence item not found")
-    mime_type = item.mime_type or "application/octet-stream"
+    stored_mime_type = item.mime_type or "application/octet-stream"
+    guessed_mime_type = mimetypes.guess_type(item.filename)[0]
+    mime_type = stored_mime_type
+    if stored_mime_type == "application/octet-stream" and guessed_mime_type:
+        mime_type = guessed_mime_type
     size_map = {"small": 64, "medium": 200, "large": 400}
     thumb_size = size_map.get(size, 200)
     if mime_type.startswith("image/"):
@@ -2354,6 +2431,11 @@ async def get_evidence_text_content_service(evidence_id, db, user, max_length):
         except Exception as e:
             raise HTTPException(500, f"Text extraction failed: {str(e)}")
     item.extracted_text = text
+    item.ocr_completed = True
+    if item.processing_status != "error":
+        item.processing_status = "ready"
+        item.processing_error = None
+        item.processed_at = datetime.utcnow()
     db.commit()
     return {
         "evidence_id": evidence_id,

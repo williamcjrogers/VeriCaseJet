@@ -127,36 +127,33 @@ def main() -> int:
             if args.dry_run:
                 continue
 
-            try:
-                # Prefer canonical/clean text, then stored body, then preview.
-                body = (
-                    (email.body_text_clean or "")
-                    or (email.body_text or "")
-                    or (email.body_preview or "")
-                )
+            # Prefer canonical/clean text, then stored body, then preview.
+            body = (
+                (email.body_text_clean or "")
+                or (email.body_text or "")
+                or (email.body_preview or "")
+            )
 
-                index_email_in_opensearch(
-                    email_id=str(email.id),
-                    case_id=(str(email.case_id) if email.case_id else None),
-                    project_id=(str(email.project_id) if email.project_id else None),
-                    thread_id=email.thread_id,
-                    thread_group_id=email.thread_group_id,
-                    message_id=email.message_id,
-                    subject=email.subject or "",
-                    body_text=body,
-                    sender_email=email.sender_email or "",
-                    sender_name=email.sender_name or "",
-                    recipients=email.recipients_to or [],
-                    date_sent=(
-                        email.date_sent.isoformat() if email.date_sent else None
-                    ),
-                    has_attachments=bool(email.has_attachments),
-                    matched_stakeholders=email.matched_stakeholders or [],
-                    matched_keywords=email.matched_keywords or [],
-                    body_text_clean=email.body_text_clean,
-                    content_hash=email.content_hash,
-                )
-            except Exception:
+            ok = index_email_in_opensearch(
+                email_id=str(email.id),
+                case_id=(str(email.case_id) if email.case_id else None),
+                project_id=(str(email.project_id) if email.project_id else None),
+                thread_id=email.thread_id,
+                thread_group_id=email.thread_group_id,
+                message_id=email.message_id,
+                subject=email.subject or "",
+                body_text=body,
+                sender_email=email.sender_email or "",
+                sender_name=email.sender_name or "",
+                recipients=email.recipients_to or [],
+                date_sent=(email.date_sent.isoformat() if email.date_sent else None),
+                has_attachments=bool(email.has_attachments),
+                matched_stakeholders=email.matched_stakeholders or [],
+                matched_keywords=email.matched_keywords or [],
+                body_text_clean=email.body_text_clean,
+                content_hash=email.content_hash,
+            )
+            if not ok:
                 failures += 1
 
             if processed % 1000 == 0:

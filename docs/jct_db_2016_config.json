@@ -1,0 +1,159 @@
+{
+  "contract_type": "JCT Design and Build 2016",
+  "version": "1.0",
+  "description": "JCT Design and Build Contract 2016 configuration for VeriCase intelligence layer",
+  "clauses": {
+    "2.26.3": {
+      "title": "Exceptionally Adverse Weather Conditions",
+      "keywords": ["weather", "adverse weather", "exceptional weather", "rain", "snow", "storm", "flood", "temperature", "wind"],
+      "risk_level": "medium",
+      "entitlement_type": "extension_of_time",
+      "relevance": 0.9,
+      "description": "Exceptionally adverse weather conditions that could not reasonably have been foreseen"
+    },
+    "2.26.8": {
+      "title": "Inability to Secure Labour",
+      "keywords": ["labour", "workforce", "staff", "personnel", "unavailable", "shortage", "strike", "industrial action"],
+      "risk_level": "high",
+      "entitlement_type": "extension_of_time",
+      "relevance": 0.8,
+      "description": "Inability to secure labour that could not reasonably have been foreseen"
+    },
+    "2.26.9": {
+      "title": "Inability to Secure Goods and Materials",
+      "keywords": ["materials", "goods", "supplies", "delivery", "shortage", "unavailable", "supply chain", "procurement"],
+      "risk_level": "high",
+      "entitlement_type": "extension_of_time",
+      "relevance": 0.85,
+      "description": "Inability to secure goods and materials that could not reasonably have been foreseen"
+    },
+    "2.26.10": {
+      "title": "Delay by Statutory Undertaker",
+      "keywords": ["statutory undertaker", "utility", "water", "gas", "electricity", "telecom", "council", "local authority"],
+      "risk_level": "medium",
+      "entitlement_type": "extension_of_time",
+      "relevance": 0.7,
+      "description": "Delay by statutory undertaker in executing work not forming part of the contract"
+    },
+    "2.26.11": {
+      "title": "Force Majeure",
+      "keywords": ["force majeure", "act of god", "war", "terrorism", "civil commotion", "epidemic", "pandemic", "government action"],
+      "risk_level": "high",
+      "entitlement_type": "extension_of_time",
+      "relevance": 0.95,
+      "description": "Force majeure events beyond the control of the contractor"
+    },
+    "5.1.2": {
+      "title": "Change to Working Conditions",
+      "keywords": ["change", "working conditions", "access", "restricted access", "site conditions", "working method", "procedure"],
+      "risk_level": "medium",
+      "entitlement_type": "variation",
+      "relevance": 0.75,
+      "description": "Change to working conditions or access restrictions imposed by employer"
+    },
+    "4.7.1": {
+      "title": "Defects Liability Period",
+      "keywords": ["defects", "snagging", "rectification", "warranty", "maintenance", "repair", "defect period", "practical completion"],
+      "risk_level": "low",
+      "entitlement_type": "cost_recovery",
+      "relevance": 0.6,
+      "description": "Defects liability period obligations and rectification requirements"
+    },
+    "4.8.1": {
+      "title": "Payment Applications",
+      "keywords": ["payment", "application", "certificate", "valuation", "interim payment", "final account", "payment notice"],
+      "risk_level": "high",
+      "entitlement_type": "payment",
+      "relevance": 0.9,
+      "description": "Payment application procedures and certification requirements"
+    },
+    "4.12.1": {
+      "title": "Fluctuations",
+      "keywords": ["fluctuations", "price adjustment", "cost increase", "inflation", "material prices", "labour rates", "escalation"],
+      "risk_level": "medium",
+      "entitlement_type": "cost_adjustment",
+      "relevance": 0.7,
+      "description": "Fluctuations clause for price adjustments due to cost increases"
+    },
+    "6.7.1": {
+      "title": "Insurance Requirements",
+      "keywords": ["insurance", "indemnity", "liability", "cover", "policy", "premium", "risk transfer", "professional indemnity"],
+      "risk_level": "high",
+      "entitlement_type": "compliance",
+      "relevance": 0.8,
+      "description": "Insurance requirements and indemnity provisions"
+    },
+    "8.7.1": {
+      "title": "Termination",
+      "keywords": ["termination", "default", "breach", "insolvency", "bankruptcy", "winding up", "repudiation", "contract end"],
+      "risk_level": "critical",
+      "entitlement_type": "termination",
+      "relevance": 0.95,
+      "description": "Termination provisions and procedures"
+    }
+  },
+  "risk_categories": {
+    "time_related": ["2.26.3", "2.26.8", "2.26.9", "2.26.10", "2.26.11"],
+    "cost_related": ["4.8.1", "4.12.1", "5.1.2"],
+    "compliance_related": ["6.7.1", "4.7.1"],
+    "termination_related": ["8.7.1"]
+  },
+  "entitlement_types": {
+    "extension_of_time": "Time extension for completion date",
+    "variation": "Variation to contract scope or requirements",
+    "payment": "Payment entitlement or certification",
+    "cost_adjustment": "Adjustment to contract sum",
+    "cost_recovery": "Recovery of additional costs",
+    "termination": "Termination rights and procedures",
+    "compliance": "Compliance requirements and obligations"
+  },
+  "semantic_patterns": [
+    {
+      "pattern": "unable to access site|access refused|denied entry",
+      "clause": "5.1.2",
+      "confidence": 0.85,
+      "action": "flag_access_issue"
+    },
+    {
+      "pattern": "exceptional weather|adverse conditions|storm damage|flooding",
+      "clause": "2.26.3",
+      "confidence": 0.9,
+      "action": "flag_weather_event"
+    },
+    {
+      "pattern": "labour shortage|staff unavailable|strike action|industrial dispute",
+      "clause": "2.26.8",
+      "confidence": 0.8,
+      "action": "flag_labour_issue"
+    },
+    {
+      "pattern": "material delay|supply issue|delivery problem|shortage of",
+      "clause": "2.26.9",
+      "confidence": 0.75,
+      "action": "flag_supply_chain"
+    },
+    {
+      "pattern": "payment overdue|certificate delayed|valuation dispute",
+      "clause": "4.8.1",
+      "confidence": 0.7,
+      "action": "flag_payment_issue"
+    }
+  ],
+  "notification_rules": {
+    "high_risk": {
+      "threshold": 0.8,
+      "channels": ["email", "dashboard", "mobile"],
+      "message": "High risk contract clause detected: {clause} - {title}"
+    },
+    "medium_risk": {
+      "threshold": 0.6,
+      "channels": ["dashboard", "mobile"],
+      "message": "Medium risk contract clause detected: {clause} - {title}"
+    },
+    "entitlement": {
+      "threshold": 0.7,
+      "channels": ["email", "dashboard"],
+      "message": "Potential entitlement identified under clause {clause}: {entitlement_type}"
+    }
+  }
+}

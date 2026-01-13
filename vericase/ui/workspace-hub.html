@@ -13,6 +13,36 @@
   <style>
     /* === WORKSPACE HUB - TABBED COMMAND CENTER === */
 
+    /* === BREADCRUMB BAR === */
+    .hub-breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 20px;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    .hub-breadcrumb a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+
+    .hub-breadcrumb a:hover {
+      color: var(--vericase-teal);
+    }
+
+    .hub-breadcrumb .separator {
+      color: var(--gray-300);
+      font-size: 0.75rem;
+    }
+
+    .hub-breadcrumb .current {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
     .app-content {
       background: var(--bg-white);
       border: 1px solid var(--border-default);
@@ -1125,6 +1155,15 @@
 <body>
   <div id="navShell"></div>
   <main class="app-content">
+    <!-- Breadcrumb Navigation -->
+    <nav class="hub-breadcrumb" aria-label="Breadcrumb">
+      <a href="master-dashboard.html"><i class="fas fa-th-large"></i> Master Dashboard</a>
+      <span class="separator"><i class="fas fa-chevron-right"></i></span>
+      <a href="workspace-hub.html">Workspace Hub</a>
+      <span class="separator"><i class="fas fa-chevron-right"></i></span>
+      <span class="current" id="breadcrumbWorkspaceName">Loading...</span>
+    </nav>
+
     <!-- Workspace Header -->
     <header class="workspace-header" id="workspaceHeader">
       <div class="workspace-identity">
@@ -1546,10 +1585,16 @@
     }
 
     function renderHeader() {
-      document.getElementById("workspaceName").textContent = workspaceData?.name || "Unnamed Workspace";
+      const workspaceName = workspaceData?.name || "Unnamed Workspace";
+      document.getElementById("workspaceName").textContent = workspaceName;
       document.getElementById("workspaceCode").textContent = workspaceData?.code || "---";
       if (workspaceData?.contract_type) {
         document.getElementById("workspaceContractType").textContent = `• ${workspaceData.contract_type}`;
+      }
+      // Update breadcrumb
+      const breadcrumbEl = document.getElementById("breadcrumbWorkspaceName");
+      if (breadcrumbEl) {
+        breadcrumbEl.textContent = workspaceName;
       }
     }
 

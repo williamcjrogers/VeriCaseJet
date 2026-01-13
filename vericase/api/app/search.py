@@ -24,16 +24,62 @@ class _OpenSearchClient:
     @staticmethod
     def _create_client():
         try:
-            opensearch_user = getattr(settings, "OPENSEARCH_USER", "admin")
-            opensearch_pass = getattr(settings, "OPENSEARCH_PASSWORD", "admin")
+            host = settings.OPENSEARCH_HOST
+            port = settings.OPENSEARCH_PORT
+
+            # Decide authentication mechanism.
+            # - AWS OpenSearch ("*.es.amazonaws.com" / "*.aoss.amazonaws.com") generally requires SigV4.
+            # - Local docker/dev often uses basic auth (admin/admin).
+            http_auth = None
+
+            is_local = host in {"opensearch", "localhost", "127.0.0.1"}
+            is_aws_host = host.endswith(".es.amazonaws.com") or host.endswith(
+                ".aoss.amazonaws.com"
+            )
+            use_sigv4 = (
+                bool(getattr(settings, "USE_AWS_SERVICES", False)) or is_aws_host
+            )
+
+            if use_sigv4:
+                try:
+                    import boto3
+                    from requests_aws4auth import AWS4Auth
+
+                    region = getattr(settings, "AWS_REGION", None) or getattr(
+                        settings, "AWS_DEFAULT_REGION", None
+                    )
+                    service = "aoss" if host.endswith(".aoss.amazonaws.com") else "es"
+                    session = boto3.Session(region_name=region)
+                    creds = session.get_credentials()
+                    if creds is None:
+                        raise RuntimeError("AWS credentials unavailable for OpenSearch")
+                    frozen = creds.get_frozen_credentials()
+                    http_auth = AWS4Auth(
+                        frozen.access_key,
+                        frozen.secret_key,
+                        region,
+                        service,
+                        session_token=frozen.token,
+                    )
+                except Exception as e:
+                    # Fall back to basic auth for non-AWS or misconfigured environments.
+                    logger.warning(
+                        "Failed to initialize AWS SigV4 auth for OpenSearch; falling back to basic auth: %s",
+                        e,
+                    )
+
+            if http_auth is None:
+                opensearch_user = getattr(settings, "OPENSEARCH_USER", None)
+                opensearch_pass = getattr(settings, "OPENSEARCH_PASSWORD", None)
+                if opensearch_user:
+                    http_auth = (opensearch_user, opensearch_pass or "")
+                elif is_local:
+                    # Local OpenSearch defaults.
+                    http_auth = ("admin", "admin")
 
             return OpenSearch(
-                hosts=[
-                    {"host": settings.OPENSEARCH_HOST, "port": settings.OPENSEARCH_PORT}
-                ],
-                http_auth=(
-                    (opensearch_user, opensearch_pass) if opensearch_user else None
-                ),
+                hosts=[{"host": host, "port": port}],
+                http_auth=http_auth,
                 http_compress=True,
                 use_ssl=settings.OPENSEARCH_USE_SSL,
                 verify_certs=settings.OPENSEARCH_VERIFY_CERTS,
@@ -104,7 +150,10 @@ def index_document(doc):
         "text": doc.get("text", ""),
     }
     client().index(
-        index=settings.OPENSEARCH_INDEX, id=str(doc["id"]), body=body, refresh=True
+        index=settings.OPENSEARCH_INDEX,
+        id=str(doc["id"]),
+        body=body,
+        refresh=True,  # type: ignore[call-arg]
     )
 
 
@@ -150,7 +199,11 @@ def search(
 
 def delete_document(doc_id: str):
     try:
-        client().delete(index=settings.OPENSEARCH_INDEX, id=doc_id, ignore=[404])
+        client().delete(
+            index=settings.OPENSEARCH_INDEX,
+            id=doc_id,
+            ignore=[404],  # type: ignore[call-arg]
+        )
     except NotFoundError:
         return
     except Exception:
@@ -273,7 +326,7 @@ def index_email_in_opensearch(
     matched_keywords: list | None = None,
     body_text_clean: str | None = None,
     content_hash: str | None = None,
-):
+) -> bool:
     """Index email message for full-text search"""
     try:
         email_index = "emails"
@@ -372,6 +425,8 @@ def index_email_in_opensearch(
         }
 
         c.index(index=email_index, id=email_id, body=doc)
+        return True
 
     except Exception as e:
         logger.error(f"Failed to index email {email_id}: {e}")
+        return False

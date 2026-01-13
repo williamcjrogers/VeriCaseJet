@@ -1,0 +1,25 @@
+{
+  "name": "azure-ad-server",
+  "version": "1.0.0",
+  "description": "MCP server for Azure Active Directory operations",
+  "type": "module",
+  "main": "build/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["mcp", "azure", "azure-ad", "microsoft-graph"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@azure/identity": "^4.13.0",
+    "@azure/msal-node": "^3.8.4",
+    "@modelcontextprotocol/sdk": "^1.25.2",
+    "axios": "^1.13.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.7",
+    "typescript": "^5.9.3"
+  }
+}

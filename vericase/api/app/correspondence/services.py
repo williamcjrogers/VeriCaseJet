@@ -1624,29 +1624,9 @@ async def list_emails_server_side_service(
     # Always exclude duplicates/spam/other-project emails from correspondence.
     q = q.filter(build_correspondence_hard_exclusion_filter())
 
-    # Stats queries want access to both total and visible counts.
-    q_all = q
-    q_visible = q.filter(build_correspondence_visibility_filter())
-
     if search:
         search_term = f"%{search}%"
         q = q.filter(
-            or_(
-                EmailMessage.subject.ilike(search_term),
-                EmailMessage.body_text.ilike(search_term),
-                EmailMessage.sender_email.ilike(search_term),
-                EmailMessage.sender_name.ilike(search_term),
-            )
-        )
-        q_all = q_all.filter(
-            or_(
-                EmailMessage.subject.ilike(search_term),
-                EmailMessage.body_text.ilike(search_term),
-                EmailMessage.sender_email.ilike(search_term),
-                EmailMessage.sender_name.ilike(search_term),
-            )
-        )
-        q_visible = q_visible.filter(
             or_(
                 EmailMessage.subject.ilike(search_term),
                 EmailMessage.body_text.ilike(search_term),
@@ -1658,19 +1638,9 @@ async def list_emails_server_side_service(
     # Stakeholder / keyword filters (JSONB arrays of IDs).
     if stakeholder_id:
         q = q.filter(EmailMessage.matched_stakeholders.contains([stakeholder_id]))
-        q_all = q_all.filter(
-            EmailMessage.matched_stakeholders.contains([stakeholder_id])
-        )
-        q_visible = q_visible.filter(
-            EmailMessage.matched_stakeholders.contains([stakeholder_id])
-        )
 
     if keyword_id:
         q = q.filter(EmailMessage.matched_keywords.contains([keyword_id]))
-        q_all = q_all.filter(EmailMessage.matched_keywords.contains([keyword_id]))
-        q_visible = q_visible.filter(
-            EmailMessage.matched_keywords.contains([keyword_id])
-        )
 
     # Domain filter: match emails where domain appears in sender, to, or cc
     if domain:
@@ -1681,8 +1651,6 @@ async def list_emails_server_side_service(
             func.cast(EmailMessage.recipients_cc, String).ilike(domain_pattern),
         )
         q = q.filter(domain_filter)
-        q_all = q_all.filter(domain_filter)
-        q_visible = q_visible.filter(domain_filter)
 
     if not include_hidden:
         q = q.filter(build_correspondence_visibility_filter())
@@ -1921,62 +1889,6 @@ async def list_emails_server_side_service(
     ]
 
     stats: dict[str, Any] = {}
-    if start == 0:
-        total_all = int(q_all.count())
-        total_visible = int(q_visible.count())
-        excluded_count = max(0, total_all - total_visible)
-
-        # Threads (best-effort; some datasets only populate one of these).
-        thread_key = func.coalesce(EmailMessage.thread_group_id, EmailMessage.thread_id)
-        unique_threads = db.query(func.count(func.distinct(thread_key))).select_from(
-            EmailMessage
-        )
-        unique_threads = unique_threads.filter(
-            build_correspondence_hard_exclusion_filter()
-        )
-        if case_uuid:
-            unique_threads = unique_threads.filter(EmailMessage.case_id == case_uuid)
-        if project_uuid:
-            unique_threads = unique_threads.filter(
-                EmailMessage.project_id == project_uuid
-            )
-        unique_threads = unique_threads.filter(
-            or_(EmailMessage.subject.is_(None), ~EmailMessage.subject.like("IPM.%"))
-        )
-        if stakeholder_id:
-            unique_threads = unique_threads.filter(
-                EmailMessage.matched_stakeholders.contains([stakeholder_id])
-            )
-        if keyword_id:
-            unique_threads = unique_threads.filter(
-                EmailMessage.matched_keywords.contains([keyword_id])
-            )
-        if not include_hidden:
-            unique_threads = unique_threads.filter(
-                build_correspondence_visibility_filter()
-            )
-        unique_threads_count = int(unique_threads.scalar() or 0)
-
-        with_attachments_count = int(
-            (q_visible if not include_hidden else q_all)
-            .filter(EmailMessage.has_attachments.is_(True))
-            .count()
-        )
-        dmin, dmax = (
-            (q_visible if not include_hidden else q_all)
-            .with_entities(
-                func.min(EmailMessage.date_sent), func.max(EmailMessage.date_sent)
-            )
-            .first()
-        )
-
-        stats = {
-            "total": total_visible,  # Show visible emails, not all (excluded ones are shown separately)
-            "excludedCount": excluded_count,
-            "uniqueThreads": unique_threads_count,
-            "withAttachments": with_attachments_count,
-            "dateRange": _date_range_to_text(dmin, dmax),
-        }
 
     elapsed = time.perf_counter() - t0
     if elapsed >= 2.0:
@@ -2062,6 +1974,55 @@ def _replace_cid_with_presigned_urls(
     result = re.sub(pattern, replace_cid, html_body, flags=re.IGNORECASE)
 
     return result
+
+
+def _strip_inline_images_from_html(html_body: str | None) -> str | None:
+    """Remove/neutralize inline image references (cid:, data:) from HTML bodies.
+
+    The user experience goal is to avoid pulling through signature logos / embedded images
+    which are noisy and costly. We remove <img> tags pointing at cid: as well as other
+    common inline patterns.
+    """
+    if not html_body:
+        return html_body
+
+    import re
+
+    cleaned = html_body
+
+    # Remove <img ... src="cid:..."> tags entirely (most common case).
+    cleaned = re.sub(
+        r"<img\b[^>]*\bsrc=(['\"])\s*cid:[^'\"]+\1[^>]*>",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+
+    # Neutralize any remaining src/background attributes referencing cid:.
+    cleaned = re.sub(
+        r"\b(src|background)=(['\"])\s*cid:[^'\"]+\2",
+        r"\1=\2\2",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+
+    # Neutralize CSS url(cid:...)
+    cleaned = re.sub(
+        r"url\(\s*cid:[^\)]+\)",
+        "url()",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+
+    # Remove data: images (often inline signatures too)
+    cleaned = re.sub(
+        r"<img\b[^>]*\bsrc=(['\"])\s*data:image/[^'\"]+\1[^>]*>",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+
+    return cleaned
 
 
 async def get_email_detail_service(email_id: str, db: Session):
@@ -2150,10 +2111,10 @@ async def get_email_detail_service(email_id: str, db: Session):
         body_html=full_body_html,
     )
 
-    # Replace cid: references in HTML with presigned S3 URLs for inline images
-    # This enables signature logos and embedded images to display in Outlook view mode
-    full_body_html_with_images = _replace_cid_with_presigned_urls(
-        full_body_html, email.attachments or []
+    # Do NOT resolve inline CID images to presigned URLs.
+    # Instead, strip them to avoid pulling through embedded logos/signatures.
+    full_body_html_without_inline_images = _strip_inline_images_from_html(
+        full_body_html
     )
 
     return EmailMessageDetail(
@@ -2166,7 +2127,7 @@ async def get_email_detail_service(email_id: str, db: Session):
         date_sent=email.date_sent,
         date_received=email.date_received,
         body_text=body_display or full_body_text,
-        body_html=full_body_html_with_images,
+        body_html=full_body_html_without_inline_images,
         body_text_clean=body_display or email.body_text_clean,
         body_text_full=full_body_text,
         content_hash=email.content_hash,

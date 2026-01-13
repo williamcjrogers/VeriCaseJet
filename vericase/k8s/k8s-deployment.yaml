@@ -97,6 +97,15 @@ spec:
               value: "vericase-data"
             - name: MINIO_ENDPOINT
               value: ""
+            # OpenSearch (AWS managed domain; SigV4 auth handled in app code)
+            - name: OPENSEARCH_HOST
+              value: "vpc-vericase-opensearch-sl2a3zd5dnrbt64bssyocnrofu.eu-west-2.es.amazonaws.com"
+            - name: OPENSEARCH_PORT
+              value: "443"
+            - name: OPENSEARCH_USE_SSL
+              value: "true"
+            - name: OPENSEARCH_VERIFY_CERTS
+              value: "true"
             # Redis/Celery Configuration (Non-cluster ElastiCache with TLS)
             - name: REDIS_URL
               value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_REQUIRED&ssl_ca_certs=/etc/ssl/certs/aws/global-bundle.pem"
@@ -260,6 +269,15 @@ spec:
               value: "vericase-data"
             - name: MINIO_ENDPOINT
               value: ""
+            # OpenSearch (AWS managed domain; SigV4 auth handled in app code)
+            - name: OPENSEARCH_HOST
+              value: "vpc-vericase-opensearch-sl2a3zd5dnrbt64bssyocnrofu.eu-west-2.es.amazonaws.com"
+            - name: OPENSEARCH_PORT
+              value: "443"
+            - name: OPENSEARCH_USE_SSL
+              value: "true"
+            - name: OPENSEARCH_VERIFY_CERTS
+              value: "true"
             # Redis/Celery Configuration (Non-cluster ElastiCache with TLS)
             - name: REDIS_URL
               value: "rediss://master.vericase-celery.dbbgbx.euw2.cache.amazonaws.com:6379/0?ssl_cert_reqs=CERT_REQUIRED&ssl_ca_certs=/etc/ssl/certs/aws/global-bundle.pem"
