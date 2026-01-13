@@ -55,6 +55,9 @@ def reset_admin_password():
             "y",
         }
 
+        logger.info(f"ADMIN_RESET_FORCE={os.getenv('ADMIN_RESET_FORCE', '(not set)')}")
+        logger.info(f"should_reset_password={should_reset_password}")
+
         for email in emails:
             # Check if user exists
             result = session.execute(
