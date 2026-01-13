@@ -23,7 +23,7 @@ metadata:
     component: api
 spec:
   replicas: 2
-  progressDeadlineSeconds: 1200  # 20 min - must exceed startupProbe (15 min)
+  progressDeadlineSeconds: 300  # 5 min
   selector:
     matchLabels:
       app: vericase-api
@@ -48,31 +48,28 @@ spec:
             limits:
               memory: "6Gi"
               cpu: "2000m"
-          # Health checks
+          # Health checks - optimized for fast rollouts
           startupProbe:
             httpGet:
               path: /health
               port: 8000
-            # API startup runs DB checks + (optionally) migrations; allow long startup without liveness killing.
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 90 # 15 minutes
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 36  # 3 minutes max startup
           livenessProbe:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 180
-            periodSeconds: 30
-            timeoutSeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 60
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
           env:
             # AWS Core Configuration
             - name: USE_AWS_SERVICES
