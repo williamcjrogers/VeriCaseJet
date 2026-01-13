@@ -201,7 +201,7 @@ class ContractKnowledgeVector(Base):
     )  # e.g., "text-embedding-ada-002"
     embedding_vector = Column(ARRAY(Float))  # The actual vector embedding
     text_content = Column(Text)  # Original text that was embedded
-    metadata = Column(JSON)  # Additional metadata
+    extra_metadata = Column(JSON)  # Additional metadata
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Index for efficient similarity search
