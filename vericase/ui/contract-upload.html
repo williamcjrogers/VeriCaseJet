@@ -1,0 +1,1386 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VeriCase - Contract Upload</title>
+  <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
+  <link rel="stylesheet" href="assets/global.css" />
+  <link rel="stylesheet" href="brand-styles.css?v=6" />
+  <link rel="stylesheet" href="design-system.css?v=6" />
+  <script src="vericase-ui.js"></script>
+  <script src="nav-shell.js"></script>
+  <script src="security.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      background: var(--bg-primary);
+      min-height: 100vh;
+      color: var(--text-primary);
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 30px 20px;
+    }
+
+    /* Page Header */
+    .page-header {
+      margin-bottom: 32px;
+    }
+
+    .page-header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--vericase-navy);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .page-header p {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: white;
+      border-radius: 12px;
+      padding: 16px 20px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 320px;
+      max-width: 420px;
+      pointer-events: auto;
+      animation: toastSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .toast.hiding {
+      animation: toastSlideOut 0.3s ease-in forwards;
+    }
+
+    @keyframes toastSlideIn {
+      from { transform: translateX(120%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    @keyframes toastSlideOut {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(120%); opacity: 0; }
+    }
+
+    .toast-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .toast.success .toast-icon {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+    }
+
+    .toast.info .toast-icon {
+      background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-navy));
+      color: white;
+    }
+
+    .toast.error .toast-icon {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      color: white;
+    }
+
+    .toast-content {
+      flex: 1;
+    }
+
+    .toast-title {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--vericase-navy);
+    }
+
+    .toast-message {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Upload Section */
+    .upload-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 1024px) {
+      .upload-section {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .upload-card {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
+    .upload-card h2 {
+      font-size: 18px;
+      margin-bottom: 20px;
+      color: var(--vericase-navy);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Contract Selection */
+    .contract-selection {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .form-group label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-group select {
+      padding: 12px 16px;
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      font-size: 14px;
+      color: var(--vericase-navy);
+      background: white;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .form-group select:hover {
+      border-color: var(--vericase-teal);
+    }
+
+    .form-group select:focus {
+      outline: none;
+      border-color: var(--vericase-teal);
+      box-shadow: 0 0 0 3px rgba(var(--vericase-teal-rgb), 0.2);
+    }
+
+    .form-group select:disabled {
+      background: var(--gray-100);
+      color: var(--text-muted);
+      cursor: not-allowed;
+    }
+
+    /* Upload Zone */
+    .upload-zone {
+      border: 2px dashed rgba(var(--vericase-teal-rgb), 0.5);
+      border-radius: 12px;
+      padding: 48px 24px;
+      text-align: center;
+      background: rgba(var(--vericase-teal-rgb), 0.05);
+      transition: all 0.3s;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .upload-zone::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      background: radial-gradient(circle, rgba(var(--vericase-teal-rgb), 0.15), transparent 70%);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      transition: all 0.5s ease;
+      pointer-events: none;
+    }
+
+    .upload-zone:hover::before {
+      width: 300px;
+      height: 300px;
+    }
+
+    .upload-zone:hover {
+      background: rgba(var(--vericase-teal-rgb), 0.1);
+      border-color: rgba(var(--vericase-teal-rgb), 0.8);
+    }
+
+    .upload-zone.dragover {
+      background: rgba(var(--vericase-teal-rgb), 0.15);
+      border-color: var(--vericase-teal);
+      transform: scale(1.01);
+    }
+
+    .upload-zone.disabled {
+      opacity: 0.5;
+      pointer-events: none;
+      cursor: not-allowed;
+    }
+
+    .upload-zone i {
+      font-size: 48px;
+      color: var(--vericase-teal);
+      margin-bottom: 16px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .upload-zone h3 {
+      font-size: 18px;
+      color: var(--vericase-navy);
+      margin-bottom: 8px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .upload-zone p {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-bottom: 16px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--vericase-teal) 0%, var(--vericase-navy) 100%);
+      color: white;
+      position: relative;
+      z-index: 1;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(var(--vericase-teal-rgb), 0.4);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .file-type-badge {
+      background: rgba(var(--vericase-teal-rgb), 0.2);
+      padding: 6px 14px;
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--vericase-teal);
+      border: 1px solid rgba(var(--vericase-teal-rgb), 0.3);
+      margin-top: 16px;
+      display: inline-block;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Processing Status Card */
+    .status-card {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 16px;
+      padding: 24px;
+      display: none;
+    }
+
+    .status-card.visible {
+      display: block;
+    }
+
+    .status-card h2 {
+      font-size: 18px;
+      margin-bottom: 20px;
+      color: var(--vericase-navy);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-filename {
+      font-size: 14px;
+      color: var(--vericase-navy);
+      font-weight: 500;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-filename i {
+      color: var(--vericase-teal);
+    }
+
+    /* Progress Bar */
+    .progress-container {
+      margin-bottom: 20px;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+
+    .progress-phase {
+      color: var(--text-muted);
+    }
+
+    .progress-percent {
+      font-weight: 600;
+      color: var(--vericase-teal);
+    }
+
+    .progress-bar {
+      height: 8px;
+      background: var(--gray-200);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--vericase-teal), var(--vericase-navy));
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    /* Processing Phases */
+    .phases-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .phase-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      background: var(--gray-100);
+      transition: all 0.3s;
+    }
+
+    .phase-item.active {
+      background: rgba(var(--vericase-teal-rgb), 0.1);
+      border-left: 3px solid var(--vericase-teal);
+    }
+
+    .phase-item.complete {
+      background: rgba(16, 185, 129, 0.1);
+      border-left: 3px solid #10b981;
+    }
+
+    .phase-item.error {
+      background: rgba(239, 68, 68, 0.1);
+      border-left: 3px solid #ef4444;
+    }
+
+    .phase-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      background: var(--gray-200);
+      color: var(--text-muted);
+    }
+
+    .phase-item.active .phase-icon {
+      background: var(--vericase-teal);
+      color: white;
+    }
+
+    .phase-item.active .phase-icon i {
+      animation: spin 1s linear infinite;
+    }
+
+    .phase-item.complete .phase-icon {
+      background: #10b981;
+      color: white;
+    }
+
+    .phase-item.error .phase-icon {
+      background: #ef4444;
+      color: white;
+    }
+
+    .phase-info {
+      flex: 1;
+    }
+
+    .phase-info h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--vericase-navy);
+    }
+
+    .phase-info p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* Results Section */
+    .results-card {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 16px;
+      margin-top: 24px;
+      display: none;
+    }
+
+    .results-card.visible {
+      display: block;
+    }
+
+    .results-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--gray-200);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .results-header h2 {
+      font-size: 18px;
+      color: var(--vericase-navy);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .results-stats {
+      display: flex;
+      gap: 24px;
+    }
+
+    .stat-item {
+      text-align: center;
+    }
+
+    .stat-item .value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--vericase-navy);
+    }
+
+    .stat-item .label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Clauses List */
+    .clauses-list {
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .clause-item {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--gray-200);
+      transition: background 0.2s;
+    }
+
+    .clause-item:hover {
+      background: rgba(var(--vericase-teal-rgb), 0.05);
+    }
+
+    .clause-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    .clause-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .clause-number {
+      font-weight: 700;
+      color: var(--vericase-teal);
+      font-size: 14px;
+    }
+
+    .clause-name {
+      font-weight: 600;
+      color: var(--vericase-navy);
+      font-size: 14px;
+    }
+
+    .risk-badge {
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .risk-low {
+      background: rgba(16, 185, 129, 0.2);
+      color: #059669;
+    }
+
+    .risk-medium {
+      background: rgba(245, 158, 11, 0.2);
+      color: #d97706;
+    }
+
+    .risk-high {
+      background: rgba(239, 68, 68, 0.2);
+      color: #dc2626;
+    }
+
+    .risk-critical {
+      background: rgba(139, 0, 0, 0.2);
+      color: #8b0000;
+    }
+
+    .clause-text {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 8px;
+    }
+
+    .clause-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .clause-tag {
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      background: var(--gray-100);
+      color: var(--text-muted);
+    }
+
+    /* Metadata Section */
+    .metadata-section {
+      padding: 20px 24px;
+      border-top: 1px solid var(--gray-200);
+      background: var(--gray-100);
+    }
+
+    .metadata-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .metadata-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .metadata-item .label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .metadata-item .value {
+      font-size: 14px;
+      color: var(--vericase-navy);
+      font-weight: 500;
+    }
+
+    /* Upload History */
+    .history-card {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 16px;
+      overflow: hidden;
+      margin-top: 24px;
+    }
+
+    .history-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--gray-200);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .history-header h2 {
+      font-size: 16px;
+      color: var(--vericase-navy);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .history-table th,
+    .history-table td {
+      padding: 14px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .history-table th {
+      background: var(--gray-100);
+      font-weight: 600;
+      color: var(--text-muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .history-table tr:hover {
+      background: rgba(var(--vericase-teal-rgb), 0.05);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .status-pending {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+    }
+
+    .status-processing {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+    }
+
+    .status-processing i {
+      animation: spin 1s linear infinite;
+    }
+
+    .status-completed {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+    }
+
+    .status-failed {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+    }
+
+    .no-history {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-muted);
+    }
+
+    .no-history i {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="container">
+    <div class="page-header">
+      <h1><i class="fas fa-file-contract"></i> Contract Upload</h1>
+      <p>Upload and analyze contract documents using AI-powered intelligence</p>
+    </div>
+
+    <div class="upload-section">
+      <!-- Upload Card -->
+      <div class="upload-card">
+        <h2><i class="fas fa-cloud-upload-alt"></i> Upload Contract</h2>
+
+        <div class="contract-selection">
+          <div class="form-group">
+            <label>Contract Family</label>
+            <select id="contractFamily" onchange="onFamilyChange()">
+              <option value="">Select contract family...</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Contract Suite</label>
+            <select id="contractSuite" disabled>
+              <option value="">Select contract suite...</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+          <i class="fas fa-file-pdf"></i>
+          <h3>Drop contract PDF here</h3>
+          <p>or click to browse files</p>
+          <button class="btn btn-primary" id="browseBtn" disabled>
+            <i class="fas fa-folder-open"></i> Browse Files
+          </button>
+          <div class="file-type-badge">PDF Documents Only</div>
+        </div>
+        <input type="file" id="fileInput" accept=".pdf" style="display: none;" onchange="handleFileSelect(event)">
+      </div>
+
+      <!-- Processing Status Card -->
+      <div class="status-card" id="statusCard">
+        <h2><i class="fas fa-cog"></i> Processing Status</h2>
+
+        <div class="status-filename" id="statusFilename">
+          <i class="fas fa-file-pdf"></i>
+          <span>contract.pdf</span>
+        </div>
+
+        <div class="progress-container">
+          <div class="progress-header">
+            <span class="progress-phase" id="progressPhase">Initializing...</span>
+            <span class="progress-percent" id="progressPercent">0%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="phases-list">
+          <div class="phase-item" id="phase-upload">
+            <div class="phase-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+            <div class="phase-info">
+              <h4>Upload</h4>
+              <p>Uploading document to secure storage</p>
+            </div>
+          </div>
+          <div class="phase-item" id="phase-extract">
+            <div class="phase-icon"><i class="fas fa-file-alt"></i></div>
+            <div class="phase-info">
+              <h4>Extract</h4>
+              <p>Extracting text using AWS Textract</p>
+            </div>
+          </div>
+          <div class="phase-item" id="phase-analyze">
+            <div class="phase-icon"><i class="fas fa-brain"></i></div>
+            <div class="phase-info">
+              <h4>Analyze</h4>
+              <p>AI analyzing clauses and risks</p>
+            </div>
+          </div>
+          <div class="phase-item" id="phase-vectorize">
+            <div class="phase-icon"><i class="fas fa-database"></i></div>
+            <div class="phase-info">
+              <h4>Index</h4>
+              <p>Creating embeddings for semantic search</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Card -->
+    <div class="results-card" id="resultsCard">
+      <div class="results-header">
+        <h2><i class="fas fa-check-circle"></i> Analysis Complete</h2>
+        <div class="results-stats">
+          <div class="stat-item">
+            <div class="value" id="totalClauses">0</div>
+            <div class="label">Clauses Found</div>
+          </div>
+          <div class="stat-item">
+            <div class="value" id="highRiskCount">0</div>
+            <div class="label">High Risk</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="metadata-section" id="metadataSection">
+        <div class="metadata-grid" id="metadataGrid"></div>
+      </div>
+
+      <div class="clauses-list" id="clausesList"></div>
+    </div>
+
+    <!-- Upload History -->
+    <div class="history-card">
+      <div class="history-header">
+        <h2><i class="fas fa-history"></i> Recent Uploads</h2>
+        <button class="btn btn-ghost" onclick="loadHistory()">
+          <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+      </div>
+      <div id="historyContent">
+        <div class="no-history">
+          <i class="fas fa-inbox"></i>
+          <p>No contract uploads yet</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Configuration
+    const apiUrl = window.VeriCaseApp?.apiUrl || 'http://localhost:8000';
+
+    // State
+    let contractTypes = [];
+    let selectedContractTypeId = null;
+    let currentUploadId = null;
+    let pollingInterval = null;
+
+    // Auth helper
+    function withAuth(options = {}) {
+      const token = localStorage.getItem('vericase_token') || localStorage.getItem('token');
+      const csrfToken = typeof getCsrfToken === 'function' ? getCsrfToken() : null;
+      return {
+        credentials: 'include',
+        ...options,
+        headers: {
+          ...(options.headers || {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+        },
+      };
+    }
+
+    // Toast notifications
+    function showToast(type, title, message) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+
+      const icons = { success: 'check', error: 'times', info: 'info' };
+      toast.innerHTML = `
+        <div class="toast-icon"><i class="fas fa-${icons[type]}"></i></div>
+        <div class="toast-content">
+          <div class="toast-title">${title}</div>
+          <div class="toast-message">${message}</div>
+        </div>
+      `;
+
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.classList.add('hiding');
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    // Load contract types on page load
+    async function loadContractTypes() {
+      try {
+        const response = await fetch(
+          `${apiUrl}/api/contract-intelligence/contract-types/grouped`,
+          withAuth({})
+        );
+
+        if (!response.ok) throw new Error('Failed to load contract types');
+
+        const families = await response.json();
+        contractTypes = families;
+
+        const familySelect = document.getElementById('contractFamily');
+        familySelect.innerHTML = '<option value="">Select contract family...</option>';
+
+        families.forEach(family => {
+          const option = document.createElement('option');
+          option.value = family.family;
+          option.textContent = family.family;
+          familySelect.appendChild(option);
+        });
+
+      } catch (error) {
+        console.error('Error loading contract types:', error);
+        showToast('error', 'Error', 'Failed to load contract types');
+      }
+    }
+
+    // Handle family selection change
+    function onFamilyChange() {
+      const familySelect = document.getElementById('contractFamily');
+      const suiteSelect = document.getElementById('contractSuite');
+      const family = familySelect.value;
+
+      suiteSelect.innerHTML = '<option value="">Select contract suite...</option>';
+      suiteSelect.disabled = !family;
+      selectedContractTypeId = null;
+      updateUploadZone();
+
+      if (!family) return;
+
+      const familyData = contractTypes.find(f => f.family === family);
+      if (!familyData) return;
+
+      familyData.suites.forEach(suite => {
+        const option = document.createElement('option');
+        option.value = suite.id;
+        option.textContent = suite.name;
+        suiteSelect.appendChild(option);
+      });
+
+      suiteSelect.onchange = () => {
+        selectedContractTypeId = suiteSelect.value ? parseInt(suiteSelect.value) : null;
+        updateUploadZone();
+      };
+    }
+
+    // Update upload zone state
+    function updateUploadZone() {
+      const uploadZone = document.getElementById('uploadZone');
+      const browseBtn = document.getElementById('browseBtn');
+      const enabled = selectedContractTypeId !== null;
+
+      uploadZone.classList.toggle('disabled', !enabled);
+      browseBtn.disabled = !enabled;
+    }
+
+    // Handle file selection
+    async function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        showToast('error', 'Invalid File', 'Please select a PDF file');
+        return;
+      }
+
+      if (!selectedContractTypeId) {
+        showToast('error', 'Select Contract', 'Please select a contract type first');
+        return;
+      }
+
+      await uploadContract(file);
+    }
+
+    // Setup drag and drop
+    function setupDragDrop() {
+      const uploadZone = document.getElementById('uploadZone');
+
+      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        uploadZone.addEventListener(eventName, e => {
+          e.preventDefault();
+          e.stopPropagation();
+        });
+      });
+
+      ['dragenter', 'dragover'].forEach(eventName => {
+        uploadZone.addEventListener(eventName, () => {
+          if (selectedContractTypeId) {
+            uploadZone.classList.add('dragover');
+          }
+        });
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        uploadZone.addEventListener(eventName, () => {
+          uploadZone.classList.remove('dragover');
+        });
+      });
+
+      uploadZone.addEventListener('drop', async e => {
+        if (!selectedContractTypeId) {
+          showToast('error', 'Select Contract', 'Please select a contract type first');
+          return;
+        }
+
+        const file = e.dataTransfer.files[0];
+        if (file && file.name.toLowerCase().endsWith('.pdf')) {
+          await uploadContract(file);
+        } else {
+          showToast('error', 'Invalid File', 'Please drop a PDF file');
+        }
+      });
+    }
+
+    // Upload contract
+    async function uploadContract(file) {
+      try {
+        // Show status card
+        document.getElementById('statusCard').classList.add('visible');
+        document.getElementById('statusFilename').querySelector('span').textContent = file.name;
+        document.getElementById('resultsCard').classList.remove('visible');
+
+        // Reset phases
+        ['upload', 'extract', 'analyze', 'vectorize'].forEach(phase => {
+          const el = document.getElementById(`phase-${phase}`);
+          el.classList.remove('active', 'complete', 'error');
+        });
+
+        // Phase 1: Initialize upload
+        setPhase('upload', 'active');
+        updateProgress('Initializing upload...', 5);
+
+        const initResponse = await fetch(
+          `${apiUrl}/api/contract-intelligence/upload/init`,
+          withAuth({
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              filename: file.name,
+              file_size: file.size,
+              contract_type_id: selectedContractTypeId,
+              project_id: window.VeriCaseApp?.projectId || null,
+              case_id: window.VeriCaseApp?.caseId || null,
+            }),
+          })
+        );
+
+        if (!initResponse.ok) {
+          const error = await initResponse.json();
+          throw new Error(error.detail || 'Failed to initialize upload');
+        }
+
+        const { upload_id, upload_url } = await initResponse.json();
+        currentUploadId = upload_id;
+
+        // Phase 2: Upload to S3
+        updateProgress('Uploading to storage...', 15);
+
+        await uploadToS3(file, upload_url);
+
+        setPhase('upload', 'complete');
+        updateProgress('Upload complete', 30);
+
+        // Phase 3: Start processing
+        setPhase('extract', 'active');
+        updateProgress('Starting analysis...', 35);
+
+        const processResponse = await fetch(
+          `${apiUrl}/api/contract-intelligence/upload/${upload_id}/process`,
+          withAuth({ method: 'POST' })
+        );
+
+        if (!processResponse.ok) {
+          const error = await processResponse.json();
+          throw new Error(error.detail || 'Failed to start processing');
+        }
+
+        // Phase 4: Poll for status
+        startPolling(upload_id);
+
+      } catch (error) {
+        console.error('Upload error:', error);
+        showToast('error', 'Upload Failed', error.message);
+        setCurrentPhaseError();
+      }
+    }
+
+    // Upload to S3 using presigned URL
+    function uploadToS3(file, uploadUrl) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', uploadUrl, true);
+        xhr.setRequestHeader('Content-Type', 'application/pdf');
+
+        xhr.upload.onprogress = e => {
+          if (e.lengthComputable) {
+            const percent = 15 + Math.round((e.loaded / e.total) * 15);
+            updateProgress(`Uploading: ${Math.round((e.loaded / e.total) * 100)}%`, percent);
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 400) {
+            resolve();
+          } else {
+            reject(new Error(`Upload failed: ${xhr.status}`));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error('Network error during upload'));
+        xhr.send(file);
+      });
+    }
+
+    // Poll for processing status
+    function startPolling(uploadId) {
+      if (pollingInterval) clearInterval(pollingInterval);
+
+      pollingInterval = setInterval(async () => {
+        try {
+          const response = await fetch(
+            `${apiUrl}/api/contract-intelligence/upload/${uploadId}/status`,
+            withAuth({})
+          );
+
+          if (!response.ok) throw new Error('Failed to get status');
+
+          const status = await response.json();
+          handleStatusUpdate(status);
+
+          if (status.status === 'completed' || status.status === 'failed') {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+
+            if (status.status === 'completed') {
+              loadExtractedClauses(uploadId);
+            }
+          }
+
+        } catch (error) {
+          console.error('Polling error:', error);
+        }
+      }, 2000);
+    }
+
+    // Handle status update
+    function handleStatusUpdate(status) {
+      const percent = status.progress_percent;
+
+      if (percent < 30) {
+        updateProgress('Extracting text...', percent);
+        setPhase('extract', 'active');
+      } else if (percent < 60) {
+        setPhase('extract', 'complete');
+        setPhase('analyze', 'active');
+        updateProgress('Analyzing clauses...', percent);
+      } else if (percent < 90) {
+        setPhase('analyze', 'complete');
+        setPhase('vectorize', 'active');
+        updateProgress('Creating embeddings...', percent);
+      } else if (status.status === 'completed') {
+        setPhase('vectorize', 'complete');
+        updateProgress('Complete!', 100);
+        showToast('success', 'Analysis Complete', `Found ${status.total_clauses} clauses`);
+      } else if (status.status === 'failed') {
+        setCurrentPhaseError();
+        updateProgress('Failed', percent);
+        showToast('error', 'Processing Failed', status.error_message || 'Unknown error');
+      }
+    }
+
+    // Load extracted clauses
+    async function loadExtractedClauses(uploadId) {
+      try {
+        const [clausesResponse, statusResponse] = await Promise.all([
+          fetch(`${apiUrl}/api/contract-intelligence/upload/${uploadId}/clauses`, withAuth({})),
+          fetch(`${apiUrl}/api/contract-intelligence/upload/${uploadId}/status`, withAuth({}))
+        ]);
+
+        const clauses = await clausesResponse.json();
+        const status = await statusResponse.json();
+
+        // Show results
+        document.getElementById('resultsCard').classList.add('visible');
+        document.getElementById('totalClauses').textContent = clauses.length;
+
+        const highRisk = clauses.filter(c => c.risk_level === 'high' || c.risk_level === 'critical').length;
+        document.getElementById('highRiskCount').textContent = highRisk;
+
+        // Display metadata
+        const metadata = status.extracted_metadata || {};
+        const metadataGrid = document.getElementById('metadataGrid');
+        metadataGrid.innerHTML = '';
+
+        if (metadata.queries) {
+          Object.entries(metadata.queries).forEach(([key, value]) => {
+            if (value && value.answer) {
+              const item = document.createElement('div');
+              item.className = 'metadata-item';
+              item.innerHTML = `
+                <div class="label">${key.replace(/_/g, ' ')}</div>
+                <div class="value">${value.answer}</div>
+              `;
+              metadataGrid.appendChild(item);
+            }
+          });
+        }
+
+        // Display clauses
+        const clausesList = document.getElementById('clausesList');
+        clausesList.innerHTML = '';
+
+        clauses.forEach(clause => {
+          const item = document.createElement('div');
+          item.className = 'clause-item';
+          item.innerHTML = `
+            <div class="clause-header">
+              <div class="clause-title">
+                <span class="clause-number">${clause.clause_number || 'N/A'}</span>
+                <span class="clause-name">${clause.title || 'Untitled Clause'}</span>
+              </div>
+              <span class="risk-badge risk-${clause.risk_level || 'low'}">${clause.risk_level || 'low'}</span>
+            </div>
+            <div class="clause-text">${clause.text || ''}</div>
+            <div class="clause-tags">
+              ${(clause.entitlement_types || []).map(t => `<span class="clause-tag">${t}</span>`).join('')}
+            </div>
+          `;
+          clausesList.appendChild(item);
+        });
+
+        // Refresh history
+        loadHistory();
+
+      } catch (error) {
+        console.error('Error loading clauses:', error);
+      }
+    }
+
+    // Update progress display
+    function updateProgress(phase, percent) {
+      document.getElementById('progressPhase').textContent = phase;
+      document.getElementById('progressPercent').textContent = `${percent}%`;
+      document.getElementById('progressFill').style.width = `${percent}%`;
+    }
+
+    // Set phase state
+    function setPhase(phase, state) {
+      const el = document.getElementById(`phase-${phase}`);
+      el.classList.remove('active', 'complete', 'error');
+      if (state) el.classList.add(state);
+    }
+
+    // Set current active phase to error
+    function setCurrentPhaseError() {
+      ['upload', 'extract', 'analyze', 'vectorize'].forEach(phase => {
+        const el = document.getElementById(`phase-${phase}`);
+        if (el.classList.contains('active')) {
+          el.classList.remove('active');
+          el.classList.add('error');
+        }
+      });
+    }
+
+    // Load upload history
+    async function loadHistory() {
+      try {
+        const params = new URLSearchParams();
+        if (window.VeriCaseApp?.projectId) params.set('project_id', window.VeriCaseApp.projectId);
+        if (window.VeriCaseApp?.caseId) params.set('case_id', window.VeriCaseApp.caseId);
+        params.set('limit', '10');
+
+        const response = await fetch(
+          `${apiUrl}/api/contract-intelligence/uploads/history?${params}`,
+          withAuth({})
+        );
+
+        if (!response.ok) throw new Error('Failed to load history');
+
+        const uploads = await response.json();
+        const container = document.getElementById('historyContent');
+
+        if (uploads.length === 0) {
+          container.innerHTML = `
+            <div class="no-history">
+              <i class="fas fa-inbox"></i>
+              <p>No contract uploads yet</p>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = `
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>Filename</th>
+                <th>Contract Type</th>
+                <th>Clauses</th>
+                <th>Status</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${uploads.map(u => `
+                <tr>
+                  <td><i class="fas fa-file-pdf" style="color: var(--vericase-teal); margin-right: 8px;"></i>${u.filename}</td>
+                  <td>${u.contract_type || '-'}</td>
+                  <td>${u.total_clauses || 0}</td>
+                  <td>
+                    <span class="status-badge status-${u.status}">
+                      ${u.status === 'processing' ? '<i class="fas fa-spinner"></i>' : ''}
+                      ${u.status}
+                    </span>
+                  </td>
+                  <td>${u.created_at ? new Date(u.created_at).toLocaleDateString() : '-'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+
+      } catch (error) {
+        console.error('Error loading history:', error);
+      }
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      loadContractTypes();
+      setupDragDrop();
+      loadHistory();
+    });
+  </script>
+</body>
+</html>

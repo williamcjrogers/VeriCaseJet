@@ -251,6 +251,107 @@ class PluginConfiguration(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class UploadedContract(Base):
+    """Stores uploaded contract documents and their processing status"""
+
+    __tablename__ = "ci_uploaded_contracts"
+
+    id = Column(Integer, primary_key=True)
+    project_id = Column(UUID(as_uuid=True), nullable=True)
+    case_id = Column(UUID(as_uuid=True), nullable=True)
+    contract_type_id = Column(
+        Integer, ForeignKey("ci_contract_types.id"), nullable=False
+    )
+
+    # File metadata
+    filename = Column(String(255), nullable=False)
+    s3_key = Column(String(500), nullable=False)
+    file_size = Column(Integer)
+    content_type = Column(String(100), default="application/pdf")
+
+    # Processing status
+    status = Column(
+        String(50), default="pending"
+    )  # pending, processing, completed, failed
+    progress_percent = Column(Integer, default=0)
+    error_message = Column(Text)
+
+    # Extracted content
+    extracted_text = Column(Text)
+    extracted_metadata = Column(JSON)  # Parties, dates, values from Textract queries
+    analysis_result = Column(JSON)  # LLM analysis results
+
+    # Counts
+    total_clauses = Column(Integer, default=0)
+    processed_clauses = Column(Integer, default=0)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    processed_at = Column(DateTime)
+
+    # User tracking
+    uploaded_by = Column(UUID(as_uuid=True))
+
+    # Relationships
+    contract_type = relationship("ContractType")
+    extracted_clauses = relationship(
+        "ExtractedContractClause", back_populates="uploaded_contract"
+    )
+
+    # Indexes
+    __table_args__ = (
+        Index("ix_ci_uploaded_contracts_project", "project_id"),
+        Index("ix_ci_uploaded_contracts_case", "case_id"),
+        Index("ix_ci_uploaded_contracts_status", "status"),
+    )
+
+
+class ExtractedContractClause(Base):
+    """Stores individual clauses extracted from uploaded contracts"""
+
+    __tablename__ = "ci_extracted_contract_clauses"
+
+    id = Column(Integer, primary_key=True)
+    uploaded_contract_id = Column(
+        Integer, ForeignKey("ci_uploaded_contracts.id"), nullable=False
+    )
+
+    # Clause identification
+    clause_number = Column(String(50))  # e.g., "2.26.3"
+    clause_title = Column(String(300))
+    clause_text = Column(Text, nullable=False)
+    page_number = Column(Integer)
+
+    # Analysis metadata
+    risk_level = Column(String(20))  # low, medium, high, critical
+    entitlement_types = Column(ARRAY(String))
+    keywords = Column(ARRAY(String))
+    confidence_score = Column(Float)  # 0-1 confidence in extraction
+
+    # Matching to standard clauses
+    matched_standard_clause_id = Column(
+        Integer, ForeignKey("ci_contract_clauses.id"), nullable=True
+    )
+    match_score = Column(Float)  # Similarity score to standard clause
+
+    # Vector reference
+    vector_id = Column(String(100))  # Reference to Qdrant vector ID
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    uploaded_contract = relationship(
+        "UploadedContract", back_populates="extracted_clauses"
+    )
+    matched_standard_clause = relationship("ContractClause")
+
+    # Indexes
+    __table_args__ = (
+        Index("ix_ci_extracted_clauses_contract", "uploaded_contract_id"),
+    )
+
+
 # Utility functions
 class ContractIntelligenceModels:
     """Utility class for contract intelligence model operations"""
@@ -268,6 +369,8 @@ class ContractIntelligenceModels:
             ContractKnowledgeVector,
             AITrainingExample,
             PluginConfiguration,
+            UploadedContract,
+            ExtractedContractClause,
         ]
 
     @staticmethod
@@ -283,6 +386,8 @@ class ContractIntelligenceModels:
             "ci_contract_knowledge_vectors": ContractKnowledgeVector,
             "ci_ai_training_examples": AITrainingExample,
             "ci_plugin_configurations": PluginConfiguration,
+            "ci_uploaded_contracts": UploadedContract,
+            "ci_extracted_contract_clauses": ExtractedContractClause,
         }
         return models.get(table_name)
 
