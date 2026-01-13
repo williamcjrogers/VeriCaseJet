@@ -3278,5 +3278,82 @@ class AIOptimizationEvent(Base):
 
 
 # =============================================================================
+# Custom Deadline Models (Control Centre)
+# =============================================================================
+
+
+class CustomDeadline(Base):
+    """
+    User-created deadlines for the Control Centre.
+    These are standalone deadlines not tied to specific cases/claims.
+    """
+
+    __tablename__ = "custom_deadlines"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    due_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    deadline_type: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="task"
+    )  # task, reminder, milestone, court_date, filing
+    priority: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="medium"
+    )  # low, medium, high, critical
+
+    # Optional links to workspace/case
+    workspace_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workspaces.id"), nullable=True, index=True
+    )
+    case_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True, index=True
+    )
+
+    # Ownership and assignment
+    created_by_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
+    )
+    assigned_to_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
+    )
+
+    # Status tracking
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pending"
+    )  # pending, completed, cancelled
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # Timestamps
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    # Relationships
+    workspace: Mapped["Workspace | None"] = relationship(
+        "Workspace", foreign_keys=[workspace_id]
+    )
+    case: Mapped["Case | None"] = relationship("Case", foreign_keys=[case_id])
+    created_by: Mapped["User"] = relationship("User", foreign_keys=[created_by_id])
+    assigned_to: Mapped["User | None"] = relationship(
+        "User", foreign_keys=[assigned_to_id]
+    )
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_custom_deadline_due_status", "due_date", "status"),
+        Index("idx_custom_deadline_created_by", "created_by_id", "status"),
+    )
+
+
+# =============================================================================
 # Contract Intelligence Models
 # =============================================================================
