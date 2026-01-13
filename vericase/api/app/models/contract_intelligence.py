@@ -40,14 +40,14 @@ class ContractType(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    clauses = relationship("ContractClause", back_populates="contract_type")
+    clauses = relationship("CIContractClause", back_populates="contract_type")
     projects = relationship("ProjectContract", back_populates="contract_type")
 
 
-class ContractClause(Base):
+class CIContractClause(Base):
     """Model for individual contract clauses with semantic understanding"""
 
-    __tablename__ = "contract_clauses"
+    __tablename__ = "ci_contract_clauses_v2"
 
     id = Column(Integer, primary_key=True)
     contract_type_id = Column(Integer, ForeignKey("contract_types.id"), nullable=False)
@@ -65,19 +65,19 @@ class ContractClause(Base):
 
     # Relationships
     contract_type = relationship("ContractType", back_populates="clauses")
-    case_law_references = relationship("CaseLawReference", back_populates="clause")
+    case_law_references = relationship("CICase LawReference", back_populates="clause")
     correspondence_matches = relationship(
         "CorrespondenceMatch", back_populates="clause"
     )
 
 
-class CaseLawReference(Base):
+class CICaseLawReference(Base):
     """Model for case law references and legal precedents"""
 
-    __tablename__ = "case_law_references"
+    __tablename__ = "ci_case_law_references_v2"
 
     id = Column(Integer, primary_key=True)
-    clause_id = Column(Integer, ForeignKey("contract_clauses.id"), nullable=False)
+    clause_id = Column(Integer, ForeignKey("ci_contract_clauses_v2.id"), nullable=False)
     case_name = Column(String(200), nullable=False)
     citation = Column(String(100))  # Legal citation
     court = Column(String(100))  # Court name
@@ -91,7 +91,7 @@ class CaseLawReference(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    clause = relationship("ContractClause", back_populates="case_law_references")
+    clause = relationship("CIContractClause", back_populates="case_law_references")
 
 
 class ProjectContract(Base):
@@ -137,7 +137,7 @@ class CorrespondenceMatch(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    clause = relationship("ContractClause", back_populates="correspondence_matches")
+    clause = relationship("CIContractClause", back_populates="correspondence_matches")
     correspondence = relationship("Correspondence", back_populates="contract_matches")
 
 

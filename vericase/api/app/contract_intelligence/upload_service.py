@@ -17,7 +17,7 @@ from ..config import settings
 from ..storage import presign_put
 from .embeddings import embedding_service
 from .models import (
-    ContractClause,
+    CIContractClause,
     ContractType,
     ExtractedContractClause,
     UploadedContract,
@@ -378,9 +378,9 @@ JSON RESPONSE:"""
 
         # Get standard clauses for this contract type
         standard_clauses = (
-            db.query(ContractClause)
+            db.query(CIContractClause)
             .filter(
-                ContractClause.contract_type_id == uploaded_contract.contract_type_id
+                CIContractClause.contract_type_id == uploaded_contract.contract_type_id
             )
             .all()
         )
@@ -417,7 +417,7 @@ JSON RESPONSE:"""
     def _calculate_match_score(
         self,
         extracted: ExtractedContractClause,
-        standard: ContractClause,
+        standard: CIContractClause,
     ) -> float:
         """Calculate similarity score between extracted and standard clause"""
         score = 0.0

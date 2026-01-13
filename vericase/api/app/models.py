@@ -34,9 +34,18 @@ class DocStatus(str, PyEnum):
 
 
 class UserRole(str, PyEnum):
+    """
+    Role hierarchy (highest to lowest):
+    - ADMIN: VeriCase platform owners - AI configs, intelligence layer, system settings
+    - POWER_USER: Full workspace/case control, all features within their scope
+    - MANAGEMENT_USER: Team management, deadlines, workspace settings
+    - USER: Standard access - view, basic editing
+    """
+
     ADMIN = "ADMIN"
-    EDITOR = "EDITOR"
-    VIEWER = "VIEWER"
+    POWER_USER = "POWER_USER"
+    MANAGEMENT_USER = "MANAGEMENT_USER"
+    USER = "USER"
 
 
 class User(Base):
@@ -49,7 +58,7 @@ class User(Base):
     )
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole), nullable=False, default=UserRole.EDITOR
+        Enum(UserRole), nullable=False, default=UserRole.USER
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_login_at: Mapped[datetime | None] = mapped_column(
@@ -266,7 +275,7 @@ class UserInvitation(Base):
     )
     inviter: Mapped[User] = relationship("User", foreign_keys=[invited_by])
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole), nullable=False, default=UserRole.VIEWER
+        Enum(UserRole), nullable=False, default=UserRole.USER
     )
     token: Mapped[str] = mapped_column(
         String(255), unique=True, nullable=False, index=True
@@ -838,7 +847,7 @@ class Rebuttal(Base):
     issue: Mapped[Issue] = relationship("Issue")
 
 
-class ContractClause(Base):
+class ParsedContractClause(Base):
     """Parsed contract clauses with unique IDs"""
 
     __tablename__ = "contract_clauses"

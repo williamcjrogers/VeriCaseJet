@@ -2728,9 +2728,51 @@ class UltimatePSTProcessor:
                         evidence_is_duplicate = file_hash in self.evidence_item_hashes
 
                         # Ensure correct categorisation for Evidence Repository (Images vs Documents)
-                        evidence_type_category = "email_attachment"
-                        if is_image:
-                            evidence_type_category = "photo"  # Images go to Media pot
+                        # Detect based on mime type AND file extension for robustness
+                        evidence_type_category = "document"  # Default to document
+                        ct = content_type or ""
+                        if is_image or ct.startswith("image/"):
+                            evidence_type_category = "image"  # Images go to Media tab
+                        elif ct.startswith("video/") or file_ext in {
+                            "mp4",
+                            "mov",
+                            "m4v",
+                            "avi",
+                            "mkv",
+                            "webm",
+                            "wmv",
+                        }:
+                            evidence_type_category = "video"  # Videos go to Media tab
+                        elif ct.startswith("audio/") or file_ext in {
+                            "mp3",
+                            "wav",
+                            "m4a",
+                            "aac",
+                            "flac",
+                            "ogg",
+                            "opus",
+                        }:
+                            evidence_type_category = "audio"  # Audio goes to Media tab
+                        elif ct == "application/pdf" or file_ext == "pdf":
+                            evidence_type_category = "pdf"
+                        elif (
+                            "word" in ct
+                            or ct.endswith(".document")
+                            or file_ext in {"doc", "docx"}
+                        ):
+                            evidence_type_category = "word_document"
+                        elif (
+                            "excel" in ct
+                            or "spreadsheet" in ct
+                            or file_ext in {"xls", "xlsx", "csv"}
+                        ):
+                            evidence_type_category = "spreadsheet"
+                        elif (
+                            "powerpoint" in ct
+                            or "presentation" in ct
+                            or file_ext in {"ppt", "pptx"}
+                        ):
+                            evidence_type_category = "presentation"
 
                         evidence_item_id = uuid.uuid4()
                         evidence_item = EvidenceItem(

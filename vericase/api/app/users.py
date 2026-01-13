@@ -171,7 +171,7 @@ def create_user(
         email=email_lower,
         password_hash=hash_password(temp_password),
         display_name=data.display_name,
-        role=UserRole(data.role) if data.role else UserRole.VIEWER,
+        role=UserRole(data.role) if data.role else UserRole.USER,
         is_active=True,
         email_verified=False,
         verification_token=generate_token(),

@@ -131,7 +131,13 @@ def s3(public: bool = False) -> S3ClientProtocol:
         )
         return cast(
             S3ClientProtocol,
-            session.client("s3", config=Config(signature_version="s3v4")),
+            session.client(
+                "s3",
+                config=Config(
+                    signature_version="s3v4",
+                    s3={"addressing_style": "virtual"},
+                ),
+            ),
         )
 
     # Use IRSA for credentials (no explicit keys)
@@ -146,7 +152,10 @@ def s3(public: bool = False) -> S3ClientProtocol:
         S3ClientProtocol,
         boto3.client(
             "s3",
-            config=Config(signature_version="s3v4"),
+            config=Config(
+                signature_version="s3v4",
+                s3={"addressing_style": "virtual"},
+            ),
             region_name=s3_region,
         ),
     )
@@ -320,8 +329,34 @@ def presign_get(
 ) -> str:
     """Generate presigned GET URL for downloading from S3."""
     target_bucket = bucket or settings.MINIO_BUCKET
+
+    # Validate bucket name - S3 bucket names cannot contain colons
+    if ":" in target_bucket:
+        LOGGER.error(
+            "[S3 ERROR] Invalid bucket name contains colon: bucket=%s, key=%s",
+            target_bucket,
+            key,
+        )
+        raise ValueError(f"Invalid S3 bucket name (contains colon): {target_bucket}")
+
     ensure_bucket_once(target_bucket)
-    client = s3(public=bool(settings.MINIO_PUBLIC_ENDPOINT))
+
+    # Determine if we should use public endpoint (MinIO only)
+    use_aws = settings.USE_AWS_SERVICES or not settings.MINIO_ENDPOINT
+    use_public = bool(settings.MINIO_PUBLIC_ENDPOINT) and not use_aws
+    client = s3(public=use_public)
+
+    # Get the region being used for signing
+    s3_region = getattr(settings, "S3_REGION", None) or settings.AWS_REGION
+
+    LOGGER.debug(
+        "[S3 PRESIGN] Generating GET URL: bucket=%s, key=%s, region=%s, use_aws=%s",
+        target_bucket,
+        key[:100] if key else None,
+        s3_region,
+        use_aws,
+    )
+
     params: dict[str, Any] = {
         "Bucket": target_bucket,
         "Key": key,

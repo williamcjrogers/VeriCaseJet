@@ -785,9 +785,11 @@ async def get_dashboard_overview(
 
         # Build permissions based on user role
         permissions = {
-            "can_create_project": user.role in [UserRole.ADMIN, UserRole.EDITOR],
-            "can_create_case": user.role in [UserRole.ADMIN, UserRole.EDITOR],
-            "can_manage_users": user.role == UserRole.ADMIN,
+            "can_create_project": user.role in [UserRole.ADMIN, UserRole.POWER_USER],
+            "can_create_case": user.role in [UserRole.ADMIN, UserRole.POWER_USER],
+            "can_manage_users": user.role in [UserRole.ADMIN, UserRole.MANAGEMENT_USER],
+            "can_manage_deadlines": user.role
+            in [UserRole.ADMIN, UserRole.POWER_USER, UserRole.MANAGEMENT_USER],
             "can_access_admin": user.role == UserRole.ADMIN,
             "can_delete_items": user.role == UserRole.ADMIN,
         }
@@ -1102,10 +1104,12 @@ async def get_control_centre_stats(
 
         # Build permissions based on user role
         permissions = {
-            "can_create_workspace": user.role in [UserRole.ADMIN, UserRole.EDITOR],
-            "can_create_project": user.role in [UserRole.ADMIN, UserRole.EDITOR],
-            "can_create_case": user.role in [UserRole.ADMIN, UserRole.EDITOR],
-            "can_manage_users": user.role == UserRole.ADMIN,
+            "can_create_workspace": user.role in [UserRole.ADMIN, UserRole.POWER_USER],
+            "can_create_project": user.role in [UserRole.ADMIN, UserRole.POWER_USER],
+            "can_create_case": user.role in [UserRole.ADMIN, UserRole.POWER_USER],
+            "can_manage_users": user.role in [UserRole.ADMIN, UserRole.MANAGEMENT_USER],
+            "can_manage_deadlines": user.role
+            in [UserRole.ADMIN, UserRole.POWER_USER, UserRole.MANAGEMENT_USER],
             "can_access_admin": user.role == UserRole.ADMIN,
         }
 

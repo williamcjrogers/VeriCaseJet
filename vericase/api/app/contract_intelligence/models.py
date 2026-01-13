@@ -38,14 +38,14 @@ class ContractType(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    clauses = relationship("ContractClause", back_populates="contract_type")
+    clauses = relationship("CIContractClause", back_populates="contract_type")
     projects = relationship("ProjectContract", back_populates="contract_type")
     case_law_references = relationship(
         "CaseLawReference", back_populates="contract_type"
     )
 
 
-class ContractClause(Base):
+class CIContractClause(Base):
     """Stores detailed information about contract clauses"""
 
     __tablename__ = "ci_contract_clauses"
@@ -101,7 +101,7 @@ class CaseLawReference(Base):
 
     # Relationships
     contract_type = relationship("ContractType", back_populates="case_law_references")
-    clause = relationship("ContractClause", back_populates="case_law_references")
+    clause = relationship("CIContractClause", back_populates="case_law_references")
 
 
 class ProjectContract(Base):
@@ -183,7 +183,7 @@ class CorrespondenceClauseMatch(Base):
 
     # Relationships
     analysis = relationship("CorrespondenceAnalysis", back_populates="clause_matches")
-    clause = relationship("ContractClause", back_populates="correspondence_matches")
+    clause = relationship("CIContractClause", back_populates="correspondence_matches")
 
 
 class ContractKnowledgeVector(Base):
@@ -344,7 +344,7 @@ class ExtractedContractClause(Base):
     uploaded_contract = relationship(
         "UploadedContract", back_populates="extracted_clauses"
     )
-    matched_standard_clause = relationship("ContractClause")
+    matched_standard_clause = relationship("CIContractClause")
 
     # Indexes
     __table_args__ = (
@@ -361,7 +361,7 @@ class ContractIntelligenceModels:
         """Get all model classes for database creation"""
         return [
             ContractType,
-            ContractClause,
+            CIContractClause,
             CaseLawReference,
             ProjectContract,
             CorrespondenceAnalysis,
@@ -378,7 +378,7 @@ class ContractIntelligenceModels:
         """Get model class by table name"""
         models = {
             "ci_contract_types": ContractType,
-            "ci_contract_clauses": ContractClause,
+            "ci_contract_clauses": CIContractClause,
             "ci_case_law_references": CaseLawReference,
             "ci_project_contracts": ProjectContract,
             "ci_correspondence_analyses": CorrespondenceAnalysis,

@@ -5,7 +5,7 @@ Ingests case law and contract documents into the vector store
 
 import logging
 from sqlalchemy.orm import Session
-from .models import CaseLawReference, ContractClause
+from .models import CaseLawReference, CIContractClause
 from .vector_store import vector_store
 from .embeddings import embedding_service
 
@@ -17,7 +17,7 @@ class IngestionService:
 
     async def ingest_clauses(self, db: Session):
         """Ingest all contract clauses into vector store"""
-        clauses = db.query(ContractClause).all()
+        clauses = db.query(CIContractClause).all()
 
         texts = []
         payloads = []

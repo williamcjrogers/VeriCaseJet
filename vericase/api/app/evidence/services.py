@@ -2523,6 +2523,50 @@ async def sync_email_attachments_to_evidence_service(
                 if raw_ext and len(raw_ext) <= 10 and raw_ext.isalnum()
                 else None
             )
+            # Determine evidence_type based on actual content type, not just "email_attachment"
+            # This ensures images go to Images & Media tab, PDFs are properly categorized, etc.
+            mime = att.content_type or ""
+            if mime.startswith("image/"):
+                detected_evidence_type = "image"
+            elif mime.startswith("video/"):
+                detected_evidence_type = "video"
+            elif mime.startswith("audio/"):
+                detected_evidence_type = "audio"
+            elif mime == "application/pdf":
+                detected_evidence_type = "pdf"
+            elif "word" in mime or mime.endswith(".document"):
+                detected_evidence_type = "word_document"
+            elif "excel" in mime or "spreadsheet" in mime:
+                detected_evidence_type = "spreadsheet"
+            elif "powerpoint" in mime or "presentation" in mime:
+                detected_evidence_type = "presentation"
+            else:
+                # Fallback: detect from file extension
+                image_exts = {
+                    "jpg",
+                    "jpeg",
+                    "png",
+                    "gif",
+                    "bmp",
+                    "webp",
+                    "tif",
+                    "tiff",
+                    "heic",
+                    "heif",
+                    "svg",
+                }
+                video_exts = {"mp4", "mov", "m4v", "avi", "mkv", "webm", "wmv"}
+                audio_exts = {"mp3", "wav", "m4a", "aac", "flac", "ogg", "opus"}
+                if file_ext in image_exts:
+                    detected_evidence_type = "image"
+                elif file_ext in video_exts:
+                    detected_evidence_type = "video"
+                elif file_ext in audio_exts:
+                    detected_evidence_type = "audio"
+                elif file_ext == "pdf":
+                    detected_evidence_type = "pdf"
+                else:
+                    detected_evidence_type = "document"  # Generic document type
             evidence_item = EvidenceItem(
                 filename=att.filename or "unnamed_attachment",
                 original_path=f"EmailAttachment:{att.id}",
@@ -2532,7 +2576,7 @@ async def sync_email_attachments_to_evidence_service(
                 file_hash=att.attachment_hash,
                 s3_bucket=att.s3_bucket or settings.S3_BUCKET,
                 s3_key=att.s3_key,
-                evidence_type="email_attachment",
+                evidence_type=detected_evidence_type,
                 source_type="pst_extraction",
                 source_email_id=email.id,
                 project_id=email.project_id,

@@ -134,10 +134,12 @@ async def approve_or_reject_user(
         # Set role
         if request.role == "ADMIN":
             user.role = UserRole.ADMIN
-        elif request.role == "EDITOR":
-            user.role = UserRole.EDITOR
+        elif request.role == "POWER_USER":
+            user.role = UserRole.POWER_USER
+        elif request.role == "MANAGEMENT_USER":
+            user.role = UserRole.MANAGEMENT_USER
         else:
-            user.role = UserRole.VIEWER
+            user.role = UserRole.USER
 
         # Update meta
         meta_dict = _coerce_meta(getattr(user, "meta", None))
