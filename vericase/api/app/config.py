@@ -423,8 +423,6 @@ class Settings(BaseSettings):
     EMBEDDING_PROVIDER: str = "bedrock"  # bedrock | sentence-transformers
     BEDROCK_EMBEDDING_MODEL: str = "cohere.embed-english-v3"
     MULTI_VECTOR_ENABLED: bool = True
-    QDRANT_URL: str = ""  # Qdrant vector DB URL (optional)
-    QDRANT_API_KEY: str = ""  # Qdrant API key (optional)
 
     # =========================================================================
     # AI FEATURE FLAGS
