@@ -13,8 +13,9 @@ from qdrant_client.models import PointStruct
 from fastembed import TextEmbedding
 
 # Configuration
-QDRANT_URL = (
-    "https://b5412748-1bf2-4a06-9a94-5ebf25ac2d5f.eu-west-2-0.aws.cloud.qdrant.io"
+QDRANT_URL = os.getenv(
+    "QDRANT_URL",
+    "https://b5412748-1bf2-4a06-9a94-5ebf25ac2d5f.eu-west-2-0.aws.cloud.qdrant.io",
 )
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
 COLLECTION_NAME = "symbolic-bovid-aqua"
@@ -111,6 +112,9 @@ def main():
 
     # Initialize Qdrant client
     print("\nConnecting to Qdrant...")
+    if not QDRANT_API_KEY:
+        print("Warning: QDRANT_API_KEY not set in environment variables.")
+
     client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 
     # Verify collection exists

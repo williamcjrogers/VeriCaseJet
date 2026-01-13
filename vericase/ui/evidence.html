@@ -3873,7 +3873,7 @@
                     : JSON.stringify(data.text, null, 2);
                 const truncated =
                   contentStr.length > 1000
-                    ? contentStr.substring(0, 1000) + "\\n..."
+                    ? contentStr.substring(0, 1000) + "\n..."
                     : contentStr;
 
                 section.innerHTML = `
@@ -3904,7 +3904,7 @@
               : JSON.stringify(content, null, 2);
           const truncated =
             contentStr.length > 1000
-              ? contentStr.substring(0, 1000) + "\\n..."
+              ? contentStr.substring(0, 1000) + "\n..."
               : contentStr;
           html = `
                         <pre style="color: var(--gray-400); font-size: 0.75rem; padding: 16px; margin: 0; overflow: auto; max-height: 100%;">${escapeHtml(truncated)}</pre>
@@ -3934,8 +3934,10 @@
 
       const rawStatus = (detail.processing_status || "pending").toLowerCase();
       const statusLabel =
-        rawStatus === "processed" || rawStatus === "completed"
+        rawStatus === "processed" || rawStatus === "completed" || rawStatus === "ready"
           ? "Ready"
+          : rawStatus === "processing"
+            ? "Processing..."
           : rawStatus === "pending"
             ? "Pending (not processed yet)"
             : rawStatus === "error"
@@ -4601,6 +4603,14 @@
 
         case "pdf":
           html = `<iframe src="${currentPreviewData.preview_url}"></iframe>`;
+          break;
+
+        case "audio":
+          html = `<audio controls src="${currentPreviewData.preview_url}" style="width: 100%;"></audio>`;
+          break;
+
+        case "video":
+          html = `<video controls src="${currentPreviewData.preview_url}" style="width: 100%; max-height: 80vh;"></video>`;
           break;
 
         case "text":

@@ -4,19 +4,22 @@ import os
 from qdrant_client import QdrantClient
 from fastembed import TextEmbedding
 
+QDRANT_URL = os.getenv(
+    "QDRANT_URL",
+    "https://b5412748-1bf2-4a06-9a94-5ebf25ac2d5f.eu-west-2-0.aws.cloud.qdrant.io",
+)
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
+
 client = QdrantClient(
-    url="https://b5412748-1bf2-4a06-9a94-5ebf25ac2d5f.eu-west-2-0.aws.cloud.qdrant.io",
-    api_key=os.getenv("QDRANT_API_KEY", ""),
+    url=QDRANT_URL,
+    api_key=QDRANT_API_KEY,
 )
 
 # Debug logging
-print(
-    "DEBUG: Qdrant URL: https://b5412748-1bf2-4a06-9a94-5ebf25ac2d5f.eu-west-2-0.aws.cloud.qdrant.io"
-)
-api_key = os.getenv("QDRANT_API_KEY")
-print(f"DEBUG: Qdrant API Key present: {bool(api_key)}")
-if api_key:
-    print(f"DEBUG: Qdrant API Key length: {len(api_key)}")
+print(f"DEBUG: Qdrant URL: {QDRANT_URL}")
+print(f"DEBUG: Qdrant API Key present: {bool(QDRANT_API_KEY)}")
+if QDRANT_API_KEY:
+    print(f"DEBUG: Qdrant API Key length: {len(QDRANT_API_KEY)}")
 else:
     print("DEBUG: Qdrant API Key is MISSING")
 
@@ -31,5 +34,8 @@ results = client.query_points(
 print(f"Query: {query}")
 print("=" * 50)
 for r in results:
-    path = r.payload["file_path"]
-    print(f"{r.score:.3f} - {path}")
+    if r.payload:
+        path = r.payload.get("file_path", "Unknown")
+        print(f"{r.score:.3f} - {path}")
+    else:
+        print(f"{r.score:.3f} - [No Payload]")
