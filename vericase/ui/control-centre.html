@@ -6,12 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VeriCase - Control Centre</title>
     <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
-    <link rel="stylesheet" href="brand-styles.css?v=8" />
-    <link rel="stylesheet" href="design-system.css?v=8" />
+    <link rel="stylesheet" href="brand-styles.css?v=9" />
+    <link rel="stylesheet" href="design-system.css?v=9" />
     <script src="vericase-ui.js"></script>
     <script src="nav-shell.js"></script>
     <style>
-        /* === CONTROL CENTRE - CLEAN REDESIGN === */
+        /* === CONTROL CENTRE - REDESIGNED === */
 
         .app-content {
             background-color: var(--vericase-cream);
@@ -21,13 +21,13 @@
             border-radius: 0;
             box-shadow: none;
             margin: 0;
-            padding: 48px;
+            padding: 32px 48px;
             min-height: 100vh;
             position: relative;
             overflow: hidden;
         }
 
-        /* === WATERMARKS - Professional touch === */
+        /* === WATERMARKS === */
         .watermark {
             position: absolute;
             font-size: 280px;
@@ -54,14 +54,14 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 48px;
+            margin-bottom: 32px;
             position: relative;
             z-index: 1;
         }
 
         .cc-title {
             font-family: var(--font-serif);
-            font-size: 2rem;
+            font-size: 1.75rem;
             font-weight: 600;
             color: var(--vericase-navy);
             margin: 0;
@@ -72,65 +72,182 @@
             gap: 12px;
         }
 
-        /* === EMPTY STATE === */
-        .cc-empty-state {
-            text-align: center;
-            padding: 80px 40px;
-            max-width: 480px;
-            margin: 60px auto;
+        /* === TOP ROW: PROFILE + STATS === */
+        .cc-top-row {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
             position: relative;
             z-index: 1;
         }
 
-        .cc-empty-visual {
-            width: 120px;
-            height: 120px;
-            margin: 0 auto 32px;
+        /* === PROFILE CARD === */
+        .cc-profile-card {
             background: white;
             border: 1px solid var(--border-default);
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 4px 4px 0px rgba(15, 23, 42, 0.05);
+        }
+
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .profile-avatar {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--vericase-teal), var(--vericase-navy));
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .profile-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .profile-name {
+            font-family: var(--font-serif);
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--vericase-navy);
+            margin: 0 0 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .profile-email {
+            font-size: 0.8125rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .profile-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-default);
+        }
+
+        .role-badge {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 4px 10px;
+            border-radius: 4px;
+        }
+
+        .role-badge.admin {
+            background: rgba(31, 111, 120, 0.15);
+            color: var(--vericase-teal);
+        }
+
+        .role-badge.editor {
+            background: rgba(197, 160, 101, 0.15);
+            color: var(--vericase-gold);
+        }
+
+        .role-badge.viewer {
+            background: var(--gray-100);
+            color: var(--text-muted);
+        }
+
+        .profile-link {
+            font-size: 0.8125rem;
+            color: var(--vericase-teal);
+            text-decoration: none;
+        }
+
+        .profile-link:hover {
+            text-decoration: underline;
+        }
+
+        .last-login {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 12px;
+        }
+
+        /* === STATS PANEL === */
+        .cc-stats-panel {
+            background: white;
+            border: 1px solid var(--border-default);
+            border-radius: 8px;
+            padding: 24px;
             box-shadow: 4px 4px 0px rgba(15, 23, 42, 0.05);
         }
 
-        .cc-empty-visual i {
-            font-size: 3rem;
-            color: var(--vericase-gold);
-            opacity: 0.6;
+        .stats-panel-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin: 0 0 20px;
         }
 
-        .cc-empty-state h2 {
-            font-family: var(--font-serif);
-            font-size: 1.5rem;
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+
+        .stat-column {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .stat-column-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--border-default);
+        }
+
+        .stat-column-header i {
+            font-size: 0.875rem;
+            color: var(--vericase-gold);
+        }
+
+        .stat-column-header span {
+            font-size: 0.8125rem;
             font-weight: 600;
             color: var(--vericase-navy);
-            margin: 0 0 12px;
         }
 
-        .cc-empty-state p {
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stat-row-label {
+            font-size: 0.75rem;
             color: var(--text-muted);
+        }
+
+        .stat-row-value {
+            font-family: var(--font-mono);
             font-size: 0.9375rem;
-            line-height: 1.6;
-            margin: 0 0 32px;
-        }
-
-        .cc-empty-state .btn-vericase {
-            padding: 14px 28px;
-            font-size: 1rem;
-        }
-
-        .cc-empty-guide {
-            margin-top: 24px;
-        }
-
-        .cc-empty-guide .btn-ghost {
-            color: var(--text-muted);
-            font-size: 0.875rem;
-        }
-
-        .cc-empty-guide .btn-ghost:hover {
+            font-weight: 600;
             color: var(--vericase-navy);
         }
 
@@ -139,7 +256,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
         }
 
         .cc-section-header h2 {
@@ -151,17 +268,17 @@
             margin: 0;
         }
 
-        /* === WORKSPACE GRID === */
+        /* === WORKSPACE GRID (READ-ONLY) === */
         .cc-workspaces {
-            margin-bottom: 48px;
+            margin-bottom: 32px;
             position: relative;
             z-index: 1;
         }
 
         .workspace-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
         }
 
         .workspace-card {
@@ -169,40 +286,31 @@
             border: 1px solid var(--border-default);
             border-top: 4px solid var(--vericase-gold);
             border-radius: 6px;
-            padding: 24px;
-            box-shadow: 4px 4px 0px rgba(15, 23, 42, 0.05);
-            cursor: pointer;
-            transition: all 0.2s;
-            text-decoration: none;
-            display: block;
-        }
-
-        .workspace-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 6px 6px 0px rgba(15, 23, 42, 0.08);
-            border-color: var(--vericase-navy);
-            border-top-color: var(--vericase-gold);
+            padding: 20px;
+            box-shadow: 2px 2px 0px rgba(15, 23, 42, 0.03);
+            /* Non-clickable - removed cursor and hover effects */
+            opacity: 0.9;
         }
 
         .workspace-card-name {
             font-family: var(--font-serif);
-            font-size: 1.25rem;
+            font-size: 1.125rem;
             font-weight: 600;
             color: var(--vericase-navy);
             margin: 0 0 4px;
         }
 
         .workspace-card-code {
-            font-size: 0.75rem;
+            font-size: 0.6875rem;
             color: var(--text-muted);
             font-family: var(--font-mono);
-            margin-bottom: 16px;
+            margin-bottom: 12px;
         }
 
         .workspace-card-stats {
             display: flex;
-            gap: 16px;
-            margin-bottom: 16px;
+            gap: 12px;
+            margin-bottom: 12px;
         }
 
         .workspace-stat {
@@ -213,13 +321,13 @@
 
         .workspace-stat-value {
             font-family: var(--font-serif);
-            font-size: 1.25rem;
+            font-size: 1rem;
             font-weight: 600;
             color: var(--vericase-navy);
         }
 
         .workspace-stat-label {
-            font-size: 11px;
+            font-size: 10px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: var(--text-muted);
@@ -229,17 +337,17 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            padding-top: 16px;
+            padding-top: 12px;
             border-top: 1px solid var(--border-default);
         }
 
         .workspace-status {
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            padding: 4px 8px;
-            border-radius: 4px;
+            padding: 3px 6px;
+            border-radius: 3px;
             background: rgba(197, 160, 101, 0.15);
             color: var(--vericase-gold);
         }
@@ -249,14 +357,109 @@
             color: var(--text-muted);
         }
 
-        .workspace-date {
+        /* === ACTIVITY FEED === */
+        .cc-activity {
+            margin-bottom: 32px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .activity-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 16px;
+        }
+
+        .activity-tab {
+            padding: 8px 16px;
             font-size: 0.8125rem;
+            font-weight: 500;
             color: var(--text-muted);
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .activity-tab:hover {
+            background: white;
+            color: var(--vericase-navy);
+        }
+
+        .activity-tab.active {
+            background: white;
+            border-color: var(--border-default);
+            color: var(--vericase-navy);
+            box-shadow: 2px 2px 0px rgba(15, 23, 42, 0.03);
+        }
+
+        .activity-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .activity-item {
+            background: white;
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 2px 2px 0px rgba(15, 23, 42, 0.03);
+        }
+
+        .activity-icon {
+            width: 32px;
+            height: 32px;
+            background: var(--gray-100);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .activity-icon i {
+            font-size: 0.75rem;
+            color: var(--vericase-teal);
+        }
+
+        .activity-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .activity-description {
+            font-size: 0.875rem;
+            color: var(--vericase-navy);
+            margin: 0 0 2px;
+        }
+
+        .activity-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .activity-meta .user-name {
+            color: var(--vericase-teal);
+        }
+
+        .activity-empty {
+            text-align: center;
+            padding: 32px;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            background: white;
+            border: 1px solid var(--border-default);
+            border-radius: 6px;
         }
 
         /* === DEADLINES === */
         .cc-deadlines {
-            margin-bottom: 48px;
+            margin-bottom: 32px;
             position: relative;
             z-index: 1;
         }
@@ -264,7 +467,7 @@
         .deadlines-list {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 8px;
         }
 
         .deadline-item {
@@ -272,7 +475,7 @@
             border: 1px solid var(--border-default);
             border-left: 4px solid var(--vericase-gold);
             border-radius: 6px;
-            padding: 16px 20px;
+            padding: 12px 16px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -286,139 +489,110 @@
         .deadline-info {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 2px;
         }
 
         .deadline-title {
             font-weight: 600;
             color: var(--vericase-navy);
-            font-size: 0.9375rem;
+            font-size: 0.875rem;
         }
 
         .deadline-date {
-            font-size: 0.8125rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
         }
 
         .deadline-source {
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            padding: 4px 10px;
-            border-radius: 4px;
+            padding: 3px 8px;
+            border-radius: 3px;
             background: var(--gray-100);
             color: var(--text-muted);
         }
 
-        .cc-no-deadlines {
-            text-align: center;
-            padding: 32px;
-            color: var(--text-muted);
-            font-size: 0.875rem;
+        /* === MASTER DASHBOARD BUTTON === */
+        .cc-action-footer {
+            position: relative;
+            z-index: 1;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid rgba(15, 23, 42, 0.1);
+            display: flex;
+            justify-content: center;
         }
 
-        /* === GUIDE OVERLAY === */
-        .guide-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.6);
+        .btn-enter-dashboard {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 48px;
+            font-size: 1rem;
+            font-weight: 600;
+            color: white;
+            background: var(--vericase-navy);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 4px 4px 0px rgba(15, 23, 42, 0.15);
+        }
+
+        .btn-enter-dashboard:hover {
+            background: var(--vericase-navy-dark, #0a1628);
+            transform: translateY(-2px);
+            box-shadow: 6px 6px 0px rgba(15, 23, 42, 0.2);
+        }
+
+        .btn-enter-dashboard i {
+            font-size: 1.125rem;
+        }
+
+        /* === EMPTY STATE === */
+        .cc-empty-state {
+            text-align: center;
+            padding: 60px 40px;
+            max-width: 480px;
+            margin: 40px auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .cc-empty-visual {
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 24px;
+            background: white;
+            border: 1px solid var(--border-default);
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 1000;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.2s;
+            box-shadow: 4px 4px 0px rgba(15, 23, 42, 0.05);
         }
 
-        .guide-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        .guide-shell {
-            background: white;
-            border-radius: 12px;
-            width: 100%;
-            max-width: 480px;
-            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.2);
-            overflow: hidden;
-        }
-
-        .guide-header {
-            padding: 20px 24px;
-            border-bottom: 1px solid var(--border-default);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .guide-header h3 {
-            font-family: var(--font-serif);
-            font-size: 1.125rem;
-            font-weight: 600;
-            color: var(--vericase-navy);
-            margin: 0;
-        }
-
-        .guide-progress {
-            display: flex;
-            gap: 6px;
-        }
-
-        .guide-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--gray-200);
-        }
-
-        .guide-dot.active {
-            background: var(--vericase-gold);
-        }
-
-        .guide-body {
-            padding: 32px 24px;
-        }
-
-        .guide-step-title {
-            font-family: var(--font-serif);
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: var(--vericase-navy);
-            margin-bottom: 12px;
-        }
-
-        .guide-step-desc {
-            color: var(--text-secondary);
-            line-height: 1.6;
-            margin-bottom: 16px;
-        }
-
-        .guide-step-tip {
-            font-size: 0.875rem;
+        .cc-empty-visual i {
+            font-size: 2.5rem;
             color: var(--vericase-gold);
-            font-style: italic;
+            opacity: 0.6;
         }
 
-        .guide-footer {
-            padding: 16px 24px;
-            border-top: 1px solid var(--border-default);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: var(--gray-50);
+        .cc-empty-state h2 {
+            font-family: var(--font-serif);
+            font-size: 1.375rem;
+            font-weight: 600;
+            color: var(--vericase-navy);
+            margin: 0 0 12px;
         }
 
-        .guide-step-count {
-            font-size: 0.8125rem;
+        .cc-empty-state p {
             color: var(--text-muted);
-        }
-
-        .guide-footer-actions {
-            display: flex;
-            gap: 8px;
+            font-size: 0.9375rem;
+            line-height: 1.6;
+            margin: 0 0 24px;
         }
 
         /* === UTILITIES === */
@@ -427,6 +601,16 @@
         }
 
         /* === RESPONSIVE === */
+        @media (max-width: 1024px) {
+            .cc-top-row {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
         @media (max-width: 768px) {
             .app-content {
                 padding: 24px;
@@ -435,6 +619,11 @@
             .cc-header {
                 flex-direction: column;
                 align-items: flex-start;
+                gap: 16px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
                 gap: 16px;
             }
 
@@ -447,7 +636,7 @@
 
 <body>
     <main id="main-content">
-        <!-- Watermarks - Professional legal aesthetic -->
+        <!-- Watermarks -->
         <i class="fas fa-balance-scale watermark watermark-scales"></i>
         <i class="fas fa-gavel watermark watermark-gavel"></i>
 
@@ -461,29 +650,111 @@
             </div>
         </header>
 
-        <!-- Empty State (shown when no workspaces) -->
-        <section class="cc-empty-state hidden" id="emptyState">
-            <div class="cc-empty-visual">
-                <i class="fas fa-folder-open"></i>
+        <!-- Top Row: Profile + Stats -->
+        <div class="cc-top-row" id="topRow">
+            <!-- Profile Card -->
+            <div class="cc-profile-card" id="profileCard">
+                <div class="profile-header">
+                    <div class="profile-avatar" id="profileAvatar">?</div>
+                    <div class="profile-info">
+                        <h2 class="profile-name" id="profileName">Loading...</h2>
+                        <div class="profile-email" id="profileEmail">-</div>
+                    </div>
+                </div>
+                <div class="profile-meta">
+                    <span class="role-badge viewer" id="roleBadge">VIEWER</span>
+                    <a href="profile.html" class="profile-link">View Profile <i class="fas fa-arrow-right"></i></a>
+                </div>
+                <div class="last-login" id="lastLogin"></div>
             </div>
-            <h2>Create your first workspace</h2>
-            <p>Workspaces organize your projects, cases, evidence and team collaboration. Start by creating one.</p>
-            <button class="btn btn-vericase" data-action="open-setup">
-                <i class="fas fa-plus"></i> Create Workspace
-            </button>
-            <div class="cc-empty-guide">
-                <button class="btn btn-ghost" id="startGuideBtn">
-                    <i class="fas fa-compass"></i> Need help? Start the guide
-                </button>
-            </div>
-        </section>
 
-        <!-- Workspaces (shown when has workspaces) -->
+            <!-- Stats Panel -->
+            <div class="cc-stats-panel" id="statsPanel">
+                <h2 class="stats-panel-title">Activity Statistics</h2>
+                <div class="stats-grid">
+                    <!-- Emails Column -->
+                    <div class="stat-column">
+                        <div class="stat-column-header">
+                            <i class="fas fa-envelope"></i>
+                            <span>Emails</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-row-label">Today</span>
+                            <span class="stat-row-value" id="emailsToday">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-row-label">Last 7 Days</span>
+                            <span class="stat-row-value" id="emails7d">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-row-label">Total</span>
+                            <span class="stat-row-value" id="emailsTotal">-</span>
+                        </div>
+                    </div>
+
+                    <!-- Evidence Column -->
+                    <div class="stat-column">
+                        <div class="stat-column-header">
+                            <i class="fas fa-file-alt"></i>
+                            <span>Evidence</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-row-label">Today</span>
+                            <span class="stat-row-value" id="evidenceToday">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-row-label">Last 7 Days</span>
+                            <span class="stat-row-value" id="evidence7d">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-row-label">Total</span>
+                            <span class="stat-row-value" id="evidenceTotal">-</span>
+                        </div>
+                    </div>
+
+                    <!-- Documents Column -->
+                    <div class="stat-column">
+                        <div class="stat-column-header">
+                            <i class="fas fa-folder"></i>
+                            <span>Documents</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-row-label">Today</span>
+                            <span class="stat-row-value" id="documentsToday">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-row-label">Last 7 Days</span>
+                            <span class="stat-row-value" id="documents7d">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-row-label">Total</span>
+                            <span class="stat-row-value" id="documentsTotal">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workspaces (read-only) -->
         <section class="cc-workspaces hidden" id="workspacesSection">
             <div class="cc-section-header">
                 <h2>Your Workspaces</h2>
             </div>
             <div class="workspace-grid" id="workspaceGrid">
+                <!-- Rendered via JS -->
+            </div>
+        </section>
+
+        <!-- Activity Feed -->
+        <section class="cc-activity" id="activitySection">
+            <div class="cc-section-header">
+                <h2>Recent Activity</h2>
+            </div>
+            <div class="activity-tabs">
+                <button class="activity-tab active" data-tab="my">My Activity</button>
+                <button class="activity-tab" data-tab="team">Team Activity</button>
+            </div>
+            <div class="activity-list" id="activityList">
                 <!-- Rendered via JS -->
             </div>
         </section>
@@ -497,77 +768,34 @@
                 <!-- Rendered via JS -->
             </div>
         </section>
+
+        <!-- Empty State -->
+        <section class="cc-empty-state hidden" id="emptyState">
+            <div class="cc-empty-visual">
+                <i class="fas fa-folder-open"></i>
+            </div>
+            <h2>Create your first workspace</h2>
+            <p>Workspaces organize your projects, cases, evidence and team collaboration. Start by creating one.</p>
+            <button class="btn btn-vericase" data-action="open-setup">
+                <i class="fas fa-plus"></i> Create Workspace
+            </button>
+        </section>
+
+        <!-- Master Dashboard Button -->
+        <div class="cc-action-footer" id="actionFooter">
+            <button class="btn-enter-dashboard" id="enterDashboardBtn">
+                <i class="fas fa-th-large"></i>
+                Enter Master Dashboard
+            </button>
+        </div>
     </main>
 
-    <!-- Guide Overlay -->
-    <div class="guide-overlay" id="guideOverlay" aria-hidden="true">
-        <div class="guide-shell" role="dialog" aria-modal="true">
-            <div class="guide-header">
-                <h3>Quick Start Guide</h3>
-                <div class="guide-progress" id="guideProgress"></div>
-                <button class="btn btn-ghost btn-sm" id="guideCloseBtn" aria-label="Close">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="guide-body">
-                <div class="guide-step-title" id="guideStepTitle"></div>
-                <div class="guide-step-desc" id="guideStepDesc"></div>
-                <div class="guide-step-tip" id="guideStepTip"></div>
-            </div>
-            <div class="guide-footer">
-                <div class="guide-step-count" id="guideStepCount"></div>
-                <div class="guide-footer-actions">
-                    <button class="btn btn-ghost btn-sm" id="guidePrevBtn">Back</button>
-                    <button class="btn btn-outline btn-sm" id="guideNextBtn">Next</button>
-                    <button class="btn btn-vericase btn-sm" id="guideCtaBtn">Open</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <script>
-        let dashboardData = null;
+        let controlCentreData = null;
         let workspacesData = [];
-        let currentUserRole = "VIEWER";
-        let permissions = {
-            can_create_project: false,
-            can_create_case: false,
-            can_manage_users: false,
-            can_access_admin: false,
-        };
-        let guideIndex = 0;
-
-        const guideSteps = [
-            {
-                title: "Create your workspace",
-                description: "Workspaces hold everything for an engagement: projects, cases, users, deliverables and collaboration.",
-                tip: "Use a short, recognisable name (often the project name).",
-                ctaLabel: "Create workspace",
-                ctaAction: "open-setup",
-            },
-            {
-                title: "Start with a project",
-                description: "Projects are early-stage: capture contract context and begin evidence finding. You can create case(s) later.",
-                tip: "If you're already in dispute, you can go straight to a case.",
-                ctaLabel: "Project setup",
-                ctaAction: "setup-project",
-            },
-            {
-                title: "Create case(s) when defined",
-                description: "Cases are the refined dispute record. Link to a project where relevant and track issues as they develop.",
-                tip: "A workspace can contain multiple cases from a single project.",
-                ctaLabel: "Case setup",
-                ctaAction: "setup-case",
-            },
-            {
-                title: "Invite your team",
-                description: "Admins assign power users. Power users can invite team members and allocate them to projects and cases.",
-                tip: "Use Collaboration Hub to coordinate work and deadlines.",
-                ctaLabel: "Manage users",
-                ctaAction: "open-users",
-                requiresPower: true,
-            },
-        ];
+        let currentActivityTab = "my";
+        let myActivity = [];
+        let teamActivity = [];
 
         document.addEventListener("DOMContentLoaded", () => {
             if (window.VericaseShell && window.VericaseShell.inject) {
@@ -582,35 +810,9 @@
         });
 
         function setupControlCentre() {
-            const storedUser = getStoredUser();
-            currentUserRole = normalizeRole(storedUser.role || currentUserRole);
-            permissions = derivePermissionsFromRole(currentUserRole);
             bindActionHandlers();
-            setupGuideOverlay();
-        }
-
-        function getStoredUser() {
-            try {
-                return JSON.parse(localStorage.getItem("user") || "{}");
-            } catch {
-                return {};
-            }
-        }
-
-        function normalizeRole(role) {
-            const normalized = String(role || "VIEWER").trim().toUpperCase();
-            return normalized || "VIEWER";
-        }
-
-        function derivePermissionsFromRole(role) {
-            const admin = role === "ADMIN";
-            const power = admin || role === "EDITOR";
-            return {
-                can_create_project: power,
-                can_create_case: power,
-                can_manage_users: admin,
-                can_access_admin: admin,
-            };
+            setupActivityTabs();
+            setupDashboardButton();
         }
 
         function bindActionHandlers() {
@@ -620,10 +822,26 @@
                     handleAction(el.dataset.action);
                 });
             });
+        }
 
-            const startGuideBtn = document.getElementById("startGuideBtn");
-            if (startGuideBtn) {
-                startGuideBtn.addEventListener("click", () => openGuide(0));
+        function setupActivityTabs() {
+            const tabs = document.querySelectorAll(".activity-tab");
+            tabs.forEach(tab => {
+                tab.addEventListener("click", () => {
+                    tabs.forEach(t => t.classList.remove("active"));
+                    tab.classList.add("active");
+                    currentActivityTab = tab.dataset.tab;
+                    renderActivityList();
+                });
+            });
+        }
+
+        function setupDashboardButton() {
+            const btn = document.getElementById("enterDashboardBtn");
+            if (btn) {
+                btn.addEventListener("click", () => {
+                    window.location.href = "master-dashboard.html";
+                });
             }
         }
 
@@ -632,57 +850,43 @@
                 case "open-setup":
                     window.location.href = "workspace-setup.html";
                     break;
-                case "setup-project":
-                    const wsId = localStorage.getItem("currentWorkspaceId");
-                    if (!wsId) {
-                        window.location.href = "master-dashboard.html";
-                        return;
-                    }
-                    window.location.href = `project-setup.html?workspaceId=${encodeURIComponent(wsId)}`;
-                    break;
-                case "setup-case":
-                    const wsId2 = localStorage.getItem("currentWorkspaceId");
-                    if (!wsId2) {
-                        window.location.href = "master-dashboard.html";
-                        return;
-                    }
-                    window.location.href = `case-setup.html?workspaceId=${encodeURIComponent(wsId2)}`;
-                    break;
-                case "open-users":
-                    window.location.href = "admin-users.html";
-                    break;
-                case "open-master-dashboard":
-                    window.location.href = "master-dashboard.html";
-                    break;
             }
         }
 
         async function loadData() {
             try {
-                const [overviewResponse, workspacesResponse] = await Promise.all([
-                    fetch("/api/dashboard/overview", { headers: getAuthHeaders() }),
-                    fetch("/api/workspaces", { headers: getAuthHeaders() })
+                const [statsResponse, workspacesResponse, overviewResponse] = await Promise.all([
+                    fetch("/api/dashboard/control-centre-stats", { headers: getAuthHeaders() }),
+                    fetch("/api/workspaces", { headers: getAuthHeaders() }),
+                    fetch("/api/dashboard/overview", { headers: getAuthHeaders() })
                 ]);
 
-                if (overviewResponse.ok) {
-                    const data = await overviewResponse.json();
-                    dashboardData = data;
-
-                    if (data.user?.role) {
-                        currentUserRole = normalizeRole(data.user.role);
-                        permissions = data.permissions || derivePermissionsFromRole(currentUserRole);
-                    }
-
-                    if (data.user?.display_name) {
-                        document.getElementById("greetingTitle").textContent = `Welcome back, ${data.user.display_name}`;
-                    }
-
-                    renderDeadlines(data.upcoming_deadlines || data.deadlines || []);
+                // Load control centre stats
+                if (statsResponse.ok) {
+                    controlCentreData = await statsResponse.json();
+                    renderProfile(controlCentreData.user);
+                    renderStats(controlCentreData.stats);
+                    myActivity = controlCentreData.my_activity || [];
+                    teamActivity = controlCentreData.team_activity || [];
+                    renderActivityList();
+                    updatePermissions(controlCentreData.permissions);
                 }
 
+                // Load workspaces
                 if (workspacesResponse.ok) {
                     workspacesData = await workspacesResponse.json();
                     renderWorkspaces(workspacesData);
+                }
+
+                // Load deadlines from overview
+                if (overviewResponse.ok) {
+                    const overviewData = await overviewResponse.json();
+                    renderDeadlines(overviewData.upcoming_deadlines || []);
+
+                    // Fallback for user info if control-centre-stats failed
+                    if (!controlCentreData && overviewData.user) {
+                        renderProfile(overviewData.user);
+                    }
                 }
 
                 updateUIState();
@@ -692,37 +896,101 @@
             }
         }
 
-        function updateUIState() {
-            const hasWorkspaces = workspacesData && workspacesData.length > 0;
-            const emptyState = document.getElementById("emptyState");
-            const workspacesSection = document.getElementById("workspacesSection");
+        function renderProfile(user) {
+            if (!user) return;
 
-            if (hasWorkspaces) {
-                emptyState?.classList.add("hidden");
-                workspacesSection?.classList.remove("hidden");
-            } else {
-                emptyState?.classList.remove("hidden");
-                workspacesSection?.classList.add("hidden");
+            const nameEl = document.getElementById("profileName");
+            const emailEl = document.getElementById("profileEmail");
+            const avatarEl = document.getElementById("profileAvatar");
+            const badgeEl = document.getElementById("roleBadge");
+            const loginEl = document.getElementById("lastLogin");
+
+            if (nameEl) nameEl.textContent = user.display_name || user.email?.split("@")[0] || "User";
+            if (emailEl) emailEl.textContent = user.email || "";
+            if (avatarEl) avatarEl.textContent = getInitials(user.display_name || user.email || "?");
+
+            if (badgeEl) {
+                const role = (user.role || "VIEWER").toUpperCase();
+                badgeEl.textContent = role;
+                badgeEl.className = "role-badge " + role.toLowerCase();
             }
 
-            // Update create button state based on permissions
-            const createBtn = document.getElementById("createWorkspaceBtn");
-            if (createBtn) {
-                const canCreate = permissions.can_create_project || permissions.can_create_case;
-                createBtn.disabled = !canCreate;
-                createBtn.title = canCreate ? "" : "Ask your admin to grant create access.";
+            if (loginEl && user.last_login) {
+                loginEl.textContent = "Last login: " + formatRelativeDate(user.last_login);
             }
+
+            // Update greeting
+            const greetingEl = document.getElementById("greetingTitle");
+            if (greetingEl && user.display_name) {
+                greetingEl.textContent = `Welcome back, ${user.display_name}`;
+            }
+        }
+
+        function renderStats(stats) {
+            if (!stats) return;
+
+            document.getElementById("emailsToday").textContent = formatCount(stats.emails_today);
+            document.getElementById("emails7d").textContent = formatCount(stats.emails_7d);
+            document.getElementById("emailsTotal").textContent = formatCount(stats.emails_total);
+
+            document.getElementById("evidenceToday").textContent = formatCount(stats.evidence_today);
+            document.getElementById("evidence7d").textContent = formatCount(stats.evidence_7d);
+            document.getElementById("evidenceTotal").textContent = formatCount(stats.evidence_total);
+
+            document.getElementById("documentsToday").textContent = formatCount(stats.documents_today);
+            document.getElementById("documents7d").textContent = formatCount(stats.documents_7d);
+            document.getElementById("documentsTotal").textContent = formatCount(stats.documents_total);
+        }
+
+        function renderActivityList() {
+            const list = document.getElementById("activityList");
+            if (!list) return;
+
+            const items = currentActivityTab === "my" ? myActivity : teamActivity;
+
+            if (!items || items.length === 0) {
+                list.innerHTML = `
+                    <div class="activity-empty">
+                        <i class="fas fa-history"></i>
+                        <p>No recent activity${currentActivityTab === "my" ? "" : " from team members"}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = items.map(item => {
+                const icon = getActivityIcon(item.resource_type);
+                const timeAgo = formatRelativeDate(item.timestamp);
+                const userInfo = currentActivityTab === "team" && item.user_name
+                    ? `<span class="user-name">${escapeHtml(item.user_name)}</span> - `
+                    : "";
+                const workspace = item.workspace ? ` in ${escapeHtml(item.workspace)}` : "";
+
+                return `
+                    <div class="activity-item">
+                        <div class="activity-icon">
+                            <i class="${icon}"></i>
+                        </div>
+                        <div class="activity-content">
+                            <p class="activity-description">${escapeHtml(item.description)}</p>
+                            <span class="activity-meta">${userInfo}${timeAgo}${workspace}</span>
+                        </div>
+                    </div>
+                `;
+            }).join("");
         }
 
         function renderWorkspaces(workspaces) {
             const grid = document.getElementById("workspaceGrid");
-            if (!grid) return;
+            const section = document.getElementById("workspacesSection");
+            if (!grid || !section) return;
 
             if (!workspaces || workspaces.length === 0) {
-                grid.innerHTML = "";
+                section.classList.add("hidden");
                 return;
             }
 
+            section.classList.remove("hidden");
             grid.innerHTML = workspaces.map(ws => {
                 const name = escapeHtml(ws.name || "Unnamed Workspace");
                 const code = ws.code ? escapeHtml(ws.code) : "";
@@ -732,10 +1000,10 @@
                 const isActive = (ws.updated_at && daysSince(ws.updated_at) < 30) || emailCount > 0;
                 const statusClass = isActive ? "" : "dormant";
                 const statusLabel = isActive ? "Active" : "Dormant";
-                const dateLabel = ws.updated_at ? formatRelativeDate(ws.updated_at) : "";
 
+                // NOTE: Changed from <a> to <div> - workspaces are read-only here
                 return `
-                    <a href="master-dashboard.html?workspaceId=${encodeURIComponent(ws.id)}" class="workspace-card" data-workspace-id="${ws.id}">
+                    <div class="workspace-card" data-workspace-id="${ws.id}">
                         <h3 class="workspace-card-name">${name}</h3>
                         ${code ? `<div class="workspace-card-code">${code}</div>` : '<div class="workspace-card-code">&nbsp;</div>'}
                         <div class="workspace-card-stats">
@@ -754,9 +1022,8 @@
                         </div>
                         <div class="workspace-card-meta">
                             <span class="workspace-status ${statusClass}">${statusLabel}</span>
-                            ${dateLabel ? `<span class="workspace-date">${dateLabel}</span>` : ""}
                         </div>
-                    </a>
+                    </div>
                 `;
             }).join("");
         }
@@ -788,6 +1055,56 @@
                     </div>
                 `;
             }).join("");
+        }
+
+        function updateUIState() {
+            const hasWorkspaces = workspacesData && workspacesData.length > 0;
+            const emptyState = document.getElementById("emptyState");
+            const topRow = document.getElementById("topRow");
+            const activitySection = document.getElementById("activitySection");
+            const actionFooter = document.getElementById("actionFooter");
+
+            if (hasWorkspaces) {
+                emptyState?.classList.add("hidden");
+                topRow?.classList.remove("hidden");
+                activitySection?.classList.remove("hidden");
+                actionFooter?.classList.remove("hidden");
+            } else {
+                emptyState?.classList.remove("hidden");
+                topRow?.classList.add("hidden");
+                activitySection?.classList.add("hidden");
+                actionFooter?.classList.add("hidden");
+            }
+        }
+
+        function updatePermissions(permissions) {
+            const createBtn = document.getElementById("createWorkspaceBtn");
+            if (createBtn && permissions) {
+                const canCreate = permissions.can_create_workspace || permissions.can_create_project;
+                createBtn.disabled = !canCreate;
+                createBtn.title = canCreate ? "" : "Ask your admin to grant create access.";
+            }
+        }
+
+        // Utility functions
+        function getInitials(name) {
+            if (!name) return "?";
+            const parts = name.trim().split(/\s+/);
+            if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+            return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+        }
+
+        function getActivityIcon(resourceType) {
+            const icons = {
+                email: "fas fa-envelope",
+                evidence: "fas fa-file-alt",
+                document: "fas fa-folder",
+                comment: "fas fa-comment",
+                annotation: "fas fa-highlighter",
+                case: "fas fa-briefcase",
+                project: "fas fa-project-diagram"
+            };
+            return icons[resourceType?.toLowerCase()] || "fas fa-circle";
         }
 
         function formatDate(value) {
@@ -833,102 +1150,6 @@
             const div = document.createElement("div");
             div.textContent = String(str);
             return div.innerHTML;
-        }
-
-        // Guide Overlay
-        function setupGuideOverlay() {
-            const overlay = document.getElementById("guideOverlay");
-            const closeBtn = document.getElementById("guideCloseBtn");
-            const prevBtn = document.getElementById("guidePrevBtn");
-            const nextBtn = document.getElementById("guideNextBtn");
-            const ctaBtn = document.getElementById("guideCtaBtn");
-
-            if (closeBtn) closeBtn.addEventListener("click", closeGuide);
-            if (prevBtn) prevBtn.addEventListener("click", () => changeGuideStep(-1));
-            if (nextBtn) nextBtn.addEventListener("click", () => changeGuideStep(1));
-            if (ctaBtn) ctaBtn.addEventListener("click", handleGuideCta);
-
-            if (overlay) {
-                overlay.addEventListener("click", (e) => {
-                    if (e.target === overlay) closeGuide();
-                });
-            }
-        }
-
-        function openGuide(startIndex = 0) {
-            guideIndex = Math.max(0, Math.min(startIndex, guideSteps.length - 1));
-            renderGuide();
-            const overlay = document.getElementById("guideOverlay");
-            if (overlay) {
-                overlay.classList.add("active");
-                overlay.setAttribute("aria-hidden", "false");
-            }
-        }
-
-        function closeGuide() {
-            const overlay = document.getElementById("guideOverlay");
-            if (overlay) {
-                overlay.classList.remove("active");
-                overlay.setAttribute("aria-hidden", "true");
-            }
-        }
-
-        function changeGuideStep(delta) {
-            const next = guideIndex + delta;
-            if (next < 0) {
-                guideIndex = 0;
-            } else if (next >= guideSteps.length) {
-                closeGuide();
-                return;
-            } else {
-                guideIndex = next;
-            }
-            renderGuide();
-        }
-
-        function renderGuide() {
-            const step = guideSteps[guideIndex];
-            if (!step) return;
-
-            const progress = document.getElementById("guideProgress");
-            if (progress) {
-                progress.innerHTML = guideSteps.map((_, idx) =>
-                    `<div class="guide-dot ${idx === guideIndex ? 'active' : ''}"></div>`
-                ).join("");
-            }
-
-            const titleEl = document.getElementById("guideStepTitle");
-            const descEl = document.getElementById("guideStepDesc");
-            const tipEl = document.getElementById("guideStepTip");
-            if (titleEl) titleEl.textContent = step.title;
-            if (descEl) descEl.textContent = step.description;
-            if (tipEl) tipEl.textContent = step.tip;
-
-            const countEl = document.getElementById("guideStepCount");
-            if (countEl) countEl.textContent = `Step ${guideIndex + 1} of ${guideSteps.length}`;
-
-            const prevBtn = document.getElementById("guidePrevBtn");
-            if (prevBtn) prevBtn.disabled = guideIndex === 0;
-
-            const nextBtn = document.getElementById("guideNextBtn");
-            if (nextBtn) nextBtn.textContent = guideIndex === guideSteps.length - 1 ? "Finish" : "Next";
-
-            const ctaBtn = document.getElementById("guideCtaBtn");
-            if (ctaBtn) {
-                const isPower = currentUserRole === "ADMIN" || currentUserRole === "EDITOR";
-                if (step.requiresPower && !isPower) {
-                    ctaBtn.style.display = "none";
-                } else {
-                    ctaBtn.style.display = "inline-flex";
-                    ctaBtn.textContent = step.ctaLabel;
-                    ctaBtn.dataset.action = step.ctaAction;
-                }
-            }
-        }
-
-        function handleGuideCta(e) {
-            const action = e?.currentTarget?.dataset?.action;
-            if (action) handleAction(action);
         }
     </script>
 </body>

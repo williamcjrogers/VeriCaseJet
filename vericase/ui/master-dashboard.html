@@ -6,20 +6,58 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VeriCase - Master Dashboard</title>
   <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
-  <link rel="stylesheet" href="brand-styles.css?v=7" />
-  <link rel="stylesheet" href="design-system.css?v=7" />
+  <link rel="stylesheet" href="brand-styles.css?v=9" />
+  <link rel="stylesheet" href="design-system.css?v=9" />
   <script src="vericase-ui.js"></script>
   <script src="nav-shell.js"></script>
   <style>
     /* === MASTER DASHBOARD - REFINED LAYOUT === */
 
     .app-content {
-      background: var(--bg-white);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-lg); /* Professional 8px, not 26px */
-      box-shadow: var(--shadow-sm); /* Subtle, not floating */
-      margin: var(--space-2); /* Tighter: 8px */
-      padding: var(--space-3); /* Tighter: 12px */
+      /* Match Control Centre styling */
+      background-color: var(--vericase-cream);
+      background-image: radial-gradient(#E5E7EB 1px, transparent 1px);
+      background-size: 24px 24px;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      margin: 0;
+      padding: 32px 48px;
+      min-height: 100vh;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* === WATERMARKS - Match Control Centre === */
+    .watermark {
+      position: absolute;
+      font-size: 280px;
+      color: var(--vericase-navy);
+      opacity: 0.025;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .watermark-scales {
+      right: -40px;
+      top: 80px;
+      transform: rotate(-12deg);
+    }
+
+    .watermark-gavel {
+      left: -60px;
+      bottom: -20px;
+      transform: rotate(15deg);
+    }
+
+    /* === Ensure content is above watermarks === */
+    .dashboard-header,
+    .search-section,
+    .dashboard-layout,
+    .workspaces-section,
+    .dashboard-sidebar {
+      position: relative;
+      z-index: 1;
     }
 
     /* === COMPACT HEADER === */
@@ -1881,6 +1919,10 @@
 
 <body>
   <main id="main-content">
+    <!-- Watermarks - Match Control Centre styling -->
+    <i class="fas fa-balance-scale watermark watermark-scales"></i>
+    <i class="fas fa-gavel watermark watermark-gavel"></i>
+
     <!-- Compact Dashboard Header -->
     <header class="dashboard-header">
       <div class="dashboard-greeting">

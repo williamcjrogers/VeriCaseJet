@@ -25,6 +25,10 @@ from .models import (
     PSTFile,
     EmailMessage,
     EvidenceItem,
+    Document,
+    CollaborationActivity,
+    EvidenceActivityLog,
+    Workspace,
 )
 from .security import current_user
 from .cache import get_cached, set_cached
@@ -207,6 +211,42 @@ class CreateWorkItemRequest(BaseModel):
     contract_type: str | None = None
 
 
+class ControlCentreStats(BaseModel):
+    """Time-filtered statistics for Control Centre"""
+
+    emails_today: int = 0
+    emails_7d: int = 0
+    emails_total: int = 0
+    evidence_today: int = 0
+    evidence_7d: int = 0
+    evidence_total: int = 0
+    documents_today: int = 0
+    documents_7d: int = 0
+    documents_total: int = 0
+
+
+class ActivityItem(BaseModel):
+    """Single activity item for activity feed"""
+
+    id: str
+    action: str
+    resource_type: str
+    description: str
+    workspace: str | None = None
+    user_name: str | None = None
+    timestamp: datetime
+
+
+class ControlCentreResponse(BaseModel):
+    """Complete Control Centre stats response"""
+
+    user: dict[str, Any]
+    stats: ControlCentreStats
+    my_activity: list[ActivityItem] = []
+    team_activity: list[ActivityItem] = []
+    permissions: dict[str, bool]
+
+
 # ============================================================================
 # Helper Functions
 # ============================================================================
@@ -382,6 +422,204 @@ def get_user_role_on_case(db: Session, user: User, case_id: UUID) -> str:
         return case_user.role
 
     return "viewer"
+
+
+# ============================================================================
+# Control Centre Helper Functions
+# ============================================================================
+
+
+def get_time_filtered_counts(db: Session, user: User) -> ControlCentreStats:
+    """Get email, evidence, and document counts filtered by time periods"""
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    seven_days_ago = now - timedelta(days=7)
+
+    # Get accessible project/case IDs for the user
+    projects = get_user_projects(db, user)
+    cases = get_user_cases(db, user)
+    project_ids = [p.id for p in projects]
+    case_ids = [c.id for c in cases]
+
+    # Email counts
+    email_base_query = db.query(func.count(EmailMessage.id))
+    if project_ids or case_ids:
+        email_filter = []
+        if project_ids:
+            email_filter.append(EmailMessage.project_id.in_(project_ids))
+        if case_ids:
+            email_filter.append(EmailMessage.case_id.in_(case_ids))
+        email_base_query = email_base_query.filter(or_(*email_filter))
+
+    emails_total = email_base_query.scalar() or 0
+
+    emails_today = (
+        email_base_query.filter(EmailMessage.created_at >= today_start).scalar() or 0
+    )
+    emails_7d = (
+        email_base_query.filter(EmailMessage.created_at >= seven_days_ago).scalar() or 0
+    )
+
+    # Evidence counts
+    evidence_base_query = db.query(func.count(EvidenceItem.id))
+    if project_ids or case_ids:
+        evidence_filter = []
+        if project_ids:
+            evidence_filter.append(EvidenceItem.project_id.in_(project_ids))
+        if case_ids:
+            evidence_filter.append(EvidenceItem.case_id.in_(case_ids))
+        evidence_base_query = evidence_base_query.filter(or_(*evidence_filter))
+
+    evidence_total = evidence_base_query.scalar() or 0
+    evidence_today = (
+        evidence_base_query.filter(EvidenceItem.created_at >= today_start).scalar() or 0
+    )
+    evidence_7d = (
+        evidence_base_query.filter(EvidenceItem.created_at >= seven_days_ago).scalar()
+        or 0
+    )
+
+    # Document counts (user's own documents)
+    documents_total = (
+        db.query(func.count(Document.id))
+        .filter(Document.owner_user_id == user.id)
+        .scalar()
+        or 0
+    )
+    documents_today = (
+        db.query(func.count(Document.id))
+        .filter(Document.owner_user_id == user.id, Document.created_at >= today_start)
+        .scalar()
+        or 0
+    )
+    documents_7d = (
+        db.query(func.count(Document.id))
+        .filter(
+            Document.owner_user_id == user.id, Document.created_at >= seven_days_ago
+        )
+        .scalar()
+        or 0
+    )
+
+    return ControlCentreStats(
+        emails_today=emails_today,
+        emails_7d=emails_7d,
+        emails_total=emails_total,
+        evidence_today=evidence_today,
+        evidence_7d=evidence_7d,
+        evidence_total=evidence_total,
+        documents_today=documents_today,
+        documents_7d=documents_7d,
+        documents_total=documents_total,
+    )
+
+
+def get_user_activity(
+    db: Session, user: User, limit: int = 10
+) -> tuple[list[ActivityItem], list[ActivityItem]]:
+    """Get activity items for 'My Activity' and 'Team Activity' tabs"""
+    my_activity: list[ActivityItem] = []
+    team_activity: list[ActivityItem] = []
+
+    # Get workspace names for context
+    workspace_names: dict[str, str] = {}
+    workspaces = db.query(Workspace).all()
+    for ws in workspaces:
+        workspace_names[str(ws.id)] = ws.name
+
+    # Get user names for team activity
+    user_names: dict[str, str] = {}
+    users = db.query(User).all()
+    for u in users:
+        user_names[str(u.id)] = u.display_name or u.email.split("@")[0]
+
+    # Query CollaborationActivity for recent activity
+    collab_activities = (
+        db.query(CollaborationActivity)
+        .order_by(desc(CollaborationActivity.created_at))
+        .limit(50)
+        .all()
+    )
+
+    for activity in collab_activities:
+        # Determine workspace from activity details if available
+        workspace_name = None
+        if activity.details and isinstance(activity.details, dict):
+            ws_id = activity.details.get("workspace_id")
+            if ws_id:
+                workspace_name = workspace_names.get(str(ws_id))
+
+        item = ActivityItem(
+            id=str(activity.id),
+            action=activity.action,
+            resource_type=activity.resource_type,
+            description=_format_activity_description(activity),
+            workspace=workspace_name,
+            user_name=(
+                user_names.get(str(activity.user_id)) if activity.user_id else None
+            ),
+            timestamp=_ensure_tz_aware(activity.created_at),
+        )
+
+        if activity.user_id == user.id:
+            if len(my_activity) < limit:
+                my_activity.append(item)
+        else:
+            if len(team_activity) < limit:
+                team_activity.append(item)
+
+    # Also query EvidenceActivityLog for evidence-specific activity
+    evidence_activities = (
+        db.query(EvidenceActivityLog)
+        .order_by(desc(EvidenceActivityLog.created_at))
+        .limit(50)
+        .all()
+    )
+
+    for activity in evidence_activities:
+        workspace_name = None
+        if activity.details and isinstance(activity.details, dict):
+            ws_id = activity.details.get("workspace_id")
+            if ws_id:
+                workspace_name = workspace_names.get(str(ws_id))
+
+        item = ActivityItem(
+            id=str(activity.id),
+            action=activity.action,
+            resource_type="evidence",
+            description=_format_evidence_activity_description(activity),
+            workspace=workspace_name,
+            user_name=(
+                user_names.get(str(activity.user_id)) if activity.user_id else None
+            ),
+            timestamp=_ensure_tz_aware(activity.created_at),
+        )
+
+        if activity.user_id == user.id:
+            if len(my_activity) < limit:
+                my_activity.append(item)
+        else:
+            if len(team_activity) < limit:
+                team_activity.append(item)
+
+    # Sort by timestamp descending
+    my_activity.sort(key=lambda x: x.timestamp, reverse=True)
+    team_activity.sort(key=lambda x: x.timestamp, reverse=True)
+
+    return my_activity[:limit], team_activity[:limit]
+
+
+def _format_activity_description(activity: CollaborationActivity) -> str:
+    """Format a collaboration activity into a human-readable description"""
+    action = activity.action.lower().replace("_", " ")
+    resource = activity.resource_type.lower()
+    return f"{action.capitalize()} {resource}"
+
+
+def _format_evidence_activity_description(activity: EvidenceActivityLog) -> str:
+    """Format an evidence activity into a human-readable description"""
+    action = activity.action.lower().replace("_", " ")
+    return f"{action.capitalize()} evidence item"
 
 
 # ============================================================================
@@ -844,3 +1082,50 @@ async def get_system_health(
             "log_group": log_group,
         },
     }
+
+
+@router.get("/control-centre-stats", response_model=ControlCentreResponse)
+async def get_control_centre_stats(
+    db: DbDep, user: Annotated[User, Depends(current_user)]
+) -> ControlCentreResponse:
+    """
+    Get Control Centre statistics including time-filtered counts and activity feeds.
+    Returns stats for emails, evidence, documents (today, 7 days, total)
+    plus separate activity feeds for current user and team members.
+    """
+    try:
+        # Get time-filtered statistics
+        stats = get_time_filtered_counts(db, user)
+
+        # Get activity feeds
+        my_activity, team_activity = get_user_activity(db, user, limit=10)
+
+        # Build permissions based on user role
+        permissions = {
+            "can_create_workspace": user.role in [UserRole.ADMIN, UserRole.EDITOR],
+            "can_create_project": user.role in [UserRole.ADMIN, UserRole.EDITOR],
+            "can_create_case": user.role in [UserRole.ADMIN, UserRole.EDITOR],
+            "can_manage_users": user.role == UserRole.ADMIN,
+            "can_access_admin": user.role == UserRole.ADMIN,
+        }
+
+        return ControlCentreResponse(
+            user={
+                "id": str(user.id),
+                "email": user.email,
+                "display_name": user.display_name or user.email.split("@")[0],
+                "role": user.role.value,
+                "last_login": (
+                    user.last_login_at.isoformat() if user.last_login_at else None
+                ),
+            },
+            stats=stats,
+            my_activity=my_activity,
+            team_activity=team_activity,
+            permissions=permissions,
+        )
+    except Exception as e:
+        logger.exception("Control Centre stats failed")
+        raise HTTPException(
+            status_code=500, detail=f"Control Centre stats error: {str(e)}"
+        )
