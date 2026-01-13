@@ -128,8 +128,12 @@ jobs:
           if ! kubectl rollout status deployment/vericase-api -n vericase --timeout=5m; then
             echo "::error::API deployment failed - collecting diagnostics"
             kubectl get pods -n vericase -l app=vericase-api -o wide
-            kubectl describe pods -n vericase -l app=vericase-api | tail -50
-            kubectl logs -n vericase -l app=vericase-api --tail=100 --all-containers || true
+            # Get logs from the NEWEST pod (the failing one)
+            FAILING_POD=$(kubectl get pods -n vericase -l app=vericase-api --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+            echo "=== Logs from failing pod: $FAILING_POD ==="
+            kubectl logs -n vericase "$FAILING_POD" --tail=200 || true
+            echo "=== Events for failing pod ==="
+            kubectl describe pod -n vericase "$FAILING_POD" | grep -A 30 "Events:" || true
             exit 1
           fi
 
