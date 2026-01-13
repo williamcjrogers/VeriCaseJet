@@ -1157,9 +1157,9 @@
   <main class="app-content">
     <!-- Breadcrumb Navigation -->
     <nav class="hub-breadcrumb" aria-label="Breadcrumb">
-      <a href="master-dashboard.html"><i class="fas fa-th-large"></i> Master Dashboard</a>
+      <a href="control-centre.html"><i class="fas fa-th-large"></i> Control Centre</a>
       <span class="separator"><i class="fas fa-chevron-right"></i></span>
-      <a href="workspace-hub.html">Workspace Hub</a>
+      <a href="master-dashboard.html">Master Dashboard</a>
       <span class="separator"><i class="fas fa-chevron-right"></i></span>
       <span class="current" id="breadcrumbWorkspaceName">Loading...</span>
     </nav>
@@ -1386,7 +1386,7 @@
     <div class="back-section">
       <a href="master-dashboard.html" class="back-link">
         <i class="fas fa-arrow-left" aria-hidden="true"></i>
-        Back to Dashboard
+        Back to Master Dashboard
       </a>
     </div>
   </main>
@@ -1497,8 +1497,8 @@
         VericaseShell.inject({
           title: "Workspace Hub",
           breadcrumbs: [
-            { label: "Dashboard", url: "master-dashboard.html" },
-            { label: "Workspace Hub" }
+            { label: "Control Centre", url: "control-centre.html" },
+            { label: "Master Dashboard", url: "master-dashboard.html" }
           ],
           headerActions: ""
         });
@@ -1558,7 +1558,8 @@
           VericaseShell.inject({
             title: workspaceData.name,
             breadcrumbs: [
-              { label: "Dashboard", url: "master-dashboard.html" },
+              { label: "Control Centre", url: "control-centre.html" },
+              { label: "Master Dashboard", url: "master-dashboard.html" },
               { label: workspaceData.name }
             ],
             headerActions: ""

@@ -2294,7 +2294,9 @@
     document.addEventListener("DOMContentLoaded", () => {
       VericaseShell.inject({
         title: "Master Dashboard",
-        breadcrumbs: null,
+        breadcrumbs: [
+          { label: "Control Centre", url: "control-centre.html" }
+        ],
         headerActions: ""
       });
 
