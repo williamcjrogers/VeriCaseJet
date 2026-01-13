@@ -397,7 +397,16 @@ async def complete_evidence_upload_service(request, db):
             evidence_item.page_count = metadata["page_count"]
         doc_date_val = _extract_metadata_date(metadata)
         if doc_date_val:
-            evidence_item.document_date = doc_date_val
+            if isinstance(doc_date_val, datetime):
+                evidence_item.document_date = (
+                    doc_date_val.replace(tzinfo=None)
+                    if doc_date_val.tzinfo
+                    else doc_date_val
+                )
+            else:
+                evidence_item.document_date = datetime.combine(
+                    doc_date_val, datetime.min.time()
+                )
         evidence_item.processing_status = "processed"
         db.commit()
     except Exception as e:
@@ -507,7 +516,16 @@ async def direct_upload_evidence_service(
             evidence_item.page_count = metadata["page_count"]
         doc_date_val = _extract_metadata_date(metadata)
         if doc_date_val:
-            evidence_item.document_date = doc_date_val
+            if isinstance(doc_date_val, datetime):
+                evidence_item.document_date = (
+                    doc_date_val.replace(tzinfo=None)
+                    if doc_date_val.tzinfo
+                    else doc_date_val
+                )
+            else:
+                evidence_item.document_date = datetime.combine(
+                    doc_date_val, datetime.min.time()
+                )
         evidence_item.processing_status = "processed"
         db.commit()
     except Exception as e:
@@ -721,7 +739,7 @@ async def list_evidence_service(
             source_email_sender = ei.get("from")
         download_url = None
         try:
-            download_url = presign_get(item.s3_key, expires=3600)
+            download_url = presign_get(item.s3_key, expires=3600, bucket=item.s3_bucket)
         except Exception:
             pass
         summaries.append(
@@ -1124,7 +1142,12 @@ async def get_evidence_full_service(evidence_id, db):
     dimensions = None
     mime_type = item.mime_type or "application/octet-stream"
     try:
-        preview_url = presign_get(item.s3_key, expires=3600)
+        preview_url = presign_get(
+            item.s3_key,
+            expires=3600,
+            bucket=item.s3_bucket,
+            response_content_type=mime_type,
+        )
     except Exception as e:
         logger.warning(f"Could not generate preview URL: {e}")
     if mime_type.startswith("image/"):
@@ -2078,7 +2101,12 @@ async def get_evidence_preview_service(evidence_id, db, user):
     page_count = None
     dimensions = None
     try:
-        preview_url = presign_get(item.s3_key, expires=3600)
+        preview_url = presign_get(
+            item.s3_key,
+            expires=3600,
+            bucket=item.s3_bucket,
+            response_content_type=mime_type,
+        )
     except Exception as e:
         logger.warning(f"Could not generate presigned URL: {e}")
     if mime_type.startswith("image/"):
@@ -2228,7 +2256,12 @@ async def get_evidence_thumbnail_service(evidence_id, db, user, size):
     thumb_size = size_map.get(size, 200)
     if mime_type.startswith("image/"):
         try:
-            url = presign_get(item.s3_key, expires=3600)
+            url = presign_get(
+                item.s3_key,
+                expires=3600,
+                bucket=item.s3_bucket,
+                response_content_type=mime_type,
+            )
             return {
                 "evidence_id": evidence_id,
                 "thumbnail_type": "image",
@@ -2292,6 +2325,7 @@ async def get_evidence_text_content_service(evidence_id, db, user, max_length):
     except Exception as e:
         raise HTTPException(500, f"Could not retrieve file: {str(e)}")
     mime_type = item.mime_type or ""
+    text = ""
     if mime_type.startswith("text/") or item.filename.endswith(
         (".txt", ".csv", ".json", ".xml", ".html", ".md")
     ):
@@ -2301,6 +2335,8 @@ async def get_evidence_text_content_service(evidence_id, db, user, max_length):
                 break
             except Exception:
                 continue
+        if not text:
+            text = content.decode("utf-8", errors="replace")
     else:
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
@@ -2440,7 +2476,16 @@ async def sync_email_attachments_to_evidence_service(
                         evidence_item.page_count = metadata["page_count"]
                     doc_date_val = _extract_metadata_date(metadata)
                     if doc_date_val:
-                        evidence_item.document_date = doc_date_val
+                        if isinstance(doc_date_val, datetime):
+                            evidence_item.document_date = (
+                                doc_date_val.replace(tzinfo=None)
+                                if doc_date_val.tzinfo
+                                else doc_date_val
+                            )
+                        else:
+                            evidence_item.document_date = datetime.combine(
+                                doc_date_val, datetime.min.time()
+                            )
                     evidence_item.processing_status = "processed"
                     metadata_extracted += 1
                 except Exception as e:
@@ -2542,7 +2587,16 @@ async def extract_all_metadata_service(db, user, limit, force):
             item.metadata_extracted_at = datetime.now()
             doc_date_val = _extract_metadata_date(metadata)
             if doc_date_val is not None:
-                item.document_date = doc_date_val
+                if isinstance(doc_date_val, datetime):
+                    item.document_date = (
+                        doc_date_val.replace(tzinfo=None)
+                        if doc_date_val.tzinfo
+                        else doc_date_val
+                    )
+                else:
+                    item.document_date = datetime.combine(
+                        doc_date_val, datetime.min.time()
+                    )
                 updated_dates += 1
             email = None
             if item.source_email_id:
@@ -2562,7 +2616,7 @@ async def extract_all_metadata_service(db, user, limit, force):
                 item.title = metadata["title"]
             if email:
                 domain_map, email_map = _load_stakeholder_maps(
-                    email.project_id, email.case_id
+                    db, email.project_id, email.case_id
                 )
                 parties = _extract_company_parties(
                     email.sender_email,

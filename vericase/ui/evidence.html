@@ -2367,7 +2367,7 @@
           for (const item of itemsList) {
             try {
               // Update the document_category field
-              const updateResponse = await fetch(`${apiUrl}/api/evidence/${item.id}`, {
+              const updateResponse = await fetch(`${apiUrl}/api/evidence/items/${item.id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ document_category: categoryName }),
@@ -3218,7 +3218,7 @@
             const newCategory = params.newValue || "";
             const filename = params.data.filename || params.data.title || "";
             try {
-              const response = await fetch(`${apiUrl}/api/evidence/${evidenceId}`, {
+              const response = await fetch(`${apiUrl}/api/evidence/items/${evidenceId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ document_category: newCategory }),
@@ -3343,24 +3343,19 @@
 
       const filterModel = {};
 
-      // Category filter -> MIME type based filtering
+      // Evidence tab is FILE evidence. Exclude correspondence (raw emails) from this grid.
+      // Attachments can still have a source email (shown via origin/source email columns).
+      filterModel["is_correspondence"] = false;
+
+      // Category filter -> robust media filtering (mime type + extension fallback).
+      // We intentionally don't rely on mime_type alone because many email attachments are stored
+      // as application/octet-stream (which caused signatures/images to leak into Documents).
       if (currentCategory === "images") {
-        // Filter for images, videos, and audio files
-        filterModel["mime_type"] = {
-          filterType: "text",
-          type: "startsWith",
-          filter: "image/",
-        };
+        filterModel["is_media"] = true;
       } else if (currentCategory === "documents") {
-        // Filter for documents (exclude images, videos, audio)
-        // Use a combination filter: application/* or text/* but not image/*, video/*, audio/*
-        filterModel["mime_type"] = {
-          filterType: "text",
-          type: "startsWith",
-          filter: "application/",
-        };
+        filterModel["is_media"] = false;
       }
-      // "all" category doesn't add any filter - show everything
+      // "all" category doesn't add any media filter - show docs + images, but still excludes correspondence
 
       // Search filter -> filename contains
       const search = document
@@ -3706,8 +3701,14 @@
     // DETAIL PANEL
     // ============================================
 
+    let detailLoadSeq = 0;
+    const autoExtractAttemptedEvidenceIds = new Set();
+
     async function showDetail(evidence) {
       if (!evidence) return;
+
+      const evidenceId = evidence.id;
+      const loadSeq = ++detailLoadSeq;
 
       const panel = document.getElementById("detailPanel");
       panel.classList.add("open");
@@ -3721,14 +3722,64 @@
             `;
 
       try {
-        const fullRes = await fetch(`${apiUrl}/api/evidence/items/${evidence.id}/full`);
-        if (!fullRes.ok) {
-          throw new Error(`Failed to load evidence full detail: ${fullRes.status}`);
+        const fetchFull = async () => {
+          const fullRes = await fetch(`${apiUrl}/api/evidence/items/${evidenceId}/full`);
+          if (!fullRes.ok) {
+            throw new Error(`Failed to load evidence full detail: ${fullRes.status}`);
+          }
+          const full = await fullRes.json();
+          return {
+            detail: full.detail || {},
+            preview: full.preview || null,
+            metadata: full.metadata || null,
+          };
+        };
+
+        let { detail, preview, metadata } = await fetchFull();
+
+        const status = (detail.processing_status || "pending").toLowerCase();
+        const previewUrlRequired =
+          preview && ["image", "pdf", "audio", "video"].includes(preview.preview_type);
+        const previewUrlMissing = !preview || (previewUrlRequired && !preview.preview_url);
+        const shouldAutoExtract = status === "pending" || previewUrlMissing;
+
+        if (
+          shouldAutoExtract &&
+          !autoExtractAttemptedEvidenceIds.has(String(evidenceId))
+        ) {
+          autoExtractAttemptedEvidenceIds.add(String(evidenceId));
+          document.getElementById("previewSection").innerHTML = `
+                <div class="preview-placeholder">
+                    <div class="loading" style="width: 32px; height: 32px; border-width: 3px;"></div>
+                    <span>Processing (OCR/metadata)...</span>
+                </div>
+            `;
+
+          try {
+            const extractRes = await fetch(
+              `${apiUrl}/api/evidence/items/${evidenceId}/extract-metadata`,
+              {
+                method: "POST",
+              },
+            );
+
+            if (extractRes.ok) {
+              ({ detail, preview, metadata } = await fetchFull());
+            } else {
+              autoExtractAttemptedEvidenceIds.delete(String(evidenceId));
+              console.error(
+                "Auto-extract metadata failed:",
+                extractRes.status,
+                extractRes.statusText,
+              );
+            }
+          } catch (error) {
+            autoExtractAttemptedEvidenceIds.delete(String(evidenceId));
+            console.error("Auto-extraction failed:", error);
+          }
         }
-        const full = await fullRes.json();
-        const detail = full.detail || {};
-        const preview = full.preview || null;
-        const metadata = full.metadata || null;
+
+        if (loadSeq !== detailLoadSeq) return;
 
         selectedEvidence = detail;
         currentPreviewData = preview;
@@ -3738,7 +3789,7 @@
         updateEvidenceLaneButtons();
         updateEvidenceNotePlaceholder();
         loadEvidenceNotes();
-        await loadVeriCaseSuggestions(evidence.id, detail);
+        await loadVeriCaseSuggestions(evidenceId, detail);
       } catch (error) {
         console.error("Error loading detail:", error);
         VericaseUI.Toast.error("Failed to load evidence details");
@@ -3779,8 +3830,73 @@
                     `;
           break;
 
+        case "audio":
+          html = `
+                        <audio controls src="${preview.preview_url}" style="width: 100%;"></audio>
+                        <button class="preview-expand-btn" onclick="openFullPreview()">
+                            <i class="fas fa-expand"></i> Expand
+                        </button>
+                    `;
+          break;
+
+        case "video":
+          html = `
+                        <video controls src="${preview.preview_url}" style="width: 100%; max-height: 100%;"></video>
+                        <button class="preview-expand-btn" onclick="openFullPreview()">
+                            <i class="fas fa-expand"></i> Expand
+                        </button>
+                    `;
+          break;
+
         case "text":
         case "office":
+          if (!preview.preview_content) {
+            section.innerHTML = `
+                        <div class="preview-placeholder">
+                            <div class="loading" style="width: 32px; height: 32px; border-width: 3px;"></div>
+                            <span>Loading text preview...</span>
+                        </div>
+                    `;
+
+            fetch(
+              `${apiUrl}/api/evidence/items/${detail.id}/text-content?max_length=100000`,
+            )
+              .then(async (response) =>
+                response.ok ? response.json() : Promise.reject(response),
+              )
+              .then((data) => {
+                if (!selectedEvidence || selectedEvidence.id !== detail.id) return;
+
+                const contentStr =
+                  typeof data.text === "string"
+                    ? data.text
+                    : JSON.stringify(data.text, null, 2);
+                const truncated =
+                  contentStr.length > 1000
+                    ? contentStr.substring(0, 1000) + "\\n..."
+                    : contentStr;
+
+                section.innerHTML = `
+                        <pre style="color: var(--gray-400); font-size: 0.75rem; padding: 16px; margin: 0; overflow: auto; max-height: 100%;">${escapeHtml(truncated)}</pre>
+                        <button class="preview-expand-btn" onclick="openFullPreview()">
+                            <i class="fas fa-expand"></i> Full Text
+                        </button>
+                    `;
+              })
+              .catch((error) => {
+                console.error("Error loading text content:", error);
+                if (!selectedEvidence || selectedEvidence.id !== detail.id) return;
+
+                section.innerHTML = `
+                    <div class="preview-placeholder">
+                        <i class="fas ${getFileIcon(detail.mime_type, detail.evidence_type)}"></i>
+                        <span>Preview not available</span>
+                    </div>
+                `;
+              });
+            return;
+          }
+
           const content = preview.preview_content || "No content available";
           const contentStr =
             typeof content === "string"
@@ -3788,7 +3904,7 @@
               : JSON.stringify(content, null, 2);
           const truncated =
             contentStr.length > 1000
-              ? contentStr.substring(0, 1000) + "\n..."
+              ? contentStr.substring(0, 1000) + "\\n..."
               : contentStr;
           html = `
                         <pre style="color: var(--gray-400); font-size: 0.75rem; padding: 16px; margin: 0; overflow: auto; max-height: 100%;">${escapeHtml(truncated)}</pre>
@@ -3815,6 +3931,16 @@
       const meta = extractedMeta || detail.extracted_metadata || {};
 
       let html = "";
+
+      const rawStatus = (detail.processing_status || "pending").toLowerCase();
+      const statusLabel =
+        rawStatus === "processed" || rawStatus === "completed"
+          ? "Ready"
+          : rawStatus === "pending"
+            ? "Pending (not processed yet)"
+            : rawStatus === "error"
+              ? "Error (processing failed)"
+              : rawStatus;
 
       // Basic Info
       html += `
@@ -3848,7 +3974,7 @@
                         <div class="detail-item">
                             <div class="detail-label">Status</div>
                             <div class="detail-value">
-                                <span class="status-badge status-${detail.processing_status || "pending"}">${detail.processing_status || "pending"}</span>
+                                <span class="status-badge status-${rawStatus}">${statusLabel}</span>
                             </div>
                         </div>
                         ${detail.document_date

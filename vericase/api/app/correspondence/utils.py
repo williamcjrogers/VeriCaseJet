@@ -24,13 +24,45 @@ _IMAGE_NUMBER_PATTERN = _re_module.compile(
 _IMG_NUMBER_PATTERN = _re_module.compile(
     r"^img_?\d+\.(png|jpg|jpeg|gif|bmp)$"
 )  # img_001.png
+# Pattern for UUID-suffixed embedded images (e.g., finalvaluesgraphic_5fabdf66-4b6e-4668-bb8c-fb8232e732bb.jpg)
+_UUID_EMBEDDED_PATTERN = _re_module.compile(
+    r"^[a-z_]+_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(png|jpg|jpeg|gif|bmp)$"
+)
+# Pattern for other common embedded image names
+_EMBEDDED_IMAGE_PATTERNS = [
+    _re_module.compile(
+        r"^(final)?values?graphic.*\.(png|jpg|jpeg|gif|bmp)$"
+    ),  # finalvaluesgraphic_*.jpg
+    _re_module.compile(
+        r"^outlook.*\.(png|jpg|jpeg|gif|bmp)$"
+    ),  # outlook embedded images
+    _re_module.compile(r"^cid[_-]?.*\.(png|jpg|jpeg|gif|bmp)$"),  # cid-prefixed images
+    _re_module.compile(r"^inline.*\.(png|jpg|jpeg|gif|bmp)$"),  # inline images
+    _re_module.compile(r"^embedded.*\.(png|jpg|jpeg|gif|bmp)$"),  # embedded images
+    _re_module.compile(
+        r"^~wrd\d+\.(png|jpg|jpeg|gif|bmp)$"
+    ),  # Word embedded (~WRD0001.png)
+]
 
 # Pre-compiled set for O(1) lookup instead of list iteration
 _TRACKING_FILES = frozenset(
     ["blank.gif", "spacer.gif", "pixel.gif", "1x1.gif", "oledata.mso"]
 )
 _EXCLUDED_KEYWORDS = frozenset(
-    ["signature", "logo", "banner", "header", "footer", "badge", "icon"]
+    [
+        "signature",
+        "logo",
+        "banner",
+        "header",
+        "footer",
+        "badge",
+        "icon",
+        "graphic",
+        "disclaimer",
+        "caution",
+        "warning",
+        "external",
+    ]
 )
 
 
@@ -55,14 +87,23 @@ def _is_embedded_image(att_data: dict[str, Any]) -> bool:
     if filename.startswith(("cid:", "cid_")):
         return True
 
-    # Pre-compiled regex matching
+    # Pre-compiled regex matching for numbered image patterns
     if _IMAGE_NUMBER_PATTERN.match(filename) or _IMG_NUMBER_PATTERN.match(filename):
         return True
 
+    # Check for UUID-suffixed embedded images (common in Outlook)
+    if _UUID_EMBEDDED_PATTERN.match(filename):
+        return True
+
+    # Check other embedded image patterns
+    for pattern in _EMBEDDED_IMAGE_PATTERNS:
+        if pattern.match(filename):
+            return True
+
     # Only check keywords if content type is image (avoid unnecessary work)
     if "image" in content_type:
-        # Very small images are likely embedded icons/logos
-        if file_size and file_size < 20000:
+        # Very small images are likely embedded icons/logos (increased threshold to 50KB)
+        if file_size and file_size < 50000:
             return True
         # Check for signature/logo keywords using set intersection
         if any(kw in filename for kw in _EXCLUDED_KEYWORDS):

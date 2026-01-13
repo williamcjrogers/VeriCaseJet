@@ -96,6 +96,12 @@
           url: COMMAND_CENTER_PAGE,
         },
         {
+          id: "workspace-hub",
+          label: "Workspace Hub",
+          icon: "fa-layer-group",
+          url: "workspace-hub.html",
+        },
+        {
           id: "dashboard",
           label: "Master Dashboard",
           icon: "fa-th-large",
@@ -107,7 +113,7 @@
       section: "WORKSPACE",
       // Workspace navigation is only meaningful once a workspace (project OR case) is selected.
       requiresContext: true,
-      hideOn: [COMMAND_CENTER_PAGE, "master-dashboard.html"],
+      hideOn: [COMMAND_CENTER_PAGE, "master-dashboard.html", "workspace-hub.html"],
       sectionLabel: (ctx) => {
         if (ctx?.type === "case") return "CASE";
         if (ctx?.type === "project") return "PROJECT";
@@ -184,7 +190,7 @@
       section: "TOOLS",
       // Tools are available elsewhere on the Command Center page (cards + quick actions).
       // Hide here to avoid showing project/case-specific tools before a workspace is chosen.
-      hideOn: [COMMAND_CENTER_PAGE, "master-dashboard.html"],
+      hideOn: [COMMAND_CENTER_PAGE, "master-dashboard.html", "workspace-hub.html"],
       items: [
         {
           id: "upload",

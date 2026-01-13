@@ -316,18 +316,22 @@ def presign_get(
     expires: int = 300,
     bucket: str | None = None,
     response_disposition: str = "inline",
+    response_content_type: str | None = None,
 ) -> str:
     """Generate presigned GET URL for downloading from S3."""
     target_bucket = bucket or settings.MINIO_BUCKET
     ensure_bucket_once(target_bucket)
     client = s3(public=bool(settings.MINIO_PUBLIC_ENDPOINT))
+    params: dict[str, Any] = {
+        "Bucket": target_bucket,
+        "Key": key,
+        "ResponseContentDisposition": response_disposition,
+    }
+    if response_content_type:
+        params["ResponseContentType"] = response_content_type
     url = client.generate_presigned_url(
         "get_object",
-        Params={
-            "Bucket": target_bucket,
-            "Key": key,
-            "ResponseContentDisposition": response_disposition,
-        },
+        Params=params,
         ExpiresIn=expires,
         HttpMethod="GET",
     )

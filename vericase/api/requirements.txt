@@ -25,6 +25,7 @@ python-magic==0.4.27
 # Email body parsing / cleaning (reply chains, signatures, disclaimers)
 mail-parser-reply==1.36
 beautifulsoup4==4.12.3  # Robust HTML -> text for email bodies (display cleaning)
+striprtf==0.0.29  # Robust RTF -> text for PST/Outlook bodies
 # Note: pypff (libpff-python) for PST processing is optional and platform-specific
 # Install separately if needed: pip install libpff-python
 sentence-transformers==5.1.2

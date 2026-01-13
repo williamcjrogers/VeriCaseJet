@@ -204,6 +204,25 @@ def _is_mostly_boilerplate(text: str) -> bool:
         # Very short text is likely not meaningful content
         return True
 
+    # RTF fallback artifacts (font tables etc.) can look "meaningful" by alphanumeric score
+    # but are not user-visible email content.
+    # Example: "Times New Roman; Symbol;" (classic fonttbl leakage).
+    font_words = (
+        "times new roman",
+        "calibri",
+        "cambria",
+        "arial",
+        "helvetica",
+        "courier new",
+        "wingdings",
+        "symbol",
+    )
+    font_hits = sum(1 for w in font_words if w in text_lower)
+    if font_hits >= 2 and text.count(";") >= 1 and len(text) <= 800:
+        return True
+    if "microsoft exchange server" in text_lower and len(text) <= 1500:
+        return True
+
     # CRITICAL: Detect legal disclaimers/confidentiality notices
     # These sometimes get incorrectly stored in body_text_clean during PST parsing
     disclaimer_phrases = [
@@ -367,7 +386,13 @@ def clean_email_body_for_display(
         if not cleaned:
             continue
 
-        display = ""
+        # Always compute a deterministic heuristic fallback. Some third-party parsers can
+        # over-strip structured content (e.g., bullet lists) and leave only a header line.
+        fallback_top, _quoted, _marker = _split_reply(cleaned)
+        fallback_body, _sig = _strip_signature(fallback_top)
+        fallback_display = fallback_body.strip()
+
+        parser_display = ""
         # Use the best-in-class parser when available, but keep robust fallbacks.
         if parser is not None:
             try:
@@ -379,24 +404,24 @@ def clean_email_body_for_display(
                     first_reply = parsed_msg.replies[0]
                     # .body removes signatures/disclaimers; .content keeps them
                     if hasattr(first_reply, "body"):
-                        display = str(first_reply.body or "")
+                        parser_display = str(first_reply.body or "")
                     elif hasattr(first_reply, "content"):
-                        display = str(first_reply.content or "")
+                        parser_display = str(first_reply.content or "")
             except Exception:
-                display = ""
+                parser_display = ""
 
-        if display:
-            # Regardless of parser output, apply our conservative signature trimming to
-            # remove "Kind regards, Name + contact" blocks that are extremely common in
-            # UK/Outlook corp datasets.
-            top, _quoted, _marker = _split_reply(display)
+        if parser_display:
+            # Regardless of parser output, apply our conservative reply + signature trimming.
+            top, _quoted, _marker = _split_reply(parser_display)
             body, _sig = _strip_signature(top)
-            display = body.strip()
-        else:
-            # Fallback: split reply + strip signature heuristics.
-            top, _quoted, _marker = _split_reply(cleaned)
-            body, _sig = _strip_signature(top)
-            display = body.strip()
+            parser_display = body.strip()
+
+        # Choose the richer non-boilerplate output between parser and fallback.
+        # This protects short structured messages (lists) from being reduced to a single line.
+        display = parser_display or fallback_display
+        if parser_display and fallback_display:
+            if _display_score(fallback_display) > _display_score(parser_display) + 10:
+                display = fallback_display
 
         score = _display_score(display)
         is_boilerplate = _is_mostly_boilerplate(display)

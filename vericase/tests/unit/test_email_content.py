@@ -39,6 +39,27 @@ class TestEmailContent(unittest.TestCase):
 
         self.assertEqual(selection.selected_source, "none")
 
+    def test_rtf_font_table_does_not_pollute_body(self) -> None:
+        # RTF-only messages are common in PST exports; the fallback converter must not
+        # leak font table content like "Times New Roman; Symbol;" into the email body.
+        rtf = (
+            "{\\rtf1\\ansi\\deff0"
+            "{\\fonttbl{\\f0\\fnil Times New Roman;}{\\f1\\fswiss Symbol;}}"
+            "\\viewkind4\\uc1\\pard\\f0\\fs20 Hello Bob\\par"
+            "}"
+        )
+
+        selection = select_best_body(
+            plain_text=None,
+            html_body=None,
+            rtf_body=rtf,
+        )
+
+        self.assertEqual(selection.selected_source, "rtf")
+        self.assertIn("Hello Bob", selection.top_text)
+        self.assertNotIn("Times New Roman", selection.top_text)
+        self.assertNotIn("Symbol", selection.top_text)
+
 
 if __name__ == "__main__":
     unittest.main()

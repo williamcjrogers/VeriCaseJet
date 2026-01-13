@@ -71,6 +71,118 @@ _HTML_BREAK_RE = re.compile(r"(?is)<\s*(br|/p|/div|/tr|/li)\s*>")
 _HTML_STYLE_RE = re.compile(r"(?is)<\s*(script|style)\b[^>]*>.*?</\1\s*>")
 
 
+_RTF_DESTINATION_GROUPS_TO_STRIP = frozenset(
+    {
+        # Metadata / non-visible definitions
+        "fonttbl",
+        "colortbl",
+        "stylesheet",
+        "info",
+        "generator",
+        "xmlnstbl",
+        "rsidtbl",
+        "revtbl",
+        "listtable",
+        "listoverridetable",
+        "themedata",
+        "datastore",
+        # Embedded content
+        "pict",
+        "object",
+        "objdata",
+        "shp",
+        "shpinst",
+        "shpgrp",
+        "nonshppict",
+    }
+)
+
+
+def _strip_rtf_destination_groups(
+    rtf: str, destinations: frozenset[str] = _RTF_DESTINATION_GROUPS_TO_STRIP
+) -> str:
+    """Remove entire RTF groups that are never user-visible.
+
+    This specifically prevents naive fallback conversion from leaking font tables
+    like "Times New Roman; Symbol;" into extracted body text.
+
+    We avoid regex for correctness (nested braces) and keep this deterministic.
+    """
+
+    if not rtf:
+        return ""
+
+    def _parse_control_word(s: str, start: int) -> tuple[str | None, int]:
+        """Parse a control word starting at s[start] (after the backslash)."""
+        i = start
+        n = len(s)
+        if i >= n:
+            return None, i
+        # Control words are typically ASCII letters.
+        j = i
+        while j < n and s[j].isalpha():
+            j += 1
+        if j == i:
+            return None, i
+        return s[i:j].lower(), j
+
+    def _group_destination(s: str, brace_index: int) -> str | None:
+        """Return destination control word for group starting at '{', if any."""
+        n = len(s)
+        i = brace_index + 1
+        while i < n and s[i].isspace():
+            i += 1
+        if i >= n or s[i] != "\\":
+            return None
+        i += 1
+        if i < n and s[i] == "*":
+            # Skip optional destination marker then parse the real destination.
+            i += 1
+            while i < n and s[i].isspace():
+                i += 1
+            if i >= n or s[i] != "\\":
+                return None
+            i += 1
+        word, _ = _parse_control_word(s, i)
+        return word
+
+    def _skip_group(s: str, brace_index: int) -> int:
+        """Return index immediately after the matching closing '}' for a group."""
+        n = len(s)
+        depth = 0
+        i = brace_index
+        while i < n:
+            ch = s[i]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return i + 1
+            i += 1
+        return n
+
+    s = rtf
+    n = len(s)
+    out: list[str] = []
+    last = 0
+    i = 0
+    while i < n:
+        if s[i] == "{":
+            dest = _group_destination(s, i)
+            if dest and dest in destinations:
+                out.append(s[last:i])
+                i = _skip_group(s, i)
+                last = i
+                continue
+        i += 1
+
+    if last == 0:
+        return s
+    out.append(s[last:])
+    return "".join(out)
+
+
 @dataclass(frozen=True)
 class BodySelection:
     selected_source: BodySource
@@ -244,12 +356,43 @@ def rtf_to_text(rtf: str | None) -> str:
         return _rtf_to_text(rtf).replace("\r\n", "\n").replace("\r", "\n").strip()
     except Exception:
         # Fallback: basic control-code stripping (lossy but deterministic).
-        text = rtf
-        text = re.sub(r"\\par[d]?\b", "\n", text)
-        text = re.sub(r"\\'[0-9a-fA-F]{2}", " ", text)
-        text = re.sub(r"\\[a-z]+\d*\s?", " ", text)
+        logger.debug("striprtf not available; using fallback RTF->text conversion")
+
+        text = (rtf or "").replace("\r\n", "\n").replace("\r", "\n")
+        # Remove groups that are known to be non-visible (font tables, styles, embedded objects).
+        text = _strip_rtf_destination_groups(text)
+
+        # Decode common RTF escapes before stripping control words.
+        def _decode_unicode(m: re.Match[str]) -> str:
+            try:
+                code = int(m.group(1))
+                if code < 0:
+                    code += 65536
+                return chr(code)
+            except Exception:
+                return " "
+
+        def _decode_hex(m: re.Match[str]) -> str:
+            try:
+                b = bytes([int(m.group(1), 16)])
+                # Outlook PST exports are commonly Windows-1252.
+                return b.decode("cp1252", errors="replace")
+            except Exception:
+                return " "
+
+        # RTF unicode escape: \uN?  (optional fallback char after)
+        text = re.sub(r"\\u(-?\d+)\??", _decode_unicode, text)
+        # RTF hex escape: \'hh
+        text = re.sub(r"\\'([0-9a-fA-F]{2})", _decode_hex, text)
+
+        # Normalize common whitespace control words.
+        text = re.sub(r"\\(par|line)\b", "\n", text)
+        text = re.sub(r"\\tab\b", "\t", text)
+
+        # Strip remaining control symbols/words.
+        text = re.sub(r"\\[{}\\]", " ", text)  # escaped braces/backslashes
+        text = re.sub(r"\\[a-zA-Z]+-?\d*\s?", " ", text)
         text = text.replace("{", " ").replace("}", " ")
-        text = text.replace("\r\n", "\n").replace("\r", "\n")
         text = re.sub(r"[^\S\n]+", " ", text)
         text = re.sub(r"\n{3,}", "\n\n", text)
         return text.strip()

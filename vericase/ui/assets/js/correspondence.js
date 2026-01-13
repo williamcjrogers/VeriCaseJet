@@ -84,6 +84,74 @@ const DEFAULT_HIDDEN_COLUMNS = new Set([
 const ROW_HEIGHT_COLLAPSED = 96;
 const ROW_HEIGHT_EXPANDED = null; // null = auto-fit to content
 
+/**
+ * Client-side filter to exclude embedded images/signatures from attachment lists.
+ * This is a safety net in case server-side filtering misses some patterns.
+ * @param {Object} att - Attachment object with fileName, file_size, mime_type, is_inline
+ * @returns {boolean} true if this is an embedded/inline image that should be hidden
+ */
+function isEmbeddedImage(att) {
+  if (!att) return false;
+  
+  // Trust the is_inline flag from server
+  if (att.is_inline === true) return true;
+  
+  const filename = (att.fileName || att.filename || att.name || "").toLowerCase();
+  const mimeType = (att.mime_type || att.content_type || "").toLowerCase();
+  const fileSize = att.file_size || att.size || 0;
+  
+  // Common tracking/signature files
+  const trackingFiles = ["blank.gif", "spacer.gif", "pixel.gif", "1x1.gif", "oledata.mso"];
+  if (trackingFiles.includes(filename)) return true;
+  
+  // CID-prefixed files
+  if (filename.startsWith("cid:") || filename.startsWith("cid_")) return true;
+  
+  // Outlook-style numbered images (image001.png, img_001.jpg)
+  if (/^image\d{3}\.(png|jpg|jpeg|gif|bmp)$/.test(filename)) return true;
+  if (/^img_?\d+\.(png|jpg|jpeg|gif|bmp)$/.test(filename)) return true;
+  
+  // UUID-suffixed embedded images (finalvaluesgraphic_5fabdf66-4b6e-4668-bb8c-fb8232e732bb.jpg)
+  if (/^[a-z_]+_[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(png|jpg|jpeg|gif|bmp)$/.test(filename)) return true;
+  
+  // Common embedded patterns
+  const embeddedPatterns = [
+    /^(final)?values?graphic.*\.(png|jpg|jpeg|gif|bmp)$/,  // finalvaluesgraphic_*.jpg
+    /^outlook.*\.(png|jpg|jpeg|gif|bmp)$/,  // Outlook embedded images
+    /^cid[_-]?.*\.(png|jpg|jpeg|gif|bmp)$/,  // cid-prefixed images
+    /^inline.*\.(png|jpg|jpeg|gif|bmp)$/,  // inline images
+    /^embedded.*\.(png|jpg|jpeg|gif|bmp)$/,  // embedded images
+    /^~wrd\d+\.(png|jpg|jpeg|gif|bmp)$/,  // Word embedded (~WRD0001.png)
+  ];
+  for (const pattern of embeddedPatterns) {
+    if (pattern.test(filename)) return true;
+  }
+  
+  // Check for image type with signature/logo keywords or small size
+  if (mimeType.includes("image")) {
+    // Very small images (< 50KB) are likely embedded icons/logos
+    if (fileSize && fileSize < 50000) return true;
+    
+    // Keywords indicating signature/logo/embedded content
+    const keywords = ["signature", "logo", "banner", "header", "footer", "badge", "icon", "graphic", "disclaimer", "caution", "warning", "external"];
+    for (const kw of keywords) {
+      if (filename.includes(kw)) return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Filter attachments array to exclude embedded images/signatures
+ * @param {Array} attachments - Array of attachment objects
+ * @returns {Array} Filtered attachments (real documents only)
+ */
+function filterRealAttachments(attachments) {
+  if (!Array.isArray(attachments)) return [];
+  return attachments.filter(att => !isEmbeddedImage(att));
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -4952,10 +5020,12 @@ function initGrid() {
       flex: 1,
       sortable: false,
       filter: false,
-      headerTooltip: "Attachment file names",
+      headerTooltip: "Attachment file names (excludes embedded images/signatures)",
       wrapText: false,
       valueGetter: (p) => {
-        const attachments = Array.isArray(p.data?.attachments) ? p.data.attachments : [];
+        const rawAttachments = Array.isArray(p.data?.attachments) ? p.data.attachments : [];
+        // Filter out embedded images/signatures on the client side as a safety net
+        const attachments = filterRealAttachments(rawAttachments);
         const names = attachments
           .map((a) => a?.fileName || a?.filename || a?.name)
           .filter(Boolean)
@@ -4963,7 +5033,9 @@ function initGrid() {
         return names.join(", ");
       },
       cellRenderer: (p) => {
-        const attachments = Array.isArray(p.data?.attachments) ? p.data.attachments : [];
+        const rawAttachments = Array.isArray(p.data?.attachments) ? p.data.attachments : [];
+        // Filter out embedded images/signatures on the client side as a safety net
+        const attachments = filterRealAttachments(rawAttachments);
         if (!attachments.length) return '<span style="color: var(--text-muted);">-</span>';
 
         const items = attachments
@@ -4971,6 +5043,8 @@ function initGrid() {
             evidenceId: a?.evidenceId || a?.id || "",
             attachmentId: a?.attachmentId || a?.id || "",
             fileName: a?.fileName || a?.filename || a?.name || "attachment",
+            file_size: a?.file_size || a?.size,
+            mime_type: a?.mime_type || a?.content_type,
           }))
           .filter((a) => a.fileName);
 

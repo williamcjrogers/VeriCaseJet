@@ -148,6 +148,108 @@ def _apply_ag_filters(query: Any, filter_model: dict[str, Any]) -> Any:
                     )
                 )
             continue
+        if col_id == "is_media":
+            image_exts = [
+                "jpg",
+                "jpeg",
+                "png",
+                "gif",
+                "bmp",
+                "webp",
+                "tif",
+                "tiff",
+                "heic",
+                "heif",
+                "svg",
+            ]
+            video_exts = [
+                "mp4",
+                "mov",
+                "m4v",
+                "avi",
+                "mkv",
+                "webm",
+                "wmv",
+            ]
+            audio_exts = [
+                "mp3",
+                "wav",
+                "m4a",
+                "aac",
+                "flac",
+                "ogg",
+                "opus",
+            ]
+            media_exts = image_exts + video_exts + audio_exts
+            media_types = ["image", "photo", "photograph", "video", "audio", "media"]
+            media_match = or_(
+                EvidenceItem.mime_type.ilike("image/%"),
+                EvidenceItem.mime_type.ilike("video/%"),
+                EvidenceItem.mime_type.ilike("audio/%"),
+                EvidenceItem.file_type.in_(media_exts),
+                EvidenceItem.evidence_type.in_(media_types),
+            )
+            if f is True:
+                query = query.filter(media_match)
+            elif f is False:
+                query = query.filter(
+                    and_(
+                        or_(
+                            EvidenceItem.mime_type.is_(None),
+                            and_(
+                                ~EvidenceItem.mime_type.ilike("image/%"),
+                                ~EvidenceItem.mime_type.ilike("video/%"),
+                                ~EvidenceItem.mime_type.ilike("audio/%"),
+                            ),
+                        ),
+                        or_(
+                            EvidenceItem.file_type.is_(None),
+                            ~EvidenceItem.file_type.in_(media_exts),
+                        ),
+                        or_(
+                            EvidenceItem.evidence_type.is_(None),
+                            ~EvidenceItem.evidence_type.in_(media_types),
+                        ),
+                    )
+                )
+            continue
+        if col_id == "is_correspondence":
+            correspondence_exts = ["eml", "msg"]
+            correspondence_types = ["correspondence", "email"]
+            correspondence_match = or_(
+                EvidenceItem.mime_type.ilike("message/%"),
+                EvidenceItem.mime_type == "application/vnd.ms-outlook",
+                EvidenceItem.file_type.in_(correspondence_exts),
+                EvidenceItem.evidence_type.in_(correspondence_types),
+                EvidenceItem.document_category == "email",
+            )
+            if f is True:
+                query = query.filter(correspondence_match)
+            elif f is False:
+                query = query.filter(
+                    and_(
+                        or_(
+                            EvidenceItem.mime_type.is_(None),
+                            and_(
+                                ~EvidenceItem.mime_type.ilike("message/%"),
+                                EvidenceItem.mime_type != "application/vnd.ms-outlook",
+                            ),
+                        ),
+                        or_(
+                            EvidenceItem.file_type.is_(None),
+                            ~EvidenceItem.file_type.in_(correspondence_exts),
+                        ),
+                        or_(
+                            EvidenceItem.evidence_type.is_(None),
+                            ~EvidenceItem.evidence_type.in_(correspondence_types),
+                        ),
+                        or_(
+                            EvidenceItem.document_category.is_(None),
+                            EvidenceItem.document_category != "email",
+                        ),
+                    )
+                )
+            continue
         if col_id == "is_starred" and f:
             query = query.filter(EvidenceItem.is_starred.is_(True))
             continue
@@ -222,7 +324,10 @@ def _apply_ag_sorting(query: Any, sort_model: list[dict[str, Any]]) -> Any:
     col_map = _column_map()
     orders = []
     for sort in sort_model:
-        col_id = sort.get("colId")
+        col_id_raw = sort.get("colId")
+        if not col_id_raw:
+            continue
+        col_id = str(col_id_raw)
         sort_dir = sort.get("sort", "asc")
         column = col_map.get(col_id)
         if not column:
