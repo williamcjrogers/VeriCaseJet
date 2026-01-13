@@ -19,7 +19,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
-from vericase.api.app.db import Base
+from ..db import Base
 
 
 class ContractType(Base):
