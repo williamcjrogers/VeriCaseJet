@@ -221,6 +221,13 @@
           contexts: ["project", "case"],
           adminOnly: true,
         },
+        {
+          id: "copilot",
+          label: "AI Copilot",
+          icon: "fa-robot",
+          url: "copilot.html",
+          badge: "AI",
+        },
       ],
     },
     {
