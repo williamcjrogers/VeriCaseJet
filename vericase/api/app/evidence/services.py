@@ -1133,7 +1133,50 @@ async def get_evidence_server_side_service(
                 "created_at": item.created_at or datetime.now(),
             }
         )
-    stats = {}
+    # Calculate stats for UI tab counts
+    # Use base_query (before AG-Grid filtering) for accurate total counts
+    scope_query = db.query(EvidenceItem)
+    if not include_hidden:
+        scope_query = scope_query.filter(
+            or_(
+                EvidenceItem.meta.is_(None),
+                EvidenceItem.meta.op("->>")("spam").is_(None),
+                EvidenceItem.meta.op("->")("spam").op("->>")("is_hidden") != "true",
+            )
+        )
+    if project_uuid is not None:
+        scope_query = scope_query.filter(EvidenceItem.project_id == project_uuid)
+    if case_uuid is not None:
+        scope_query = scope_query.filter(EvidenceItem.case_id == case_uuid)
+
+    total_count = scope_query.count()
+
+    image_exts = [
+        "jpg",
+        "jpeg",
+        "png",
+        "gif",
+        "bmp",
+        "webp",
+        "tif",
+        "tiff",
+        "heic",
+        "heif",
+        "svg",
+    ]
+    image_types = ["image", "photo", "photograph"]
+    image_count = scope_query.filter(
+        or_(
+            EvidenceItem.mime_type.ilike("image/%"),
+            EvidenceItem.file_type.in_(image_exts),
+            EvidenceItem.evidence_type.in_(image_types),
+        )
+    ).count()
+
+    stats = {
+        "total": total_count,
+        "image_count": image_count,
+    }
     return ServerSideEvidenceResponse(rows=rows, lastRow=last_row, stats=stats)
 
 
@@ -2485,15 +2528,60 @@ async def sync_email_attachments_to_evidence_service(
     ).all()
     created_count = 0
     skipped_count = 0
+    skipped_signature = 0  # Track signature images skipped
     error_count = 0
     metadata_extracted = 0
     metadata_errors = 0
     commit_interval = 25 if extract_metadata else 100
+
+    # Patterns that indicate signature/inline images (skip these even if not marked as inline)
+    signature_patterns = [
+        "image00",
+        "image0",
+        "img00",
+        "img0",  # Outlook auto-names: image001.png
+        "signature",
+        "logo",
+        "banner",
+        "footer",
+        "linkedin",
+        "twitter",
+        "facebook",
+        "instagram",  # Social media icons
+        "email_signature",
+        "emailsignature",
+        "icon",
+        "avatar",
+        "cid:",
+    ]
+    image_exts = {"jpg", "jpeg", "png", "gif", "bmp", "webp", "tif", "tiff"}
+
     for att in attachments:
         try:
             if att.attachment_hash and att.attachment_hash in existing_hash_set:
                 skipped_count += 1
                 continue
+
+            # Skip signature/inline images that weren't properly marked
+            fname_lower = (att.filename or "").lower()
+            raw_ext = (
+                os.path.splitext(fname_lower)[1].lstrip(".") if fname_lower else ""
+            )
+            is_image = (
+                att.content_type and att.content_type.startswith("image/")
+            ) or raw_ext in image_exts
+            is_signature_filename = any(
+                pattern in fname_lower for pattern in signature_patterns
+            )
+            is_very_small = (att.file_size_bytes or 0) < 50000  # Under 50KB
+
+            if is_image and (is_signature_filename or is_very_small):
+                skipped_signature += 1
+                logger.debug(
+                    f"Skipping signature image: {att.filename} ({att.file_size_bytes} bytes)"
+                )
+                continue
+
             email = (
                 db.query(EmailMessage)
                 .filter(EmailMessage.id == att.email_message_id)
@@ -2634,10 +2722,14 @@ async def sync_email_attachments_to_evidence_service(
         "status": "completed",
         "created": created_count,
         "skipped": skipped_count,
+        "skipped_signature_images": skipped_signature,
         "errors": error_count,
         "metadata_extracted": metadata_extracted,
         "metadata_errors": metadata_errors,
-        "total_processed": created_count + skipped_count + error_count,
+        "total_processed": created_count
+        + skipped_count
+        + skipped_signature
+        + error_count,
     }
 
 

@@ -2539,14 +2539,59 @@ class UltimatePSTProcessor:
 
                 # Determine if attachment is truly inline (embedded in email body)
                 # In Outlook PST files, ALL attachments get a content_id, so we need smarter detection
-                # Only mark as inline if:
-                # 1. It has a content_id AND
-                # 2. It's an image type AND
-                # 3. It's small (< 500KB - large images are likely intentional attachments)
-                is_image = bool(content_type and content_type.startswith("image/"))
+                # Mark as inline if ANY of these conditions are met:
+                image_exts = {"jpg", "jpeg", "png", "gif", "bmp", "webp", "tif", "tiff"}
+                safe_filename = filename or ""
+                file_ext = (
+                    Path(safe_filename).suffix.lstrip(".").lower()
+                    if safe_filename
+                    else ""
+                )
+                is_image_by_mime = bool(
+                    content_type and content_type.startswith("image/")
+                )
+                is_image_by_ext = file_ext in image_exts if file_ext else False
+                is_image = is_image_by_mime or is_image_by_ext
                 size_int = int(size) if size else 0
                 is_small = size_int > 0 and size_int < 500000  # 500KB threshold
-                is_inline = bool(content_id) and is_image and is_small
+
+                # Detect signature/auto-generated image filenames
+                fname_lower = safe_filename.lower() if safe_filename else ""
+                # Common patterns for embedded/signature images
+                signature_patterns = [
+                    "image00",
+                    "image0",
+                    "img00",
+                    "img0",  # Outlook auto-names: image001.png
+                    "signature",
+                    "logo",
+                    "banner",
+                    "footer",
+                    "linkedin",
+                    "twitter",
+                    "facebook",
+                    "instagram",  # Social media icons
+                    "email_signature",
+                    "emailsignature",
+                    "cid:",
+                    "embedded",  # Content-ID references
+                    "icon",
+                    "avatar",
+                ]
+                is_signature_filename = any(
+                    pattern in fname_lower for pattern in signature_patterns
+                )
+
+                # Mark as inline (signature noise) if:
+                # 1. Has content_id AND is small image, OR
+                # 2. Has signature-like filename AND is image, OR
+                # 3. Is a very small image (<50KB) which is almost always a signature/icon
+                is_very_small = size_int > 0 and size_int < 50000  # 50KB
+                is_inline = (
+                    (bool(content_id) and is_image and is_small)
+                    or (is_signature_filename and is_image)
+                    or (is_image and is_very_small)
+                )
 
                 # Inline images are overwhelmingly signature noise and very expensive to store/index.
                 # Default behaviour is to skip them entirely (configurable).

@@ -685,6 +685,46 @@ async def get_pst_multipart_part_url_service(pst_file_id, upload_id, part_number
     return PSTMultipartPartResponse(url=url, part_number=part_number)
 
 
+async def get_pst_multipart_batch_urls_service(
+    pst_file_id: str, upload_id: str, start_part: int, count: int, db: Session
+):
+    """
+    Generate multiple presigned URLs in a single request to reduce round-trips.
+    This significantly improves upload performance by allowing the client to
+    fetch URLs for multiple parts at once instead of one per request.
+    """
+    pst_file = db.query(PSTFile).filter_by(id=pst_file_id).first()
+    if not pst_file:
+        raise HTTPException(404, "PST file not found")
+
+    # Validate and cap count to prevent abuse
+    count = min(max(1, count), 20)
+
+    # Validate part number range
+    if start_part < 1 or start_part > 10000:
+        raise HTTPException(400, "Invalid start_part (must be 1-10000)")
+
+    urls = []
+    for i in range(count):
+        part_number = start_part + i
+        if part_number > 10000:  # S3 limit
+            break
+        url = presign_part(
+            pst_file.s3_key,
+            upload_id,
+            part_number,
+            expires=14400,
+            bucket=pst_file.s3_bucket,
+        )
+        urls.append({"part_number": part_number, "url": url})
+
+    return {
+        "pst_file_id": pst_file_id,
+        "upload_id": upload_id,
+        "urls": urls,
+    }
+
+
 async def list_pst_multipart_parts_service(
     pst_file_id: str, upload_id: str, db: Session
 ):
@@ -789,6 +829,17 @@ async def complete_pst_multipart_upload_service(request, db):
 
         # Verify the object actually exists after completion
         from ..storage import s3 as get_s3_client
+        from ..config import settings as api_settings
+
+        # Log API's S3 configuration for debugging
+        logger.info(
+            "[API S3 DEBUG] Verifying upload: USE_AWS_SERVICES=%s, MINIO_ENDPOINT=%s, "
+            "bucket=%s, key=%s",
+            api_settings.USE_AWS_SERVICES,
+            api_settings.MINIO_ENDPOINT,
+            pst_file.s3_bucket,
+            pst_file.s3_key,
+        )
 
         try:
             head_result = get_s3_client().head_object(

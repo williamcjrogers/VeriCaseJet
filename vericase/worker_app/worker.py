@@ -74,8 +74,21 @@ _s3_config = Config(
     max_pool_connections=_s3_max_pool,
     retries={"max_attempts": 10, "mode": "adaptive"},
 )
+
+# Log S3 configuration for debugging
+logger.info(
+    "[WORKER S3 CONFIG] USE_AWS_SERVICES=%s, MINIO_ENDPOINT=%s, use_aws=%s, MINIO_BUCKET=%s",
+    settings.USE_AWS_SERVICES,
+    settings.MINIO_ENDPOINT,
+    use_aws,
+    settings.MINIO_BUCKET,
+)
+
 if use_aws:
     # AWS S3 mode: use IRSA for credentials (no endpoint_url, no explicit keys)
+    logger.info(
+        "[WORKER S3] Creating AWS S3 client (IRSA mode), region=%s", settings.AWS_REGION
+    )
     s3 = boto3.client(
         "s3",
         config=_s3_config,
@@ -83,9 +96,15 @@ if use_aws:
     )
 else:
     # MinIO mode: use explicit endpoint and credentials
+    _minio_endpoint = _normalize_endpoint(settings.MINIO_ENDPOINT)
+    logger.info(
+        "[WORKER S3] Creating MinIO client, endpoint=%s, region=%s",
+        _minio_endpoint,
+        settings.AWS_REGION,
+    )
     s3 = boto3.client(
         "s3",
-        endpoint_url=_normalize_endpoint(settings.MINIO_ENDPOINT),
+        endpoint_url=_minio_endpoint,
         aws_access_key_id=settings.MINIO_ACCESS_KEY,
         aws_secret_access_key=settings.MINIO_SECRET_KEY,
         config=_s3_config,
@@ -958,6 +977,20 @@ def process_pst_file(
                 sys.path.insert(0, local_api)
         from app.pst_processor import UltimatePSTProcessor
 
+        # Import API's S3 client for consistency with upload endpoint
+        # This ensures we use the exact same S3 configuration as the API
+        from app.storage import s3 as get_api_s3_client
+        from app.config import settings as api_settings
+
+        api_s3_client = get_api_s3_client()
+        logger.info(
+            "[PST S3 CONSISTENCY] Using API's S3 client: USE_AWS_SERVICES=%s, "
+            "MINIO_ENDPOINT=%s, S3_BUCKET=%s",
+            api_settings.USE_AWS_SERVICES,
+            api_settings.MINIO_ENDPOINT,
+            api_settings.S3_BUCKET,
+        )
+
         # Create DB session
         SessionLocal = sessionmaker(bind=engine)
         db = SessionLocal()
@@ -969,6 +1002,45 @@ def process_pst_file(
                 logger.error(f"PST file {doc_id} not found in pst_files table")
                 return {"error": "PST file not found"}
 
+            # Detailed logging for debugging PST file not found issues
+            logger.info(
+                "[PST DEBUG] Database record: id=%s, bucket=%s (type=%s), s3_key=%s, "
+                "case_id=%s, project_id=%s, status=%s",
+                pst_file.get("id"),
+                pst_file.get("bucket"),
+                type(pst_file.get("bucket")),
+                pst_file.get("s3_key"),
+                pst_file.get("case_id"),
+                pst_file.get("project_id"),
+                pst_file.get("processing_status"),
+            )
+
+            # Pre-verify the file exists in S3 before starting processing
+            # Use API's S3 client for consistency with upload endpoint
+            bucket_to_check = pst_file.get("bucket") or api_settings.S3_BUCKET
+            key_to_check = pst_file.get("s3_key")
+            logger.info(
+                "[PST DEBUG] Pre-verify: checking s3://%s/%s using API S3 client",
+                bucket_to_check,
+                key_to_check,
+            )
+            try:
+                head_resp = api_s3_client.head_object(
+                    Bucket=bucket_to_check, Key=key_to_check
+                )
+                logger.info(
+                    "[PST DEBUG] Pre-verify SUCCESS: file exists, size=%s bytes",
+                    head_resp.get("ContentLength", 0),
+                )
+            except Exception as pre_verify_err:
+                logger.error(
+                    "[PST DEBUG] Pre-verify FAILED: file NOT found at s3://%s/%s - error: %s",
+                    bucket_to_check,
+                    key_to_check,
+                    pre_verify_err,
+                )
+                # Continue anyway to let processor give proper error
+
             # Update status to processing
             _update_pst_status(doc_id, "processing")
 
@@ -976,9 +1048,9 @@ def process_pst_file(
                 f"Processing PST: {pst_file['filename']} from {pst_file['bucket']}/{pst_file['s3_key']}"
             )
 
-            # Initialize processor
+            # Initialize processor with API's S3 client for consistency
             processor = UltimatePSTProcessor(
-                db=db, s3_client=s3, opensearch_client=os_client
+                db=db, s3_client=api_s3_client, opensearch_client=os_client
             )
 
             # Process PST - use case_id and project_id from the pst_file record

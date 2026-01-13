@@ -2892,8 +2892,47 @@
         if (np) partsMap.set(np.PartNumber, np);
       });
 
-      // Upload parts in parallel (up to 6 concurrent for large files 20GB+)
-      const MAX_PART_CONCURRENCY = 6;
+      // URL cache for batch-prefetched presigned URLs
+      const urlCache = new Map();
+      const URL_BATCH_SIZE = 16; // Fetch 16 URLs at a time
+
+      // Prefetch URLs for upcoming parts to reduce round-trips
+      const prefetchUrls = async (startPart) => {
+        // Don't prefetch if we already have enough cached URLs
+        const uncachedCount = Array.from({ length: URL_BATCH_SIZE }, (_, i) => startPart + i)
+          .filter(pn => pn <= totalChunks && !urlCache.has(pn) && !partsMap.has(pn)).length;
+        if (uncachedCount < URL_BATCH_SIZE / 2) return;
+
+        try {
+          const resp = await fetch(
+            `${apiUrl}/api/correspondence/pst/upload/multipart/batch-urls`,
+            withAuth({
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                pst_file_id,
+                upload_id,
+                start_part: startPart,
+                count: URL_BATCH_SIZE,
+              }),
+            }),
+          );
+          if (resp.ok) {
+            const data = await resp.json();
+            (data.urls || []).forEach(({ part_number, url }) => {
+              if (!urlCache.has(part_number)) {
+                urlCache.set(part_number, url);
+              }
+            });
+          }
+        } catch (e) {
+          // Silent fail - will fall back to single URL fetch
+          console.debug("Batch URL prefetch failed, will use single fetch", e);
+        }
+      };
+
+      // Upload parts in parallel (up to 8 concurrent for optimal throughput on fast connections)
+      const MAX_PART_CONCURRENCY = 8;
       const uploadPart = async (partNumber) => {
         // Skip already-uploaded parts when resuming.
         if (partsMap.has(partNumber)) {
@@ -2904,14 +2943,17 @@
         const end = Math.min(start + actualChunkSize, item.size);
         const chunk = item.file.slice(start, end);
 
-        const partUrlResp = await fetch(
-          `${apiUrl}/api/correspondence/pst/upload/multipart/part?pst_file_id=${pst_file_id}&upload_id=${encodeURIComponent(upload_id)}&part_number=${partNumber}`,
-        );
-
-        if (!partUrlResp.ok)
-          throw new Error(`Failed to get URL for part ${partNumber}`);
-
-        const { url } = await partUrlResp.json();
+        // Check URL cache first, then fall back to single URL fetch
+        let url = urlCache.get(partNumber);
+        if (!url) {
+          const partUrlResp = await fetch(
+            `${apiUrl}/api/correspondence/pst/upload/multipart/part?pst_file_id=${pst_file_id}&upload_id=${encodeURIComponent(upload_id)}&part_number=${partNumber}`,
+          );
+          if (!partUrlResp.ok)
+            throw new Error(`Failed to get URL for part ${partNumber}`);
+          const data = await partUrlResp.json();
+          url = data.url;
+        }
 
         const uploadResp = await fetchWithRetry(
           url,
@@ -2949,11 +2991,21 @@
         return part;
       };
 
-      // Upload all parts with controlled concurrency
+      // Upload all parts with controlled concurrency and URL prefetching
       updateFileItem(item.id, {
         progress: Math.round((partsMap.size / totalChunks) * 85),
       });
+
+      // Prefetch URLs for first batch before starting
+      await prefetchUrls(1);
+
       for (let i = 0; i < totalChunks; i += MAX_PART_CONCURRENCY) {
+        // Prefetch URLs for next batch while uploading current batch
+        const nextBatchStart = i + MAX_PART_CONCURRENCY + 1;
+        if (nextBatchStart <= totalChunks) {
+          prefetchUrls(nextBatchStart); // Fire and forget, don't await
+        }
+
         const batch = [];
         for (let j = 0; j < MAX_PART_CONCURRENCY && i + j < totalChunks; j++) {
           batch.push(uploadPart(i + j + 1));

@@ -350,6 +350,23 @@ class PSTMultipartPartsResponse(BaseModel):
     parts: list[dict[str, Any]]  # List of {ETag, PartNumber, Size}
 
 
+class PSTMultipartBatchUrlsRequest(BaseModel):
+    """Request for batch presigned URLs to reduce round-trips."""
+
+    pst_file_id: str
+    upload_id: str
+    start_part: int  # First part number to generate URL for
+    count: int = 10  # Number of URLs to generate (max 20)
+
+
+class PSTMultipartBatchUrlsResponse(BaseModel):
+    """Response with multiple presigned URLs for parallel upload."""
+
+    pst_file_id: str
+    upload_id: str
+    urls: list[dict[str, Any]]  # List of {part_number, url}
+
+
 class PSTProcessingStatus(BaseModel):
     """PST processing status"""
 

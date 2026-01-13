@@ -32,6 +32,7 @@ from .services import (
     init_pst_upload_service,
     init_pst_multipart_upload_service,
     get_pst_multipart_part_url_service,
+    get_pst_multipart_batch_urls_service,
     list_pst_multipart_parts_service,
     complete_pst_multipart_upload_service,
     abort_pst_multipart_upload_service,
@@ -52,6 +53,8 @@ from .utils import (
     PSTMultipartAbortRequest,
     PSTMultipartAbortResponse,
     PSTMultipartPartsResponse,
+    PSTMultipartBatchUrlsRequest,
+    PSTMultipartBatchUrlsResponse,
     PSTProcessingStatus,
     PSTFileListResponse,
     EmailListResponse,
@@ -139,6 +142,27 @@ async def get_pst_multipart_part_url(
 ):
     return await get_pst_multipart_part_url_service(
         pst_file_id, upload_id, part_number, db
+    )
+
+
+@router.post(
+    "/pst/upload/multipart/batch-urls", response_model=PSTMultipartBatchUrlsResponse
+)
+async def get_pst_multipart_batch_urls(
+    request: PSTMultipartBatchUrlsRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Get multiple presigned URLs in a single request to reduce round-trips.
+    This improves upload performance by allowing the client to fetch URLs
+    for multiple parts at once (up to 20) instead of one per request.
+    """
+    return await get_pst_multipart_batch_urls_service(
+        request.pst_file_id,
+        request.upload_id,
+        request.start_part,
+        request.count,
+        db,
     )
 
 

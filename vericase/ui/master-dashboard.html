@@ -1989,6 +1989,512 @@
         display: none;
       }
     }
+
+    /* === CONTROL CENTRE TABS === */
+    .control-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--gray-200);
+      padding-bottom: 0;
+    }
+
+    .control-tab {
+      padding: 12px 24px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: -1px;
+    }
+
+    .control-tab:hover {
+      color: var(--text-primary);
+      background: var(--gray-50);
+    }
+
+    .control-tab.active {
+      color: var(--vericase-teal);
+      border-bottom-color: var(--vericase-teal);
+      font-weight: 600;
+    }
+
+    .control-tab i {
+      font-size: 0.8125rem;
+    }
+
+    .control-tab .tab-badge {
+      background: var(--gray-100);
+      color: var(--text-secondary);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: var(--radius-full);
+    }
+
+    .control-tab.active .tab-badge {
+      background: rgba(31, 111, 120, 0.1);
+      color: var(--vericase-teal);
+    }
+
+    .tab-badge.urgent {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--error);
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    /* === DEADLINES PANEL === */
+    .deadlines-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .deadlines-filters {
+      display: flex;
+      gap: 8px;
+    }
+
+    .deadline-filter {
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      border: 1px solid var(--gray-200);
+      background: white;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .deadline-filter:hover {
+      border-color: var(--gray-300);
+    }
+
+    .deadline-filter.active {
+      background: var(--vericase-teal);
+      color: white;
+      border-color: var(--vericase-teal);
+    }
+
+    .deadlines-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .deadline-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      transition: all 0.15s;
+    }
+
+    .deadline-item:hover {
+      box-shadow: var(--shadow-md);
+      border-color: var(--gray-300);
+    }
+
+    .deadline-item.overdue {
+      border-left: 3px solid var(--error);
+    }
+
+    .deadline-item.urgent {
+      border-left: 3px solid var(--warning);
+    }
+
+    .deadline-item.upcoming {
+      border-left: 3px solid var(--vericase-teal);
+    }
+
+    .deadline-date {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 60px;
+      padding: 8px 12px;
+      background: var(--gray-50);
+      border-radius: var(--radius-md);
+    }
+
+    .deadline-date .day {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+
+    .deadline-date .month {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .deadline-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .deadline-title {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .deadline-meta {
+      display: flex;
+      gap: 12px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .deadline-meta span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .deadline-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .deadline-days {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+    }
+
+    .deadline-days.overdue {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--error);
+    }
+
+    .deadline-days.urgent {
+      background: rgba(245, 158, 11, 0.1);
+      color: var(--warning);
+    }
+
+    .deadline-days.normal {
+      background: var(--gray-100);
+      color: var(--text-secondary);
+    }
+
+    .deadline-actions {
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .deadline-item:hover .deadline-actions {
+      opacity: 1;
+    }
+
+    .deadline-action-btn {
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: transparent;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+
+    .deadline-action-btn:hover {
+      background: var(--gray-100);
+      color: var(--text-primary);
+    }
+
+    /* === USERS PANEL === */
+    .users-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .users-search {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .users-search-input {
+      padding: 8px 14px 8px 36px;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      font-size: 0.875rem;
+      width: 240px;
+      background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%239CA3AF' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'/%3E%3C/svg%3E") no-repeat 12px center;
+    }
+
+    .users-table {
+      width: 100%;
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .users-table thead {
+      background: var(--gray-50);
+    }
+
+    .users-table th {
+      padding: 12px 16px;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      text-align: left;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .users-table td {
+      padding: 14px 16px;
+      font-size: 0.875rem;
+      color: var(--text-primary);
+      border-bottom: 1px solid var(--gray-100);
+    }
+
+    .users-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .users-table tr:hover td {
+      background: var(--gray-50);
+    }
+
+    .user-cell {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--vericase-navy);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8125rem;
+      font-weight: 600;
+    }
+
+    .user-details {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .user-name {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .user-email {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .role-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      border-radius: var(--radius-full);
+    }
+
+    .role-badge.admin {
+      background: rgba(15, 23, 42, 0.1);
+      color: var(--vericase-navy);
+    }
+
+    .role-badge.power-user {
+      background: rgba(31, 111, 120, 0.1);
+      color: var(--vericase-teal);
+    }
+
+    .role-badge.management {
+      background: rgba(181, 155, 106, 0.15);
+      color: var(--vericase-gold);
+    }
+
+    .role-badge.user {
+      background: var(--gray-100);
+      color: var(--text-secondary);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      border-radius: var(--radius-full);
+    }
+
+    .status-badge.active {
+      background: rgba(5, 150, 105, 0.1);
+      color: var(--success);
+    }
+
+    .status-badge.inactive {
+      background: var(--gray-100);
+      color: var(--text-muted);
+    }
+
+    .user-actions-cell {
+      display: flex;
+      gap: 4px;
+    }
+
+    /* === ADD DEADLINE MODAL === */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 500px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow-xl);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .modal-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+
+    .modal-close:hover {
+      background: var(--gray-100);
+      color: var(--text-primary);
+    }
+
+    .modal-body {
+      padding: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .form-input,
+    .form-select,
+    .form-textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      font-size: 0.875rem;
+      transition: all 0.15s;
+    }
+
+    .form-input:focus,
+    .form-select:focus,
+    .form-textarea:focus {
+      outline: none;
+      border-color: var(--vericase-teal);
+      box-shadow: 0 0 0 3px rgba(31, 111, 120, 0.1);
+    }
+
+    .form-textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 16px 24px;
+      border-top: 1px solid var(--gray-200);
+      background: var(--gray-50);
+    }
   </style>
 </head>
 
@@ -2034,6 +2540,26 @@
         </button>
       </div>
     </header>
+
+    <!-- Control Centre Tabs -->
+    <nav class="control-tabs" role="tablist">
+      <button class="control-tab active" data-tab="overview" role="tab" aria-selected="true">
+        <i class="fas fa-th-large"></i>
+        Overview
+      </button>
+      <button class="control-tab" data-tab="deadlines" role="tab" aria-selected="false">
+        <i class="fas fa-calendar-check"></i>
+        Deadlines
+        <span class="tab-badge" id="deadlinesBadge">0</span>
+      </button>
+      <button class="control-tab" data-tab="users" role="tab" aria-selected="false" id="usersTab">
+        <i class="fas fa-users"></i>
+        Users
+      </button>
+    </nav>
+
+    <!-- Overview Tab Panel -->
+    <div class="tab-panel active" id="overviewPanel" role="tabpanel">
 
     <!-- Search Section -->
     <section class="search-section">
@@ -2256,7 +2782,123 @@
         </div>
       </aside>
     </div>
+    </div><!-- End Overview Tab Panel -->
+
+    <!-- Deadlines Tab Panel -->
+    <div class="tab-panel" id="deadlinesPanel" role="tabpanel">
+      <div class="deadlines-header">
+        <div class="deadlines-filters">
+          <button class="deadline-filter active" data-filter="all">All</button>
+          <button class="deadline-filter" data-filter="overdue">Overdue</button>
+          <button class="deadline-filter" data-filter="upcoming">This Week</button>
+          <button class="deadline-filter" data-filter="custom">Custom</button>
+        </div>
+        <button class="btn btn-vericase" id="addDeadlineBtn">
+          <i class="fas fa-plus"></i> Add Deadline
+        </button>
+      </div>
+      <div class="deadlines-list" id="deadlinesList">
+        <div class="empty-state">
+          <i class="fas fa-calendar-check empty-icon"></i>
+          <div class="empty-title">No deadlines</div>
+          <div class="empty-text">Create your first deadline to start tracking important dates</div>
+        </div>
+      </div>
+    </div><!-- End Deadlines Tab Panel -->
+
+    <!-- Users Tab Panel -->
+    <div class="tab-panel" id="usersPanel" role="tabpanel">
+      <div class="users-header">
+        <div class="users-search">
+          <input type="text" class="users-search-input" id="usersSearchInput" placeholder="Search users...">
+        </div>
+        <button class="btn btn-vericase" id="inviteUserBtn" style="display: none;">
+          <i class="fas fa-user-plus"></i> Invite User
+        </button>
+      </div>
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Last Active</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="usersTableBody">
+          <tr>
+            <td colspan="5" class="empty-state" style="text-align: center; padding: 40px;">
+              <i class="fas fa-users empty-icon"></i>
+              <div class="empty-title">Loading users...</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div><!-- End Users Tab Panel -->
+
   </main>
+
+  <!-- Add Deadline Modal -->
+  <div class="modal-overlay" id="deadlineModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Add Deadline</h3>
+        <button class="modal-close" id="deadlineModalClose">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="deadlineForm">
+          <div class="form-group">
+            <label class="form-label">Title *</label>
+            <input type="text" class="form-input" id="deadlineTitle" required placeholder="e.g., Submit response to claim">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Description</label>
+            <textarea class="form-textarea" id="deadlineDescription" placeholder="Optional details..."></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Due Date *</label>
+              <input type="datetime-local" class="form-input" id="deadlineDueDate" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Priority</label>
+              <select class="form-select" id="deadlinePriority">
+                <option value="low">Low</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Type</label>
+              <select class="form-select" id="deadlineType">
+                <option value="task">Task</option>
+                <option value="reminder">Reminder</option>
+                <option value="milestone">Milestone</option>
+                <option value="court_date">Court Date</option>
+                <option value="filing">Filing Deadline</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Workspace</label>
+              <select class="form-select" id="deadlineWorkspace">
+                <option value="">None</option>
+              </select>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" id="cancelDeadlineBtn">Cancel</button>
+        <button type="submit" class="btn btn-vericase" id="saveDeadlineBtn">Save Deadline</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Create Modal -->
   <div class="modal-overlay" id="createModal" role="dialog" aria-modal="true">
@@ -2429,6 +3071,398 @@
     let selectedType = "project";
     let predictiveOptions = { themes: [], outcomes: [] };
     let predictiveFilters = { theme: "", outcome: "" };
+    let currentUserRole = "USER";
+    let currentUserPermissions = {};
+
+    // ===========================================
+    // CONTROL CENTRE - Tab Management
+    // ===========================================
+
+    function initControlCentreTabs() {
+      const tabs = document.querySelectorAll('.control-tab');
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+      });
+
+      // Load deadlines count for badge
+      loadDeadlinesBadge();
+    }
+
+    function switchTab(tabName) {
+      // Update tab buttons
+      document.querySelectorAll('.control-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabName);
+        tab.setAttribute('aria-selected', tab.dataset.tab === tabName);
+      });
+
+      // Update tab panels
+      document.querySelectorAll('.tab-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === `${tabName}Panel`);
+      });
+
+      // Load data for the selected tab
+      if (tabName === 'deadlines') {
+        loadDeadlines();
+      } else if (tabName === 'users') {
+        loadUsers();
+      }
+    }
+
+    async function loadDeadlinesBadge() {
+      try {
+        const headers = getAuthHeaders();
+        const response = await fetch('/api/dashboard/deadlines?include_completed=false', { headers });
+        if (response.ok) {
+          const data = await response.json();
+          const badge = document.getElementById('deadlinesBadge');
+          if (badge) {
+            badge.textContent = data.total_count;
+            if (data.overdue_count > 0) {
+              badge.classList.add('urgent');
+              badge.textContent = data.overdue_count;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load deadlines badge', e);
+      }
+    }
+
+    // ===========================================
+    // CONTROL CENTRE - Deadlines Management
+    // ===========================================
+
+    let deadlinesData = [];
+    let deadlineFilter = 'all';
+
+    async function loadDeadlines() {
+      const container = document.getElementById('deadlinesList');
+      container.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin empty-icon"></i><div class="empty-title">Loading deadlines...</div></div>';
+
+      try {
+        const headers = getAuthHeaders();
+        const response = await fetch('/api/dashboard/deadlines?include_completed=false', { headers });
+        if (!response.ok) throw new Error('Failed to load deadlines');
+
+        const data = await response.json();
+        deadlinesData = data.deadlines;
+        renderDeadlines();
+      } catch (e) {
+        console.error('Error loading deadlines:', e);
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle empty-icon"></i><div class="empty-title">Failed to load deadlines</div></div>';
+      }
+    }
+
+    function renderDeadlines() {
+      const container = document.getElementById('deadlinesList');
+      let filtered = deadlinesData;
+
+      // Apply filter
+      if (deadlineFilter === 'overdue') {
+        filtered = deadlinesData.filter(d => d.days_remaining < 0);
+      } else if (deadlineFilter === 'upcoming') {
+        filtered = deadlinesData.filter(d => d.days_remaining >= 0 && d.days_remaining <= 7);
+      } else if (deadlineFilter === 'custom') {
+        filtered = deadlinesData.filter(d => d.source_type === 'custom');
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-calendar-check empty-icon"></i><div class="empty-title">No deadlines</div><div class="empty-text">No deadlines match your current filter</div></div>';
+        return;
+      }
+
+      container.innerHTML = filtered.map(d => {
+        const dueDate = new Date(d.due_date);
+        const day = dueDate.getDate();
+        const month = dueDate.toLocaleString('default', { month: 'short' });
+        const urgencyClass = d.days_remaining < 0 ? 'overdue' : d.days_remaining <= 7 ? 'urgent' : 'upcoming';
+        const daysText = d.days_remaining < 0
+          ? `${Math.abs(d.days_remaining)} days overdue`
+          : d.days_remaining === 0
+            ? 'Due today'
+            : `${d.days_remaining} days`;
+
+        return `
+          <div class="deadline-item ${urgencyClass}">
+            <div class="deadline-date">
+              <span class="day">${day}</span>
+              <span class="month">${month}</span>
+            </div>
+            <div class="deadline-info">
+              <div class="deadline-title">${escapeHtml(d.title)}</div>
+              <div class="deadline-meta">
+                <span><i class="fas fa-tag"></i> ${d.source_type}</span>
+                <span><i class="fas fa-folder"></i> ${escapeHtml(d.source_name)}</span>
+                ${d.priority !== 'medium' ? `<span><i class="fas fa-flag"></i> ${d.priority}</span>` : ''}
+              </div>
+            </div>
+            <div class="deadline-status">
+              <span class="deadline-days ${urgencyClass}">${daysText}</span>
+            </div>
+            ${d.can_edit ? `
+              <div class="deadline-actions">
+                <button class="deadline-action-btn" onclick="editDeadline('${d.id}')" title="Edit">
+                  <i class="fas fa-edit"></i>
+                </button>
+                <button class="deadline-action-btn" onclick="completeDeadline('${d.id}')" title="Mark Complete">
+                  <i class="fas fa-check"></i>
+                </button>
+                <button class="deadline-action-btn" onclick="deleteDeadline('${d.id}')" title="Delete">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function setupDeadlineFilters() {
+      document.querySelectorAll('.deadline-filter').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.deadline-filter').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          deadlineFilter = btn.dataset.filter;
+          renderDeadlines();
+        });
+      });
+    }
+
+    function setupDeadlineModal() {
+      const modal = document.getElementById('deadlineModal');
+      const addBtn = document.getElementById('addDeadlineBtn');
+      const closeBtn = document.getElementById('deadlineModalClose');
+      const cancelBtn = document.getElementById('cancelDeadlineBtn');
+      const saveBtn = document.getElementById('saveDeadlineBtn');
+
+      addBtn?.addEventListener('click', () => {
+        document.getElementById('deadlineForm').reset();
+        modal.classList.add('active');
+        populateWorkspaceSelect();
+      });
+
+      closeBtn?.addEventListener('click', () => modal.classList.remove('active'));
+      cancelBtn?.addEventListener('click', () => modal.classList.remove('active'));
+
+      saveBtn?.addEventListener('click', async (e) => {
+        e.preventDefault();
+        await saveDeadline();
+      });
+
+      modal?.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.remove('active');
+      });
+    }
+
+    async function populateWorkspaceSelect() {
+      try {
+        const headers = getAuthHeaders();
+        const response = await fetch('/api/workspaces', { headers });
+        if (response.ok) {
+          const workspaces = await response.json();
+          const select = document.getElementById('deadlineWorkspace');
+          select.innerHTML = '<option value="">None</option>' +
+            workspaces.map(w => `<option value="${w.id}">${escapeHtml(w.name)}</option>`).join('');
+        }
+      } catch (e) {
+        console.warn('Failed to load workspaces for select', e);
+      }
+    }
+
+    async function saveDeadline() {
+      const title = document.getElementById('deadlineTitle').value.trim();
+      const description = document.getElementById('deadlineDescription').value.trim();
+      const dueDate = document.getElementById('deadlineDueDate').value;
+      const priority = document.getElementById('deadlinePriority').value;
+      const deadlineType = document.getElementById('deadlineType').value;
+      const workspaceId = document.getElementById('deadlineWorkspace').value || null;
+
+      if (!title || !dueDate) {
+        alert('Please fill in required fields');
+        return;
+      }
+
+      try {
+        const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+        const response = await fetch('/api/dashboard/deadlines', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            title,
+            description: description || null,
+            due_date: new Date(dueDate).toISOString(),
+            priority,
+            deadline_type: deadlineType,
+            workspace_id: workspaceId
+          })
+        });
+
+        if (!response.ok) throw new Error('Failed to create deadline');
+
+        document.getElementById('deadlineModal').classList.remove('active');
+        loadDeadlines();
+        loadDeadlinesBadge();
+      } catch (e) {
+        console.error('Error creating deadline:', e);
+        alert('Failed to create deadline');
+      }
+    }
+
+    async function completeDeadline(id) {
+      if (!confirm('Mark this deadline as completed?')) return;
+
+      try {
+        const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+        await fetch(`/api/dashboard/deadlines/${id}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ status: 'completed' })
+        });
+        loadDeadlines();
+        loadDeadlinesBadge();
+      } catch (e) {
+        console.error('Error completing deadline:', e);
+      }
+    }
+
+    async function deleteDeadline(id) {
+      if (!confirm('Delete this deadline?')) return;
+
+      try {
+        const headers = getAuthHeaders();
+        await fetch(`/api/dashboard/deadlines/${id}`, {
+          method: 'DELETE',
+          headers
+        });
+        loadDeadlines();
+        loadDeadlinesBadge();
+      } catch (e) {
+        console.error('Error deleting deadline:', e);
+      }
+    }
+
+    function editDeadline(id) {
+      // For now, just open the modal - full edit would require storing deadline data
+      alert('Edit functionality coming soon. For now, delete and recreate.');
+    }
+
+    // ===========================================
+    // CONTROL CENTRE - Users Management
+    // ===========================================
+
+    let usersData = [];
+
+    async function loadUsers() {
+      const tbody = document.getElementById('usersTableBody');
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state" style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin empty-icon"></i><div class="empty-title">Loading users...</div></td></tr>';
+
+      try {
+        const headers = getAuthHeaders();
+        const response = await fetch('/api/users', { headers });
+
+        if (response.status === 403) {
+          // Non-admin - show limited view
+          tbody.innerHTML = '<tr><td colspan="5" class="empty-state" style="text-align: center; padding: 40px;"><i class="fas fa-lock empty-icon"></i><div class="empty-title">User management requires admin access</div></td></tr>';
+          return;
+        }
+
+        if (!response.ok) throw new Error('Failed to load users');
+
+        usersData = await response.json();
+        renderUsers();
+
+        // Show invite button for admins
+        if (currentUserPermissions.can_manage_users) {
+          document.getElementById('inviteUserBtn').style.display = 'block';
+        }
+      } catch (e) {
+        console.error('Error loading users:', e);
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state" style="text-align: center; padding: 40px;"><i class="fas fa-exclamation-triangle empty-icon"></i><div class="empty-title">Failed to load users</div></td></tr>';
+      }
+    }
+
+    function renderUsers() {
+      const tbody = document.getElementById('usersTableBody');
+      const searchTerm = document.getElementById('usersSearchInput')?.value.toLowerCase() || '';
+
+      let filtered = usersData;
+      if (searchTerm) {
+        filtered = usersData.filter(u =>
+          u.email.toLowerCase().includes(searchTerm) ||
+          (u.display_name && u.display_name.toLowerCase().includes(searchTerm))
+        );
+      }
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state" style="text-align: center; padding: 40px;"><i class="fas fa-users empty-icon"></i><div class="empty-title">No users found</div></td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(u => {
+        const initials = (u.display_name || u.email).split(/[@\s]/).map(p => p[0]?.toUpperCase()).join('').slice(0, 2);
+        const roleClass = u.role === 'ADMIN' ? 'admin' : u.role === 'POWER_USER' ? 'power-user' : u.role === 'MANAGEMENT_USER' ? 'management' : 'user';
+        const roleLabel = u.role === 'ADMIN' ? 'Admin' : u.role === 'POWER_USER' ? 'Power User' : u.role === 'MANAGEMENT_USER' ? 'Management' : 'User';
+        const lastActive = u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : 'Never';
+
+        return `
+          <tr>
+            <td>
+              <div class="user-cell">
+                <div class="user-avatar">${initials}</div>
+                <div class="user-details">
+                  <span class="user-name">${escapeHtml(u.display_name || u.email.split('@')[0])}</span>
+                  <span class="user-email">${escapeHtml(u.email)}</span>
+                </div>
+              </div>
+            </td>
+            <td><span class="role-badge ${roleClass}">${roleLabel}</span></td>
+            <td><span class="status-badge ${u.is_active ? 'active' : 'inactive'}">${u.is_active ? 'Active' : 'Inactive'}</span></td>
+            <td>${lastActive}</td>
+            <td class="user-actions-cell">
+              ${currentUserPermissions.can_access_admin ? `
+                <button class="deadline-action-btn" onclick="toggleUserStatus('${u.id}', ${!u.is_active})" title="${u.is_active ? 'Deactivate' : 'Activate'}">
+                  <i class="fas fa-${u.is_active ? 'user-slash' : 'user-check'}"></i>
+                </button>
+              ` : ''}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function setupUsersSearch() {
+      document.getElementById('usersSearchInput')?.addEventListener('input', renderUsers);
+    }
+
+    async function toggleUserStatus(userId, activate) {
+      try {
+        const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+        await fetch(`/api/users/${userId}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ is_active: activate })
+        });
+        loadUsers();
+      } catch (e) {
+        console.error('Error updating user:', e);
+        alert('Failed to update user');
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // Initialize Control Centre features
+    document.addEventListener('DOMContentLoaded', () => {
+      initControlCentreTabs();
+      setupDeadlineFilters();
+      setupDeadlineModal();
+      setupUsersSearch();
+    });
 
     function getAuthHeaders() {
       const token = localStorage.getItem("vericase_token") || localStorage.getItem("token") || localStorage.getItem("jwt");
@@ -2462,7 +3496,35 @@
         const headers = getAuthHeaders();
         let workspacesData = [];
         let statsData = null;
-        
+
+        // Fetch current user info for permissions
+        try {
+          const userResponse = await fetch("/api/users/me", { headers });
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            currentUserRole = userData.role;
+            // Set permissions based on role
+            currentUserPermissions = {
+              can_create_workspace: ['ADMIN', 'POWER_USER'].includes(userData.role),
+              can_create_project: ['ADMIN', 'POWER_USER'].includes(userData.role),
+              can_create_case: ['ADMIN', 'POWER_USER'].includes(userData.role),
+              can_manage_users: ['ADMIN', 'MANAGEMENT_USER'].includes(userData.role),
+              can_manage_deadlines: ['ADMIN', 'POWER_USER', 'MANAGEMENT_USER'].includes(userData.role),
+              can_access_admin: userData.role === 'ADMIN',
+            };
+            // Update UI based on permissions
+            if (!currentUserPermissions.can_manage_deadlines) {
+              document.getElementById('addDeadlineBtn')?.style.setProperty('display', 'none');
+            }
+            // Update greeting
+            if (userData.display_name) {
+              document.getElementById("greetingTitle").textContent = `Welcome back, ${userData.display_name}`;
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to load user info", e);
+        }
+
         // Try to get workspaces
         try {
           const workspacesResponse = await fetch("/api/workspaces", { headers });

@@ -29,6 +29,10 @@ from .models import (
     CollaborationActivity,
     EvidenceActivityLog,
     Workspace,
+    CustomDeadline,
+    Claim,
+    HeadOfClaim,
+    WorkspaceKeyDate,
 )
 from .security import current_user
 from .cache import get_cached, set_cached
@@ -1133,3 +1137,485 @@ async def get_control_centre_stats(
         raise HTTPException(
             status_code=500, detail=f"Control Centre stats error: {str(e)}"
         )
+
+
+# =============================================================================
+# Deadline Management Endpoints (Control Centre)
+# =============================================================================
+
+
+class AggregatedDeadline(BaseModel):
+    """Unified deadline response from all sources"""
+
+    id: str
+    title: str
+    due_date: datetime
+    source_type: str  # case, claim, head_of_claim, workspace_key_date, custom
+    source_id: str
+    source_name: str
+    priority: str = "medium"
+    status: str = "pending"
+    days_remaining: int
+    workspace_id: str | None = None
+    case_id: str | None = None
+    can_edit: bool = False
+    description: str | None = None
+
+
+class CreateDeadlineRequest(BaseModel):
+    """Request to create a custom deadline"""
+
+    title: str
+    description: str | None = None
+    due_date: datetime
+    deadline_type: str = "task"  # task, reminder, milestone, court_date, filing
+    priority: str = "medium"  # low, medium, high, critical
+    workspace_id: str | None = None
+    case_id: str | None = None
+    assigned_to_id: str | None = None
+
+
+class UpdateDeadlineRequest(BaseModel):
+    """Request to update a custom deadline"""
+
+    title: str | None = None
+    description: str | None = None
+    due_date: datetime | None = None
+    deadline_type: str | None = None
+    priority: str | None = None
+    status: str | None = None  # pending, completed, cancelled
+    assigned_to_id: str | None = None
+
+
+class DeadlinesResponse(BaseModel):
+    """Response containing all deadlines"""
+
+    deadlines: list[AggregatedDeadline]
+    total_count: int
+    overdue_count: int
+    upcoming_count: int  # Due within 7 days
+
+
+def _calculate_days_remaining(due_date: datetime) -> int:
+    """Calculate days until deadline, negative if overdue"""
+    now = datetime.now(timezone.utc)
+    if due_date.tzinfo is None:
+        due_date = due_date.replace(tzinfo=timezone.utc)
+    delta = due_date - now
+    return delta.days
+
+
+def _can_edit_deadline(
+    user: User, source_type: str, created_by_id: UUID | None
+) -> bool:
+    """Determine if user can edit a deadline based on role and ownership"""
+    if user.role == UserRole.ADMIN:
+        return True
+    if source_type == "custom":
+        # Power users and management can edit custom deadlines they created
+        if user.role in [UserRole.POWER_USER, UserRole.MANAGEMENT_USER]:
+            return created_by_id == user.id
+    return False
+
+
+@router.get("/dashboard/deadlines", response_model=DeadlinesResponse)
+def get_all_deadlines(
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+    workspace_id: str | None = None,
+    case_id: str | None = None,
+    status: str | None = None,  # pending, completed, all
+    include_completed: bool = False,
+):
+    """
+    Get aggregated deadlines from all sources:
+    - Case deadlines (JSON field)
+    - Claim response due dates
+    - Head of Claim dates
+    - Workspace key dates
+    - Custom deadlines
+    """
+    deadlines: list[AggregatedDeadline] = []
+
+    # Filter by workspace/case if provided
+    workspace_filter = UUID(workspace_id) if workspace_id else None
+    case_filter = UUID(case_id) if case_id else None
+
+    # 1. Custom Deadlines
+    custom_query = db.query(CustomDeadline).filter(
+        CustomDeadline.created_by_id == user.id
+    )
+    if not include_completed:
+        custom_query = custom_query.filter(CustomDeadline.status == "pending")
+    if workspace_filter:
+        custom_query = custom_query.filter(
+            CustomDeadline.workspace_id == workspace_filter
+        )
+    if case_filter:
+        custom_query = custom_query.filter(CustomDeadline.case_id == case_filter)
+
+    for cd in custom_query.all():
+        deadlines.append(
+            AggregatedDeadline(
+                id=f"custom_{cd.id}",
+                title=cd.title,
+                due_date=cd.due_date,
+                source_type="custom",
+                source_id=str(cd.id),
+                source_name="Custom Deadline",
+                priority=cd.priority,
+                status=cd.status,
+                days_remaining=_calculate_days_remaining(cd.due_date),
+                workspace_id=str(cd.workspace_id) if cd.workspace_id else None,
+                case_id=str(cd.case_id) if cd.case_id else None,
+                can_edit=_can_edit_deadline(user, "custom", cd.created_by_id),
+                description=cd.description,
+            )
+        )
+
+    # 2. Case deadlines (from JSON field)
+    case_query = db.query(Case)
+    if user.role != UserRole.ADMIN:
+        # Non-admins see cases they own or are assigned to
+        case_query = case_query.outerjoin(CaseUser).filter(
+            or_(Case.owner_id == user.id, CaseUser.user_id == user.id)
+        )
+    if workspace_filter:
+        case_query = case_query.filter(Case.workspace_id == workspace_filter)
+    if case_filter:
+        case_query = case_query.filter(Case.id == case_filter)
+
+    for case in case_query.all():
+        if case.deadlines:
+            for i, dl in enumerate(case.deadlines):
+                dl_date = dl.get("date")
+                if dl_date:
+                    try:
+                        if isinstance(dl_date, str):
+                            dl_date = datetime.fromisoformat(
+                                dl_date.replace("Z", "+00:00")
+                            )
+                        dl_status = dl.get("status", "pending")
+                        if not include_completed and dl_status == "completed":
+                            continue
+                        deadlines.append(
+                            AggregatedDeadline(
+                                id=f"case_{case.id}_{i}",
+                                title=dl.get("title", "Case Deadline"),
+                                due_date=dl_date,
+                                source_type="case",
+                                source_id=str(case.id),
+                                source_name=case.case_name or "Unnamed Case",
+                                priority=dl.get("priority", "medium"),
+                                status=dl_status,
+                                days_remaining=_calculate_days_remaining(dl_date),
+                                workspace_id=(
+                                    str(case.workspace_id)
+                                    if case.workspace_id
+                                    else None
+                                ),
+                                case_id=str(case.id),
+                                can_edit=False,  # Case deadlines edited via case
+                            )
+                        )
+                    except (ValueError, TypeError):
+                        continue
+
+    # 3. Claim response due dates
+    try:
+        claim_query = db.query(Claim).filter(Claim.response_due_date.isnot(None))
+        if case_filter:
+            claim_query = claim_query.filter(Claim.case_id == case_filter)
+
+        for claim in claim_query.all():
+            if claim.response_due_date:
+                claim_status = (
+                    "pending"
+                    if claim.status in ["draft", "submitted", "under_review"]
+                    else "completed"
+                )
+                if not include_completed and claim_status == "completed":
+                    continue
+                # Get case for context
+                case = db.query(Case).filter(Case.id == claim.case_id).first()
+                deadlines.append(
+                    AggregatedDeadline(
+                        id=f"claim_{claim.id}",
+                        title=f"Claim Response Due: {claim.title or 'Unnamed Claim'}",
+                        due_date=claim.response_due_date,
+                        source_type="claim",
+                        source_id=str(claim.id),
+                        source_name=case.case_name if case else "Unknown Case",
+                        priority="high",
+                        status=claim_status,
+                        days_remaining=_calculate_days_remaining(
+                            claim.response_due_date
+                        ),
+                        workspace_id=(
+                            str(case.workspace_id)
+                            if case and case.workspace_id
+                            else None
+                        ),
+                        case_id=str(claim.case_id),
+                        can_edit=False,
+                    )
+                )
+    except Exception as e:
+        logger.warning(f"Error fetching claim deadlines: {e}")
+
+    # 4. Head of Claim dates
+    try:
+        hoc_query = db.query(HeadOfClaim).filter(
+            or_(
+                HeadOfClaim.response_due_date.isnot(None),
+                HeadOfClaim.submission_date.isnot(None),
+                HeadOfClaim.determination_date.isnot(None),
+            )
+        )
+        if case_filter:
+            hoc_query = hoc_query.filter(HeadOfClaim.case_id == case_filter)
+
+        for hoc in hoc_query.all():
+            case = db.query(Case).filter(Case.id == hoc.case_id).first()
+            hoc_status = (
+                "pending"
+                if hoc.status in ["draft", "submitted", "under_review"]
+                else "completed"
+            )
+
+            for date_field, label in [
+                ("response_due_date", "Response Due"),
+                ("submission_date", "Submission"),
+                ("determination_date", "Determination"),
+            ]:
+                date_val = getattr(hoc, date_field, None)
+                if date_val:
+                    if not include_completed and hoc_status == "completed":
+                        continue
+                    deadlines.append(
+                        AggregatedDeadline(
+                            id=f"hoc_{hoc.id}_{date_field}",
+                            title=f"{label}: {hoc.name or 'Head of Claim'}",
+                            due_date=date_val,
+                            source_type="head_of_claim",
+                            source_id=str(hoc.id),
+                            source_name=case.case_name if case else "Unknown Case",
+                            priority="high",
+                            status=hoc_status,
+                            days_remaining=_calculate_days_remaining(date_val),
+                            workspace_id=(
+                                str(case.workspace_id)
+                                if case and case.workspace_id
+                                else None
+                            ),
+                            case_id=str(hoc.case_id),
+                            can_edit=False,
+                        )
+                    )
+    except Exception as e:
+        logger.warning(f"Error fetching head of claim deadlines: {e}")
+
+    # 5. Workspace key dates
+    try:
+        wkd_query = db.query(WorkspaceKeyDate)
+        if workspace_filter:
+            wkd_query = wkd_query.filter(
+                WorkspaceKeyDate.workspace_id == workspace_filter
+            )
+
+        for wkd in wkd_query.all():
+            if wkd.date_value:
+                workspace = (
+                    db.query(Workspace).filter(Workspace.id == wkd.workspace_id).first()
+                )
+                deadlines.append(
+                    AggregatedDeadline(
+                        id=f"wkd_{wkd.id}",
+                        title=wkd.label or wkd.date_type or "Key Date",
+                        due_date=(
+                            wkd.date_value
+                            if isinstance(wkd.date_value, datetime)
+                            else datetime.combine(
+                                wkd.date_value, datetime.min.time()
+                            ).replace(tzinfo=timezone.utc)
+                        ),
+                        source_type="workspace_key_date",
+                        source_id=str(wkd.id),
+                        source_name=(
+                            workspace.name if workspace else "Unknown Workspace"
+                        ),
+                        priority="medium",
+                        status="pending",
+                        days_remaining=_calculate_days_remaining(
+                            wkd.date_value
+                            if isinstance(wkd.date_value, datetime)
+                            else datetime.combine(
+                                wkd.date_value, datetime.min.time()
+                            ).replace(tzinfo=timezone.utc)
+                        ),
+                        workspace_id=str(wkd.workspace_id),
+                        can_edit=False,
+                        description=wkd.description,
+                    )
+                )
+    except Exception as e:
+        logger.warning(f"Error fetching workspace key dates: {e}")
+
+    # Sort by due date
+    deadlines.sort(key=lambda d: d.due_date)
+
+    # Calculate counts
+    overdue = sum(
+        1 for d in deadlines if d.days_remaining < 0 and d.status == "pending"
+    )
+    upcoming = sum(
+        1 for d in deadlines if 0 <= d.days_remaining <= 7 and d.status == "pending"
+    )
+
+    return DeadlinesResponse(
+        deadlines=deadlines,
+        total_count=len(deadlines),
+        overdue_count=overdue,
+        upcoming_count=upcoming,
+    )
+
+
+@router.post("/dashboard/deadlines", response_model=AggregatedDeadline)
+def create_deadline(
+    request: CreateDeadlineRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Create a custom deadline"""
+    # Check permission
+    if user.role not in [UserRole.ADMIN, UserRole.POWER_USER, UserRole.MANAGEMENT_USER]:
+        raise HTTPException(403, "Insufficient permissions to create deadlines")
+
+    deadline = CustomDeadline(
+        title=request.title,
+        description=request.description,
+        due_date=request.due_date,
+        deadline_type=request.deadline_type,
+        priority=request.priority,
+        workspace_id=UUID(request.workspace_id) if request.workspace_id else None,
+        case_id=UUID(request.case_id) if request.case_id else None,
+        created_by_id=user.id,
+        assigned_to_id=UUID(request.assigned_to_id) if request.assigned_to_id else None,
+        status="pending",
+    )
+
+    db.add(deadline)
+    db.commit()
+    db.refresh(deadline)
+
+    return AggregatedDeadline(
+        id=f"custom_{deadline.id}",
+        title=deadline.title,
+        due_date=deadline.due_date,
+        source_type="custom",
+        source_id=str(deadline.id),
+        source_name="Custom Deadline",
+        priority=deadline.priority,
+        status=deadline.status,
+        days_remaining=_calculate_days_remaining(deadline.due_date),
+        workspace_id=str(deadline.workspace_id) if deadline.workspace_id else None,
+        case_id=str(deadline.case_id) if deadline.case_id else None,
+        can_edit=True,
+        description=deadline.description,
+    )
+
+
+@router.patch("/dashboard/deadlines/{deadline_id}", response_model=AggregatedDeadline)
+def update_deadline(
+    deadline_id: str,
+    request: UpdateDeadlineRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Update a custom deadline"""
+    # Only custom deadlines can be updated via this endpoint
+    if not deadline_id.startswith("custom_"):
+        raise HTTPException(
+            400, "Only custom deadlines can be updated via this endpoint"
+        )
+
+    actual_id = deadline_id.replace("custom_", "")
+    deadline = (
+        db.query(CustomDeadline).filter(CustomDeadline.id == UUID(actual_id)).first()
+    )
+
+    if not deadline:
+        raise HTTPException(404, "Deadline not found")
+
+    # Check permission
+    if not _can_edit_deadline(user, "custom", deadline.created_by_id):
+        raise HTTPException(403, "Insufficient permissions to edit this deadline")
+
+    # Update fields
+    if request.title is not None:
+        deadline.title = request.title
+    if request.description is not None:
+        deadline.description = request.description
+    if request.due_date is not None:
+        deadline.due_date = request.due_date
+    if request.deadline_type is not None:
+        deadline.deadline_type = request.deadline_type
+    if request.priority is not None:
+        deadline.priority = request.priority
+    if request.status is not None:
+        deadline.status = request.status
+        if request.status == "completed":
+            deadline.completed_at = datetime.now(timezone.utc)
+    if request.assigned_to_id is not None:
+        deadline.assigned_to_id = (
+            UUID(request.assigned_to_id) if request.assigned_to_id else None
+        )
+
+    db.commit()
+    db.refresh(deadline)
+
+    return AggregatedDeadline(
+        id=f"custom_{deadline.id}",
+        title=deadline.title,
+        due_date=deadline.due_date,
+        source_type="custom",
+        source_id=str(deadline.id),
+        source_name="Custom Deadline",
+        priority=deadline.priority,
+        status=deadline.status,
+        days_remaining=_calculate_days_remaining(deadline.due_date),
+        workspace_id=str(deadline.workspace_id) if deadline.workspace_id else None,
+        case_id=str(deadline.case_id) if deadline.case_id else None,
+        can_edit=True,
+        description=deadline.description,
+    )
+
+
+@router.delete("/dashboard/deadlines/{deadline_id}")
+def delete_deadline(
+    deadline_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Delete a custom deadline"""
+    if not deadline_id.startswith("custom_"):
+        raise HTTPException(
+            400, "Only custom deadlines can be deleted via this endpoint"
+        )
+
+    actual_id = deadline_id.replace("custom_", "")
+    deadline = (
+        db.query(CustomDeadline).filter(CustomDeadline.id == UUID(actual_id)).first()
+    )
+
+    if not deadline:
+        raise HTTPException(404, "Deadline not found")
+
+    # Check permission
+    if not _can_edit_deadline(user, "custom", deadline.created_by_id):
+        raise HTTPException(403, "Insufficient permissions to delete this deadline")
+
+    db.delete(deadline)
+    db.commit()
+
+    return {"message": "Deadline deleted successfully"}

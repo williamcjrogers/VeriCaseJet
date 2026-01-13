@@ -1,7 +1,7 @@
 """add_contract_intelligence_models
 
 Revision ID: 0017
-Revises: 0016
+Revises: 0016_add_corpus_learning_results
 Create Date: 2026-01-13 01:35:00.000000
 
 """
@@ -12,7 +12,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "0017"
-down_revision = "0016"
+down_revision = "0016_add_corpus_learning_results"
 branch_labels = None
 depends_on = None
 

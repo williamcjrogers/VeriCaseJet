@@ -3,6 +3,7 @@ fastapi==0.121.3
 uvicorn[standard]==0.38.0
 python-dotenv==1.2.1
 boto3==1.41.0
+awscrt>=0.23.0  # AWS Common Runtime for accelerated S3 transfers (3-10x faster)
 opensearch-py==3.1.0
 SQLAlchemy==2.0.44
 alembic==1.17.2

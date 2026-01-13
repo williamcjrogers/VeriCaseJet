@@ -3,6 +3,7 @@ use aws_sdk_s3::primitives::ByteStream;
 use clap::Parser;
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use futures::stream::{self, StreamExt};
 use mailparse::{MailHeaderMap, ParsedMail};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -10,9 +11,13 @@ use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::Arc;
 use std::time::Instant;
 use uuid::Uuid;
 use walkdir::WalkDir;
+
+/// Concurrent upload limit for attachment batches
+const ATTACHMENT_UPLOAD_CONCURRENCY: usize = 10;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
@@ -517,9 +522,17 @@ async fn download_file(s3: &aws_sdk_s3::Client, bucket: &str, key: &str, path: &
 }
 
 fn run_readpst(readpst_path: &str, pst_path: &Path, out_dir: &Path) -> Result<()> {
+    // Determine optimal parallel job count based on available CPUs
+    let num_cpus = std::thread::available_parallelism()
+        .map(|p| p.get())
+        .unwrap_or(4);
+    let jobs = num_cpus.min(8).to_string(); // Cap at 8 to avoid memory pressure
+
     let status = Command::new(readpst_path)
         .args([
             "-8", // Force UTF-8 output encoding for proper character handling
+            "-M", // Separate .eml files per message (better for parallel processing)
+            "-j", &jobs, // Parallel folder processing for faster extraction
             "-o",
             out_dir
                 .to_str()
@@ -749,6 +762,10 @@ async fn main() -> Result<()> {
             // Attachments: extract MIME leaf parts and upload to S3 under OUTPUT_PREFIX/attachments/
             let mut parts: Vec<&ParsedMail> = Vec::new();
             collect_attachment_parts(&mail, &mut parts);
+
+            // Collect pending uploads for parallel processing
+            let mut pending_uploads: Vec<(String, PathBuf)> = Vec::new();
+
             for (part_idx, part) in parts.into_iter().enumerate() {
                 let content = match part.get_body_raw() {
                     Ok(v) => v,
@@ -788,7 +805,9 @@ async fn main() -> Result<()> {
                 fs::create_dir_all(&att_dir).ok();
                 let att_path = att_dir.join(format!("{}__{}", attachment_id, safe_name));
                 File::create(&att_path)?.write_all(&content)?;
-                upload_file(&s3, &args.output_bucket, &att_key, &att_path).await?;
+
+                // Queue for parallel upload instead of uploading inline
+                pending_uploads.push((att_key.clone(), att_path.clone()));
 
                 let att_record = AttachmentRecord {
                     id: attachment_id.clone(),
@@ -838,6 +857,29 @@ async fn main() -> Result<()> {
                 )?;
 
                 attachments_total += 1;
+            }
+
+            // Upload attachments for this email in parallel (up to ATTACHMENT_UPLOAD_CONCURRENCY)
+            if !pending_uploads.is_empty() {
+                let s3_ref = Arc::new(s3.clone());
+                let bucket = args.output_bucket.clone();
+
+                let upload_results: Vec<Result<()>> = stream::iter(pending_uploads.into_iter())
+                    .map(|(key, path)| {
+                        let s3_clone = Arc::clone(&s3_ref);
+                        let bucket_clone = bucket.clone();
+                        async move {
+                            upload_file(&*s3_clone, &bucket_clone, &key, &path).await
+                        }
+                    })
+                    .buffer_unordered(ATTACHMENT_UPLOAD_CONCURRENCY)
+                    .collect()
+                    .await;
+
+                // Check for any upload failures
+                for result in upload_results {
+                    result?;
+                }
             }
 
             emails_total += 1;
