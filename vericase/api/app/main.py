@@ -1080,7 +1080,7 @@ def signup(payload: dict = Body(...), db: Session = Depends(get_db)):
         verification_token=verification_token,
         email_verified=False,
         is_active=not requires_approval,  # Inactive until admin approves
-        role=UserRole.VIEWER,  # Default role, admin can change
+        role=UserRole.USER,  # Default role, admin can change
     )
 
     # Store additional signup info in meta
