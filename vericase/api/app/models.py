@@ -1598,6 +1598,9 @@ class MessageDerived(Base):
     )
     content_hash_phase1: Mapped[str | None] = mapped_column(String(128), nullable=True)
     content_hash_phase2: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    thread_id_header: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    thread_confidence: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    qc_flags: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB, nullable=True)
     dep_uri: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
 
     derived_at: Mapped[datetime | None] = mapped_column(

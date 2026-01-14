@@ -2621,6 +2621,15 @@
             <div class="quick-action-desc">Add users and set permissions</div>
           </div>
         </a>
+        <a href="admin-approvals.html" class="quick-action-card" id="pendingApprovalsCard" style="display: none;">
+          <div class="quick-action-icon" style="background: rgba(245, 158, 11, 0.15); color: #D97706;">
+            <i class="fas fa-user-clock"></i>
+          </div>
+          <div class="quick-action-content">
+            <div class="quick-action-title">User Approvals <span id="pendingBadge" class="badge badge-warning" style="margin-left: 6px;">0</span></div>
+            <div class="quick-action-desc">Review pending registrations</div>
+          </div>
+        </a>
       </div>
     </section>
 
@@ -3064,6 +3073,7 @@
       setupEventListeners();
       setupPredictiveControls();
       loadPredictiveSignals({ populateOptions: true });
+      checkPendingApprovals();
     });
 
     let dashboardData = null;
@@ -3489,6 +3499,26 @@
 
     function updateQuickActions() {
       // Quick Start panel removed - function kept for compatibility
+    }
+
+    async function checkPendingApprovals() {
+      // Only check for admins
+      try {
+        const headers = getAuthHeaders();
+        const response = await fetch("/api/admin/users/pending", { headers });
+        if (response.ok) {
+          const pendingUsers = await response.json();
+          const card = document.getElementById("pendingApprovalsCard");
+          const badge = document.getElementById("pendingBadge");
+          if (pendingUsers.length > 0 && card) {
+            card.style.display = "flex";
+            if (badge) badge.textContent = pendingUsers.length;
+          }
+        }
+      } catch (e) {
+        // Silently fail - user likely not admin
+        console.debug("Pending approvals check skipped (likely not admin)");
+      }
     }
 
     async function loadDashboard() {

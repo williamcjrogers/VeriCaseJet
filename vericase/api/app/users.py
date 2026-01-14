@@ -16,7 +16,7 @@ from .models import User, UserRole, UserInvitation
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/users", tags=["users"])
+router = APIRouter(prefix="/api/users", tags=["users"])
 
 
 # Pydantic models for requests/responses

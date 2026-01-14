@@ -479,6 +479,51 @@
       };
       const apiUrl = getApiUrl();
 
+      // Check for invitation token in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const inviteToken = urlParams.get('invite');
+      let inviteData = null;
+
+      // If invitation token present, validate and update UI
+      if (inviteToken) {
+        (async function validateInvite() {
+          try {
+            const response = await fetch(`${apiUrl}/api/users/invitations/${inviteToken}/validate`);
+            if (response.ok) {
+              inviteData = await response.json();
+              // Update page for invitation flow
+              document.querySelector('.page-title').textContent = 'Accept Invitation';
+              document.querySelector('.page-subtitle').innerHTML = `
+                You've been invited to join VeriCase as <strong>${inviteData.role}</strong>.<br>
+                Set your password to complete registration.
+              `;
+              // Pre-fill and disable email field
+              const emailField = document.getElementById('email');
+              emailField.value = inviteData.email;
+              emailField.readOnly = true;
+              emailField.style.backgroundColor = 'var(--gray-100)';
+              // Hide fields not needed for invite flow
+              document.getElementById('firstName').closest('.form-row').style.display = 'none';
+              document.getElementById('company').closest('.form-group').style.display = 'none';
+              document.getElementById('jobTitle').closest('.form-group').style.display = 'none';
+              document.getElementById('reason').closest('.form-group').style.display = 'none';
+              // Update button text
+              document.getElementById('btnText').textContent = 'Accept Invitation';
+              // Update success message for invite
+              document.querySelector('.success-title').textContent = 'Welcome to VeriCase!';
+              document.querySelector('.success-message').textContent = 'Your account has been created successfully. You can now sign in.';
+            } else {
+              // Invalid or expired invite
+              document.getElementById('error').textContent = 'This invitation link is invalid or has expired. Please contact your administrator.';
+              document.getElementById('error').style.display = 'block';
+              document.getElementById('registerForm').style.display = 'none';
+            }
+          } catch (e) {
+            console.error('Error validating invite:', e);
+          }
+        })();
+      }
+
       // Password validation
       const passwordInput = document.getElementById("password");
       const requirements = {
@@ -547,20 +592,43 @@
           btnSpinner.style.display = "inline-block";
 
           try {
-            const response = await fetch(`${apiUrl}/api/auth/register`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                email,
-                password,
-                display_name: `${firstName} ${lastName}`.trim(),
-                first_name: firstName,
-                last_name: lastName,
-                company: company || undefined,
-                role: jobTitle || undefined,
-                reason: reason || undefined,
-              }),
-            });
+            let response;
+            
+            if (inviteToken && inviteData) {
+              // Accept invitation flow
+              response = await fetch(`${apiUrl}/api/users/invitations/${inviteToken}/accept`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ password }),
+              });
+
+              if (response.ok) {
+                const result = await response.json();
+                // Store token and redirect to dashboard
+                localStorage.setItem('token', result.token);
+                if (result.user) {
+                  localStorage.setItem('user', JSON.stringify(result.user));
+                }
+                window.location.href = '/ui/dashboard.html';
+                return;
+              }
+            } else {
+              // Regular registration flow
+              response = await fetch(`${apiUrl}/api/auth/register`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  email,
+                  password,
+                  display_name: `${firstName} ${lastName}`.trim(),
+                  first_name: firstName,
+                  last_name: lastName,
+                  company: company || undefined,
+                  role: jobTitle || undefined,
+                  reason: reason || undefined,
+                }),
+              });
+            }
 
             if (!response.ok) {
               let errorMsg = "Registration failed";
@@ -572,7 +640,7 @@
               }
               errorDiv.textContent = errorMsg;
               errorDiv.style.display = "block";
-              btnText.textContent = "Submit Request";
+              btnText.textContent = inviteToken ? "Accept Invitation" : "Submit Request";
               btnSpinner.style.display = "none";
               submitBtn.disabled = false;
               return;
@@ -585,7 +653,7 @@
           } catch (error) {
             errorDiv.textContent = error.message || "An error occurred. Please try again.";
             errorDiv.style.display = "block";
-            btnText.textContent = "Submit Request";
+            btnText.textContent = inviteToken ? "Accept Invitation" : "Submit Request";
             btnSpinner.style.display = "none";
             submitBtn.disabled = false;
           }

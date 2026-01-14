@@ -246,6 +246,12 @@
           icon: "fa-id-badge",
           url: "admin-users.html",
         },
+        {
+          id: "approvals",
+          label: "User Approvals",
+          icon: "fa-user-check",
+          url: "admin-approvals.html",
+        },
       ],
     },
   ];

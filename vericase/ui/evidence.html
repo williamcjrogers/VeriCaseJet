@@ -3690,7 +3690,11 @@
 
     async function loadStats() {
       try {
-        const response = await fetch(`${apiUrl}/api/evidence/stats`);
+        const params = new URLSearchParams();
+        if (currentProjectId) params.append("project_id", currentProjectId);
+        if (currentCaseId) params.append("case_id", currentCaseId);
+        const url = `${apiUrl}/api/evidence/stats${params.toString() ? "?" + params.toString() : ""}`;
+        const response = await fetch(url);
         if (response.ok) {
           const stats = await response.json();
           renderStats(stats);

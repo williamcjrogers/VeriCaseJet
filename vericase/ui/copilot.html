@@ -7,11 +7,39 @@
   <title>AI Copilot - VeriCase</title>
   <link rel="icon" type="image/png" href="/ui/assets/LOGOTOBEUSED.png" />
   <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
+  <link rel="stylesheet" href="assets/global.css" />
   <link rel="stylesheet" href="brand-styles.css?v=7" />
   <link rel="stylesheet" href="design-system.css?v=7" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
   <script src="vericase-ui.js"></script>
   <script src="nav-shell.js"></script>
   <style>
+    /* === NAV SHELL INTEGRATION === */
+    body {
+      font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--vericase-navy);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* When wrapped by nav-shell, the app-content needs to contain copilot layout */
+    .app-content.copilot-page {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      padding: 0;
+    }
+
+    /* Hide the original top-bar when shell is active */
+    .app-shell .top-bar {
+      display: none;
+    }
+
     /* === AI COPILOT PAGE STYLES === */
     .copilot-layout {
       display: flex;
@@ -814,7 +842,7 @@
 </head>
 
 <body>
-  <!-- Nav Shell will inject navigation -->
+  <!-- Nav Shell will inject navigation and wrap this content -->
 
   <div class="copilot-layout">
     <!-- Left Sidebar -->
@@ -1193,7 +1221,28 @@
           useCorrespondence: document.getElementById("useCorrespondence")?.checked,
         };
 
-        const response = await fetch(`${API_BASE}/ai/orchestrator/query`, {
+        // Map UI model to API model
+        const modelMap = {
+          'nova-pro': 'amazon.nova-pro-v1:0',
+          'claude-sonnet': 'anthropic.claude-3-7-sonnet-20250219-v1:0',
+          'claude-opus': 'anthropic.claude-sonnet-4-20250514',
+          'consensus': 'multi-model',
+          'best-of': 'multi-model',
+          'legal-tuned': 'anthropic.claude-3-7-sonnet-20250219-v1:0',
+          'caselaw-rag': 'anthropic.claude-3-7-sonnet-20250219-v1:0'
+        };
+        const apiModel = modelMap[currentModel] || 'anthropic.claude-3-7-sonnet-20250219-v1:0';
+        
+        // Map UI mode to API mode
+        const modeMap = {
+          'chat': 'quick',
+          'research': 'deep',
+          'draft': 'quick',
+          'analyze': 'deep'
+        };
+        const apiMode = modeMap[currentMode] || 'quick';
+
+        const response = await fetch(`${API_BASE}/api/ai-chat/query`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -1201,28 +1250,36 @@
           },
           body: JSON.stringify({
             query: message,
-            model: currentModel,
-            mode: currentMode,
-            style: currentStyle,
-            context: currentChat,
-            options: contextOptions,
-            project_id: localStorage.getItem("currentProjectId"),
-            case_id: localStorage.getItem("currentCaseId"),
+            model: apiModel,
+            mode: apiMode,
+            project_id: localStorage.getItem("currentProjectId") || null,
+            case_id: localStorage.getItem("currentCaseId") || null,
           }),
         });
 
         removeTypingIndicator(typingId);
 
         if (!response.ok) {
-          throw new Error(`API returned ${response.status}`);
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.detail || `API returned ${response.status}`);
         }
 
         const data = await response.json();
 
-        if (data.answer) {
-          addMessage("assistant", data.answer);
-          currentChat.push({ role: "assistant", content: data.answer });
-          saveChatToHistory(message, data.answer);
+        // Handle ai-chat response format (may have 'response' or 'answer')
+        const answer = data.response || data.answer || data.content;
+        if (answer) {
+          // Add source citations if available
+          let fullResponse = answer;
+          if (data.sources && data.sources.length > 0) {
+            fullResponse += "\n\n---\n**Sources:**\n";
+            data.sources.slice(0, 5).forEach((src, i) => {
+              fullResponse += `${i + 1}. ${src.subject || src.filename || 'Document'} (${src.date || ''})\n`;
+            });
+          }
+          addMessage("assistant", fullResponse);
+          currentChat.push({ role: "assistant", content: fullResponse });
+          saveChatToHistory(message, fullResponse);
         } else {
           throw new Error("No answer in response");
         }
@@ -1433,6 +1490,39 @@
     if (userEmail) {
       // Could add to header if needed
     }
+
+    // Inject navigation shell
+    (function initShell() {
+      if (typeof VericaseShell === "undefined" || !VericaseShell.inject) {
+        // Shell not loaded yet, wait briefly
+        setTimeout(initShell, 50);
+        return;
+      }
+
+      const ctx =
+        typeof VericaseShell.getContext === "function"
+          ? VericaseShell.getContext()
+          : { type: "project", id: VericaseShell.getProjectId() };
+      const ctxType = ctx?.type || "project";
+      const ctxLabel =
+        ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
+      const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
+      const ctxId = ctx?.id ? String(ctx.id) : "";
+      const ctxUrl = ctxId
+        ? `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+        : "dashboard.html";
+
+      VericaseShell.inject({
+        title: '',
+        breadcrumbs: [
+          { label: "Home", url: "master-dashboard.html", icon: "fa-th-large" },
+          { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
+          { label: "AI Copilot", icon: "fa-robot" },
+        ],
+        headerActions: "",
+        contentClass: "copilot-page",
+      });
+    })();
   </script>
 </body>
 
