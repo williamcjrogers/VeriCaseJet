@@ -42,7 +42,9 @@ from .email_normalizer import (
     clean_body_text,
     strip_footer_noise,
 )
-from .ai_spam_filter import classify_email_ai_sync
+
+# PERFORMANCE FIX: Use fast hybrid filter instead of slow AI-per-email approach
+from .hybrid_spam_filter import classify_email_fast as classify_email_ai_sync
 from .project_scoping import ScopeMatcher, build_scope_matcher
 
 try:

@@ -187,6 +187,12 @@
         margin-bottom: 1.5rem;
       }
 
+      .hero-badge-icons {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
       .hero-badge i {
         font-size: 0.75rem;
       }
@@ -1305,11 +1311,14 @@
         <div class="main-content">
           <section class="hero">
             <div class="hero-badge">
-              <i class="fas fa-microscope"></i>
+              <span class="hero-badge-icons" aria-hidden="true">
+                <i class="fas fa-search"></i>
+                <i class="fas fa-balance-scale"></i>
+              </span>
               Evidence Intelligence Platform
             </div>
             <h1 class="hero-title">
-              Deep <span class="hero-title-accent">Analysis</span>
+              VeriCase <span class="hero-title-accent">Analysis</span>
             </h1>
             <p class="hero-subtitle">
               Go beyond simple search. Create strategic research plans,
@@ -1344,7 +1353,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
                   <i class="fas fa-link"></i> Causation
                 </span>
                 <span class="focus-tag" data-focus="liability">
-                  <i class="fas fa-gavel"></i> Liability
+                  <i class="fas fa-balance-scale"></i> Liability
                 </span>
                 <span class="focus-tag" data-focus="quantum">
                   <i class="fas fa-calculator"></i> Quantum
@@ -1447,7 +1456,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
                     <i class="fas fa-file-alt"></i>
                   </div>
                   <div>
-                    <h2 class="report-title">Deep Analysis Report</h2>
+                    <h2 class="report-title">VeriCase Analysis Report</h2>
                     <div class="report-meta" id="reportMeta"></div>
                   </div>
                 </div>
@@ -1595,7 +1604,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
               { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
               { label: "Workspaces", url: "workspace-hub.html", icon: "fa-layer-group" },
               { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
-              { label: "Deep Analysis", icon: "fa-microscope" }
+              { label: "VeriCase Analysis", icon: "fa-microscope" }
             ]
           });
         }
@@ -1679,7 +1688,7 @@ Example: Investigate the delay claims on the Northern Rail Extension project bet
                             ${projects.map((p) => `<option value="${p.id}">${p.project_name || p.name || "Unnamed Project"}</option>`).join("")}
                         </select>
                         <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">
-                            Deep research will analyze emails and documents from this project.
+                    VeriCase analysis will analyze emails and documents from this project.
                         </p>
                     `;
 

@@ -50,7 +50,13 @@ from .models import (
     MessageDerived,
 )
 from .config import settings
-from .ai_spam_filter import classify_email_ai_sync, SpamResult
+
+# PERFORMANCE FIX: Use fast hybrid filter instead of slow AI-per-email approach
+# Old import: from .ai_spam_filter import classify_email_ai_sync, SpamResult
+from .hybrid_spam_filter import (
+    classify_email_fast as classify_email_ai_sync,
+    SpamResult,
+)
 from .project_scoping import ScopeMatcher, build_scope_matcher
 from .email_threading import build_email_threads, ThreadingStats
 from .email_dedupe import dedupe_emails

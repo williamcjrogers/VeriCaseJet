@@ -27,6 +27,7 @@ import PyPDF2
 
 from .storage import get_object
 from .config import settings
+from .evidence.text_extract import extract_text_from_bytes, tika_url_candidates
 from .email_normalizer import (
     NORMALIZER_RULESET_HASH,
     NORMALIZER_VERSION,
@@ -204,16 +205,25 @@ class MetadataExtractor:
     """
 
     def __init__(self):
+        self.tika_url: str | None = None
         self.tika_available = self._check_tika()
 
     def _check_tika(self) -> bool:
         """Check if Tika server is available"""
-        try:
-            response = httpx.get(f"{TIKA_URL}/tika", timeout=5.0)
-            return response.status_code == 200
-        except Exception as e:
-            logger.warning(f"Tika server not available: {e}")
-            return False
+        last_error: str | None = None
+        for base in tika_url_candidates(TIKA_URL):
+            try:
+                response = httpx.get(f"{base}/tika", timeout=5.0)
+                if response.status_code == 200:
+                    self.tika_url = base
+                    return True
+                last_error = f"HTTP {response.status_code}"
+            except Exception as e:
+                last_error = str(e)
+                continue
+        logger.warning(f"Tika server not available: {last_error or 'unknown'}")
+        self.tika_url = None
+        return False
 
     def _normalize_email_metadata(self, metadata: FileMetadata) -> None:
         metadata.normalizer_version = NORMALIZER_VERSION
@@ -258,7 +268,7 @@ class MetadataExtractor:
 
         try:
             # Get file content from S3
-            file_content = get_object(s3_key)
+            file_content = get_object(s3_key, bucket=bucket)
             if not file_content:
                 metadata.extraction_status = "error"
                 metadata.extraction_error = "File not found in storage"
@@ -555,15 +565,34 @@ class MetadataExtractor:
         self, content: bytes, metadata: FileMetadata
     ) -> None:
         """Extract metadata from Word documents"""
-        # Will be enhanced by Tika extraction
-        pass
+        # Best-effort local text preview so the Evidence UI can render something
+        # even if Tika is unavailable.
+        if not metadata.text_preview:
+            text = extract_text_from_bytes(
+                content,
+                filename=metadata.filename,
+                mime_type=metadata.mime_type,
+                max_chars=4000,
+            )
+            if text:
+                metadata.text_preview = text[:2000]
+                metadata.text_length = len(text)
+                metadata.word_count = len(text.split())
 
     async def _extract_excel_metadata(
         self, content: bytes, metadata: FileMetadata
     ) -> None:
         """Extract metadata from Excel documents"""
-        # Will be enhanced by Tika extraction
-        pass
+        if not metadata.text_preview:
+            text = extract_text_from_bytes(
+                content,
+                filename=metadata.filename,
+                mime_type=metadata.mime_type,
+                max_chars=4000,
+            )
+            if text:
+                metadata.text_preview = text[:2000]
+                metadata.text_length = len(text)
 
     async def _extract_ppt_metadata(
         self, content: bytes, metadata: FileMetadata
@@ -697,11 +726,13 @@ class MetadataExtractor:
         self, content: bytes, metadata: FileMetadata
     ) -> None:
         """Use Apache Tika for comprehensive metadata extraction"""
+        if not self.tika_url:
+            return
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 # Get metadata
                 response = await client.put(
-                    f"{TIKA_URL}/meta",
+                    f"{self.tika_url}/meta",
                     content=content,
                     headers={"Accept": "application/json"},
                 )
@@ -773,7 +804,7 @@ class MetadataExtractor:
                 # Get text content if not already extracted
                 if not metadata.text_preview:
                     text_response = await client.put(
-                        f"{TIKA_URL}/tika",
+                        f"{self.tika_url}/tika",
                         content=content,
                         headers={"Accept": "text/plain"},
                     )

@@ -2682,6 +2682,8 @@ async def get_evidence_text_content_service(evidence_id, db, user, max_length):
     import httpx
     import os
 
+    from .text_extract import extract_text_from_bytes, tika_url_candidates
+
     TIKA_URL = os.getenv("TIKA_URL", "http://tika:9998")
     try:
         evidence_uuid = uuid.UUID(evidence_id)
@@ -2690,6 +2692,7 @@ async def get_evidence_text_content_service(evidence_id, db, user, max_length):
     item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
     if not item:
         raise HTTPException(404, "Evidence item not found")
+
     if item.extracted_text:
         return {
             "evidence_id": evidence_id,
@@ -2698,15 +2701,20 @@ async def get_evidence_text_content_service(evidence_id, db, user, max_length):
             "truncated": len(item.extracted_text) > max_length,
             "cached": True,
         }
+
     try:
-        content = get_object(item.s3_key)
+        # Always use the item's bucket; evidence may be stored outside the default.
+        content = get_object(item.s3_key, bucket=item.s3_bucket)
         if not content:
             raise HTTPException(404, "File content not found")
     except Exception as e:
         raise HTTPException(500, f"Could not retrieve file: {str(e)}")
+
     mime_type = item.mime_type or ""
+    filename = item.filename or ""
     text = ""
-    if mime_type.startswith("text/") or item.filename.endswith(
+
+    if mime_type.startswith("text/") or filename.endswith(
         (".txt", ".csv", ".json", ".xml", ".html", ".md")
     ):
         for encoding in ["utf-8", "latin-1", "cp1252"]:
@@ -2718,21 +2726,55 @@ async def get_evidence_text_content_service(evidence_id, db, user, max_length):
         if not text:
             text = content.decode("utf-8", errors="replace")
     else:
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.put(
-                    f"{TIKA_URL}/tika",
-                    content=content,
-                    headers={"Accept": "text/plain"},
+        # 1) Best-effort local extraction for Office docs (keeps UI working even
+        #    if Tika is down or misconfigured).
+        text = extract_text_from_bytes(
+            content,
+            filename=filename,
+            mime_type=mime_type,
+        )
+
+        # 2) Fall back to Tika for everything else (and for legacy Office types).
+        if not text.strip():
+            tika_urls = tika_url_candidates(TIKA_URL)
+            last_error: str | None = None
+            for base in tika_urls:
+                try:
+                    async with httpx.AsyncClient(timeout=60.0) as client:
+                        response = await client.put(
+                            f"{base}/tika",
+                            content=content,
+                            headers={"Accept": "text/plain"},
+                        )
+                        if response.status_code == 200:
+                            text = response.text
+                            break
+                        last_error = f"HTTP {response.status_code}"
+                except httpx.TimeoutException:
+                    last_error = "timeout"
+                    continue
+                except Exception as e:
+                    last_error = str(e)
+                    continue
+
+            if not text.strip():
+                # Don't persist a placeholder; return a helpful message so the
+                # Evidence UI can still show *something*.
+                tried = ", ".join(tika_urls)
+                hint = (
+                    "[Preview unavailable] Text extraction failed for this file type.\n"
+                    f"Tika may be unreachable (tried: {tried}).\n"
+                    "If you're running on Kubernetes, ensure TIKA_URL points to the in-cluster service (e.g. http://tika-service:9998).\n"
+                    f"Last error: {last_error or 'unknown'}"
                 )
-                if response.status_code == 200:
-                    text = response.text
-                else:
-                    raise HTTPException(500, "Text extraction failed")
-        except httpx.TimeoutException:
-            raise HTTPException(504, "Text extraction timed out")
-        except Exception as e:
-            raise HTTPException(500, f"Text extraction failed: {str(e)}")
+                return {
+                    "evidence_id": evidence_id,
+                    "text": hint[:max_length],
+                    "total_length": len(hint),
+                    "truncated": len(hint) > max_length,
+                    "cached": False,
+                }
+
     item.extracted_text = text
     item.ocr_completed = True
     if item.processing_status != "error":
