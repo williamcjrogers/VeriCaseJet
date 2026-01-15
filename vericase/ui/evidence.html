@@ -2337,6 +2337,64 @@
       VericaseUI.Toast.info("Starting auto-categorization...");
 
       try {
+        // Prefer server-side auto-categorization (fast + reliable)
+        // Fallback to client-side logic if endpoint is unavailable.
+        try {
+          const query = new URLSearchParams();
+          if (projectId) query.append("project_id", projectId);
+          if (caseId) query.append("case_id", caseId);
+          const qs = query.toString();
+
+          const serverResp = await fetch(
+            `${apiUrl}/api/evidence/items/auto-categorize${qs ? `?${qs}` : ""}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                max_items: 500,
+                create_collections: true,
+                add_to_collections: true,
+                dry_run: false,
+              }),
+            },
+          );
+
+          if (serverResp.ok) {
+            const result = await serverResp.json();
+            const categorized = result.categorized || 0;
+            const createdCollections = result.created_collections || 0;
+            const addedToCollections = result.added_to_collections || 0;
+
+            if (categorized > 0) {
+              let msg = `Auto-categorized ${categorized} items`;
+              if (createdCollections > 0) msg += ` (created ${createdCollections} collections)`;
+              if (addedToCollections > 0) msg += ` and filed ${addedToCollections} to collections`;
+              VericaseUI.Toast.success(msg);
+              refreshGridData();
+              loadCollections();
+            } else {
+              VericaseUI.Toast.info("No items could be auto-categorized");
+            }
+            return; // Done.
+          }
+
+          // If endpoint doesn't exist yet, fall back to client-side.
+          if (serverResp.status !== 404 && serverResp.status !== 405) {
+            let detail = "";
+            try {
+              const err = await serverResp.json();
+              detail = err?.detail || JSON.stringify(err);
+            } catch (_) {
+              // ignore
+            }
+            throw new Error(detail || `Auto-categorize failed (HTTP ${serverResp.status})`);
+          }
+
+          console.warn("[Auto-categorize] Server endpoint unavailable; using client-side fallback.");
+        } catch (serverErr) {
+          console.warn("[Auto-categorize] Server-side failed; using client-side fallback:", serverErr);
+        }
+
         // Fetch uncategorized items (items with blank document_category)
         const query = new URLSearchParams();
         if (projectId) query.append("project_id", projectId);
@@ -2381,8 +2439,12 @@
           return;
         }
 
-        // Refresh collections cache to get current state
-        const collectionsResponse = await fetch(`${apiUrl}/api/evidence/collections?include_system=false`);
+        // Refresh collections cache to get current state (scoped)
+        const colParams = new URLSearchParams();
+        colParams.append("include_system", "false");
+        if (projectId) colParams.append("project_id", projectId);
+        if (caseId) colParams.append("case_id", caseId);
+        const collectionsResponse = await fetch(`${apiUrl}/api/evidence/collections?${colParams.toString()}`);
         let existingCollections = [];
         if (collectionsResponse.ok) {
           const colData = await collectionsResponse.json();
@@ -3810,9 +3872,12 @@
 
     async function loadCollections() {
       try {
-        const response = await fetch(
-          `${apiUrl}/api/evidence/collections?include_system=true`,
-        );
+        const params = new URLSearchParams();
+        params.append("include_system", "true");
+        if (projectId) params.append("project_id", projectId);
+        if (caseId) params.append("case_id", caseId);
+
+        const response = await fetch(`${apiUrl}/api/evidence/collections?${params.toString()}`);
         if (response.ok) {
           const collections = await response.json();
           renderCollections(collections);
@@ -3836,7 +3901,8 @@
           body: JSON.stringify({
             name: name.trim(),
             parent_id: parentId || null,
-            is_system: false,
+            project_id: projectId || null,
+            case_id: caseId || null,
           }),
         });
 
@@ -4975,20 +5041,21 @@
           : { type: "project", id: VericaseShell.getProjectId() };
       const ctxType = ctx?.type === "case" ? "case" : "project";
       const ctxLabel =
-        ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
+        ctxType === "case" ? "Case Overview" : "Project Overview";
       const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
       const ctxId = ctx?.id ? String(ctx.id) : "";
       const ctxUrl = ctxId
-        ? `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
-        : "dashboard.html";
+        ? `projectdashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+        : "projectdashboard.html";
 
       // Inject navigation shell
       VericaseShell.inject({
         title: '',
         breadcrumbs: [
-          { label: "Home", url: "master-dashboard.html", icon: "fa-th-large" },
+          { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
+          { label: "Workspaces", url: "workspace-hub.html", icon: "fa-layer-group" },
           { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
-          { label: "Evidence Repository", icon: "fa-folder-tree" },
+          { label: "Evidence & Files", icon: "fa-folder-tree" },
         ],
         headerActions: "",
         contentClass: "app-content--flush evidence-page",

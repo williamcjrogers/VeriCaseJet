@@ -431,6 +431,10 @@
   color: var(--text-primary);
 }
 
+.app-header-title:empty {
+  display: none;
+}
+
 .app-header-subtitle {
   font-size: var(--text-sm);
   color: var(--text-muted);

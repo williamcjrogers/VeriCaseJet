@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VeriCase - Dispute Intelligence Dashboard</title>
+  <title>VeriCase - Overview</title>
   <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
   <link rel="stylesheet" href="assets/global.css" />
   <link rel="stylesheet" href="brand-styles.css?v=6" />
@@ -935,12 +935,12 @@
   <div class="top-bar">
     <h1>
       <img src="/ui/assets/LOGOTOBEUSED.png" alt="VeriCase" class="logo-img" />
-      <span id="profileName">Dashboard</span>
+      <span id="profileName">Overview</span>
     </h1>
     <div class="top-bar-actions">
-      <button class="btn btn-secondary" onclick="window.location.href = 'master-dashboard.html'" title="Command Center">
+      <button class="btn btn-secondary" onclick="window.location.href = 'control-centre.html'" title="Control Centre">
         <i class="fas fa-th-large"></i>
-        <span class="btn-text">Home</span>
+        <span class="btn-text">Control Centre</span>
       </button>
       <button class="btn btn-primary" id="uploadBtn" onclick="openPstUpload()">
         <i class="fas fa-cloud-arrow-up"></i>
@@ -968,11 +968,11 @@
 
   <div class="dashboard-container">
     <!-- Welcome Banner -->
-    <div class="welcome-banner" id="welcomeBanner">
-      <h2 id="welcomeTitle"><span class="title-accent">Project Dashboard</span> <span class="title-suffix" id="projectTitleSuffix"></span></h2>
-      <p id="welcomeMessage">
-        Organize, analyze, and extract insights from your evidence.
-      </p>
+	    <div class="welcome-banner" id="welcomeBanner">
+	      <h2 id="welcomeTitle"><span class="title-accent">Overview</span> <span class="title-suffix" id="projectTitleSuffix"></span></h2>
+	      <p id="welcomeMessage">
+	        Organize, analyze, and extract insights from your evidence.
+	      </p>
       <div class="meta">
         <div class="meta-item">
           <i class="fas fa-calendar"></i>
@@ -1990,7 +1990,7 @@
           welcomeTitle.innerHTML = "";
           const accent = document.createElement("span");
           accent.className = "title-accent";
-          accent.textContent = "Project Dashboard";
+          accent.textContent = "Project Overview";
           welcomeTitle.appendChild(accent);
           const suffix = document.createElement("span");
           suffix.className = "title-suffix";
@@ -2156,8 +2156,9 @@
         window.VericaseShell.inject({
           title: "",
           breadcrumbs: [
-            { label: "Home", url: "master-dashboard.html", icon: "fa-th-large" },
-            { label: profileType === "case" ? "Case Dashboard" : "Project Dashboard" },
+            { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
+            { label: "Workspaces", url: "workspace-hub.html", icon: "fa-layer-group" },
+            { label: profileType === "case" ? "Case Overview" : "Project Overview" },
           ],
         });
       }
@@ -2180,12 +2181,12 @@
       } else {
         // Show welcome message for users without a profile
         document.getElementById("welcomeTitle").innerHTML =
-          `<span class="title-accent">${profileType === "case" ? "Case" : "Project"} Dashboard</span>`;
+          `<span class="title-accent">${profileType === "case" ? "Case" : "Project"} Overview</span>`;
         document.getElementById("welcomeMessage").innerHTML =
           profileType === "case"
-            ? "Select a case from the Command Center to get started."
+            ? "Select a case to get started."
             : "Select a project above or create a new one to get started.";
-        document.getElementById("profileName").textContent = "Dashboard";
+        document.getElementById("profileName").textContent = "Overview";
 
         const createdDateEl = document.getElementById("createdDate");
         if (createdDateEl) {
@@ -2375,17 +2376,17 @@
       }
     }
 
-    function populateDashboard(data) {
-      if (!data) {
-        // Use defaults for new profiles
-        document.getElementById("profileName").textContent =
-          "New " + (profileType === "project" ? "Project" : "Case");
-        document.getElementById("profileType").textContent =
-          profileType.charAt(0).toUpperCase() + profileType.slice(1);
-        stakeholderCountCache = 0;
-        updateQuickStatsWidget();
-        return;
-      }
+	    function populateDashboard(data) {
+	      if (!data) {
+	        // Use defaults for new profiles
+	        document.getElementById("profileName").textContent =
+	          "New " + (profileType === "project" ? "Project" : "Case");
+	        document.getElementById("profileType").textContent =
+	          profileType.charAt(0).toUpperCase() + profileType.slice(1);
+	        stakeholderCountCache = 0;
+	        updateQuickStatsWidget();
+	        return;
+	      }
 
       // Update profile info
       const profileName =
@@ -2402,7 +2403,7 @@
         welcomeTitle.innerHTML = "";
         const accent = document.createElement("span");
         accent.className = "title-accent";
-        accent.textContent = profileType === "case" ? "Case Dashboard" : "Project Dashboard";
+        accent.textContent = profileType === "case" ? "Case Overview" : "Project Overview";
         welcomeTitle.appendChild(accent);
         const suffix = document.createElement("span");
         suffix.className = "title-suffix";
@@ -2427,9 +2428,17 @@
         createdDateEl.textContent = `Created ${createdLabel}`;
       }
 
-      // Update type badge
-      document.getElementById("profileType").textContent =
-        profileType.charAt(0).toUpperCase() + profileType.slice(1);
+	      // Update type badge
+	      document.getElementById("profileType").textContent =
+	        profileType.charAt(0).toUpperCase() + profileType.slice(1);
+
+	      const welcomeMessageEl = document.getElementById("welcomeMessage");
+	      if (welcomeMessageEl) {
+	        welcomeMessageEl.textContent =
+	          profileType === "case"
+	            ? "Issues, stakeholders, chronology, and evidence for this case."
+	            : "Evidence, correspondence, programme, and chronology for this project.";
+	      }
 
       // Populate stakeholders
       const stakeholders =

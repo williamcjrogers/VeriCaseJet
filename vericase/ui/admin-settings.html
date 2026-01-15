@@ -1834,14 +1834,14 @@
     <script>
       // Inject navigation shell
       document.addEventListener("DOMContentLoaded", () => {
-        VericaseShell.inject({
-          title: '',
-          breadcrumbs: [
-            { label: "Home", url: "master-dashboard.html", icon: "fa-th-large" },
-            { label: "Admin Settings", icon: "fa-cog" },
-          ],
-          headerActions: '',
-        });
+	        VericaseShell.inject({
+	          title: '',
+	          breadcrumbs: [
+	            { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
+	            { label: "Admin Settings", icon: "fa-cog" },
+	          ],
+	          headerActions: '',
+	        });
 
         // Remove preload class after shell is injected
         requestAnimationFrame(() => {

@@ -280,9 +280,9 @@
       <div class="container">
         <div class="page-header">
           <nav class="breadcrumb" id="breadcrumbNav" style="margin-bottom: 0.75rem; font-size: 0.875rem;">
-            <a href="master-dashboard.html" style="color: var(--vericase-teal); text-decoration: none;">
-              <i class="fas fa-th-large"></i> Dashboard
-            </a>
+	            <a href="workspace-hub.html" style="color: var(--vericase-teal); text-decoration: none;">
+	              <i class="fas fa-layer-group"></i> Workspaces
+	            </a>
             <span style="color: var(--text-muted); margin: 0 0.5rem;">›</span>
             <a href="#" id="workspaceLink" style="color: var(--vericase-teal); text-decoration: none;">Workspace</a>
             <span style="color: var(--text-muted); margin: 0 0.5rem;">›</span>
@@ -859,11 +859,11 @@
           return;
         }
 
-        if (!isEditMode && !currentWorkspaceId) {
-          VericaseUI.Toast.error("Select a workspace first");
-          window.location.href = "master-dashboard.html";
-          return;
-        }
+	        if (!isEditMode && !currentWorkspaceId) {
+	          VericaseUI.Toast.error("Select a workspace first");
+	          window.location.href = "workspace-hub.html";
+	          return;
+	        }
         
         // Validate dates
         if (!validateDates()) {
@@ -986,11 +986,11 @@
           if (workspaceLink) workspaceLink.style.display = "none";
           if (workspaceLink?.previousElementSibling) workspaceLink.previousElementSibling.style.display = "none";
         } else {
-          if (!currentWorkspaceId) {
-            VericaseUI.Toast.info("Please select a workspace first to create a project.");
-            window.location.href = "master-dashboard.html";
-            return;
-          }
+	          if (!currentWorkspaceId) {
+	            VericaseUI.Toast.info("Please select a workspace first to create a project.");
+	            window.location.href = "workspace-hub.html";
+	            return;
+	          }
           
           if (workspaceLink) {
             workspaceLink.href = `workspace-hub.html?workspaceId=${encodeURIComponent(currentWorkspaceId)}`;

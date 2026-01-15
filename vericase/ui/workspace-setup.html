@@ -408,9 +408,9 @@
 
         <div class="form-section">
             <nav class="breadcrumb" id="breadcrumbNav" style="margin-bottom: 12px; font-size: 13px;">
-                <a href="master-dashboard.html" style="color: var(--gold); text-decoration: none;">
-                    <i class="ph ph-squares-four"></i> Dashboard
-                </a>
+	                <a href="workspace-hub.html" style="color: var(--gold); text-decoration: none;">
+	                    <i class="ph ph-squares-four"></i> Workspaces
+	                </a>
                 <span style="color: var(--slate); margin: 0 8px;">›</span>
                 <span style="color: var(--slate);" id="breadcrumbCurrent">New Workspace</span>
             </nav>
@@ -755,9 +755,13 @@
             window.location.href = `case-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
         }
 
-        function goBack() {
-            window.location.href = "master-dashboard.html";
-        }
+	        function goBack() {
+	            if (workspaceId) {
+	                window.location.href = `workspace-hub.html?workspaceId=${encodeURIComponent(workspaceId)}`;
+	                return;
+	            }
+	            window.location.href = "workspace-hub.html";
+	        }
 
         async function loadWorkspace() {
             const params = new URLSearchParams(window.location.search);

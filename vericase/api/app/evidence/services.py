@@ -30,6 +30,7 @@ from ..storage import presign_put, presign_get, put_object, s3, get_object
 from ..storage import S3AccessError, S3BucketError
 from ..config import settings
 from ..cache import get_cached, set_cached
+from .categorization import infer_document_category
 from .utils import (
     _safe_dict_list,
     get_file_type,
@@ -44,6 +45,8 @@ from .utils import (
     CollectionSummary,
     EvidenceItemDetail,
     EvidenceItemSummary,
+    AutoCategorizeRequest,
+    AutoCategorizeResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -1825,6 +1828,26 @@ async def list_collections_service(db, include_system, case_id, project_id):
     collections = query.order_by(
         EvidenceCollection.sort_order, EvidenceCollection.name
     ).all()
+
+    # Always compute item counts from the junction table so the UI reflects reality.
+    # The `evidence_collections.item_count` column is not reliably maintained.
+    counts_by_collection: dict[uuid.UUID, int] = {}
+    collection_ids = [c.id for c in collections]
+    if collection_ids:
+        count_rows = (
+            db.query(
+                EvidenceCollectionItem.collection_id,
+                func.count(EvidenceCollectionItem.id),
+            )
+            .filter(EvidenceCollectionItem.collection_id.in_(collection_ids))
+            .group_by(EvidenceCollectionItem.collection_id)
+            .all()
+        )
+        for cid, cnt in count_rows:
+            if cid is None:
+                continue
+            counts_by_collection[cid] = int(cnt or 0)
+
     return [
         CollectionSummary(
             id=str(c.id),
@@ -1832,7 +1855,7 @@ async def list_collections_service(db, include_system, case_id, project_id):
             description=c.description,
             collection_type=c.collection_type or "manual",
             parent_id=str(c.parent_id) if c.parent_id else None,
-            item_count=c.item_count or 0,
+            item_count=counts_by_collection.get(c.id, 0),
             is_system=c.is_system or False,
             color=c.color,
             icon=c.icon,
@@ -1841,6 +1864,231 @@ async def list_collections_service(db, include_system, case_id, project_id):
         )
         for c in collections
     ]
+
+
+async def auto_categorize_evidence_service(
+    request: AutoCategorizeRequest,
+    db,
+    project_id: str | None = None,
+    case_id: str | None = None,
+    include_hidden: bool = False,
+) -> AutoCategorizeResponse:
+    """Server-side auto-categorization.
+
+    This avoids hundreds of per-item PATCH requests from the browser and keeps
+    categorization consistent across clients.
+    """
+
+    project_uuid: uuid.UUID | None = None
+    case_uuid: uuid.UUID | None = None
+    if project_id:
+        try:
+            project_uuid = uuid.UUID(str(project_id))
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400, detail="Invalid project_id format"
+            ) from exc
+    if case_id:
+        try:
+            case_uuid = uuid.UUID(str(case_id))
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400, detail="Invalid case_id format"
+            ) from exc
+
+    # In case context, derive the linked project so we can also use/create
+    # project-level collections consistently.
+    if case_uuid is not None and project_uuid is None:
+        try:
+            case = db.query(Case).filter(Case.id == case_uuid).first()
+            if case and getattr(case, "project_id", None):
+                project_uuid = case.project_id
+        except Exception:
+            # Keep None if anything goes wrong; case-scoped categorization still works.
+            project_uuid = None
+
+    q = db.query(EvidenceItem)
+    if not include_hidden:
+        q = q.filter(
+            or_(
+                EvidenceItem.meta.is_(None),
+                EvidenceItem.meta.op("->>")("spam").is_(None),
+                EvidenceItem.meta.op("->")("spam").op("->>")("is_hidden") != "true",
+            )
+        )
+    if project_uuid is not None:
+        q = q.filter(EvidenceItem.project_id == project_uuid)
+    if case_uuid is not None:
+        q = q.filter(EvidenceItem.case_id == case_uuid)
+
+    q = q.filter(
+        or_(
+            EvidenceItem.document_category.is_(None),
+            EvidenceItem.document_category == "",
+        )
+    )
+
+    max_items = int(request.max_items or 0)
+    if max_items <= 0:
+        max_items = 500
+    max_items = min(max_items, 5000)  # hard cap for safety
+
+    items = q.order_by(desc(EvidenceItem.created_at)).limit(max_items).all()
+
+    # Infer categories
+    inferred: list[tuple[EvidenceItem, str]] = []
+    category_counts: dict[str, int] = {}
+    for item in items:
+        cat = infer_document_category(
+            filename=getattr(item, "filename", None),
+            title=getattr(item, "title", None),
+            evidence_type=getattr(item, "evidence_type", None),
+        )
+        if not cat:
+            continue
+        inferred.append((item, cat))
+        category_counts[cat] = category_counts.get(cat, 0) + 1
+
+    if not inferred:
+        return AutoCategorizeResponse(
+            categorized=0,
+            created_collections=0,
+            added_to_collections=0,
+            categories={},
+        )
+
+    created_collections = 0
+    added_to_collections = 0
+
+    # Prepare collections (by category name)
+    category_to_collection_id: dict[str, uuid.UUID] = {}
+    if request.create_collections or request.add_to_collections:
+        lower_names = {c.lower() for c in category_counts.keys()}
+        existing_query = (
+            db.query(EvidenceCollection)
+            .filter(EvidenceCollection.is_system.is_(False))
+            .filter(func.lower(EvidenceCollection.name).in_(list(lower_names)))
+        )
+
+        # Scope existing collection lookup to the current context.
+        if case_uuid is not None:
+            scope_parts: list[Any] = [EvidenceCollection.case_id == case_uuid]
+            if project_uuid is not None:
+                scope_parts.append(
+                    and_(
+                        EvidenceCollection.project_id == project_uuid,
+                        EvidenceCollection.case_id.is_(None),
+                    )
+                )
+            existing_query = existing_query.filter(or_(*scope_parts))
+        elif project_uuid is not None:
+            existing_query = existing_query.filter(
+                and_(
+                    EvidenceCollection.project_id == project_uuid,
+                    EvidenceCollection.case_id.is_(None),
+                )
+            )
+
+        existing = existing_query.all()
+        for col in existing:
+            category_to_collection_id[(col.name or "").lower()] = col.id
+
+        if request.create_collections and not request.dry_run:
+            user = get_default_user(db)
+            for cat in category_counts.keys():
+                key = cat.lower()
+                if key in category_to_collection_id:
+                    continue
+                new_collection = EvidenceCollection(
+                    name=cat,
+                    description=f"Auto-created collection for {cat}",
+                    collection_type="manual",
+                    filter_rules={},
+                    parent_id=None,
+                    path=f"/{cat}",
+                    depth=0,
+                    case_id=case_uuid,
+                    project_id=project_uuid,
+                    color=None,
+                    icon=None,
+                    is_system=False,
+                    created_by=user.id,
+                )
+                db.add(new_collection)
+                db.flush()  # allocate id
+                category_to_collection_id[key] = new_collection.id
+                created_collections += 1
+
+    # Add collection memberships (bulk-ish)
+    if request.add_to_collections and category_to_collection_id and not request.dry_run:
+        collection_ids = list(category_to_collection_id.values())
+        evidence_ids = [it.id for it, _cat in inferred]
+        existing_pairs: set[tuple[uuid.UUID, uuid.UUID]] = set()
+        if collection_ids and evidence_ids:
+            pair_rows = (
+                db.query(
+                    EvidenceCollectionItem.collection_id,
+                    EvidenceCollectionItem.evidence_item_id,
+                )
+                .filter(
+                    EvidenceCollectionItem.collection_id.in_(collection_ids),
+                    EvidenceCollectionItem.evidence_item_id.in_(evidence_ids),
+                )
+                .all()
+            )
+            existing_pairs = {
+                (row[0], row[1])
+                for row in pair_rows
+                if row[0] is not None and row[1] is not None
+            }
+
+        user = get_default_user(db)
+        for item, cat in inferred:
+            col_id = category_to_collection_id.get(cat.lower())
+            if not col_id:
+                continue
+            key = (col_id, item.id)
+            if key in existing_pairs:
+                continue
+            db.add(
+                EvidenceCollectionItem(
+                    collection_id=col_id,
+                    evidence_item_id=item.id,
+                    added_method="auto",
+                    added_by=user.id,
+                )
+            )
+            existing_pairs.add(key)
+            added_to_collections += 1
+
+    # Persist category updates
+    categorized = 0
+    if not request.dry_run:
+        for item, cat in inferred:
+            item.document_category = cat
+            categorized += 1
+        user = get_default_user(db)
+        log_activity(
+            db,
+            "auto_categorize",
+            user.id,
+            details={
+                "categorized": categorized,
+                "created_collections": created_collections,
+                "added_to_collections": added_to_collections,
+                "categories": category_counts,
+            },
+        )
+        db.commit()
+    else:
+        categorized = len(inferred)
+
+    return AutoCategorizeResponse(
+        categorized=categorized,
+        created_collections=created_collections,
+        added_to_collections=added_to_collections,
+        categories=category_counts,
+    )
 
 
 async def create_collection_service(collection, db):
@@ -2780,34 +3028,43 @@ async def get_sync_status_service(db, project_id):
 async def extract_all_metadata_service(db, user, limit, force):
     from ..evidence_metadata import extract_evidence_metadata
 
+    # Bulk metadata extraction for EvidenceItems.
+    # This endpoint is used to backfill items missing extracted_metadata and to
+    # optionally refresh metadata when `force` is True.
+
     query = db.query(EvidenceItem)
     if not force:
         query = query.filter(
             or_(
+                EvidenceItem.extracted_metadata.is_(None),
                 EvidenceItem.metadata_extracted_at.is_(None),
-                EvidenceItem.document_date.is_(None),
             )
         )
-    items = query.limit(limit).all()
+
+    limit_int: int | None = None
+    if limit is not None:
+        try:
+            limit_int = int(limit)
+        except Exception:
+            limit_int = None
+
+    if limit_int is not None and limit_int > 0:
+        query = query.order_by(EvidenceItem.created_at.desc()).limit(limit_int)
+
+    items = query.all()
+
     processed = 0
     updated_dates = 0
     errors = 0
-    stakeholder_cache: dict[
-        tuple[uuid.UUID | None, uuid.UUID | None], tuple[dict[str, str], dict[str, str]]
-    ] = {}
+
     email_cache: dict[uuid.UUID, EmailMessage | None] = {}
 
-    def _get_stakeholder_maps(project_uuid, case_uuid):
-        key = (project_uuid, case_uuid)
-        if key not in stakeholder_cache:
-            stakeholder_cache[key] = _load_stakeholder_maps(db, project_uuid, case_uuid)
-        return stakeholder_cache[key]
-
-    def _get_email(email_id):
-        if email_id not in email_cache:
-            email_cache[email_id] = (
-                db.query(EmailMessage).filter(EmailMessage.id == email_id).first()
-            )
+    def _get_email(email_id: uuid.UUID) -> EmailMessage | None:
+        if email_id in email_cache:
+            return email_cache[email_id]
+        email_cache[email_id] = (
+            db.query(EmailMessage).filter(EmailMessage.id == email_id).first()
+        )
         return email_cache[email_id]
 
     for item in items:

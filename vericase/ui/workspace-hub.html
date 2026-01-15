@@ -4,14 +4,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VeriCase - Workspace Hub</title>
+  <title>VeriCase - Workspaces</title>
   <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
   <link rel="stylesheet" href="brand-styles.css?v=7" />
   <link rel="stylesheet" href="design-system.css?v=7" />
   <script src="vericase-ui.js"></script>
   <script src="nav-shell.js"></script>
   <style>
-    /* === WORKSPACE HUB - TABBED COMMAND CENTER === */
+    /* Workspace hub provides its own in-page header; avoid duplicated breadcrumb bars when wrapped in the shell */
+    .app-shell .hub-breadcrumb {
+      display: none;
+    }
+    /* === WORKSPACES - DIRECTORY + WORKSPACE VIEW === */
 
     /* === BREADCRUMB BAR === */
     .hub-breadcrumb {
@@ -335,6 +339,11 @@
       color: var(--vericase-gold);
     }
 
+    .item-icon.workspace {
+      background: rgba(var(--vericase-teal-rgb), 0.12);
+      color: var(--vericase-teal);
+    }
+
     .item-status {
       font-size: 0.6875rem;
       font-weight: 600;
@@ -493,6 +502,47 @@
       max-width: 400px;
       margin-left: auto;
       margin-right: auto;
+    }
+
+    .workspace-preview {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--gray-200);
+    }
+
+    .workspace-preview-title {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .workspace-preview-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .workspace-preview-item {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .workspace-preview-empty {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    .hidden {
+      display: none !important;
     }
 
     /* === MANAGEMENT TABLE === */
@@ -1157,12 +1207,34 @@
   <main class="app-content">
     <!-- Breadcrumb Navigation -->
     <nav class="hub-breadcrumb" aria-label="Breadcrumb">
-      <a href="control-centre.html"><i class="fas fa-th-large"></i> Control Centre</a>
+      <a href="control-centre.html"><i class="fas fa-compass"></i> Control Centre</a>
       <span class="separator"><i class="fas fa-chevron-right"></i></span>
-      <a href="master-dashboard.html">Master Dashboard</a>
+      <a href="workspace-hub.html">Workspaces</a>
       <span class="separator"><i class="fas fa-chevron-right"></i></span>
       <span class="current" id="breadcrumbWorkspaceName">Loading...</span>
     </nav>
+
+    <!-- Workspaces Directory (no workspaceId) -->
+    <section class="hub-section hidden" id="directoryView">
+      <div class="section-header">
+        <div class="section-title">
+          <i class="fas fa-layer-group" aria-hidden="true"></i>
+          Workspaces
+        </div>
+        <div class="section-actions">
+          <a href="workspace-setup.html" class="btn btn-vericase">
+            <i class="fas fa-plus" aria-hidden="true"></i> Create Workspace
+          </a>
+          <a href="master-dashboard.html" class="btn btn-outline">
+            <i class="fas fa-bolt" aria-hidden="true"></i> Quick Access
+          </a>
+        </div>
+      </div>
+	      <div style="color: var(--text-muted); font-size: 0.9375rem; margin: -8px 0 20px; max-width: 70ch;">
+	        Workspaces group projects, cases, documents, and your team.
+	      </div>
+      <div class="items-grid" id="workspacesGrid"></div>
+    </section>
 
     <!-- Workspace Header -->
     <header class="workspace-header" id="workspaceHeader">
@@ -1384,9 +1456,9 @@
 
     <!-- Back Navigation -->
     <div class="back-section">
-      <a href="master-dashboard.html" class="back-link">
+      <a href="workspace-hub.html" class="back-link">
         <i class="fas fa-arrow-left" aria-hidden="true"></i>
-        Back to Master Dashboard
+        Back to Workspaces
       </a>
     </div>
   </main>
@@ -1455,6 +1527,7 @@
     // Get workspace ID from URL
     const urlParams = new URLSearchParams(window.location.search);
     const workspaceId = urlParams.get("workspaceId");
+    const isDirectoryMode = !workspaceId;
 
     // Workspace data
     let workspaceData = null;
@@ -1485,24 +1558,57 @@
       });
     }
 
+    function setDirectoryMode(enabled) {
+      const directory = document.getElementById("directoryView");
+      if (directory) directory.classList.toggle("hidden", !enabled);
+
+      const workspaceOnlySelectors = [
+        ".hub-breadcrumb",
+        "#workspaceHeader",
+        "#statsBar",
+        "#hubTabs",
+        ".tab-panels",
+        ".back-section",
+      ];
+
+      workspaceOnlySelectors.forEach((selector) => {
+        const el = document.querySelector(selector);
+        if (el) el.classList.toggle("hidden", enabled);
+      });
+    }
+
     // Initialize page
-    document.addEventListener("DOMContentLoaded", async () => {
-      if (!workspaceId) {
-        VericaseUI.Toast.error("No workspace specified");
-        window.location.href = "master-dashboard.html";
+	    document.addEventListener("DOMContentLoaded", async () => {
+	      if (window.VericaseShell?.inject) {
+	        VericaseShell.inject(
+	          isDirectoryMode
+	            ? {
+	                title: "",
+	                breadcrumbs: [
+	                  { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
+	                  { label: "Workspaces", icon: "fa-layer-group" },
+	                ],
+	                headerActions: "",
+	              }
+	            : {
+	                title: "",
+	                breadcrumbs: [
+	                  { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
+	                  { label: "Workspaces", url: "workspace-hub.html", icon: "fa-layer-group" },
+	                  { label: "Workspace", icon: "fa-building" },
+	                ],
+	                headerActions: "",
+	              },
+	        );
+	      }
+
+      if (isDirectoryMode) {
+        setDirectoryMode(true);
+        await loadWorkspacesDirectory();
         return;
       }
 
-      if (window.VericaseShell?.inject) {
-        VericaseShell.inject({
-          title: "Workspace Hub",
-          breadcrumbs: [
-            { label: "Control Centre", url: "control-centre.html" },
-            { label: "Master Dashboard", url: "master-dashboard.html" }
-          ],
-          headerActions: ""
-        });
-      }
+      setDirectoryMode(false);
 
       // Set up links
       document.getElementById("configureBtn").href = `workspace-setup.html?workspaceId=${encodeURIComponent(workspaceId)}`;
@@ -1517,6 +1623,125 @@
       // Load workspace data
       await loadWorkspace();
     });
+
+    async function loadWorkspacesDirectory() {
+      try {
+        const response = await fetch("/api/workspaces", { headers: getAuthHeaders() });
+        if (!response.ok) throw new Error("Failed to load workspaces");
+        const workspaces = await response.json();
+        renderWorkspacesDirectory(workspaces);
+      } catch (err) {
+        console.error("Failed to load workspaces directory:", err);
+        VericaseUI.Toast.error("Failed to load workspaces");
+      }
+    }
+
+    function renderWorkspacesDirectory(workspaces) {
+      const grid = document.getElementById("workspacesGrid");
+      if (!grid) return;
+
+      const list = Array.isArray(workspaces) ? workspaces : [];
+      if (list.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state" style="grid-column: 1 / -1;">
+            <i class="fas fa-layer-group empty-icon"></i>
+            <div class="empty-title">No Workspaces Yet</div>
+            <div class="empty-desc">Create a workspace to group projects, cases, documents, and your team.</div>
+            <a href="workspace-setup.html" class="btn btn-vericase">
+              <i class="fas fa-plus"></i> Create Workspace
+            </a>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = list
+        .map((ws) => {
+          const projects = Array.isArray(ws.projects) ? ws.projects : [];
+          const cases = Array.isArray(ws.cases) ? ws.cases : [];
+
+          const projectPreview = projects.length
+            ? projects
+                .slice(0, 3)
+                .map(
+                  (p) =>
+                    `<div class="workspace-preview-item" title="${escapeHtml(p.name || "")}">${escapeHtml(p.name || "Untitled project")}</div>`,
+                )
+                .join("")
+            : `<div class="workspace-preview-empty">No projects yet</div>`;
+
+          const casePreview = cases.length
+            ? cases
+                .slice(0, 3)
+                .map(
+                  (c) =>
+                    `<div class="workspace-preview-item" title="${escapeHtml(c.name || "")}">${escapeHtml(c.name || "Untitled case")}</div>`,
+                )
+                .join("")
+            : `<div class="workspace-preview-empty">No cases yet</div>`;
+
+          const status = (ws.status || "active").toString();
+          const statusClass = status.toLowerCase() === "archived" ? "closed" : "";
+          const displayStatus = status.toLowerCase() === "archived" ? "Archived" : "Active";
+
+          const codeLine = [
+            ws.code ? escapeHtml(ws.code) : "",
+            ws.contract_type ? escapeHtml(ws.contract_type) : "",
+          ]
+            .filter(Boolean)
+            .join(" • ");
+
+          return `
+            <div class="item-card" data-workspace-id="${escapeHtml(ws.id)}">
+              <div class="item-card-header">
+                <div class="item-icon workspace"><i class="fas fa-building"></i></div>
+                <span class="item-status ${statusClass}">${displayStatus}</span>
+              </div>
+              <div class="item-content">
+                <div class="item-title">${escapeHtml(ws.name || "Untitled workspace")}</div>
+                <div class="item-code">${codeLine}</div>
+              </div>
+              <div class="item-stats">
+                <div class="item-stat"><i class="fas fa-project-diagram"></i> <strong>${ws.project_count || 0}</strong> projects</div>
+                <div class="item-stat"><i class="fas fa-briefcase"></i> <strong>${ws.case_count || 0}</strong> cases</div>
+                <div class="item-stat"><i class="fas fa-envelope"></i> <strong>${ws.email_count || 0}</strong> emails</div>
+                <div class="item-stat"><i class="fas fa-file-alt"></i> <strong>${ws.evidence_count || 0}</strong> files</div>
+              </div>
+              <div class="workspace-preview">
+                <div>
+                  <div class="workspace-preview-title">Projects</div>
+                  <div class="workspace-preview-list">${projectPreview}</div>
+                </div>
+                <div>
+                  <div class="workspace-preview-title">Cases</div>
+                  <div class="workspace-preview-list">${casePreview}</div>
+                </div>
+              </div>
+              <div class="card-actions">
+                <button class="card-action-btn primary" data-action="open"><i class="fas fa-arrow-right"></i> Open</button>
+                <button class="card-action-btn" data-action="configure"><i class="fas fa-cog"></i> Configure</button>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+
+      grid.onclick = handleWorkspaceDirectoryClick;
+    }
+
+    function handleWorkspaceDirectoryClick(e) {
+      const card = e.target.closest("[data-workspace-id]");
+      if (!card) return;
+      const id = card.dataset.workspaceId;
+      const action = e.target.closest("[data-action]")?.dataset.action;
+
+      if (action === "configure") {
+        window.location.href = `workspace-setup.html?workspaceId=${encodeURIComponent(id)}`;
+        return;
+      }
+
+      window.location.href = `workspace-hub.html?workspaceId=${encodeURIComponent(id)}`;
+    }
 
     async function loadWorkspace() {
       try {
@@ -1533,7 +1758,7 @@
         // Extract data
         workspaceDeadlines = workspaceData.deadlines || [];
         workspaceDocuments = workspaceData.documents || [];
-        workspaceTeam = workspaceData.users || workspaceData.team || [];
+        workspaceTeam = workspaceData.team_members || workspaceData.users || workspaceData.team || [];
         workspaceNotes = workspaceData.notes || [];
         workspaceActivity = workspaceData.activity || [];
 
@@ -1559,8 +1784,7 @@
             title: workspaceData.name,
             breadcrumbs: [
               { label: "Control Centre", url: "control-centre.html" },
-              { label: "Master Dashboard", url: "master-dashboard.html" },
-              { label: workspaceData.name }
+              { label: "Workspaces", url: "workspace-hub.html" }
             ],
             headerActions: ""
           });

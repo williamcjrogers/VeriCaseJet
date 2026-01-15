@@ -712,17 +712,18 @@
               : { type: "project", id: window.VericaseShell.getProjectId() };
           const ctxType = ctx?.type === "case" ? "case" : "project";
           const ctxLabel =
-            ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
+            ctxType === "case" ? "Case Overview" : "Project Overview";
           const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
           const ctxId = ctx?.id ? String(ctx.id) : "";
           const ctxUrl = ctxId
-            ? `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
-            : "dashboard.html";
+            ? `projectdashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+            : "projectdashboard.html";
 
           window.VericaseShell.inject({
             title: '',
             breadcrumbs: [
-              { label: "Home", url: "master-dashboard.html", icon: "fa-th-large" },
+              { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
+              { label: "Workspaces", url: "workspace-hub.html", icon: "fa-layer-group" },
               { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
               { label: "Stakeholders", icon: "fa-id-badge" }
             ]

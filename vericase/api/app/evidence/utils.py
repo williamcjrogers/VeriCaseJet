@@ -523,6 +523,27 @@ class ServerSideEvidenceResponse(BaseModel):
     stats: dict[str, Any] = {}
 
 
+class AutoCategorizeRequest(BaseModel):
+    """Server-side auto-categorization request.
+
+    The goal is to keep this lightweight and safe for UI usage.
+    """
+
+    max_items: int = 500
+    create_collections: bool = True
+    add_to_collections: bool = True
+    dry_run: bool = False
+
+
+class AutoCategorizeResponse(BaseModel):
+    """Server-side auto-categorization response."""
+
+    categorized: int
+    created_collections: int
+    added_to_collections: int
+    categories: dict[str, int] = {}
+
+
 class CollectionCreate(BaseModel):
     """Create collection"""
 

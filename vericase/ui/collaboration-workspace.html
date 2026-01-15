@@ -604,7 +604,7 @@
           : { type: "", id: "" };
 
         if (!ctx?.type || !ctx?.id) {
-          window.location.href = "master-dashboard.html";
+          window.location.href = "workspace-hub.html";
           return;
         }
 
@@ -616,14 +616,15 @@
         const hasFocus = !!(focusType && focusId);
 
         const ctxType = ctx.type === "case" ? "case" : "project";
-        const ctxLabel = ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
+        const ctxLabel = ctxType === "case" ? "Case Overview" : "Project Overview";
         const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
-        const ctxUrl = `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(String(ctx.id))}`;
+        const ctxUrl = `projectdashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(String(ctx.id))}`;
 
         VericaseShell.inject({
           title: "",
           breadcrumbs: [
-            { label: "Home", url: "master-dashboard.html", icon: "fa-th-large" },
+            { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
+            { label: "Workspaces", url: "workspace-hub.html", icon: "fa-layer-group" },
             { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
             { label: "Collaboration Hub", icon: "fa-comments" },
           ],

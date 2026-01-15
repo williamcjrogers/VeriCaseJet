@@ -416,14 +416,14 @@
       // Load on page load
       document.addEventListener("DOMContentLoaded", () => {
         // Inject navigation shell
-        VericaseShell.inject({
-          title: '',
-          breadcrumbs: [
-            { label: "Home", url: "master-dashboard.html", icon: "fa-th-large" },
-            { label: "User Approvals", icon: "fa-user-check" },
-          ],
-          headerActions: "",
-        });
+	        VericaseShell.inject({
+	          title: '',
+	          breadcrumbs: [
+	            { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
+	            { label: "User Approvals", icon: "fa-user-check" },
+	          ],
+	          headerActions: "",
+	        });
 
         // Remove preload class
         requestAnimationFrame(() => {

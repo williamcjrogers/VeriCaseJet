@@ -1084,17 +1084,18 @@
               : { type: "project", id: window.VericaseShell.getProjectId() };
           const ctxType = ctx?.type === "case" ? "case" : "project";
           const ctxLabel =
-            ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
+            ctxType === "case" ? "Case Overview" : "Project Overview";
           const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
           const ctxId = ctx?.id ? String(ctx.id) : "";
           const ctxUrl = ctxId
-            ? `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
-            : "dashboard.html";
+            ? `projectdashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+            : "projectdashboard.html";
 
           window.VericaseShell.inject({
             title: '',
             breadcrumbs: [
-              { label: "Home", url: "master-dashboard.html", icon: "fa-th-large" },
+              { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
+              { label: "Workspaces", url: "workspace-hub.html", icon: "fa-layer-group" },
               { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
               { label: "VeriCase Refine", icon: "fa-magnifying-glass" }
             ]
@@ -1842,14 +1843,14 @@
                         </div>
                     </div>
 
-                    <div class="actions">
-                        <button class="btn btn-secondary" onclick="window.location.href='dashboard.html'">
-                            <i class="fas fa-th-large"></i> Back to Dashboard
-                        </button>
-                        <button class="btn btn-primary" onclick="window.location.href='${buildCorrespondenceUrl({ refined: "true" })}'">
-                            View Filtered Emails <i class="fas fa-arrow-right"></i>
-                        </button>
-                    </div>
+	                    <div class="actions">
+	                        <button class="btn btn-secondary" onclick="window.location.href='projectdashboard.html${buildContextQuery()}'">
+	                            <i class="fas fa-th-large"></i> Back to Overview
+	                        </button>
+	                        <button class="btn btn-primary" onclick="window.location.href='${buildCorrespondenceUrl({ refined: "true" })}'">
+	                            View Filtered Emails <i class="fas fa-arrow-right"></i>
+	                        </button>
+	                    </div>
                 `;
         } catch (error) {
           console.error("Apply failed:", error);

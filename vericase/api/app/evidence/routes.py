@@ -42,6 +42,7 @@ from .services import (
     sync_email_attachments_to_evidence_service,
     get_sync_status_service,
     extract_all_metadata_service,
+    auto_categorize_evidence_service,
 )
 from .utils import (
     EvidenceUploadInitRequest,
@@ -56,6 +57,8 @@ from .utils import (
     CollectionSummary,
     CorrespondenceLinkCreate,
     AssignRequest,
+    AutoCategorizeRequest,
+    AutoCategorizeResponse,
 )
 
 router = APIRouter(prefix="/api/evidence", tags=["evidence-repository"])
@@ -201,6 +204,25 @@ async def update_evidence_endpoint(
     evidence_id: str, updates: EvidenceItemUpdate, db: DbSession
 ):
     return await update_evidence_service(evidence_id, updates, db)
+
+
+@router.post("/items/auto-categorize", response_model=AutoCategorizeResponse)
+async def auto_categorize_evidence_endpoint(
+    request: AutoCategorizeRequest,
+    db: DbSession,
+    project_id: str | None = Query(None),
+    case_id: str | None = Query(None),
+    include_hidden: bool = Query(
+        False, description="Include spam-filtered/hidden items"
+    ),
+) -> AutoCategorizeResponse:
+    return await auto_categorize_evidence_service(
+        request,
+        db,
+        project_id=project_id,
+        case_id=case_id,
+        include_hidden=include_hidden,
+    )
 
 
 @router.delete("/items/{evidence_id}")

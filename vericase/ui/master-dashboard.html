@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VeriCase - Master Dashboard</title>
+  <title>VeriCase - Quick Access</title>
   <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
   <link rel="stylesheet" href="brand-styles.css?v=9" />
   <link rel="stylesheet" href="design-system.css?v=9" />
@@ -87,13 +87,18 @@
       color: var(--vericase-gold-muted);
     }
 
-    .greeting-title {
-      font-family: var(--font-serif);
-      font-size: 1.625rem;
-      font-weight: 600;
-      color: var(--text-primary);
-      line-height: 1.2;
-    }
+	    .greeting-title {
+	      font-family: var(--font-serif);
+	      font-size: 1.625rem;
+	      font-weight: 600;
+	      color: var(--text-primary);
+	      line-height: 1.2;
+	    }
+
+	    .greeting-subtitle {
+	      font-size: 0.95rem;
+	      color: var(--text-muted);
+	    }
 
     .header-actions {
       display: flex;
@@ -2507,12 +2512,13 @@
     <!-- Compact Dashboard Header -->
     <header class="dashboard-header">
       <div class="dashboard-greeting">
-        <div class="greeting-kicker">
-          <i class="fas fa-check vericase-tick" aria-hidden="true"></i>
-          VeriCase
-        </div>
-        <h1 class="greeting-title" id="greetingTitle">Master Dashboard</h1>
-      </div>
+	        <div class="greeting-kicker">
+	          <i class="fas fa-check vericase-tick" aria-hidden="true"></i>
+	          VeriCase
+	        </div>
+	        <h1 class="greeting-title" id="greetingTitle">Quick Access</h1>
+	        <div class="greeting-subtitle">All projects and cases, searchable.</div>
+	      </div>
       <div class="stats-bar" id="statsBar">
         <div class="stat-pill projects">
           <i class="fas fa-project-diagram" aria-hidden="true"></i>
@@ -2543,10 +2549,10 @@
 
     <!-- Control Centre Tabs -->
     <nav class="control-tabs" role="tablist">
-      <button class="control-tab active" data-tab="overview" role="tab" aria-selected="true">
-        <i class="fas fa-th-large"></i>
-        Overview
-      </button>
+	      <button class="control-tab active" data-tab="overview" role="tab" aria-selected="true">
+	        <i class="fas fa-th-large"></i>
+	        Projects &amp; Cases
+	      </button>
       <button class="control-tab" data-tab="deadlines" role="tab" aria-selected="false">
         <i class="fas fa-calendar-check"></i>
         Deadlines
@@ -3008,14 +3014,15 @@
 
   <script>
     // Initialize Shell
-    document.addEventListener("DOMContentLoaded", () => {
-      VericaseShell.inject({
-        title: "Master Dashboard",
-        breadcrumbs: [
-          { label: "Control Centre", url: "control-centre.html" }
-        ],
-        headerActions: ""
-      });
+	    document.addEventListener("DOMContentLoaded", () => {
+	      VericaseShell.inject({
+	        title: "",
+	        breadcrumbs: [
+	          { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
+	          { label: "Quick Access", icon: "fa-bolt" }
+	        ],
+	        headerActions: ""
+	      });
 
       updateQuickActions();
       loadDashboard();

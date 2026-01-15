@@ -1604,14 +1604,14 @@
       <i class="fas fa-cloud-upload-alt" style="color: var(--vericase-teal)"></i>
       Evidence Upload <span style="font-size: 12px; opacity: 0.7; margin-left: 10px;">v1.1</span>
     </h1>
-    <button class="btn btn-ghost" onclick="goToDashboard()" style="
-          background: white;
-          color: var(--vericase-navy);
-          border: 2px solid var(--gray-200);
-        ">
-      <i class="fas fa-arrow-left"></i> Back to Dashboard
-    </button>
-  </div>
+	    <button class="btn btn-ghost" onclick="goToDashboard()" style="
+	          background: white;
+	          color: var(--vericase-navy);
+	          border: 2px solid var(--gray-200);
+	        ">
+	      <i class="fas fa-arrow-left"></i> Back to Overview
+	    </button>
+	  </div>
 
   <div class="container">
     <!-- Live Processing Tracker -->
@@ -1893,24 +1893,25 @@
         typeof window.VericaseShell.getContext === "function"
           ? window.VericaseShell.getContext()
           : { type: "project", id: window.VericaseShell.getProjectId() };
-      const ctxType = ctx?.type === "case" ? "case" : "project";
-      const ctxLabel =
-        ctxType === "case" ? "Case Dashboard" : "Project Dashboard";
-      const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
-      const ctxId = ctx?.id ? String(ctx.id) : "";
-      const ctxUrl = ctxId
-        ? `dashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
-        : "dashboard.html";
+	      const ctxType = ctx?.type === "case" ? "case" : "project";
+	      const ctxLabel =
+	        ctxType === "case" ? "Case Overview" : "Project Overview";
+	      const ctxIcon = ctxType === "case" ? "fa-briefcase" : "fa-diagram-project";
+	      const ctxId = ctx?.id ? String(ctx.id) : "";
+	      const ctxUrl = ctxId
+	        ? `projectdashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+	        : "projectdashboard.html";
 
-      window.VericaseShell.inject({
-        title: '',
-        breadcrumbs: [
-          { label: "Home", url: "master-dashboard.html", icon: "fa-th-large" },
-          { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
-          { label: "Evidence Upload", icon: "fa-upload" },
-        ],
-      });
-    }
+	      window.VericaseShell.inject({
+	        title: '',
+	        breadcrumbs: [
+	          { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
+	          { label: "Workspaces", url: "workspace-hub.html", icon: "fa-layer-group" },
+	          { label: ctxLabel, url: ctxUrl, icon: ctxIcon },
+	          { label: "Evidence Upload", icon: "fa-upload" },
+	        ],
+	      });
+	    }
 
     // Retry helper for network issues (optimized for large file uploads)
     async function fetchWithRetry(url, options, retries = 3) {

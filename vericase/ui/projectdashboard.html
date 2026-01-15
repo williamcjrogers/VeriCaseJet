@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VeriCase - Project Dashboard</title>
+  <title>VeriCase - Overview</title>
   <meta name="robots" content="noindex" />
   <style>
     :root {
@@ -98,12 +98,12 @@
 <body>
   <div class="loader" role="status" aria-live="polite">
     <h1 class="title">
-      VeriCase <small>Loading Project Dashboard…</small>
+      VeriCase <small>Loading Overview…</small>
     </h1>
     <p class="msg">Preparing your workspace and syncing your current project context.</p>
     <div class="bar"><div></div></div>
     <div class="error" id="loadError">
-      Unable to load the dashboard UI. You can try opening
+      Unable to load the overview UI. You can try opening
       <a id="fallbackLink" href="dashboard.html">dashboard.html</a> directly.
     </div>
   </div>
@@ -114,7 +114,7 @@
       target.search = window.location.search;
       target.hash = window.location.hash;
 
-      // Context guard: this dashboard should only load with an explicit projectId/caseId
+      // Context guard: this overview should only load with an explicit projectId/caseId
       // (or a previously selected context in localStorage). This prevents silently
       // defaulting to a different profile type.
       try {
@@ -168,12 +168,12 @@
             target.search = params.toString();
           } else {
             // No context to restore — send user to the chooser.
-            window.location.replace("master-dashboard.html");
+            window.location.replace("workspace-hub.html");
             return;
           }
         }
       } catch (e) {
-        console.warn("[ProjectDashboard] Context guard error:", e);
+        console.warn("[Overview] Context guard error:", e);
       }
 
       // Update fallback link to preserve params
@@ -194,7 +194,7 @@
       } catch (e) {
         const err = document.getElementById("loadError");
         if (err) err.style.display = "block";
-        console.error("[ProjectDashboard] Failed to load dashboard.html:", e);
+        console.error("[Overview] Failed to load dashboard.html:", e);
       }
     })();
   </script>

@@ -180,18 +180,24 @@
             ? window.VericaseShell.getContext()
             : { type: 'project', id: (window.VericaseShell.getProjectId ? window.VericaseShell.getProjectId() : '') };
 
-          const ctxLabel = (ctx && ctx.type === 'case') ? 'Case' : 'Project';
-          const ctxHome = (ctx && ctx.type === 'case') ? 'master-dashboard.html' : 'projectdashboard.html';
+	          const ctxType = (ctx && ctx.type === "case") ? "case" : "project";
+	          const ctxId = ctx?.id ? String(ctx.id) : "";
+	          const ctxLabel = ctxType === "case" ? "Case Overview" : "Project Overview";
+	          const ctxUrl = ctxId
+	            ? `projectdashboard.html?${ctxType === "case" ? "caseId" : "projectId"}=${encodeURIComponent(ctxId)}`
+	            : "projectdashboard.html";
 
-          window.VericaseShell.inject({
-            title: '',
-            breadcrumbs: [
-              { label: ctxLabel, url: ctxHome, icon: (ctx && ctx.type === 'case') ? 'fa-briefcase' : 'fa-diagram-project' },
-              { label: 'Correspondence', icon: 'fa-envelope-open-text' }
-            ],
-            // This page uses a full-height grid layout. When injected into the shell,
-            // we must make the content area a flex column with min-height:0 so AG Grid
-            // can compute its viewport and render headers/scrollbars correctly.
+	          window.VericaseShell.inject({
+	            title: '',
+	            breadcrumbs: [
+	              { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
+	              { label: "Workspaces", url: "workspace-hub.html", icon: "fa-layer-group" },
+	              ...(ctxId ? [{ label: ctxLabel, url: ctxUrl, icon: ctxType === "case" ? "fa-briefcase" : "fa-diagram-project" }] : []),
+	              { label: 'Correspondence', icon: 'fa-envelope-open-text' }
+	            ],
+	            // This page uses a full-height grid layout. When injected into the shell,
+	            // we must make the content area a flex column with min-height:0 so AG Grid
+	            // can compute its viewport and render headers/scrollbars correctly.
             contentClass: 'app-content--flush correspondence-page',
             headerActions: "",
           });

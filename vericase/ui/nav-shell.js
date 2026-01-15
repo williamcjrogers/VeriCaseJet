@@ -97,13 +97,13 @@
         },
         {
           id: "dashboard",
-          label: "Master Dashboard",
+          label: "Quick Access",
           icon: "fa-th-large",
           url: "master-dashboard.html",
         },
         {
           id: "workspace-hub",
-          label: "Workspace Hub",
+          label: "Workspaces",
           icon: "fa-layer-group",
           url: "workspace-hub.html",
         },
@@ -123,7 +123,7 @@
         {
           id: "dashboard",
           label: (ctx) =>
-            ctx?.type === "case" ? "Case Dashboard" : "Project Dashboard",
+            ctx?.type === "case" ? "Case Overview" : "Project Overview",
           icon: "fa-gauge-high",
           url: "projectdashboard.html",
           contexts: ["project", "case"],
@@ -516,7 +516,7 @@
           : "VericaseShell.showProjectSelector()";
       const clickTitle =
         contextType === "case"
-          ? "Click to change workspace"
+          ? "Click to change case"
           : "Click to switch project";
 
       projectContext = contextId
@@ -527,9 +527,9 @@
               </div>
           `
         : `
-              <div class="project-context no-project" onclick="window.location.href='master-dashboard.html'" style="cursor: pointer;" title="Click to select a workspace">
-                  <div class="project-context-label"><i class="fas fa-exclamation-circle" style="margin-right:4px;"></i> No Workspace</div>
-                  <div class="project-context-name" style="font-size:0.75rem;">Click to select →</div>
+              <div class="project-context no-project" onclick="window.location.href='master-dashboard.html'" style="cursor: pointer;" title="Open Quick Access to choose a project or case">
+                  <div class="project-context-label"><i class="fas fa-exclamation-circle" style="margin-right:4px;"></i> No project/case selected</div>
+                  <div class="project-context-name" style="font-size:0.75rem;">Open Quick Access →</div>
               </div>
           `;
     }
@@ -541,7 +541,7 @@
     return `
             <aside class="app-sidebar" id="appSidebar">
                 <div class="sidebar-header">
-                    <a href="master-dashboard.html" class="sidebar-logo">
+                    <a href="${COMMAND_CENTER_PAGE}" class="sidebar-logo">
             <img src="${logoSrc}" alt="VeriCase" />
                     </a>
                 </div>
@@ -566,26 +566,28 @@
 
   function renderHeader(title = "", actions = "", breadcrumbs = null) {
     const breadcrumbHtml = breadcrumbs ? renderBreadcrumbs(breadcrumbs) : "";
+    const hasDivider =
+      breadcrumbHtml && (String(title || "").trim() || String(actions || "").trim());
     return `
-            <header class="app-header">
-                <button class="btn btn-icon btn-ghost" id="sidebarToggle" style="display: none;">
-                    <i class="fas fa-bars"></i>
-                </button>
-                ${breadcrumbHtml
-        ? `
-                <div class="app-header-breadcrumb">
-                    ${breadcrumbHtml}
-                </div>
-                <div class="app-header-divider"></div>
-                `
-        : ""
-      }
-                <h1 class="app-header-title">${title}</h1>
-                <div class="app-header-actions">
-                    ${actions}
-                </div>
-            </header>
-        `;
+	            <header class="app-header">
+	                <button class="btn btn-icon btn-ghost" id="sidebarToggle" style="display: none;">
+	                    <i class="fas fa-bars"></i>
+	                </button>
+	                ${breadcrumbHtml
+	        ? `
+	                <div class="app-header-breadcrumb">
+	                    ${breadcrumbHtml}
+	                </div>
+	                ${hasDivider ? '<div class="app-header-divider"></div>' : ''}
+	                `
+	        : ""
+	      }
+	                <h1 class="app-header-title">${title}</h1>
+	                <div class="app-header-actions">
+	                    ${actions}
+	                </div>
+	            </header>
+	        `;
   }
 
   function renderBreadcrumbs(breadcrumbs) {

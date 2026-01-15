@@ -2001,12 +2001,12 @@ async function sendIntelligentMessage() {
   if (!message) return;
 
   // Warn if AI is not available but let them try
-  if (!aiAvailable) {
-    addBotMessage(
-      "⚠️ AI services are not configured. Please add API keys in Dashboard → Settings → AI Configuration first.",
-    );
-    return;
-  }
+	  if (!aiAvailable) {
+	    addBotMessage(
+	      "⚠️ AI services are not configured. Please add API keys in Overview → Settings → AI Configuration first.",
+	    );
+	    return;
+	  }
 
   // Disable input while processing
   input.disabled = true;
