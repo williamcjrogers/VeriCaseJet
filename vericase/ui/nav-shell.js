@@ -223,8 +223,8 @@
         },
         {
           id: "copilot",
-          label: "AI Copilot",
-          icon: "fa-robot",
+          label: "VeriCase Assistant",
+          icon: "fa-balance-scale",
           url: "copilot.html",
           badge: "AI",
         },

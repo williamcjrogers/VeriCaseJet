@@ -5285,12 +5285,12 @@ function initGrid() {
     // Avoid expensive auto-height measurement; keep the grid responsive even at 100k+ rows.
     getRowHeight: (params) =>
       params?.data?._bodyExpanded ? undefined : ROW_HEIGHT_COLLAPSED, // undefined = auto-fit
-    // v35 Row Selection API: Object-based configuration
+    // v35 Row Selection API: Object-based configuration (multi-select with checkboxes)
     rowSelection: {
       mode: "multiRow",
       enableClickSelection: true,
-      checkboxes: false,    // Disable checkbox column for cleaner email list UI
-      headerCheckbox: false,
+      checkboxes: true,     // Enable checkbox column for multi-select
+      headerCheckbox: true, // Enable select-all checkbox in header
     },
     onGridReady: (params) => {
       gridApi = params.api;
@@ -5419,6 +5419,10 @@ function initGrid() {
 
       const ctxCountEl = document.getElementById("contextSelectedCount");
       if (ctxCountEl) ctxCountEl.textContent = String(selected.length);
+
+      // Enable/disable toolbar exclude button based on selection
+      const excludeBtn = document.getElementById("excludeToolbarBtn");
+      if (excludeBtn) excludeBtn.disabled = selected.length === 0;
 
       const previewEl = document.getElementById("selectedEmailsPreview");
       if (previewEl) {

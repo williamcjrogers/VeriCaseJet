@@ -114,6 +114,16 @@
       </button>
     </div>
 
+    <!-- Selection Actions -->
+    <div class="selection-actions" style="display: flex; align-items: center; gap: 8px; margin-right: 8px;">
+      <span class="selection-info" id="toolbarSelectionInfo" style="font-size: 0.8125rem; color: var(--text-secondary); padding: 6px 12px; background: var(--gray-100); border-radius: var(--radius-md);">
+        <span id="selectedCount">0</span> selected
+      </span>
+      <button class="btn" id="excludeToolbarBtn" onclick="markAsExcluded()" title="Mark selected emails as excluded" disabled style="color: #991b1b; background: #fef2f2; border-color: #fecaca;">
+        <i class="fas fa-ban"></i> Exclude
+      </button>
+    </div>
+
     <button class="btn" id="linkToolbarBtn" onclick="openLinkModalForSelected()" title="Link selected emails to a Contentious Matter or Head of Claim" disabled>
       <i class="fas fa-link"></i> <span id="linkToolbarLabel">Link</span>
     </button>

@@ -1209,6 +1209,13 @@ async def get_evidence_full_service(evidence_id, db):
     item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
     if not item:
         raise HTTPException(404, "Evidence item not found")
+
+    # Debug logging for S3 path troubleshooting
+    logger.info(
+        f"[EVIDENCE DEBUG] Loading item {evidence_id}: "
+        f"s3_bucket={item.s3_bucket!r}, s3_key={item.s3_key!r}, filename={item.filename!r}"
+    )
+
     download_url = None
     try:
         download_url = presign_get(
@@ -1218,7 +1225,9 @@ async def get_evidence_full_service(evidence_id, db):
             response_disposition=f'attachment; filename="{item.filename}"',
         )
     except Exception as e:
-        logger.warning(f"Could not create download URL: {e}")
+        logger.warning(
+            f"Could not create download URL: {e} - bucket={item.s3_bucket}, key={item.s3_key}"
+        )
     preview_type = "unsupported"
     preview_url = None
     preview_content = None
@@ -1389,6 +1398,9 @@ async def get_evidence_full_service(evidence_id, db):
         "download_url": download_url,
         "filename": item.filename,
         "mime_type": mime_type,
+        # Debug info - shows S3 location for troubleshooting
+        "_debug_s3_bucket": item.s3_bucket,
+        "_debug_s3_key": item.s3_key,
     }
     metadata = item.extracted_metadata or {}
     return {

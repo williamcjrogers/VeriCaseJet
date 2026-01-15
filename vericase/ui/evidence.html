@@ -161,6 +161,30 @@
     .toolbar-actions {
       display: flex;
       gap: 8px;
+      align-items: center;
+    }
+
+    .selection-info {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 12px;
+      background: var(--gray-100);
+      border-radius: var(--radius-md);
+    }
+
+    .btn-text-sm {
+      font-size: 0.75rem;
+    }
+
+    #excludeSelectedBtn:not(:disabled) {
+      color: #991b1b;
+      background: #fef2f2;
+      border-color: #fecaca;
+    }
+
+    #excludeSelectedBtn:not(:disabled):hover {
+      background: #fee2e2;
     }
 
     /* Stats Bar - VeriCase Branding */
@@ -523,6 +547,16 @@
     .status-pending {
       background: #e0e7ff;
       color: #3730a3;
+    }
+
+    .status-ready {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .status-completed {
+      background: #d1fae5;
+      color: #065f46;
     }
 
     .status-error {
@@ -1175,6 +1209,23 @@
       border-radius: var(--radius-lg);
     }
 
+    .preview-modal-content object {
+      width: 90vw;
+      height: calc(100vh - 150px);
+      border: none;
+      background: white;
+      border-radius: var(--radius-lg);
+    }
+
+    .preview-section object {
+      width: 100%;
+      height: 100%;
+      min-height: 400px;
+      border: none;
+      background: white;
+      border-radius: var(--radius-md);
+    }
+
     .preview-modal-content pre {
       background: var(--gray-900);
       color: var(--gray-300);
@@ -1510,6 +1561,20 @@
     </div>
 
     <div class="toolbar-spacer"></div>
+
+    <!-- Selection Actions -->
+    <div class="toolbar-actions" style="margin-right: 12px;">
+      <span class="selection-info" style="font-size: 0.8125rem; color: var(--text-secondary); margin-right: 8px;">
+        <span id="selectedCount">0</span> selected
+      </span>
+      <button class="btn btn-ghost" id="excludeSelectedBtn" title="Mark selected as excluded" disabled onclick="markAsExcluded()">
+        <i class="fas fa-ban"></i>
+        <span class="btn-text-sm">Exclude</span>
+      </button>
+      <button class="btn btn-ghost" id="deleteSelectedBtn" title="Delete selected items" disabled onclick="deleteSelectedItems()">
+        <i class="fas fa-trash"></i>
+      </button>
+    </div>
 
     <div class="toolbar-actions">
       <button class="btn btn-ghost" id="columnsBtn" title="Columns">
@@ -2926,8 +2991,21 @@
             headerName: "Status",
             width: 120,
             cellRenderer: (params) => {
-              const status = params.value || "pending";
-              return `<span class="status-badge status-${status}">${status}</span>`;
+              let status = params.value || "pending";
+              // Normalize status - treat 'completed' and items with page_count/author as 'ready'
+              if (status === "completed" || status === "processed") {
+                status = "ready";
+              } else if (status === "pending" && params.data) {
+                // If pending but has extracted content, show as ready
+                const hasContent = params.data.page_count || params.data.author || 
+                  (params.data.extracted_parties && params.data.extracted_parties.length > 0) ||
+                  (params.data.auto_tags && params.data.auto_tags.length > 0);
+                if (hasContent) {
+                  status = "ready";
+                }
+              }
+              const displayLabel = status.charAt(0).toUpperCase() + status.slice(1);
+              return `<span class="status-badge status-${status}">${displayLabel}</span>`;
             },
           },
           {
@@ -3128,6 +3206,9 @@
           sortable: true,
           filter: true,
           resizable: true,
+          floatingFilter: true,  // Enable inline filter inputs below headers
+          wrapHeaderText: true,
+          autoHeaderHeight: true,
           // Flexible cell rendering - handle any data type gracefully
           valueFormatter: (params) => {
             if (params.value === null || params.value === undefined)
@@ -3149,11 +3230,22 @@
           cellStyle: { "white-space": "normal", "line-height": "1.35" },
         },
         // Suppress errors for missing row data
-        // v35 Row Selection API: Object-based configuration
+        // v35 Row Selection API: Object-based configuration (multi-select like correspondence)
         rowSelection: {
-          mode: "singleRow",
+          mode: "multiRow",
           enableClickSelection: true,
-          checkboxes: false,
+          checkboxes: true,
+          headerCheckbox: true,
+        },
+        // Enable Advanced Filter (Enterprise feature) - allows complex AND/OR queries
+        enableAdvancedFilter: true,
+        // Status bar with row count info
+        statusBar: {
+          statusPanels: [
+            { statusPanel: 'agTotalRowCountComponent', align: 'left' },
+            { statusPanel: 'agFilteredRowCountComponent', align: 'center' },
+            { statusPanel: 'agSelectedRowCountComponent', align: 'right' }
+          ]
         },
         animateRows: true,
         suppressRowTransform: true,
@@ -3184,6 +3276,17 @@
         },
         onFirstDataRendered: () => {
           autoFitGrid();
+        },
+        // Handle selection changes for multi-select actions
+        onSelectionChanged: () => {
+          const selected = gridApi ? gridApi.getSelectedRows() : [];
+          const countEl = document.getElementById("selectedCount");
+          if (countEl) countEl.textContent = String(selected.length);
+          // Enable/disable bulk action buttons based on selection
+          const excludeBtn = document.getElementById("excludeSelectedBtn");
+          if (excludeBtn) excludeBtn.disabled = selected.length === 0;
+          const deleteBtn = document.getElementById("deleteSelectedBtn");
+          if (deleteBtn) deleteBtn.disabled = selected.length === 0;
         },
         // Apply row height from admin settings (default 56 for evidence grid)
         rowHeight: adminGridConfig.default_row_height ? parseInt(adminGridConfig.default_row_height) : 56,
@@ -3295,6 +3398,88 @@
       gridApi.refreshServerSideStore({ purge: true });
     }
 
+    // Get selected evidence IDs for bulk operations
+    function getSelectedEvidenceIds() {
+      if (!gridApi) return [];
+      const rows = gridApi.getSelectedRows();
+      return rows.map(r => r.id).filter(Boolean);
+    }
+
+    // Mark selected evidence items as excluded
+    async function markAsExcluded() {
+      const ids = getSelectedEvidenceIds();
+      if (!ids.length) {
+        VericaseUI.Toast.info("Select one or more items first");
+        return;
+      }
+
+      const ok = confirm(`Mark ${ids.length} item(s) as excluded?`);
+      if (!ok) return;
+
+      const reason = window.prompt("Reason (optional)", "");
+
+      try {
+        const response = await fetch(`${apiUrl}/api/evidence/items/bulk/exclude`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            evidence_ids: ids,
+            project_id: currentProjectId || null,
+            case_id: currentCaseId || null,
+            excluded: true,
+            reason: (reason || "").trim() || null,
+          }),
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        VericaseUI.Toast.success(`Excluded ${data?.updated ?? ids.length} item(s)`);
+        refreshGridData();
+      } catch (e) {
+        console.error("Error excluding evidence:", e);
+        VericaseUI.Toast.error("Failed to exclude items");
+      }
+    }
+
+    // Delete selected evidence items
+    async function deleteSelectedItems() {
+      const ids = getSelectedEvidenceIds();
+      if (!ids.length) {
+        VericaseUI.Toast.info("Select one or more items first");
+        return;
+      }
+
+      const ok = confirm(`Delete ${ids.length} item(s)? This action cannot be undone.`);
+      if (!ok) return;
+
+      try {
+        const response = await fetch(`${apiUrl}/api/evidence/items/bulk/delete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            evidence_ids: ids,
+            project_id: currentProjectId || null,
+            case_id: currentCaseId || null,
+          }),
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        VericaseUI.Toast.success(`Deleted ${data?.deleted ?? ids.length} item(s)`);
+        refreshGridData();
+        loadStats();
+      } catch (e) {
+        console.error("Error deleting evidence:", e);
+        VericaseUI.Toast.error("Failed to delete items");
+      }
+    }
+
     async function loadAllData() {
       // Prevent multiple simultaneous loads (fixes infinite loop)
       if (loadAllDataPromise) {
@@ -3350,10 +3535,15 @@
       // Category filter -> robust media filtering (mime type + extension fallback).
       // We intentionally don't rely on mime_type alone because many email attachments are stored
       // as application/octet-stream (which caused signatures/images to leak into Documents).
+      console.log('[Category Debug] currentCategory:', currentCategory);
       if (currentCategory === "images") {
         filterModel["is_media"] = true;
+        console.log('[Category Debug] Filtering for MEDIA (images/video/audio)');
       } else if (currentCategory === "documents") {
         filterModel["is_media"] = false;
+        console.log('[Category Debug] Filtering for DOCUMENTS (non-media)');
+      } else {
+        console.log('[Category Debug] Showing ALL (no media filter)');
       }
       // "all" category doesn't add any media filter - show docs + images, but still excludes correspondence
 
@@ -3477,9 +3667,12 @@
                     data.stats.total.toLocaleString();
                   document.getElementById("allCount").textContent =
                     data.stats.total.toLocaleString();
-                  document.getElementById("imgCount").textContent =
-                    (data.stats.by_type?.image || 0).toLocaleString?.() ||
-                    (data.stats.by_type?.image || 0);
+                  // Use image_count (includes all media - images, video, audio) for Images & Media tab
+                  const mediaCount = data.stats.image_count ?? 
+                    ((data.stats.by_type?.image || 0) + 
+                     (data.stats.by_type?.video || 0) + 
+                     (data.stats.by_type?.audio || 0));
+                  document.getElementById("imgCount").textContent = mediaCount.toLocaleString?.() || mediaCount;
                 }
               }
               if (gridApi) gridApi.hideOverlay();
@@ -3735,6 +3928,15 @@
             throw new Error(`Failed to load evidence full detail: ${fullRes.status}`);
           }
           const full = await fullRes.json();
+          // Debug logging for S3 path troubleshooting
+          if (full.preview && (full.preview._debug_s3_bucket || full.preview._debug_s3_key)) {
+            console.log('[S3 Debug]', {
+              bucket: full.preview._debug_s3_bucket,
+              key: full.preview._debug_s3_key,
+              previewUrl: full.preview.preview_url?.substring(0, 100) + '...',
+              filename: full.detail?.filename
+            });
+          }
           return {
             detail: full.detail || {},
             preview: full.preview || null,
@@ -3821,7 +4023,8 @@
       switch (preview.preview_type) {
         case "image":
           html = `
-                        <img src="${preview.preview_url}" alt="${detail.filename}">
+                        <img src="${preview.preview_url}" alt="${detail.filename}" 
+                             onerror="this.parentNode.innerHTML='<div class=\\'preview-placeholder\\'><i class=\\'fas fa-image\\'></i><span>Image not available</span><button class=\\'btn btn-vericase btn-sm\\' onclick=\\'downloadCurrentFile()\\' style=\\'margin-top:12px\\'><i class=\\'fas fa-download\\'></i> Download</button></div>'">
                         <button class="preview-expand-btn" onclick="openFullPreview()">
                             <i class="fas fa-expand"></i> Expand
                         </button>
@@ -3829,8 +4032,18 @@
           break;
 
         case "pdf":
+          // Use object tag for better error handling than iframe
           html = `
-                        <iframe src="${preview.preview_url}#toolbar=0"></iframe>
+                        <object data="${preview.preview_url}#toolbar=0" type="application/pdf" style="width:100%;height:100%;min-height:400px;">
+                            <div class="preview-placeholder">
+                                <i class="fas fa-file-pdf"></i>
+                                <span>PDF preview unavailable</span>
+                                <p style="font-size:0.75rem;color:var(--text-muted);margin-top:8px;">Your browser may not support embedded PDFs</p>
+                                <button class="btn btn-vericase btn-sm" onclick="downloadCurrentFile()" style="margin-top:12px">
+                                    <i class="fas fa-download"></i> Download PDF
+                                </button>
+                            </div>
+                        </object>
                         <button class="preview-expand-btn" onclick="openFullPreview()">
                             <i class="fas fa-expand"></i> Expand
                         </button>
@@ -4608,11 +4821,20 @@
 
       switch (currentPreviewData.preview_type) {
         case "image":
-          html = `<img src="${currentPreviewData.preview_url}" alt="${selectedEvidence.filename}">`;
+          html = `<img src="${currentPreviewData.preview_url}" alt="${selectedEvidence.filename}" 
+                   onerror="this.parentNode.innerHTML='<div style=\\'text-align:center;color:var(--gray-400);padding:40px\\'><i class=\\'fas fa-image\\' style=\\'font-size:4rem;margin-bottom:1rem\\'></i><p>Image not available</p><button class=\\'btn btn-vericase\\' style=\\'margin-top:1rem\\' onclick=\\'downloadCurrentFile()\\'><i class=\\'fas fa-download\\'></i> Download</button></div>'">`;
           break;
 
         case "pdf":
-          html = `<iframe src="${currentPreviewData.preview_url}"></iframe>`;
+          html = `<object data="${currentPreviewData.preview_url}" type="application/pdf" style="width:90vw;height:calc(100vh - 150px);">
+                    <div style="text-align:center;color:var(--gray-400);padding:40px">
+                      <i class="fas fa-file-pdf" style="font-size:4rem;margin-bottom:1rem"></i>
+                      <p>PDF preview unavailable</p>
+                      <button class="btn btn-vericase" style="margin-top:1rem" onclick="downloadCurrentFile()">
+                        <i class="fas fa-download"></i> Download PDF
+                      </button>
+                    </div>
+                  </object>`;
           break;
 
         case "audio":
@@ -4934,10 +5156,14 @@
       document
         .getElementById("modalDownloadBtn")
         .addEventListener("click", downloadCurrentFile);
+      // Close modal when clicking outside the content (on the modal backdrop or body)
       document
         .getElementById("previewModal")
         .addEventListener("click", (e) => {
-          if (e.target === document.getElementById("previewModal")) {
+          const content = document.getElementById("previewModalContent");
+          const header = document.querySelector(".preview-modal-header");
+          // Close if clicking on the modal overlay itself (not on content or header)
+          if (!content.contains(e.target) && !header.contains(e.target)) {
             closePreviewModal();
           }
         });
