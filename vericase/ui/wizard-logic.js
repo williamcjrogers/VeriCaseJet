@@ -379,10 +379,14 @@ async function nextStep() {
     if (selectedType === "users") {
       // Check if user is admin
       const user = JSON.parse(localStorage.getItem("user") || "{}");
-      if (user.role === "ADMIN") {
+      const role = String(user.role || "").toUpperCase();
+      if (role === "ADMIN" || role === "MANAGEMENT_USER") {
         window.location.href = "/ui/admin-users.html";
       } else {
-        showWizardMessage("You need admin privileges to manage users", "error");
+        showWizardMessage(
+          "You need Admin or Management privileges to manage users",
+          "error",
+        );
       }
       return;
     }

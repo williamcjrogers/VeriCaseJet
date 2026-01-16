@@ -361,7 +361,15 @@
     const page = getUrlPage(url).split("?")[0];
     const workspaceId = getWorkspaceId();
 
-    if (page === "workspace-setup.html" || page === "workspace-hub.html") {
+    // IMPORTANT: "Workspaces" should always open the directory view (no workspaceId).
+    // The hub supports an optional workspaceId to enter a specific workspace, but we should
+    // never auto-carry that context when the user explicitly clicks "Workspaces" in the sidebar.
+    if (page === "workspace-hub.html") {
+      return String(url || "").split("?")[0];
+    }
+
+    // Workspace setup should retain the current workspace context when available.
+    if (page === "workspace-setup.html") {
       if (workspaceId) {
         const u = new URL(url, window.location.href);
         u.searchParams.set("workspaceId", workspaceId);

@@ -290,7 +290,8 @@
     /* === ITEM CARDS === */
     .items-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      /* Prevent horizontal overflow at high zoom / narrow viewports */
+      grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
       gap: 20px;
     }
 
@@ -430,6 +431,7 @@
     /* Card Action Buttons */
     .card-actions {
       display: flex;
+      flex-wrap: wrap;
       gap: 8px;
       padding-top: 12px;
       border-top: 1px solid var(--gray-100);
@@ -438,6 +440,7 @@
     .card-action-btn {
       flex: 1;
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
       justify-content: center;
       gap: 6px;
@@ -450,6 +453,8 @@
       color: var(--text-secondary);
       cursor: pointer;
       transition: all 0.15s;
+      text-align: center;
+      overflow-wrap: anywhere;
     }
 
     .card-action-btn:hover {
@@ -717,7 +722,7 @@
     /* === DOCUMENTS GRID === */
     .documents-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
       gap: 16px;
     }
 
@@ -825,7 +830,7 @@
     /* === TEAM LIST === */
     .team-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
       gap: 16px;
     }
 
@@ -1414,8 +1419,8 @@
               Team Members
             </div>
             <div class="section-actions">
-              <button class="btn btn-sm btn-vericase" onclick="showInviteModal()">
-                <i class="fas fa-user-plus"></i> Invite Member
+              <button class="btn btn-sm btn-vericase" onclick="showAddMemberModal()">
+                <i class="fas fa-user-plus"></i> Add Member
               </button>
             </div>
           </div>
@@ -1489,35 +1494,31 @@
     </div>
   </div>
 
-  <!-- Invite Team Modal -->
-  <div class="modal-overlay" id="inviteModal" style="display: none;">
+  <!-- Add Member Modal -->
+  <div class="modal-overlay" id="addMemberModal" style="display: none;">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>Invite Team Member</h3>
-        <button class="modal-close" onclick="hideInviteModal()">&times;</button>
+        <h3>Add Team Member</h3>
+        <button class="modal-close" onclick="hideAddMemberModal()">&times;</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label">Email Address</label>
-          <input type="email" class="form-input" id="inviteEmail" placeholder="colleague@example.com">
+          <label class="form-label">Existing User Email</label>
+          <input type="email" class="form-input" id="memberEmail" placeholder="colleague@example.com">
         </div>
         <div class="form-group">
           <label class="form-label">Role</label>
-          <select class="form-select" id="inviteRole">
+          <select class="form-select" id="memberRole">
             <option value="member">Member</option>
             <option value="editor">Editor</option>
             <option value="admin">Admin</option>
           </select>
         </div>
-        <div class="form-group">
-          <label class="form-label">Message (optional)</label>
-          <textarea class="form-textarea" id="inviteMessage" placeholder="Add a personal message..."></textarea>
-        </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-outline" onclick="hideInviteModal()">Cancel</button>
-        <button class="btn btn-vericase" onclick="sendInvite()">
-          <i class="fas fa-paper-plane"></i> Send Invite
+        <button class="btn btn-outline" onclick="hideAddMemberModal()">Cancel</button>
+        <button class="btn btn-vericase" onclick="addMember()">
+          <i class="fas fa-user-plus"></i> Add Member
         </button>
       </div>
     </div>
@@ -2282,9 +2283,9 @@
           <div class="empty-state" style="grid-column: 1 / -1;">
             <i class="fas fa-id-badge empty-icon"></i>
             <div class="empty-title">No Team Members</div>
-            <div class="empty-desc">Invite colleagues to collaborate on this workspace.</div>
-            <button class="btn btn-vericase" onclick="showInviteModal()">
-              <i class="fas fa-user-plus"></i> Invite Member
+            <div class="empty-desc">Add existing users to collaborate on this workspace.</div>
+            <button class="btn btn-vericase" onclick="showAddMemberModal()">
+              <i class="fas fa-user-plus"></i> Add Member
             </button>
           </div>
         `;
@@ -2293,7 +2294,7 @@
 
       grid.innerHTML = workspaceTeam.map(user => {
         const initials = getInitials(user.name || user.email);
-        const roleClass = user.role === 'admin' ? 'admin' : '';
+        const roleClass = String(user.role || '').toLowerCase() === 'admin' ? 'admin' : '';
         return `
           <div class="team-member" data-user-id="${user.id || user.email}">
             <div class="member-actions">
@@ -2310,51 +2311,64 @@
       }).join('');
     }
 
-    function showInviteModal() {
-      document.getElementById("inviteModal").style.display = "flex";
+    function showAddMemberModal() {
+      document.getElementById("addMemberModal").style.display = "flex";
     }
 
-    function hideInviteModal() {
-      document.getElementById("inviteModal").style.display = "none";
+    function hideAddMemberModal() {
+      document.getElementById("addMemberModal").style.display = "none";
     }
 
-    async function sendInvite() {
-      const email = document.getElementById("inviteEmail").value.trim();
-      const role = document.getElementById("inviteRole").value;
-      const message = document.getElementById("inviteMessage").value.trim();
+    async function addMember() {
+      const email = document.getElementById("memberEmail").value.trim();
+      const role = document.getElementById("memberRole").value;
 
       if (!email) {
         VericaseUI.Toast.error("Please enter an email address");
         return;
       }
 
-      // Send invite
       try {
-        const res = await fetch(`/api/workspaces/${workspaceId}/invites`, {
+        const res = await fetch(`/api/workspaces/${workspaceId}/team`, {
           method: 'POST',
           headers: getAuthHeaders(),
-          body: JSON.stringify({ email, role, message })
+          body: JSON.stringify({ email, role })
         });
 
-        if (res.ok) {
-          VericaseUI.Toast.success(`Invite sent to ${email}`);
-          // Add to team list optimistically
-          workspaceTeam.push({ email, role, name: email.split('@')[0], pending: true });
-          renderTeam();
-          updateTabCounts();
-        } else {
-          VericaseUI.Toast.error("Failed to send invite");
+        if (!res.ok) {
+          const detail = await res.json().catch(() => ({}));
+          const message =
+            typeof detail?.detail === "string"
+              ? detail.detail
+              : "Failed to add member";
+          VericaseUI.Toast.error(message);
+          return;
         }
-      } catch {
-        VericaseUI.Toast.info(`Invite would be sent to ${email}`);
-        workspaceTeam.push({ email, role, name: email.split('@')[0], id: Date.now() });
+
+        const created = await res.json().catch(() => null);
+        if (created) {
+          // Avoid duplicates
+          const createdId = String(created.id || "");
+          const createdEmail = String(created.email || email).toLowerCase();
+          const already = workspaceTeam.some(
+            (u) =>
+              (createdId && String(u.id) === createdId) ||
+              (u.email && String(u.email).toLowerCase() === createdEmail)
+          );
+          if (!already) workspaceTeam.push(created);
+        }
+
         renderTeam();
         updateTabCounts();
+        VericaseUI.Toast.success(`Added ${email}`);
+      } catch (e) {
+        console.error("Failed to add member:", e);
+        VericaseUI.Toast.error("Failed to add member");
+        return;
       }
 
-      hideInviteModal();
-      document.getElementById("inviteEmail").value = '';
-      document.getElementById("inviteMessage").value = '';
+      hideAddMemberModal();
+      document.getElementById("memberEmail").value = '';
     }
 
     function removeMember(id) {
@@ -2365,7 +2379,7 @@
 
       workspaceTeam = workspaceTeam.filter(u => String(u.id) !== String(id) && u.email !== id);
       
-      fetch(`/api/workspaces/${workspaceId}/users/${id}`, {
+      fetch(`/api/workspaces/${workspaceId}/team/${id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       }).catch(() => {});

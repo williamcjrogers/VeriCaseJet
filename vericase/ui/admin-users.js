@@ -32,7 +32,9 @@
   };
 
   let users = [];
+  let invitations = [];
   let currentEditId = null;
+  let currentUserRole = "USER";
 
   function normalizeRoleValue(role) {
     const raw = (role || "").toString().trim();
@@ -53,7 +55,11 @@
   }
 
   function requireAuthOrRedirect() {
-    const token = localStorage.getItem("token");
+    const token =
+      localStorage.getItem("vericase_token") ||
+      localStorage.getItem("token") ||
+      localStorage.getItem("jwt") ||
+      localStorage.getItem("access_token");
     if (!token) {
       window.location.href = "login.html";
       return false;
@@ -82,10 +88,23 @@
     }
 
     if (response.status === 403) {
-      // Keep behavior consistent with previous inline script.
-      alert("You do not have admin privileges");
-      window.location.href = "dashboard.html";
-      return null;
+      // Distinguish "not authenticated" (often returned as 403 by HTTPBearer)
+      // from actual permission errors.
+      let detail = "";
+      try {
+        const err = await response.clone().json();
+        detail = err?.detail || "";
+      } catch {
+        // ignore
+      }
+      const norm = String(detail || "").toLowerCase();
+      if (norm.includes("not authenticated") || norm.includes("authentication")) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "login.html";
+        return null;
+      }
+      return response;
     }
 
     return response;
@@ -96,12 +115,45 @@
       const response = await apiCall("/api/users/me");
       if (response && response.ok) {
         const user = await response.json();
+        currentUserRole = normalizeRoleValue(user?.role || "USER");
         const el = $("currentUser");
         if (el) el.textContent = user.email || "";
+        applyRoleRestrictions();
       }
     } catch (error) {
       console.error("[admin-users] Failed to load current user:", error);
     }
+  }
+
+  function applyRoleRestrictions() {
+    const roleSelect = $("userRole");
+    if (!roleSelect) return;
+
+    const allowed =
+      currentUserRole === "ADMIN"
+        ? new Set(["USER", "MANAGEMENT_USER", "POWER_USER", "ADMIN"])
+        : currentUserRole === "MANAGEMENT_USER"
+          ? new Set(["USER", "MANAGEMENT_USER"])
+          : new Set(["USER"]);
+
+    Array.from(roleSelect.options || []).forEach((opt) => {
+      const v = normalizeRoleValue(opt.value);
+      opt.disabled = !allowed.has(v);
+    });
+
+    // If current selection becomes invalid (e.g. switching user), reset to USER.
+    if (!allowed.has(normalizeRoleValue(roleSelect.value))) {
+      roleSelect.value = "USER";
+    }
+  }
+
+  function canManageRole(targetRole) {
+    const normalized = normalizeRoleValue(targetRole || "USER");
+    if (currentUserRole === "ADMIN") return true;
+    if (currentUserRole === "MANAGEMENT_USER") {
+      return normalized === "USER" || normalized === "MANAGEMENT_USER";
+    }
+    return false;
   }
 
   function updateStats() {
@@ -240,6 +292,19 @@
         </tbody>
       </table>
     `;
+
+    // Disable actions for users outside the current operator's scope.
+    if (currentUserRole !== "ADMIN") {
+      tableHost.querySelectorAll?.("button[data-action][data-user-id]")?.forEach?.((btn) => {
+        const userId = btn.getAttribute("data-user-id");
+        const u = users.find((x) => String(x?.id) === String(userId));
+        if (!u) return;
+        if (!canManageRole(u?.role)) {
+          btn.disabled = true;
+          btn.title = "You don't have permission to manage this user";
+        }
+      });
+    }
   }
 
   function openCreateModal() {
@@ -248,8 +313,8 @@
     const modal = $("userModal");
     if (!modal) return;
 
-    $("modalTitle").textContent = "Create New User";
-    $("saveButtonText").textContent = "Create User";
+    $("modalTitle").textContent = "Invite User";
+    $("saveButtonText").textContent = "Send Invite";
     $("userForm")?.reset();
 
     $("userActive").checked = true;
@@ -261,6 +326,7 @@
     if (inviteGroup) inviteGroup.style.display = "block";
 
     $("userEmail").disabled = false;
+    applyRoleRestrictions();
 
     modal.classList.add("open");
     const alert = $("modalAlert");
@@ -271,6 +337,15 @@
     currentEditId = userId;
     const user = users.find((u) => String(u?.id) === String(userId));
     if (!user) return;
+
+    if (!canManageRole(user?.role)) {
+      if (window.VericaseUI?.Toast) {
+        window.VericaseUI.Toast.error("You don't have permission to edit this user.");
+      } else {
+        alert("You don't have permission to edit this user.");
+      }
+      return;
+    }
 
     const modal = $("userModal");
     if (!modal) return;
@@ -283,6 +358,7 @@
     $("userEmail").disabled = true;
     $("userDisplayName").value = user.display_name || "";
     $("userRole").value = normalizeRoleValue(user.role || "USER");
+    applyRoleRestrictions();
     $("userActive").checked = !!user.is_active;
 
     const activeGroup = $("activeGroup");
@@ -334,15 +410,69 @@
         delete data.email;
         response = await apiCall(`/api/users/${encodeURIComponent(currentEditId)}`, "PATCH", data);
       } else {
-        data.send_invite = !!$("sendInvite")?.checked;
-        response = await apiCall("/api/users", "POST", data);
+        // Invite flow (preferred onboarding): create an invitation token.
+        const inviteReq = {
+          email: data.email,
+          role: data.role,
+        };
+        response = await apiCall("/api/users/invitations", "POST", inviteReq);
       }
 
       if (!response) return;
 
       if (response.ok) {
+        if (currentEditId) {
+          closeModal();
+          await loadUsers();
+          if (window.VericaseUI?.Toast) {
+            window.VericaseUI.Toast.success("User updated");
+          }
+          return;
+        }
+
+        // Invite created: show/copy link and refresh invitations list.
+        let invite = null;
+        try {
+          invite = await response.json();
+        } catch {
+          // ignore
+        }
+
         closeModal();
-        await loadUsers();
+        await loadInvitations();
+
+        const token = invite?.token;
+        const inviteUrl = token
+          ? `${window.location.origin}/ui/register.html?invite=${encodeURIComponent(token)}`
+          : null;
+
+        const shouldCopy = !!$("sendInvite")?.checked;
+        if (inviteUrl && shouldCopy) {
+          try {
+            await navigator.clipboard.writeText(inviteUrl);
+            if (window.VericaseUI?.Toast) {
+              window.VericaseUI.Toast.success("Invitation link copied to clipboard");
+            } else {
+              alert("Invitation link copied to clipboard");
+            }
+          } catch (e) {
+            // Fallback for browsers without clipboard permissions
+            if (window.VericaseUI?.Toast) {
+              window.VericaseUI.Toast.info("Copy this invitation link from the prompt");
+            }
+            window.prompt("Copy invitation link:", inviteUrl);
+          }
+        } else if (inviteUrl) {
+          if (window.VericaseUI?.Toast) {
+            window.VericaseUI.Toast.success("Invitation created");
+          } else {
+            alert("Invitation created");
+          }
+        } else {
+          if (window.VericaseUI?.Toast) {
+            window.VericaseUI.Toast.success("Invitation created");
+          }
+        }
         return;
       }
 
@@ -391,6 +521,18 @@
         renderUsersTable();
         return;
       }
+
+      if (response && response.status === 403) {
+        const tableHost = $("tableContent");
+        if (tableHost) {
+          tableHost.innerHTML = `
+            <div class="loading">
+              <p style="color: #ef4444;">Access denied. You need Admin or Management permissions.</p>
+            </div>
+          `;
+        }
+        return;
+      }
     } catch (error) {
       console.error("[admin-users] Failed to load users:", error);
     }
@@ -405,11 +547,163 @@
     }
   }
 
+  function formatInviteExpiry(inv) {
+    const raw = inv?.expires_at;
+    if (!raw) return "";
+    try {
+      const d = new Date(raw);
+      if (Number.isNaN(d.getTime())) return "";
+      return d.toLocaleString();
+    } catch {
+      return "";
+    }
+  }
+
+  function renderInvitationsTable() {
+    const host = $("invitesContent");
+    if (!host) return;
+
+    if (!invitations || invitations.length === 0) {
+      host.innerHTML = `
+        <div class="loading">
+          <p>No active invitations</p>
+        </div>
+      `;
+      return;
+    }
+
+    host.innerHTML = `
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Expires</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${invitations
+            .map((inv) => {
+              const token = escape(inv?.token || "");
+              const email = escape(inv?.email || "");
+              const role = normalizeRoleValue(inv?.role || "USER");
+              const roleLabel = escape(role.replace(/_/g, " "));
+              const expires = escape(formatInviteExpiry(inv));
+
+              return `
+                <tr>
+                  <td>${email}</td>
+                  <td><span class="badge badge-${escape(role.toLowerCase())}">${roleLabel}</span></td>
+                  <td>${expires}</td>
+                  <td>
+                    <div class="actions">
+                      <button class="btn btn-secondary btn-sm" type="button" data-action="copy-invite" data-token="${token}">
+                        <i class="fas fa-link"></i> Copy Link
+                      </button>
+                      <button class="btn btn-secondary btn-sm" type="button" data-action="revoke-invite" data-token="${token}">
+                        <i class="fas fa-trash"></i> Revoke
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              `;
+            })
+            .join(" ")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  async function loadInvitations() {
+    const host = $("invitesContent");
+    if (host) {
+      host.innerHTML = `
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>Loading invitations...</p>
+        </div>
+      `;
+    }
+
+    try {
+      const response = await apiCall("/api/users/invitations");
+      if (response && response.ok) {
+        invitations = await response.json();
+        renderInvitationsTable();
+        return;
+      }
+
+      if (response && response.status === 403) {
+        if (host) {
+          host.innerHTML = `
+            <div class="loading">
+              <p style="color: #ef4444;">Access denied. You need Admin or Management permissions.</p>
+            </div>
+          `;
+        }
+        return;
+      }
+    } catch (error) {
+      console.error("[admin-users] Failed to load invitations:", error);
+    }
+
+    if (host) {
+      host.innerHTML = `
+        <div class="loading">
+          <p style="color: #ef4444;">Failed to load invitations</p>
+        </div>
+      `;
+    }
+  }
+
+  async function copyInviteLink(token) {
+    const inviteUrl = `${window.location.origin}/ui/register.html?invite=${encodeURIComponent(token)}`;
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      if (window.VericaseUI?.Toast) {
+        window.VericaseUI.Toast.success("Invitation link copied to clipboard");
+      } else {
+        alert("Invitation link copied to clipboard");
+      }
+    } catch {
+      window.prompt("Copy invitation link:", inviteUrl);
+    }
+  }
+
+  async function revokeInvite(token) {
+    if (!confirm("Revoke this invitation?")) return;
+
+    try {
+      const response = await apiCall(`/api/users/invitations/${encodeURIComponent(token)}`, "DELETE");
+      if (response && response.ok) {
+        await loadInvitations();
+        if (window.VericaseUI?.Toast) {
+          window.VericaseUI.Toast.success("Invitation revoked");
+        }
+      } else {
+        if (window.VericaseUI?.Toast) {
+          window.VericaseUI.Toast.error("Failed to revoke invitation");
+        } else {
+          alert("Failed to revoke invitation");
+        }
+      }
+    } catch (error) {
+      console.error("[admin-users] revokeInvite failed:", error);
+      if (window.VericaseUI?.Toast) {
+        window.VericaseUI.Toast.error("Failed to revoke invitation");
+      } else {
+        alert("Failed to revoke invitation");
+      }
+    }
+  }
+
   function bindEvents() {
     $("searchInput")?.addEventListener("input", renderUsersTable);
     $("addUserBtn")?.addEventListener("click", openCreateModal);
     $("cancelModalBtn")?.addEventListener("click", closeModal);
     $("saveUserBtn")?.addEventListener("click", saveUser);
+    $("refreshInvitesBtn")?.addEventListener("click", loadInvitations);
 
     // Table actions (event delegation)
     $("tableContent")?.addEventListener("click", (e) => {
@@ -423,6 +717,22 @@
         openEditModal(userId);
       } else if (action === "reset") {
         resetPassword(userId);
+      }
+    });
+
+    // Invitations actions (event delegation)
+    $("invitesContent")?.addEventListener("click", (e) => {
+      const btn = e.target?.closest?.("button[data-action]");
+      if (!btn) return;
+
+      const action = btn.getAttribute("data-action");
+      const token = btn.getAttribute("data-token");
+      if (!token) return;
+
+      if (action === "copy-invite") {
+        copyInviteLink(token);
+      } else if (action === "revoke-invite") {
+        revokeInvite(token);
       }
     });
 
@@ -468,6 +778,7 @@
 
     await loadCurrentUser();
     await loadUsers();
+    await loadInvitations();
   }
 
   document.addEventListener("DOMContentLoaded", init);

@@ -26,6 +26,7 @@ class UserProfile(BaseModel):
     display_name: str | None = None
     role: str
     is_active: bool
+    email_verified: bool
     created_at: datetime
     last_login_at: datetime | None = None
 
@@ -45,6 +46,7 @@ class UserListItem(BaseModel):
     display_name: str | None = None
     role: str
     is_active: bool
+    email_verified: bool
     created_at: datetime
     last_login_at: datetime | None = None
 
@@ -84,6 +86,22 @@ def require_admin(user: User = Depends(current_user)):
     if user.role != UserRole.ADMIN:
         raise HTTPException(403, "admin access required")
     return user
+
+
+def require_user_management(user: User = Depends(current_user)) -> User:
+    """Require a role that can manage users (ADMIN or MANAGEMENT_USER)."""
+
+    if user.role not in {UserRole.ADMIN, UserRole.MANAGEMENT_USER}:
+        raise HTTPException(403, "user management access required")
+    return user
+
+
+ROLE_RANK: dict[UserRole, int] = {
+    UserRole.USER: 1,
+    UserRole.MANAGEMENT_USER: 2,
+    UserRole.POWER_USER: 3,
+    UserRole.ADMIN: 4,
+}
 
 
 def parse_user_role(role: str | None) -> UserRole:
@@ -132,6 +150,7 @@ def get_current_user_profile(user: User = Depends(current_user)):
         display_name=user.display_name,
         role=user.role.value,
         is_active=user.is_active,
+        email_verified=user.email_verified,
         created_at=user.created_at,
         last_login_at=user.last_login_at,
     )
@@ -156,6 +175,7 @@ def update_current_user_profile(
         display_name=user.display_name,
         role=user.role.value,
         is_active=user.is_active,
+        email_verified=user.email_verified,
         created_at=user.created_at,
         last_login_at=user.last_login_at,
     )
@@ -242,6 +262,7 @@ def create_user(
             display_name=user.display_name,
             role=user.role.value,
             is_active=user.is_active,
+            email_verified=user.email_verified,
             created_at=user.created_at,
             last_login_at=user.last_login_at,
         )
@@ -252,8 +273,10 @@ def create_user(
 
 
 @router.get("", response_model=list[UserListItem])
-def list_users(db: Session = Depends(get_db), admin: User = Depends(require_admin)):
-    """List all users (admin only)"""
+def list_users(
+    db: Session = Depends(get_db), _: User = Depends(require_user_management)
+):
+    """List all users (admin + management)"""
     users = db.query(User).order_by(User.created_at.desc()).all()
 
     return [
@@ -263,6 +286,7 @@ def list_users(db: Session = Depends(get_db), admin: User = Depends(require_admi
             display_name=u.display_name,
             role=u.role.value,
             is_active=u.is_active,
+            email_verified=u.email_verified,
             created_at=u.created_at,
             last_login_at=u.last_login_at,
         )
@@ -275,9 +299,9 @@ def update_user(
     user_id: str,
     data: UpdateUserRequest,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin),
+    actor: User = Depends(require_user_management),
 ):
-    """Update user (admin only)"""
+    """Update user (admin + management with role limits)"""
     from uuid import UUID
 
     try:
@@ -289,17 +313,35 @@ def update_user(
     if not user:
         raise HTTPException(404, "user not found")
 
-    # Prevent admin from deactivating themselves
-    if user.id == admin.id and data.is_active is False:
+    actor_rank = ROLE_RANK.get(actor.role, 0)
+    target_rank = ROLE_RANK.get(user.role, 0)
+
+    # Prevent anyone from deactivating themselves
+    if user.id == actor.id and data.is_active is False:
         raise HTTPException(400, "cannot deactivate your own account")
+
+    # Management users can only manage roles <= their own, and never ADMINs.
+    if actor.role != UserRole.ADMIN:
+        if user.role == UserRole.ADMIN:
+            raise HTTPException(403, "cannot manage admin users")
+        if target_rank > actor_rank:
+            raise HTTPException(403, "insufficient role to manage this user")
 
     normalized_role: UserRole | None = None
     if data.role is not None:
         normalized_role = parse_user_role(data.role)
 
-        # Prevent admin from demoting themselves
-        if user.id == admin.id and normalized_role != UserRole.ADMIN:
+        # Prevent anyone from changing their own role
+        if user.id == actor.id and normalized_role != actor.role:
             raise HTTPException(400, "cannot change your own role")
+
+        if actor.role != UserRole.ADMIN:
+            if normalized_role == UserRole.ADMIN:
+                raise HTTPException(403, "cannot assign admin role")
+            if ROLE_RANK.get(normalized_role, 0) > actor_rank:
+                raise HTTPException(
+                    403, "cannot assign a role higher than your own role"
+                )
 
     # Update fields
     if normalized_role is not None:
@@ -320,6 +362,7 @@ def update_user(
         display_name=user.display_name,
         role=user.role.value,
         is_active=user.is_active,
+        email_verified=user.email_verified,
         created_at=user.created_at,
         last_login_at=user.last_login_at,
     )
@@ -330,9 +373,9 @@ def update_user(
 def create_invitation(
     data: CreateInvitationRequest,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin),
+    actor: User = Depends(require_user_management),
 ):
-    """Create user invitation (admin only)"""
+    """Create user invitation (admin + management with role limits)"""
     # Check if user already exists
     email_lower = str(data.email).lower()
     existing_user = db.query(User).filter(User.email == email_lower).first()
@@ -355,6 +398,11 @@ def create_invitation(
 
     # Validate role
     role = parse_user_role(data.role)
+    if actor.role != UserRole.ADMIN:
+        if role == UserRole.ADMIN:
+            raise HTTPException(403, "cannot invite admin users")
+        if ROLE_RANK.get(role, 0) > ROLE_RANK.get(actor.role, 0):
+            raise HTTPException(403, "cannot invite a user with a higher role")
 
     # Create invitation
     from datetime import timezone
@@ -366,7 +414,7 @@ def create_invitation(
         token=token,
         email=email_lower,
         role=role,
-        invited_by=admin.id,
+        invited_by=actor.id,
         expires_at=expires_at,
     )
 
@@ -377,8 +425,8 @@ def create_invitation(
     # TODO: Send invitation email
     # Sanitize emails for logging to prevent log injection
     safe_email = str(data.email).replace("\n", "").replace("\r", "")
-    safe_admin_email = admin.email.replace("\n", "").replace("\r", "")
-    logger.info(f"Invitation created for {safe_email} by {safe_admin_email}")
+    safe_actor_email = actor.email.replace("\n", "").replace("\r", "")
+    logger.info(f"Invitation created for {safe_email} by {safe_actor_email}")
 
     return InvitationResponse(
         token=invitation.token,
@@ -391,16 +439,14 @@ def create_invitation(
 
 @router.get("/invitations", response_model=list[InvitationResponse])
 def list_invitations(
-    db: Session = Depends(get_db), admin: User = Depends(require_admin)
+    db: Session = Depends(get_db), actor: User = Depends(require_user_management)
 ):
-    """List all active invitations (admin only)"""
+    """List active invitations (admin sees all; management sees their own)"""
     now = datetime.now(timezone.utc)
-    invitations = (
-        db.query(UserInvitation)
-        .filter(UserInvitation.expires_at > now)
-        .order_by(UserInvitation.created_at.desc())
-        .all()
-    )
+    q = db.query(UserInvitation).filter(UserInvitation.expires_at > now)
+    if actor.role != UserRole.ADMIN:
+        q = q.filter(UserInvitation.invited_by == actor.id)
+    invitations = q.order_by(UserInvitation.created_at.desc()).all()
 
     return [
         InvitationResponse(
@@ -416,13 +462,18 @@ def list_invitations(
 
 @router.delete("/invitations/{token}")
 def revoke_invitation(
-    token: str, db: Session = Depends(get_db), admin: User = Depends(require_admin)
+    token: str,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_user_management),
 ):
-    """Revoke invitation (admin only)"""
+    """Revoke invitation (admin sees all; management can revoke their own)"""
     invitation = db.query(UserInvitation).filter(UserInvitation.token == token).first()
 
     if not invitation:
         raise HTTPException(404, "invitation not found")
+
+    if actor.role != UserRole.ADMIN and invitation.invited_by != actor.id:
+        raise HTTPException(403, "cannot revoke invitations created by other users")
 
     db.delete(invitation)
     db.commit()

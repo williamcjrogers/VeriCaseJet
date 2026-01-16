@@ -30,8 +30,13 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..email_content import html_to_text, select_best_body
-from ..email_normalizer import build_content_hash
+from ..email_content import decode_maybe_bytes, html_to_text, select_best_body
+from ..email_normalizer import (
+    NORMALIZER_RULESET_HASH,
+    NORMALIZER_VERSION,
+    build_content_hash,
+    clean_body_text,
+)
 from ..forensic_integrity import compute_normalized_text_hash
 from ..models import (
     Case,
@@ -42,7 +47,8 @@ from ..models import (
     Project,
     User,
 )
-from ..spam_filter import SpamClassifier, extract_other_project
+from ..hybrid_spam_filter import classify_email_fast as classify_email_ai_sync
+from ..spam_filter import extract_other_project
 from ..storage import put_object
 
 logger = logging.getLogger("vericase")
@@ -384,9 +390,11 @@ def parse_msg_bytes(raw: bytes) -> ParsedEmail:
         # extract_msg does not expose full RFC headers reliably; keep a small hint.
         raw_headers = {"X-Parsed-By": "extract_msg"}
 
-        body_plain_str = str(body_plain) if body_plain is not None else None
-        body_html_str = str(body_html) if body_html is not None else None
-        body_rtf_str = str(body_rtf) if body_rtf is not None else None
+        # Robust decode: extract-msg occasionally surfaces bytes for bodies.
+        # Never use str(bytes) because it yields "b'...'" which then leaks into the UI.
+        body_plain_str = decode_maybe_bytes(body_plain)
+        body_html_str = decode_maybe_bytes(body_html)
+        body_rtf_str = decode_maybe_bytes(body_rtf)
 
         # Guard: some MSG files expose HTML markup only via .body (htmlBody empty).
         if (
@@ -663,100 +671,152 @@ async def upload_email_file_service(
         project = db.query(Project).filter(Project.id == pst.project_id).first()
         company_id = str(getattr(project, "company_id", None) or "") or None
 
-    # Spam classification parity with PST pipeline.
-    classifier = SpamClassifier()
-    spam_res = classifier.classify(
-        subject=parsed.subject or "",
-        sender=parsed.sender_email or parsed.sender_name or "",
-    )
-    spam_category = spam_res.get("category")
-    spam_is_hidden = bool(spam_res.get("is_hidden"))
-
-    other_project_value = extract_other_project(parsed.subject)
-
-    derived_status = (
-        "other_project"
-        if (spam_category == "other_projects" or other_project_value)
-        else "spam"
-    )
-
-    # Canonical body selection.
+    # ============================================================
+    # PST-parity body extraction (per-message)
+    # ============================================================
     body_selection = select_best_body(
         plain_text=parsed.body_plain,
         html_body=parsed.body_html,
         rtf_body=parsed.body_rtf,
     )
 
-    # Build canonical text; for excluded emails, we intentionally avoid storing full bodies.
-    excluded = bool(spam_is_hidden or other_project_value)
+    body_html_content = parsed.body_html or None
+    full_body_text = body_selection.full_text or ""
 
-    canonical_body: str | None = None
-    body_preview: str | None = None
-    body_full_s3_key: str | None = None
+    canonical_body = body_selection.top_text or ""
+    # Mirror PST ingestion guardrails (avoid empty/too-short top_text).
+    if canonical_body and len(canonical_body) < 20 and len(full_body_text) <= 200:
+        canonical_body = full_body_text
+    elif not canonical_body and full_body_text and len(full_body_text) > 200:
+        canonical_body = full_body_text
 
-    if not excluded:
-        canonical_body = (body_selection.top_text or "").strip() or None
-        if canonical_body:
-            body_preview = canonical_body[: 10 * 1024]
-            if len(canonical_body) > 10 * 1024:
-                # Offload full canonical body for very large messages.
-                entity_folder = (
-                    f"case_{pst.case_id}"
-                    if pst.case_id
-                    else f"project_{pst.project_id}"
-                )
-                key = f"email-bodies/{entity_folder}/{pst_file_id}/{uuid.uuid4()}.txt"
-                try:
-                    put_object(
-                        key,
-                        canonical_body.encode("utf-8"),
-                        "text/plain",
-                        bucket=(settings.S3_BUCKET or settings.MINIO_BUCKET),
-                    )
-                    body_full_s3_key = key
-                except Exception as exc:
-                    raise HTTPException(
-                        status_code=502, detail=f"Failed to offload email body: {exc}"
-                    ) from exc
+    body_text_clean = clean_body_text(canonical_body)
+    if body_text_clean is not None:
+        canonical_body = body_text_clean
 
-    content_hash = build_content_hash(
-        canonical_body,
-        parsed.sender_email,
-        parsed.sender_name,
-        parsed.recipients_to,
-        parsed.subject,
-        parsed.date_sent,
+    # Normalize canonical body for hashing/spam (PST parity).
+    if canonical_body:
+        canonical_body = re.sub(r"\s+", " ", canonical_body).strip()
+
+    scope_preview = (body_text_clean or canonical_body or full_body_text).strip()
+    scope_preview = scope_preview[:4000] if scope_preview else None
+
+    # ============================================================
+    # PST-parity spam classification (subject/sender/body)
+    # ============================================================
+    spam_res = classify_email_ai_sync(
+        parsed.subject or "",
+        (parsed.sender_email or parsed.sender_name or ""),
+        scope_preview or "",
+        db,
+    )
+    spam_category = spam_res.get("category")
+    spam_score = int(spam_res.get("score") or 0)
+    is_spam = bool(spam_res.get("is_spam"))
+    spam_is_hidden = bool(spam_res.get("is_hidden", False))
+
+    # Best-effort: keep the legacy "other project" detector as a fallback.
+    other_project_value = spam_res.get("extracted_entity") or extract_other_project(
+        parsed.subject
     )
 
+    excluded = bool((is_spam and spam_is_hidden) or other_project_value)
+
+    derived_status = "other_project" if other_project_value else "spam"
+    body_label = spam_category or derived_status or "spam"
+
+    # ============================================================
+    # PST-parity preview + optional offload of FULL body to S3
+    # ============================================================
+    preview_source = full_body_text or body_html_content or ""
+    body_preview = preview_source[:10000] if preview_source else None
+
+    body_offload_threshold = (
+        getattr(settings, "PST_BODY_OFFLOAD_THRESHOLD", 50000) or 50000
+    )
+    body_offload_bucket = (
+        getattr(settings, "S3_EMAIL_BODY_BUCKET", None)
+        or settings.S3_BUCKET
+        or settings.MINIO_BUCKET
+    )
+
+    offloaded_body_key: str | None = None
+    if (
+        not excluded
+        and full_body_text
+        and len(full_body_text) > int(body_offload_threshold)
+        and body_offload_bucket
+    ):
+        try:
+            entity_folder = (
+                f"case_{pst.case_id}" if pst.case_id else f"project_{pst.project_id}"
+            )
+            dt_part = parsed.date_sent.isoformat() if parsed.date_sent else "no_date"
+            offloaded_body_key = (
+                f"email-bodies/{entity_folder}/{dt_part}_{uuid.uuid4().hex}.txt"
+            )
+            put_object(
+                offloaded_body_key,
+                full_body_text.encode("utf-8"),
+                "text/plain; charset=utf-8",
+                bucket=body_offload_bucket,
+            )
+            # Keep only preview in DB; canonical body remains for dedupe/search.
+            full_body_text = ""
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502, detail=f"Failed to offload email body: {exc}"
+            ) from exc
+
+    # ============================================================
+    # PST-parity content hash (dedupe)
+    # ============================================================
+    if excluded:
+        content_hash = build_content_hash(
+            None,
+            parsed.sender_email,
+            parsed.sender_name,
+            parsed.recipients_to,
+            parsed.subject,
+            parsed.date_sent,
+        )
+    else:
+        content_hash = build_content_hash(
+            canonical_body or None,
+            parsed.sender_email,
+            parsed.sender_name,
+            parsed.recipients_to,
+            parsed.subject,
+            parsed.date_sent,
+        )
+
     normalized_hash = (
-        compute_normalized_text_hash(canonical_body or "") if canonical_body else None
+        compute_normalized_text_hash((body_text_clean or canonical_body or ""))
+        if (not excluded and (body_text_clean or canonical_body))
+        else None
     )
 
     email_id = uuid.uuid4()
 
+    spam_payload: dict[str, Any] = {
+        "is_spam": is_spam,
+        "score": spam_score,
+        "category": spam_category,
+        "is_hidden": spam_is_hidden,
+        "status_set_by": "spam_filter_ingest",
+    }
+
     meta_payload: dict[str, Any] = {
         "source": source_type,
         "original_filename": file.filename,
-        "normalizer_version": "email_import_v1",
-        "spam_score": int(spam_res.get("score") or 0),
-        "is_spam": bool(spam_res.get("is_spam")),
-        "is_hidden": spam_is_hidden or bool(other_project_value),
+        "normalizer_version": NORMALIZER_VERSION,
+        "normalizer_ruleset_hash": NORMALIZER_RULESET_HASH,
+        "spam_score": spam_score,
+        "is_spam": is_spam,
+        "is_hidden": bool(spam_is_hidden or other_project_value),
         "spam_reasons": [spam_category] if spam_category else [],
         "other_project": other_project_value,
-        "spam": {
-            "is_spam": bool(spam_res.get("is_spam")),
-            "score": int(spam_res.get("score") or 0),
-            "category": spam_category,
-            "is_hidden": bool(spam_res.get("is_hidden")),
-            "status_set_by": "spam_filter_email_import",
-        },
-        "body_source": body_selection.selected_source,
-        "body_selection": body_selection.diagnostics,
-        "body_quoted_len": len(body_selection.quoted_text or ""),
-        "body_signature_len": len(body_selection.signature_text or ""),
-        "body_offloaded": bool(body_full_s3_key),
-        "body_full_s3_key": body_full_s3_key,
-        "body_offload_bucket": settings.S3_BUCKET or settings.MINIO_BUCKET,
+        "spam": spam_payload,
         "raw_headers": parsed.raw_headers,
         "attachments": [],
     }
@@ -764,7 +824,26 @@ async def upload_email_file_service(
     if excluded:
         meta_payload["status"] = derived_status
         meta_payload["excluded"] = True
-        meta_payload["spam"]["applied_status"] = derived_status
+        spam_payload["applied_status"] = derived_status
+        meta_payload["attachments_skipped"] = bool(parsed.attachments)
+        meta_payload["attachments_skipped_reason"] = derived_status
+    else:
+        meta_payload.update(
+            {
+                "canonical_hash": content_hash,
+                "body_offloaded": bool(offloaded_body_key),
+                "body_offload_bucket": (
+                    body_offload_bucket if offloaded_body_key else None
+                ),
+                "body_offload_key": offloaded_body_key,
+                # Backward-compatible hint for consumers expecting the explicit field.
+                "body_full_s3_key": offloaded_body_key,
+                "body_source": body_selection.selected_source,
+                "body_selection": body_selection.diagnostics,
+                "body_quoted_len": len(body_selection.quoted_text or ""),
+                "body_signature_len": len(body_selection.signature_text or ""),
+            }
+        )
 
     email_message = EmailMessage(
         id=email_id,
@@ -783,18 +862,14 @@ async def upload_email_file_service(
         recipients_bcc=parsed.recipients_bcc,
         date_sent=parsed.date_sent,
         date_received=parsed.date_received,
-        body_text=None if excluded else parsed.body_plain,
-        body_html=None if excluded else parsed.body_html,
-        body_text_clean=None if excluded else canonical_body,
+        body_text=None if excluded else (full_body_text or None),
+        body_html=None if excluded else body_html_content,
+        body_text_clean=None if excluded else (body_text_clean or None),
         body_text_clean_hash=normalized_hash,
-        body_preview=(
-            f"[EXCLUDED: {spam_category or derived_status or 'spam'}]"
-            if excluded
-            else body_preview
-        ),
-        body_full_s3_key=body_full_s3_key,
+        body_preview=(f"[EXCLUDED: {body_label}]" if excluded else body_preview),
+        body_full_s3_key=offloaded_body_key,
         content_hash=content_hash,
-        has_attachments=False,
+        has_attachments=bool(parsed.attachments) if excluded else False,
         meta=meta_payload,
     )
 
@@ -802,7 +877,7 @@ async def upload_email_file_service(
 
     # Attachments: only ingest for non-excluded emails (parity with PST processor).
     attachments_info: list[dict[str, Any]] = []
-    has_attachments = False
+    has_attachments = bool(parsed.attachments) if excluded else False
 
     if not excluded:
         attach_bucket = settings.S3_ATTACHMENTS_BUCKET or settings.S3_BUCKET

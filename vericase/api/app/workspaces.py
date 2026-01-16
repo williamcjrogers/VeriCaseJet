@@ -106,6 +106,16 @@ class TeamMemberCreate(BaseModel):
     organization: str | None = None
 
 
+class TeamMemberAddRequest(BaseModel):
+    """Add an existing system user to a workspace's team list.
+
+    Note: This does not create/invite users; the email must already exist.
+    """
+
+    email: str = Field(..., min_length=1, max_length=255)
+    role: str = Field(default="member", min_length=1, max_length=255)
+
+
 class KeyDateCreate(BaseModel):
     date_type: str = Field(..., min_length=1, max_length=100)
     label: str = Field(..., min_length=1, max_length=255)
@@ -601,6 +611,101 @@ def update_workspace_team(
 
     db.commit()
     return result
+
+
+@router.post("/{workspace_id}/team")
+def add_workspace_team_member(
+    workspace_id: str,
+    payload: TeamMemberAddRequest,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    """Add an existing system user to the workspace team list."""
+
+    workspace = _require_workspace(db, workspace_id, user)
+
+    email = (payload.email or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+
+    existing_user = (
+        db.query(User).filter(func.lower(User.email) == email).first()  # type: ignore[arg-type]
+    )
+    if not existing_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    existing_member = (
+        db.query(WorkspaceTeamMember)
+        .filter(
+            WorkspaceTeamMember.workspace_id == workspace.id,
+            WorkspaceTeamMember.user_id == existing_user.id,
+        )
+        .first()
+    )
+    if existing_member:
+        return {
+            "id": str(existing_member.id),
+            "user_id": (
+                str(existing_member.user_id) if existing_member.user_id else None
+            ),
+            "role": existing_member.role,
+            "name": existing_member.name,
+            "email": existing_member.email,
+            "organization": existing_member.organization,
+        }
+
+    role = (payload.role or "member").strip() or "member"
+    display_name = (existing_user.display_name or existing_user.email or email).strip()
+
+    member = WorkspaceTeamMember(
+        workspace_id=workspace.id,
+        user_id=existing_user.id,
+        role=role,
+        name=display_name,
+        email=existing_user.email,
+        organization=None,
+    )
+    db.add(member)
+    db.commit()
+    db.refresh(member)
+
+    return {
+        "id": str(member.id),
+        "user_id": str(member.user_id) if member.user_id else None,
+        "role": member.role,
+        "name": member.name,
+        "email": member.email,
+        "organization": member.organization,
+    }
+
+
+@router.delete("/{workspace_id}/team/{member_id}")
+def delete_workspace_team_member(
+    workspace_id: str,
+    member_id: str,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    """Remove a team member entry from a workspace."""
+
+    workspace = _require_workspace(db, workspace_id, user)
+    member_uuid = _parse_uuid(member_id, "member_id")
+
+    member = (
+        db.query(WorkspaceTeamMember)
+        .filter(
+            WorkspaceTeamMember.id == member_uuid,
+            WorkspaceTeamMember.workspace_id == workspace.id,
+        )
+        .first()
+    )
+    if not member:
+        raise HTTPException(status_code=404, detail="Team member not found")
+
+    db.delete(member)
+    db.commit()
+
+    return {"status": "success", "id": member_id}
 
 
 # Key dates endpoints

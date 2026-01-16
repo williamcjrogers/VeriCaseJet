@@ -78,7 +78,11 @@ function getApiUrl() {
  */
 async function secureApiFetch(endpoint, options = {}) {
   const apiUrl = getApiUrl();
-  const token = localStorage.getItem("token");
+  const token =
+    localStorage.getItem("vericase_token") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("jwt") ||
+    localStorage.getItem("access_token");
   const csrfToken = getCsrfToken();
 
   const defaultHeaders = {

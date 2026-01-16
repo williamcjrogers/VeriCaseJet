@@ -5,7 +5,6 @@ Correspondence API Services
 
 import logging
 import os
-import re
 import uuid
 import asyncio
 import time
@@ -2104,38 +2103,11 @@ async def get_email_detail_service(email_id: str, db: Session):
                 or getattr(settings, "S3_EMAIL_BODY_BUCKET", None)
                 or settings.S3_BUCKET
             )
-            body_data = get_object(bucket, email.body_full_s3_key)
+            body_data = get_object(email.body_full_s3_key, bucket=bucket)
             full_body_text = body_data.decode("utf-8")
             # Optionally reconstruct HTML if needed, but use text for now
         except Exception as e:
             logger.warning(f"Failed to fetch full body from S3: {e}")
-
-    def _looks_like_html_markup(value: str | None) -> bool:
-        """Best-effort detection: some pipelines store HTML in text fields.
-
-        This is used only for *display* fallback (Outlook view), not for forensics.
-        """
-        if not value or not isinstance(value, str):
-            return False
-        s = value.lstrip()
-        if not s:
-            return False
-        if re.match(r"(?is)^<!doctype\s+html\b", s):
-            return True
-        if re.match(r"(?is)^<\s*(html|head|body)\b", s):
-            return True
-        if re.search(
-            r"<\s*\/?\s*(div|span|p|br|table|tr|td|th|style|meta|link|font|center|a)\b",
-            s,
-            flags=re.IGNORECASE,
-        ):
-            return True
-        return len(re.findall(r"<\s*\/?\s*[A-Za-z][A-Za-z0-9:_-]*\b", s)) >= 8
-
-    # Display fallback: if HTML is missing but text looks like HTML, treat it as HTML
-    # so the UI's Outlook view can render it instead of showing raw markup.
-    if not full_body_html and _looks_like_html_markup(full_body_text):
-        full_body_html = full_body_text
 
     # Build attachments list (prefer evidence items for preview/download support).
     atts = []

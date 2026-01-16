@@ -385,7 +385,7 @@
             />
           </div>
           <button class="btn btn-primary" id="addUserBtn" type="button">
-            <i class="fas fa-plus"></i> Add User
+            <i class="fas fa-plus"></i> Invite User
           </button>
         </div>
 
@@ -396,13 +396,29 @@
           </div>
         </div>
       </div>
+
+      <!-- Invitations -->
+      <div class="main-card" style="margin-top: 24px;">
+        <div class="toolbar">
+          <div style="font-weight: 600; color: #2d3748;">Active Invitations</div>
+          <button class="btn btn-secondary" id="refreshInvitesBtn" type="button">
+            <i class="fas fa-sync-alt"></i> Refresh
+          </button>
+        </div>
+        <div id="invitesContent">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading invitations...</p>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Create/Edit User Modal -->
     <div id="userModal" class="modal">
       <div class="modal-content">
         <div class="modal-header">
-          <h2 id="modalTitle">Create New User</h2>
+          <h2 id="modalTitle">Invite User</h2>
         </div>
         <div class="modal-body">
           <div id="modalAlert" class="alert" style="display: none"></div>
@@ -432,8 +448,8 @@
             </div>
             <div class="form-group" id="inviteGroup">
               <label>
-                <input type="checkbox" id="sendInvite" checked /> Send welcome
-                email
+                <input type="checkbox" id="sendInvite" checked /> Copy invitation
+                link
               </label>
             </div>
           </form>
@@ -443,7 +459,7 @@
             Cancel
           </button>
           <button class="btn btn-primary" id="saveUserBtn" type="button">
-            <span id="saveButtonText">Create User</span>
+            <span id="saveButtonText">Send Invite</span>
           </button>
         </div>
       </div>
