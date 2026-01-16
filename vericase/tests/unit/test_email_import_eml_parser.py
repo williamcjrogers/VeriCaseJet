@@ -63,6 +63,28 @@ class TestParseEmlBytes(unittest.TestCase):
         self.assertEqual(att.content_type, "application/pdf")
         self.assertGreater(len(att.data), 0)
 
+    def test_promotes_htmlish_text_plain_to_html_and_derives_plaintext(self):
+        """Some sources store HTML fragments in text/plain parts.
+
+        We should detect this and:
+        - move it into body_html
+        - derive a readable body_plain for display/search
+        """
+        raw = (
+            "From: Alice <alice@example.com>\r\n"
+            "To: Bob <bob@example.com>\r\n"
+            "Subject: HTML-ish in text/plain\r\n"
+            "MIME-Version: 1.0\r\n"
+            "Content-Type: text/plain; charset=utf-8\r\n"
+            "\r\n"
+            "<table><tr><td>Hello <b>world</b></td></tr></table>\r\n"
+        ).encode("utf-8")
+
+        parsed = parse_eml_bytes(raw)
+
+        self.assertTrue((parsed.body_html or "").lstrip().startswith("<table"))
+        self.assertIn("Hello", parsed.body_plain or "")
+
 
 if __name__ == "__main__":
     unittest.main()

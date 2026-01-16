@@ -48,8 +48,11 @@ from ..storage import put_object
 logger = logging.getLogger("vericase")
 
 
-_HTML_MARKUP_RE = re.compile(
-    r"(?is)^\s*(?:<!doctype\s+html\b|<html\b|<head\b|<body\b|<div\b|<p\b|<span\b)"
+_HTML_DOC_START_RE = re.compile(
+    r"(?is)^\s*(?:<!doctype\s+html\b|<\s*(?:html|head|body)\b)"
+)
+_HTML_COMMON_TAG_RE = re.compile(
+    r"(?is)<\s*\/?\s*(?:div|span|p|br|table|tr|td|th|style|meta|link|font|center|a)\b"
 )
 
 
@@ -59,7 +62,11 @@ def _looks_like_html_markup(text: str | None) -> bool:
     s = text.lstrip()
     if not s:
         return False
-    if _HTML_MARKUP_RE.search(s):
+    # Strong signals: an HTML document-ish start.
+    if _HTML_DOC_START_RE.search(s):
+        return True
+    # Common email HTML fragments: table layouts, basic formatting tags, etc.
+    if _HTML_COMMON_TAG_RE.search(s):
         return True
     # Count generic tags as a fallback heuristic.
     tag_count = len(re.findall(r"<\s*\/?\s*[A-Za-z][A-Za-z0-9:_-]*\b", s))

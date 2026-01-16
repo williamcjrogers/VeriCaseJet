@@ -71,6 +71,42 @@ class TestParseMsgBytesCompat(unittest.TestCase):
         self.assertEqual(parsed.attachments[0].filename, "hello.txt")
         self.assertEqual(parsed.attachments[0].data, b"hello")
 
+    def test_promotes_htmlish_body_to_html_when_htmlBody_missing(self):
+        """Some MSG exports surface HTML markup in .body while htmlBody is empty/None."""
+
+        class DummyMessage:
+            def __init__(self, path: str):
+                self.subject = "Subject"
+                self.sender = "Alice <alice@example.com>"
+                self.to = "Bob <bob@example.com>"
+                self.cc = ""
+                self.bcc = ""
+                self.date = "Mon, 01 Jan 2024 10:00:00 +0000"
+                self.body = "<table><tr><td>Hello</td></tr></table>"
+                self.htmlBody = None
+                self.rtfBody = None
+                self.attachments = []
+
+            def close(self):
+                return None
+
+        dummy = types.ModuleType("extract_msg")
+        setattr(dummy, "__version__", "0.55.0")
+        setattr(dummy, "Message", DummyMessage)
+
+        old = sys.modules.get("extract_msg")
+        sys.modules["extract_msg"] = dummy
+        try:
+            parsed = parse_msg_bytes(b"not really a msg")
+        finally:
+            if old is None:
+                sys.modules.pop("extract_msg", None)
+            else:
+                sys.modules["extract_msg"] = old
+
+        self.assertTrue((parsed.body_html or "").lstrip().startswith("<table"))
+        self.assertIn("Hello", parsed.body_plain or "")
+
 
 if __name__ == "__main__":
     unittest.main()
