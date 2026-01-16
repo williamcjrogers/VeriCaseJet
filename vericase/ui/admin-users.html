@@ -170,11 +170,15 @@
         background: #edf2f7;
         color: #4a5568;
       }
-      .badge-editor {
+      .badge-power_user {
         background: #e9d8fd;
         color: #553c9a;
       }
-      .badge-viewer {
+      .badge-management_user {
+        background: #feebc8;
+        color: #744210;
+      }
+      .badge-user {
         background: #c6f6d5;
         color: #22543d;
       }
@@ -415,9 +419,10 @@
             <div class="form-group">
               <label for="userRole">Role *</label>
               <select id="userRole" required>
-                <option value="VIEWER">Viewer - Read only access</option>
-                <option value="EDITOR">Editor - Create and edit content</option>
-                <option value="ADMIN">Admin - Full access</option>
+                <option value="USER">User - Standard access</option>
+                <option value="MANAGEMENT_USER">Management - Team/workspace management</option>
+                <option value="POWER_USER">Power - Full workspace/case control</option>
+                <option value="ADMIN">Admin - Platform/system administration</option>
               </select>
             </div>
             <div class="form-group" id="activeGroup">

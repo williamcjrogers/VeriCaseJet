@@ -309,13 +309,36 @@
       align-items: start;
     }
 
+    /* Keep right-side widgets (Recent Activity + AI + Signals) stacked together */
+    .dashboard-main {
+      grid-column: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      min-width: 0;
+    }
+
+    .dashboard-rail {
+      grid-column: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      min-width: 0;
+    }
+
     @media (max-width: 1100px) {
       .dashboard-layout {
         grid-template-columns: 1fr;
       }
 
-      .dashboard-sidebar {
-        order: -1;
+      .dashboard-rail {
+        grid-column: 1;
+        grid-row: 1;
+      }
+
+      .dashboard-main {
+        grid-column: 1;
+        grid-row: 2;
       }
     }
 
@@ -2590,82 +2613,85 @@
 
     <!-- Main Layout -->
     <div class="dashboard-layout">
-      <!-- Workspaces (Primary Content) - Master-Detail Layout -->
-      <section class="workspaces-section">
-        <div class="section-header">
+      <div class="dashboard-main">
+        <!-- Workspaces (Primary Content) - Master-Detail Layout -->
+        <section class="workspaces-section">
+          <div class="section-header">
+            <h2 class="section-title">
+              Your Workspaces
+              <span class="section-count" id="workspaceCount">0</span>
+            </h2>
+          </div>
+          <div class="workspace-master-detail">
+            <!-- Workspace List (Left) -->
+            <div class="workspace-list" id="workspaceList">
+              <!-- Loading skeleton -->
+              <div class="workspace-row" style="pointer-events: none;">
+                <div class="skeleton" style="width: 36px; height: 36px; border-radius: 8px;"></div>
+                <div style="flex: 1;">
+                  <div class="skeleton" style="width: 60%; height: 16px; margin-bottom: 6px;"></div>
+                  <div class="skeleton" style="width: 30%; height: 12px;"></div>
+                </div>
+                <div class="skeleton" style="width: 60px; height: 20px;"></div>
+              </div>
+            </div>
+
+            <!-- Workspace Detail Panel (Right) -->
+            <div class="workspace-detail-panel" id="workspaceDetailPanel">
+              <div class="detail-panel-empty">
+                <i class="fas fa-hand-pointer" aria-hidden="true"></i>
+                <div>Select a workspace to view details</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- KPIs and Urgent Items Section -->
+        <section class="kpis-section" id="kpisSection">
+          <div class="section-row">
+            <div class="kpis-column">
+              <h2 class="section-title">
+                <i class="fas fa-chart-line" aria-hidden="true"></i>
+                KPIs
+              </h2>
+              <div class="kpis-content" id="kpisContent">
+                <div class="empty-state">
+                  <div class="empty-title">No KPIs available</div>
+                </div>
+              </div>
+            </div>
+            <div class="urgent-column">
+              <h2 class="section-title">
+                <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                Upcoming & Urgent
+              </h2>
+              <div class="urgent-content" id="urgentContent">
+                <div class="empty-state">
+                  <div class="empty-title">No urgent items</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="dashboard-rail">
+        <!-- Recent Activity Section -->
+        <section class="activity-section" id="activitySection">
           <h2 class="section-title">
-            Your Workspaces
-            <span class="section-count" id="workspaceCount">0</span>
+            <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
+            Recent Activity
           </h2>
-        </div>
-        <div class="workspace-master-detail">
-          <!-- Workspace List (Left) -->
-          <div class="workspace-list" id="workspaceList">
-            <!-- Loading skeleton -->
-            <div class="workspace-row" style="pointer-events: none;">
-              <div class="skeleton" style="width: 36px; height: 36px; border-radius: 8px;"></div>
-              <div style="flex: 1;">
-                <div class="skeleton" style="width: 60%; height: 16px; margin-bottom: 6px;"></div>
-                <div class="skeleton" style="width: 30%; height: 12px;"></div>
-              </div>
-              <div class="skeleton" style="width: 60px; height: 20px;"></div>
+          <div class="activity-content" id="activityContent">
+            <div class="empty-state">
+              <i class="fas fa-history empty-icon"></i>
+              <div class="empty-title">No recent activity</div>
             </div>
           </div>
+        </section>
 
-          <!-- Workspace Detail Panel (Right) -->
-          <div class="workspace-detail-panel" id="workspaceDetailPanel">
-            <div class="detail-panel-empty">
-              <i class="fas fa-hand-pointer" aria-hidden="true"></i>
-              <div>Select a workspace to view details</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Recent Activity Section -->
-      <section class="activity-section" id="activitySection">
-        <h2 class="section-title">
-          <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
-          Recent Activity
-        </h2>
-        <div class="activity-content" id="activityContent">
-          <div class="empty-state">
-            <i class="fas fa-history empty-icon"></i>
-            <div class="empty-title">No recent activity</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- KPIs and Urgent Items Section -->
-      <section class="kpis-section" id="kpisSection">
-        <div class="section-row">
-          <div class="kpis-column">
-            <h2 class="section-title">
-              <i class="fas fa-chart-line" aria-hidden="true"></i>
-              KPIs
-            </h2>
-            <div class="kpis-content" id="kpisContent">
-              <div class="empty-state">
-                <div class="empty-title">No KPIs available</div>
-              </div>
-            </div>
-          </div>
-          <div class="urgent-column">
-            <h2 class="section-title">
-              <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
-              Upcoming & Urgent
-            </h2>
-            <div class="urgent-content" id="urgentContent">
-              <div class="empty-state">
-                <div class="empty-title">No urgent items</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Sidebar -->
-      <aside class="dashboard-sidebar">
+        <!-- Sidebar -->
+        <aside class="dashboard-sidebar">
         <!-- VeriCase Assistant -->
         <div class="ai-card">
           <div class="ai-card-header">
@@ -2745,6 +2771,7 @@
           </div>
         </div>
       </aside>
+      </div>
     </div>
     </div><!-- End Overview Tab Panel -->
 
@@ -4808,17 +4835,17 @@
       container.scrollTop = container.scrollHeight;
 
       try {
-        const response = await fetch("/api/ai-chat/chat", {
+        const response = await fetch("/api/ai-chat/query", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-          body: JSON.stringify({ message, context: "command_center", include_projects: true })
+          body: JSON.stringify({ query: message, mode: "quick" })
         });
 
         document.getElementById(typingId)?.remove();
 
         if (response.ok) {
           const data = await response.json();
-          const reply = data.response || data.message || "I processed your request.";
+          const reply = data.answer || data.response || data.message || "I processed your request.";
           container.innerHTML += `
             <div class="ai-message">
               <div class="ai-avatar"><i class="fas fa-robot"></i></div>

@@ -1229,10 +1229,11 @@
           case_id: contextType === "case" ? contextId : null,
         };
 
-        const response = await fetch("/api/ai-chat/query", {
+        const response = await fetch(`${apiUrl}/api/ai-chat/query`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify(body),
         });

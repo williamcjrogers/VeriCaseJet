@@ -41,7 +41,7 @@ This is a strong IA decision: hub becomes the “one place” for deadlines, doc
 Workspace CRUD uses `/api/workspaces` but includes fallbacks to legacy `/api/projects` endpoints when unsupported (404/405). That reduces deployment friction across environments.
 
 ### 4) AI assistant / predictive signals are integrated, not bolted on
-- AI chat: `POST /api/ai-chat/chat` with `context: "command_center"`.
+- AI chat: `POST /api/ai-chat/query` with `{ query, mode: "quick" }` (auth required).
 - Predictive signals: `GET /api/caselaw/trends?...` with auth-aware error handling.
 
 ---

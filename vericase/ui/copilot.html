@@ -1242,7 +1242,13 @@
         };
         const apiMode = modeMap[currentMode] || 'quick';
 
-        const response = await fetch(`${API_BASE}/api/ai-chat/query`, {
+        // If the user enabled the Case Law KB toggle (or selected the Case Law RAG profile),
+        // use the enhanced endpoint which augments the prompt with Bedrock KB retrieval.
+        const aiEndpoint = (contextOptions.useCaselaw || currentModel === "caselaw-rag")
+          ? `${API_BASE}/api/ai-chat/query-enhanced`
+          : `${API_BASE}/api/ai-chat/query`;
+
+        const response = await fetch(aiEndpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

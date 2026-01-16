@@ -32,7 +32,13 @@ from uuid import UUID
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from email.utils import getaddresses
 
-import pypff  # type: ignore  # pypff is installed in Docker container
+# NOTE: `pypff` is only guaranteed to exist in the Docker image used for PST processing.
+# Local dev / CI unit tests should still be able to import this module (e.g., to test
+# keyword matching behavior) without having pypff installed.
+try:
+    import pypff  # type: ignore
+except Exception:  # pragma: no cover - environment dependent
+    pypff = None  # type: ignore
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -789,6 +795,10 @@ class UltimatePSTProcessor:
 
         try:
             # Open PST with pypff
+            if pypff is None:
+                raise ModuleNotFoundError(
+                    "pypff is not installed. PST processing requires the Docker runtime/image that includes pypff."
+                )
             pst_file = pypff.file()
             if not pst_path:
                 raise RuntimeError("PST temp path was not created")

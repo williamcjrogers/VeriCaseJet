@@ -67,6 +67,12 @@ from .utils import (
 from ..search import search_emails, client as os_client
 import logging
 
+from .email_import import (
+    finalize_email_import_service,
+    init_email_import_service,
+    upload_email_file_service,
+)
+
 logger = logging.getLogger("vericase")
 
 router = APIRouter(prefix="/api/correspondence", tags=["correspondence"])
@@ -104,6 +110,17 @@ class ExportEmailsRequest(BulkEmailIdsRequest):
     include_body: bool = False
 
 
+class EmailImportInitRequest(BaseModel):
+    case_id: str | None = None
+    project_id: str | None = None
+    batch_name: str | None = None
+
+
+class EmailImportInitResponse(BaseModel):
+    pst_file_id: str
+    message: str
+
+
 @router.post("/pst/upload")
 async def upload_pst_file(
     file: Annotated[UploadFile, File(...)],
@@ -113,6 +130,49 @@ async def upload_pst_file(
     user: User = Depends(current_user),
 ):
     return await upload_pst_file_service(file, case_id, project_id, db, user)
+
+
+@router.post("/email-import/init", response_model=EmailImportInitResponse)
+async def init_email_import(
+    request: EmailImportInitRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    return await init_email_import_service(
+        case_id=request.case_id,
+        project_id=request.project_id,
+        batch_name=request.batch_name,
+        db=db,
+        user=user,
+    )
+
+
+@router.post("/email-import/{pst_file_id}/upload")
+async def upload_email_file(
+    pst_file_id: str,
+    file: Annotated[UploadFile, File(...)],
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    return await upload_email_file_service(
+        pst_file_id=pst_file_id,
+        file=file,
+        db=db,
+        user=user,
+    )
+
+
+@router.post("/email-import/{pst_file_id}/finalize")
+async def finalize_email_import(
+    pst_file_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    return await finalize_email_import_service(
+        pst_file_id=pst_file_id,
+        db=db,
+        user=user,
+    )
 
 
 @router.post("/pst/upload/init", response_model=PSTUploadInitResponse)

@@ -178,3 +178,6 @@ docs/1.html
 docs/2.html
 docs/3.html
 docs/Newest theme CC.html
+
+# Accidental working-directory marker files
+tmpclaude-*-cwd

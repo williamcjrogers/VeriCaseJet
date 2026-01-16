@@ -34,6 +34,24 @@
   let users = [];
   let currentEditId = null;
 
+  function normalizeRoleValue(role) {
+    const raw = (role || "").toString().trim();
+    if (!raw) return "USER";
+
+    const upper = raw.toUpperCase();
+
+    // Backward-compatible mappings from older UI terminology.
+    const legacy = {
+      VIEWER: "USER",
+      EDITOR: "USER",
+      MANAGER: "MANAGEMENT_USER",
+      MANAGEMENT: "MANAGEMENT_USER",
+      POWER: "POWER_USER",
+    };
+
+    return legacy[upper] || upper;
+  }
+
   function requireAuthOrRedirect() {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -171,8 +189,9 @@
               const displayName = escape(user?.display_name || "No name");
               const initials = escape(initialsForUser(user));
 
-              const role = ((user?.role || "VIEWER") + "").toUpperCase();
+              const role = normalizeRoleValue((user?.role || "USER") + "");
               const roleLower = escape(role.toLowerCase());
+              const roleLabel = role.replace(/_/g, " ");
 
               const isActive = !!user?.is_active;
               const isVerified = !!user?.email_verified;
@@ -191,7 +210,7 @@
                     </div>
                   </td>
                   <td>
-                    <span class="badge badge-${roleLower}">${escape(role)}</span>
+                    <span class="badge badge-${roleLower}">${escape(roleLabel)}</span>
                   </td>
                   <td>
                     <span class="badge badge-${isActive ? "active" : "inactive"}">
@@ -263,7 +282,7 @@
     $("userEmail").value = user.email || "";
     $("userEmail").disabled = true;
     $("userDisplayName").value = user.display_name || "";
-    $("userRole").value = (user.role || "VIEWER").toUpperCase();
+    $("userRole").value = normalizeRoleValue(user.role || "USER");
     $("userActive").checked = !!user.is_active;
 
     const activeGroup = $("activeGroup");
@@ -303,7 +322,7 @@
     const data = {
       email: (emailEl?.value || "").trim(),
       display_name: (displayNameEl?.value || "").trim(),
-      role: (roleEl?.value || "VIEWER").trim(),
+      role: (roleEl?.value || "USER").trim(),
       is_active: !!activeEl?.checked,
     };
 
@@ -391,13 +410,6 @@
     $("addUserBtn")?.addEventListener("click", openCreateModal);
     $("cancelModalBtn")?.addEventListener("click", closeModal);
     $("saveUserBtn")?.addEventListener("click", saveUser);
-
-    // Close on outside click
-    $("userModal")?.addEventListener("click", (e) => {
-      if (e.target === e.currentTarget) {
-        closeModal();
-      }
-    });
 
     // Table actions (event delegation)
     $("tableContent")?.addEventListener("click", (e) => {

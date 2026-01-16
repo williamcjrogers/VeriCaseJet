@@ -2502,9 +2502,10 @@
           await uploadPSTFile(item);
         }
 
-        // Bulk upload email files in batches
+        // Upload standalone email files (EML/MSG) into Correspondence.
+        // These are treated as if they were ingested from a PST (synthetic PSTFile container).
         if (emailFiles.length > 0) {
-          await uploadEmailsBulk(emailFiles);
+          await uploadEmailFilesAsCorrespondence(emailFiles);
         }
 
         // Upload other files with concurrency
@@ -3069,88 +3070,161 @@
     }
 
     // Bulk email upload
+    // NOTE: Deprecated. The API does not implement /api/evidence/upload-bulk.
+    // Keep this wrapper for backward-compatibility; it now uploads files individually.
     async function uploadEmailsBulk(items) {
-      // Update all to uploading
-      items.forEach((item) =>
-        updateFileItem(item.id, { status: "uploading", progress: 10 }),
-      );
+      // Backward-compat wrapper: these are now imported into Correspondence.
+      await uploadEmailFilesAsCorrespondence(items);
+    }
 
+    async function uploadEmailFilesAsCorrespondence(items) {
+      if (!items || items.length === 0) return;
+
+      // Create a synthetic PSTFile container for this batch.
+      let pstFileId = null;
       try {
-        const formData = new FormData();
+        const body = {
+          case_id: VeriCaseApp.caseId || null,
+          project_id: VeriCaseApp.projectId || null,
+          batch_name: `Email import (${items.length} file${items.length === 1 ? "" : "s"})`,
+        };
 
-        if (VeriCaseApp.projectId) {
-          formData.append("profileId", VeriCaseApp.projectId);
-          formData.append("profileType", "project");
-        } else if (VeriCaseApp.caseId) {
-          formData.append("profileId", VeriCaseApp.caseId);
-          formData.append("profileType", "case");
-        } else {
-          formData.append("profileType", "project");
-        }
-
-        items.forEach((item) => formData.append("files", item.file));
-
-        // Update progress during upload
-        items.forEach((item) => updateFileItem(item.id, { progress: 50 }));
-
-        const response = await fetch(
-          `${apiUrl}/api/evidence/upload-bulk`,
+        const initResp = await fetch(
+          `${apiUrl}/api/correspondence/email-import/init`,
           withAuth({
             method: "POST",
-            body: formData,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
           }),
         );
 
-        if (!response.ok)
-          throw new Error(`Bulk upload failed: ${response.status}`);
+        if (!initResp.ok) {
+          const detail = (await initResp.text()).trim();
+          throw new Error(
+            `Failed to init email import (HTTP ${initResp.status})${detail ? `: ${detail}` : ""}`,
+          );
+        }
 
-        const result = await response.json();
+        const initData = await initResp.json();
+        pstFileId = initData?.pst_file_id || initData?.pstFileId || null;
+        if (!pstFileId) throw new Error("Email import init did not return pst_file_id");
+      } catch (e) {
+        const msg = e?.message || String(e);
+        items.forEach((it) => updateFileItem(it.id, { status: "error", error: msg }));
+        return;
+      }
 
-        // Update individual statuses
-        items.forEach((item) => {
-          const hadError = result.errors?.some((e) => e.file === item.name);
-          if (hadError) {
-            const err = result.errors.find((e) => e.file === item.name);
-            updateFileItem(item.id, {
-              status: "error",
-              error: err?.error || "Failed",
-              progress: 100,
-            });
-          } else {
-            updateFileItem(item.id, { status: "complete", progress: 100 });
-            totalBytesUploaded += item.size;
-          }
+      // Upload each email file into the batch.
+      const maxConcurrent = Math.min(MAX_CONCURRENT, 4);
+      const executing = new Set();
+
+      for (const item of items) {
+        const promise = uploadEmailImportFile(item, pstFileId).finally(() => executing.delete(promise));
+        executing.add(promise);
+        if (executing.size >= maxConcurrent) {
+          await Promise.race(executing);
+        }
+      }
+      await Promise.all(executing);
+
+      // Finalize: run threading + dedupe and mark the synthetic PSTFile as completed.
+      try {
+        items.forEach((it) => {
+          if (it.status !== "error") updateFileItem(it.id, { status: "processing", progress: 100 });
         });
-      } catch (error) {
-        console.error("Bulk upload error:", error);
-        items.forEach((item) =>
-          updateFileItem(item.id, { status: "error", error: error.message }),
+
+        const finResp = await fetch(
+          `${apiUrl}/api/correspondence/email-import/${encodeURIComponent(pstFileId)}/finalize`,
+          withAuth({ method: "POST" }),
         );
+        if (!finResp.ok) {
+          const detail = (await finResp.text()).trim();
+          throw new Error(
+            `Failed to finalize email import (HTTP ${finResp.status})${detail ? `: ${detail}` : ""}`,
+          );
+        }
+
+        items.forEach((it) => {
+          if (it.status !== "error") updateFileItem(it.id, { status: "complete", progress: 100 });
+        });
+      } catch (e) {
+        const msg = e?.message || String(e);
+        items.forEach((it) => {
+          if (it.status !== "error") updateFileItem(it.id, { status: "error", error: msg });
+        });
       }
     }
 
-    // Regular file upload
-    async function uploadRegularFile(item) {
+    async function uploadEmailImportFile(item, pstFileId) {
       updateFileItem(item.id, { status: "uploading", progress: 0 });
 
       try {
         const formData = new FormData();
         formData.append("file", item.file);
 
-        if (VeriCaseApp.projectId) {
-          formData.append("profileId", VeriCaseApp.projectId);
-          formData.append("profileType", "project");
-        } else if (VeriCaseApp.caseId) {
-          formData.append("profileId", VeriCaseApp.caseId);
-          formData.append("profileType", "case");
-        } else {
-          formData.append("profileType", "project");
-        }
+        await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open(
+            "POST",
+            `${apiUrl}/api/correspondence/email-import/${encodeURIComponent(pstFileId)}/upload`,
+            true,
+          );
+
+          const token =
+            localStorage.getItem("vericase_token") ||
+            localStorage.getItem("token") ||
+            localStorage.getItem("jwt");
+          if (token) {
+            xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+          }
+
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const pct = Math.round((e.loaded / e.total) * 100);
+              updateFileItem(item.id, { progress: pct });
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status < 400) {
+              resolve();
+              return;
+            }
+            const detail = (xhr.responseText || "").trim();
+            reject(
+              new Error(
+                `Email import upload failed: ${xhr.status}${detail ? `: ${detail}` : ""}`,
+              ),
+            );
+          };
+
+          xhr.onerror = () => reject(new Error("Network error"));
+          xhr.send(formData);
+        });
+
+        // Hold in processing state until batch finalize completes.
+        updateFileItem(item.id, { status: "processing", progress: 100 });
+        totalBytesUploaded += item.size;
+      } catch (error) {
+        console.error(`Email import upload error for ${item.name}:`, error);
+        updateFileItem(item.id, { status: "error", error: error.message });
+      }
+    }
+
+    // Regular file upload (Evidence Repository direct upload)
+    async function uploadRegularFile(item) {
+      updateFileItem(item.id, { status: "uploading", progress: 0 });
+
+      try {
+        const formData = new FormData();
+        formData.append("file", item.file);
+        if (VeriCaseApp.projectId) formData.append("project_id", VeriCaseApp.projectId);
+        if (VeriCaseApp.caseId) formData.append("case_id", VeriCaseApp.caseId);
 
         // Use XMLHttpRequest for progress
         await new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
-          xhr.open("POST", `${apiUrl}/api/evidence/upload`, true);
+          xhr.open("POST", `${apiUrl}/api/evidence/upload/direct`, true);
 
           // Add Authorization header for authenticated upload
           const token =
@@ -3169,8 +3243,17 @@
           };
 
           xhr.onload = () => {
-            if (xhr.status < 400) resolve();
-            else reject(new Error(`Upload failed: ${xhr.status}`));
+            if (xhr.status < 400) {
+              resolve();
+              return;
+            }
+            // Include server detail when available; helps debug 4xx like 404/413.
+            const detail = (xhr.responseText || "").trim();
+            reject(
+              new Error(
+                `Upload failed: ${xhr.status}${detail ? `: ${detail}` : ""}`,
+              ),
+            );
           };
 
           xhr.onerror = () => reject(new Error("Network error"));

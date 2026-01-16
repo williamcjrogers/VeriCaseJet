@@ -58,13 +58,17 @@ class UpdateUserRequest(BaseModel):
 class CreateUserRequest(BaseModel):
     email: str
     display_name: str | None = None
-    role: str | None = "VIEWER"
+    # NOTE: Keep this aligned with models.UserRole values.
+    # We also accept legacy UI values (e.g. VIEWER/EDITOR) server-side.
+    role: str | None = UserRole.USER.value
     send_invite: bool = True
 
 
 class CreateInvitationRequest(BaseModel):
     email: EmailStr
-    role: str = "viewer"
+    # NOTE: Keep this aligned with models.UserRole values.
+    # We also accept legacy UI values (e.g. viewer/editor) server-side.
+    role: str = UserRole.USER.value
 
 
 class InvitationResponse(BaseModel):
@@ -80,6 +84,42 @@ def require_admin(user: User = Depends(current_user)):
     if user.role != UserRole.ADMIN:
         raise HTTPException(403, "admin access required")
     return user
+
+
+def parse_user_role(role: str | None) -> UserRole:
+    """Parse/normalize a role string into a UserRole.
+
+    Supports the canonical enum values as well as legacy UI values.
+    """
+
+    if role is None:
+        return UserRole.USER
+
+    role_norm = str(role).strip()
+    if not role_norm:
+        return UserRole.USER
+
+    upper = role_norm.upper()
+
+    # Backward-compatible mappings from older UI terminology.
+    legacy_map = {
+        "VIEWER": UserRole.USER.value,
+        "EDITOR": UserRole.USER.value,
+        "MANAGER": UserRole.MANAGEMENT_USER.value,
+        "MANAGEMENT": UserRole.MANAGEMENT_USER.value,
+        "MANAGEMENT_USER": UserRole.MANAGEMENT_USER.value,
+        "POWER": UserRole.POWER_USER.value,
+        "POWER_USER": UserRole.POWER_USER.value,
+        "USER": UserRole.USER.value,
+        "ADMIN": UserRole.ADMIN.value,
+    }
+
+    mapped = legacy_map.get(upper, upper)
+
+    try:
+        return UserRole(mapped)
+    except ValueError:
+        raise HTTPException(400, f"invalid role value: {role}")
 
 
 # Current user endpoints
@@ -167,11 +207,12 @@ def create_user(
     temp_password = generate_token()[:12]  # Use first 12 chars of token
 
     # Create user
+    role = parse_user_role(data.role)
     user = UserModel(
         email=email_lower,
         password_hash=hash_password(temp_password),
         display_name=data.display_name,
-        role=UserRole(data.role) if data.role else UserRole.USER,
+        role=role,
         is_active=True,
         email_verified=False,
         verification_token=generate_token(),
@@ -252,16 +293,17 @@ def update_user(
     if user.id == admin.id and data.is_active is False:
         raise HTTPException(400, "cannot deactivate your own account")
 
-    # Prevent admin from demoting themselves
-    if user.id == admin.id and data.role and data.role != UserRole.ADMIN.value:
-        raise HTTPException(400, "cannot change your own role")
+    normalized_role: UserRole | None = None
+    if data.role is not None:
+        normalized_role = parse_user_role(data.role)
+
+        # Prevent admin from demoting themselves
+        if user.id == admin.id and normalized_role != UserRole.ADMIN:
+            raise HTTPException(400, "cannot change your own role")
 
     # Update fields
-    if data.role is not None:
-        try:
-            user.role = UserRole(data.role)
-        except ValueError:
-            raise HTTPException(400, "invalid role value")
+    if normalized_role is not None:
+        user.role = normalized_role
 
     if data.is_active is not None:
         user.is_active = data.is_active
@@ -312,10 +354,7 @@ def create_invitation(
         raise HTTPException(409, "active invitation already exists for this email")
 
     # Validate role
-    try:
-        role = UserRole(data.role)
-    except ValueError:
-        raise HTTPException(400, f"invalid role: {data.role}")
+    role = parse_user_role(data.role)
 
     # Create invitation
     from datetime import timezone

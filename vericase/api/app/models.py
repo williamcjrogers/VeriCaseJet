@@ -871,6 +871,11 @@ class ParsedContractClause(Base):
     document: Mapped[Document] = relationship("Document")
 
 
+# Backwards-compatible alias.
+# Earlier code/tests referred to this model as `ContractClause`.
+ContractClause = ParsedContractClause
+
+
 class SearchQuery(Base):
     """Search analytics"""
 
