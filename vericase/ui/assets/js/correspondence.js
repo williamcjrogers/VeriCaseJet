@@ -682,15 +682,39 @@ function stripBannersForGrid(text) {
   return cleaned.trim();
 }
 
+/**
+ * Heuristic: detect HTML markup accidentally stored in a text field.
+ * Used for UI display only (prevents the grid showing raw <html> markup).
+ */
+function looksLikeHtmlMarkup(text) {
+  if (!text || typeof text !== "string") return false;
+  const s = text.trimStart();
+  if (!s) return false;
+  if (/^<!doctype\s+html\b/i.test(s)) return true;
+  if (/^<html\b/i.test(s)) return true;
+  if (/^<head\b/i.test(s)) return true;
+  if (/^<body\b/i.test(s)) return true;
+  if (/<\s*\/?\s*(div|span|p|br|table|tr|td|th|style|meta|link)\b/i.test(s)) return true;
+  const tagCount = (s.match(/<\s*\/?\s*[a-zA-Z][a-zA-Z0-9:_-]*\b/g) || []).length;
+  return tagCount >= 8;
+}
+
 function getBodyTextValue(data) {
   // Prefer server-computed display body when present.
   // This is derived using the latest backend cleaning pipeline (HTML->text, multi-language reply parsing).
   // Strip CAUTION banners for grid preview (evidence preserved in modal via getRawBodyText).
   if (data?.email_body) {
-    return stripBannersForGrid(normalizeBodyWhitespace(String(data.email_body)));
+    let value = String(data.email_body);
+    if (looksLikeHtmlMarkup(value)) {
+      value = htmlToTextSafe(value);
+    }
+    return stripBannersForGrid(normalizeBodyWhitespace(value));
   }
 
-  const raw = data?.body_text_clean || data?.body_text || "";
+  let raw = data?.body_text_clean || data?.body_text || "";
+  if (typeof raw === "string" && looksLikeHtmlMarkup(raw)) {
+    raw = htmlToTextSafe(raw);
+  }
   return cleanEmailBodyText(raw);
 }
 

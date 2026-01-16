@@ -334,6 +334,36 @@ def clean_email_body_for_display(
     from .email_content import strip_signature as _strip_signature
     from .email_content import html_to_text as _html_to_text
 
+    def _looks_like_html_markup(value: str | None) -> bool:
+        if not value or not isinstance(value, str):
+            return False
+        s = value.lstrip()
+        if not s:
+            return False
+        if re.match(r"(?is)^<!doctype\s+html\b", s):
+            return True
+        if re.match(r"(?is)^<\s*(html|head|body)\b", s):
+            return True
+        if re.search(
+            r"<\s*\/?\s*(div|span|p|br|table|tr|td|th|style|meta|link)\b",
+            s,
+            flags=re.IGNORECASE,
+        ):
+            return True
+        return len(re.findall(r"<\s*\/?\s*[A-Za-z][A-Za-z0-9:_-]*\b", s)) >= 8
+
+    # Guard: some sources incorrectly store HTML markup in the text fields.
+    if body_text_clean and _looks_like_html_markup(body_text_clean):
+        try:
+            body_text_clean = _html_to_text(body_text_clean)
+        except Exception:
+            pass
+    if body_text and _looks_like_html_markup(body_text):
+        try:
+            body_text = _html_to_text(body_text)
+        except Exception:
+            pass
+
     candidates: list[str] = []
     html_as_text = None
     if body_html and isinstance(body_html, str):

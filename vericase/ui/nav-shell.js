@@ -590,6 +590,25 @@
 	        `;
   }
 
+  function renderDefaultHeaderActions() {
+    // Keep these universally safe (no page-specific JS dependencies).
+    // Note: Pages can opt-out by passing headerActions: null.
+    return `
+      <button class="btn btn-icon btn-ghost" onclick="VericaseShell.showProjectSelector()" title="Quick Access" aria-label="Quick Access">
+        <i class="fas fa-layer-group"></i>
+      </button>
+      <a class="btn btn-icon btn-ghost" href="copilot.html" title="VeriCase Assistant" aria-label="Open VeriCase Assistant">
+        <i class="fas fa-balance-scale"></i>
+      </a>
+      <a class="btn btn-icon btn-ghost" href="workspace-hub.html" title="Workspaces" aria-label="Open Workspaces">
+        <i class="fas fa-folder-open"></i>
+      </a>
+      <button class="btn btn-icon btn-ghost" onclick="window.location.reload()" title="Refresh" aria-label="Refresh">
+        <i class="fas fa-sync-alt"></i>
+      </button>
+    `;
+  }
+
   function renderBreadcrumbs(breadcrumbs) {
     if (!breadcrumbs || breadcrumbs.length === 0) return "";
 
@@ -723,6 +742,13 @@
       contentClass = "",
     } = options;
 
+    const resolvedHeaderActions =
+      headerActions === null
+        ? ""
+        : String(headerActions || "").trim()
+          ? headerActions
+          : renderDefaultHeaderActions();
+
     // Don't inject if already has shell
     if (document.querySelector(".app-shell")) return;
 
@@ -739,7 +765,7 @@
             <div class="app-shell">
                 ${renderSidebar()}
                 <main class="app-main">
-                    ${renderHeader(title, headerActions, breadcrumbs)}
+            ${renderHeader(title, resolvedHeaderActions, breadcrumbs)}
                     ${showProgress ? '<div id="progressTracker"></div>' : ""}
                     <div class="app-content ${contentClass}"></div>
                 </main>

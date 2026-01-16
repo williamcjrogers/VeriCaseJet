@@ -4,7 +4,12 @@
 param(
     [Parameter(Position=0)]
     [ValidateSet("local", "ec2", "eks", "build", "status")]
-    [string]$Command = "status"
+    [string]$Command = "status",
+
+    # Optional overrides (primarily for EKS)
+    [string]$Namespace = "vericase",
+    # Example: wcjrogers/vericase-api:latest OR wcjrogers/vericase-api@sha256:...
+    [string]$Image = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,6 +40,10 @@ function Show-Usage {
     Write-Host "  eks       Deploy to EKS cluster ($EKS_CLUSTER)"
     Write-Host "  build     Build and push Docker image"
     Write-Host "  status    Show deployment status"
+    Write-Host ""
+    Write-Host "Options:"
+    Write-Host "  -Namespace   Kubernetes namespace (default: vericase)"
+    Write-Host "  -Image       Override image for EKS deploy (tag or digest)"
     Write-Host ""
 }
 
@@ -176,17 +185,26 @@ function Deploy-EKS {
     aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER
 
     Log-Info "Applying Kubernetes manifests..."
-    kubectl apply -f k8s-deployment.yaml
-    kubectl apply -f k8s-ingress.yaml
+    kubectl apply -f k8s\k8s-deployment.yaml
+    kubectl apply -f k8s\k8s-ingress.yaml
+
+    if ($Image) {
+        Log-Info "Setting deployment images to $Image in namespace '$Namespace'..."
+        kubectl set image deployment/vericase-api vericase-api=$Image -n $Namespace
+        kubectl set image deployment/vericase-worker vericase-worker=$Image -n $Namespace
+    }
 
     Log-Info "Restarting deployment..."
-    kubectl rollout restart deployment/vericase-api
+    kubectl rollout restart deployment/vericase-api -n $Namespace
+    kubectl rollout restart deployment/vericase-worker -n $Namespace
 
     Log-Info "Waiting for rollout..."
-    kubectl rollout status deployment/vericase-api --timeout=300s
+    kubectl rollout status deployment/vericase-api -n $Namespace --timeout=300s
+    kubectl rollout status deployment/vericase-worker -n $Namespace --timeout=300s
 
     Log-Success "EKS deployment complete!"
-    kubectl get pods -l app=vericase-api
+    kubectl get pods -n $Namespace -l app=vericase-api
+    kubectl get pods -n $Namespace -l app=vericase-worker
 }
 
 function Build-Push {
@@ -194,6 +212,17 @@ function Build-Push {
 
     docker build -t $DOCKER_IMAGE -f api/Dockerfile .
     docker push $DOCKER_IMAGE
+
+    # Helpful for digest-pinned Kubernetes deployments
+    try {
+        $repoDigest = docker inspect --format='{{index .RepoDigests 0}}' $DOCKER_IMAGE 2>$null
+        if ($repoDigest) {
+            Log-Info "Image repo digest: $repoDigest"
+            Log-Info "Tip: deploy with: .\\ops\\deploy.ps1 eks -Namespace $Namespace -Image $repoDigest"
+        }
+    } catch {
+        # Best-effort only; ignore digest lookup failures.
+    }
 
     Log-Success "Image pushed: $DOCKER_IMAGE"
 }
@@ -222,7 +251,7 @@ function Show-Status {
 
     Write-Host "EKS ($EKS_CLUSTER):" -ForegroundColor Yellow
     try {
-        kubectl get pods -l app=vericase-api 2>$null
+        kubectl get pods -n $Namespace -l app=vericase-api 2>$null
     } catch {
         Write-Host "  Not configured" -ForegroundColor Gray
     }

@@ -30,7 +30,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..email_content import select_best_body
+from ..email_content import html_to_text, select_best_body
 from ..email_normalizer import build_content_hash
 from ..forensic_integrity import compute_normalized_text_hash
 from ..models import (
@@ -46,6 +46,24 @@ from ..spam_filter import SpamClassifier, extract_other_project
 from ..storage import put_object
 
 logger = logging.getLogger("vericase")
+
+
+_HTML_MARKUP_RE = re.compile(
+    r"(?is)^\s*(?:<!doctype\s+html\b|<html\b|<head\b|<body\b|<div\b|<p\b|<span\b)"
+)
+
+
+def _looks_like_html_markup(text: str | None) -> bool:
+    if not text or not isinstance(text, str):
+        return False
+    s = text.lstrip()
+    if not s:
+        return False
+    if _HTML_MARKUP_RE.search(s):
+        return True
+    # Count generic tags as a fallback heuristic.
+    tag_count = len(re.findall(r"<\s*\/?\s*[A-Za-z][A-Za-z0-9:_-]*\b", s))
+    return tag_count >= 8
 
 
 @dataclass
@@ -221,6 +239,19 @@ def parse_eml_bytes(raw: bytes) -> ParsedEmail:
         else:
             body_plain = _text_part_to_str(msg)
 
+    # Guard: some emails put HTML markup into the text/plain part.
+    if body_plain and not body_html and _looks_like_html_markup(body_plain):
+        body_html = body_plain
+        body_plain = None
+    # Ensure we have a reasonable plain-text fallback when only HTML exists.
+    if not body_plain and body_html:
+        try:
+            derived = html_to_text(body_html)
+            if derived and derived.strip():
+                body_plain = derived
+        except Exception:
+            pass
+
     return ParsedEmail(
         subject=subject,
         sender_email=sender_email,
@@ -260,9 +291,15 @@ def parse_msg_bytes(raw: bytes) -> ParsedEmail:
         tmp.write(raw)
         tmp.flush()
 
+        m: Any | None = None
         try:
             m = extract_msg.Message(tmp.name)
-            m.process()
+            # extract-msg API compatibility:
+            # - Older versions exposed Message.process()
+            # - Newer versions (e.g. 0.55.0) parse lazily and do NOT have process()
+            maybe_process = getattr(m, "process", None)
+            if callable(maybe_process):
+                maybe_process()
         except Exception as exc:
             raise HTTPException(
                 status_code=400, detail=f"Failed to parse MSG: {exc}"
@@ -287,50 +324,80 @@ def parse_msg_bytes(raw: bytes) -> ParsedEmail:
         body_rtf = getattr(m, "rtfBody", None)
 
         attachments: list[ParsedAttachment] = []
-        for i, att in enumerate(getattr(m, "attachments", []) or []):
-            try:
-                fname = (
-                    getattr(att, "longFilename", None)
-                    or getattr(att, "shortFilename", None)
-                    or getattr(att, "filename", None)
-                    or f"attachment_{i}"
-                )
-                fname = str(fname)
-
-                data: bytes | None = None
-                if hasattr(att, "data"):
-                    data = getattr(att, "data")
-                elif hasattr(att, "getData"):
-                    data = att.getData()  # type: ignore[attr-defined]
-
-                if data is None and hasattr(att, "save"):
-                    with tempfile.TemporaryDirectory() as td:
-                        try:
-                            path = att.save(customPath=td)  # type: ignore[attr-defined]
-                        except TypeError:
-                            path = att.save(td)  # type: ignore[attr-defined]
-                        if path and os.path.exists(path):
-                            with open(path, "rb") as fh:
-                                data = fh.read()
-
-                if not data:
-                    continue
-
-                ct, _ = mimetypes.guess_type(fname)
-                attachments.append(
-                    ParsedAttachment(
-                        filename=fname,
-                        content_type=ct or "application/octet-stream",
-                        data=data,
-                        is_inline=False,
-                        content_id=None,
+        try:
+            for i, att in enumerate(getattr(m, "attachments", []) or []):
+                try:
+                    fname = (
+                        getattr(att, "longFilename", None)
+                        or getattr(att, "shortFilename", None)
+                        or getattr(att, "filename", None)
+                        or f"attachment_{i}"
                     )
-                )
+                    fname = str(fname)
+
+                    data: bytes | None = None
+                    if hasattr(att, "data"):
+                        data = getattr(att, "data")
+                    elif hasattr(att, "getData"):
+                        data = att.getData()  # type: ignore[attr-defined]
+
+                    if data is None and hasattr(att, "save"):
+                        with tempfile.TemporaryDirectory() as td:
+                            try:
+                                path = att.save(customPath=td)  # type: ignore[attr-defined]
+                            except TypeError:
+                                path = att.save(td)  # type: ignore[attr-defined]
+                            if path and os.path.exists(path):
+                                with open(path, "rb") as fh:
+                                    data = fh.read()
+
+                    if not data:
+                        continue
+
+                    ct, _ = mimetypes.guess_type(fname)
+                    attachments.append(
+                        ParsedAttachment(
+                            filename=fname,
+                            content_type=ct or "application/octet-stream",
+                            data=data,
+                            is_inline=False,
+                            content_id=None,
+                        )
+                    )
+                except Exception:
+                    continue
+        finally:
+            # Ensure file handles are released (extract-msg keeps the OLE file open).
+            try:
+                if m is not None and callable(getattr(m, "close", None)):
+                    m.close()
             except Exception:
-                continue
+                pass
 
         # extract_msg does not expose full RFC headers reliably; keep a small hint.
         raw_headers = {"X-Parsed-By": "extract_msg"}
+
+        body_plain_str = str(body_plain) if body_plain is not None else None
+        body_html_str = str(body_html) if body_html is not None else None
+        body_rtf_str = str(body_rtf) if body_rtf is not None else None
+
+        # Guard: some MSG files expose HTML markup only via .body (htmlBody empty).
+        if (
+            not body_html_str
+            and body_plain_str
+            and _looks_like_html_markup(body_plain_str)
+        ):
+            body_html_str = body_plain_str
+            body_plain_str = None
+
+        # Ensure a plain-text fallback exists for display/search when only HTML exists.
+        if not body_plain_str and body_html_str:
+            try:
+                derived = html_to_text(body_html_str)
+                if derived and derived.strip():
+                    body_plain_str = derived
+            except Exception:
+                pass
 
         return ParsedEmail(
             subject=subject,
@@ -344,9 +411,9 @@ def parse_msg_bytes(raw: bytes) -> ParsedEmail:
             message_id=None,
             in_reply_to=None,
             references=None,
-            body_plain=str(body_plain) if body_plain is not None else None,
-            body_html=str(body_html) if body_html is not None else None,
-            body_rtf=str(body_rtf) if body_rtf is not None else None,
+            body_plain=body_plain_str,
+            body_html=body_html_str,
+            body_rtf=body_rtf_str,
             attachments=attachments,
             raw_headers=raw_headers,
         )

@@ -192,11 +192,13 @@
 
         /* === STATS PANEL === */
         .cc-stats-panel {
-            background: white;
-            border: 1px solid var(--border-default);
-            border-radius: 8px;
-            padding: 24px;
-            box-shadow: 4px 4px 0px rgba(15, 23, 42, 0.05);
+            /* Split the “long bar” into 3 cards (one per category).
+               Keep the title, but let the background detailing show through. */
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 0;
+            box-shadow: none;
         }
 
         .stats-panel-title {
@@ -205,32 +207,80 @@
             text-transform: uppercase;
             letter-spacing: 1px;
             color: var(--text-muted);
-            margin: 0 0 20px;
+            margin: 0 0 12px;
         }
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 24px;
+            /* Prevent the "label far-left / value far-right" look on wide screens */
+            grid-template-columns: repeat(3, minmax(220px, 340px));
+            justify-content: start;
+            gap: 16px;
         }
 
         .stat-column {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
+            position: relative;
+            overflow: hidden;
+            padding: 16px 16px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            background: rgba(255, 255, 255, 0.78);
+            box-shadow: 3px 3px 0px rgba(15, 23, 42, 0.035);
+            backdrop-filter: blur(6px);
+        }
+
+        .stat-column::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 0;
+            height: 3px;
+            background: rgba(31, 111, 120, 0.85);
+        }
+
+        .stat-column.emails::before {
+            background: rgba(31, 111, 120, 0.9);
+        }
+
+        .stat-column.evidence::before {
+            background: rgba(197, 160, 101, 0.9);
+        }
+
+        .stat-column.documents::before {
+            background: rgba(15, 23, 42, 0.65);
         }
 
         .stat-column-header {
             display: flex;
             align-items: center;
             gap: 8px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid var(--border-default);
+            padding-bottom: 2px;
         }
 
         .stat-column-header i {
-            font-size: 0.875rem;
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.95rem;
+            color: var(--vericase-teal);
+            background: rgba(31, 111, 120, 0.12);
+        }
+
+        .stat-column.evidence .stat-column-header i {
             color: var(--vericase-gold);
+            background: rgba(197, 160, 101, 0.16);
+        }
+
+        .stat-column.documents .stat-column-header i {
+            color: var(--vericase-navy);
+            background: rgba(15, 23, 42, 0.08);
         }
 
         .stat-column-header span {
@@ -243,6 +293,14 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            padding-top: 2px;
+            max-width: 280px;
+            width: 100%;
+        }
+
+        .stat-row + .stat-row {
+            padding-top: 6px;
+            border-top: 1px dashed rgba(15, 23, 42, 0.12);
         }
 
         .stat-row-label {
@@ -695,7 +753,7 @@
             }
 
             .stats-grid {
-                grid-template-columns: repeat(3, 1fr);
+                grid-template-columns: repeat(2, minmax(220px, 1fr));
             }
         }
 
@@ -712,7 +770,7 @@
 
             .stats-grid {
                 grid-template-columns: 1fr;
-                gap: 16px;
+                gap: 14px;
             }
 
             .workspace-grid {
@@ -735,6 +793,15 @@
 	                <div class="cc-subtitle">Operate the platform.</div>
 	            </div>
 	            <div class="cc-header-actions">
+                    <a href="copilot.html" class="btn btn-ghost btn-icon btn-sm" title="VeriCase Assistant" aria-label="Open VeriCase Assistant">
+                        <i class="fas fa-balance-scale"></i>
+                    </a>
+                    <a href="admin-users.html" class="btn btn-ghost btn-icon btn-sm" title="Manage Team" aria-label="Open team management">
+                        <i class="fas fa-users-cog"></i>
+                    </a>
+                    <a href="admin-approvals.html" class="btn btn-ghost btn-icon btn-sm" id="pendingApprovalsIcon" style="display: none;" title="User Approvals" aria-label="Open user approvals">
+                        <i class="fas fa-user-clock"></i>
+                    </a>
 	                <button class="btn btn-vericase" id="createWorkspaceBtn" data-action="open-setup">
 	                    <i class="fas fa-plus"></i> New Workspace
 	                </button>
@@ -764,7 +831,7 @@
                 <h2 class="stats-panel-title">Activity Statistics</h2>
                 <div class="stats-grid">
                     <!-- Emails Column -->
-                    <div class="stat-column">
+                    <div class="stat-column emails">
                         <div class="stat-column-header">
                             <i class="fas fa-envelope"></i>
                             <span>Emails</span>
@@ -784,7 +851,7 @@
                     </div>
 
                     <!-- Evidence Column -->
-                    <div class="stat-column">
+                    <div class="stat-column evidence">
                         <div class="stat-column-header">
                             <i class="fas fa-file-alt"></i>
                             <span>Evidence</span>
@@ -804,7 +871,7 @@
                     </div>
 
                     <!-- Documents Column -->
-                    <div class="stat-column">
+                    <div class="stat-column documents">
                         <div class="stat-column-header">
                             <i class="fas fa-folder"></i>
                             <span>Documents</span>
@@ -933,17 +1000,19 @@
         let myActivity = [];
         let teamActivity = [];
 
-	        document.addEventListener("DOMContentLoaded", () => {
-	            if (window.VericaseShell && window.VericaseShell.inject) {
-	                VericaseShell.inject({
-	                    title: "",
-	                    breadcrumbs: null,
-	                    headerActions: ""
-	                });
-	            }
-	            setupControlCentre();
-	            loadData();
-	        });
+            document.addEventListener("DOMContentLoaded", () => {
+                if (window.VericaseShell && window.VericaseShell.inject) {
+                    // This page has its own in-content header actions.
+                    // Passing `null` opts out of the global default header icons to avoid duplication.
+                    VericaseShell.inject({
+                        title: "",
+                        breadcrumbs: null,
+                        headerActions: null
+                    });
+                }
+                setupControlCentre();
+                loadData();
+            });
 
         function setupControlCentre() {
             bindActionHandlers();
@@ -960,9 +1029,15 @@
                     const count = Array.isArray(users) ? users.length : 0;
                     const card = document.getElementById('pendingApprovalsCard');
                     const badge = document.getElementById('pendingBadge');
+                    const icon = document.getElementById('pendingApprovalsIcon');
                     if (card && count > 0) {
                         card.style.display = '';
                         if (badge) badge.textContent = count;
+                    }
+                    if (icon && count > 0) {
+                        icon.style.display = '';
+                        icon.title = `User Approvals (${count})`;
+                        icon.setAttribute('aria-label', `Open user approvals (${count} pending)`);
                     }
                 }
             } catch (e) {
