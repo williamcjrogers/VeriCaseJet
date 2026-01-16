@@ -36,7 +36,7 @@ spec:
       serviceAccountName: vericase-api-sa
       containers:
         - name: vericase-api
-          image: docker.io/wcjrogers/vericase-api@sha256:0de5d74f4553230c16fe0189484246c2b40f67f3df6cbe3dc261e5849ee43801
+          image: docker.io/wcjrogers/vericase-api@sha256:2628db1be3d2d9a052789dd3e643d794a117318c6d29196204bf76fc2f9d7e84
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
@@ -216,7 +216,7 @@ spec:
       serviceAccountName: vericase-api-sa
       containers:
         - name: vericase-worker
-          image: docker.io/wcjrogers/vericase-api@sha256:0de5d74f4553230c16fe0189484246c2b40f67f3df6cbe3dc261e5849ee43801
+          image: docker.io/wcjrogers/vericase-api@sha256:2628db1be3d2d9a052789dd3e643d794a117318c6d29196204bf76fc2f9d7e84
           imagePullPolicy: Always
           # IMPORTANT:
           # We run a single Celery process per pod for PST parsing to avoid OOM kills.
@@ -405,7 +405,7 @@ spec:
           type: Utilization
           averageUtilization: 80
 ---
-# HorizontalPodAutoscaler for Workers (scales 2-6 pods based on CPU)
+# HorizontalPodAutoscaler for Workers (scales 2-5 pods based on CPU)
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -417,7 +417,7 @@ spec:
     kind: Deployment
     name: vericase-worker
   minReplicas: 2
-  maxReplicas: 6
+  maxReplicas: 5
   metrics:
     - type: Resource
       resource:
