@@ -269,222 +269,113 @@ function getFileIconClass(filename) {
   return iconMap[ext] || "fas fa-file";
 }
 
-// Store current Excel workbook for sheet switching
-let currentExcelWorkbook = null;
+// Office previews (Word/Excel) are rendered server-side to avoid CSP/CDN/race issues.
+let currentExcelEvidenceId = null;
+let currentExcelFileName = null;
 
-// Render Excel file preview using SheetJS
-async function renderExcelPreview(url, fileName) {
+async function fetchOfficeRender(evidenceId, sheetName) {
+  const url = new URL(`${API_BASE}/api/evidence/items/${evidenceId}/office-render`);
+  if (sheetName) url.searchParams.set("sheet", sheetName);
+  url.searchParams.set("max_rows", "200");
+  url.searchParams.set("max_cols", "40");
+
+  const resp = await fetch(url.toString(), {
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
+  if (!resp.ok) {
+    const detail = (await resp.text()).trim();
+    throw new Error(detail || `Preview request failed (HTTP ${resp.status})`);
+  }
+  return resp.json();
+}
+
+function setOfficePreviewIframe(htmlDoc, title) {
+  const container = document.getElementById("officePreviewContainer");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const iframe = document.createElement("iframe");
+  iframe.title = title || "Office preview";
+  iframe.style.width = "100%";
+  iframe.style.height = "100%";
+  iframe.style.border = "0";
+  iframe.style.background = "white";
+  iframe.setAttribute("sandbox", "allow-same-origin"); // No scripts; isolate styling.
+  iframe.srcdoc = htmlDoc || "";
+  container.appendChild(iframe);
+}
+
+// Render Excel preview via server-side HTML conversion
+async function renderExcelPreview(evidenceId, fileName, sheetName) {
   const container = document.getElementById("officePreviewContainer");
   const tabsContainer = document.getElementById("excelSheetTabs");
   if (!container) return;
 
+  currentExcelEvidenceId = evidenceId;
+  currentExcelFileName = fileName || null;
+
   try {
-    // Fetch the file as array buffer
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("Failed to fetch file");
-    const arrayBuffer = await response.arrayBuffer();
+    const data = await fetchOfficeRender(evidenceId, sheetName);
+    const sheetNames = Array.isArray(data?.sheet_names) ? data.sheet_names : [];
+    const active = data?.sheet || (sheetNames[0] || null);
 
-    // Parse with SheetJS
-    if (typeof XLSX === "undefined") {
-      throw new Error("SheetJS library not loaded");
+    if (tabsContainer) {
+      tabsContainer.innerHTML = "";
+      if (sheetNames.length > 1) {
+        sheetNames.forEach((name) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = name;
+          btn.style.padding = "4px 12px";
+          btn.style.border = "none";
+          btn.style.borderRadius = "4px";
+          btn.style.cursor = "pointer";
+          btn.style.fontSize = "0.75rem";
+          btn.style.fontWeight = "500";
+          const isActive = name === active;
+          btn.style.background = isActive ? "white" : "rgba(255,255,255,0.2)";
+          btn.style.color = isActive ? "#217346" : "white";
+          btn.addEventListener("click", () => renderExcelPreview(evidenceId, fileName, name));
+          tabsContainer.appendChild(btn);
+        });
+      }
     }
 
-    const workbook = XLSX.read(arrayBuffer, { type: "array" });
-    currentExcelWorkbook = workbook;
-
-    // Create sheet tabs if multiple sheets
-    if (workbook.SheetNames.length > 1 && tabsContainer) {
-      tabsContainer.innerHTML = workbook.SheetNames.map((name, idx) =>
-        `<button onclick="switchExcelSheet('${name.replace(/'/g, "\\'")}', this)"
-                style="padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 500;
-                       ${idx === 0 ? 'background: white; color: #217346;' : 'background: rgba(255,255,255,0.2); color: white;'}"
-                ${idx === 0 ? 'class="active-sheet"' : ''}>
-          ${escapeHtml(name)}
-        </button>`
-      ).join("");
-    }
-
-    // Render first sheet
-    renderExcelSheet(workbook.SheetNames[0]);
-
+    setOfficePreviewIframe(data?.html || "", fileName || "Spreadsheet");
   } catch (error) {
     console.error("Excel preview error:", error);
     container.innerHTML = `
       <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #6b7280; padding: 40px;">
         <i class="fas fa-exclamation-triangle" style="font-size: 3rem; color: #ef4444; margin-bottom: 16px;"></i>
         <p style="margin: 0 0 8px 0; font-weight: 600; color: #374151;">Unable to preview spreadsheet</p>
-        <p style="margin: 0; text-align: center; font-size: 0.875rem;">${escapeHtml(error.message)}</p>
+        <p style="margin: 0; text-align: center; font-size: 0.875rem;">${escapeHtml(error?.message || String(error))}</p>
       </div>`;
   }
 }
 
-// Render a specific Excel sheet
-function renderExcelSheet(sheetName) {
-  const container = document.getElementById("officePreviewContainer");
-  if (!container || !currentExcelWorkbook) return;
-
-  const worksheet = currentExcelWorkbook.Sheets[sheetName];
-  if (!worksheet) return;
-
-  // Convert to HTML table
-  const html = XLSX.utils.sheet_to_html(worksheet, { editable: false });
-
-  // Style the table for better presentation
-  container.innerHTML = `
-    <style>
-      #officePreviewContainer table {
-        border-collapse: collapse;
-        width: 100%;
-        font-size: 0.8125rem;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      }
-      #officePreviewContainer th,
-      #officePreviewContainer td {
-        border: 1px solid #e5e7eb;
-        padding: 6px 10px;
-        text-align: left;
-        white-space: nowrap;
-        max-width: 300px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      #officePreviewContainer th {
-        background: #f3f4f6;
-        font-weight: 600;
-        color: #374151;
-        position: sticky;
-        top: 0;
-        z-index: 1;
-      }
-      #officePreviewContainer tr:nth-child(even) {
-        background: #f9fafb;
-      }
-      #officePreviewContainer tr:hover {
-        background: #e5f3ff;
-      }
-    </style>
-    ${html}
-  `;
-}
-
-// Switch between Excel sheets
-window.switchExcelSheet = function(sheetName, btn) {
-  renderExcelSheet(sheetName);
-
-  // Update tab styling
-  const tabsContainer = document.getElementById("excelSheetTabs");
-  if (tabsContainer) {
-    tabsContainer.querySelectorAll("button").forEach(b => {
-      b.style.background = "rgba(255,255,255,0.2)";
-      b.style.color = "white";
-    });
-    if (btn) {
-      btn.style.background = "white";
-      btn.style.color = "#217346";
-    }
-  }
+// Back-compat global for inline handlers (if any)
+window.switchExcelSheet = function (sheetName) {
+  if (!currentExcelEvidenceId) return;
+  return renderExcelPreview(currentExcelEvidenceId, currentExcelFileName, sheetName);
 };
 
-// Render Word document preview using Mammoth.js
-async function renderWordPreview(url, fileName) {
+// Render Word preview via server-side HTML conversion
+async function renderWordPreview(evidenceId, fileName) {
   const container = document.getElementById("officePreviewContainer");
   if (!container) return;
 
   try {
-    // Fetch the file as array buffer
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("Failed to fetch file");
-    const arrayBuffer = await response.arrayBuffer();
-
-    // Parse with Mammoth.js
-    if (typeof mammoth === "undefined") {
-      throw new Error("Mammoth.js library not loaded");
-    }
-
-    const result = await mammoth.convertToHtml({ arrayBuffer });
-
-    // Style the Word content
-    container.innerHTML = `
-      <style>
-        #officePreviewContainer .word-content {
-          font-family: 'Cambria', 'Georgia', serif;
-          font-size: 0.95rem;
-          line-height: 1.8;
-          color: #1f2937;
-          max-width: 800px;
-          margin: 0 auto;
-        }
-        #officePreviewContainer .word-content h1 {
-          font-size: 1.75rem;
-          font-weight: 700;
-          margin: 1.5em 0 0.5em;
-          color: #111827;
-        }
-        #officePreviewContainer .word-content h2 {
-          font-size: 1.375rem;
-          font-weight: 600;
-          margin: 1.25em 0 0.5em;
-          color: #1f2937;
-        }
-        #officePreviewContainer .word-content h3 {
-          font-size: 1.125rem;
-          font-weight: 600;
-          margin: 1em 0 0.5em;
-          color: #374151;
-        }
-        #officePreviewContainer .word-content p {
-          margin: 0 0 1em;
-        }
-        #officePreviewContainer .word-content table {
-          border-collapse: collapse;
-          width: 100%;
-          margin: 1em 0;
-        }
-        #officePreviewContainer .word-content th,
-        #officePreviewContainer .word-content td {
-          border: 1px solid #d1d5db;
-          padding: 8px 12px;
-          text-align: left;
-        }
-        #officePreviewContainer .word-content th {
-          background: #f3f4f6;
-          font-weight: 600;
-        }
-        #officePreviewContainer .word-content ul,
-        #officePreviewContainer .word-content ol {
-          margin: 0.5em 0 1em;
-          padding-left: 2em;
-        }
-        #officePreviewContainer .word-content li {
-          margin: 0.25em 0;
-        }
-        #officePreviewContainer .word-content img {
-          max-width: 100%;
-          height: auto;
-          margin: 1em 0;
-        }
-        #officePreviewContainer .word-content a {
-          color: #2563eb;
-          text-decoration: underline;
-        }
-      </style>
-      <div class="word-content">
-        ${result.value}
-      </div>
-    `;
-
-    // Log any conversion warnings
-    if (result.messages && result.messages.length > 0) {
-      console.warn("Mammoth conversion warnings:", result.messages);
-    }
-
+    const data = await fetchOfficeRender(evidenceId, null);
+    setOfficePreviewIframe(data?.html || "", fileName || "Document");
   } catch (error) {
     console.error("Word preview error:", error);
     container.innerHTML = `
       <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #6b7280; padding: 40px;">
         <i class="fas fa-exclamation-triangle" style="font-size: 3rem; color: #ef4444; margin-bottom: 16px;"></i>
         <p style="margin: 0 0 8px 0; font-weight: 600; color: #374151;">Unable to preview document</p>
-        <p style="margin: 0; text-align: center; font-size: 0.875rem;">${escapeHtml(error.message)}</p>
+        <p style="margin: 0; text-align: center; font-size: 0.875rem;">${escapeHtml(error?.message || String(error))}</p>
       </div>`;
   }
 }
@@ -1791,7 +1682,7 @@ window.previewAttachment = async function (
                           </div>
                         </div>`;
       // Load and render Excel after DOM update
-      setTimeout(() => renderExcelPreview(url, fileName), 50);
+      setTimeout(() => renderExcelPreview(documentId, fileName), 50);
     } else if (isWord) {
       // Word documents - render using Mammoth.js
       previewHTML += `
@@ -1813,7 +1704,7 @@ window.previewAttachment = async function (
                           </div>
                         </div>`;
       // Load and render Word doc after DOM update
-      setTimeout(() => renderWordPreview(url, fileName), 50);
+      setTimeout(() => renderWordPreview(documentId, fileName), 50);
     } else if (isPowerPoint) {
       // PowerPoint - show extracted text/slides info
       const pptText = preview.preview_content || (ocrData && ocrData.text);

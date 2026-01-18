@@ -61,6 +61,14 @@ _HTML_COMMON_TAG_RE = re.compile(
     r"(?is)<\s*\/?\s*(?:div|span|p|br|table|tr|td|th|style|meta|link|font|center|a)\b"
 )
 
+# Best-effort parsing of embedded forwarded messages (Outlook-style blocks inside body).
+_EMBEDDED_HEADER_RE = re.compile(
+    r"(?i)^\s*>*\s*(from|sent|date|to|cc|bcc|subject)\s*:\s*(.*)$"
+)
+_EMBEDDED_SEPARATOR_RE = re.compile(
+    r"(?i)^\s*(?:-+\s*original message\s*-+|-+\s*forwarded message\s*-+|begin forwarded message)\s*$"
+)
+
 
 def _looks_like_html_markup(text: str | None) -> bool:
     if not text or not isinstance(text, str):
@@ -136,6 +144,211 @@ def _parse_date(date_header: str | None) -> datetime | None:
         return dt
     except Exception:
         return None
+
+
+def _parse_forwarded_datetime(value: str | None) -> datetime | None:
+    """Parse forwarded/replied message date blocks (Outlook/Gmail-ish)."""
+
+    if not value:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+
+    # RFC-ish first.
+    dt = _parse_date(text)
+    if dt:
+        return dt
+
+    # dateutil if present (best overall).
+    try:
+        from dateutil import parser as date_parser  # type: ignore
+
+        dt = date_parser.parse(text, fuzzy=True)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        pass
+
+    # Common Outlook formats (no timezone).
+    fmts = [
+        "%A, %d %B %Y %H:%M",
+        "%A, %d %B %Y %H:%M:%S",
+        "%d %B %Y %H:%M",
+        "%d %B %Y %H:%M:%S",
+        "%a, %d %b %Y %H:%M",
+        "%a, %d %b %Y %H:%M:%S",
+        "%d %b %Y %H:%M",
+        "%d %b %Y %H:%M:%S",
+    ]
+    for fmt in fmts:
+        try:
+            dt = datetime.strptime(text, fmt)
+            return dt.replace(tzinfo=timezone.utc)
+        except Exception:
+            continue
+
+    return None
+
+
+def _parse_sender_from_header(value: str | None) -> tuple[str | None, str | None]:
+    if not value:
+        return None, None
+    raw = str(value).strip()
+    if not raw:
+        return None, None
+    name, addr = parseaddr(raw)
+    name = (name or "").strip() or None
+    addr = (addr or "").strip() or None
+
+    # If parseaddr returns a "non-email" addr, treat it as name.
+    if addr and "@" not in addr:
+        if not name:
+            name = addr
+        addr = None
+
+    if not addr and not name:
+        return None, raw
+
+    return addr, name
+
+
+def _parse_recipients_from_header(value: str | None) -> list[str] | None:
+    if not value:
+        return None
+    pairs = getaddresses([str(value)])
+    emails = [addr.strip() for _, addr in pairs if addr and addr.strip()]
+    return emails or None
+
+
+def _unquote_lines(text: str) -> str:
+    if not text:
+        return text
+    out: list[str] = []
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        while stripped.startswith(">"):
+            stripped = stripped[1:].lstrip()
+        out.append(stripped)
+    return "\n".join(out)
+
+
+def _extract_embedded_forwarded_emails(
+    body_text: str, *, max_emails: int = 25
+) -> list[ParsedEmail]:
+    """Best-effort extraction of embedded messages from forwarded/replied bodies."""
+
+    if not body_text:
+        return []
+
+    text = body_text
+    if len(text) > 300_000:
+        text = text[:300_000]
+
+    lines = text.splitlines()
+    i = 0
+    results: list[ParsedEmail] = []
+    seen: set[tuple[str | None, str | None, str | None]] = set()
+
+    def _header_kv(line: str) -> tuple[str, str] | None:
+        m = _EMBEDDED_HEADER_RE.match(line)
+        if not m:
+            return None
+        return m.group(1).lower(), (m.group(2) or "").strip()
+
+    while i < len(lines) and len(results) < max_emails:
+        line = lines[i].strip()
+        if _EMBEDDED_SEPARATOR_RE.match(line):
+            i += 1
+            continue
+
+        first = _header_kv(line)
+        if not first:
+            i += 1
+            continue
+
+        start_i = i
+        headers: dict[str, str] = {}
+        last_key: str | None = None
+
+        # Read a header block (until blank line or a non-header line).
+        while i < len(lines):
+            raw_line = lines[i]
+            stripped = raw_line.strip()
+            if not stripped:
+                i += 1
+                break
+            kv = _header_kv(stripped)
+            if kv:
+                key, val = kv
+                headers[key] = (
+                    headers.get(key, "") + ("\n" if key in headers else "") + val
+                ).strip()
+                last_key = key
+                i += 1
+                continue
+            if last_key and (raw_line.startswith(" ") or raw_line.startswith("\t")):
+                headers[last_key] = (headers.get(last_key, "") + " " + stripped).strip()
+                i += 1
+                continue
+            break
+
+        from_val = headers.get("from")
+        subject_val = headers.get("subject")
+        date_val = headers.get("sent") or headers.get("date")
+        if not (from_val and subject_val and date_val):
+            i = start_i + 1
+            continue
+
+        sender_email, sender_name = _parse_sender_from_header(from_val)
+        dt = _parse_forwarded_datetime(date_val)
+        subject = subject_val.strip() or None
+
+        # Read body until the next embedded header block.
+        body_lines: list[str] = []
+        while i < len(lines):
+            peek = lines[i].strip()
+            if _EMBEDDED_SEPARATOR_RE.match(peek):
+                break
+            if _header_kv(peek):
+                break
+            body_lines.append(lines[i])
+            i += 1
+
+        body_plain = _unquote_lines("\n".join(body_lines)).strip() or None
+
+        fp = (
+            (sender_email or sender_name or None),
+            subject,
+            (dt.isoformat() if dt else None),
+        )
+        if fp in seen:
+            continue
+        seen.add(fp)
+
+        results.append(
+            ParsedEmail(
+                subject=subject,
+                sender_email=sender_email,
+                sender_name=sender_name,
+                recipients_to=_parse_recipients_from_header(headers.get("to")),
+                recipients_cc=_parse_recipients_from_header(headers.get("cc")),
+                recipients_bcc=_parse_recipients_from_header(headers.get("bcc")),
+                date_sent=dt,
+                date_received=None,
+                message_id=None,
+                in_reply_to=None,
+                references=None,
+                body_plain=body_plain,
+                body_html=None,
+                body_rtf=None,
+                attachments=[],
+                raw_headers={k: v for k, v in headers.items()},
+            )
+        )
+
+    return results
 
 
 def _text_part_to_str(part: Any) -> str | None:
@@ -682,6 +895,7 @@ async def upload_email_file_service(
 
     body_html_content = parsed.body_html or None
     full_body_text = body_selection.full_text or ""
+    full_body_text_original = full_body_text
 
     canonical_body = body_selection.top_text or ""
     # Mirror PST ingestion guardrails (avoid empty/too-short top_text).
@@ -989,9 +1203,113 @@ async def upload_email_file_service(
         email_message.meta["attachments"] = attachments_info
         email_message.meta["has_attachments"] = has_attachments
 
+    # Best-effort: extract embedded forwarded messages (common in saved .msg forwards).
+    embedded_created = 0
+    embedded_email_ids: list[str] = []
+    if not excluded:
+        try:
+            embedded = _extract_embedded_forwarded_emails(full_body_text_original)
+        except Exception:
+            embedded = []
+
+        if embedded:
+            for idx, emb in enumerate(embedded[:25]):
+                # Avoid inserting empty shells
+                if not (
+                    emb.subject or emb.sender_email or emb.sender_name or emb.body_plain
+                ):
+                    continue
+
+                sel = select_best_body(
+                    plain_text=emb.body_plain,
+                    html_body=emb.body_html,
+                    rtf_body=emb.body_rtf,
+                )
+                emb_full = (sel.full_text or "").strip()
+                emb_canon = (sel.top_text or "").strip()
+                if emb_canon and len(emb_canon) < 20 and len(emb_full) <= 200:
+                    emb_canon = emb_full
+                elif not emb_canon and emb_full and len(emb_full) > 200:
+                    emb_canon = emb_full
+
+                cleaned = clean_body_text(emb_canon)
+                if cleaned is not None:
+                    emb_canon = cleaned
+                if emb_canon:
+                    emb_canon = re.sub(r"\s+", " ", emb_canon).strip()
+
+                # Skip obvious duplicates of the parent.
+                if (
+                    (emb.sender_email and emb.sender_email == parsed.sender_email)
+                    and (emb.subject and emb.subject == parsed.subject)
+                    and (emb.date_sent and emb.date_sent == parsed.date_sent)
+                ):
+                    continue
+
+                emb_hash = build_content_hash(
+                    emb_canon or None,
+                    emb.sender_email,
+                    emb.sender_name,
+                    emb.recipients_to,
+                    emb.subject,
+                    emb.date_sent,
+                )
+                if emb_hash and emb_hash == content_hash:
+                    continue
+
+                emb_norm_hash = (
+                    compute_normalized_text_hash(emb_canon) if emb_canon else None
+                )
+                emb_id = uuid.uuid4()
+                emb_meta: dict[str, Any] = {
+                    "source": f"{source_type}_embedded",
+                    "original_filename": file.filename,
+                    "derived_from_email_id": str(email_id),
+                    "embedded_index": idx,
+                    "normalizer_version": NORMALIZER_VERSION,
+                    "normalizer_ruleset_hash": NORMALIZER_RULESET_HASH,
+                    "raw_headers": emb.raw_headers,
+                }
+
+                db.add(
+                    EmailMessage(
+                        id=emb_id,
+                        pst_file_id=pst_uuid,
+                        case_id=pst.case_id,
+                        project_id=pst.project_id,
+                        message_id=None,
+                        in_reply_to=None,
+                        email_references=None,
+                        conversation_index=None,
+                        subject=emb.subject,
+                        sender_email=emb.sender_email,
+                        sender_name=emb.sender_name,
+                        recipients_to=emb.recipients_to,
+                        recipients_cc=emb.recipients_cc,
+                        recipients_bcc=emb.recipients_bcc,
+                        date_sent=emb.date_sent,
+                        date_received=None,
+                        body_text=emb_full or None,
+                        body_html=None,
+                        body_text_clean=emb_canon or None,
+                        body_text_clean_hash=emb_norm_hash,
+                        body_preview=(emb_full[:10000] if emb_full else None),
+                        body_full_s3_key=None,
+                        content_hash=emb_hash,
+                        has_attachments=False,
+                        meta=emb_meta,
+                    )
+                )
+                embedded_created += 1
+                embedded_email_ids.append(str(emb_id))
+
+            if isinstance(email_message.meta, dict) and embedded_created:
+                email_message.meta["embedded_extracted"] = embedded_created
+                email_message.meta["embedded_email_ids"] = embedded_email_ids
+
     # Best-effort progress update.
     try:
-        pst.processed_emails = int(pst.processed_emails or 0) + 1
+        pst.processed_emails = int(pst.processed_emails or 0) + 1 + embedded_created
     except Exception:
         pass
 
@@ -999,6 +1317,7 @@ async def upload_email_file_service(
 
     return {
         "email_id": str(email_id),
+        "embedded_email_ids": embedded_email_ids,
         "pst_file_id": pst_file_id,
         "excluded": excluded,
         "has_attachments": has_attachments,

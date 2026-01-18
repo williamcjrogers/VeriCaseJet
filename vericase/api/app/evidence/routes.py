@@ -36,6 +36,7 @@ from .services import (
     get_evidence_types_service,
     get_evidence_metadata_service,
     get_evidence_preview_service,
+    get_evidence_office_render_service,
     trigger_metadata_extraction_service,
     get_evidence_thumbnail_service,
     get_evidence_text_content_service,
@@ -331,6 +332,24 @@ async def get_evidence_preview_endpoint(
     evidence_id: str, db: DbSession, user: CurrentUser
 ):
     return await get_evidence_preview_service(evidence_id, db, user)
+
+
+@router.get("/items/{evidence_id}/office-render")
+async def get_evidence_office_render_endpoint(
+    evidence_id: str,
+    db: DbSession,
+    user: CurrentUser,
+    sheet: Annotated[str | None, Query(description="Excel sheet name")] = None,
+    max_rows: Annotated[
+        int, Query(description="Max rows to render", ge=1, le=1000)
+    ] = 200,
+    max_cols: Annotated[
+        int, Query(description="Max columns to render", ge=1, le=200)
+    ] = 40,
+):
+    return await get_evidence_office_render_service(
+        evidence_id, db, user, sheet=sheet, max_rows=max_rows, max_cols=max_cols
+    )
 
 
 @router.post("/items/{evidence_id}/extract-metadata")

@@ -9,10 +9,12 @@ from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy import or_, and_, func, desc
+from sqlalchemy.orm import Session
 
 from ..models import (
     Case,
     Project,
+    User,
     EmailMessage,
     EvidenceItem,
     EvidenceCollection,
@@ -2521,6 +2523,274 @@ async def get_evidence_preview_service(evidence_id, db, user):
         in ["image", "pdf", "text", "audio", "video"],
         "download_url": preview_url,
     }
+
+
+async def get_evidence_office_render_service(
+    evidence_id: str,
+    db: Session,
+    user: User,
+    *,
+    sheet: str | None = None,
+    max_rows: int = 200,
+    max_cols: int = 40,
+    max_chars: int = 300_000,
+) -> dict[str, Any]:
+    """Render Office documents to lightweight HTML for in-app preview.
+
+    Motivation: client-side previews (Mammoth/SheetJS) can fail due to CSP/CDN/race issues.
+    This endpoint provides a server-side fallback using Python libs already in the image.
+    """
+
+    _ = user  # auth enforced by routes
+    import html as _html
+    import io
+    import mimetypes
+    import re
+
+    try:
+        evidence_uuid = uuid.UUID(evidence_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid ID format")
+
+    item = db.query(EvidenceItem).filter(EvidenceItem.id == evidence_uuid).first()
+    if not item:
+        raise HTTPException(404, "Evidence item not found")
+
+    filename = item.filename or ""
+    lower_name = filename.lower()
+    mime_type = (
+        item.mime_type
+        or mimetypes.guess_type(filename)[0]
+        or "application/octet-stream"
+    )
+
+    # Hard caps to avoid huge responses.
+    max_rows = max(1, min(int(max_rows or 200), 1000))
+    max_cols = max(1, min(int(max_cols or 40), 200))
+    max_chars = max(10_000, min(int(max_chars or 300_000), 2_000_000))
+
+    data = get_object(item.s3_key, bucket=item.s3_bucket)
+    if not data:
+        raise HTTPException(404, "File content not found")
+
+    def _wrap_html(body: str, *, title: str | None = None) -> str:
+        safe_title = _html.escape(title or filename or "Document")
+        return (
+            "<!doctype html><html><head><meta charset='utf-8'/>"
+            "<meta name='viewport' content='width=device-width, initial-scale=1'/>"
+            f"<title>{safe_title}</title>"
+            "<style>"
+            "body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+            "margin:0;padding:18px 20px;color:#111827;background:#fff;}"
+            "h1,h2,h3{margin:0.8em 0 0.4em 0;}"
+            "p{margin:0.6em 0;line-height:1.6;}"
+            "table{border-collapse:collapse;width:100%;font-size:0.9rem;}"
+            "th,td{border:1px solid #e5e7eb;padding:6px 10px;text-align:left;vertical-align:top;}"
+            "th{background:#f3f4f6;position:sticky;top:0;z-index:1;}"
+            "tr:nth-child(even){background:#fafafa;}"
+            "pre{white-space:pre-wrap;word-break:break-word;}"
+            "code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;}"
+            "</style></head><body>"
+            f"{body}"
+            "</body></html>"
+        )
+
+    def _truncate(s: str) -> tuple[str, bool]:
+        if len(s) <= max_chars:
+            return s, False
+        return s[:max_chars] + "\n<!-- truncated -->", True
+
+    # ------------------------------------------------------------------
+    # DOCX
+    # ------------------------------------------------------------------
+    if lower_name.endswith(".docx") or "wordprocessingml" in mime_type:
+        try:
+            from docx import Document  # type: ignore
+            from docx.document import Document as _DocxDocument  # type: ignore
+            from docx.oxml.table import CT_Tbl  # type: ignore
+            from docx.oxml.text.paragraph import CT_P  # type: ignore
+            from docx.table import Table  # type: ignore
+            from docx.text.paragraph import Paragraph  # type: ignore
+        except Exception as exc:
+            raise HTTPException(
+                500, f"DOCX preview support unavailable: {exc}"
+            ) from exc
+
+        def _iter_block_items(parent: _DocxDocument):
+            parent_elm = parent.element.body
+            for child in parent_elm.iterchildren():
+                if isinstance(child, CT_P):
+                    yield Paragraph(child, parent)
+                elif isinstance(child, CT_Tbl):
+                    yield Table(child, parent)
+
+        def _render_paragraph(p: Paragraph) -> str:
+            text = (p.text or "").strip()
+            if not text and not p.runs:
+                return ""
+            # Basic run formatting.
+            parts: list[str] = []
+            for r in p.runs:
+                t = r.text or ""
+                if not t:
+                    continue
+                safe = _html.escape(t)
+                if r.bold:
+                    safe = f"<strong>{safe}</strong>"
+                if r.italic:
+                    safe = f"<em>{safe}</em>"
+                if r.underline:
+                    safe = f"<u>{safe}</u>"
+                parts.append(safe)
+            content = "".join(parts) if parts else _html.escape(p.text or "")
+            content = content.strip()
+            if not content:
+                return ""
+
+            style_name = None
+            try:
+                style_name = str(getattr(p.style, "name", "") or "")
+            except Exception:
+                style_name = ""
+
+            if style_name.lower().startswith("heading"):
+                m = re.search(r"(\d+)", style_name)
+                level = 1
+                if m:
+                    try:
+                        level = max(1, min(int(m.group(1)), 6))
+                    except Exception:
+                        level = 1
+                return f"<h{level}>{content}</h{level}>"
+
+            return f"<p>{content}</p>"
+
+        def _render_table(t: Table) -> str:
+            rows_html: list[str] = []
+            for row in t.rows:
+                cells_html: list[str] = []
+                for cell in row.cells:
+                    cells_html.append(
+                        f"<td>{_html.escape(cell.text or '').strip()}</td>"
+                    )
+                rows_html.append("<tr>" + "".join(cells_html) + "</tr>")
+            return "<table>" + "".join(rows_html) + "</table>"
+
+        doc = Document(io.BytesIO(data))
+        out_parts: list[str] = []
+        for blk in _iter_block_items(doc):
+            if hasattr(blk, "runs"):
+                html_part = _render_paragraph(blk)  # type: ignore[arg-type]
+            else:
+                html_part = _render_table(blk)  # type: ignore[arg-type]
+            if html_part:
+                out_parts.append(html_part)
+        html_body = _wrap_html("".join(out_parts), title=filename)
+        html_body, truncated = _truncate(html_body)
+        return {
+            "evidence_id": evidence_id,
+            "filename": filename,
+            "mime_type": mime_type,
+            "kind": "word",
+            "sheet_names": [],
+            "sheet": None,
+            "html": html_body,
+            "truncated": truncated,
+        }
+
+    # ------------------------------------------------------------------
+    # XLSX / CSV
+    # ------------------------------------------------------------------
+    if lower_name.endswith((".xlsx", ".xlsm")) or "spreadsheetml" in mime_type:
+        try:
+            import openpyxl  # type: ignore
+        except Exception as exc:
+            raise HTTPException(
+                500, f"XLSX preview support unavailable: {exc}"
+            ) from exc
+
+        wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+        sheet_names = list(wb.sheetnames or [])
+        if not sheet_names:
+            raise HTTPException(400, "Workbook contains no sheets")
+        sheet_name = sheet if sheet in sheet_names else sheet_names[0]
+        ws = wb[sheet_name]
+
+        # Render a bounded grid.
+        max_r = min(max_rows, int(getattr(ws, "max_row", max_rows) or max_rows))
+        max_c = min(max_cols, int(getattr(ws, "max_column", max_cols) or max_cols))
+
+        rows_html: list[str] = []
+        for ridx, row in enumerate(
+            ws.iter_rows(min_row=1, max_row=max_r, max_col=max_c, values_only=True),
+            start=1,
+        ):
+            cells = []
+            tag = "th" if ridx == 1 else "td"
+            for v in row:
+                s = "" if v is None else str(v)
+                cells.append(f"<{tag}>{_html.escape(s)}</{tag}>")
+            rows_html.append("<tr>" + "".join(cells) + "</tr>")
+
+        table = "<table>" + "".join(rows_html) + "</table>"
+        html_body = _wrap_html(table, title=filename)
+        html_body, truncated = _truncate(html_body)
+        return {
+            "evidence_id": evidence_id,
+            "filename": filename,
+            "mime_type": mime_type,
+            "kind": "excel",
+            "sheet_names": sheet_names,
+            "sheet": sheet_name,
+            "html": html_body,
+            "truncated": truncated,
+        }
+
+    if lower_name.endswith(".csv") or mime_type in {"text/csv"}:
+        # Lightweight CSV preview (bounded rows/cols).
+        try:
+            import csv
+        except Exception:
+            csv = None
+        text = None
+        try:
+            text = data.decode("utf-8", errors="replace")
+        except Exception:
+            text = None
+        if text is None or not csv:
+            raise HTTPException(400, "CSV preview unavailable")
+
+        reader = csv.reader(io.StringIO(text))
+        rows = []
+        for i, row in enumerate(reader):
+            if i >= max_rows:
+                break
+            rows.append(row[:max_cols])
+        if not rows:
+            rows = [[]]
+
+        rows_html = []
+        for ridx, row in enumerate(rows, start=1):
+            tag = "th" if ridx == 1 else "td"
+            cells = [f"<{tag}>{_html.escape(str(v))}</{tag}>" for v in row]
+            rows_html.append("<tr>" + "".join(cells) + "</tr>")
+        table = "<table>" + "".join(rows_html) + "</table>"
+        html_body = _wrap_html(table, title=filename)
+        html_body, truncated = _truncate(html_body)
+        return {
+            "evidence_id": evidence_id,
+            "filename": filename,
+            "mime_type": mime_type,
+            "kind": "excel",
+            "sheet_names": ["CSV"],
+            "sheet": "CSV",
+            "html": html_body,
+            "truncated": truncated,
+        }
+
+    raise HTTPException(
+        400, "Office preview supported only for .docx, .xlsx, .xlsm, .csv"
+    )
 
 
 async def trigger_metadata_extraction_service(evidence_id, db, user):

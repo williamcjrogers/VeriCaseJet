@@ -4884,6 +4884,7 @@
       title.textContent = selectedEvidence.filename;
 
       let html = "";
+      let officeSrcdoc = null;
 
       switch (currentPreviewData.preview_type) {
         case "image":
@@ -4913,6 +4914,30 @@
 
         case "text":
         case "office":
+          if (currentPreviewData.preview_type === "office") {
+            try {
+              const resp = await fetch(
+                `${apiUrl}/api/evidence/items/${selectedEvidence.id}/office-render?max_rows=200&max_cols=40`,
+              );
+              if (resp.ok) {
+                const data = await resp.json();
+                if (data && typeof data.html === "string" && data.html.trim()) {
+                  officeSrcdoc = data.html;
+                  html = `
+                    <div style="width: 90vw; height: calc(100vh - 150px); background: white; border-radius: 12px; overflow: hidden; border: 1px solid rgba(15,23,42,0.08);">
+                      <iframe id="officePreviewFrame" title="${escapeHtml(selectedEvidence.filename)}"
+                              style="width:100%; height:100%; border:0; background:white;"
+                              sandbox="allow-same-origin"></iframe>
+                    </div>
+                  `;
+                  break;
+                }
+              }
+            } catch (e) {
+              console.warn("Office render preview failed, falling back to text:", e);
+            }
+          }
+
           try {
             const response = await fetch(
               `${apiUrl}/api/evidence/items/${selectedEvidence.id}/text-content?max_length=100000`,
@@ -4942,6 +4967,10 @@
       }
 
       content.innerHTML = html;
+      if (officeSrcdoc) {
+        const frame = document.getElementById("officePreviewFrame");
+        if (frame) frame.srcdoc = officeSrcdoc;
+      }
       modal.classList.add("active");
     }
 
