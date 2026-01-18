@@ -2532,8 +2532,17 @@ window.toggleDetailPanel = function () {
   panel.classList.toggle("hidden");
 };
 
+let quickFilterDebounceTimer = null;
 window.onQuickFilterChanged = function () {
-  if (gridApi) gridApi.refreshServerSide({ purge: true });
+  // Avoid hammering the server-side datasource on every keystroke.
+  try {
+    if (quickFilterDebounceTimer) clearTimeout(quickFilterDebounceTimer);
+  } catch {
+    // ignore
+  }
+  quickFilterDebounceTimer = setTimeout(() => {
+    if (gridApi) gridApi.refreshServerSide({ purge: true });
+  }, 250);
 };
 
 /**
@@ -2832,14 +2841,199 @@ window.showAdvancedFilterHelp = function() {
   document.body.appendChild(modal);
 };
 
-window.applySmartFilter = function () {
+// ─────────────────────────────────────────────────────────────────────────────
+// FILTER ASSISTANT (UX wrapper around Smart + AI filtering)
+// ─────────────────────────────────────────────────────────────────────────────
+
+window.showFilterAssistantHelp = function () {
+  showModal({
+    title: "Search vs Filters (what does what?)",
+    widthPx: 900,
+    bodyHtml: `
+      <div style="display:flex; flex-direction:column; gap: 0.75rem;">
+        <div style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.5;">
+          <strong>Search</strong> is the main box in the toolbar. It does a fast keyword search (server-side) across common fields (subject/body/sender).
+        </div>
+
+        <div style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.5;">
+          <strong>Smart filter</strong> turns natural language into column filters (dates / from / to / attachments etc). It’s rule-based and predictable.
+        </div>
+
+        <div style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.5;">
+          <strong>AI filter</strong> asks Bedrock to generate a column filter model from your prompt (no email content is sent, just the grid schema).
+        </div>
+
+        <div style="font-size: 0.95rem; color: var(--text-secondary); line-height: 1.5;">
+          <strong>Advanced filter</strong> is AG Grid’s visual builder for complex AND/OR conditions across columns.
+        </div>
+      </div>
+    `,
+    footerHtml: `
+      <button class="btn btn-primary" id="vcOpenFilterAssistantBtn">
+        <i class="fas fa-wand-magic-sparkles"></i> Open filter assistant
+      </button>
+      <button class="btn btn-ghost" data-close="1">Close</button>
+    `,
+  });
+
+  // Wire the footer action (modal is the last one added by showModal)
+  try {
+    const openBtn = document.getElementById("vcOpenFilterAssistantBtn");
+    if (openBtn) {
+      openBtn.addEventListener("click", () => {
+        // Close current modal by clicking its data-close button (keeps showModal logic centralized)
+        document.querySelector(".modal-backdrop.visible [data-close='1']")?.click();
+        window.openFilterAssistant?.();
+      });
+    }
+  } catch {
+    // ignore
+  }
+};
+
+window.openFilterAssistant = function () {
+  const m = showModal({
+    title: "Filter assistant",
+    widthPx: 980,
+    bodyHtml: `
+      <div style="display:flex; flex-direction:column; gap: 0.75rem;">
+        <div style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5;">
+          Use <strong>Smart</strong> for quick, predictable rules. Use <strong>AI</strong> when your phrasing is complex.
+          Tip: press <strong>Enter</strong> for Smart, <strong>Ctrl+Enter</strong> for AI.
+        </div>
+
+        <div style="display:flex; gap: 0.5rem; align-items:center; flex-wrap: wrap;">
+          <input
+            id="filterAssistantInput"
+            style="flex: 1; min-width: 360px; padding: 0.55rem 0.75rem; border: 1px solid var(--border-default); border-radius: 10px;"
+            placeholder="e.g. 'Smith' in subject, from John, last 7 days, with attachments…"
+          />
+          <button class="btn btn-primary" id="filterAssistantSmartApply" title="Rule-based smart filter (fast)">
+            <i class="fas fa-check"></i> Smart apply
+          </button>
+          <button class="btn btn-primary" id="filterAssistantAiApply" title="Bedrock AI filter (flexible)">
+            <i class="fas fa-robot"></i> AI apply
+          </button>
+        </div>
+
+        <div id="filterAssistantStatus" class="filter-assistant-status"></div>
+
+        <label style="display:flex; align-items:center; gap: 0.5rem; font-size: 0.875rem; color: var(--text-secondary);">
+          <input type="checkbox" id="filterAssistantIncludeHidden" />
+          Include excluded/hidden emails (show everything)
+        </label>
+
+        <div style="font-size: 0.8125rem; color: var(--text-muted); line-height: 1.5;">
+          Examples:
+          <div><code>'smith' in subject</code> • <code>from John last 30 days</code> • <code>with attachments</code> • <code>in 2024</code></div>
+        </div>
+
+        <div style="display:flex; gap: 0.5rem; flex-wrap: wrap;">
+          <button class="btn" id="filterAssistantClearSmart" title="Remove only the filters added by Smart filter">Clear smart filters</button>
+          <button class="btn" id="filterAssistantClearAll" title="Clear all column filters in the grid">Clear all grid filters</button>
+        </div>
+      </div>
+    `,
+    footerHtml: `
+      <button class="btn btn-ghost" data-close="1">Close</button>
+    `,
+  });
+
+  const { modal } = m;
+  const input = modal.querySelector("#filterAssistantInput");
+  const statusEl = modal.querySelector("#filterAssistantStatus");
+  const includeHiddenEl = modal.querySelector("#filterAssistantIncludeHidden");
+
+  const setStatus = (text, kind) => {
+    if (!statusEl) return;
+    statusEl.textContent = text || "";
+    statusEl.classList.remove("success", "error");
+    if (kind) statusEl.classList.add(kind);
+  };
+
+  // Reflect current include-hidden setting
+  if (includeHiddenEl) {
+    includeHiddenEl.checked = !hideExcludedEmails;
+    includeHiddenEl.addEventListener("change", () => {
+      hideExcludedEmails = !includeHiddenEl.checked;
+      if (gridApi) gridApi.refreshServerSide({ purge: true });
+      setStatus(includeHiddenEl.checked ? "Showing excluded/hidden emails." : "Hiding excluded/hidden emails.", "success");
+    });
+  }
+
+  const runSmart = () => {
+    const q = (input?.value || "").trim();
+    window.applySmartFilter?.(q);
+  };
+  const runAI = async () => {
+    const q = (input?.value || "").trim();
+    await window.executeAIQuery?.(q, statusEl);
+  };
+
+  modal.querySelector("#filterAssistantSmartApply")?.addEventListener("click", runSmart);
+  modal.querySelector("#filterAssistantAiApply")?.addEventListener("click", () => void runAI());
+  modal.querySelector("#filterAssistantClearSmart")?.addEventListener("click", () => window.clearSmartFilter?.());
+  modal.querySelector("#filterAssistantClearAll")?.addEventListener("click", () => {
+    if (!gridApi) return;
+    try {
+      gridApi.setFilterModel({});
+      gridApi.refreshServerSide({ purge: true });
+      setStatus("Cleared grid filters.", "success");
+      toastInfo("Grid filters cleared.");
+    } catch (e) {
+      console.warn("Failed to clear grid filters:", e);
+    }
+  });
+
+  input?.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    if (e.ctrlKey || e.metaKey) {
+      void runAI();
+      return;
+    }
+    runSmart();
+  });
+
+  setTimeout(() => input?.focus(), 0);
+};
+
+window.applySmartFilter = function (rawOverride) {
   if (!gridApi || !gridApi.getFilterModel || !gridApi.setFilterModel) {
     toastError("Grid not ready yet.");
     return;
   }
 
-  const input = document.getElementById("smartFilterInput");
-  const raw = input ? input.value.trim() : "";
+  const input =
+    document.getElementById("smartFilterInput") ||
+    document.getElementById("filterAssistantInput");
+  const raw =
+    typeof rawOverride === "string" ? rawOverride.trim() : input ? input.value.trim() : "";
+
+  if (!raw) {
+    toastError("Enter a smart filter query (e.g. “from John last 7 days with attachments”).");
+    return;
+  }
+
+  // Align the visibility toggle with natural language expectations.
+  // Without this, “show excluded” can set a column filter but still not show excluded emails,
+  // because the server won't return hidden rows unless include_hidden=true.
+  try {
+    const lower = raw.toLowerCase();
+    const wantsExcluded =
+      /\b(show|include)\s+excluded\b/.test(lower) ||
+      /\bexcluded\s+(emails?|only)\b/.test(lower);
+    const hideExcluded = /\b(hide|remove)\s+excluded\b/.test(lower);
+    if (wantsExcluded) hideExcludedEmails = false;
+    if (hideExcluded) hideExcludedEmails = true;
+    const includeHiddenEl = document.getElementById("filterAssistantIncludeHidden");
+    if (includeHiddenEl && includeHiddenEl.type === "checkbox") {
+      includeHiddenEl.checked = !hideExcludedEmails;
+    }
+  } catch {
+    // ignore
+  }
+
   const parsed = parseSmartFilter(raw);
   if (parsed.error) {
     toastError(parsed.error);
@@ -2870,8 +3064,10 @@ window.clearSmartFilter = function () {
   smartFilterFields = new Set();
   smartFilterLastText = "";
 
-  const input = document.getElementById("smartFilterInput");
-  if (input) input.value = "";
+  const input1 = document.getElementById("smartFilterInput");
+  if (input1) input1.value = "";
+  const input2 = document.getElementById("filterAssistantInput");
+  if (input2) input2.value = "";
 
   gridApi.setFilterModel(model);
   gridApi.refreshServerSide({ purge: true });
@@ -2888,9 +3084,19 @@ window.clearSmartFilter = function () {
  * an AG Grid filter expression. Only column schema is sent, NOT email data.
  */
 window.executeAIQuery = async function() {
-  const input = document.getElementById("aiQueryInput");
-  const statusEl = document.getElementById("aiQueryStatus");
-  const query = input ? input.value.trim() : "";
+  const rawOverride = arguments.length > 0 ? arguments[0] : undefined;
+  const statusOverride = arguments.length > 1 ? arguments[1] : undefined;
+
+  const input =
+    document.getElementById("aiQueryInput") ||
+    document.getElementById("filterAssistantInput");
+  const statusEl =
+    statusOverride ||
+    document.getElementById("aiQueryStatus") ||
+    document.getElementById("filterAssistantStatus");
+
+  const query =
+    typeof rawOverride === "string" ? rawOverride.trim() : input ? input.value.trim() : "";
   
   if (!query) {
     toastError("Please enter a query for AI filtering.");
@@ -2905,7 +3111,10 @@ window.executeAIQuery = async function() {
   // Show loading state
   if (statusEl) {
     statusEl.textContent = "⏳ AI thinking...";
-    statusEl.className = "ai-query-status";
+    statusEl.className =
+      statusEl.id === "filterAssistantStatus"
+        ? "filter-assistant-status"
+        : "ai-query-status";
   }
   
   try {
@@ -2913,7 +3122,7 @@ window.executeAIQuery = async function() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${AUTH_TOKEN}`,
+        ...getAuthHeaders(),
       },
       body: JSON.stringify({ query }),
     });
@@ -2928,7 +3137,7 @@ window.executeAIQuery = async function() {
     if (!result.success) {
       if (statusEl) {
         statusEl.textContent = "❌ " + (result.explanation || "Failed");
-        statusEl.className = "ai-query-status error";
+        statusEl.className = statusEl.id === "filterAssistantStatus" ? "filter-assistant-status error" : "ai-query-status error";
       }
       toastError(result.explanation || "AI query failed.");
       return;
@@ -2945,7 +3154,7 @@ window.executeAIQuery = async function() {
     // Show success
     if (statusEl) {
       statusEl.textContent = "✓ " + result.explanation;
-      statusEl.className = "ai-query-status success";
+      statusEl.className = statusEl.id === "filterAssistantStatus" ? "filter-assistant-status success" : "ai-query-status success";
     }
     toastSuccess("AI filter applied: " + result.explanation);
     
@@ -2953,7 +3162,7 @@ window.executeAIQuery = async function() {
     console.error("AI query failed:", err);
     if (statusEl) {
       statusEl.textContent = "❌ " + err.message;
-      statusEl.className = "ai-query-status error";
+      statusEl.className = statusEl.id === "filterAssistantStatus" ? "filter-assistant-status error" : "ai-query-status error";
     }
     toastError("AI query failed: " + err.message);
   }
@@ -2969,6 +3178,11 @@ window.clearAIQuery = function() {
   if (statusEl) {
     statusEl.textContent = "";
     statusEl.className = "ai-query-status";
+  }
+  const modalStatusEl = document.getElementById("filterAssistantStatus");
+  if (modalStatusEl) {
+    modalStatusEl.textContent = "";
+    modalStatusEl.className = "filter-assistant-status";
   }
 };
 

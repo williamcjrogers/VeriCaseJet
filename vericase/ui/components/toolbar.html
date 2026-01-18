@@ -3,24 +3,17 @@
     <!-- Search -->
     <div class="search-box">
       <i class="fas fa-search"></i>
-      <label for="quickFilter"></label><input type="text" id="quickFilter" placeholder="Search emails... (Ctrl+K)"
+      <label for="quickFilter"></label><input type="text" id="quickFilter" aria-label="Search emails" placeholder="Search emails… (subject/body/sender)"
         onkeyup="onQuickFilterChanged()" />
     </div>
 
-    <!-- Smart Filter -->
-    <div class="smart-filter" title="Natural language filter: 'Smith' in subject, from John last 30 days, with attachments">
-      <i class="fas fa-magnifying-glass"></i>
-      <label for="smartFilterInput"></label><input
-        type="text"
-        id="smartFilterInput"
-        placeholder="Smart filter: 'Smith' in subject, from John, last 7 days, with attachments..."
-        onkeydown="if (event.key === 'Enter') { event.preventDefault(); applySmartFilter(); }"
-      />
-      <button class="btn btn-primary btn-sm" onclick="applySmartFilter()" title="Apply smart filter">
-        <i class="fas fa-check"></i> Apply
+    <!-- Filter Assistant (Smart / AI) -->
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="openFilterAssistant()" title="Guided natural-language filtering (Smart + AI)">
+        <i class="fas fa-wand-magic-sparkles"></i> Filter assistant
       </button>
-      <button class="btn btn-ghost btn-sm" onclick="clearSmartFilter()" title="Clear smart filter">
-        <i class="fas fa-times"></i>
+      <button class="btn btn-icon btn-ghost" onclick="showFilterAssistantHelp()" title="What does Search vs Filter do?">
+        <i class="fas fa-circle-question"></i>
       </button>
     </div>
 
@@ -32,21 +25,6 @@
       <button class="btn btn-icon btn-ghost" onclick="showAdvancedFilterHelp()" title="Learn about Advanced Filter">
         <i class="fas fa-circle-question"></i>
       </button>
-    </div>
-
-    <!-- AI Query (AWS Bedrock powered) -->
-    <div class="ai-query-box" id="aiQueryBox">
-      <i class="fas fa-robot" style="color: var(--vericase-teal);"></i>
-      <input
-        type="text"
-        id="aiQueryInput"
-        placeholder="AI: 'emails from John about payment in 2024...'"
-        onkeydown="if (event.key === 'Enter') { event.preventDefault(); executeAIQuery(); }"
-      />
-      <button class="btn btn-accent btn-sm" onclick="executeAIQuery()" title="Ask AI to filter">
-        <i class="fas fa-bolt"></i> AI Filter
-      </button>
-      <span id="aiQueryStatus" class="ai-query-status"></span>
     </div>
 
     <!-- Upload Actions -->
@@ -66,8 +44,8 @@
 
     <!-- Essential Filters -->
     <div class="toolbar-dropdown" id="filterDropdown">
-      <button class="btn" onclick="toggleFilterDropdown()" title="Filter">
-        <i class="fas fa-filter"></i> Filter
+      <button class="btn" onclick="toggleFilterDropdown()" title="Quick filters (Stakeholder / Keyword)">
+        <i class="fas fa-filter"></i> Quick filters
       </button>
       <div class="dropdown-menu" id="filterDropdownMenu">
         <button class="dropdown-item" onclick="showStakeholderFilter(); closeAllDropdowns()">

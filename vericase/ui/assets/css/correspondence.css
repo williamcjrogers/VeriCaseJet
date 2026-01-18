@@ -316,6 +316,21 @@ body::before {
   color: #ef4444;
 }
 
+/* Filter assistant status (used inside modals; not absolutely positioned) */
+.filter-assistant-status {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  min-height: 1.1rem;
+}
+
+.filter-assistant-status.success {
+  color: var(--vc-teal);
+}
+
+.filter-assistant-status.error {
+  color: #ef4444;
+}
+
 .toolbar-center {
   display: flex;
   align-items: center;
