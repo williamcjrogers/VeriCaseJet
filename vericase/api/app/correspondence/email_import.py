@@ -272,13 +272,13 @@ def _extract_embedded_forwarded_emails(
         headers: dict[str, str] = {}
         last_key: str | None = None
 
-        # Read a header block (until blank line or a non-header line).
+        # Read a header block (skip blank lines; stop on first non-header line).
         while i < len(lines):
             raw_line = lines[i]
             stripped = raw_line.strip()
             if not stripped:
                 i += 1
-                break
+                continue
             kv = _header_kv(stripped)
             if kv:
                 key, val = kv
