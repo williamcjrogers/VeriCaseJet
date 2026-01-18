@@ -891,30 +891,107 @@ async def complete_pst_multipart_upload_service(request, db):
         raise HTTPException(500, f"Failed to complete upload: {str(e)}")
 
 
-async def start_pst_processing_service(pst_file_id, db):
+async def start_pst_processing_service(pst_file_id, db, force: bool = False):
     pst_file = db.query(PSTFile).filter_by(id=pst_file_id).first()
     if not pst_file:
         raise HTTPException(404, "PST file not found")
 
-    status = (pst_file.processing_status or "").lower()
-    if (
-        status in {"processing", "pending"}
-        and pst_file.processing_started_at
-        and not pst_file.error_message
-    ):
-        return {
-            "success": True,
-            "task_id": None,
-            "pst_file_id": pst_file_id,
-            "message": "PST processing already started",
-        }
-    if status == "completed" and not pst_file.error_message:
+    now = datetime.now()
+    raw_status = (pst_file.processing_status or "").strip().lower()
+    # DB history: some deployments used "queued" (treat as "pending" for UI + controls).
+    status = "pending" if raw_status == "queued" else raw_status
+
+    # Idempotency / safety:
+    # - Completed: do nothing unless forced.
+    # - Processing: do nothing unless forced (admin can rescue instead).
+    # - Pending: treat as "already enqueued" only for a short window; after that,
+    #   allow re-enqueue to recover from missing workers / dead queues.
+    if status == "completed" and not pst_file.error_message and not force:
         return {
             "success": True,
             "task_id": None,
             "pst_file_id": pst_file_id,
             "message": "PST processing already completed",
         }
+
+    if status == "processing" and not force:
+        # Helpful UX: if it looks stale, tell the caller what to do next.
+        try:
+            stale_h = float(
+                getattr(settings, "PST_PROCESSING_STALE_AFTER_HOURS", 12.0) or 12.0
+            )
+        except Exception:
+            stale_h = 12.0
+
+        try:
+            started_at = pst_file.processing_started_at
+            if (
+                started_at is not None
+                and getattr(started_at, "tzinfo", None) is not None
+            ):
+                started_at = started_at.replace(tzinfo=None)
+        except Exception:
+            started_at = pst_file.processing_started_at
+
+        try:
+            age = now - started_at if started_at else None
+        except Exception:
+            age = None
+
+        if age is not None and age > timedelta(hours=stale_h):
+            return {
+                "success": True,
+                "task_id": None,
+                "pst_file_id": pst_file_id,
+                "message": (
+                    "PST is marked as processing but appears stale. "
+                    "If emails were partially extracted, use Admin Rescue (Finalize). "
+                    "If nothing was extracted, retry with ?force=true to re-enqueue."
+                ),
+            }
+        return {
+            "success": True,
+            "task_id": None,
+            "pst_file_id": pst_file_id,
+            "message": "PST processing already started",
+        }
+
+    if (
+        status in {"pending", "uploaded"}
+        and pst_file.processing_started_at
+        and not force
+    ):
+        # `processing_started_at` is used as "enqueued_at" while pending.
+        # Only suppress re-enqueue for a limited time window.
+        try:
+            enqueued_at = pst_file.processing_started_at
+            if (
+                enqueued_at is not None
+                and getattr(enqueued_at, "tzinfo", None) is not None
+            ):
+                enqueued_at = enqueued_at.replace(tzinfo=None)
+        except Exception:
+            enqueued_at = pst_file.processing_started_at
+
+        try:
+            min_age_m = float(
+                getattr(settings, "PST_PENDING_REENQUEUE_AFTER_MINUTES", 30.0) or 30.0
+            )
+        except Exception:
+            min_age_m = 30.0
+
+        try:
+            age = now - enqueued_at if enqueued_at else None
+        except Exception:
+            age = None
+
+        if age is not None and age < timedelta(minutes=min_age_m):
+            return {
+                "success": True,
+                "task_id": None,
+                "pst_file_id": pst_file_id,
+                "message": "PST processing already enqueued",
+            }
 
     if pst_file.project_id:
         project = db.query(Project).filter_by(id=pst_file.project_id).first()
@@ -951,16 +1028,28 @@ async def start_pst_processing_service(pst_file_id, db):
 
     pst_file.processing_status = "pending"
     pst_file.error_message = None
-    pst_file.processing_started_at = datetime.now()
+    pst_file.processing_started_at = now
+    pst_file.processing_completed_at = None
+    # If we are retrying after a failure (or forcing a requeue), reset counters so
+    # UI progress doesn't reflect stale values.
+    if force or (status == "failed"):
+        pst_file.total_emails = 0
+        pst_file.processed_emails = 0
     db.commit()
 
-    logger.info(f"Enqueued PST processing task {task.id} for file {pst_file_id}")
+    logger.info(
+        "Enqueued PST processing task %s for file %s (force=%s, prev_status=%s)",
+        task.id,
+        pst_file_id,
+        force,
+        raw_status,
+    )
 
     return {
         "success": True,
         "task_id": task.id,
         "pst_file_id": pst_file_id,
-        "message": "PST processing started",
+        "message": "PST processing enqueued",
     }
 
 
@@ -973,7 +1062,7 @@ async def get_pst_status_service(pst_file_id, db):
 
     def _derive_phase(status_value: str, total: int, processed: int) -> str:
         status_lc = (status_value or "").strip().lower()
-        if status_lc in {"uploaded", "pending"}:
+        if status_lc in {"uploaded", "queued", "pending"}:
             return "uploaded"
         if status_lc == "processing":
             if total > 0 and processed >= total:

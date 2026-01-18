@@ -67,6 +67,12 @@ class Settings:
         os.getenv("PST_TASK_TIME_LIMIT_S", "22200") or "22200"
     )  # default 6h10m
 
+    # If a PST is marked "processing" longer than this, it is likely orphaned and safe
+    # for a new worker to reclaim (used to avoid "stuck for days" records).
+    PST_PROCESSING_STALE_AFTER_HOURS = float(
+        os.getenv("PST_PROCESSING_STALE_AFTER_HOURS", "12") or "12"
+    )
+
     # Optional post-OCR enrichment (non-blocking, best-effort)
     ENABLE_DOCUMENT_ENRICHMENT = (
         os.getenv("ENABLE_DOCUMENT_ENRICHMENT", "false").lower() == "true"

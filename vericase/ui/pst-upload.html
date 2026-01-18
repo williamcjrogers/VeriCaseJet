@@ -606,6 +606,15 @@
       50% { opacity: 1; }
     }
 
+    .file-item.queued {
+      border-color: rgba(245, 158, 11, 0.35);
+      background: linear-gradient(90deg, rgba(245, 158, 11, 0.03), white);
+    }
+
+    .file-item.queued::before {
+      background: linear-gradient(180deg, #fbbf24, #f59e0b);
+    }
+
     .file-item.processing {
       border-color: rgba(245, 158, 11, 0.5);
       background: linear-gradient(90deg, rgba(245, 158, 11, 0.05), white);
@@ -841,6 +850,11 @@
 
     .file-status-badge.processing i {
       animation: spin 1.5s linear infinite;
+    }
+
+    .file-status-badge.queued {
+      background: rgba(245, 158, 11, 0.10);
+      color: #d97706;
     }
 
     .file-status-badge.complete {
@@ -1989,6 +2003,8 @@
           const processedEmails = Number(status.processed_emails || 0);
           const totalEmails = Number(status.total_emails || 0);
           const statusText = String(status.status || "").toLowerCase();
+          const queuedLike =
+            statusText === "pending" || statusText === "queued" || statusText === "uploaded";
 
           const updates = {
             pst_file_id: pstFileId,
@@ -2006,8 +2022,8 @@
             updates.progress = 100;
             stopPstProcessingMonitor(pstFileId);
           } else {
-            // Keep UI in "processing" while the backend is pending/processing.
-            updates.status = "processing";
+            // Distinguish "queued/pending" from active extraction.
+            updates.status = queuedLike ? "queued" : "processing";
             // If the backend can provide a determinate % (pre-count enabled), reflect it,
             // but never move the bar backwards (upload progress may already be 100).
             const pct = Number(status.progress_percent || 0);
@@ -2173,7 +2189,10 @@
         (f) => f.status === "error",
       ).length;
       uploadStats.uploading = fileQueue.filter(
-        (f) => f.status === "uploading" || f.status === "processing",
+        (f) =>
+          f.status === "uploading" ||
+          f.status === "processing" ||
+          f.status === "queued",
       ).length;
 
       // Animate stat counters
@@ -2221,10 +2240,17 @@
         document.getElementById("gpFill").style.width = `${avgProgress}%`;
         
         // Update phase text
-        const currentFile = fileQueue.find(f => f.status === "uploading" || f.status === "processing");
+        const currentFile = fileQueue.find(
+          (f) =>
+            f.status === "uploading" || f.status === "processing" || f.status === "queued",
+        );
         if (currentFile) {
           document.getElementById("gpPhase").textContent = 
-            currentFile.status === "processing" ? "Processing files..." : "Uploading files...";
+            currentFile.status === "processing"
+              ? "Processing files..."
+              : currentFile.status === "queued"
+                ? "Queued for processing..."
+                : "Uploading files...";
           
           // Show current file info
           const gpCurrentFile = document.getElementById("gpCurrentFile");
@@ -2283,6 +2309,7 @@
         const statusIcon = {
           pending: 'fa-clock',
           uploading: 'fa-arrow-up',
+          queued: 'fa-hourglass-half',
           processing: 'fa-cog',
           complete: 'fa-check',
           error: 'fa-exclamation'
@@ -2353,6 +2380,7 @@
       const texts = {
         pending: "Pending",
         uploading: "Uploading",
+        queued: "Queued",
         processing: "Processing",
         complete: "Complete",
         error: "Failed",
@@ -2424,6 +2452,7 @@
             const statusIcon = {
               pending: 'fa-clock',
               uploading: 'fa-arrow-up',
+              queued: 'fa-hourglass-half',
               processing: 'fa-cog',
               complete: 'fa-check',
               error: 'fa-exclamation'
@@ -2466,6 +2495,8 @@
             }
           } else if (updates.status === "error") {
             ToastManager.error("Upload Failed", `${item.name}: ${item.error || 'Unknown error'}`);
+          } else if (updates.status === "queued") {
+            ToastManager.info("Queued for Processing", `${item.name} is waiting for a processor`);
           } else if (updates.status === "processing") {
             ToastManager.info("Processing Started", `${item.name} is now being processed`);
           }
@@ -3327,7 +3358,13 @@
         // Many deployments disable PST pre-count; total_emails stays 0 until completion.
         // Showing "0 of 0" is misleading for pending/processing/failed, so show "?" instead.
         if (total > 0) return total.toLocaleString();
-        if (status === "pending" || status === "processing" || status === "failed") return "?";
+        if (
+          status === "queued" ||
+          status === "pending" ||
+          status === "processing" ||
+          status === "failed"
+        )
+          return "?";
         return "0";
       };
 
@@ -3378,6 +3415,8 @@
     function getStatusBadge(status, errorMessage) {
       const safeError = escapeHtml(errorMessage || "");
       const badges = {
+        queued:
+          '<span class="status-badge status-pending"><i class="fas fa-hourglass-half"></i> Queued</span>',
         pending:
           '<span class="status-badge status-pending"><i class="fas fa-clock"></i> Pending</span>',
         uploaded:
@@ -3398,6 +3437,7 @@
 
       if (
         pst.processing_status === "uploaded" ||
+        pst.processing_status === "queued" ||
         pst.processing_status === "pending" ||
         pst.processing_status === "failed"
       ) {
@@ -3472,7 +3512,20 @@
             }`,
           );
         }
-        alert("Processing started!");
+        let payload = null;
+        try {
+          payload = await response.json();
+        } catch (e) {
+          payload = null;
+        }
+        const msg =
+          (payload && payload.message) ||
+          "Processing request accepted. Check status for progress.";
+        if (window.ToastManager && typeof window.ToastManager.info === "function") {
+          window.ToastManager.info("PST Processing", msg);
+        } else {
+          alert(msg);
+        }
         loadPSTHistory();
       } catch (error) {
         alert("Failed to start processing: " + error.message);
@@ -3617,7 +3670,7 @@
           return;
         }
         // Include pending so newly-enqueued jobs show up immediately.
-        params.append("status", "pending,processing");
+        params.append("status", "queued,pending,processing");
         params.append("page_size", "10");
 
         const response = await fetch(
@@ -3629,7 +3682,10 @@
 
         const data = await response.json();
         activeProcessingFiles = data.items?.filter(
-          f => f.processing_status === "processing" || f.processing_status === "pending"
+          (f) =>
+            f.processing_status === "processing" ||
+            f.processing_status === "pending" ||
+            f.processing_status === "queued"
         ) || [];
 
         updateLiveTracker();

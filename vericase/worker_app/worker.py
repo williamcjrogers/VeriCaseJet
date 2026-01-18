@@ -2,6 +2,7 @@ import io
 import os
 import sys
 import tempfile
+from datetime import datetime, timedelta
 from celery import Celery
 import boto3
 from botocore.client import Config
@@ -417,6 +418,58 @@ def _update_pst_status(
                 ),
                 {"s": status, "i": pst_id},
             )
+
+
+def _try_claim_pst_for_processing(pst_id: str) -> bool:
+    """Best-effort claim to avoid duplicate PST processing tasks.
+
+    Why: the API may re-enqueue a PST that has been "pending" for a long time, and
+    Redis retries can also create duplicate deliveries. Without a claim step, two
+    workers could process the same PST simultaneously.
+
+    Strategy:
+    - Allow claiming when status is pending/queued/uploaded
+    - Allow reclaiming when status is processing but *stale* (or started_at is null)
+    """
+
+    try:
+        stale_hours = float(
+            getattr(settings, "PST_PROCESSING_STALE_AFTER_HOURS", 12.0) or 12.0
+        )
+    except Exception:
+        stale_hours = 12.0
+
+    # Use UTC naive; DB column may be timestamp or timestamptz depending on deployment.
+    stale_before = datetime.utcnow() - timedelta(hours=stale_hours)
+
+    try:
+        with engine.begin() as conn:
+            claimed = conn.execute(
+                text(
+                    """
+                    UPDATE pst_files
+                    SET processing_status = 'processing',
+                        processing_started_at = CURRENT_TIMESTAMP,
+                        error_message = NULL
+                    WHERE id::text = :i
+                      AND (
+                        processing_status IN ('pending', 'queued', 'uploaded')
+                        OR (
+                          processing_status = 'processing'
+                          AND (processing_started_at IS NULL OR processing_started_at < :stale_before)
+                        )
+                      )
+                    RETURNING id::text
+                    """
+                ),
+                {"i": pst_id, "stale_before": stale_before},
+            ).scalar()
+            return bool(claimed)
+    except Exception as exc:
+        logger.warning(
+            "Failed to claim PST %s for processing (continuing): %s", pst_id, exc
+        )
+        return True
 
 
 def _index_document(
@@ -1041,8 +1094,20 @@ def process_pst_file(
                 )
                 # Continue anyway to let processor give proper error
 
-            # Update status to processing
-            _update_pst_status(doc_id, "processing")
+            # Claim the PST for processing (prevents duplicate worker execution).
+            if not _try_claim_pst_for_processing(doc_id):
+                current = _fetch_pst_file(doc_id) or {}
+                current_status = str(current.get("processing_status") or "").lower()
+                logger.info(
+                    "Skipping PST %s: already claimed or completed (status=%s)",
+                    doc_id,
+                    current_status,
+                )
+                return {
+                    "status": "skipped",
+                    "reason": "already_claimed",
+                    "processing_status": current_status,
+                }
 
             logger.info(
                 f"Processing PST: {pst_file['filename']} from {pst_file['bucket']}/{pst_file['s3_key']}"

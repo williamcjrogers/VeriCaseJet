@@ -260,9 +260,13 @@ async def abort_pst_multipart_upload(
 @router.post("/pst/{pst_file_id}/process")
 async def start_pst_processing(
     pst_file_id: str,
+    force: bool = Query(
+        False,
+        description="Force re-enqueue PST processing (use with care; may require admin rescue if partially extracted)",
+    ),
     db: Session = Depends(get_db),
 ):
-    return await start_pst_processing_service(pst_file_id, db)
+    return await start_pst_processing_service(pst_file_id, db, force=force)
 
 
 @router.get("/pst/{pst_file_id}/status", response_model=PSTProcessingStatus)

@@ -252,6 +252,16 @@ class Settings(BaseSettings):
         True  # Enable progress-friendly total email counts (counts folders, not every message)
     )
 
+    # PST queue + recovery controls
+    # The UI shows "processing" for any status other than completed/failed. In production we
+    # have seen jobs remain "pending/queued" indefinitely when no worker consumes the PST queue.
+    # These settings let the API safely re-enqueue a job that has been pending for "too long".
+    PST_PENDING_REENQUEUE_AFTER_MINUTES: float = 30.0
+
+    # If a PST is marked "processing" for longer than this, it is likely orphaned (worker died)
+    # and may need admin intervention (rescue/finalize) or a force requeue.
+    PST_PROCESSING_STALE_AFTER_HOURS: float = 12.0
+
     # PST processing optimization settings
     PST_BATCH_COMMIT_SIZE: int = 2500  # Messages per DB commit batch
     # Parallel S3 upload threads (0 = auto sized based on CPU, capped).
