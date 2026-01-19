@@ -2,7 +2,7 @@ import io
 import os
 import sys
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from celery import Celery
 import boto3
 from botocore.client import Config
@@ -439,8 +439,10 @@ def _try_claim_pst_for_processing(pst_id: str) -> bool:
     except Exception:
         stale_hours = 12.0
 
-    # Use UTC naive; DB column may be timestamp or timestamptz depending on deployment.
-    stale_before = datetime.utcnow() - timedelta(hours=stale_hours)
+    # SECURITY: always use timezone-aware UTC for time calculations.
+    stale_before_utc = datetime.now(timezone.utc) - timedelta(hours=stale_hours)
+    # DB column may be timezone-naive in some deployments; compare against UTC-naive.
+    stale_before_db = stale_before_utc.replace(tzinfo=None)
 
     try:
         with engine.begin() as conn:
@@ -462,7 +464,7 @@ def _try_claim_pst_for_processing(pst_id: str) -> bool:
                     RETURNING id::text
                     """
                 ),
-                {"i": pst_id, "stale_before": stale_before},
+                {"i": pst_id, "stale_before": stale_before_db},
             ).scalar()
             return bool(claimed)
     except Exception as exc:

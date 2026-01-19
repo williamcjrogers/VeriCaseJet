@@ -8,7 +8,7 @@ import os
 import uuid
 import asyncio
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import HTTPException, UploadFile
@@ -896,7 +896,22 @@ async def start_pst_processing_service(pst_file_id, db, force: bool = False):
     if not pst_file:
         raise HTTPException(404, "PST file not found")
 
-    now = datetime.now()
+    # SECURITY: always use timezone-aware UTC for time calculations.
+    now_utc = datetime.now(timezone.utc)
+    # DB columns may be timezone-naive in some deployments; store UTC-naive when needed.
+    now_db = now_utc.replace(tzinfo=None)
+
+    def _as_utc(dt: datetime | None) -> datetime | None:
+        """Interpret naive datetimes as UTC; normalize aware datetimes to UTC."""
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        try:
+            return dt.astimezone(timezone.utc)
+        except Exception:
+            return dt
+
     raw_status = (pst_file.processing_status or "").strip().lower()
     # DB history: some deployments used "queued" (treat as "pending" for UI + controls).
     status = "pending" if raw_status == "queued" else raw_status
@@ -923,20 +938,8 @@ async def start_pst_processing_service(pst_file_id, db, force: bool = False):
         except Exception:
             stale_h = 12.0
 
-        try:
-            started_at = pst_file.processing_started_at
-            if (
-                started_at is not None
-                and getattr(started_at, "tzinfo", None) is not None
-            ):
-                started_at = started_at.replace(tzinfo=None)
-        except Exception:
-            started_at = pst_file.processing_started_at
-
-        try:
-            age = now - started_at if started_at else None
-        except Exception:
-            age = None
+        started_at_utc = _as_utc(pst_file.processing_started_at)
+        age = (now_utc - started_at_utc) if started_at_utc else None
 
         if age is not None and age > timedelta(hours=stale_h):
             return {
@@ -963,15 +966,7 @@ async def start_pst_processing_service(pst_file_id, db, force: bool = False):
     ):
         # `processing_started_at` is used as "enqueued_at" while pending.
         # Only suppress re-enqueue for a limited time window.
-        try:
-            enqueued_at = pst_file.processing_started_at
-            if (
-                enqueued_at is not None
-                and getattr(enqueued_at, "tzinfo", None) is not None
-            ):
-                enqueued_at = enqueued_at.replace(tzinfo=None)
-        except Exception:
-            enqueued_at = pst_file.processing_started_at
+        enqueued_at_utc = _as_utc(pst_file.processing_started_at)
 
         try:
             min_age_m = float(
@@ -980,10 +975,7 @@ async def start_pst_processing_service(pst_file_id, db, force: bool = False):
         except Exception:
             min_age_m = 30.0
 
-        try:
-            age = now - enqueued_at if enqueued_at else None
-        except Exception:
-            age = None
+        age = (now_utc - enqueued_at_utc) if enqueued_at_utc else None
 
         if age is not None and age < timedelta(minutes=min_age_m):
             return {
@@ -1015,8 +1007,8 @@ async def start_pst_processing_service(pst_file_id, db, force: bool = False):
         try:
             pst_file.processing_status = "failed"
             pst_file.error_message = f"Failed to enqueue PST processing: {exc}"
-            pst_file.processing_started_at = datetime.now()
-            pst_file.processing_completed_at = datetime.now()
+            pst_file.processing_started_at = now_db
+            pst_file.processing_completed_at = now_db
             db.commit()
         except Exception:
             # Best-effort; don't mask the original error.
@@ -1028,7 +1020,7 @@ async def start_pst_processing_service(pst_file_id, db, force: bool = False):
 
     pst_file.processing_status = "pending"
     pst_file.error_message = None
-    pst_file.processing_started_at = now
+    pst_file.processing_started_at = now_db
     pst_file.processing_completed_at = None
     # If we are retrying after a failure (or forcing a requeue), reset counters so
     # UI progress doesn't reflect stale values.
