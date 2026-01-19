@@ -1205,7 +1205,10 @@ async def admin_rescue_pst_service(
     if action not in {"finalize", "fail"}:
         raise HTTPException(status_code=400, detail="Invalid action")
 
-    now = datetime.now()
+    # SECURITY: always use timezone-aware UTC for time calculations.
+    now_utc = datetime.now(timezone.utc)
+    # DB columns may be timezone-naive in some deployments; store UTC-naive when needed.
+    now_db = now_utc.replace(tzinfo=None)
     emails_in_db = (
         db.query(func.count(EmailMessage.id))
         .filter(EmailMessage.pst_file_id == pst_uuid)
@@ -1215,7 +1218,7 @@ async def admin_rescue_pst_service(
 
     if action == "fail":
         pst.processing_status = "failed"
-        pst.processing_completed_at = now
+        pst.processing_completed_at = now_db
         pst.error_message = (
             str(body.get("reason"))
             or "Admin marked PST as failed (manual intervention)"
@@ -1230,7 +1233,7 @@ async def admin_rescue_pst_service(
 
     if emails_in_db <= 0:
         pst.processing_status = "failed"
-        pst.processing_completed_at = now
+        pst.processing_completed_at = now_db
         pst.error_message = (
             "Rescue failed: no extracted emails found in DB for this PST. "
             "Re-upload or reset and reprocess."
@@ -1259,7 +1262,7 @@ async def admin_rescue_pst_service(
     pst.processing_status = "completed"
     pst.total_emails = emails_in_db
     pst.processed_emails = emails_in_db
-    pst.processing_completed_at = now
+    pst.processing_completed_at = now_db
     pst.error_message = None
     db.commit()
 
