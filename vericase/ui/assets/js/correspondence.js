@@ -59,6 +59,31 @@ let currentEmailDetailData = null; // Store current detail data for toggle
 // Column sizing: auto-size by default, but don't stomp on saved views.
 let restoredColumnState = false;
 let didInitialAutoSize = false;
+let userSizedColumns = false;
+let autoSizeTimer = null;
+const AUTO_SIZE_DEBOUNCE_MS = 250;
+
+function runAutoSizeColumns() {
+  if (!gridApi?.getColumns) return;
+  try {
+    const allColumnIds = gridApi.getColumns()?.map((col) => col.getColId()) || [];
+    if (!allColumnIds.length) return;
+    // Flex columns fight auto-sizing; clear flex so content widths stick.
+    const state = allColumnIds.map((colId) => ({ colId, flex: null }));
+    gridApi.applyColumnState({ state, applyOrder: false });
+    // Size based on header + currently rendered rows.
+    gridApi.autoSizeColumns(allColumnIds, false);
+    didInitialAutoSize = true;
+  } catch (e) {
+    console.warn("Could not auto-size columns:", e);
+  }
+}
+
+function scheduleAutoSizeColumns() {
+  if (restoredColumnState || userSizedColumns || !gridApi) return;
+  if (autoSizeTimer) clearTimeout(autoSizeTimer);
+  autoSizeTimer = setTimeout(runAutoSizeColumns, AUTO_SIZE_DEBOUNCE_MS);
+}
 
 // Server-side filter state (drives AG Grid SSRM endpoint query params)
 let selectedStakeholderId = null;
@@ -3749,6 +3774,7 @@ window.saveGridConfiguration = function () {
 
 window.resetGridConfiguration = function () {
   try {
+    userSizedColumns = false;
     setActiveGridView(null);
     localStorage.removeItem("vc_correspondence_grid_state");
     if (gridApi?.resetColumnState) gridApi.resetColumnState();
@@ -4249,6 +4275,10 @@ window.toggleBodyCell = async function (rowId) {
       if (full) {
         // Store in email_body so existing render helpers pick it up (and keep normalized rendering).
         rowNode.data.email_body = normalizeBodyWhitespace(String(full));
+      }
+      if (detail?.body_html) {
+        // Preserve HTML for expanded rendering (sanitized client-side).
+        rowNode.data.body_html = String(detail.body_html);
       }
       rowNode.data._bodyFullLoaded = true;
     } catch (e) {
@@ -4988,19 +5018,18 @@ function initGrid() {
       autoHeight: true, // Auto-fit row height to content
       cellClass: "body-cell",
       cellRenderer: (p) => {
-        const bodyText = getBodyPreviewText(p.data) || "";
-        if (!bodyText) {
-          return '<span style="color: var(--text-muted);">-</span>';
-        }
-
         const rowId = p.node.id;
         const isExpanded = p.node.data?._bodyExpanded || false;
         const icon = isExpanded ? "fa-compress-alt" : "fa-expand-alt";
         const isLoading = p.node.data?._bodyLoading === true;
         const loadErr = p.node.data?._bodyLoadError;
 
-        // Format body for display - use full HTML formatting in both states
-        const bodyHtml = formatEmailBodyText(getBodyTextValue(p.data));
+        const textValue = getBodyTextValue(p.data);
+        const htmlValue =
+          isExpanded && typeof p.data?.body_html === "string" && p.data.body_html.trim()
+            ? sanitizeEmailHtml(p.data.body_html)
+            : "";
+        const bodyHtml = htmlValue || (textValue ? formatEmailBodyText(textValue) : "");
         
         // Collapsed: smaller max-height with scroll, Expanded: no max-height (auto-fit)
         const maxHeight = isExpanded ? "none" : "60px";
@@ -5500,32 +5529,35 @@ function initGrid() {
     },
 
     onFirstDataRendered: () => {
-      // Auto-size columns once by default.
-      // Important: do NOT size-to-fit on every resize; it causes jank and overrides user widths.
-      if (didInitialAutoSize || restoredColumnState) {
-        setContextPanelCollapsed(true);
-        return;
-      }
-      didInitialAutoSize = true;
-      try {
-        if (gridApi) {
-          const allColumnIds = gridApi.getColumns()?.map((col) => col.getColId()) || [];
-          if (allColumnIds.length) {
-            // Flex columns fight auto-sizing; clear flex so content widths stick.
-            const state = allColumnIds.map((colId) => ({ colId, flex: null }));
-            gridApi.applyColumnState({ state, applyOrder: false });
-            // Size based on header + currently rendered rows (fast; avoids scanning whole dataset).
-            gridApi.autoSizeColumns(allColumnIds, false);
-          }
-        }
-      } catch (e) {
-        console.warn("Could not auto-size columns:", e);
+      // Auto-size columns based on current data (debounced, respects user resizing).
+      if (!didInitialAutoSize) {
+        scheduleAutoSizeColumns();
       }
       // Keep Quick Actions collapsed unless explicitly opened.
       setContextPanelCollapsed(true);
     },
     onGridSizeChanged: () => {
       // Intentionally no-op: keep user/auto-sized widths stable to avoid scroll jank.
+    },
+    onFilterChanged: () => {
+      scheduleAutoSizeColumns();
+    },
+    onSortChanged: () => {
+      scheduleAutoSizeColumns();
+    },
+    onModelUpdated: () => {
+      scheduleAutoSizeColumns();
+    },
+    onColumnResized: (params) => {
+      if (!params?.finished) return;
+      const source = String(params.source || "").toLowerCase();
+      if (source.includes("auto") || source.includes("fit") || source.includes("api")) {
+        return;
+      }
+      // User manually resized a column; stop dynamic auto-sizing.
+      if (source.includes("ui") || source.includes("drag") || source.includes("resize")) {
+        userSizedColumns = true;
+      }
     },
     onSelectionChanged: () => {
       const selected = gridApi ? gridApi.getSelectedRows() : [];

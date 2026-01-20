@@ -19,6 +19,7 @@ import asyncio
 import logging
 import uuid
 import json
+import re
 from datetime import datetime, timezone
 from typing import Annotated, Any, NotRequired, TypedDict, cast
 from enum import Enum
@@ -148,19 +149,25 @@ def save_session(session: ResearchSession) -> None:
 
 def load_session(session_id: str) -> ResearchSession | None:
     """Load session from in-memory store or Redis."""
-    if session_id in _research_sessions:
-        return _research_sessions[session_id]
+    cached = _research_sessions.get(session_id)
+    redis_session: ResearchSession | None = None
 
     try:
         redis_client = _get_redis()
         if redis_client:
             data = redis_client.get(f"deep_research:session:{session_id}")
             if data:
-                session = ResearchSession.model_validate_json(data)
-                _research_sessions[session_id] = session
-                return session
+                redis_session = ResearchSession.model_validate_json(data)
     except Exception as e:  # pragma: no cover - non-critical
         logger.warning(f"Failed to load session from Redis: {e}")
+
+    if redis_session:
+        if not cached or redis_session.updated_at >= cached.updated_at:
+            _research_sessions[session_id] = redis_session
+            return redis_session
+
+    if cached:
+        return cached
 
     return None
 
@@ -1050,6 +1057,64 @@ Write in a professional, authoritative tone suitable for legal proceedings."""
 
         return report, themes
 
+    def _unique_preserve_order(self, items: list[str]) -> list[str]:
+        seen: set[str] = set()
+        unique: list[str] = []
+        for item in items:
+            normalized = " ".join(str(item or "").split())
+            if not normalized:
+                continue
+            key = normalized.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(normalized)
+        return unique
+
+    def _clean_section_content(self, theme: str, content: str) -> str:
+        if not content:
+            return ""
+
+        text = content.strip()
+        lines = text.splitlines()
+        cleaned_lines: list[str] = []
+        theme_key = re.sub(r"\W+", "", theme).lower()
+        started = False
+
+        for line in lines:
+            stripped = line.strip()
+            if not started:
+                if not stripped:
+                    continue
+                heading = re.sub(r"^#+\s*", "", stripped)
+                heading_key = re.sub(r"\W+", "", heading).lower()
+                if heading_key == theme_key:
+                    continue
+                started = True
+            cleaned_lines.append(line)
+
+        if cleaned_lines:
+            first_line = cleaned_lines[0].strip()
+            first_key = re.sub(r"\W+", "", first_line).lower()
+            if first_key == theme_key:
+                cleaned_lines = cleaned_lines[1:]
+
+        text = "\n".join(cleaned_lines).strip()
+        if not text:
+            return ""
+
+        paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+        deduped: list[str] = []
+        prev_norm = ""
+        for paragraph in paragraphs:
+            norm = re.sub(r"\s+", " ", paragraph).lower()
+            if norm == prev_norm:
+                continue
+            deduped.append(paragraph)
+            prev_norm = norm
+
+        return "\n\n".join(deduped)
+
     async def _identify_themes(
         self, plan: ResearchPlan, analyses: dict[str, dict[str, Any]]
     ) -> list[str]:
@@ -1091,11 +1156,14 @@ Output as JSON:
 
             data = cast(dict[str, Any], json.loads(json_str.strip()))
             themes_data = cast(list[dict[str, Any]], data.get("themes", []))
-            return [
+            themes = [
                 str(t.get("title", "")) for t in themes_data
             ]  # pyright: ignore[reportAny]
+            return self._unique_preserve_order(themes)
         except Exception:
-            return plan.key_angles  # Fallback to original angles
+            return self._unique_preserve_order(
+                plan.key_angles
+            )  # Fallback to original angles
 
     async def _generate_sections(
         self, plan: ResearchPlan, analyses: dict[str, dict[str, Any]], themes: list[str]
@@ -1120,18 +1188,19 @@ RESEARCH TOPIC: {plan.topic}
 ALL RESEARCH FINDINGS:
 {all_findings}
 
-Write a comprehensive section (500-1000 words) that:
+Write a concise section (300-600 words) that:
 1. Introduces the theme and its significance
 2. Presents relevant findings with citations
 3. Analyzes implications
 4. Notes any gaps or uncertainties
 
+Avoid repeating the section title or duplicating headings. Do not repeat the same points.
 Write in professional legal report style."""
 
             content = await self._call_llm(
                 prompt, self.SYSTEM_PROMPT, use_powerful=True
             )
-            return theme, content
+            return theme, self._clean_section_content(theme, content)
 
         # Run section generation in parallel
         tasks = [generate_section(theme) for theme in themes]
@@ -1151,6 +1220,9 @@ Write in professional legal report style."""
     ) -> str:
         """Assemble the final report"""
 
+        unique_themes = self._unique_preserve_order(themes)
+        unique_angles = self._unique_preserve_order(plan.key_angles)
+
         report_parts = [
             f"# Deep Research Report: {plan.topic}",
             f"\n*Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}*\n",
@@ -1158,12 +1230,12 @@ Write in professional legal report style."""
             "## Executive Summary\n",
             f"{plan.problem_statement}\n",
             "\n### Key Research Angles\n",
-            "\n".join(f"- {angle}" for angle in plan.key_angles),
+            "\n".join(f"- {angle}" for angle in unique_angles),
             "\n---\n",
         ]
 
         # Add themed sections
-        for theme in themes:
+        for theme in unique_themes:
             if theme in sections:
                 report_parts.append(f"\n## {theme}\n")
                 report_parts.append(sections[theme])

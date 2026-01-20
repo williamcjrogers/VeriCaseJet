@@ -1,0 +1,796 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backfill-email-import-parity-prod-8e4782c2
+  namespace: vericase
+data:
+  backfill.py: |
+    from __future__ import annotations
+
+    import ast
+    import codecs
+    import os
+    import re
+    import sys
+    import time
+    import uuid
+
+    from sqlalchemy import or_
+    from sqlalchemy.orm import load_only
+
+    # Ensure the application package is importable (production images may not set PYTHONPATH).
+    sys.path.insert(0, "/code")
+
+    from app.db import SessionLocal
+    from app.email_content import decode_maybe_bytes, select_best_body
+    from app.email_normalizer import (
+        NORMALIZER_RULESET_HASH,
+        NORMALIZER_VERSION,
+        build_content_hash,
+        clean_body_text,
+    )
+    from app.models import EmailMessage
+
+    _BYTES_LITERAL_RE = re.compile(r"^b(['\"]).*\\1$", re.DOTALL)
+
+
+    def _parse_uuid(value: str | None) -> uuid.UUID | None:
+        if not value:
+            return None
+        try:
+            return uuid.UUID(str(value))
+        except Exception:
+            return None
+
+
+    def _looks_like_html_markup(text: str | None) -> bool:
+        if not text or not isinstance(text, str):
+            return False
+        s = text.lstrip()
+        if not s:
+            return False
+        if re.match(r"(?is)^<!doctype\\s+html\\b", s):
+            return True
+        if re.match(r"(?is)^<\\s*(html|head|body)\\b", s):
+            return True
+        if re.search(
+            r"<\\s*\\/?\\s*(div|span|p|br|table|tr|td|th|style|meta|link|font|center|a)\\b",
+            s,
+            flags=re.IGNORECASE,
+        ):
+            return True
+        return len(re.findall(r"<\\s*\\/?\\s*[A-Za-z][A-Za-z0-9:_-]*\\b", s)) >= 8
+
+
+    def _decode_bytes_literal(value: str | None) -> str | None:
+        """Reverse accidental str(bytes) storage: "b'...\\r\\n...'" -> decoded text."""
+        if not value or not isinstance(value, str):
+            return value
+        candidate = value.strip()
+        if not (candidate.startswith("b'") or candidate.startswith('b"')):
+            return value
+        # First attempt: strict Python bytes literal eval.
+        try:
+            parsed = ast.literal_eval(candidate)
+            if isinstance(parsed, (bytes, bytearray)):
+                return decode_maybe_bytes(bytes(parsed)) or ""
+        except Exception:
+            pass
+
+        # Fallback: handle cases where the stored string isn't a valid bytes literal
+        # (e.g., it contains real newlines) but still starts with b'...'/b"...".
+        if not _BYTES_LITERAL_RE.match(candidate):
+            pass
+
+        quote = "'" if candidate.startswith("b'") else '"'
+        if candidate.startswith(f"b{quote}") and candidate.endswith(quote) and len(candidate) >= 3:
+            inner = candidate[2:-1]
+            try:
+                # Interpret backslash escapes (\\n, \\r, \\t, \\xNN, etc).
+                unescaped = codecs.decode(inner, "unicode_escape")
+                raw = unescaped.encode("latin-1", errors="replace")
+                return decode_maybe_bytes(raw) or ""
+            except Exception:
+                return value
+
+        return value
+
+
+    def _normalize_canonical(text: str) -> str:
+        # Match PST ingestion: collapse all whitespace (incl newlines) to single spaces.
+        return re.sub(r"\\s+", " ", text or "").strip()
+
+
+    def main() -> int:
+        start = time.time()
+        scanned = 0
+        updated = 0
+        skipped = 0
+        failures = 0
+
+        project_uuid = _parse_uuid(os.getenv("PROJECT_ID"))
+        case_uuid = _parse_uuid(os.getenv("CASE_ID"))
+        if not project_uuid and not case_uuid:
+            raise SystemExit("PROJECT_ID or CASE_ID env var is required")
+
+        load_cols = [
+            EmailMessage.id,
+            EmailMessage.subject,
+            EmailMessage.sender_email,
+            EmailMessage.sender_name,
+            EmailMessage.recipients_to,
+            EmailMessage.recipients_cc,
+            EmailMessage.recipients_bcc,
+            EmailMessage.date_sent,
+            EmailMessage.body_text,
+            EmailMessage.body_html,
+            EmailMessage.body_text_clean,
+            EmailMessage.body_preview,
+            EmailMessage.body_full_s3_key,
+            EmailMessage.content_hash,
+            EmailMessage.meta,
+            EmailMessage.pst_file_id,
+            EmailMessage.project_id,
+            EmailMessage.case_id,
+        ]
+
+        # Only target standalone email-import rows.
+        src = EmailMessage.meta["source"].as_string()
+
+        q_base = (
+            SessionLocal()
+            .query(EmailMessage)
+            .options(load_only(*load_cols))
+            .filter(src.in_(["eml_import", "msg_import"]))
+            .filter(or_(EmailMessage.subject.is_(None), ~EmailMessage.subject.like("IPM.%")))
+            .order_by(EmailMessage.id.asc())
+        )
+
+        if project_uuid:
+            q_base = q_base.filter(EmailMessage.project_id == project_uuid)
+        if case_uuid:
+            q_base = q_base.filter(EmailMessage.case_id == case_uuid)
+
+        db = q_base.session
+        last_id = None
+        batch_size = 500
+
+        try:
+            while True:
+                q = q_base
+                if last_id is not None:
+                    q = q.filter(EmailMessage.id > last_id)
+                page = q.limit(batch_size).all()
+                if not page:
+                    break
+
+                for email in page:
+                    scanned += 1
+                    try:
+                        meta = email.meta if isinstance(email.meta, dict) else {}
+
+                        body_text = _decode_bytes_literal(email.body_text) or (email.body_text or "")
+                        body_html = _decode_bytes_literal(email.body_html) or (
+                            email.body_html if email.body_html is not None else None
+                        )
+
+                        plain_in = body_text.strip() or None
+                        html_in = (str(body_html).strip() if body_html else None) or None
+
+                        # If HTML missing but text clearly looks like HTML, treat it as HTML.
+                        if not html_in and plain_in and _looks_like_html_markup(plain_in):
+                            html_in = plain_in
+                            plain_in = None
+
+                        selection = select_best_body(
+                            plain_text=plain_in,
+                            html_body=html_in,
+                            rtf_body=None,
+                        )
+
+                        full_body_text = (selection.full_text or "").strip()
+                        canonical = (selection.top_text or "").strip()
+                        if canonical and len(canonical) < 20 and len(full_body_text) <= 200:
+                            canonical = full_body_text
+                        elif not canonical and full_body_text and len(full_body_text) > 200:
+                            canonical = full_body_text
+
+                        cleaned = clean_body_text(canonical)
+                        if cleaned is not None:
+                            canonical = cleaned
+                        canonical = _normalize_canonical(canonical)
+
+                        preview_source = full_body_text or (html_in or "")
+                        preview = preview_source[:10000] if preview_source else None
+
+                        new_hash = build_content_hash(
+                            canonical or None,
+                            email.sender_email,
+                            email.sender_name,
+                            email.recipients_to,
+                            email.subject,
+                            email.date_sent,
+                        )
+
+                        # Decide if anything changes.
+                        changed = False
+                        if (email.body_text or "") != (full_body_text or ""):
+                            changed = True
+                        if (email.body_html or "") != (html_in or ""):
+                            changed = True
+                        if (email.body_text_clean or "") != (canonical or ""):
+                            changed = True
+                        if (email.body_preview or "") != (preview or ""):
+                            changed = True
+                        if (email.content_hash or "") != (new_hash or ""):
+                            changed = True
+                        # Clear body_full_s3_key for safety: older API builds had a bug
+                        # that crashes when this field is set.
+                        if email.body_full_s3_key:
+                            changed = True
+
+                        if not changed:
+                            skipped += 1
+                            continue
+
+                        email.body_text = full_body_text or None
+                        email.body_html = html_in or None
+                        email.body_text_clean = canonical or None
+                        email.body_preview = preview
+                        email.content_hash = new_hash
+                        email.body_full_s3_key = None
+
+                        # PST-parity-ish meta fields (best effort; do not change status/spam flags here).
+                        meta["normalizer_version"] = NORMALIZER_VERSION
+                        meta["normalizer_ruleset_hash"] = NORMALIZER_RULESET_HASH
+                        meta["body_source"] = selection.selected_source
+                        meta["body_selection"] = selection.diagnostics
+                        meta["body_quoted_len"] = len(selection.quoted_text or "")
+                        meta["body_signature_len"] = len(selection.signature_text or "")
+                        # Clear stale offload hints
+                        meta.pop("body_offloaded", None)
+                        meta.pop("body_offload_bucket", None)
+                        meta.pop("body_offload_key", None)
+                        meta.pop("body_full_s3_key", None)
+                        email.meta = meta
+
+                        updated += 1
+
+                    except Exception:
+                        failures += 1
+                        db.rollback()
+
+                    if scanned % 2000 == 0:
+                        elapsed = time.time() - start
+                        rate = scanned / elapsed if elapsed > 0 else 0
+                        print(
+                            f"Scanned {scanned:,} | updated {updated:,} | skipped {skipped:,} | failures {failures:,} | {rate:,.0f}/s",
+                            flush=True,
+                        )
+
+                db.commit()
+                last_id = page[-1].id
+
+            elapsed = time.time() - start
+            print(
+                f"Done. Scanned {scanned:,}; updated {updated:,}; skipped {skipped:,}; failures {failures:,} in {elapsed:,.1f}s",
+                flush=True,
+            )
+            return 0
+        finally:
+            db.close()
+
+
+    if __name__ == "__main__":
+        raise SystemExit(main())
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: backfill-email-import-parity-20260120a
+  namespace: vericase
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: backfill-email-import-parity
+    spec:
+      serviceAccountName: vericase-api-sa
+      restartPolicy: Never
+      containers:
+        - name: backfill
+          image: docker.io/wcjrogers/vericase-api@sha256:324b7df4d7934416924779ca483e3bf5ade870451c357e51a48b699526ca7c54
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PROJECT_ID
+              value: "8e4782c2-abc9-449c-9be6-3ad44755b481"
+            - name: USE_AWS_SERVICES
+              value: "true"
+            - name: AWS_REGION
+              value: "eu-west-2"
+            - name: AWS_DEFAULT_REGION
+              value: "eu-west-2"
+            - name: S3_BUCKET
+              value: "vericase-data"
+            - name: S3_PST_BUCKET
+              value: "vericase-data"
+            - name: S3_REGION
+              value: "eu-west-2"
+            - name: MINIO_BUCKET
+              value: "vericase-data"
+            - name: MINIO_ENDPOINT
+              value: ""
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vericase-secrets
+                  key: DATABASE_URL
+          command: ["python", "/scripts/backfill.py"]
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: backfill-email-import-parity-prod-8e4782c2
+            defaultMode: 0444
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backfill-email-body-clean-prod-8e4782c2
+  namespace: vericase
+data:
+  backfill.py: |
+    from __future__ import annotations
+
+    import os
+    import re
+    import sys
+    import time
+    import uuid
+
+    from sqlalchemy import or_
+    from sqlalchemy.orm import load_only
+
+    sys.path.insert(0, "/code")
+
+    from app.db import SessionLocal
+    from app.email_content import select_best_body
+    from app.email_normalizer import clean_body_text
+    from app.models import EmailMessage
+
+    _FONT_WORDS = (
+        "times new roman",
+        "calibri",
+        "cambria",
+        "arial",
+        "helvetica",
+        "courier new",
+        "wingdings",
+        "symbol",
+    )
+
+
+    def _parse_uuid(value: str | None) -> uuid.UUID | None:
+        if not value:
+            return None
+        try:
+            return uuid.UUID(str(value))
+        except Exception:
+            return None
+
+
+    def looks_like_rtf_font_table_junk(text: str | None) -> bool:
+        if not text:
+            return False
+        t = (text or "").strip()
+        if not t:
+            return False
+        tl = t.lower()
+        font_hits = sum(1 for w in _FONT_WORDS if w in tl)
+        if font_hits >= 2 and t.count(";") >= 1 and len(t) <= 800:
+            return True
+        if "microsoft exchange server" in tl and len(t) <= 1500:
+            return True
+        if len(t) <= 400 and t.count(";") >= 2:
+            if t.count(" ") <= 8:
+                return True
+        return False
+
+
+    def compute_new_body_text_clean(email: EmailMessage) -> str | None:
+        selection = select_best_body(
+            plain_text=email.body_text or None,
+            html_body=email.body_html or None,
+            rtf_body=None,
+        )
+        canonical = (selection.top_text or "").strip()
+        full_text = (selection.full_text or "").strip()
+        if canonical and len(canonical) < 20 and len(full_text) <= 200:
+            canonical = full_text
+        elif not canonical and full_text and len(full_text) > 200:
+            canonical = full_text
+        if not canonical:
+            return None
+        cleaned = clean_body_text(canonical)
+        cleaned = cleaned if cleaned is not None else canonical
+        cleaned = re.sub(r"\\s+", " ", cleaned).strip()
+        if not cleaned:
+            return None
+        return cleaned
+
+
+    def _as_bool(value: str | None) -> bool:
+        if not value:
+            return False
+        return value.strip().lower() in {"1", "true", "yes", "y"}
+
+
+    def main() -> int:
+        project_uuid = _parse_uuid(os.getenv("PROJECT_ID"))
+        case_uuid = _parse_uuid(os.getenv("CASE_ID"))
+        if not project_uuid and not case_uuid:
+            raise SystemExit("PROJECT_ID or CASE_ID env var is required")
+
+        limit = int(os.getenv("LIMIT", "0") or "0")
+        batch_size = int(os.getenv("BATCH_SIZE", "500") or "500")
+        dry_run = _as_bool(os.getenv("DRY_RUN"))
+        force = _as_bool(os.getenv("FORCE"))
+
+        db = SessionLocal()
+        start = time.time()
+        scanned = 0
+        updated = 0
+        skipped = 0
+        failures = 0
+
+        try:
+            load_cols = [
+                EmailMessage.id,
+                EmailMessage.pst_file_id,
+                EmailMessage.project_id,
+                EmailMessage.case_id,
+                EmailMessage.subject,
+                EmailMessage.body_text,
+                EmailMessage.body_html,
+                EmailMessage.body_text_clean,
+            ]
+
+            q = db.query(EmailMessage).options(load_only(*load_cols))
+            q = q.filter(or_(EmailMessage.subject.is_(None), ~EmailMessage.subject.like("IPM.%")))
+
+            if project_uuid:
+                q = q.filter(EmailMessage.project_id == project_uuid)
+            if case_uuid:
+                q = q.filter(EmailMessage.case_id == case_uuid)
+
+            q = q.order_by(EmailMessage.id.asc())
+            last_id = None
+            batch_size = max(1, int(batch_size))
+
+            while True:
+                page = q
+                if last_id is not None:
+                    page = page.filter(EmailMessage.id > last_id)
+                page = page.limit(batch_size).all()
+                if not page:
+                    break
+
+                for email in page:
+                    scanned += 1
+                    if limit and scanned > limit:
+                        page = []
+                        break
+
+                    try:
+                        old = email.body_text_clean
+                        old_is_junk = looks_like_rtf_font_table_junk(old)
+                        if not force and old and not old_is_junk:
+                            skipped += 1
+                            continue
+                        if not (email.body_html or email.body_text):
+                            skipped += 1
+                            continue
+                        new = compute_new_body_text_clean(email)
+                        if not new:
+                            skipped += 1
+                            continue
+                        if (old or "").strip() == new.strip():
+                            skipped += 1
+                            continue
+                        if dry_run:
+                            updated += 1
+                            continue
+                        email.body_text_clean = new
+                        updated += 1
+                    except Exception:
+                        failures += 1
+                        db.rollback()
+
+                    if scanned % 2000 == 0:
+                        elapsed = time.time() - start
+                        rate = scanned / elapsed if elapsed > 0 else 0
+                        print(
+                            f"Scanned {scanned:,} | updated {updated:,} | skipped {skipped:,} | failures {failures:,} | {rate:,.0f}/s"
+                        )
+
+                if not dry_run:
+                    db.commit()
+                if page:
+                    last_id = page[-1].id
+                else:
+                    break
+
+            if not dry_run:
+                db.commit()
+
+            elapsed = time.time() - start
+            print(
+                f"Done. Scanned {scanned:,}; updated {updated:,}; skipped {skipped:,}; failures {failures:,} in {elapsed:,.1f}s"
+            )
+            if dry_run:
+                print("Dry run only; no rows were written.")
+            return 0
+        finally:
+            db.close()
+
+
+    if __name__ == "__main__":
+        raise SystemExit(main())
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: backfill-email-body-clean-20260120a
+  namespace: vericase
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: backfill-email-body-clean
+    spec:
+      serviceAccountName: vericase-api-sa
+      restartPolicy: Never
+      containers:
+        - name: backfill
+          image: docker.io/wcjrogers/vericase-api@sha256:324b7df4d7934416924779ca483e3bf5ade870451c357e51a48b699526ca7c54
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PROJECT_ID
+              value: "8e4782c2-abc9-449c-9be6-3ad44755b481"
+            - name: USE_AWS_SERVICES
+              value: "true"
+            - name: AWS_REGION
+              value: "eu-west-2"
+            - name: AWS_DEFAULT_REGION
+              value: "eu-west-2"
+            - name: S3_BUCKET
+              value: "vericase-data"
+            - name: S3_PST_BUCKET
+              value: "vericase-data"
+            - name: S3_REGION
+              value: "eu-west-2"
+            - name: MINIO_BUCKET
+              value: "vericase-data"
+            - name: MINIO_ENDPOINT
+              value: ""
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vericase-secrets
+                  key: DATABASE_URL
+          command: ["python", "/scripts/backfill.py"]
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: backfill-email-body-clean-prod-8e4782c2
+            defaultMode: 0444
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reindex-emails-opensearch-prod-8e4782c2
+  namespace: vericase
+data:
+  reindex.py: |
+    from __future__ import annotations
+
+    import os
+    import sys
+    import time
+    import uuid
+
+    from sqlalchemy import or_, not_
+    from sqlalchemy.orm import load_only
+
+    sys.path.insert(0, "/code")
+
+    from app.db import SessionLocal
+    from app.models import EmailMessage
+    from app.search import index_email_in_opensearch
+    from app.visibility import build_email_visibility_filter
+
+
+    def _parse_uuid(value: str | None) -> uuid.UUID | None:
+        if not value:
+            return None
+        try:
+            return uuid.UUID(str(value))
+        except Exception:
+            return None
+
+
+    def main() -> int:
+        project_uuid = _parse_uuid(os.getenv("PROJECT_ID"))
+        case_uuid = _parse_uuid(os.getenv("CASE_ID"))
+        if not project_uuid and not case_uuid:
+            raise SystemExit("PROJECT_ID or CASE_ID env var is required")
+
+        limit = int(os.getenv("LIMIT", "0") or "0")
+        batch_size = int(os.getenv("BATCH_SIZE", "500") or "500")
+
+        db = SessionLocal()
+        start = time.time()
+        processed = 0
+        failures = 0
+
+        try:
+            load_cols = [
+                EmailMessage.id,
+                EmailMessage.project_id,
+                EmailMessage.case_id,
+                EmailMessage.thread_id,
+                EmailMessage.thread_group_id,
+                EmailMessage.message_id,
+                EmailMessage.subject,
+                EmailMessage.date_sent,
+                EmailMessage.sender_email,
+                EmailMessage.sender_name,
+                EmailMessage.recipients_to,
+                EmailMessage.body_text,
+                EmailMessage.body_text_clean,
+                EmailMessage.body_preview,
+                EmailMessage.has_attachments,
+                EmailMessage.matched_stakeholders,
+                EmailMessage.matched_keywords,
+                EmailMessage.content_hash,
+                EmailMessage.meta,
+            ]
+
+            q = db.query(EmailMessage).options(load_only(*load_cols))
+            q = q.filter(build_email_visibility_filter(EmailMessage))
+            q = q.filter(
+                or_(EmailMessage.subject.is_(None), not_(EmailMessage.subject.like("IPM.%")))
+            )
+
+            if project_uuid:
+                q = q.filter(EmailMessage.project_id == project_uuid)
+            if case_uuid:
+                q = q.filter(EmailMessage.case_id == case_uuid)
+
+            q = q.order_by(EmailMessage.date_sent.asc().nullsfirst())
+
+            for email in q.yield_per(int(batch_size)):
+                processed += 1
+                if limit and processed > limit:
+                    break
+
+                # Prefer canonical/clean text, then stored body, then preview.
+                body = (
+                    (email.body_text_clean or "")
+                    or (email.body_text or "")
+                    or (email.body_preview or "")
+                )
+
+                ok = index_email_in_opensearch(
+                    email_id=str(email.id),
+                    case_id=(str(email.case_id) if email.case_id else None),
+                    project_id=(str(email.project_id) if email.project_id else None),
+                    thread_id=email.thread_id,
+                    thread_group_id=email.thread_group_id,
+                    message_id=email.message_id,
+                    subject=email.subject or "",
+                    body_text=body,
+                    sender_email=email.sender_email or "",
+                    sender_name=email.sender_name or "",
+                    recipients=email.recipients_to or [],
+                    date_sent=(email.date_sent.isoformat() if email.date_sent else None),
+                    has_attachments=bool(email.has_attachments),
+                    matched_stakeholders=email.matched_stakeholders or [],
+                    matched_keywords=email.matched_keywords or [],
+                    body_text_clean=email.body_text_clean,
+                    content_hash=email.content_hash,
+                )
+                if not ok:
+                    failures += 1
+
+                if processed % 1000 == 0:
+                    elapsed = time.time() - start
+                    rate = processed / elapsed if elapsed > 0 else 0
+                    print(
+                        f"Processed {processed:,} emails ({failures:,} failures) at {rate:,.0f}/s"
+                    )
+
+            elapsed = time.time() - start
+            print(
+                f"Done. Processed {processed:,} emails ({failures:,} failures) in {elapsed:,.1f}s"
+            )
+            return 0
+        finally:
+            db.close()
+
+
+    if __name__ == "__main__":
+        raise SystemExit(main())
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: reindex-emails-opensearch-20260120a
+  namespace: vericase
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: reindex-emails-opensearch
+    spec:
+      serviceAccountName: vericase-api-sa
+      restartPolicy: Never
+      containers:
+        - name: reindex
+          image: docker.io/wcjrogers/vericase-api@sha256:324b7df4d7934416924779ca483e3bf5ade870451c357e51a48b699526ca7c54
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PROJECT_ID
+              value: "8e4782c2-abc9-449c-9be6-3ad44755b481"
+            - name: USE_AWS_SERVICES
+              value: "true"
+            - name: AWS_REGION
+              value: "eu-west-2"
+            - name: AWS_DEFAULT_REGION
+              value: "eu-west-2"
+            - name: S3_BUCKET
+              value: "vericase-data"
+            - name: S3_PST_BUCKET
+              value: "vericase-data"
+            - name: S3_REGION
+              value: "eu-west-2"
+            - name: MINIO_BUCKET
+              value: "vericase-data"
+            - name: MINIO_ENDPOINT
+              value: ""
+            - name: OPENSEARCH_HOST
+              value: "vpc-vericase-opensearch-sl2a3zd5dnrbt64bssyocnrofu.eu-west-2.es.amazonaws.com"
+            - name: OPENSEARCH_PORT
+              value: "443"
+            - name: OPENSEARCH_USE_SSL
+              value: "true"
+            - name: OPENSEARCH_VERIFY_CERTS
+              value: "true"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vericase-secrets
+                  key: DATABASE_URL
+          command: ["python", "/scripts/reindex.py"]
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: reindex-emails-opensearch-prod-8e4782c2
+            defaultMode: 0444

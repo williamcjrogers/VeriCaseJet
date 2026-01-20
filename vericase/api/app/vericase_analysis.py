@@ -27,6 +27,7 @@ import asyncio
 import logging
 import uuid
 import json
+import re
 from datetime import datetime, timezone
 from typing import Annotated, Any, NotRequired, TypedDict, cast
 from enum import Enum
@@ -197,19 +198,25 @@ def save_session(session: AnalysisSession) -> None:
 
 def load_session(session_id: str) -> AnalysisSession | None:
     """Load session from in-memory store or Redis."""
-    if session_id in _analysis_sessions:
-        return _analysis_sessions[session_id]
+    cached = _analysis_sessions.get(session_id)
+    redis_session: AnalysisSession | None = None
 
     try:
         redis_client = _get_redis()
         if redis_client:
             data = redis_client.get(f"vericase:session:{session_id}")
             if data:
-                session = AnalysisSession.model_validate_json(data)
-                _analysis_sessions[session_id] = session
-                return session
+                redis_session = AnalysisSession.model_validate_json(data)
     except Exception as e:  # pragma: no cover - non-critical
         logger.warning(f"Failed to load session from Redis: {e}")
+
+    if redis_session:
+        if not cached or redis_session.updated_at >= cached.updated_at:
+            _analysis_sessions[session_id] = redis_session
+            return redis_session
+
+    if cached:
+        return cached
 
     return None
 
@@ -1226,21 +1233,58 @@ Write in a professional, authoritative tone suitable for legal proceedings."""
         Collect all evidence items that were referenced during analysis.
         Deduplicates and enriches with metadata.
         """
+
+        def normalize_id(value: Any) -> str | None:
+            if not value:
+                return None
+            text = str(value).strip()
+            if not text:
+                return None
+            for prefix in ("EMAIL ", "EVIDENCE "):
+                if text.upper().startswith(prefix):
+                    return text[len(prefix) :].strip()
+            return text
+
         evidence_map: dict[str, dict[str, Any]] = {}
 
         # Collect evidence IDs referenced in question analyses
         for q_id, analysis in question_analyses.items():
+            # Check for citations
+            citations = analysis.get("citations", [])
+            for citation in citations:
+                if isinstance(citation, dict):
+                    raw_id = citation.get("source_id") or citation.get("id")
+                    source_id = normalize_id(raw_id)
+                    if source_id and source_id not in evidence_map:
+                        evidence_map[source_id] = {
+                            "id": source_id,
+                            "type": citation.get("type", "evidence"),
+                            "title": citation.get("title")
+                            or citation.get("subject")
+                            or citation.get("name")
+                            or citation.get("source_name")
+                            or citation.get("sender")
+                            or "Unknown",
+                            "subject": citation.get("subject"),
+                            "sender": citation.get("sender"),
+                            "date": citation.get("date"),
+                            "relevance": citation.get("relevance", "cited"),
+                        }
+
             # Check for cited sources
             sources = analysis.get("sources", [])
             for source in sources:
                 if isinstance(source, dict):
-                    source_id = source.get("id") or source.get("source_id")
+                    raw_id = source.get("id") or source.get("source_id")
+                    source_id = normalize_id(raw_id)
                     if source_id and source_id not in evidence_map:
                         evidence_map[source_id] = {
                             "id": source_id,
                             "type": source.get("type", "evidence"),
                             "title": source.get("title")
                             or source.get("name", "Unknown"),
+                            "subject": source.get("subject"),
+                            "sender": source.get("sender"),
                             "date": source.get("date"),
                             "relevance": source.get("relevance", "cited"),
                         }
@@ -1248,9 +1292,10 @@ Write in a professional, authoritative tone suitable for legal proceedings."""
             # Check for evidence_ids field
             evidence_ids = analysis.get("evidence_ids", [])
             for eid in evidence_ids:
-                if eid and eid not in evidence_map:
-                    evidence_map[eid] = {
-                        "id": eid,
+                norm_id = normalize_id(eid)
+                if norm_id and norm_id not in evidence_map:
+                    evidence_map[norm_id] = {
+                        "id": norm_id,
                         "type": "evidence",
                         "relevance": "analyzed",
                     }
@@ -1258,15 +1303,33 @@ Write in a professional, authoritative tone suitable for legal proceedings."""
         # Enrich with full evidence item data if available
         if evidence_items:
             for item in evidence_items:
-                item_id = item.get("id") or item.get("evidence_id")
+                item_id = normalize_id(item.get("id") or item.get("evidence_id"))
                 if item_id:
                     if item_id in evidence_map:
                         # Enrich existing entry
+                        item_type = str(
+                            item.get("type") or item.get("evidence_type") or ""
+                        ).upper()
+                        title = (
+                            item.get("title")
+                            or item.get("name")
+                            or evidence_map[item_id].get("title")
+                        )
+                        if (
+                            not title or str(title).strip().lower() == "unknown"
+                        ) and item_type == "EMAIL":
+                            subject = item.get("subject")
+                            sender = item.get("sender")
+                            title = subject or (
+                                f"Email from {sender}" if sender else "Email"
+                            )
                         evidence_map[item_id].update(
                             {
-                                "title": item.get("title")
-                                or item.get("name")
-                                or evidence_map[item_id].get("title"),
+                                "title": title,
+                                "subject": item.get("subject")
+                                or evidence_map[item_id].get("subject"),
+                                "sender": item.get("sender")
+                                or evidence_map[item_id].get("sender"),
                                 "type": item.get("type")
                                 or item.get("evidence_type")
                                 or evidence_map[item_id].get("type"),
@@ -1279,20 +1342,92 @@ Write in a professional, authoritative tone suitable for legal proceedings."""
                                 or item.get("mime_type"),
                             }
                         )
-                    elif len(evidence_map) < 100:  # Add primary evidence up to limit
+                    elif len(evidence_map) < 100:  # Add considered evidence up to limit
+                        item_type = str(
+                            item.get("type") or item.get("evidence_type") or ""
+                        ).upper()
+                        title = item.get("title") or item.get("name") or "Unknown"
+                        if (
+                            not title or str(title).strip().lower() == "unknown"
+                        ) and item_type == "EMAIL":
+                            subject = item.get("subject")
+                            sender = item.get("sender")
+                            title = subject or (
+                                f"Email from {sender}" if sender else "Email"
+                            )
                         evidence_map[item_id] = {
                             "id": item_id,
                             "type": item.get("type")
                             or item.get("evidence_type", "evidence"),
-                            "title": item.get("title") or item.get("name", "Unknown"),
+                            "title": title,
+                            "subject": item.get("subject"),
+                            "sender": item.get("sender"),
                             "date": item.get("date") or item.get("created_at"),
                             "filename": item.get("filename") or item.get("file_name"),
                             "attachment_type": item.get("attachment_type")
                             or item.get("mime_type"),
-                            "relevance": "primary",
+                            "relevance": "considered",
                         }
 
         return list(evidence_map.values())
+
+    def _unique_preserve_order(self, items: list[str]) -> list[str]:
+        seen: set[str] = set()
+        unique: list[str] = []
+        for item in items:
+            normalized = " ".join(str(item or "").split())
+            if not normalized:
+                continue
+            key = normalized.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(normalized)
+        return unique
+
+    def _clean_section_content(self, theme: str, content: str) -> str:
+        if not content:
+            return ""
+
+        text = content.strip()
+        lines = text.splitlines()
+        cleaned_lines: list[str] = []
+        theme_key = re.sub(r"\W+", "", theme).lower()
+        started = False
+
+        for line in lines:
+            stripped = line.strip()
+            if not started:
+                if not stripped:
+                    continue
+                heading = re.sub(r"^#+\s*", "", stripped)
+                heading_key = re.sub(r"\W+", "", heading).lower()
+                if heading_key == theme_key:
+                    continue
+                started = True
+            cleaned_lines.append(line)
+
+        if cleaned_lines:
+            first_line = cleaned_lines[0].strip()
+            first_key = re.sub(r"\W+", "", first_line).lower()
+            if first_key == theme_key:
+                cleaned_lines = cleaned_lines[1:]
+
+        text = "\n".join(cleaned_lines).strip()
+        if not text:
+            return ""
+
+        paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+        deduped: list[str] = []
+        prev_norm = ""
+        for paragraph in paragraphs:
+            norm = re.sub(r"\s+", " ", paragraph).lower()
+            if norm == prev_norm:
+                continue
+            deduped.append(paragraph)
+            prev_norm = norm
+
+        return "\n\n".join(deduped)
 
     async def _identify_themes(
         self, plan: ResearchPlan, analyses: dict[str, dict[str, Any]]
@@ -1335,9 +1470,12 @@ Output as JSON:
 
             data = cast(dict[str, Any], json.loads(json_str.strip()))
             themes_data = cast(list[dict[str, Any]], data.get("themes", []))
-            return [str(t.get("title", "")) for t in themes_data]
+            themes = [str(t.get("title", "")) for t in themes_data]
+            return self._unique_preserve_order(themes)
         except Exception:
-            return plan.key_angles  # Fallback to original angles
+            return self._unique_preserve_order(
+                plan.key_angles
+            )  # Fallback to original angles
 
     async def _generate_sections(
         self, plan: ResearchPlan, analyses: dict[str, dict[str, Any]], themes: list[str]
@@ -1362,18 +1500,19 @@ RESEARCH TOPIC: {plan.topic}
 ALL RESEARCH FINDINGS:
 {all_findings}
 
-Write a comprehensive section (500-1000 words) that:
+Write a concise section (300-600 words) that:
 1. Introduces the theme and its significance
 2. Presents relevant findings with citations
 3. Analyzes implications
 4. Notes any gaps or uncertainties
 
+Avoid repeating the section title or duplicating headings. Do not repeat the same points.
 Write in professional legal report style."""
 
             content = await self._call_llm(
                 prompt, self.SYSTEM_PROMPT, use_powerful=True
             )
-            return theme, content
+            return theme, self._clean_section_content(theme, content)
 
         # Run section generation in parallel
         tasks = [generate_section(theme) for theme in themes]
@@ -1397,6 +1536,9 @@ Write in professional legal report style."""
     ) -> str:
         """Assemble the final report with evidence references"""
 
+        unique_themes = self._unique_preserve_order(themes)
+        unique_angles = self._unique_preserve_order(plan.key_angles)
+
         report_parts = [
             f"# VeriCase Analysis Report: {plan.topic}",
             f"\n*Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}*\n",
@@ -1404,12 +1546,12 @@ Write in professional legal report style."""
             "## Executive Summary\n",
             f"{plan.problem_statement}\n",
             "\n### Key Research Angles\n",
-            "\n".join(f"- {angle}" for angle in plan.key_angles),
+            "\n".join(f"- {angle}" for angle in unique_angles),
             "\n---\n",
         ]
 
         # Add themed sections
-        for theme in themes:
+        for theme in unique_themes:
             if theme in sections:
                 report_parts.append(f"\n## {theme}\n")
                 report_parts.append(sections[theme])
@@ -1425,10 +1567,21 @@ Write in professional legal report style."""
 
         # Add Evidence & Attachments Referenced section
         if evidence_used:
+            has_explicit_refs = any(
+                item.get("relevance") in {"cited", "analyzed"} for item in evidence_used
+            )
             report_parts.append("\n---\n")
-            report_parts.append("\n## Evidence & Attachments Referenced\n")
             report_parts.append(
-                f"\nThis analysis referenced {len(evidence_used)} evidence items:\n\n"
+                "\n## Evidence & Attachments Referenced\n"
+                if has_explicit_refs
+                else "\n## Evidence & Attachments Considered\n"
+            )
+            report_parts.append(
+                (
+                    f"\nThis analysis referenced {len(evidence_used)} evidence items:\n\n"
+                    if has_explicit_refs
+                    else f"\nNo explicit citations were captured. Evidence considered: {len(evidence_used)} items:\n\n"
+                )
             )
 
             # Group by type
@@ -1443,12 +1596,19 @@ Write in professional legal report style."""
                 type_label = evidence_type.replace("_", " ").title()
                 report_parts.append(f"\n### {type_label} ({len(items)})\n\n")
                 for item in items:
-                    title = (
-                        item.get("title")
-                        or item.get("filename")
-                        or item.get("id", "Unknown")
-                    )
-                    date = item.get("date", "")
+                    item_type = str(item.get("type") or "").upper()
+                    title = item.get("title") or item.get("filename")
+                    if item_type == "EMAIL":
+                        subject = item.get("subject")
+                        sender = item.get("sender")
+                        title = (
+                            subject
+                            or title
+                            or (f"Email from {sender}" if sender else "Email")
+                        )
+                    if not title:
+                        title = item.get("id", "Unknown")
+                    date = item.get("date") or ""
                     if date:
                         if hasattr(date, "strftime"):
                             date = f" ({date.strftime('%Y-%m-%d')})"
