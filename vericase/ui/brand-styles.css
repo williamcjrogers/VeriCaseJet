@@ -66,10 +66,19 @@
   --bg-primary: var(--vericase-cream); /* Warm Parchment */
   --bg-secondary: #ffffff;
   --bg-tertiary: #F5F5F4;
-  --bg-elevated: #ffffff;
+  --bg-elevated: var(--vericase-cream-warm);
   --bg-dark: var(--vericase-navy);
   --bg-sidebar: var(--vericase-navy);
   --bg-header: #ffffff;
+
+  /* Surface textures (subtle "paper" finish for cards/panels) */
+  --surface-paper-gradient: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(var(--vericase-cream-rgb), 0.9) 100%
+  );
+  --surface-paper-dots: radial-gradient(rgba(15, 23, 42, 0.022) 1px, transparent 1px);
+  --surface-paper-dots-size: 32px 32px;
 
   /* Text */
   --text-primary: #1C1917; /* Soft Black */
@@ -240,6 +249,7 @@
 html {
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -251,6 +261,28 @@ body {
   line-height: var(--leading-normal);
   color: var(--text-secondary) !important;
   background-color: var(--bg-primary) !important;
+}
+
+/* ============================================
+   SURFACE TEXTURES (Premium Paper)
+   Subtle gradient + micro-dot texture for white boxes
+   ============================================ */
+
+.surface-paper,
+.app-content,
+.card,
+.panel,
+.modal-content,
+.dropdown-menu,
+.popover,
+.toast,
+[class*="card"]:not(.workspace-card),
+[class*="panel"] {
+  background-color: var(--bg-elevated);
+  background-image: var(--surface-paper-dots), var(--surface-paper-gradient);
+  background-size: var(--surface-paper-dots-size), auto;
+  background-repeat: repeat, no-repeat;
+  background-position: 0 0, 0 0;
 }
 
 /* ============================================
@@ -725,7 +757,7 @@ samp {
    ============================================ */
 
 .card {
-  background: var(--bg-elevated);
+  background-color: var(--bg-elevated);
   border-radius: var(--radius-xl);
   border: 1px solid var(--border-default);
   box-shadow: var(--shadow-card);
@@ -767,8 +799,8 @@ samp {
 
 .card-glass {
   background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
