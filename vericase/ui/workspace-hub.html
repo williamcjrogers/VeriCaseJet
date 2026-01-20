@@ -2049,6 +2049,60 @@
               </div>
             </div>
 
+            <div class="about-card about-span-2">
+              <div class="about-card-title">
+                <i class="fas fa-diagram-project" aria-hidden="true"></i>
+                Structured dispute intelligence (auto-built)
+              </div>
+              <div class="about-card-body">
+                <div class="about-contract-grid">
+                  <div>
+                    <div class="about-subtitle">
+                      <i class="fas fa-gauge-high" aria-hidden="true"></i>
+                      At a glance
+                    </div>
+                    <div class="about-pre" id="aboutAtAGlance"></div>
+                  </div>
+                  <div>
+                    <div class="about-subtitle">
+                      <i class="fas fa-users" aria-hidden="true"></i>
+                      Parties & roles
+                    </div>
+                    <div class="about-pre" id="aboutPartiesRoles"></div>
+                  </div>
+                </div>
+                <div class="about-hint"></div>
+                <div class="about-contract-grid">
+                  <div>
+                    <div class="about-subtitle">
+                      <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+                      Issues (what matters)
+                    </div>
+                    <div class="about-pre" id="aboutIssues"></div>
+                  </div>
+                  <div>
+                    <div class="about-subtitle">
+                      <i class="fas fa-list-check" aria-hidden="true"></i>
+                      Next actions
+                    </div>
+                    <div class="about-pre" id="aboutNextActions"></div>
+                  </div>
+                </div>
+                <div class="about-hint" id="aboutStructuredHint"></div>
+              </div>
+            </div>
+
+            <div class="about-card about-span-2">
+              <div class="about-card-title">
+                <i class="fas fa-sitemap" aria-hidden="true"></i>
+                Evidence map (what we have, and why it matters)
+              </div>
+              <div class="about-card-body">
+                <div id="aboutEvidenceMap"></div>
+                <div class="about-hint" id="aboutEvidenceMapHint"></div>
+              </div>
+            </div>
+
             <div class="about-card">
               <div class="about-card-title">
                 <i class="fas fa-question-circle" aria-hidden="true"></i>
@@ -3247,6 +3301,13 @@
       const contractDocsEl = document.getElementById("aboutContractDocs");
       const contractTermsEl = document.getElementById("aboutContractTerms");
       const contractHintEl = document.getElementById("aboutContractsHint");
+      const atAGlanceEl = document.getElementById("aboutAtAGlance");
+      const partiesEl = document.getElementById("aboutPartiesRoles");
+      const issuesEl = document.getElementById("aboutIssues");
+      const nextActionsEl = document.getElementById("aboutNextActions");
+      const structuredHintEl = document.getElementById("aboutStructuredHint");
+      const evidenceMapEl = document.getElementById("aboutEvidenceMap");
+      const evidenceMapHintEl = document.getElementById("aboutEvidenceMapHint");
 
       const status = (about?.status || "").toLowerCase();
       const updatedAt = about?.updated_at || about?.last_updated || null;
@@ -3349,6 +3410,146 @@
             docs.length
               ? `Built from ${docs.length} contract document(s). Click Refresh for a deeper clause/term extraction.`
               : "Tip: include the executed contract, amendments, schedules, and any key appointments (architect/QS/engineer).";
+        }
+      } catch {
+        // best-effort
+      }
+
+      // Structured dispute intelligence (highly structured, deep mode fills this out)
+      try {
+        const structured = about?.structured || about?.data?.structured || {};
+        const at = structured?.at_a_glance || {};
+        const parties = Array.isArray(structured?.parties_roles) ? structured.parties_roles : [];
+        const issues = Array.isArray(structured?.issues) ? structured.issues : [];
+        const nextActions = Array.isArray(structured?.next_actions) ? structured.next_actions : [];
+        const evidenceMap = (structured && typeof structured === "object" && structured.evidence_map && typeof structured.evidence_map === "object")
+          ? structured.evidence_map
+          : {};
+
+        if (atAGlanceEl) {
+          const lines = [];
+          const push = (k, v) => { if (v && String(v).trim()) lines.push(`${k}: ${String(v).trim()}`); };
+          push("Headline", at.headline);
+          push("Dispute type", at.dispute_type);
+          push("Location", at.location);
+          push("Contract form", at.contract_form);
+          push("Contract value", at.contract_value);
+          if (Array.isArray(at.key_dates) && at.key_dates.length) {
+            lines.push(`Key dates: ${at.key_dates.slice(0,6).join(" • ")}`);
+          } else {
+            push("Key dates", at.key_dates);
+          }
+          push("Current position", at.current_position);
+          push("Quantum", at.quantum);
+          atAGlanceEl.textContent = lines.length ? lines.join("\n") : "Run Supercharge to generate structured intelligence (at-a-glance, parties, issues, next steps).";
+        }
+
+        if (partiesEl) {
+          if (!parties.length) {
+            partiesEl.textContent = "Supercharge will extract parties/roles from contracts, pleadings, and key correspondence.";
+          } else {
+            partiesEl.textContent = parties.slice(0, 14).map(p => {
+              const name = (p?.name || "").toString().trim();
+              const role = (p?.role || "").toString().trim();
+              const org = (p?.organisation || "").toString().trim();
+              const notes = (p?.notes || "").toString().trim();
+              const bits = [];
+              if (name) bits.push(name);
+              if (role) bits.push(`(${role})`);
+              if (org) bits.push(`— ${org}`);
+              if (notes) bits.push(`: ${notes}`);
+              return `• ${bits.join(" ")}`.replace(/\s+/g, " ").trim();
+            }).join("\n");
+          }
+        }
+
+        if (issuesEl) {
+          if (!issues.length) {
+            issuesEl.textContent = "Supercharge will extract the core issues (defects, delay, payment, design responsibility, insurance) with citations.";
+          } else {
+            issuesEl.textContent = issues.slice(0, 10).map(it => {
+              const title = (it?.issue || "").toString().trim();
+              const what = (it?.what_happened || "").toString().trim();
+              const why = (it?.why_it_matters || "").toString().trim();
+              const lines = [];
+              if (title) lines.push(`• ${title}`);
+              if (what) lines.push(`  - What: ${what}`);
+              if (why) lines.push(`  - Why: ${why}`);
+              return lines.join("\n");
+            }).join("\n");
+          }
+        }
+
+        if (nextActionsEl) {
+          if (!nextActions.length) {
+            nextActionsEl.textContent = "Supercharge will propose next actions with document requests and owner hints.";
+          } else {
+            nextActionsEl.textContent = nextActions.slice(0, 12).map(a => {
+              const action = (a?.action || "").toString().trim();
+              const why = (a?.why || "").toString().trim();
+              const owner = (a?.owner_hint || "").toString().trim();
+              const lines = [];
+              if (action) lines.push(`• ${action}`);
+              if (why) lines.push(`  - Why: ${why}`);
+              if (owner) lines.push(`  - Owner: ${owner}`);
+              return lines.join("\n");
+            }).join("\n");
+          }
+        }
+
+        if (structuredHintEl) {
+          structuredHintEl.textContent =
+            (structured && Object.keys(structured).length)
+              ? "Structured intelligence is generated from extracted text + AWS entity extraction + contract queries."
+              : "Tip: Supercharge runs deep processing and produces structured intelligence for counsel.";
+        }
+
+        if (evidenceMapEl) {
+          const categories = [
+            ["Contracts", "contracts"],
+            ["Pleadings", "pleadings"],
+            ["Expert reports", "expert_reports"],
+            ["Correspondence", "correspondence"],
+            ["Programmes", "programmes"],
+            ["Photos", "photos"],
+          ];
+
+          function renderCategory(label, key) {
+            const items = Array.isArray(evidenceMap?.[key]) ? evidenceMap[key] : [];
+            if (!items.length) return "";
+            const rows = items.slice(0, 6).map((it) => {
+              const filename = (it?.filename || "").toString();
+              const why = (it?.why_relevant || "").toString();
+              const id = (it?.evidence_id || it?.id || "").toString();
+              return `
+                <div class="about-contract-item">
+                  <div>
+                    <div class="about-contract-title">${escapeHtml(filename || "Untitled")}</div>
+                    <div class="about-contract-meta">${escapeHtml(why)}</div>
+                  </div>
+                  <div class="about-contract-actions">
+                    ${id ? `<button class="btn btn-sm btn-outline" onclick="downloadDocument('${id}')" title="Download"><i class="fas fa-download"></i></button>` : ""}
+                  </div>
+                </div>
+              `;
+            }).join("");
+            return `
+              <div style="margin-top: 10px;">
+                <div class="about-subtitle">${escapeHtml(label)}</div>
+                <div class="about-contract-list">${rows}</div>
+              </div>
+            `;
+          }
+
+          const html = categories.map(([label, key]) => renderCategory(label, key)).filter(Boolean).join("");
+          evidenceMapEl.innerHTML = html || `<div class="about-pre">Supercharge will build an evidence map (contracts/pleadings/reports/correspondence/programmes/photos) and explain why each item matters.</div>`;
+        }
+
+        if (evidenceMapHintEl) {
+          evidenceMapHintEl.textContent =
+            (evidenceMap && Object.keys(evidenceMap).length)
+              ? "Evidence map is auto-generated; click any item to download and verify."
+              : "";
         }
       } catch {
         // best-effort

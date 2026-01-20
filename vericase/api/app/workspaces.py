@@ -314,6 +314,42 @@ async def _build_workspace_about_snapshot(
                 return True
         except Exception:
             pass
+        # Strong signal: Textract queries returned commercial/contract fields
+        try:
+            md = (
+                it.extracted_metadata if isinstance(it.extracted_metadata, dict) else {}
+            )
+            tex = md.get("textract_data") if isinstance(md, dict) else None
+            if isinstance(tex, dict):
+                q = tex.get("queries")
+                if isinstance(q, dict):
+
+                    def _ans(key: str) -> str:
+                        v = q.get(key)
+                        if isinstance(v, dict):
+                            return str(v.get("answer") or "").strip()
+                        if isinstance(v, str):
+                            return v.strip()
+                        return ""
+
+                    hits = 0
+                    for k in (
+                        "contract_value",
+                        "contract_form",
+                        "contract_date",
+                        "parties",
+                        "employer",
+                        "contractor",
+                        "payment_terms",
+                        "retention",
+                        "liquidated_damages",
+                    ):
+                        if _ans(k):
+                            hits += 1
+                    if hits >= 2:
+                        return True
+        except Exception:
+            pass
         fn = (it.filename or "").lower()
         if any(
             k in fn
@@ -328,6 +364,18 @@ async def _build_workspace_about_snapshot(
                 "conditions",
                 "scope of works",
                 "appointment",
+                "consultancy",
+                "consultant",
+                "professional",
+                "warranty",
+                "collateral",
+                "deed",
+                "novation",
+                "side letter",
+                "letter of intent",
+                "loi",
+                "purchase order",
+                "po ",
             )
         ):
             return True
@@ -344,6 +392,11 @@ async def _build_workspace_about_snapshot(
                 "schedule of amendments",
                 "contract sum",
                 "articles of agreement",
+                "appointment of",
+                "terms of engagement",
+                "deed of",
+                "collateral warranty",
+                "letter of intent",
             )
         ):
             return True
@@ -433,7 +486,9 @@ async def _build_workspace_about_snapshot(
 
         # Pull high-signal structured fields when available (Textract queries, etc.)
         signals: list[str] = []
-        md = item.extracted_metadata if isinstance(item.extracted_metadata, dict) else {}
+        md = (
+            item.extracted_metadata if isinstance(item.extracted_metadata, dict) else {}
+        )
         tex = md.get("textract_data") if isinstance(md, dict) else None
         if isinstance(tex, dict):
             q = tex.get("queries")
@@ -462,14 +517,13 @@ async def _build_workspace_about_snapshot(
                         signals.append(f"{alias}={str(ans).strip()[:160]}")
         # Give more room to contract documents.
         excerpt_limit = 3200 if _looks_like_contract(item) else 1600
-        excerpt = (
-            _safe_excerpt(item.extracted_text, excerpt_limit)
-            or _safe_excerpt(
+        excerpt = _safe_excerpt(item.extracted_text, excerpt_limit) or _safe_excerpt(
+            (
                 (item.extracted_metadata or {}).get("text_preview")  # type: ignore[union-attr]
                 if isinstance(item.extracted_metadata, dict)
-                else "",
-                excerpt_limit,
-            )
+                else ""
+            ),
+            excerpt_limit,
         )
         sources.append(
             {
@@ -481,7 +535,9 @@ async def _build_workspace_about_snapshot(
             }
         )
         if excerpt:
-            header = f"[{label}] {filename} (id={item.id}, date={doc_date or 'unknown'})"
+            header = (
+                f"[{label}] {filename} (id={item.id}, date={doc_date or 'unknown'})"
+            )
             if signals:
                 header += "\nSignals: " + "; ".join(signals[:10])
             source_blocks.append(f"{header}\n{excerpt}")
@@ -512,12 +568,18 @@ Build a counsel-ready Workspace Read-In that reduces read-in time to minutes.
 
 Return ONE JSON object with keys:
 - read_in: string (plain text; use headings + bullets; be comprehensive but factual)
+- structured: object with:
+  - at_a_glance: object {{headline, dispute_type, location, contract_form, contract_value, key_dates, current_position, quantum}}
+  - parties_roles: array of objects {{name, role, organisation, notes, sources}}
+  - issues: array of objects {{issue, what_happened, why_it_matters, sources}}
+  - evidence_map: object with arrays for {{contracts, pleadings, expert_reports, correspondence, programmes, photos}} each item {{filename, evidence_id, why_relevant, sources}}
+  - next_actions: array of objects {{action, why, owner_hint, sources}}
 - contracts: object with:
-  - documents: array of objects {evidence_id, filename, contract_form, contract_date, parties, contract_value, key_terms, risks, source_labels}
+  - documents: array of objects {{evidence_id, filename, contract_form, contract_date, parties, contract_value, key_terms, risks, source_labels}}
   - key_terms_overview: array of strings (most important clauses/terms, each with citation)
   - gaps: array of strings (missing contract documents/clauses/appendices)
 - open_questions: array of strings (8-20 items; prioritized; each should be answerable by a missing document or fact)
-- sources: array of objects {label, evidence_id, filename, document_date}
+- sources: array of objects {{label, evidence_id, filename, document_date}}
 
 Workspace:
 - name: {workspace.name}
@@ -560,7 +622,8 @@ Evidence excerpts (cite sources like [S1], [S2] where relevant):
             summary_lines.append(f"Description: {workspace.description}")
         if projects:
             summary_lines.append(
-                "Projects: " + ", ".join([p.project_name for p in projects if p.project_name][:10])
+                "Projects: "
+                + ", ".join([p.project_name for p in projects if p.project_name][:10])
             )
         if cases:
             summary_lines.append(
@@ -579,14 +642,13 @@ Evidence excerpts (cite sources like [S1], [S2] where relevant):
 
         payload = {
             "read_in": "\n".join(summary_lines),
+            "structured": {},
             "contracts": {
                 "documents": [
                     {
                         "evidence_id": str(d.id),
                         "filename": d.filename,
-                        "source_labels": [
-                            contract_source_labels.get(str(d.id), "")
-                        ],
+                        "source_labels": [contract_source_labels.get(str(d.id), "")],
                     }
                     for d in contract_docs
                 ],
@@ -605,10 +667,22 @@ Evidence excerpts (cite sources like [S1], [S2] where relevant):
 
     # Normalize payload keys for UI
     summary = str(payload.get("read_in") or payload.get("summary") or "").strip()
-    open_questions = payload.get("open_questions") if isinstance(payload.get("open_questions"), list) else []
+    open_questions = (
+        payload.get("open_questions")
+        if isinstance(payload.get("open_questions"), list)
+        else []
+    )
     payload["open_questions"] = [str(q) for q in open_questions if str(q).strip()][:20]
     payload["sources"] = sources
-    contracts_obj = payload.get("contracts") if isinstance(payload.get("contracts"), dict) else {}
+    structured_obj = (
+        payload.get("structured") if isinstance(payload.get("structured"), dict) else {}
+    )
+    if not isinstance(structured_obj, dict):
+        structured_obj = {}
+    payload["structured"] = structured_obj
+    contracts_obj = (
+        payload.get("contracts") if isinstance(payload.get("contracts"), dict) else {}
+    )
     # Ensure stable contract payload shape for the UI, even if the model omits it.
     if not isinstance(contracts_obj, dict):
         contracts_obj = {}
@@ -650,15 +724,20 @@ Evidence excerpts (cite sources like [S1], [S2] where relevant):
                 ans = _q_answer(d, alias)
                 if ans:
                     key_terms[alias] = ans
-                    key_terms_overview.append(f"{alias}: {ans} [{contract_source_labels.get(str(d.id), '?')}]")
+                    key_terms_overview.append(
+                        f"{alias}: {ans} [{contract_source_labels.get(str(d.id), '?')}]"
+                    )
 
             docs_payload.append(
                 {
                     "evidence_id": str(d.id),
                     "filename": d.filename,
-                    "contract_form": _q_answer(d, "contract_form") or (workspace.contract_type or ""),
-                    "contract_date": _q_answer(d, "contract_date") or (d.document_date.isoformat() if d.document_date else ""),
-                    "parties": _q_answer(d, "parties") or ", ".join((d.extracted_parties or [])[:6]),
+                    "contract_form": _q_answer(d, "contract_form")
+                    or (workspace.contract_type or ""),
+                    "contract_date": _q_answer(d, "contract_date")
+                    or (d.document_date.isoformat() if d.document_date else ""),
+                    "parties": _q_answer(d, "parties")
+                    or ", ".join((d.extracted_parties or [])[:6]),
                     "contract_value": _q_answer(d, "contract_value"),
                     "key_terms": key_terms,
                     "source_labels": [contract_source_labels.get(str(d.id), "")],
@@ -697,11 +776,14 @@ async def _workspace_doc_postprocess_job(
             ws = db.query(Workspace).filter(Workspace.id == ws_uuid).first()
             if ws:
                 # Rebuild using newly extracted AWS metadata (quick mode).
-                await _build_workspace_about_snapshot(db=db, workspace=ws, force=False, deep=False)
+                await _build_workspace_about_snapshot(
+                    db=db, workspace=ws, force=False, deep=False
+                )
         except Exception as e:
             logger.info("Workspace About refresh failed: %s", e)
     finally:
         db.close()
+
 
 # CRUD Endpoints
 @router.get("")
@@ -1462,6 +1544,40 @@ async def upload_workspace_document(
             status_code=500, detail="Failed to upload document to storage"
         ) from exc
 
+    # Best-effort initial classification from filename (helps contract detection before OCR finishes)
+    initial_type = None
+    try:
+        fn = (file.filename or "").lower()
+        if any(
+            k in fn
+            for k in (
+                "contract",
+                "agreement",
+                "appointment",
+                "terms",
+                "conditions",
+                "warranty",
+                "collateral",
+                "deed",
+                "novation",
+                "letter of intent",
+                "loi",
+                "jct",
+                "nec",
+            )
+        ):
+            initial_type = "contract"
+        elif any(k in fn for k in ("programme", "program", "schedule")):
+            initial_type = "programme"
+        elif any(k in fn for k in ("minutes", "meeting")):
+            initial_type = "meeting_minutes"
+        elif any(k in fn for k in ("invoice", "valuation", "pay less", "payment")):
+            initial_type = "invoice"
+        elif any(k in fn for k in ("drawing", "plan", "elevation", "section")):
+            initial_type = "drawing"
+    except Exception:
+        initial_type = None
+
     item = EvidenceItem(
         id=evidence_id,
         filename=file.filename,
@@ -1472,6 +1588,7 @@ async def upload_workspace_document(
         s3_bucket=bucket,
         s3_key=s3_key,
         title=file.filename,
+        evidence_type=initial_type,
         processing_status="pending",
         source_type="workspace_document",
         case_id=None,
@@ -1509,7 +1626,9 @@ async def upload_workspace_document(
 
     # Background: deep AWS digestion + About snapshot refresh
     try:
-        background_tasks.add_task(_workspace_doc_postprocess_job, str(item.id), str(workspace.id))
+        background_tasks.add_task(
+            _workspace_doc_postprocess_job, str(item.id), str(workspace.id)
+        )
     except Exception:
         pass
 
@@ -1545,7 +1664,9 @@ def download_workspace_document(
         url = presign_get(item.s3_key, bucket=item.s3_bucket, expires=3600)
     except Exception as exc:
         logger.error("Failed to presign download: %s", exc)
-        raise HTTPException(status_code=500, detail="Failed to generate download URL") from exc
+        raise HTTPException(
+            status_code=500, detail="Failed to generate download URL"
+        ) from exc
 
     return RedirectResponse(url=url)
 
@@ -1608,12 +1729,18 @@ def get_workspace_about(
     data = about.data or {}
     open_questions = data.get("open_questions") if isinstance(data, dict) else None
     contracts = data.get("contracts") if isinstance(data, dict) else None
+    structured = data.get("structured") if isinstance(data, dict) else None
     return {
         "workspace_id": str(workspace.id),
         "status": about.status,
         "summary": about.summary_md or "",
         "open_questions": open_questions if isinstance(open_questions, list) else [],
-        "contracts": contracts if isinstance(contracts, dict) else {"documents": [], "key_terms_overview": [], "gaps": []},
+        "contracts": (
+            contracts
+            if isinstance(contracts, dict)
+            else {"documents": [], "key_terms_overview": [], "gaps": []}
+        ),
+        "structured": structured if isinstance(structured, dict) else {},
         "user_notes": about.user_notes or "",
         "updated_at": about.updated_at.isoformat() if about.updated_at else None,
         "last_error": about.last_error,
@@ -1652,14 +1779,54 @@ def save_workspace_about_notes(
     }
 
 
-async def _workspace_about_refresh_job(workspace_id: str, force: bool, deep: bool) -> None:
+async def _workspace_about_refresh_job(
+    workspace_id: str, force: bool, deep: bool
+) -> None:
     db = SessionLocal()
     try:
         ws_uuid = _parse_uuid(workspace_id, "workspace_id")
         ws = db.query(Workspace).filter(Workspace.id == ws_uuid).first()
         if not ws:
             return
-        await _build_workspace_about_snapshot(db=db, workspace=ws, force=force, deep=deep)
+        # Deep refresh: (re)process key workspace documents to ensure text/metadata exist
+        # before generating the structured read-in. This is where we "max out" AWS services.
+        if deep and enhanced_processor is not None:
+            try:
+                docs = (
+                    _workspace_docs_query(db, ws.id)
+                    .order_by(desc(EvidenceItem.created_at))
+                    .limit(60)
+                    .all()
+                )
+                to_process: list[EvidenceItem] = []
+                for d in docs:
+                    status = (d.processing_status or "").lower()
+                    has_text = bool((d.extracted_text or "").strip())
+                    md = (
+                        d.extracted_metadata
+                        if isinstance(d.extracted_metadata, dict)
+                        else {}
+                    )
+                    has_tex = isinstance(md.get("textract_data"), dict)
+                    if (
+                        status not in ("ready", "completed")
+                        or not has_text
+                        or not has_tex
+                    ):
+                        to_process.append(d)
+                # Cap to avoid runaway jobs; deep refresh can still be invoked again.
+                for d in to_process[:12]:
+                    try:
+                        await enhanced_processor.process_evidence_item(str(d.id), db)
+                    except Exception as e:
+                        logger.info(
+                            "Deep refresh doc processing failed for %s: %s", d.id, e
+                        )
+            except Exception as e:
+                logger.info("Deep refresh pre-processing skipped: %s", e)
+        await _build_workspace_about_snapshot(
+            db=db, workspace=ws, force=force, deep=deep
+        )
     finally:
         db.close()
 
@@ -1702,7 +1869,10 @@ async def refresh_workspace_about(
         "status": about.status,
         "summary": about.summary_md or "",
         "open_questions": (about.data or {}).get("open_questions", []),
-        "contracts": (about.data or {}).get("contracts", {"documents": [], "key_terms_overview": [], "gaps": []}),
+        "contracts": (about.data or {}).get(
+            "contracts", {"documents": [], "key_terms_overview": [], "gaps": []}
+        ),
+        "structured": (about.data or {}).get("structured", {}),
         "user_notes": about.user_notes or "",
         "updated_at": about.updated_at.isoformat() if about.updated_at else None,
     }
@@ -1727,7 +1897,11 @@ async def ask_workspace_about(
     )
     user_notes = (about.user_notes if about else None) or ""
     about_summary = (about.summary_md if about else None) or ""
-    about_contracts = (about.data or {}).get("contracts", {}) if about and isinstance(about.data, dict) else {}
+    about_contracts = (
+        (about.data or {}).get("contracts", {})
+        if about and isinstance(about.data, dict)
+        else {}
+    )
 
     # Build evidence pool: workspace docs + related project/case evidence (bounded).
     projects = db.query(Project).filter(Project.workspace_id == workspace.id).all()
@@ -1754,9 +1928,7 @@ async def ask_workspace_about(
     tokens = re.findall(r"[a-zA-Z0-9]{3,}", question.lower())[:14]
 
     def score_item(it: EvidenceItem) -> int:
-        hay = (
-            f"{it.filename} {it.title or ''} {(_safe_excerpt(it.extracted_text, 6000))}".lower()
-        )
+        hay = f"{it.filename} {it.title or ''} {(_safe_excerpt(it.extracted_text, 6000))}".lower()
         score = 0
         for t in tokens:
             if t in hay:
@@ -1766,7 +1938,9 @@ async def ask_workspace_about(
         return score
 
     ranked = sorted(pool, key=score_item, reverse=True)
-    contract_ranked = [it for it in ranked if (it.evidence_type or "").lower() == "contract"][:2]
+    contract_ranked = [
+        it for it in ranked if (it.evidence_type or "").lower() == "contract"
+    ][:2]
     topical = [it for it in ranked if score_item(it) > 0][:6]
     top = []
     seen: set[str] = set()

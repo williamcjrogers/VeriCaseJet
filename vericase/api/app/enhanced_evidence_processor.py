@@ -7,6 +7,11 @@ from sqlalchemy.orm import Session
 from .aws_services import get_aws_services
 from .config import settings
 from .models import EvidenceItem, EmailMessage, Case
+from .storage import get_object
+
+from .evidence.text_extract import extract_text_from_bytes, tika_url_candidates
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +39,70 @@ class EnhancedEvidenceProcessor:
 
             logger.info(f"Processing evidence: {evidence.filename}")
 
-            # Step 1: Enhanced text extraction with Textract
-            textract_data = await self.aws.extract_document_data(
-                evidence.s3_bucket, evidence.s3_key
-            )
+            # Step 1: Text extraction (Textract for PDFs/images; robust fallback for DOCX/XLSX/etc).
+            file_bytes = b""
+            try:
+                file_bytes = get_object(evidence.s3_key, bucket=evidence.s3_bucket)
+            except Exception as e:
+                logger.warning("Could not download object for extraction: %s", e)
+
+            ext = ""
+            try:
+                if evidence.filename and "." in evidence.filename:
+                    ext = evidence.filename.rsplit(".", 1)[-1].lower()
+            except Exception:
+                ext = ""
+
+            mime = (evidence.mime_type or "").lower().strip()
+            textract_supported = ext in {
+                "pdf",
+                "png",
+                "jpg",
+                "jpeg",
+                "tif",
+                "tiff",
+            } or mime in {
+                "application/pdf",
+                "image/png",
+                "image/jpeg",
+                "image/tiff",
+            }
+
+            textract_data: Dict[str, Any] = {
+                "text": "",
+                "tables": [],
+                "forms": {},
+                "queries": {},
+                "signatures": [],
+                "confidence_scores": {},
+            }
+
+            if textract_supported:
+                textract_data = await self.aws.extract_document_data(
+                    evidence.s3_bucket, evidence.s3_key
+                )
+
+            # Fallback extraction for non-Textract docs (or Textract failures)
+            fallback_text = ""
+            if file_bytes:
+                fallback_text = extract_text_from_bytes(
+                    file_bytes, filename=evidence.filename, mime_type=evidence.mime_type
+                )
+
+            if not (textract_data.get("text") or "").strip():
+                if fallback_text.strip():
+                    textract_data["text"] = fallback_text
+                    textract_data["extraction_method"] = "local"
+                else:
+                    # Try Apache Tika for legacy formats (.doc/.xls/etc) or as a last resort.
+                    tika_text = await self._extract_text_with_tika(
+                        file_bytes,
+                        filename=evidence.filename,
+                        mime_type=evidence.mime_type,
+                    )
+                    if tika_text.strip():
+                        textract_data["text"] = tika_text
+                        textract_data["extraction_method"] = "tika"
 
             # Step 2: Comprehensive text analysis with Comprehend
             full_text = textract_data.get("text", evidence.extracted_text or "")
@@ -136,6 +201,43 @@ class EnhancedEvidenceProcessor:
                     f"Failed to persist evidence processing error for {evidence_id}: {persist_exc}"
                 )
             return {"error": str(e)}
+
+    async def _extract_text_with_tika(
+        self,
+        content: bytes,
+        *,
+        filename: str | None = None,
+        mime_type: str | None = None,
+    ) -> str:
+        """Try Apache Tika for broad format coverage (DOC/XLS/PPT/etc)."""
+        if not content:
+            return ""
+
+        # Avoid sending huge payloads to Tika in-process (uploads are capped at 50MB anyway).
+        max_bytes = 60 * 1024 * 1024
+        if len(content) > max_bytes:
+            return ""
+
+        preferred = getattr(settings, "TIKA_URL", None) or "http://tika:9998"
+        for base in tika_url_candidates(preferred):
+            try:
+                headers = {}
+                if mime_type:
+                    headers["Content-Type"] = mime_type
+                # Preserve filename when possible (helps some parsers)
+                if filename:
+                    headers["X-Tika-OCRLanguage"] = "eng"
+                    headers["X-File-Name"] = filename
+
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    r = await client.put(
+                        f"{base}/tika", content=content, headers=headers
+                    )
+                    if r.status_code == 200:
+                        return (r.text or "").strip()
+            except Exception:
+                continue
+        return ""
 
     async def process_email_thread(self, thread_id: str, db: Session) -> Dict[str, Any]:
         """Process entire email thread with sentiment analysis"""
@@ -343,9 +445,25 @@ class EnhancedEvidenceProcessor:
         """Classify document type based on extracted data"""
         text = textract_data.get("text", "").lower()
 
-        # Contract indicators
+        # Contract / appointment indicators (not only standard forms like JCT/NEC)
         if any(
-            word in text for word in ["contract", "agreement", "terms", "conditions"]
+            word in text
+            for word in [
+                "contract",
+                "agreement",
+                "terms",
+                "conditions",
+                "appointment",
+                "terms of engagement",
+                "professional services",
+                "consultancy",
+                "collateral warranty",
+                "warranty",
+                "deed",
+                "novation",
+                "letter of intent",
+                "loi",
+            ]
         ):
             return "contract"
 

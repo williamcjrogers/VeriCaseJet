@@ -79,6 +79,16 @@ class AWSServicesManager:
                             "Alias": "contract_value",
                         },
                         {
+                            "Text": "What is the form of contract (e.g. JCT, NEC, bespoke, appointment)?",
+                            "Alias": "contract_form",
+                        },
+                        {
+                            "Text": "What is the contract date?",
+                            "Alias": "contract_date",
+                        },
+                        {"Text": "Who is the Employer or Client?", "Alias": "employer"},
+                        {"Text": "Who is the Contractor?", "Alias": "contractor"},
+                        {
                             "Text": "What is the completion date?",
                             "Alias": "completion_date",
                         },
