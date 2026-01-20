@@ -7,19 +7,30 @@ from __future__ import annotations
 
 import logging
 import uuid
+import json
+import re
+from datetime import timezone
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi.responses import RedirectResponse
 
 logger = logging.getLogger(__name__)
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_, desc
 
 from .db import get_db
+from .db import SessionLocal
+from .config import settings
+from .storage import put_object, presign_get, delete_object
+from .evidence.utils import compute_file_hash, get_file_type, log_activity
+from .ai_runtime import complete_chat
+from .ai_settings import get_tool_config
 from .models import (
     Workspace,
+    WorkspaceAbout,
     WorkspaceKeyword,
     WorkspaceTeamMember,
     WorkspaceKeyDate,
@@ -28,8 +39,14 @@ from .models import (
     User,
     UserRole,
     Stakeholder,
+    EvidenceItem,
 )
 from .security import current_user
+
+try:
+    from .enhanced_evidence_processor import enhanced_processor
+except Exception:  # pragma: no cover
+    enhanced_processor = None  # type: ignore
 
 DbSession = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(current_user)]
@@ -122,6 +139,329 @@ class KeyDateCreate(BaseModel):
     date_value: datetime
     description: str | None = None
 
+
+class AboutRefreshRequest(BaseModel):
+    force: bool = False
+
+
+class AboutAskRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=2000)
+
+
+class AboutNotesRequest(BaseModel):
+    notes: str | None = Field(default=None, max_length=10000)
+
+
+def _workspace_docs_query(db: Session, workspace_uuid: uuid.UUID):
+    # Workspace documents are stored as EvidenceItems with a scoped meta marker.
+    return db.query(EvidenceItem).filter(
+        EvidenceItem.meta.op("->>")("workspace_id") == str(workspace_uuid)
+    )
+
+
+def _safe_excerpt(text: str | None, limit: int = 1800) -> str:
+    t = (text or "").strip()
+    if not t:
+        return ""
+    if len(t) <= limit:
+        return t
+    return t[:limit].rstrip() + "…"
+
+
+def _extract_json_object(text: str) -> dict[str, Any] | None:
+    if not text:
+        return None
+    # Prefer fenced json blocks
+    m = re.search(r"```json\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
+    candidate = m.group(1).strip() if m else ""
+    if not candidate:
+        # Best-effort: first { ... last }
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            candidate = text[start : end + 1].strip()
+    if not candidate:
+        return None
+    try:
+        parsed = json.loads(candidate)
+        return parsed if isinstance(parsed, dict) else None
+    except Exception:
+        return None
+
+
+async def _complete_with_tool_fallback(
+    *,
+    tool_name: str,
+    prompt: str,
+    system_prompt: str,
+    db: Session,
+    max_tokens: int = 2200,
+    temperature: float = 0.2,
+) -> str:
+    cfg = get_tool_config(tool_name, db) or get_tool_config("basic_chat", db) or {}
+    provider = str(cfg.get("provider", "gemini"))
+    model = str(cfg.get("model") or "")
+    fallback_chain = cfg.get("fallback_chain") or []
+
+    async def _try(p: str, m: str) -> str:
+        return await complete_chat(
+            provider=p,
+            model_id=m,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            db=db,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            function_name=tool_name,
+            task_type="workspace_about",
+        )
+
+    # First attempt: configured provider/model
+    if model:
+        try:
+            return await _try(provider, model)
+        except Exception:
+            pass
+
+    # Fallback chain: list of tuples like ("bedrock", "amazon.nova-lite-v1:0")
+    for entry in fallback_chain:
+        try:
+            p = str(entry[0])
+            m = str(entry[1])
+            if not m:
+                continue
+            return await _try(p, m)
+        except Exception:
+            continue
+
+    # Final: deterministic fallback (no external AI)
+    return ""
+
+
+async def _build_workspace_about_snapshot(
+    *,
+    db: Session,
+    workspace: Workspace,
+    force: bool = False,
+) -> WorkspaceAbout:
+    about = (
+        db.query(WorkspaceAbout)
+        .filter(WorkspaceAbout.workspace_id == workspace.id)
+        .first()
+    )
+    if not about:
+        about = WorkspaceAbout(workspace_id=workspace.id, status="empty")
+        db.add(about)
+        db.commit()
+        db.refresh(about)
+
+    # If not forcing and we already have a ready summary, keep it unless new docs exist.
+    latest_doc = (
+        _workspace_docs_query(db, workspace.id)
+        .order_by(desc(EvidenceItem.created_at))
+        .first()
+    )
+    latest_doc_at = getattr(latest_doc, "created_at", None)
+    if (
+        not force
+        and (about.status or "").lower() == "ready"
+        and about.updated_at
+        and latest_doc_at
+        and about.updated_at >= latest_doc_at
+    ):
+        return about
+
+    about.status = "building"
+    about.last_error = None
+    db.commit()
+
+    # Aggregate core workspace context
+    projects = db.query(Project).filter(Project.workspace_id == workspace.id).all()
+    cases = db.query(Case).filter(Case.workspace_id == workspace.id).all()
+
+    # Pull workspace-scoped evidence, plus related project/case evidence (bounded).
+    project_ids = [p.id for p in projects]
+    case_ids = [c.id for c in cases]
+
+    evidence_conds = [
+        EvidenceItem.meta.op("->>")("workspace_id") == str(workspace.id),
+    ]
+    if project_ids:
+        evidence_conds.append(EvidenceItem.project_id.in_(project_ids))
+    if case_ids:
+        evidence_conds.append(EvidenceItem.case_id.in_(case_ids))
+
+    evidence_query = db.query(EvidenceItem).filter(or_(*evidence_conds))
+    evidence_items = evidence_query.order_by(desc(EvidenceItem.created_at)).limit(18).all()
+
+    sources: list[dict[str, Any]] = []
+    source_blocks: list[str] = []
+    for idx, item in enumerate(evidence_items, start=1):
+        label = f"S{idx}"
+        filename = item.filename or "Untitled"
+        doc_date = item.document_date.isoformat() if item.document_date else None
+
+        # Pull high-signal structured fields when available (Textract queries, etc.)
+        signals: list[str] = []
+        md = item.extracted_metadata if isinstance(item.extracted_metadata, dict) else {}
+        tex = md.get("textract_data") if isinstance(md, dict) else None
+        if isinstance(tex, dict):
+            q = tex.get("queries")
+            if isinstance(q, dict):
+                for alias in (
+                    "project_name",
+                    "parties",
+                    "contract_value",
+                    "completion_date",
+                    "payment_terms",
+                    "retention",
+                    "liquidated_damages",
+                    "delay_clauses",
+                ):
+                    entry = q.get(alias)
+                    ans = None
+                    if isinstance(entry, dict):
+                        ans = entry.get("answer")
+                    elif isinstance(entry, str):
+                        ans = entry
+                    if ans and str(ans).strip():
+                        signals.append(f"{alias}={str(ans).strip()[:160]}")
+        excerpt = (
+            _safe_excerpt(item.extracted_text, 1600)
+            or _safe_excerpt(
+                (item.extracted_metadata or {}).get("text_preview")  # type: ignore[union-attr]
+                if isinstance(item.extracted_metadata, dict)
+                else "",
+                1600,
+            )
+        )
+        sources.append(
+            {
+                "label": label,
+                "evidence_id": str(item.id),
+                "filename": filename,
+                "document_date": doc_date,
+            }
+        )
+        if excerpt:
+            header = f"[{label}] {filename} (id={item.id}, date={doc_date or 'unknown'})"
+            if signals:
+                header += "\nSignals: " + "; ".join(signals[:10])
+            source_blocks.append(f"{header}\n{excerpt}")
+
+    user_notes = (about.user_notes or "").strip()
+    evidence_excerpt_text = "\n\n".join(source_blocks) if source_blocks else "None"
+
+    system_prompt = (
+        "You are a senior construction disputes barrister's assistant. "
+        "Only use the facts provided. Do NOT invent. "
+        "If information is missing, say 'Unknown' and add an open question."
+    )
+
+    prompt = f"""
+Build an 'About this Workspace' read-in that reduces counsel read-in time.
+
+Return a JSON object with keys:
+- summary: string (plain text; bullets allowed using \\n)
+- open_questions: array of strings (5-12 items)
+- sources: array of objects {{label, evidence_id, filename}}
+
+Workspace:
+- name: {workspace.name}
+- code: {workspace.code}
+- contract_type: {workspace.contract_type or "Unknown"}
+- description: {workspace.description or "None"}
+
+Projects (count={len(projects)}): {", ".join([p.project_name for p in projects if p.project_name]) or "None"}
+Cases (count={len(cases)}): {", ".join([c.name for c in cases if c.name]) or "None"}
+
+Authoritative user notes (treat as ground truth if present):
+{user_notes or "None"}
+
+Evidence excerpts (cite sources like [S1], [S2] where relevant):
+{evidence_excerpt_text}
+""".strip()
+
+    ai_text = await _complete_with_tool_fallback(
+        tool_name="workspace_about",
+        prompt=prompt,
+        system_prompt=system_prompt,
+        db=db,
+        max_tokens=2400,
+        temperature=0.2,
+    )
+
+    payload = _extract_json_object(ai_text) if ai_text else None
+    if not payload:
+        # Deterministic fallback: build a minimal summary without external AI.
+        summary_lines = [
+            f"Workspace: {workspace.name} ({workspace.code})",
+            f"Contract type: {workspace.contract_type or 'Unknown'}",
+        ]
+        if workspace.description:
+            summary_lines.append(f"Description: {workspace.description}")
+        if projects:
+            summary_lines.append(
+                "Projects: " + ", ".join([p.project_name for p in projects if p.project_name][:10])
+            )
+        if cases:
+            summary_lines.append(
+                "Cases: " + ", ".join([c.name for c in cases if c.name][:10])
+            )
+        if evidence_items:
+            summary_lines.append(
+                "Recent evidence: "
+                + ", ".join([e.filename for e in evidence_items if e.filename][:8])
+            )
+
+        payload = {
+            "summary": "\n".join(summary_lines),
+            "open_questions": [
+                "What is the dispute headline / claim narrative?",
+                "Who are the key parties and roles (Employer, Contractor, PM, QS, Engineer)?",
+                "What is the contract form, scope, and key dates (start/completion/EOT)?",
+                "What are the pleaded issues (delay, variations, payment, defects, termination)?",
+                "Which documents are missing and need collecting?",
+            ],
+            "sources": sources,
+        }
+
+    summary = str(payload.get("summary") or "").strip()
+    open_questions = payload.get("open_questions") if isinstance(payload.get("open_questions"), list) else []
+    payload["open_questions"] = [str(q) for q in open_questions if str(q).strip()][:20]
+    payload["sources"] = sources
+
+    about.summary_md = summary
+    about.data = payload
+    about.status = "ready" if summary else "ready"
+    about.last_error = None
+    about.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(about)
+    return about
+
+
+async def _workspace_doc_postprocess_job(
+    evidence_id: str,
+    workspace_id: str,
+) -> None:
+    # Run after upload: AWS digestion + refresh About snapshot.
+    db = SessionLocal()
+    try:
+        try:
+            if enhanced_processor is not None:
+                await enhanced_processor.process_evidence_item(evidence_id, db)
+        except Exception as e:
+            logger.info("Workspace evidence postprocess skipped/failed: %s", e)
+        try:
+            ws_uuid = _parse_uuid(workspace_id, "workspace_id")
+            ws = db.query(Workspace).filter(Workspace.id == ws_uuid).first()
+            if ws:
+                await _build_workspace_about_snapshot(db=db, workspace=ws, force=True)
+        except Exception as e:
+            logger.info("Workspace About refresh failed: %s", e)
+    finally:
+        db.close()
 
 # CRUD Endpoints
 @router.get("")
@@ -415,6 +755,30 @@ def get_workspace(
             for s in stakeholders
         ]
 
+        # Workspace-scoped documents (context uploads)
+        docs = (
+            _workspace_docs_query(db, workspace.id)
+            .order_by(desc(EvidenceItem.created_at))
+            .limit(250)
+            .all()
+        )
+        doc_list = [
+            {
+                "id": str(d.id),
+                "filename": d.filename,
+                "size": int(d.file_size or 0),
+                "created_at": d.created_at.isoformat() if d.created_at else None,
+                "processing_status": d.processing_status or "pending",
+            }
+            for d in docs
+        ]
+
+        about = (
+            db.query(WorkspaceAbout)
+            .filter(WorkspaceAbout.workspace_id == workspace.id)
+            .first()
+        )
+
         return {
             "id": str(workspace.id),
             "name": workspace.name,
@@ -428,6 +792,8 @@ def get_workspace(
             "team_members": team_list,
             "key_dates": date_list,
             "stakeholders": stakeholder_list,
+            "documents": doc_list,
+            "about_status": (about.status if about else "empty"),
             "created_at": (
                 workspace.created_at.isoformat() if workspace.created_at else None
             ),
@@ -780,3 +1146,424 @@ def get_workspace_stakeholders(
         }
         for s in stakeholders
     ]
+
+
+# ============================================================================
+# Workspace Documents (context uploads, dispute read-in)
+# ============================================================================
+
+
+@router.get("/{workspace_id}/documents")
+def list_workspace_documents(
+    workspace_id: str,
+    db: DbSession,
+    user: CurrentUser,
+) -> list[dict[str, Any]]:
+    workspace = _require_workspace(db, workspace_id, user)
+    items = (
+        _workspace_docs_query(db, workspace.id)
+        .order_by(desc(EvidenceItem.created_at))
+        .limit(1000)
+        .all()
+    )
+    return [
+        {
+            "id": str(i.id),
+            "filename": i.filename,
+            "size": int(i.file_size or 0),
+            "created_at": i.created_at.isoformat() if i.created_at else None,
+            "processing_status": i.processing_status or "pending",
+        }
+        for i in items
+    ]
+
+
+@router.post("/{workspace_id}/documents")
+async def upload_workspace_document(
+    workspace_id: str,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> dict[str, Any]:
+    workspace = _require_workspace(db, workspace_id, user)
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Missing filename")
+
+    content = await file.read()
+    file_size = len(content)
+    if file_size > 50 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 50MB)")
+
+    file_hash = compute_file_hash(content)
+    existing = (
+        db.query(EvidenceItem).filter(EvidenceItem.file_hash == file_hash).first()
+    )
+    is_duplicate = existing is not None
+    duplicate_of_id = existing.id if existing else None
+
+    evidence_id = uuid.uuid4()
+    date_prefix = datetime.now().strftime("%Y/%m")
+    safe_filename = file.filename.replace(" ", "_")
+    bucket = settings.S3_BUCKET or settings.MINIO_BUCKET
+    s3_key = f"workspace/{workspace.id}/{date_prefix}/{evidence_id}/{safe_filename}"
+
+    try:
+        put_object(
+            key=s3_key,
+            data=content,
+            content_type=file.content_type or "application/octet-stream",
+            bucket=bucket,
+        )
+    except Exception as exc:
+        logger.error("Workspace document upload failed: %s", exc)
+        raise HTTPException(
+            status_code=500, detail="Failed to upload document to storage"
+        ) from exc
+
+    item = EvidenceItem(
+        id=evidence_id,
+        filename=file.filename,
+        file_type=get_file_type(file.filename),
+        mime_type=file.content_type,
+        file_size=file_size,
+        file_hash=file_hash,
+        s3_bucket=bucket,
+        s3_key=s3_key,
+        title=file.filename,
+        processing_status="pending",
+        source_type="workspace_document",
+        case_id=None,
+        project_id=None,
+        is_duplicate=is_duplicate,
+        duplicate_of_id=duplicate_of_id,
+        uploaded_by=user.id,
+        meta={
+            "workspace_id": str(workspace.id),
+            "scope": "workspace_document",
+            "origin": "workspace-hub",
+        },
+    )
+
+    db.add(item)
+    try:
+        log_activity(
+            db,
+            "upload",
+            user.id,
+            evidence_item_id=item.id,
+            details={
+                "filename": file.filename,
+                "size": file_size,
+                "scope": "workspace_document",
+                "workspace_id": str(workspace.id),
+            },
+        )
+    except Exception:
+        # best effort
+        pass
+
+    db.commit()
+    db.refresh(item)
+
+    # Background: deep AWS digestion + About snapshot refresh
+    try:
+        background_tasks.add_task(_workspace_doc_postprocess_job, str(item.id), str(workspace.id))
+    except Exception:
+        pass
+
+    return {
+        "id": str(item.id),
+        "filename": item.filename,
+        "size": int(item.file_size or 0),
+        "created_at": item.created_at.isoformat() if item.created_at else None,
+        "processing_status": item.processing_status or "pending",
+        "is_duplicate": is_duplicate,
+        "duplicate_of_id": str(duplicate_of_id) if duplicate_of_id else None,
+    }
+
+
+@router.get("/{workspace_id}/documents/{doc_id}/download")
+def download_workspace_document(
+    workspace_id: str,
+    doc_id: str,
+    db: DbSession,
+    user: CurrentUser,
+):
+    workspace = _require_workspace(db, workspace_id, user)
+    doc_uuid = _parse_uuid(doc_id, "doc_id")
+    item = db.query(EvidenceItem).filter(EvidenceItem.id == doc_uuid).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Enforce workspace scope
+    if (item.meta or {}).get("workspace_id") != str(workspace.id):  # type: ignore[union-attr]
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    try:
+        url = presign_get(item.s3_key, bucket=item.s3_bucket, expires=3600)
+    except Exception as exc:
+        logger.error("Failed to presign download: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to generate download URL") from exc
+
+    return RedirectResponse(url=url)
+
+
+@router.delete("/{workspace_id}/documents/{doc_id}")
+def delete_workspace_document(
+    workspace_id: str,
+    doc_id: str,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    workspace = _require_workspace(db, workspace_id, user)
+    doc_uuid = _parse_uuid(doc_id, "doc_id")
+    item = db.query(EvidenceItem).filter(EvidenceItem.id == doc_uuid).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if (item.meta or {}).get("workspace_id") != str(workspace.id):  # type: ignore[union-attr]
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    try:
+        delete_object(item.s3_key, bucket=item.s3_bucket)
+    except Exception:
+        # best effort; still remove DB record
+        pass
+
+    db.delete(item)
+    db.commit()
+
+    return {"status": "success", "id": doc_id}
+
+
+# ============================================================================
+# Workspace About (AI context + Q&A + user notes)
+# ============================================================================
+
+
+@router.get("/{workspace_id}/about")
+def get_workspace_about(
+    workspace_id: str,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    workspace = _require_workspace(db, workspace_id, user)
+    about = (
+        db.query(WorkspaceAbout)
+        .filter(WorkspaceAbout.workspace_id == workspace.id)
+        .first()
+    )
+    if not about:
+        return {
+            "workspace_id": str(workspace.id),
+            "status": "empty",
+            "summary": "",
+            "open_questions": [],
+            "user_notes": "",
+            "updated_at": None,
+        }
+
+    data = about.data or {}
+    open_questions = data.get("open_questions") if isinstance(data, dict) else None
+    return {
+        "workspace_id": str(workspace.id),
+        "status": about.status,
+        "summary": about.summary_md or "",
+        "open_questions": open_questions if isinstance(open_questions, list) else [],
+        "user_notes": about.user_notes or "",
+        "updated_at": about.updated_at.isoformat() if about.updated_at else None,
+        "last_error": about.last_error,
+    }
+
+
+@router.post("/{workspace_id}/about/notes")
+def save_workspace_about_notes(
+    workspace_id: str,
+    payload: AboutNotesRequest,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    workspace = _require_workspace(db, workspace_id, user)
+    about = (
+        db.query(WorkspaceAbout)
+        .filter(WorkspaceAbout.workspace_id == workspace.id)
+        .first()
+    )
+    if not about:
+        about = WorkspaceAbout(workspace_id=workspace.id, status="empty")
+        db.add(about)
+        db.commit()
+        db.refresh(about)
+
+    about.user_notes = (payload.notes or "").strip() or None
+    about.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(about)
+
+    return {
+        "workspace_id": str(workspace.id),
+        "status": about.status,
+        "user_notes": about.user_notes or "",
+        "updated_at": about.updated_at.isoformat() if about.updated_at else None,
+    }
+
+
+async def _workspace_about_refresh_job(workspace_id: str, force: bool) -> None:
+    db = SessionLocal()
+    try:
+        ws_uuid = _parse_uuid(workspace_id, "workspace_id")
+        ws = db.query(Workspace).filter(Workspace.id == ws_uuid).first()
+        if not ws:
+            return
+        await _build_workspace_about_snapshot(db=db, workspace=ws, force=force)
+    finally:
+        db.close()
+
+
+@router.post("/{workspace_id}/about/refresh")
+async def refresh_workspace_about(
+    workspace_id: str,
+    payload: AboutRefreshRequest,
+    background_tasks: BackgroundTasks,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    workspace = _require_workspace(db, workspace_id, user)
+    about = (
+        db.query(WorkspaceAbout)
+        .filter(WorkspaceAbout.workspace_id == workspace.id)
+        .first()
+    )
+    if not about:
+        about = WorkspaceAbout(workspace_id=workspace.id, status="empty")
+        db.add(about)
+        db.commit()
+        db.refresh(about)
+
+    about.status = "building"
+    about.last_error = None
+    about.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(about)
+
+    background_tasks.add_task(
+        _workspace_about_refresh_job,
+        str(workspace.id),
+        bool(payload.force),
+    )
+
+    return {
+        "workspace_id": str(workspace.id),
+        "status": about.status,
+        "summary": about.summary_md or "",
+        "open_questions": (about.data or {}).get("open_questions", []),
+        "user_notes": about.user_notes or "",
+        "updated_at": about.updated_at.isoformat() if about.updated_at else None,
+    }
+
+
+@router.post("/{workspace_id}/about/ask")
+async def ask_workspace_about(
+    workspace_id: str,
+    payload: AboutAskRequest,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    workspace = _require_workspace(db, workspace_id, user)
+    question = (payload.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Question is required")
+
+    about = (
+        db.query(WorkspaceAbout)
+        .filter(WorkspaceAbout.workspace_id == workspace.id)
+        .first()
+    )
+    user_notes = (about.user_notes if about else None) or ""
+    about_summary = (about.summary_md if about else None) or ""
+
+    # Build evidence pool: workspace docs + related project/case evidence (bounded).
+    projects = db.query(Project).filter(Project.workspace_id == workspace.id).all()
+    cases = db.query(Case).filter(Case.workspace_id == workspace.id).all()
+    project_ids = [p.id for p in projects]
+    case_ids = [c.id for c in cases]
+
+    pool_conds = [
+        EvidenceItem.meta.op("->>")("workspace_id") == str(workspace.id),
+    ]
+    if project_ids:
+        pool_conds.append(EvidenceItem.project_id.in_(project_ids))
+    if case_ids:
+        pool_conds.append(EvidenceItem.case_id.in_(case_ids))
+
+    pool = (
+        db.query(EvidenceItem)
+        .filter(or_(*pool_conds))
+        .order_by(desc(EvidenceItem.created_at))
+        .limit(200)
+        .all()
+    )
+
+    tokens = re.findall(r"[a-zA-Z0-9]{3,}", question.lower())[:14]
+
+    def score_item(it: EvidenceItem) -> int:
+        hay = (
+            f"{it.filename} {it.title or ''} {(_safe_excerpt(it.extracted_text, 6000))}".lower()
+        )
+        score = 0
+        for t in tokens:
+            if t in hay:
+                score += 2
+                # reward multiple occurrences lightly
+                score += min(hay.count(t), 4)
+        return score
+
+    ranked = sorted(pool, key=score_item, reverse=True)
+    top = [it for it in ranked if score_item(it) > 0][:6] or ranked[:4]
+
+    sources: list[dict[str, Any]] = []
+    blocks: list[str] = []
+    for idx, it in enumerate(top, start=1):
+        label = f"S{idx}"
+        excerpt = _safe_excerpt(it.extracted_text, 1400)
+        sources.append({"label": label, "id": str(it.id), "filename": it.filename})
+        if excerpt:
+            blocks.append(f"[{label}] {it.filename} (id={it.id})\n{excerpt}")
+
+    system_prompt = (
+        "You answer questions for lawyers/barristers about a workspace dispute. "
+        "Use ONLY the supplied context. Cite sources as [S#]. "
+        "If unsure, say what is missing and propose the next document to request."
+    )
+    evidence_blocks_text = "\n\n".join(blocks) if blocks else "None"
+    prompt = f"""
+Question: {question}
+
+Authoritative user notes (ground truth):
+{user_notes or "None"}
+
+Cached workspace summary:
+{about_summary or "None"}
+
+Evidence excerpts:
+{evidence_blocks_text}
+
+Answer concisely, with citations like [S1].
+""".strip()
+
+    ai_text = await _complete_with_tool_fallback(
+        tool_name="workspace_about",
+        prompt=prompt,
+        system_prompt=system_prompt,
+        db=db,
+        max_tokens=1400,
+        temperature=0.2,
+    )
+
+    answer = (ai_text or "").strip()
+    if not answer:
+        answer = "AI provider unavailable. I can’t answer reliably yet; please upload key documents (contract, key correspondence, notices, schedules, valuations)."
+
+    return {"answer": answer, "sources": sources}

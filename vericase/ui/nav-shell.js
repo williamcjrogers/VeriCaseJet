@@ -982,8 +982,106 @@
           ? headerActions
           : renderDefaultHeaderActions();
 
-    // Don't inject if already has shell
-    if (document.querySelector(".app-shell")) return;
+    function updateExistingShellHeader() {
+      const shell = document.querySelector(".app-shell");
+      if (!shell) return false;
+
+      const header = shell.querySelector(".app-header");
+      if (!header) return false;
+
+      const titleEl = header.querySelector(".app-header-title");
+      if (titleEl) titleEl.textContent = title || "";
+
+      const actionsEl = header.querySelector(".app-header-actions");
+      if (actionsEl) actionsEl.innerHTML = resolvedHeaderActions || "";
+
+      const breadcrumbHtml = breadcrumbs ? renderBreadcrumbs(breadcrumbs) : "";
+      const shouldShowBreadcrumb = !!String(breadcrumbHtml || "").trim();
+
+      let breadcrumbWrap = header.querySelector(".app-header-breadcrumb");
+      if (shouldShowBreadcrumb) {
+        if (!breadcrumbWrap) {
+          breadcrumbWrap = document.createElement("div");
+          breadcrumbWrap.className = "app-header-breadcrumb";
+
+          // Keep ordering: toggle → breadcrumb → divider → title → actions
+          const toggle = header.querySelector("#sidebarToggle");
+          if (toggle && toggle.nextSibling) {
+            header.insertBefore(breadcrumbWrap, toggle.nextSibling);
+          } else if (toggle) {
+            header.appendChild(breadcrumbWrap);
+          } else {
+            header.insertBefore(breadcrumbWrap, header.firstChild);
+          }
+        }
+        breadcrumbWrap.innerHTML = breadcrumbHtml;
+        breadcrumbWrap.style.display = "";
+      } else if (breadcrumbWrap) {
+        breadcrumbWrap.remove();
+        breadcrumbWrap = null;
+      }
+
+      const hasDivider =
+        shouldShowBreadcrumb &&
+        (String(title || "").trim() || String(resolvedHeaderActions || "").trim());
+
+      let divider = header.querySelector(".app-header-divider");
+      if (hasDivider && !divider) {
+        divider = document.createElement("div");
+        divider.className = "app-header-divider";
+
+        const titleNode = header.querySelector(".app-header-title");
+        if (titleNode) {
+          if (breadcrumbWrap && breadcrumbWrap.nextSibling) {
+            header.insertBefore(divider, breadcrumbWrap.nextSibling);
+          } else {
+            header.insertBefore(divider, titleNode);
+          }
+        } else {
+          header.appendChild(divider);
+        }
+      } else if (!hasDivider && divider) {
+        divider.remove();
+      }
+
+      // Best-effort document title sync (don't override page-specific titles if empty)
+      try {
+        const trimmed = String(title || "").trim();
+        if (trimmed) {
+          const prefix = document.title.includes("VeriCase") ? "VeriCase - " : "";
+          document.title = `${prefix}${trimmed}`;
+        }
+      } catch {
+        // ignore
+      }
+
+      return true;
+    }
+
+    // If already injected, update header/breadcrumbs instead of re-wrapping DOM.
+    if (document.querySelector(".app-shell")) {
+      try {
+        updateExistingShellHeader();
+      } catch {
+        // never crash UI
+      }
+      try {
+        ensurePageWatermarks();
+      } catch {
+        // ignore
+      }
+      try {
+        refreshNavUrls();
+      } catch {
+        // ignore
+      }
+      try {
+        loadCurrentProjectName();
+      } catch {
+        // ignore
+      }
+      return;
+    }
 
     // Wrap existing body content WITHOUT recreating the DOM.
     // Replacing `document.body.innerHTML` destroys event listeners registered by page scripts

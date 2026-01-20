@@ -78,6 +78,31 @@ class AISettings:
             },
         },
         # ------------------------------------------------------------------
+        # WORKSPACE ABOUT - Counsel-ready read-in + Q&A (workspace hub)
+        # ------------------------------------------------------------------
+        "workspace_about": {
+            "enabled": True,
+            "display_name": "Workspace About & Q&A",
+            "description": "Auto-generates a dispute read-in and Q&A as workspace documents arrive",
+            "category": "workspace",
+            "provider": "bedrock",
+            "model": "amazon.nova-pro-v1:0",
+            "max_tokens": 2500,
+            "temperature": 0.2,
+            "max_duration_seconds": 120,
+            "fallback_chain": [
+                ("anthropic", "claude-sonnet-4-20250514"),
+                ("openai", "gpt-5.2-instant"),
+                ("gemini", "gemini-2.5-flash"),
+            ],
+            "features": {
+                "citations": True,
+                "rag": True,
+                "textract_queries": True,
+                "guardrails_no_hallucination": True,
+            },
+        },
+        # ------------------------------------------------------------------
         # VERICASE ANALYSIS - Flagship multi-agent legal research platform
         # ------------------------------------------------------------------
         "vericase_analysis": {

@@ -1204,6 +1204,102 @@
         font-size: 0.875rem;
       }
     }
+
+    /* === ABOUT TAB (AI CONTEXT + Q&A) === */
+    .about-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .about-card {
+      border: 1px solid var(--gray-200);
+      border-radius: 16px;
+      background: var(--bg-white);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      overflow: hidden;
+    }
+
+    .about-span-2 {
+      grid-column: 1 / -1;
+    }
+
+    .about-card-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      font-weight: 700;
+      border-bottom: 1px solid var(--gray-200);
+      background: linear-gradient(180deg, rgba(47, 134, 200, 0.06), rgba(47, 134, 200, 0.02));
+    }
+
+    .about-card-body {
+      padding: 14px 16px;
+      color: var(--text-primary);
+    }
+
+    .about-pre {
+      white-space: pre-wrap;
+      line-height: 1.55;
+      font-size: 0.95rem;
+    }
+
+    .about-list {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--text-secondary);
+    }
+
+    .about-qa-row {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+      margin-bottom: 12px;
+    }
+
+    .about-qa-row input {
+      flex: 1;
+    }
+
+    .about-chat {
+      border: 1px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 12px;
+      background: var(--gray-50);
+      min-height: 120px;
+      white-space: pre-wrap;
+    }
+
+    .about-chat .msg {
+      padding: 10px 10px;
+      border-radius: 12px;
+      margin-bottom: 10px;
+      border: 1px solid var(--gray-200);
+      background: var(--bg-white);
+    }
+
+    .about-chat .msg.user {
+      border-left: 4px solid var(--vericase-teal);
+    }
+
+    .about-chat .msg.ai {
+      border-left: 4px solid var(--vericase-gold);
+    }
+
+    .about-hint {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    @media (max-width: 900px) {
+      .about-grid {
+        grid-template-columns: 1fr;
+      }
+      .about-span-2 {
+        grid-column: auto;
+      }
+    }
   </style>
 </head>
 
@@ -1286,6 +1382,11 @@
         <i class="fas fa-folder-open"></i>
         Documents
         <span class="tab-count" id="documentsCount">0</span>
+      </button>
+      <button class="hub-tab" data-tab="about" onclick="switchTab('about')">
+        <i class="fas fa-circle-info"></i>
+        About
+        <span class="tab-count" id="aboutCount">0</span>
       </button>
       <button class="hub-tab" data-tab="team" onclick="switchTab('team')">
         <i class="fas fa-id-badge"></i>
@@ -1394,8 +1495,11 @@
           <div class="section-header">
             <div class="section-title">
               <i class="fas fa-folder-open" aria-hidden="true"></i>
-              Workspace Documents
+              Dispute Context Documents
             </div>
+          </div>
+          <div style="color: var(--text-muted); font-size: 0.9375rem; margin: -8px 0 14px; max-width: 85ch;">
+            Upload key documents (contract, notices, expert reports, pleadings, key letters) to build an AI read-in and Q&A in the <strong>About</strong> tab.
           </div>
           
           <!-- Upload Zone -->
@@ -1407,6 +1511,78 @@
           </div>
           
           <div id="documentsGrid" class="documents-grid"></div>
+        </section>
+      </div>
+
+      <!-- About Panel -->
+      <div class="tab-panel" id="panel-about">
+        <section class="hub-section">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-circle-info" aria-hidden="true"></i>
+              About
+            </div>
+            <div class="section-actions">
+              <button class="btn btn-sm btn-outline" onclick="refreshWorkspaceAbout(true)">
+                <i class="fas fa-wand-magic-sparkles"></i> Refresh
+              </button>
+            </div>
+          </div>
+
+          <div class="about-grid">
+            <div class="about-card">
+              <div class="about-card-title">
+                <i class="fas fa-bolt" aria-hidden="true"></i>
+                AI Brief (auto-updates as documents arrive)
+              </div>
+              <div class="about-card-body about-pre" id="aboutSummary">Upload a document in this workspace to start building the dispute context.</div>
+            </div>
+
+            <div class="about-card">
+              <div class="about-card-title">
+                <i class="fas fa-question-circle" aria-hidden="true"></i>
+                Open questions (gaps to close)
+              </div>
+              <div class="about-card-body">
+                <ul class="about-list" id="aboutOpenQuestions"></ul>
+                <div class="about-hint" id="aboutOpenQuestionsHint" style="margin-top: 8px;"></div>
+              </div>
+            </div>
+
+            <div class="about-card about-span-2">
+              <div class="about-card-title">
+                <i class="fas fa-comments" aria-hidden="true"></i>
+                Ask the Workspace (Q&A across workspace + related projects/cases)
+              </div>
+              <div class="about-card-body">
+                <div class="about-qa-row">
+                  <input class="form-input" id="aboutQuestionInput" placeholder="Ask: what is the dispute about? what are the key issues? what evidence do we have?">
+                  <button class="btn btn-vericase" id="aboutAskBtn" onclick="askWorkspaceAbout()">
+                    <i class="fas fa-paper-plane"></i> Ask
+                  </button>
+                </div>
+                <div class="about-chat" id="aboutChat"></div>
+                <div class="about-hint" id="aboutChatHint" style="margin-top: 10px;"></div>
+              </div>
+            </div>
+
+            <div class="about-card about-span-2">
+              <div class="about-card-title">
+                <i class="fas fa-chalkboard-teacher" aria-hidden="true"></i>
+                Teach the system (facts & framing)
+              </div>
+              <div class="about-card-body">
+                <textarea class="form-input" id="aboutUserNotes" style="min-height: 110px; resize: vertical;" placeholder="Add authoritative facts, agreed issues, parties/roles, or dispute framing. This guides AI outputs and reduces read-in for counsel."></textarea>
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                  <button class="btn btn-outline" onclick="loadWorkspaceAbout()">Reset</button>
+                  <button class="btn btn-vericase" onclick="saveWorkspaceAboutNotes()">
+                    <i class="fas fa-save"></i> Save notes
+                  </button>
+                </div>
+                <div class="about-hint" id="aboutNotesHint" style="margin-top: 8px;"></div>
+              </div>
+            </div>
+          </div>
         </section>
       </div>
 
@@ -1538,6 +1714,10 @@
     let workspaceNotes = [];
     let workspaceActivity = [];
 
+    // About (AI workspace context + Q&A)
+    let workspaceAbout = null;
+    let aboutPollHandle = null;
+
     // Auth helpers
     function getAuthHeaders() {
       const token =
@@ -1581,6 +1761,14 @@
     // Initialize page
 	    document.addEventListener("DOMContentLoaded", async () => {
 	      if (window.VericaseShell?.inject) {
+	        let cachedWorkspaceName = "Workspace";
+	        try {
+	          const storedId = (localStorage.getItem("currentWorkspaceId") || "").trim();
+	          const storedName = (localStorage.getItem("currentWorkspaceName") || "").trim();
+	          if (storedId && storedId === String(workspaceId || "").trim() && storedName) {
+	            cachedWorkspaceName = storedName;
+	          }
+	        } catch { /* ignore */ }
 	        VericaseShell.inject(
 	          isDirectoryMode
 	            ? {
@@ -1596,7 +1784,7 @@
 	                breadcrumbs: [
 	                  { label: "Control Centre", url: "control-centre.html", icon: "fa-compass" },
 	                  { label: "Workspaces", url: "workspace-hub.html", icon: "fa-layer-group" },
-	                  { label: "Workspace", icon: "fa-building" },
+	                  { label: cachedWorkspaceName, icon: "fa-building" },
 	                ],
 	                headerActions: "",
 	              },
@@ -1785,11 +1973,15 @@
             title: workspaceData.name,
             breadcrumbs: [
               { label: "Control Centre", url: "control-centre.html" },
-              { label: "Workspaces", url: "workspace-hub.html" }
+              { label: "Workspaces", url: "workspace-hub.html" },
+              { label: workspaceData.name || "Workspace" }
             ],
             headerActions: ""
           });
         }
+
+        // Load AI context ("About" tab) in the background
+        loadWorkspaceAbout().catch(() => {});
 
       } catch (err) {
         console.error("Failed to load workspace:", err);
@@ -1850,6 +2042,20 @@
       document.getElementById("deadlinesCount").textContent = workspaceDeadlines.length;
       document.getElementById("documentsCount").textContent = workspaceDocuments.length;
       document.getElementById("teamCount").textContent = workspaceTeam.length;
+
+      // About status: show AI readiness indicator
+      const aboutEl = document.getElementById("aboutCount");
+      if (aboutEl) {
+        const status = (workspaceAbout?.status || "").toLowerCase();
+        aboutEl.textContent =
+          status === "ready"
+            ? "AI"
+            : status === "building" || status === "processing"
+              ? "…"
+              : workspaceDocuments.length > 0
+                ? "AI"
+                : "0";
+      }
     }
 
     function renderProjects() {
@@ -2205,6 +2411,9 @@
             // Replace temp with saved
             const idx = workspaceDocuments.findIndex(d => d.id === doc.id);
             if (idx >= 0) workspaceDocuments[idx] = saved;
+
+            // Kick off workspace intelligence refresh (AI ingestion + About tab update)
+            refreshWorkspaceAbout(false).catch(() => {});
           }
           doc.uploading = false;
         } catch {
@@ -2215,6 +2424,172 @@
         updateTabCounts();
       }
       VericaseUI.Toast.success("Files uploaded");
+    }
+
+    // ========================================
+    // ABOUT (AI CONTEXT + Q&A)
+    // ========================================
+    function _clearAboutPoll() {
+      if (aboutPollHandle) {
+        clearTimeout(aboutPollHandle);
+        aboutPollHandle = null;
+      }
+    }
+
+    function _appendChatMessage(role, text) {
+      const chat = document.getElementById("aboutChat");
+      if (!chat) return;
+      const div = document.createElement("div");
+      div.className = `msg ${role}`;
+      div.textContent = text || "";
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function _renderAbout(about) {
+      const summaryEl = document.getElementById("aboutSummary");
+      const openQEl = document.getElementById("aboutOpenQuestions");
+      const openQHint = document.getElementById("aboutOpenQuestionsHint");
+      const notesEl = document.getElementById("aboutUserNotes");
+      const chatHint = document.getElementById("aboutChatHint");
+
+      const status = (about?.status || "").toLowerCase();
+      const updatedAt = about?.updated_at || about?.last_updated || null;
+      const updatedText = updatedAt ? `Last updated: ${formatRelativeTime(updatedAt)}` : "";
+
+      if (summaryEl) {
+        const summary = about?.summary || about?.summary_md || "";
+        summaryEl.textContent =
+          summary ||
+          (workspaceDocuments.length > 0
+            ? "Building workspace context… (upload ingestion running)"
+            : "Upload a document in this workspace to start building the dispute context.");
+      }
+
+      if (notesEl) {
+        notesEl.value = (about?.user_notes || "").toString();
+      }
+
+      if (openQEl) {
+        openQEl.innerHTML = "";
+        const qs = Array.isArray(about?.open_questions) ? about.open_questions : [];
+        if (qs.length === 0) {
+          if (openQHint) openQHint.textContent = status === "ready" ? "No gaps detected yet." : "AI will propose gaps once it has documents.";
+        } else {
+          if (openQHint) openQHint.textContent = "";
+          qs.slice(0, 12).forEach((q) => {
+            const li = document.createElement("li");
+            li.textContent = String(q || "");
+            openQEl.appendChild(li);
+          });
+        }
+      }
+
+      if (chatHint) {
+        chatHint.textContent =
+          status === "building"
+            ? `Processing documents. ${updatedText}`
+            : updatedText;
+      }
+
+      updateTabCounts();
+    }
+
+    async function loadWorkspaceAbout() {
+      if (!workspaceId) return;
+      try {
+        const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/about`, {
+          headers: getAuthHeaders(),
+        });
+        if (!res.ok) throw new Error("Failed to load About");
+        workspaceAbout = await res.json();
+        _renderAbout(workspaceAbout);
+
+        const status = (workspaceAbout?.status || "").toLowerCase();
+        if (status === "building" || status === "processing") {
+          _clearAboutPoll();
+          aboutPollHandle = setTimeout(() => loadWorkspaceAbout().catch(() => {}), 1800);
+        } else {
+          _clearAboutPoll();
+        }
+      } catch (e) {
+        // Don't toast-spam; About is best-effort
+        console.debug("About load failed:", e);
+      }
+    }
+
+    async function refreshWorkspaceAbout(force) {
+      if (!workspaceId) return;
+      try {
+        const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/about/refresh`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ force: !!force }),
+        });
+        if (!res.ok) throw new Error("Failed to refresh About");
+        workspaceAbout = await res.json().catch(() => workspaceAbout);
+        _renderAbout(workspaceAbout);
+        _clearAboutPoll();
+        aboutPollHandle = setTimeout(() => loadWorkspaceAbout().catch(() => {}), 1200);
+      } catch (e) {
+        console.debug("About refresh failed:", e);
+      }
+    }
+
+    async function askWorkspaceAbout() {
+      const input = document.getElementById("aboutQuestionInput");
+      const btn = document.getElementById("aboutAskBtn");
+      const question = (input?.value || "").trim();
+      if (!question) return;
+
+      _appendChatMessage("user", question);
+      if (input) input.value = "";
+      if (btn) btn.disabled = true;
+
+      try {
+        const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/about/ask`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ question }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const msg = typeof data?.detail === "string" ? data.detail : "Failed to answer question";
+          _appendChatMessage("ai", msg);
+          return;
+        }
+        _appendChatMessage("ai", String(data?.answer || "No answer returned."));
+        if (Array.isArray(data?.sources) && data.sources.length > 0) {
+          const top = data.sources.slice(0, 6).map(s => `• ${s.filename || s.label || s.id || "source"}`).join("\n");
+          _appendChatMessage("ai", `Sources:\n${top}`);
+        }
+      } catch (e) {
+        _appendChatMessage("ai", "Failed to answer question (network or server error).");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function saveWorkspaceAboutNotes() {
+      const notesEl = document.getElementById("aboutUserNotes");
+      const hintEl = document.getElementById("aboutNotesHint");
+      const notes = (notesEl?.value || "").trim();
+      if (!workspaceId) return;
+
+      try {
+        const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/about/notes`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ notes }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data?.detail === "string" ? data.detail : "Failed to save notes");
+        if (hintEl) hintEl.textContent = "Saved. The next refresh will incorporate these facts.";
+        // Trigger rebuild (best effort)
+        refreshWorkspaceAbout(true).catch(() => {});
+      } catch (e) {
+        if (hintEl) hintEl.textContent = "Failed to save notes.";
+      }
     }
 
     function renderDocuments() {

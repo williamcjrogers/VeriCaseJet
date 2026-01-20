@@ -15,7 +15,9 @@ load_dotenv(env_file)
 # Run alembic upgrade head
 print("Running alembic upgrade head...")
 result = subprocess.run(
-    ["alembic", "upgrade", "head"], cwd=Path(__file__).parent, capture_output=False
+    [sys.executable, "-m", "alembic", "upgrade", "head"],
+    cwd=Path(__file__).parent,
+    capture_output=False,
 )
 
 sys.exit(result.returncode)
