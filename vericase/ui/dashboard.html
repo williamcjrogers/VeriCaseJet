@@ -116,6 +116,7 @@
       align-items: center;
       gap: 6px;
       white-space: nowrap;
+      text-decoration: none;
     }
 
     .btn-primary {
@@ -1058,9 +1059,9 @@
       <div class="widget">
         <h3>
           <i class="fas fa-database"></i> Evidence Status
-          <button class="btn btn-secondary" style="margin-left: auto; padding: 6px 12px; font-size: 12px" onclick="event.stopPropagation(); viewEvidenceRepository();">
+          <a class="btn btn-secondary widget-link" style="margin-left: auto; padding: 6px 12px; font-size: 12px" data-link="evidence.html" href="evidence.html">
             <i class="fas fa-arrow-up-right-from-square"></i> Open
-          </button>
+          </a>
         </h3>
         <div id="evidenceStatus">
           <div class="stat-card">
@@ -1087,9 +1088,9 @@
       <div class="widget">
         <h3>
           <i class="fas fa-bell"></i> Alerts & Deadlines
-          <button class="btn btn-secondary" style="margin-left: auto; padding: 6px 12px; font-size: 12px" onclick="event.stopPropagation(); openProfileSetup();">
+          <a class="btn btn-secondary widget-link" style="margin-left: auto; padding: 6px 12px; font-size: 12px" data-link-project="project-setup.html" data-link-case="case-setup.html" href="project-setup.html">
             <i class="fas fa-gear"></i> Manage
-          </button>
+          </a>
         </h3>
         <div id="alertsContainer">
           <div class="alert alert-info">
@@ -1106,10 +1107,9 @@
       <div class="widget">
         <h3>
           <i class="fas fa-clock"></i> Project Chronology
-          <button class="btn btn-secondary" style="margin-left: auto; padding: 6px 12px; font-size: 12px"
-            onclick="event.stopPropagation(); viewChronology()">
+          <a class="btn btn-secondary widget-link" style="margin-left: auto; padding: 6px 12px; font-size: 12px" data-link="chronology-lense.html" href="chronology-lense.html">
             <i class="fas fa-arrow-up-right-from-square"></i> Open
-          </button>
+          </a>
           <button class="btn btn-secondary" style="margin-left: 10px; padding: 6px 12px; font-size: 12px"
             onclick="event.stopPropagation(); openChronologyPrompt()">
             <i class="fas fa-timeline"></i> Build
@@ -1133,9 +1133,9 @@
         <h3>
           <i class="fas fa-list-check"></i>
           <span id="headsTitle">Heads of Claim</span>
-          <button class="btn btn-secondary" style="margin-left: auto; padding: 6px 12px; font-size: 12px" onclick="event.stopPropagation(); openHeadsModule();">
+          <a class="btn btn-secondary widget-link" style="margin-left: auto; padding: 6px 12px; font-size: 12px" data-link-project="programme.html" data-link-case="contentious-matters.html" href="programme.html">
             <i class="fas fa-arrow-up-right-from-square"></i> Manage
-          </button>
+          </a>
         </h3>
         <div id="headsContent">
           <div class="empty-state">
@@ -1149,9 +1149,9 @@
       <div class="widget">
         <h3>
           <i class="fas fa-id-badge"></i> Key Stakeholders
-          <button class="btn btn-secondary" style="margin-left: auto; padding: 6px 12px; font-size: 12px" onclick="event.stopPropagation(); manageStakeholders();">
+          <a class="btn btn-secondary widget-link" style="margin-left: auto; padding: 6px 12px; font-size: 12px" data-link="stakeholders.html" href="stakeholders.html">
             <i class="fas fa-arrow-up-right-from-square"></i> Manage
-          </button>
+          </a>
         </h3>
         <div id="stakeholdersContent">
           <div class="empty-state">
@@ -1165,9 +1165,9 @@
       <div class="widget">
         <h3>
           <i class="fas fa-chart-pie"></i> Quick Stats
-          <button class="btn btn-secondary" style="margin-left: auto; padding: 6px 12px; font-size: 12px" onclick="event.stopPropagation(); openAnalysis();">
+          <a class="btn btn-secondary widget-link" style="margin-left: auto; padding: 6px 12px; font-size: 12px" data-link="vericase-analysis.html" href="vericase-analysis.html">
             <i class="fas fa-arrow-up-right-from-square"></i> Open Analysis
-          </button>
+          </a>
         </h3>
         <div id="quickStats">
           <div class="list-item">
@@ -1592,6 +1592,32 @@
       window.location.href = url.toString();
     }
 
+    function updateWidgetLinks() {
+      const links = document.querySelectorAll("a.widget-link");
+      if (!links.length) return;
+
+      links.forEach((link) => {
+        const caseLink = link.getAttribute("data-link-case");
+        const projectLink = link.getAttribute("data-link-project");
+        const defaultLink = link.getAttribute("data-link") || link.getAttribute("href");
+
+        let target = defaultLink;
+        if (profileType === "case" && caseLink) {
+          target = caseLink;
+        } else if (profileType !== "case" && projectLink) {
+          target = projectLink;
+        }
+
+        if (!target) return;
+        const url = new URL(target, window.location.href);
+        if (profileId) {
+          const key = profileType === "case" ? "caseId" : "projectId";
+          url.searchParams.set(key, profileId);
+        }
+        link.href = url.toString();
+      });
+    }
+
     // Lazy-loaded settings modal (deferred DOM creation for faster initial page load)
     let settingsModalLoaded = false;
 
@@ -1937,6 +1963,8 @@
           // Load stats for current project
           loadProjectStats(profileId);
         }
+
+        updateWidgetLinks();
       } catch (error) {
         console.error("Error loading projects:", error);
         document.getElementById("projectSelector").innerHTML =
@@ -1967,6 +1995,8 @@
       } catch {
         // ignore
       }
+
+      updateWidgetLinks();
 
       // Update profile name in header
       const selector = document.getElementById("projectSelector");
@@ -2174,6 +2204,7 @@
 
       // Don't force redirect - let users land on dashboard first
       if (profileId) {
+        updateWidgetLinks();
         loadProfileData();
         loadEvidenceWidget();
         if (isFirstTime) {

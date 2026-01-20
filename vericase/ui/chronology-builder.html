@@ -1,0 +1,1587 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chronology Builder | VeriCase</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      :root {
+        --bg-primary: #1a2b3c;
+        --bg-secondary: #1f3447;
+        --bg-card: #253a4f;
+        --bg-tertiary: #2a3f54;
+        --text-primary: #e8f0f8;
+        --text-secondary: #b8c8d8;
+        --text-muted: #7a8fa3;
+        --border-color: #2d4558;
+        --vc-teal: #0ea5e9;
+        --vc-teal-dark: #0284c7;
+        --vc-teal-light: #38bdf8;
+        --accent-success: #10b981;
+        --accent-warning: #f59e0b;
+        --accent-danger: #ef4444;
+        --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.15);
+        --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.2);
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        line-height: 1.6;
+        min-height: 100vh;
+      }
+
+      .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2rem;
+      }
+
+      .page-header {
+        margin-bottom: 2rem;
+      }
+
+      .page-title {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: var(--text-primary);
+      }
+
+      .page-subtitle {
+        color: var(--text-muted);
+        font-size: 0.9375rem;
+      }
+
+      .draft-banner {
+        background: rgba(217, 119, 6, 0.15);
+        border: 1px solid rgba(217, 119, 6, 0.3);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: var(--accent-warning);
+      }
+
+      .draft-banner i {
+        font-size: 1.25rem;
+      }
+
+      .draft-banner-text {
+        flex: 1;
+        font-size: 0.875rem;
+        line-height: 1.5;
+      }
+
+      /* Form */
+      .builder-form {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 2rem;
+        margin-bottom: 2rem;
+        box-shadow: var(--shadow-card);
+      }
+
+      .form-group {
+        margin-bottom: 1.5rem;
+      }
+
+      .form-label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: var(--text-secondary);
+      }
+
+      .form-input,
+      .form-select,
+      .form-textarea {
+        width: 100%;
+        padding: 0.75rem;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        color: var(--text-primary);
+        font-family: inherit;
+        font-size: 0.9375rem;
+        transition: all 0.2s;
+      }
+
+      .form-input:focus,
+      .form-select:focus,
+      .form-textarea:focus {
+        outline: none;
+        border-color: var(--vc-teal);
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+      }
+
+      .form-textarea {
+        min-height: 100px;
+        resize: vertical;
+      }
+
+      .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+      }
+
+      .form-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+      }
+
+      .form-checkbox input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+      }
+
+      .btn-primary {
+        padding: 0.875rem 1.75rem;
+        background: var(--vc-teal);
+        border: none;
+        border-radius: 8px;
+        color: white;
+        font-family: inherit;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+      }
+
+      .btn-primary:hover:not(:disabled) {
+        background: var(--vc-teal-dark);
+        transform: translateY(-1px);
+      }
+
+      .btn-primary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      /* Session panel */
+      .session-panel {
+        display: none;
+      }
+
+      .session-panel.active {
+        display: block;
+      }
+
+      .status-container {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: var(--shadow-card);
+      }
+
+      .status-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 100px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .status-badge.awaiting_approval {
+        background: rgba(217, 119, 6, 0.1);
+        color: var(--accent-warning);
+      }
+
+      .status-badge.building {
+        background: rgba(14, 165, 233, 0.1);
+        color: var(--vc-teal);
+      }
+
+      .status-badge.completed {
+        background: rgba(5, 150, 105, 0.1);
+        color: var(--accent-success);
+      }
+
+      .status-badge.failed {
+        background: rgba(220, 38, 38, 0.1);
+        color: var(--accent-danger);
+      }
+
+      .progress-bar {
+        height: 6px;
+        background: var(--bg-tertiary);
+        border-radius: 3px;
+        overflow: hidden;
+        margin-top: 1rem;
+      }
+
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--vc-teal), var(--vc-teal-light));
+        border-radius: 3px;
+        transition: width 0.5s ease;
+      }
+
+      /* Plan review */
+      .plan-review {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow-card);
+      }
+
+      .plan-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: var(--text-primary);
+      }
+
+      .plan-details {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .plan-detail-item {
+        padding: 1rem;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+      }
+
+      .plan-detail-label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.5rem;
+      }
+
+      .plan-detail-value {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      .plan-strategy {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        border-left: 3px solid var(--vc-teal);
+      }
+
+      .plan-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border-color);
+      }
+
+      .btn-approve {
+        flex: 1;
+        padding: 0.875rem 1.5rem;
+        background: var(--vc-teal);
+        border: none;
+        border-radius: 8px;
+        color: white;
+        font-family: inherit;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+      }
+
+      .btn-approve:hover {
+        background: var(--vc-teal-dark);
+        transform: translateY(-1px);
+      }
+
+      .btn-modify {
+        flex: 1;
+        padding: 0.875rem 1.5rem;
+        background: transparent;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-secondary);
+        font-family: inherit;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+      }
+
+      .btn-modify:hover {
+        border-color: var(--accent-warning);
+        color: var(--accent-warning);
+        background: rgba(217, 119, 6, 0.04);
+      }
+
+      /* Results */
+      .results-container {
+        display: none;
+      }
+
+      .results-container.active {
+        display: block;
+      }
+
+      .results-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+      }
+
+      .results-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      .export-buttons {
+        display: flex;
+        gap: 0.75rem;
+      }
+
+      .btn-export {
+        padding: 0.625rem 1.25rem;
+        background: transparent;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        color: var(--text-secondary);
+        font-family: inherit;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+      }
+
+      .btn-export:hover {
+        border-color: var(--vc-teal);
+        color: var(--vc-teal);
+        background: rgba(14, 165, 233, 0.05);
+      }
+
+      .tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .tab {
+        padding: 0.75rem 1.5rem;
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        color: var(--text-muted);
+        font-family: inherit;
+        font-size: 0.9375rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-bottom: -1px;
+      }
+
+      .tab:hover {
+        color: var(--text-secondary);
+      }
+
+      .tab.active {
+        color: var(--vc-teal);
+        border-bottom-color: var(--vc-teal);
+      }
+
+      .tab-content {
+        display: none;
+      }
+
+      .tab-content.active {
+        display: block;
+      }
+
+      /* Chronology table */
+      .chronology-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--bg-card);
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: var(--shadow-card);
+      }
+
+      .chronology-table th {
+        background: var(--bg-secondary);
+        padding: 1rem;
+        text-align: left;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .chronology-table td {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .chronology-table tr:hover {
+        background: var(--bg-secondary);
+      }
+
+      .event-date {
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      .event-date-range {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 0.25rem;
+      }
+
+      .event-type-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 100px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: capitalize;
+        background: rgba(14, 165, 233, 0.1);
+        color: var(--vc-teal);
+      }
+
+      .event-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+      }
+
+      .event-narrative {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        line-height: 1.5;
+        margin-bottom: 0.5rem;
+      }
+
+      .event-parties {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 0.5rem;
+      }
+
+      .event-actions {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .action-btn {
+        padding: 0.5rem;
+        background: transparent;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+      }
+
+      .action-btn:hover {
+        border-color: var(--vc-teal);
+        color: var(--vc-teal);
+        background: rgba(14, 165, 233, 0.05);
+      }
+
+      .action-btn.accept {
+        border-color: var(--accent-success);
+        color: var(--accent-success);
+      }
+
+      .action-btn.accept:hover {
+        background: rgba(16, 185, 129, 0.1);
+      }
+
+      .action-btn.reject {
+        border-color: var(--accent-danger);
+        color: var(--accent-danger);
+      }
+
+      .action-btn.reject:hover {
+        background: rgba(239, 68, 68, 0.1);
+      }
+
+      .event-accepted {
+        opacity: 1;
+      }
+
+      .event-rejected {
+        opacity: 0.5;
+        text-decoration: line-through;
+      }
+
+      /* Programme view */
+      .programme-container {
+        background: var(--bg-card);
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: var(--shadow-card);
+      }
+
+      .programme-activity {
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        border-left: 3px solid var(--vc-teal);
+      }
+
+      .activity-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+      }
+
+      .activity-name {
+        font-weight: 600;
+        color: var(--text-primary);
+        font-size: 1rem;
+      }
+
+      .activity-dates {
+        font-size: 0.875rem;
+        color: var(--text-muted);
+      }
+
+      .activity-dependencies {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 0.5rem;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-muted);
+      }
+
+      .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+      }
+
+      /* Modal */
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(26, 43, 60, 0.6);
+        backdrop-filter: blur(4px);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal-overlay.active {
+        display: flex;
+      }
+
+      .modal {
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 2rem;
+        max-width: 600px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: var(--shadow-lg);
+      }
+
+      .modal-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1.5rem;
+        color: var(--text-primary);
+      }
+
+      .modal-actions {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+      }
+
+      .btn-secondary {
+        padding: 0.75rem 1.5rem;
+        background: transparent;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-secondary);
+        font-family: inherit;
+        font-size: 0.9375rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .btn-secondary:hover {
+        border-color: var(--text-secondary);
+        color: var(--text-primary);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="page-header">
+        <h1 class="page-title">Chronology Builder</h1>
+        <p class="page-subtitle">
+          AI-powered chronology and programme generation from emails and evidence
+        </p>
+      </div>
+
+      <div class="draft-banner">
+        <i class="fas fa-info-circle"></i>
+        <div class="draft-banner-text">
+          <strong>Draft Output:</strong> This builder generates draft chronology
+          events and programme activities. Output is session-based and does not
+          modify existing ChronologyItem or timeline data. You can review,
+          edit, accept/reject events, and export the final results.
+        </div>
+      </div>
+
+      <!-- Builder Form -->
+      <form id="builderForm" class="builder-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="projectSelect">Project *</label>
+            <select id="projectSelect" class="form-select" required>
+              <option value="">Select a project...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="caseSelect">Case (Optional)</label>
+            <select id="caseSelect" class="form-select">
+              <option value="">No case selected</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="goalInput"
+            >Goal / Focus (Optional)</label
+          >
+          <textarea
+            id="goalInput"
+            class="form-textarea"
+            placeholder="Describe what you want the chronology to focus on, e.g., 'Focus on delay events and variations'"
+          ></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="dateStart">Start Date (Optional)</label>
+            <input
+              type="date"
+              id="dateStart"
+              class="form-input"
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="dateEnd">End Date (Optional)</label>
+            <input
+              type="date"
+              id="dateEnd"
+              class="form-input"
+            />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-checkbox">
+            <input type="checkbox" id="includeProgramme" />
+            <span>Generate programme view (activities with dependencies)</span>
+          </label>
+        </div>
+
+        <button type="submit" class="btn-primary">
+          <i class="fas fa-play"></i> Start Building
+        </button>
+      </form>
+
+      <!-- Session Panel -->
+      <div id="sessionPanel" class="session-panel">
+        <div class="status-container">
+          <div class="status-header">
+            <div>
+              <div class="status-badge" id="statusBadge">pending</div>
+              <div id="statusMessage" style="margin-top: 0.5rem; color: var(--text-muted);">
+                Initializing...
+              </div>
+            </div>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- Plan Review -->
+        <div id="planReview" class="plan-review" style="display: none">
+          <h3 class="plan-title">Build Plan</h3>
+          <div class="plan-details" id="planDetails"></div>
+          <div class="plan-strategy" id="planStrategy"></div>
+          <div class="plan-actions">
+            <button class="btn-approve" onclick="approvePlan()">
+              <i class="fas fa-check"></i> Approve & Build
+            </button>
+            <button class="btn-modify" onclick="showModifyModal()">
+              <i class="fas fa-edit"></i> Request Changes
+            </button>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div id="resultsContainer" class="results-container">
+          <div class="results-header">
+            <h2 class="results-title">Chronology Results</h2>
+            <div class="export-buttons">
+              <button class="btn-export" onclick="exportResults('csv')">
+                <i class="fas fa-file-csv"></i> Export CSV
+              </button>
+              <button class="btn-export" onclick="exportResults('json')">
+                <i class="fas fa-file-code"></i> Export JSON
+              </button>
+            </div>
+          </div>
+
+          <div class="tabs">
+            <button class="tab active" onclick="switchTab('chronology')">
+              <i class="fas fa-clock"></i> Chronology
+            </button>
+            <button
+              class="tab"
+              id="programmeTab"
+              onclick="switchTab('programme')"
+              style="display: none"
+            >
+              <i class="fas fa-calendar-alt"></i> Programme
+            </button>
+          </div>
+
+          <!-- Chronology Tab -->
+          <div id="chronologyTab" class="tab-content active">
+            <table class="chronology-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Event</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="chronologyBody"></tbody>
+            </table>
+            <div id="chronologyEmpty" class="empty-state" style="display: none">
+              <i class="fas fa-inbox"></i>
+              <p>No chronology events generated</p>
+            </div>
+          </div>
+
+          <!-- Programme Tab -->
+          <div id="programmeTabContent" class="tab-content">
+            <div id="programmeContainer" class="programme-container"></div>
+            <div id="programmeEmpty" class="empty-state" style="display: none">
+              <i class="fas fa-calendar-times"></i>
+              <p>No programme activities generated</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Event Modal -->
+    <div id="editModal" class="modal-overlay" onclick="closeEditModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <h3 class="modal-title">Edit Event</h3>
+        <form id="editEventForm">
+          <input type="hidden" id="editEventId" />
+          <div class="form-group">
+            <label class="form-label">Title</label>
+            <input type="text" id="editEventTitle" class="form-input" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Narrative</label>
+            <textarea id="editEventNarrative" class="form-textarea" required></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Start Date</label>
+              <input type="datetime-local" id="editEventDateStart" class="form-input" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">End Date (Optional)</label>
+              <input type="datetime-local" id="editEventDateEnd" class="form-input" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Event Type</label>
+            <select id="editEventType" class="form-select">
+              <option value="">Select type...</option>
+              <option value="notice">Notice</option>
+              <option value="meeting">Meeting</option>
+              <option value="correspondence">Correspondence</option>
+              <option value="site_event">Site Event</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Parties (comma-separated)</label>
+            <input type="text" id="editEventParties" class="form-input" placeholder="Party 1, Party 2" />
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" onclick="closeEditModal()">
+              Cancel
+            </button>
+            <button type="submit" class="btn-primary">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modify Plan Modal -->
+    <div id="modifyModal" class="modal-overlay" onclick="closeModifyModal(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <h3 class="modal-title">Request Plan Changes</h3>
+        <form id="modifyForm">
+          <div class="form-group">
+            <label class="form-label">Feedback / Modifications</label>
+            <textarea
+              id="modifyFeedback"
+              class="form-textarea"
+              placeholder="Describe what you'd like to change in the plan..."
+              required
+            ></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" onclick="closeModifyModal()">
+              Cancel
+            </button>
+            <button type="submit" class="btn-primary">Submit Feedback</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      // Global state
+      let currentSessionId = null;
+      let currentData = null;
+      let pollingInterval = null;
+
+      // Initialize
+      document.addEventListener("DOMContentLoaded", async () => {
+        await loadProjects();
+        await loadCases();
+
+        // Check if we're in a case/project context from URL params
+        const urlParams = new URLSearchParams(window.location.search);
+        const caseId = urlParams.get("case_id");
+        const projectId = urlParams.get("project_id");
+
+        if (caseId) {
+          document.getElementById("caseSelect").value = caseId;
+          // Load project from case
+          const caseData = await getCase(caseId);
+          if (caseData && caseData.project_id) {
+            document.getElementById("projectSelect").value = caseData.project_id;
+            await loadCases(caseData.project_id);
+          }
+        }
+        if (projectId) {
+          document.getElementById("projectSelect").value = projectId;
+          await loadCases(projectId);
+        }
+
+        // Form submission
+        document.getElementById("builderForm").addEventListener("submit", handleStart);
+        document.getElementById("editEventForm").addEventListener("submit", handleEditEvent);
+        document.getElementById("modifyForm").addEventListener("submit", handleModifyPlan);
+      });
+
+      // API helpers
+      async function secureApiFetch(url, options = {}) {
+        const token = localStorage.getItem("auth_token");
+        const headers = {
+          "Content-Type": "application/json",
+          ...options.headers,
+        };
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+        return fetch(url, { ...options, headers });
+      }
+
+      async function loadProjects() {
+        try {
+          const response = await secureApiFetch("/api/projects");
+          const projects = await response.json();
+          const select = document.getElementById("projectSelect");
+          projects.forEach((p) => {
+            const option = document.createElement("option");
+            option.value = p.id;
+            option.textContent = p.name || p.id;
+            select.appendChild(option);
+          });
+        } catch (error) {
+          console.error("Error loading projects:", error);
+        }
+      }
+
+      async function loadCases(projectId = null) {
+        const select = document.getElementById("caseSelect");
+        select.innerHTML = '<option value="">No case selected</option>';
+
+        if (!projectId) {
+          const projectSelect = document.getElementById("projectSelect");
+          projectId = projectSelect.value;
+        }
+
+        if (!projectId) return;
+
+        try {
+          const response = await secureApiFetch(
+            `/api/cases?project_id=${projectId}`
+          );
+          const cases = await response.json();
+          cases.forEach((c) => {
+            const option = document.createElement("option");
+            option.value = c.id;
+            option.textContent = c.name || c.id;
+            select.appendChild(option);
+          });
+        } catch (error) {
+          console.error("Error loading cases:", error);
+        }
+      }
+
+      async function getCase(caseId) {
+        try {
+          const response = await secureApiFetch(`/api/cases/${caseId}`);
+          return await response.json();
+        } catch (error) {
+          console.error("Error loading case:", error);
+          return null;
+        }
+      }
+
+      document.getElementById("projectSelect").addEventListener("change", (e) => {
+        loadCases(e.target.value);
+      });
+
+      // Start builder
+      async function handleStart(e) {
+        e.preventDefault();
+
+        const projectId = document.getElementById("projectSelect").value;
+        const caseId = document.getElementById("caseSelect").value;
+        const goal = document.getElementById("goalInput").value.trim();
+        const dateStart = document.getElementById("dateStart").value;
+        const dateEnd = document.getElementById("dateEnd").value;
+        const includeProgramme = document.getElementById("includeProgramme").checked;
+
+        if (!projectId && !caseId) {
+          alert("Please select a project or case");
+          return;
+        }
+
+        try {
+          const response = await secureApiFetch("/api/chronology-builder/start", {
+            method: "POST",
+            body: JSON.stringify({
+              project_id: projectId || null,
+              case_id: caseId || null,
+              goal: goal || null,
+              date_range_start: dateStart ? new Date(dateStart).toISOString() : null,
+              date_range_end: dateEnd ? new Date(dateEnd + "T23:59:59").toISOString() : null,
+              include_programme: includeProgramme,
+            }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.detail || "Failed to start builder");
+          }
+
+          currentSessionId = data.session_id;
+          document.getElementById("builderForm").style.display = "none";
+          document.getElementById("sessionPanel").classList.add("active");
+
+          await updateStatus();
+          startPolling();
+        } catch (error) {
+          console.error("Error starting builder:", error);
+          alert("Failed to start builder: " + error.message);
+        }
+      }
+
+      // Update status
+      async function updateStatus() {
+        if (!currentSessionId) return;
+
+        try {
+          const response = await secureApiFetch(
+            `/api/chronology-builder/status/${currentSessionId}`
+          );
+          const data = await response.json();
+
+          currentData = data;
+
+          // Update status badge
+          const statusBadge = document.getElementById("statusBadge");
+          const statusMessage = document.getElementById("statusMessage");
+          const progressFill = document.getElementById("progressFill");
+
+          statusBadge.className = `status-badge ${data.status}`;
+          statusBadge.textContent = data.status.replace("_", " ");
+
+          switch (data.status) {
+            case "pending":
+            case "planning":
+              statusMessage.textContent = "Creating build plan...";
+              progressFill.style.width = "10%";
+              break;
+
+            case "awaiting_approval":
+              statusMessage.textContent = "Plan ready for review";
+              progressFill.style.width = "30%";
+              showPlanReview(data.plan);
+              break;
+
+            case "building":
+              statusMessage.textContent = "Building chronology from evidence...";
+              progressFill.style.width = "60%";
+              document.getElementById("planReview").style.display = "none";
+              break;
+
+            case "completed":
+              statusMessage.textContent = "Chronology building complete!";
+              progressFill.style.width = "100%";
+              showResults(data);
+              stopPolling();
+              break;
+
+            case "failed":
+              statusMessage.textContent = `Error: ${data.error_message || "Unknown error"}`;
+              statusMessage.style.color = "var(--accent-danger)";
+              progressFill.style.width = "0%";
+              stopPolling();
+              break;
+          }
+        } catch (error) {
+          console.error("Error updating status:", error);
+        }
+      }
+
+      // Polling
+      function startPolling() {
+        if (pollingInterval) clearInterval(pollingInterval);
+        pollingInterval = setInterval(updateStatus, 2000);
+      }
+
+      function stopPolling() {
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          pollingInterval = null;
+        }
+      }
+
+      // Plan review
+      function showPlanReview(plan) {
+        if (!plan) return;
+
+        const planReview = document.getElementById("planReview");
+        planReview.style.display = "block";
+
+        const planDetails = document.getElementById("planDetails");
+        planDetails.innerHTML = `
+          <div class="plan-detail-item">
+            <div class="plan-detail-label">Emails</div>
+            <div class="plan-detail-value">${plan.email_count || 0}</div>
+          </div>
+          <div class="plan-detail-item">
+            <div class="plan-detail-label">Evidence Items</div>
+            <div class="plan-detail-value">${plan.evidence_count || 0}</div>
+          </div>
+          <div class="plan-detail-item">
+            <div class="plan-detail-label">Est. Events</div>
+            <div class="plan-detail-value">${plan.estimated_events || 0}</div>
+          </div>
+          <div class="plan-detail-item">
+            <div class="plan-detail-label">Date Range</div>
+            <div class="plan-detail-value" style="font-size: 0.875rem;">
+              ${plan.date_range_start ? new Date(plan.date_range_start).toLocaleDateString() : "All"} - 
+              ${plan.date_range_end ? new Date(plan.date_range_end).toLocaleDateString() : "All"}
+            </div>
+          </div>
+        `;
+
+        document.getElementById("planStrategy").textContent = plan.strategy || "No strategy provided";
+      }
+
+      // Approve plan
+      async function approvePlan() {
+        if (!currentSessionId) return;
+
+        try {
+          const response = await secureApiFetch("/api/chronology-builder/approve", {
+            method: "POST",
+            body: JSON.stringify({
+              session_id: currentSessionId,
+              approved: true,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error("Failed to approve plan");
+          }
+
+          document.getElementById("planReview").style.display = "none";
+          await updateStatus();
+        } catch (error) {
+          console.error("Error approving plan:", error);
+          alert("Failed to approve plan: " + error.message);
+        }
+      }
+
+      // Modify plan
+      function showModifyModal() {
+        document.getElementById("modifyModal").classList.add("active");
+      }
+
+      function closeModifyModal(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById("modifyModal").classList.remove("active");
+        document.getElementById("modifyFeedback").value = "";
+      }
+
+      async function handleModifyPlan(e) {
+        e.preventDefault();
+
+        const feedback = document.getElementById("modifyFeedback").value.trim();
+        if (!feedback) return;
+
+        try {
+          const response = await secureApiFetch("/api/chronology-builder/approve", {
+            method: "POST",
+            body: JSON.stringify({
+              session_id: currentSessionId,
+              approved: false,
+              modifications: feedback,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error("Failed to submit feedback");
+          }
+
+          closeModifyModal();
+          alert("Feedback submitted. Plan will be updated.");
+          await updateStatus();
+        } catch (error) {
+          console.error("Error modifying plan:", error);
+          alert("Failed to submit feedback: " + error.message);
+        }
+      }
+
+      // Show results
+      function showResults(data) {
+        const resultsContainer = document.getElementById("resultsContainer");
+        resultsContainer.classList.add("active");
+
+        // Show programme tab if activities exist
+        if (data.programme_activities && data.programme_activities.length > 0) {
+          document.getElementById("programmeTab").style.display = "inline-flex";
+        }
+
+        renderChronology(data.chronology_events || []);
+        renderProgramme(data.programme_activities || []);
+      }
+
+      // Render chronology
+      function renderChronology(events) {
+        const tbody = document.getElementById("chronologyBody");
+        const emptyState = document.getElementById("chronologyEmpty");
+
+        if (!events || events.length === 0) {
+          tbody.innerHTML = "";
+          emptyState.style.display = "block";
+          return;
+        }
+
+        emptyState.style.display = "none";
+
+        // Sort by date
+        events.sort((a, b) => new Date(a.date_start) - new Date(b.date_start));
+
+        tbody.innerHTML = events
+          .map(
+            (event) => `
+          <tr class="${event.is_accepted ? "event-accepted" : "event-rejected"}">
+            <td>
+              <div class="event-date">${formatDate(event.date_start)}</div>
+              ${
+                event.date_end
+                  ? `<div class="event-date-range">to ${formatDate(event.date_end)}</div>`
+                  : ""
+              }
+            </td>
+            <td>
+              <span class="event-type-badge">${event.event_type || "other"}</span>
+            </td>
+            <td>
+              <div class="event-title">${escapeHtml(event.title)}</div>
+              <div class="event-narrative">${escapeHtml(event.narrative)}</div>
+              ${
+                event.parties && event.parties.length > 0
+                  ? `<div class="event-parties"><i class="fas fa-id-badge"></i> ${escapeHtml(event.parties.join(", "))}</div>`
+                  : ""
+              }
+            </td>
+            <td>
+              <div class="event-actions">
+                <button class="action-btn" onclick="editEvent('${event.id}')" title="Edit">
+                  <i class="fas fa-edit"></i>
+                </button>
+                ${
+                  event.is_accepted
+                    ? `<button class="action-btn reject" onclick="toggleEventAcceptance('${event.id}', false)" title="Reject">
+                        <i class="fas fa-times"></i>
+                      </button>`
+                    : `<button class="action-btn accept" onclick="toggleEventAcceptance('${event.id}', true)" title="Accept">
+                        <i class="fas fa-check"></i>
+                      </button>`
+                }
+              </div>
+            </td>
+          </tr>
+        `
+          )
+          .join("");
+      }
+
+      // Render programme
+      function renderProgramme(activities) {
+        const container = document.getElementById("programmeContainer");
+        const emptyState = document.getElementById("programmeEmpty");
+
+        if (!activities || activities.length === 0) {
+          container.innerHTML = "";
+          emptyState.style.display = "block";
+          return;
+        }
+
+        emptyState.style.display = "none";
+
+        container.innerHTML = activities
+          .map(
+            (activity) => `
+          <div class="programme-activity">
+            <div class="activity-header">
+              <div class="activity-name">${escapeHtml(activity.name)}</div>
+              <div class="activity-dates">
+                ${formatDate(activity.start_date)} - 
+                ${activity.finish_date ? formatDate(activity.finish_date) : "Ongoing"}
+              </div>
+            </div>
+            ${
+              activity.dependencies && activity.dependencies.length > 0
+                ? `<div class="activity-dependencies">
+                    <i class="fas fa-project-diagram"></i> Depends on: ${activity.dependencies.join(", ")}
+                  </div>`
+                : ""
+            }
+          </div>
+        `
+          )
+          .join("");
+      }
+
+      // Edit event
+      let editingEventId = null;
+
+      function editEvent(eventId) {
+        if (!currentData || !currentData.chronology_events) return;
+
+        const event = currentData.chronology_events.find((e) => e.id === eventId);
+        if (!event) return;
+
+        editingEventId = eventId;
+        document.getElementById("editEventId").value = eventId;
+        document.getElementById("editEventTitle").value = event.title;
+        document.getElementById("editEventNarrative").value = event.narrative;
+        document.getElementById("editEventDateStart").value = formatDateTimeLocal(
+          event.date_start
+        );
+        document.getElementById("editEventDateEnd").value = event.date_end
+          ? formatDateTimeLocal(event.date_end)
+          : "";
+        document.getElementById("editEventType").value = event.event_type || "";
+        document.getElementById("editEventParties").value = event.parties
+          ? event.parties.join(", ")
+          : "";
+
+        document.getElementById("editModal").classList.add("active");
+      }
+
+      function closeEditModal(event) {
+        if (event && event.target !== event.currentTarget) return;
+        document.getElementById("editModal").classList.remove("active");
+        editingEventId = null;
+      }
+
+      async function handleEditEvent(e) {
+        e.preventDefault();
+
+        if (!currentSessionId || !editingEventId) return;
+
+        const title = document.getElementById("editEventTitle").value;
+        const narrative = document.getElementById("editEventNarrative").value;
+        const dateStart = new Date(
+          document.getElementById("editEventDateStart").value
+        ).toISOString();
+        const dateEnd = document.getElementById("editEventDateEnd").value
+          ? new Date(document.getElementById("editEventDateEnd").value).toISOString()
+          : null;
+        const eventType = document.getElementById("editEventType").value;
+        const partiesStr = document.getElementById("editEventParties").value;
+        const parties = partiesStr
+          ? partiesStr.split(",").map((p) => p.trim()).filter(Boolean)
+          : [];
+
+        try {
+          const response = await secureApiFetch(
+            `/api/chronology-builder/events/${currentSessionId}/update`,
+            {
+              method: "POST",
+              body: JSON.stringify({
+                event_id: editingEventId,
+                title,
+                narrative,
+                date_start: dateStart,
+                date_end: dateEnd,
+                event_type: eventType || null,
+                parties,
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error("Failed to update event");
+          }
+
+          closeEditModal();
+          await updateStatus(); // Refresh to show updated event
+        } catch (error) {
+          console.error("Error updating event:", error);
+          alert("Failed to update event: " + error.message);
+        }
+      }
+
+      // Toggle event acceptance
+      async function toggleEventAcceptance(eventId, isAccepted) {
+        if (!currentSessionId) return;
+
+        try {
+          const response = await secureApiFetch(
+            `/api/chronology-builder/events/${currentSessionId}/update`,
+            {
+              method: "POST",
+              body: JSON.stringify({
+                event_id: eventId,
+                is_accepted: isAccepted,
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error("Failed to update event");
+          }
+
+          await updateStatus();
+        } catch (error) {
+          console.error("Error updating event:", error);
+          alert("Failed to update event: " + error.message);
+        }
+      }
+
+      // Export
+      function exportResults(format) {
+        if (!currentData) return;
+
+        const events = (currentData.chronology_events || []).filter((e) => e.is_accepted);
+        const activities = currentData.programme_activities || [];
+
+        if (format === "csv") {
+          exportCSV(events, activities);
+        } else if (format === "json") {
+          exportJSON(events, activities);
+        }
+      }
+
+      function exportCSV(events, activities) {
+        let csv = "Type,Date Start,Date End,Title,Narrative,Event Type,Parties\n";
+
+        events.forEach((event) => {
+          const row = [
+            "Chronology Event",
+            formatDate(event.date_start),
+            event.date_end ? formatDate(event.date_end) : "",
+            `"${event.title.replace(/"/g, '""')}"`,
+            `"${event.narrative.replace(/"/g, '""')}"`,
+            event.event_type || "",
+            `"${(event.parties || []).join("; ")}"`,
+          ];
+          csv += row.join(",") + "\n";
+        });
+
+        activities.forEach((activity) => {
+          const row = [
+            "Programme Activity",
+            formatDate(activity.start_date),
+            activity.finish_date ? formatDate(activity.finish_date) : "",
+            `"${activity.name.replace(/"/g, '""')}"`,
+            "",
+            "",
+            "",
+          ];
+          csv += row.join(",") + "\n";
+        });
+
+        downloadFile(csv, "chronology-builder-export.csv", "text/csv");
+      }
+
+      function exportJSON(events, activities) {
+        const data = {
+          session_id: currentSessionId,
+          exported_at: new Date().toISOString(),
+          chronology_events: events,
+          programme_activities: activities,
+        };
+
+        downloadFile(
+          JSON.stringify(data, null, 2),
+          "chronology-builder-export.json",
+          "application/json"
+        );
+      }
+
+      function downloadFile(content, filename, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      // Tab switching
+      function switchTab(tabName) {
+        document.querySelectorAll(".tab").forEach((tab) => tab.classList.remove("active"));
+        document.querySelectorAll(".tab-content").forEach((content) => content.classList.remove("active"));
+
+        if (tabName === "chronology") {
+          document.querySelector('.tab[onclick*="chronology"]').classList.add("active");
+          document.getElementById("chronologyTab").classList.add("active");
+        } else if (tabName === "programme") {
+          document.querySelector('.tab[onclick*="programme"]').classList.add("active");
+          document.getElementById("programmeTabContent").classList.add("active");
+        }
+      }
+
+      // Utility functions
+      function formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
+      }
+
+      function formatDateTimeLocal(dateString) {
+        const date = new Date(dateString);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        const hours = String(date.getHours()).padStart(2, "0");
+        const minutes = String(date.getMinutes()).padStart(2, "0");
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+    </script>
+  </body>
+</html>

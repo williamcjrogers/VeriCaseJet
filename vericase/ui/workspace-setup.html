@@ -30,17 +30,16 @@
             background-color: var(--stone);
             background-image: radial-gradient(#E5E7EB 1px, transparent 1px);
             background-size: 24px 24px;
-            min-height: 100vh;
+            height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 24px;
         }
 
         .case-file-container {
             width: 1100px;
-            max-width: 100%;
-            min-height: 700px;
+            max-width: 95%;
+            height: 700px;
             background: #fff;
             border-radius: 8px;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
@@ -51,7 +50,7 @@
 
         .form-section {
             flex: 2;
-            padding: 56px 48px;
+            padding: 48px;
             overflow-y: auto;
         }
 
@@ -66,7 +65,6 @@
             flex-direction: column;
             justify-content: space-between;
             overflow: hidden;
-            min-width: 300px;
         }
 
         h1 {
@@ -80,7 +78,7 @@
         .sub-head {
             color: var(--slate);
             font-size: 14px;
-            margin-bottom: 40px;
+            margin-bottom: 32px;
         }
 
         label {
@@ -90,8 +88,8 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: var(--navy);
-            margin-bottom: 10px;
-            margin-top: 32px;
+            margin-bottom: 8px;
+            margin-top: 24px;
         }
 
         label:first-of-type { margin-top: 0; }
@@ -100,7 +98,7 @@
 
         input, select, textarea {
             width: 100%;
-            padding: 14px 16px;
+            padding: 12px 16px;
             border-radius: 6px;
             border: 1px solid var(--border);
             background-color: #F8FAFC;
@@ -131,11 +129,11 @@
         .form-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 32px;
+            gap: 24px;
         }
 
         .linked-items-section {
-            margin-top: 40px;
+            margin-top: 24px;
         }
 
         .linked-items-title {
@@ -153,6 +151,7 @@
             background: #F8FAFC;
             color: var(--slate);
             font-size: 13px;
+            margin-top: 8px;
         }
 
         .linked-items {
@@ -223,6 +222,8 @@
         .btn-primary {
             background-color: var(--navy);
             color: white;
+            padding: 12px 24px;
+            font-size: 14px;
             box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.2);
         }
 
@@ -293,12 +294,82 @@
             flex-wrap: wrap;
         }
 
+        .team-access-section {
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .team-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .team-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 16px;
+            background: #F8FAFC;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+
+        .team-row-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .team-row-name {
+            font-weight: 600;
+            color: var(--navy);
+            font-size: 14px;
+        }
+
+        .team-row-meta {
+            font-size: 12px;
+            color: var(--slate);
+        }
+
+        .team-row-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .team-role-pill {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.08);
+            color: var(--navy);
+            white-space: nowrap;
+        }
+
+        .team-empty {
+            font-size: 12px;
+            color: var(--slate);
+            padding: 12px 0;
+        }
+
+        .team-highlight {
+            border-color: var(--gold);
+            animation: pulse-highlight 2s ease-in-out;
+        }
+
         /* Context Panel Styling */
         .guide-step {
             display: flex;
             gap: 16px;
             margin-bottom: 24px;
-            opacity: 0.6;
+            opacity: 0.8;
             transition: opacity 0.2s;
         }
 
@@ -306,10 +377,10 @@
         .guide-step.completed { opacity: 0.8; }
 
         .step-num {
-            width: 28px;
-            height: 28px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
-            border: 2px solid rgba(255,255,255,0.3);
+            border: 1px solid rgba(255,255,255,0.3);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -323,6 +394,7 @@
             background: var(--gold);
             border-color: var(--gold);
             color: var(--navy);
+            font-weight: bold;
         }
 
         .guide-step.completed .step-num {
@@ -342,6 +414,7 @@
         .step-desc {
             font-size: 12px;
             opacity: 0.7;
+            margin-top: 4px;
         }
 
         .security-notice {
@@ -416,7 +489,7 @@
             </nav>
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
                 <h1 id="pageTitle">Initialize Workspace</h1>
-                <span id="stepIndicator" style="font-size:12px; font-weight:600; color:var(--slate); background:#F1F5F9; padding:4px 12px; border-radius:4px;">Step 1 of 3</span>
+                <span id="stepIndicator" style="font-size:12px; font-weight:600; color:var(--slate); background:#F1F5F9; padding:4px 8px; border-radius:4px;">Step 1 of 3</span>
             </div>
             <p class="sub-head" id="pageSubtitle">Establish the container for evidence, timeline analysis, and dispute resolution.</p>
 
@@ -493,6 +566,15 @@
                             Save the workspace first to add projects or cases.
                         </div>
                     </div>
+
+                    <div class="team-access-section" id="teamAccessSection" style="display: none;">
+                        <div class="linked-items-title">Team Access</div>
+                        <div class="helper-text" id="teamAccessHelper">
+                            Add existing platform users to this workspace.
+                        </div>
+                        <div class="team-list" id="teamMembersList"></div>
+                        <div class="team-list" id="teamUserList"></div>
+                    </div>
                 </div>
 
                 <div class="action-bar">
@@ -502,7 +584,7 @@
                         </button>
                     </div>
                     <button type="button" class="btn btn-primary" id="saveBtn" onclick="saveWorkspace()">
-                        <i class="ph ph-plus"></i> Create Workspace
+                        <i class="ph ph-arrow-right"></i> Create &amp; Continue
                     </button>
                 </div>
             </form>
@@ -555,6 +637,10 @@
         let isNewWorkspace = true;
         let codeManuallyEdited = false;
         let lastAutoCode = "";
+        let platformUsers = [];
+        let usersLoadState = "idle";
+        let usersLoadMessage = "";
+        let evidenceCompletedOnce = false;
 
         function getAuthHeaders() {
             const token = localStorage.getItem("vericase_token") || localStorage.getItem("token") || localStorage.getItem("jwt");
@@ -593,43 +679,294 @@
             }
         }
 
+        function updateStepGuide() {
+            const stepIndicator = document.getElementById("stepIndicator");
+            const step1 = document.getElementById("step1");
+            const step2 = document.getElementById("step2");
+            const step3 = document.getElementById("step3");
+
+            const hasWorkspace = Boolean(workspaceId);
+            const hasEvidenceParams = hasEvidenceConfigured();
+            const hasTeamAccess = (workspaceData?.team_members || []).length > 0;
+
+            [step1, step2, step3].forEach((step) => {
+                if (!step) return;
+                step.classList.remove("active", "completed");
+            });
+
+            if (!hasWorkspace) {
+                if (step1) step1.classList.add("active");
+                if (stepIndicator) stepIndicator.textContent = "Step 1 of 3";
+                return;
+            }
+
+            if (step1) step1.classList.add("completed");
+
+            if (!hasEvidenceParams) {
+                if (step2) step2.classList.add("active");
+                if (stepIndicator) stepIndicator.textContent = "Step 2 of 3";
+                return;
+            }
+
+            if (step2) step2.classList.add("completed");
+
+            if (!hasTeamAccess) {
+                if (step3) step3.classList.add("active");
+                if (stepIndicator) stepIndicator.textContent = "Step 3 of 3";
+                return;
+            }
+
+            if (step3) step3.classList.add("completed");
+            if (stepIndicator) stepIndicator.textContent = "Setup Complete";
+        }
+
+        function hasEvidenceConfigured() {
+            const projectCount = workspaceData?.projects?.length || 0;
+            const caseCount = workspaceData?.cases?.length || 0;
+            return projectCount + caseCount > 0;
+        }
+
+        function renderTeamMembers() {
+            const container = document.getElementById("teamMembersList");
+            if (!container) return;
+
+            const members = workspaceData?.team_members || [];
+            if (!members.length) {
+                container.innerHTML = '<div class="team-empty">No users added yet.</div>';
+                return;
+            }
+
+            const rows = members.map((member) => {
+                const name = escapeHtml(member.name || member.email || "User");
+                const email = escapeHtml(member.email || "");
+                const role = escapeHtml(member.role || "member");
+                return `
+                    <div class="team-row">
+                        <div class="team-row-info">
+                            <div class="team-row-name">${name}</div>
+                            <div class="team-row-meta">${email}</div>
+                        </div>
+                        <div class="team-row-actions">
+                            <span class="team-role-pill">${role}</span>
+                            <button class="btn btn-secondary btn-icon" onclick="removeTeamMember('${member.id}')" title="Remove user">
+                                <i class="ph ph-x"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+
+            container.innerHTML = `
+                <div class="helper-text">Added Users</div>
+                ${rows}
+            `;
+        }
+
+        function renderPlatformUsers() {
+            const container = document.getElementById("teamUserList");
+            if (!container) return;
+
+            if (usersLoadState === "loading") {
+                container.innerHTML = '<div class="team-empty">Loading users...</div>';
+                return;
+            }
+
+            if (usersLoadState === "error") {
+                const message = usersLoadMessage || "Unable to load users for this workspace.";
+                container.innerHTML = `<div class="team-empty">${escapeHtml(message)}</div>`;
+                return;
+            }
+
+            const members = workspaceData?.team_members || [];
+            const memberEmails = new Set(members.map((m) => (m.email || "").toLowerCase()));
+            const available = platformUsers.filter((u) => {
+                const email = (u.email || "").toLowerCase();
+                return email && !memberEmails.has(email);
+            });
+
+            if (!platformUsers.length) {
+                container.innerHTML = '<div class="team-empty">No platform users available.</div>';
+                return;
+            }
+
+            const rows = available.map((user) => {
+                const name = escapeHtml(user.display_name || user.email || "User");
+                const email = escapeHtml(user.email || "");
+                return `
+                    <div class="team-row">
+                        <div class="team-row-info">
+                            <div class="team-row-name">${name}</div>
+                            <div class="team-row-meta">${email}</div>
+                        </div>
+                        <div class="team-row-actions">
+                            <button class="btn btn-secondary" onclick="addTeamMember('${user.email}')">
+                                <i class="ph ph-user-plus"></i> Add
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+
+            container.innerHTML = `
+                <div class="helper-text">Available Users</div>
+                ${rows || '<div class="team-empty">All users are already assigned.</div>'}
+            `;
+        }
+
+        async function loadPlatformUsers(force = false) {
+            if (!workspaceId) return;
+            if (usersLoadState === "loading") return;
+            if (!force && usersLoadState === "ready") {
+                renderPlatformUsers();
+                return;
+            }
+
+            usersLoadState = "loading";
+            usersLoadMessage = "";
+            renderPlatformUsers();
+
+            try {
+                const response = await fetch("/api/users", { headers: getAuthHeaders() });
+                if (!response.ok) {
+                    if (response.status === 401 || response.status === 403) {
+                        usersLoadMessage = "You do not have permission to list users.";
+                    } else {
+                        usersLoadMessage = `Failed to load users (${response.status}).`;
+                    }
+                    throw new Error(usersLoadMessage);
+                }
+                const data = await response.json();
+                platformUsers = Array.isArray(data) ? data : [];
+                usersLoadState = "ready";
+            } catch (error) {
+                console.error("Error loading users:", error);
+                platformUsers = [];
+                usersLoadState = "error";
+                if (!usersLoadMessage) {
+                    usersLoadMessage = "Unable to load users for this workspace.";
+                }
+            }
+
+            renderPlatformUsers();
+        }
+
+        async function addTeamMember(email) {
+            try {
+                if (!workspaceId) {
+                    VericaseUI.Toast.info("Create the workspace first, then add users.");
+                    return;
+                }
+                const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/team`, {
+                    method: "POST",
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ email, role: "member" }),
+                });
+
+                if (!response.ok) {
+                    let detail = "Failed to add user";
+                    try {
+                        const raw = await response.text();
+                        if (raw) {
+                            try {
+                                const parsed = JSON.parse(raw);
+                                detail = parsed?.detail || parsed?.message || detail;
+                            } catch {
+                                detail = raw;
+                            }
+                        }
+                    } catch {}
+                    throw new Error(detail);
+                }
+
+                VericaseUI.Toast.success("User added to workspace");
+                await loadWorkspace();
+            } catch (error) {
+                console.error("Error adding user:", error);
+                VericaseUI.Toast.error(error.message || "Failed to add user");
+            }
+        }
+
+        async function removeTeamMember(memberId) {
+            try {
+                if (!workspaceId) return;
+                const response = await fetch(
+                    `/api/workspaces/${encodeURIComponent(workspaceId)}/team/${encodeURIComponent(memberId)}`,
+                    { method: "DELETE", headers: getAuthHeaders() }
+                );
+
+                if (!response.ok) {
+                    let detail = "Failed to remove user";
+                    try {
+                        const raw = await response.text();
+                        if (raw) {
+                            try {
+                                const parsed = JSON.parse(raw);
+                                detail = parsed?.detail || parsed?.message || detail;
+                            } catch {
+                                detail = raw;
+                            }
+                        }
+                    } catch {}
+                    throw new Error(detail);
+                }
+
+                VericaseUI.Toast.success("User removed from workspace");
+                await loadWorkspace();
+            } catch (error) {
+                console.error("Error removing user:", error);
+                VericaseUI.Toast.error(error.message || "Failed to remove user");
+            }
+        }
+
+        function updateTeamAccessVisibility() {
+            const section = document.getElementById("teamAccessSection");
+            if (!section) return;
+
+            const canShow = Boolean(workspaceId) && hasEvidenceConfigured();
+            section.style.display = canShow ? "block" : "none";
+
+            if (!canShow) return;
+
+            renderTeamMembers();
+            loadPlatformUsers();
+
+            if (!evidenceCompletedOnce) {
+                evidenceCompletedOnce = true;
+                section.classList.add("team-highlight");
+                section.scrollIntoView({ behavior: "smooth", block: "center" });
+                setTimeout(() => section.classList.remove("team-highlight"), 2500);
+            }
+        }
+
         function updateUIState() {
             const saveBtn = document.getElementById("saveBtn");
-            const stepIndicator = document.getElementById("stepIndicator");
             const pageTitle = document.getElementById("pageTitle");
             const pageSubtitle = document.getElementById("pageSubtitle");
             const addProjectBtn = document.getElementById("addProjectBtn");
             const addCaseBtn = document.getElementById("addCaseBtn");
             const nextStepsHelper = document.getElementById("nextStepsHelper");
             const linkExistingSection = document.getElementById("linkExistingSection");
-            const step1 = document.getElementById("step1");
-            const step2 = document.getElementById("step2");
 
             if (isNewWorkspace) {
-                saveBtn.innerHTML = '<i class="ph ph-plus"></i> Create Workspace';
-                stepIndicator.textContent = "New Workspace";
+                saveBtn.innerHTML = '<i class="ph ph-arrow-right"></i> Create & Continue';
                 pageTitle.textContent = "Initialize Workspace";
                 pageSubtitle.textContent = "Establish the container for evidence, timeline analysis, and dispute resolution.";
                 addProjectBtn.disabled = true;
                 addCaseBtn.disabled = true;
                 nextStepsHelper.style.display = "block";
                 linkExistingSection.style.display = "none";
-                step1.classList.add("active");
-                step1.classList.remove("completed");
-                step2.classList.remove("active");
             } else {
                 saveBtn.innerHTML = '<i class="ph ph-floppy-disk"></i> Save Changes';
-                stepIndicator.textContent = "Editing";
                 pageTitle.textContent = workspaceData?.name || "Workspace Setup";
                 pageSubtitle.textContent = `Configure workspace settings and linked items.`;
                 addProjectBtn.disabled = false;
                 addCaseBtn.disabled = false;
                 nextStepsHelper.style.display = "none";
                 linkExistingSection.style.display = "block";
-                step1.classList.remove("active");
-                step1.classList.add("completed");
-                step2.classList.add("active");
             }
+
+            updateStepGuide();
+            updateTeamAccessVisibility();
         }
 
         function setCurrentWorkspaceStorage() {
@@ -803,6 +1140,8 @@
                 updateUIState();
                 setCurrentWorkspaceStorage();
                 renderLinkedItems();
+                renderTeamMembers();
+                updateTeamAccessVisibility();
                 loadProjectsForLinking();
             } catch (error) {
                 console.error("Error loading workspace:", error);

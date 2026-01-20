@@ -388,7 +388,7 @@ def create_invitation(
     existing_invite = (
         db.query(UserInvitation)
         .filter(
-            UserInvitation.email.is_(email_lower),
+            UserInvitation.email == email_lower,
             UserInvitation.expires_at > datetime.now(timezone.utc),
         )
         .first()

@@ -137,6 +137,7 @@ from .routers.lex import router as lex_router  # Lex legislation/caselaw API
 from .routers.contract_intelligence import (
     router as contract_intelligence_router,
 )  # Contract Intelligence API
+from .chronology_builder import router as chronology_builder_router  # Chronology Builder
 
 logger = logging.getLogger(__name__)
 bearer = HTTPBearer(auto_error=False)
@@ -354,6 +355,7 @@ app.include_router(ai_optimization_router)  # AI Optimization Tracking
 app.include_router(caselaw_router)  # Case Law Intelligence
 app.include_router(lex_router)  # Lex legislation/caselaw API
 app.include_router(contract_intelligence_router)  # Contract Intelligence API
+app.include_router(chronology_builder_router)  # Chronology Builder
 
 origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 if origins:
