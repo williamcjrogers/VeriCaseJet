@@ -436,12 +436,20 @@ class EnhancedEvidenceProcessor:
     async def _ingest_to_knowledge_base(self, evidence: EvidenceItem, metadata: Dict):
         """Ingest evidence into Bedrock Knowledge Base"""
         try:
+            workspace_id = None
+            try:
+                if isinstance(evidence.meta, dict):
+                    workspace_id = evidence.meta.get("workspace_id")
+            except Exception:
+                workspace_id = None
+
             # Prepare document for ingestion
             document_data = {
                 "id": str(evidence.id),
                 "title": evidence.title or evidence.filename,
                 "content": evidence.extracted_text or "",
                 "metadata": {
+                    "workspace_id": workspace_id,
                     "case_id": str(evidence.case_id) if evidence.case_id else None,
                     "project_id": (
                         str(evidence.project_id) if evidence.project_id else None

@@ -243,6 +243,7 @@ async def _build_workspace_about_snapshot(
     db: Session,
     workspace: Workspace,
     force: bool = False,
+    deep: bool = False,
 ) -> WorkspaceAbout:
     about = (
         db.query(WorkspaceAbout)
@@ -292,11 +293,140 @@ async def _build_workspace_about_snapshot(
         evidence_conds.append(EvidenceItem.case_id.in_(case_ids))
 
     evidence_query = db.query(EvidenceItem).filter(or_(*evidence_conds))
-    evidence_items = evidence_query.order_by(desc(EvidenceItem.created_at)).limit(18).all()
+    # Pull a bounded pool, then rank for "read-in" usefulness (not just recency).
+    evidence_pool = (
+        evidence_query.order_by(desc(EvidenceItem.created_at))
+        .limit(240 if deep else 160)
+        .all()
+    )
+
+    # Identify contract documents uploaded at workspace scope (pivotal for counsel read-in).
+    workspace_docs = (
+        _workspace_docs_query(db, workspace.id)
+        .order_by(desc(EvidenceItem.created_at))
+        .limit(200)
+        .all()
+    )
+
+    def _looks_like_contract(it: EvidenceItem) -> bool:
+        try:
+            if (it.evidence_type or "").lower() == "contract":
+                return True
+        except Exception:
+            pass
+        fn = (it.filename or "").lower()
+        if any(
+            k in fn
+            for k in (
+                "contract",
+                "agreement",
+                "jct",
+                "nec",
+                "subcontract",
+                "sub-contract",
+                "terms",
+                "conditions",
+                "scope of works",
+                "appointment",
+            )
+        ):
+            return True
+        # Best-effort: peek at a small text prefix (avoid large scans).
+        sample = ((it.extracted_text or "")[:8000]).lower()
+        if any(
+            k in sample
+            for k in (
+                "this contract",
+                "this agreement",
+                "conditions of contract",
+                "jct",
+                "nec",
+                "schedule of amendments",
+                "contract sum",
+                "articles of agreement",
+            )
+        ):
+            return True
+        return False
+
+    contract_docs = [d for d in workspace_docs if _looks_like_contract(d)]
+    contract_docs = contract_docs[:6]
+
+    def _score_for_readin(it: EvidenceItem) -> int:
+        score = 0
+        fn = (it.filename or "").lower()
+        et = (it.evidence_type or "").lower()
+
+        if _looks_like_contract(it):
+            score += 250
+        if et == "meeting_minutes":
+            score += 90
+        if et == "drawing":
+            score += 50
+        if et == "invoice":
+            score += 35
+
+        # Filename hints for high-signal documents
+        for k, w in (
+            ("expert", 90),
+            ("report", 60),
+            ("letter of claim", 120),
+            ("claim", 70),
+            ("particulars", 80),
+            ("notice", 60),
+            ("valuation", 50),
+            ("schedule", 40),
+            ("programme", 40),
+            ("chronology", 40),
+            ("whatsapp", 30),
+            ("meeting", 35),
+            ("minutes", 35),
+        ):
+            if k in fn:
+                score += w
+
+        # Tag boosts (when enhanced processing has run)
+        tags = it.auto_tags if isinstance(it.auto_tags, list) else []
+        for t in tags:
+            if t in ("delay", "defect", "variation", "payment", "quality"):
+                score += 25
+
+        # Recency boost (lightweight)
+        try:
+            if it.created_at:
+                now = datetime.now(timezone.utc)
+                age_days = max(0, int((now - it.created_at).total_seconds() // 86400))
+                score += max(0, 40 - age_days)
+        except Exception:
+            pass
+
+        # Reward if we have extracted text
+        if (it.extracted_text or "").strip():
+            score += 10
+        return score
+
+    ranked_pool = sorted(evidence_pool, key=_score_for_readin, reverse=True)
+
+    # Ensure contract docs are represented in the prompt evidence excerpts for citation.
+    ordered_items: list[EvidenceItem] = []
+    seen_ids: set[str] = set()
+    for it in contract_docs:
+        sid = str(it.id)
+        if sid not in seen_ids:
+            ordered_items.append(it)
+            seen_ids.add(sid)
+    for it in ranked_pool:
+        sid = str(it.id)
+        if sid not in seen_ids:
+            ordered_items.append(it)
+            seen_ids.add(sid)
+    # Keep prompt bounded; deep mode can afford slightly more context.
+    ordered_items = ordered_items[: (26 if deep else 20)]
 
     sources: list[dict[str, Any]] = []
     source_blocks: list[str] = []
-    for idx, item in enumerate(evidence_items, start=1):
+    contract_source_labels: dict[str, str] = {}
+    for idx, item in enumerate(ordered_items, start=1):
         label = f"S{idx}"
         filename = item.filename or "Untitled"
         doc_date = item.document_date.isoformat() if item.document_date else None
@@ -317,6 +447,10 @@ async def _build_workspace_about_snapshot(
                     "retention",
                     "liquidated_damages",
                     "delay_clauses",
+                    "contract_form",
+                    "contract_date",
+                    "employer",
+                    "contractor",
                 ):
                     entry = q.get(alias)
                     ans = None
@@ -326,13 +460,15 @@ async def _build_workspace_about_snapshot(
                         ans = entry
                     if ans and str(ans).strip():
                         signals.append(f"{alias}={str(ans).strip()[:160]}")
+        # Give more room to contract documents.
+        excerpt_limit = 3200 if _looks_like_contract(item) else 1600
         excerpt = (
-            _safe_excerpt(item.extracted_text, 1600)
+            _safe_excerpt(item.extracted_text, excerpt_limit)
             or _safe_excerpt(
                 (item.extracted_metadata or {}).get("text_preview")  # type: ignore[union-attr]
                 if isinstance(item.extracted_metadata, dict)
                 else "",
-                1600,
+                excerpt_limit,
             )
         )
         sources.append(
@@ -341,6 +477,7 @@ async def _build_workspace_about_snapshot(
                 "evidence_id": str(item.id),
                 "filename": filename,
                 "document_date": doc_date,
+                "evidence_type": getattr(item, "evidence_type", None),
             }
         )
         if excerpt:
@@ -348,9 +485,21 @@ async def _build_workspace_about_snapshot(
             if signals:
                 header += "\nSignals: " + "; ".join(signals[:10])
             source_blocks.append(f"{header}\n{excerpt}")
+        if _looks_like_contract(item):
+            contract_source_labels[str(item.id)] = label
 
     user_notes = (about.user_notes or "").strip()
     evidence_excerpt_text = "\n\n".join(source_blocks) if source_blocks else "None"
+    contract_list_text = (
+        "\n".join(
+            [
+                f"- [{contract_source_labels.get(str(d.id), '?')}] {d.filename} (id={d.id})"
+                for d in contract_docs
+            ]
+        )
+        if contract_docs
+        else "None"
+    )
 
     system_prompt = (
         "You are a senior construction disputes barrister's assistant. "
@@ -359,12 +508,16 @@ async def _build_workspace_about_snapshot(
     )
 
     prompt = f"""
-Build an 'About this Workspace' read-in that reduces counsel read-in time.
+Build a counsel-ready Workspace Read-In that reduces read-in time to minutes.
 
-Return a JSON object with keys:
-- summary: string (plain text; bullets allowed using \\n)
-- open_questions: array of strings (5-12 items)
-- sources: array of objects {{label, evidence_id, filename}}
+Return ONE JSON object with keys:
+- read_in: string (plain text; use headings + bullets; be comprehensive but factual)
+- contracts: object with:
+  - documents: array of objects {evidence_id, filename, contract_form, contract_date, parties, contract_value, key_terms, risks, source_labels}
+  - key_terms_overview: array of strings (most important clauses/terms, each with citation)
+  - gaps: array of strings (missing contract documents/clauses/appendices)
+- open_questions: array of strings (8-20 items; prioritized; each should be answerable by a missing document or fact)
+- sources: array of objects {label, evidence_id, filename, document_date}
 
 Workspace:
 - name: {workspace.name}
@@ -378,16 +531,21 @@ Cases (count={len(cases)}): {", ".join([c.name for c in cases if c.name]) or "No
 Authoritative user notes (treat as ground truth if present):
 {user_notes or "None"}
 
+Contract documents uploaded in this workspace (if any):
+{contract_list_text}
+
 Evidence excerpts (cite sources like [S1], [S2] where relevant):
 {evidence_excerpt_text}
 """.strip()
 
+    tool_name = "vericase_analysis" if deep else "workspace_about"
+    max_tokens = 7000 if deep else 3200
     ai_text = await _complete_with_tool_fallback(
-        tool_name="workspace_about",
+        tool_name=tool_name,
         prompt=prompt,
         system_prompt=system_prompt,
         db=db,
-        max_tokens=2400,
+        max_tokens=max_tokens,
         temperature=0.2,
     )
 
@@ -408,14 +566,33 @@ Evidence excerpts (cite sources like [S1], [S2] where relevant):
             summary_lines.append(
                 "Cases: " + ", ".join([c.name for c in cases if c.name][:10])
             )
-        if evidence_items:
+        if contract_docs:
+            summary_lines.append(
+                "Contract documents uploaded: "
+                + ", ".join([d.filename for d in contract_docs if d.filename][:8])
+            )
+        if ordered_items:
             summary_lines.append(
                 "Recent evidence: "
-                + ", ".join([e.filename for e in evidence_items if e.filename][:8])
+                + ", ".join([e.filename for e in ordered_items if e.filename][:8])
             )
 
         payload = {
-            "summary": "\n".join(summary_lines),
+            "read_in": "\n".join(summary_lines),
+            "contracts": {
+                "documents": [
+                    {
+                        "evidence_id": str(d.id),
+                        "filename": d.filename,
+                        "source_labels": [
+                            contract_source_labels.get(str(d.id), "")
+                        ],
+                    }
+                    for d in contract_docs
+                ],
+                "key_terms_overview": [],
+                "gaps": [],
+            },
             "open_questions": [
                 "What is the dispute headline / claim narrative?",
                 "Who are the key parties and roles (Employer, Contractor, PM, QS, Engineer)?",
@@ -426,14 +603,76 @@ Evidence excerpts (cite sources like [S1], [S2] where relevant):
             "sources": sources,
         }
 
-    summary = str(payload.get("summary") or "").strip()
+    # Normalize payload keys for UI
+    summary = str(payload.get("read_in") or payload.get("summary") or "").strip()
     open_questions = payload.get("open_questions") if isinstance(payload.get("open_questions"), list) else []
     payload["open_questions"] = [str(q) for q in open_questions if str(q).strip()][:20]
     payload["sources"] = sources
+    contracts_obj = payload.get("contracts") if isinstance(payload.get("contracts"), dict) else {}
+    # Ensure stable contract payload shape for the UI, even if the model omits it.
+    if not isinstance(contracts_obj, dict):
+        contracts_obj = {}
+    if not isinstance(contracts_obj.get("documents"), list):
+        contracts_obj["documents"] = []
+    if not isinstance(contracts_obj.get("key_terms_overview"), list):
+        contracts_obj["key_terms_overview"] = []
+    if not isinstance(contracts_obj.get("gaps"), list):
+        contracts_obj["gaps"] = []
+
+    def _q_answer(it: EvidenceItem, alias: str) -> str:
+        md = it.extracted_metadata if isinstance(it.extracted_metadata, dict) else {}
+        tex = md.get("textract_data") if isinstance(md, dict) else None
+        if not isinstance(tex, dict):
+            return ""
+        q = tex.get("queries")
+        if not isinstance(q, dict):
+            return ""
+        entry = q.get(alias)
+        if isinstance(entry, dict):
+            return str(entry.get("answer") or "").strip()
+        if isinstance(entry, str):
+            return entry.strip()
+        return ""
+
+    # If the model didn't return contract documents but we detected them, populate from detected set.
+    if not contracts_obj.get("documents") and contract_docs:
+        docs_payload: list[dict[str, Any]] = []
+        key_terms_overview: list[str] = []
+        for d in contract_docs[:8]:
+            key_terms: dict[str, str] = {}
+            for alias in (
+                "payment_terms",
+                "retention",
+                "liquidated_damages",
+                "completion_date",
+                "delay_clauses",
+            ):
+                ans = _q_answer(d, alias)
+                if ans:
+                    key_terms[alias] = ans
+                    key_terms_overview.append(f"{alias}: {ans} [{contract_source_labels.get(str(d.id), '?')}]")
+
+            docs_payload.append(
+                {
+                    "evidence_id": str(d.id),
+                    "filename": d.filename,
+                    "contract_form": _q_answer(d, "contract_form") or (workspace.contract_type or ""),
+                    "contract_date": _q_answer(d, "contract_date") or (d.document_date.isoformat() if d.document_date else ""),
+                    "parties": _q_answer(d, "parties") or ", ".join((d.extracted_parties or [])[:6]),
+                    "contract_value": _q_answer(d, "contract_value"),
+                    "key_terms": key_terms,
+                    "source_labels": [contract_source_labels.get(str(d.id), "")],
+                }
+            )
+        contracts_obj["documents"] = docs_payload
+        if not contracts_obj.get("key_terms_overview"):
+            contracts_obj["key_terms_overview"] = key_terms_overview[:20]
+
+    payload["contracts"] = contracts_obj
 
     about.summary_md = summary
     about.data = payload
-    about.status = "ready" if summary else "ready"
+    about.status = "ready"
     about.last_error = None
     about.updated_at = datetime.now(timezone.utc)
     db.commit()
@@ -457,7 +696,8 @@ async def _workspace_doc_postprocess_job(
             ws_uuid = _parse_uuid(workspace_id, "workspace_id")
             ws = db.query(Workspace).filter(Workspace.id == ws_uuid).first()
             if ws:
-                await _build_workspace_about_snapshot(db=db, workspace=ws, force=True)
+                # Rebuild using newly extracted AWS metadata (quick mode).
+                await _build_workspace_about_snapshot(db=db, workspace=ws, force=False, deep=False)
         except Exception as e:
             logger.info("Workspace About refresh failed: %s", e)
     finally:
@@ -1367,11 +1607,13 @@ def get_workspace_about(
 
     data = about.data or {}
     open_questions = data.get("open_questions") if isinstance(data, dict) else None
+    contracts = data.get("contracts") if isinstance(data, dict) else None
     return {
         "workspace_id": str(workspace.id),
         "status": about.status,
         "summary": about.summary_md or "",
         "open_questions": open_questions if isinstance(open_questions, list) else [],
+        "contracts": contracts if isinstance(contracts, dict) else {"documents": [], "key_terms_overview": [], "gaps": []},
         "user_notes": about.user_notes or "",
         "updated_at": about.updated_at.isoformat() if about.updated_at else None,
         "last_error": about.last_error,
@@ -1410,14 +1652,14 @@ def save_workspace_about_notes(
     }
 
 
-async def _workspace_about_refresh_job(workspace_id: str, force: bool) -> None:
+async def _workspace_about_refresh_job(workspace_id: str, force: bool, deep: bool) -> None:
     db = SessionLocal()
     try:
         ws_uuid = _parse_uuid(workspace_id, "workspace_id")
         ws = db.query(Workspace).filter(Workspace.id == ws_uuid).first()
         if not ws:
             return
-        await _build_workspace_about_snapshot(db=db, workspace=ws, force=force)
+        await _build_workspace_about_snapshot(db=db, workspace=ws, force=force, deep=deep)
     finally:
         db.close()
 
@@ -1452,6 +1694,7 @@ async def refresh_workspace_about(
         _workspace_about_refresh_job,
         str(workspace.id),
         bool(payload.force),
+        bool(payload.force),
     )
 
     return {
@@ -1459,6 +1702,7 @@ async def refresh_workspace_about(
         "status": about.status,
         "summary": about.summary_md or "",
         "open_questions": (about.data or {}).get("open_questions", []),
+        "contracts": (about.data or {}).get("contracts", {"documents": [], "key_terms_overview": [], "gaps": []}),
         "user_notes": about.user_notes or "",
         "updated_at": about.updated_at.isoformat() if about.updated_at else None,
     }
@@ -1483,6 +1727,7 @@ async def ask_workspace_about(
     )
     user_notes = (about.user_notes if about else None) or ""
     about_summary = (about.summary_md if about else None) or ""
+    about_contracts = (about.data or {}).get("contracts", {}) if about and isinstance(about.data, dict) else {}
 
     # Build evidence pool: workspace docs + related project/case evidence (bounded).
     projects = db.query(Project).filter(Project.workspace_id == workspace.id).all()
@@ -1521,7 +1766,17 @@ async def ask_workspace_about(
         return score
 
     ranked = sorted(pool, key=score_item, reverse=True)
-    top = [it for it in ranked if score_item(it) > 0][:6] or ranked[:4]
+    contract_ranked = [it for it in ranked if (it.evidence_type or "").lower() == "contract"][:2]
+    topical = [it for it in ranked if score_item(it) > 0][:6]
+    top = []
+    seen: set[str] = set()
+    for it in contract_ranked + topical:
+        sid = str(it.id)
+        if sid in seen:
+            continue
+        top.append(it)
+        seen.add(sid)
+    top = top[:8] or ranked[:4]
 
     sources: list[dict[str, Any]] = []
     blocks: list[str] = []
@@ -1546,6 +1801,9 @@ Authoritative user notes (ground truth):
 
 Cached workspace summary:
 {about_summary or "None"}
+
+Contracts & key terms (cached):
+{json.dumps(about_contracts, ensure_ascii=False)[:6000] if about_contracts else "None"}
 
 Evidence excerpts:
 {evidence_blocks_text}

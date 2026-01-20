@@ -60,16 +60,305 @@
       max-width: 70ch;
     }
 
+    /* The navigation shell injects the REAL `.app-content` container.
+       This page should style that container (not create a nested `.app-content`). */
     .app-content {
-      background: var(--bg-white);
+      background-color: var(--vericase-cream);
+      background-image: radial-gradient(var(--gray-200) 1px, transparent 1px);
+      background-size: 24px 24px;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      margin: 0;
+      padding: 32px 48px;
+      min-height: 100vh;
+      position: relative;
+    }
+
+    /* Page width container (prevents ultra-wide “stretched” layouts) */
+    .workspace-hub-container {
+      max-width: 1440px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* === WORKSPACES DIRECTORY (LIST) === */
+    .directory-hero {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: var(--space-6);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-5);
+      position: relative;
+      z-index: 1;
+    }
+
+    .directory-title-row {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-4);
+    }
+
+    .directory-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(var(--vericase-teal-rgb), 0.10);
+      color: var(--vericase-teal);
+      border: 1px solid rgba(var(--vericase-teal-rgb), 0.18);
+      box-shadow: var(--shadow-sm);
+      flex-shrink: 0;
+    }
+
+    .directory-title {
+      font-family: var(--font-serif);
+      font-size: 1.75rem;
+      font-weight: 650;
+      color: var(--text-primary);
+      line-height: 1.15;
+      margin: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+    }
+
+    .directory-count-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      background: rgba(var(--vericase-teal-rgb), 0.10);
+      border: 1px solid rgba(var(--vericase-teal-rgb), 0.20);
+      color: var(--vericase-teal);
+      min-width: 42px;
+    }
+
+    .directory-subtitle {
+      margin-top: 6px;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      max-width: 76ch;
+      line-height: 1.45;
+    }
+
+    .directory-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .directory-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-6);
+      padding: var(--space-4);
+      background: rgba(255, 255, 255, 0.82);
       border: 1px solid var(--border-default);
-      border-radius: 26px;
-      box-shadow:
-        0 4px 6px -1px rgba(0, 0, 0, 0.05),
-        0 2px 4px -2px rgba(0, 0, 0, 0.03);
-      margin: var(--space-4);
-      padding: var(--space-6);
-      min-height: calc(100vh - 120px);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-sm);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+      position: relative;
+      z-index: 1;
+    }
+
+    .directory-search {
+      position: relative;
+      flex: 1;
+      min-width: min(560px, 100%);
+    }
+
+    .directory-search i {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      pointer-events: none;
+    }
+
+    .directory-search input.form-input {
+      width: 100%;
+      padding-left: 38px;
+      padding-right: 44px;
+      background: #ffffff;
+    }
+
+    .directory-search-clear {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      border: 1px solid var(--gray-200);
+      background: var(--gray-50);
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .directory-search-clear:hover {
+      background: var(--gray-100);
+      color: var(--text-primary);
+      border-color: var(--gray-300);
+    }
+
+    .directory-toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .directory-filters {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+
+    .directory-filters .form-select {
+      min-width: 170px;
+    }
+
+    .directory-meta {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    /* Workspace cards (directory) */
+    .workspace-card {
+      background: rgba(255, 255, 255, 0.92);
+      border-color: var(--border-default);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+
+    .workspace-card::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: rgba(var(--vericase-teal-rgb), 0.45);
+      opacity: 0.6;
+    }
+
+    .workspace-card:hover::before {
+      opacity: 1;
+    }
+
+    .workspace-card:focus-within {
+      border-color: rgba(var(--vericase-teal-rgb), 0.65);
+      box-shadow: 0 0 0 3px rgba(var(--vericase-teal-rgb), 0.18), var(--shadow-lg);
+    }
+
+    .workspace-card .item-title {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .workspace-card .item-stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 14px;
+      align-items: start;
+    }
+
+    .workspace-card .workspace-preview {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .workspace-card--skeleton {
+      cursor: default;
+    }
+
+    .workspace-card--skeleton:hover {
+      transform: none;
+      box-shadow: var(--shadow-sm);
+      border-color: var(--border-default);
+    }
+
+    .workspace-card-skel-top {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .sk-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      flex-shrink: 0;
+    }
+
+    .workspace-card-skel-lines {
+      flex: 1;
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .sk-line {
+      height: 12px;
+      border-radius: 10px;
+    }
+
+    .sk-line--title {
+      width: 70%;
+      height: 14px;
+    }
+
+    .sk-line--meta {
+      width: 48%;
+      height: 11px;
+    }
+
+    .sk-pill {
+      width: 78px;
+      height: 18px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+
+    .workspace-card-skel-stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 14px;
+      border-top: 1px solid var(--gray-100);
+      padding-top: 12px;
+    }
+
+    .sk-stat {
+      height: 12px;
+      border-radius: 10px;
     }
 
     /* === WORKSPACE HEADER === */
@@ -1195,6 +1484,22 @@
 
     /* === RESPONSIVE === */
     @media (max-width: 768px) {
+      .app-content {
+        padding: 24px 16px;
+      }
+
+      .directory-toolbar {
+        padding: var(--space-3);
+      }
+
+      .directory-search {
+        min-width: 100%;
+      }
+
+      .directory-filters .form-select {
+        min-width: 160px;
+      }
+
       .workspace-header {
         flex-direction: column;
         align-items: flex-start;
@@ -1276,6 +1581,83 @@
       flex-wrap: wrap;
     }
 
+    .about-contract-grid {
+      display: grid;
+      grid-template-columns: 1.25fr 1fr;
+      gap: 14px;
+    }
+
+    .about-subtitle {
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .about-contract-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .about-contract-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border: 1px solid var(--gray-200);
+      border-radius: 12px;
+      background: var(--bg-white);
+    }
+
+    .about-contract-title {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .about-contract-meta {
+      color: var(--text-muted);
+      font-size: 0.8125rem;
+      margin-top: 4px;
+      line-height: 1.35;
+    }
+
+    .about-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .about-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--gray-100);
+      border: 1px solid var(--gray-200);
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .about-contract-actions {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 900px) {
+      .about-contract-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .about-list {
       margin: 0;
       padding-left: 18px;
@@ -1335,9 +1717,8 @@
   </style>
 </head>
 
-<body>
-  <div id="navShell"></div>
-  <main class="app-content">
+<body class="workspace-hub-page">
+  <div class="workspace-hub-container">
     <!-- Breadcrumb Navigation -->
     <nav class="hub-breadcrumb" aria-label="Breadcrumb">
       <a href="control-centre.html"><i class="fas fa-compass"></i> Control Centre</a>
@@ -1349,12 +1730,22 @@
 
     <!-- Workspaces Directory (no workspaceId) -->
     <section class="hub-section hidden" id="directoryView">
-      <div class="section-header">
-        <div class="section-title">
-          <i class="fas fa-layer-group" aria-hidden="true"></i>
-          Workspaces
+      <header class="directory-hero" aria-label="Workspaces Directory">
+        <div class="directory-title-row">
+          <div class="directory-icon" aria-hidden="true">
+            <i class="fas fa-layer-group"></i>
+          </div>
+          <div>
+            <h1 class="directory-title">
+              Workspaces
+              <span class="directory-count-pill" id="workspacesCountPill" title="Total workspaces"></span>
+            </h1>
+            <div class="directory-subtitle">
+              Workspaces group projects, cases, documents, and your team.
+            </div>
+          </div>
         </div>
-        <div class="section-actions">
+        <div class="directory-actions">
           <a href="workspace-setup.html" class="btn btn-vericase">
             <i class="fas fa-plus" aria-hidden="true"></i> Create Workspace
           </a>
@@ -1362,9 +1753,44 @@
             <i class="fas fa-bolt" aria-hidden="true"></i> Quick Access
           </a>
         </div>
-      </div>
-      <div class="hub-subtext hub-subtext-roomy">
-        Workspaces group projects, cases, documents, and your team.
+      </header>
+
+      <div class="directory-toolbar" role="region" aria-label="Workspace filters">
+        <div class="directory-search">
+          <i class="fas fa-search" aria-hidden="true"></i>
+          <input
+            type="search"
+            id="workspaceSearch"
+            class="form-input"
+            placeholder="Search workspaces by name, code, or contract type…"
+            autocomplete="off"
+          />
+          <button
+            type="button"
+            id="workspaceSearchClear"
+            class="directory-search-clear"
+            aria-label="Clear search"
+            hidden
+          >
+            <i class="fas fa-xmark" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="directory-toolbar-right">
+          <div class="directory-filters">
+            <select class="form-select" id="workspaceStatusFilter" aria-label="Status filter">
+              <option value="all">All statuses</option>
+              <option value="active">Active</option>
+              <option value="archived">Archived</option>
+              <option value="inactive">Inactive</option>
+            </select>
+            <select class="form-select" id="workspaceSort" aria-label="Sort workspaces">
+              <option value="recent">Sort: Recent</option>
+              <option value="name-asc">Sort: Name A–Z</option>
+              <option value="name-desc">Sort: Name Z–A</option>
+            </select>
+          </div>
+          <div class="directory-meta" id="workspaceDirectoryMeta">Loading…</div>
+        </div>
       </div>
       <div class="items-grid" id="workspacesGrid"></div>
     </section>
@@ -1555,19 +1981,48 @@
               About
             </div>
             <div class="section-actions">
-              <button class="btn btn-sm btn-outline" onclick="refreshWorkspaceAbout(true)">
-                <i class="fas fa-wand-magic-sparkles"></i> Refresh
+              <button class="btn btn-sm btn-outline" onclick="refreshWorkspaceAbout(false)" title="Quick refresh (uses latest processed excerpts)">
+                <i class="fas fa-sync-alt"></i> Refresh
+              </button>
+              <button class="btn btn-sm btn-vericase" onclick="refreshWorkspaceAbout(true)" title="Supercharged read-in (deep, multi-agent + contract intelligence)">
+                <i class="fas fa-wand-magic-sparkles"></i> Supercharge
               </button>
             </div>
           </div>
 
           <div class="about-grid">
-            <div class="about-card">
+            <div class="about-card about-span-2">
               <div class="about-card-title">
                 <i class="fas fa-bolt" aria-hidden="true"></i>
                 AI Brief (auto-updates as documents arrive)
               </div>
               <div class="about-card-body about-pre" id="aboutSummary">Upload a document in this workspace to start building the dispute context.</div>
+            </div>
+
+            <div class="about-card about-span-2">
+              <div class="about-card-title">
+                <i class="fas fa-file-signature" aria-hidden="true"></i>
+                Contracts & key terms (from uploaded contract documents)
+              </div>
+              <div class="about-card-body">
+                <div class="about-contract-grid">
+                  <div>
+                    <div class="about-subtitle">
+                      <i class="fas fa-folder-open" aria-hidden="true"></i>
+                      Uploaded contract documents
+                    </div>
+                    <div class="about-contract-list" id="aboutContractDocs"></div>
+                  </div>
+                  <div>
+                    <div class="about-subtitle">
+                      <i class="fas fa-balance-scale" aria-hidden="true"></i>
+                      Key terms (extracted)
+                    </div>
+                    <div class="about-pre" id="aboutContractTerms"></div>
+                  </div>
+                </div>
+                <div class="about-hint" id="aboutContractsHint"></div>
+              </div>
             </div>
 
             <div class="about-card">
@@ -1674,7 +2129,7 @@
         Back to Workspaces
       </a>
     </div>
-  </main>
+  </div>
 
   <!-- Add Modal -->
   <div class="modal-overlay" id="addModal" style="display: none;">
@@ -1737,6 +2192,19 @@
     const urlParams = new URLSearchParams(window.location.search);
     const workspaceId = urlParams.get("workspaceId");
     const isDirectoryMode = !workspaceId;
+
+    // Workspace directory state (directory mode only)
+    let directoryWorkspaces = [];
+    const directoryUi = {
+      query: "",
+      status: "all",
+      sort: "recent",
+    };
+    const _countFmt = new Intl.NumberFormat(undefined);
+    function formatCount(value) {
+      const n = Number(value);
+      return Number.isFinite(n) ? _countFmt.format(n) : "0";
+    }
 
     // Workspace data
     let workspaceData = null;
@@ -1825,6 +2293,7 @@
 
       if (isDirectoryMode) {
         setDirectoryMode(true);
+        initWorkspacesDirectoryUi();
         await loadWorkspacesDirectory();
         return;
       }
@@ -1845,15 +2314,224 @@
       await loadWorkspace();
     });
 
+    function setDirectoryMeta({ total, shown, loading = false }) {
+      const meta = document.getElementById("workspaceDirectoryMeta");
+      const pill = document.getElementById("workspacesCountPill");
+
+      if (loading) {
+        if (meta) meta.textContent = "Loading workspaces…";
+        if (pill) pill.textContent = "";
+        return;
+      }
+
+      const totalText = formatCount(total);
+      const shownText = formatCount(shown);
+
+      if (meta) {
+        meta.textContent =
+          total === shown
+            ? `${totalText} workspaces`
+            : `Showing ${shownText} of ${totalText} workspaces`;
+      }
+      if (pill) pill.textContent = totalText;
+    }
+
+    function initWorkspacesDirectoryUi() {
+      const search = document.getElementById("workspaceSearch");
+      const clearBtn = document.getElementById("workspaceSearchClear");
+      const status = document.getElementById("workspaceStatusFilter");
+      const sort = document.getElementById("workspaceSort");
+
+      if (!search || !status || !sort) return;
+
+      function syncClear() {
+        if (!clearBtn) return;
+        clearBtn.hidden = !search.value.trim();
+      }
+
+      function updateAndRender() {
+        directoryUi.query = (search.value || "").trim().toLowerCase();
+        directoryUi.status = (status.value || "all").toLowerCase();
+        directoryUi.sort = (sort.value || "recent").toLowerCase();
+        syncClear();
+        applyDirectoryFiltersAndRender();
+      }
+
+      search.addEventListener("input", updateAndRender);
+      status.addEventListener("change", updateAndRender);
+      sort.addEventListener("change", updateAndRender);
+
+      if (clearBtn) {
+        clearBtn.addEventListener("click", () => {
+          search.value = "";
+          updateAndRender();
+          search.focus();
+        });
+      }
+
+      syncClear();
+      setDirectoryMeta({ total: 0, shown: 0, loading: true });
+    }
+
+    function renderWorkspacesDirectoryLoading() {
+      const grid = document.getElementById("workspacesGrid");
+      if (!grid) return;
+      setDirectoryMeta({ total: 0, shown: 0, loading: true });
+
+      const card = `
+        <div class="item-card workspace-card workspace-card--skeleton" aria-hidden="true">
+          <div class="workspace-card-skel-top">
+            <div class="skeleton sk-icon"></div>
+            <div class="workspace-card-skel-lines">
+              <div class="skeleton sk-line sk-line--title"></div>
+              <div class="skeleton sk-line sk-line--meta"></div>
+            </div>
+            <div class="skeleton sk-pill"></div>
+          </div>
+          <div class="workspace-card-skel-stats">
+            <div class="skeleton sk-stat"></div>
+            <div class="skeleton sk-stat"></div>
+            <div class="skeleton sk-stat"></div>
+            <div class="skeleton sk-stat"></div>
+          </div>
+        </div>
+      `;
+
+      grid.innerHTML = Array.from({ length: 8 }).map(() => card).join("");
+    }
+
+    function normalizeWorkspaceStatus(ws) {
+      const raw = (ws?.status || "active").toString().toLowerCase();
+      if (raw === "archived" || raw === "closed") return "archived";
+      if (raw === "inactive") return "inactive";
+      return "active";
+    }
+
+    function workspaceSearchHaystack(ws) {
+      return [
+        ws?.name,
+        ws?.code,
+        ws?.contract_type,
+        ws?.id,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+    }
+
+    function getWorkspaceSortTime(ws) {
+      const raw =
+        ws?.updated_at ||
+        ws?.last_activity_at ||
+        ws?.lastActivityAt ||
+        ws?.created_at ||
+        ws?.createdAt ||
+        ws?.updatedAt;
+      const d = raw ? new Date(raw) : null;
+      const t = d && !Number.isNaN(d.getTime()) ? d.getTime() : 0;
+      return t;
+    }
+
+    function sortWorkspaces(list) {
+      const sort = directoryUi.sort;
+      const arr = [...list];
+
+      if (sort === "name-asc") {
+        arr.sort((a, b) =>
+          (a?.name || "").localeCompare(b?.name || "", undefined, { sensitivity: "base" })
+        );
+        return arr;
+      }
+      if (sort === "name-desc") {
+        arr.sort((a, b) =>
+          (b?.name || "").localeCompare(a?.name || "", undefined, { sensitivity: "base" })
+        );
+        return arr;
+      }
+
+      // default: recent
+      arr.sort((a, b) => getWorkspaceSortTime(b) - getWorkspaceSortTime(a));
+      return arr;
+    }
+
+    function applyDirectoryFiltersAndRender() {
+      const all = Array.isArray(directoryWorkspaces) ? directoryWorkspaces : [];
+      let filtered = all;
+
+      if (directoryUi.status && directoryUi.status !== "all") {
+        filtered = filtered.filter((ws) => normalizeWorkspaceStatus(ws) === directoryUi.status);
+      }
+
+      if (directoryUi.query) {
+        const q = directoryUi.query;
+        filtered = filtered.filter((ws) => workspaceSearchHaystack(ws).includes(q));
+      }
+
+      filtered = sortWorkspaces(filtered);
+      setDirectoryMeta({ total: all.length, shown: filtered.length, loading: false });
+
+      const grid = document.getElementById("workspacesGrid");
+      if (grid && all.length > 0 && filtered.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state" style="grid-column: 1 / -1;">
+            <i class="fas fa-search empty-icon"></i>
+            <div class="empty-title">No matching workspaces</div>
+            <div class="empty-desc">Try a different search term or clear filters.</div>
+            <button type="button" class="btn btn-outline" id="clearDirectoryFiltersBtn">
+              <i class="fas fa-xmark"></i> Clear filters
+            </button>
+          </div>
+        `;
+
+        const btn = document.getElementById("clearDirectoryFiltersBtn");
+        btn?.addEventListener("click", () => {
+          const search = document.getElementById("workspaceSearch");
+          const status = document.getElementById("workspaceStatusFilter");
+          const sort = document.getElementById("workspaceSort");
+          const clearBtn = document.getElementById("workspaceSearchClear");
+
+          if (search) search.value = "";
+          if (status) status.value = "all";
+          if (sort) sort.value = "recent";
+          if (clearBtn) clearBtn.hidden = true;
+
+          directoryUi.query = "";
+          directoryUi.status = "all";
+          directoryUi.sort = "recent";
+          applyDirectoryFiltersAndRender();
+          search?.focus();
+        });
+        return;
+      }
+
+      renderWorkspacesDirectory(filtered);
+    }
+
     async function loadWorkspacesDirectory() {
       try {
+        renderWorkspacesDirectoryLoading();
         const response = await fetch("/api/workspaces", { headers: getAuthHeaders() });
         if (!response.ok) throw new Error("Failed to load workspaces");
         const workspaces = await response.json();
-        renderWorkspacesDirectory(workspaces);
+        directoryWorkspaces = Array.isArray(workspaces) ? workspaces : [];
+        applyDirectoryFiltersAndRender();
       } catch (err) {
         console.error("Failed to load workspaces directory:", err);
         VericaseUI.Toast.error("Failed to load workspaces");
+        setDirectoryMeta({ total: 0, shown: 0, loading: false });
+        const grid = document.getElementById("workspacesGrid");
+        if (grid) {
+          grid.innerHTML = `
+            <div class="empty-state" style="grid-column: 1 / -1;">
+              <i class="fas fa-triangle-exclamation empty-icon"></i>
+              <div class="empty-title">Unable to load workspaces</div>
+              <div class="empty-desc">Please refresh the page or try again in a moment.</div>
+              <button type="button" class="btn btn-outline" onclick="loadWorkspacesDirectory()">
+                <i class="fas fa-rotate-right"></i> Retry
+              </button>
+            </div>
+          `;
+        }
       }
     }
 
@@ -1863,6 +2541,7 @@
 
       const list = Array.isArray(workspaces) ? workspaces : [];
       if (list.length === 0) {
+        setDirectoryMeta({ total: 0, shown: 0, loading: false });
         grid.innerHTML = `
           <div class="empty-state" style="grid-column: 1 / -1;">
             <i class="fas fa-layer-group empty-icon"></i>
@@ -1883,7 +2562,7 @@
 
           const projectPreview = projects.length
             ? projects
-                .slice(0, 3)
+                .slice(0, 2)
                 .map(
                   (p) =>
                     `<div class="workspace-preview-item" title="${escapeHtml(p.name || "")}">${escapeHtml(p.name || "Untitled project")}</div>`,
@@ -1893,7 +2572,7 @@
 
           const casePreview = cases.length
             ? cases
-                .slice(0, 3)
+                .slice(0, 2)
                 .map(
                   (c) =>
                     `<div class="workspace-preview-item" title="${escapeHtml(c.name || "")}">${escapeHtml(c.name || "Untitled case")}</div>`,
@@ -1901,9 +2580,9 @@
                 .join("")
             : `<div class="workspace-preview-empty">No cases yet</div>`;
 
-          const status = (ws.status || "active").toString();
-          const statusClass = status.toLowerCase() === "archived" ? "closed" : "";
-          const displayStatus = status.toLowerCase() === "archived" ? "Archived" : "Active";
+          const status = normalizeWorkspaceStatus(ws);
+          const statusClass = status === "archived" ? "closed" : status === "inactive" ? "pending" : "";
+          const displayStatus = status === "archived" ? "Archived" : status === "inactive" ? "Inactive" : "Active";
 
           const codeLine = [
             ws.code ? escapeHtml(ws.code) : "",
@@ -1913,20 +2592,20 @@
             .join(" • ");
 
           return `
-            <div class="item-card" data-workspace-id="${escapeHtml(ws.id)}">
+            <div class="item-card workspace-card" data-workspace-id="${escapeHtml(ws.id)}" tabindex="0" role="button" aria-label="Open workspace ${escapeHtml(ws.name || "Workspace")}">
               <div class="item-card-header">
                 <div class="item-icon workspace"><i class="fas fa-building"></i></div>
                 <span class="item-status ${statusClass}">${displayStatus}</span>
               </div>
               <div class="item-content">
                 <div class="item-title">${escapeHtml(ws.name || "Untitled workspace")}</div>
-                <div class="item-code">${codeLine}</div>
+                <div class="item-code" title="${codeLine}">${codeLine}</div>
               </div>
               <div class="item-stats">
-                <div class="item-stat"><i class="fas fa-project-diagram"></i> <strong>${ws.project_count || 0}</strong> projects</div>
-                <div class="item-stat"><i class="fas fa-briefcase"></i> <strong>${ws.case_count || 0}</strong> cases</div>
-                <div class="item-stat"><i class="fas fa-envelope"></i> <strong>${ws.email_count || 0}</strong> emails</div>
-                <div class="item-stat"><i class="fas fa-file-alt"></i> <strong>${ws.evidence_count || 0}</strong> files</div>
+                <div class="item-stat"><i class="fas fa-project-diagram"></i> <strong>${formatCount(ws.project_count || 0)}</strong> projects</div>
+                <div class="item-stat"><i class="fas fa-briefcase"></i> <strong>${formatCount(ws.case_count || 0)}</strong> cases</div>
+                <div class="item-stat"><i class="fas fa-envelope"></i> <strong>${formatCount(ws.email_count || 0)}</strong> emails</div>
+                <div class="item-stat"><i class="fas fa-file-alt"></i> <strong>${formatCount(ws.evidence_count || 0)}</strong> files</div>
               </div>
               <div class="workspace-preview">
                 <div>
@@ -1939,8 +2618,8 @@
                 </div>
               </div>
               <div class="card-actions">
-                <button class="card-action-btn primary" data-action="open"><i class="fas fa-arrow-right"></i> Open</button>
-                <button class="card-action-btn" data-action="configure"><i class="fas fa-cog"></i> Configure</button>
+                <button type="button" class="card-action-btn primary" data-action="open"><i class="fas fa-arrow-right"></i> Open</button>
+                <button type="button" class="card-action-btn" data-action="configure"><i class="fas fa-cog"></i> Configure</button>
               </div>
             </div>
           `;
@@ -1948,6 +2627,18 @@
         .join("");
 
       grid.onclick = handleWorkspaceDirectoryClick;
+      grid.onkeydown = handleWorkspaceDirectoryKeydown;
+    }
+
+    function handleWorkspaceDirectoryKeydown(e) {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const card = e.target.closest("[data-workspace-id]");
+      if (!card) return;
+      // If focus is already on an inner action button, let that button handle the key press.
+      if (e.target.closest("[data-action]")) return;
+      e.preventDefault();
+      const id = card.dataset.workspaceId;
+      window.location.href = `workspace-hub.html?workspaceId=${encodeURIComponent(id)}`;
     }
 
     function handleWorkspaceDirectoryClick(e) {
@@ -2529,6 +3220,9 @@
       const openQHint = document.getElementById("aboutOpenQuestionsHint");
       const notesEl = document.getElementById("aboutUserNotes");
       const chatHint = document.getElementById("aboutChatHint");
+      const contractDocsEl = document.getElementById("aboutContractDocs");
+      const contractTermsEl = document.getElementById("aboutContractTerms");
+      const contractHintEl = document.getElementById("aboutContractsHint");
 
       const status = (about?.status || "").toLowerCase();
       const updatedAt = about?.updated_at || about?.last_updated || null;
@@ -2541,6 +3235,99 @@
           (workspaceDocuments.length > 0
             ? "Building workspace context… (upload ingestion running)"
             : "Upload a document in this workspace to start building the dispute context.");
+      }
+
+      // Contracts & key terms (pivotal section)
+      try {
+        const contracts =
+          about?.contracts ||
+          about?.data?.contracts ||
+          {};
+
+        const docs =
+          Array.isArray(contracts?.documents) ? contracts.documents :
+            (Array.isArray(contracts?.docs) ? contracts.docs : []);
+
+        const keyTerms =
+          Array.isArray(contracts?.key_terms_overview)
+            ? contracts.key_terms_overview
+            : [];
+
+        if (contractDocsEl) {
+          if (!docs.length) {
+            contractDocsEl.innerHTML = `
+              <div class="about-contract-item">
+                <div>
+                  <div class="about-contract-title">No contract document detected yet</div>
+                  <div class="about-contract-meta">Upload the signed contract / standard form (JCT/NEC) plus schedules/appendices to unlock contract intelligence.</div>
+                </div>
+              </div>
+            `;
+          } else {
+            contractDocsEl.innerHTML = docs.slice(0, 8).map((d) => {
+              const id = (d?.evidence_id || d?.id || "").toString();
+              const filename = (d?.filename || "Untitled").toString();
+              const form = (d?.contract_form || d?.form || d?.type || "").toString();
+              const date = (d?.contract_date || d?.date || d?.document_date || "").toString();
+              const value = (d?.contract_value || d?.value || "").toString();
+              const parties = (d?.parties || "").toString();
+              const labels = Array.isArray(d?.source_labels) ? d.source_labels : (Array.isArray(d?.source_labels) ? d.source_labels : []);
+              const chips = [];
+              if (form) chips.push(form);
+              if (value) chips.push(value);
+              if (date) chips.push(date);
+              if (Array.isArray(labels) && labels.length) chips.push(labels.filter(Boolean).join(", "));
+
+              const metaParts = [];
+              if (parties) metaParts.push(parties);
+              const keyTermsObj = (d && typeof d === "object" && d.key_terms && typeof d.key_terms === "object") ? d.key_terms : null;
+              if (keyTermsObj) {
+                try {
+                  const entries = Object.entries(keyTermsObj)
+                    .filter(([k, v]) => String(v || "").trim())
+                    .slice(0, 3)
+                    .map(([k, v]) => `${k}: ${String(v).trim().slice(0, 90)}`);
+                  if (entries.length) metaParts.push(entries.join(" • "));
+                } catch {}
+              }
+              const risks = Array.isArray(d?.risks) ? d.risks.slice(0, 2).join(" • ") : "";
+              if (risks) metaParts.push(`Risks: ${risks}`);
+
+              return `
+                <div class="about-contract-item">
+                  <div>
+                    <div class="about-contract-title">${escapeHtml(filename)}</div>
+                    <div class="about-contract-meta">${escapeHtml(metaParts.join(" | "))}</div>
+                    ${chips.length ? `<div class="about-chips">${chips.map(c => `<span class="about-chip">${escapeHtml(String(c))}</span>`).join("")}</div>` : ""}
+                  </div>
+                  <div class="about-contract-actions">
+                    ${id ? `<button class="btn btn-sm btn-outline" onclick="downloadDocument('${id}')" title="Download"><i class="fas fa-download"></i></button>` : ""}
+                  </div>
+                </div>
+              `;
+            }).join("");
+          }
+        }
+
+        if (contractTermsEl) {
+          const textSummary = (contracts?.summary || contracts?.read_in || "").toString();
+          if (textSummary.trim()) {
+            contractTermsEl.textContent = textSummary;
+          } else if (keyTerms.length) {
+            contractTermsEl.textContent = keyTerms.slice(0, 18).map(t => `• ${String(t || "")}`).join("\n");
+          } else {
+            contractTermsEl.textContent = docs.length ? "Extracting key terms… run Refresh for a deeper contract read." : "Upload the contract pack to extract key terms (payment, retention, LDs, EOT, dispute resolution).";
+          }
+        }
+
+        if (contractHintEl) {
+          contractHintEl.textContent =
+            docs.length
+              ? `Built from ${docs.length} contract document(s). Click Refresh for a deeper clause/term extraction.`
+              : "Tip: include the executed contract, amendments, schedules, and any key appointments (architect/QS/engineer).";
+        }
+      } catch {
+        // best-effort
       }
 
       if (notesEl) {
@@ -2703,7 +3490,9 @@
     }
 
     function downloadDocument(id) {
-      window.open(`/api/workspaces/${workspaceId}/documents/${id}/download`, '_blank');
+      const ws = encodeURIComponent(workspaceId || "");
+      const docId = encodeURIComponent(id || "");
+      window.open(`/api/workspaces/${ws}/documents/${docId}/download`, '_blank');
     }
 
     function deleteDocument(id) {
