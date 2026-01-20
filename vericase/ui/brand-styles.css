@@ -40,15 +40,10 @@
   --vericase-gold-light: #D4B57A;
   --vericase-gold-muted: #A68B54;
 
-  /* Background (Light Terracotta - Premium Paper) */
-  --vericase-terracotta: #F5E3D6;
-  --vericase-terracotta-rgb: 245, 227, 214;
-  --vericase-terracotta-soft: #F9EFE7;
-  --vericase-terracotta-deeper: #EFD3C2;
-
-  /* Legacy name kept for compatibility (used by Control Centre / Quick Access) */
-  --vericase-cream: var(--vericase-terracotta);
-  --vericase-cream-dark: var(--vericase-terracotta-deeper);
+  /* Background (Warm Parchment - Premium Paper) */
+  --vericase-cream: #FAF7F2;
+  --vericase-cream-rgb: 250, 247, 242;
+  --vericase-cream-dark: #F2ECE5;
   --vericase-cream-warm: #FFFCFA;
 
   /* Legacy Mint Tokens (kept for compatibility; aligned to Spruce) */
@@ -68,7 +63,7 @@
 
   /* Backgrounds */
   --bg-white: #ffffff;
-  --bg-primary: var(--vericase-terracotta); /* Light Terracotta */
+  --bg-primary: var(--vericase-cream); /* Warm Parchment */
   --bg-secondary: #ffffff;
   --bg-tertiary: #F5F5F4;
   --bg-elevated: #ffffff;
