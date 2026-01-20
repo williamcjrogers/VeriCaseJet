@@ -3,20 +3,28 @@
   <head>
     <meta charset="utf-8" />
     <title>PDF Preview</title>
+    <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
+    <link rel="stylesheet" href="brand-styles.css?v=9" />
+    <script src="nav-shell.js"></script>
     <style>
       body {
         margin: 0;
-        background: #222;
-        color: #eee;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font-family: var(--font-sans);
       }
       #toolbar {
-        background: #333;
-        padding: 8px;
+        background: var(--bg-elevated);
+        border-bottom: 1px solid var(--border-default);
+        padding: 10px 12px;
         position: fixed;
         top: 0;
         left: 0;
         right: 0;
         z-index: 10;
+        display: flex;
+        align-items: center;
+        gap: 8px;
       }
       #viewer {
         position: absolute;
@@ -25,14 +33,28 @@
         left: 0;
         right: 0;
         overflow: auto;
+        padding: 16px;
       }
       canvas {
         display: block;
         margin: 0 auto 12px;
-        background: #444;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-md);
       }
       button {
         padding: 6px 10px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border-default);
+        background: var(--bg-elevated);
+        color: var(--text-secondary);
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:hover {
+        background: var(--gray-50);
+        color: var(--text-primary);
       }
     </style>
   </head>

@@ -40,10 +40,16 @@
   --vericase-gold-light: #D4B57A;
   --vericase-gold-muted: #A68B54;
 
-  /* Background (Stone - Premium Paper) */
-  --vericase-cream: #FAFAF9; /* Stone White */
-  --vericase-cream-dark: #F5F5F4;
-  --vericase-cream-warm: #FFFFFF;
+  /* Background (Light Terracotta - Premium Paper) */
+  --vericase-terracotta: #F5E3D6;
+  --vericase-terracotta-rgb: 245, 227, 214;
+  --vericase-terracotta-soft: #F9EFE7;
+  --vericase-terracotta-deeper: #EFD3C2;
+
+  /* Legacy name kept for compatibility (used by Control Centre / Quick Access) */
+  --vericase-cream: var(--vericase-terracotta);
+  --vericase-cream-dark: var(--vericase-terracotta-deeper);
+  --vericase-cream-warm: #FFFCFA;
 
   /* Legacy Mint Tokens (kept for compatibility; aligned to Spruce) */
   --vericase-mint: var(--vericase-teal);
@@ -62,7 +68,7 @@
 
   /* Backgrounds */
   --bg-white: #ffffff;
-  --bg-primary: #FAFAF9; /* Stone White */
+  --bg-primary: var(--vericase-terracotta); /* Light Terracotta */
   --bg-secondary: #ffffff;
   --bg-tertiary: #F5F5F4;
   --bg-elevated: #ffffff;
@@ -251,6 +257,41 @@ body {
   color: var(--text-secondary) !important;
   background-color: var(--bg-primary) !important;
 }
+
+/* ============================================
+   PAGE WATERMARKS (Decorative Icons)
+   Subtle legal/professional background marks
+   ============================================ */
+
+.vericase-watermarks-host {
+  position: relative;
+  isolation: isolate;
+  overflow-x: hidden;
+}
+
+.vericase-watermarks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.vericase-watermark {
+  position: absolute;
+  font-size: var(--wm-size, 280px);
+  color: var(--vericase-navy);
+  opacity: var(--wm-opacity, 0.025);
+  transform: rotate(var(--wm-rotate, 0deg));
+  filter: saturate(0.9);
+}
+
+/* Placement presets (use with `--wm-rotate` / `--wm-size`) */
+.vericase-watermark.wm-tr { right: -44px; top: 76px; }
+.vericase-watermark.wm-tl { left: -44px; top: 96px; }
+.vericase-watermark.wm-br { right: -64px; bottom: -32px; }
+.vericase-watermark.wm-bl { left: -64px; bottom: -32px; }
+.vericase-watermark.wm-mr { right: -56px; top: 44%; }
+.vericase-watermark.wm-ml { left: -56px; top: 46%; }
 
 /* ============================================
    GLOBAL BORDER-RADIUS NORMALIZATION

@@ -578,8 +578,8 @@
       breadcrumbHtml && (String(title || "").trim() || String(actions || "").trim());
     return `
 	            <header class="app-header">
-	                <button class="btn btn-icon btn-ghost" id="sidebarToggle" style="display: none;">
-	                    <i class="fas fa-bars"></i>
+	                <button class="btn btn-icon btn-ghost" id="sidebarToggle" style="display: none;" title="Collapse sidebar" aria-label="Collapse sidebar" type="button">
+	                    <i class="fas fa-chevron-left" id="sidebarToggleIcon" aria-hidden="true"></i>
 	                </button>
 	                ${breadcrumbHtml
 	        ? `
@@ -638,6 +638,231 @@
       `;
       })
       .join("");
+  }
+
+  // ==========================================
+  // Page Watermarks (Decorative Icons)
+  // ==========================================
+
+  const PAGE_WATERMARKS = {
+    // Home / hub pages
+    "control-centre.html": [
+      { icon: "fa-scale-balanced", pos: "wm-tr", rotate: -12, size: 300 },
+      { icon: "fa-gavel", pos: "wm-bl", rotate: 14, size: 270 },
+    ],
+    "master-dashboard.html": [
+      { icon: "fa-landmark", pos: "wm-tl", rotate: 10, size: 295 },
+      { icon: "fa-file-contract", pos: "wm-br", rotate: -10, size: 260 },
+    ],
+    "workspace-hub.html": [
+      { icon: "fa-layer-group", pos: "wm-tr", rotate: -10, size: 290 },
+      { icon: "fa-building", pos: "wm-bl", rotate: 12, size: 260 },
+    ],
+
+    // Core workspace pages
+    "dashboard.html": [
+      { icon: "fa-gauge-high", pos: "wm-mr", rotate: -8, size: 280 },
+      { icon: "fa-folder-tree", pos: "wm-bl", rotate: 12, size: 250 },
+    ],
+    "evidence.html": [
+      { icon: "fa-folder-tree", pos: "wm-tl", rotate: 10, size: 285 },
+      { icon: "fa-file-circle-check", pos: "wm-br", rotate: -12, size: 250 },
+    ],
+    "correspondence-enterprise.html": [
+      { icon: "fa-envelope-open-text", pos: "wm-tl", rotate: 10, size: 280 },
+      { icon: "fa-file-lines", pos: "wm-br", rotate: -12, size: 250 },
+    ],
+    "contentious-matters.html": [
+      { icon: "fa-scale-balanced", pos: "wm-tr", rotate: -10, size: 290 },
+      { icon: "fa-gavel", pos: "wm-ml", rotate: 12, size: 255 },
+    ],
+    "collaboration-workspace.html": [
+      { icon: "fa-handshake", pos: "wm-mr", rotate: -8, size: 285 },
+      { icon: "fa-comments", pos: "wm-bl", rotate: 10, size: 255 },
+    ],
+    "programme.html": [
+      { icon: "fa-diagram-project", pos: "wm-tl", rotate: 10, size: 285 },
+      { icon: "fa-sitemap", pos: "wm-br", rotate: -12, size: 255 },
+    ],
+    "delays.html": [
+      { icon: "fa-hourglass-half", pos: "wm-tl", rotate: 10, size: 280 },
+      { icon: "fa-chart-line", pos: "wm-br", rotate: -10, size: 250 },
+    ],
+    "chronology-lense.html": [
+      { icon: "fa-history", pos: "wm-mr", rotate: -6, size: 285 },
+      { icon: "fa-calendar-check", pos: "wm-bl", rotate: 12, size: 250 },
+    ],
+    "stakeholders.html": [
+      { icon: "fa-user-tie", pos: "wm-tl", rotate: 10, size: 280 },
+      { icon: "fa-users", pos: "wm-br", rotate: -12, size: 250 },
+    ],
+    "project-timeline.html": [
+      { icon: "fa-timeline", pos: "wm-mr", rotate: -8, size: 285 },
+      { icon: "fa-calendar-days", pos: "wm-bl", rotate: 12, size: 250 },
+    ],
+
+    // Tools
+    "pst-upload.html": [
+      { icon: "fa-upload", pos: "wm-tr", rotate: -10, size: 285 },
+      { icon: "fa-envelope", pos: "wm-br", rotate: -12, size: 245 },
+    ],
+    "contract-upload.html": [
+      { icon: "fa-file-contract", pos: "wm-tl", rotate: 10, size: 285 },
+      { icon: "fa-file-signature", pos: "wm-br", rotate: -12, size: 250 },
+    ],
+    "vericase-analysis.html": [
+      { icon: "fa-microscope", pos: "wm-mr", rotate: -8, size: 290 },
+      { icon: "fa-landmark", pos: "wm-bl", rotate: 12, size: 255 },
+    ],
+    "copilot.html": [
+      { icon: "fa-scale-balanced", pos: "wm-tr", rotate: -10, size: 285 },
+      { icon: "fa-comment-dots", pos: "wm-br", rotate: -12, size: 250 },
+    ],
+    "ai-refinement-wizard.html": [
+      { icon: "fa-wand-magic-sparkles", pos: "wm-tl", rotate: 10, size: 285 },
+      { icon: "fa-file-circle-check", pos: "wm-br", rotate: -12, size: 250 },
+    ],
+    "refinement-wizard.html": [
+      { icon: "fa-wand-magic", pos: "wm-tl", rotate: 10, size: 285 },
+      { icon: "fa-file-signature", pos: "wm-br", rotate: -12, size: 250 },
+    ],
+
+    // Setup flows
+    "project-setup.html": [
+      { icon: "fa-diagram-project", pos: "wm-mr", rotate: -8, size: 285 },
+      { icon: "fa-clipboard-list", pos: "wm-bl", rotate: 12, size: 250 },
+    ],
+    "case-setup.html": [
+      { icon: "fa-briefcase", pos: "wm-tr", rotate: -10, size: 285 },
+      { icon: "fa-gavel", pos: "wm-br", rotate: -12, size: 255 },
+    ],
+    "workspace-setup.html": [
+      { icon: "fa-building-columns", pos: "wm-tl", rotate: 10, size: 285 },
+      { icon: "fa-diagram-project", pos: "wm-br", rotate: -12, size: 250 },
+    ],
+    "wizard.html": [
+      { icon: "fa-clipboard-check", pos: "wm-mr", rotate: -8, size: 285 },
+      { icon: "fa-layer-group", pos: "wm-bl", rotate: 12, size: 250 },
+    ],
+
+    // Admin / account pages
+    "profile.html": [
+      { icon: "fa-id-card", pos: "wm-tl", rotate: 10, size: 285 },
+      { icon: "fa-user-circle", pos: "wm-br", rotate: -12, size: 250 },
+    ],
+    "admin-settings.html": [
+      { icon: "fa-cog", pos: "wm-mr", rotate: -8, size: 285 },
+      { icon: "fa-shield-halved", pos: "wm-bl", rotate: 12, size: 250 },
+    ],
+    "admin-users.html": [
+      { icon: "fa-users", pos: "wm-tr", rotate: -10, size: 285 },
+      { icon: "fa-user-tie", pos: "wm-br", rotate: -12, size: 250 },
+    ],
+    "admin-approvals.html": [
+      { icon: "fa-user-check", pos: "wm-tl", rotate: 10, size: 285 },
+      { icon: "fa-scale-balanced", pos: "wm-br", rotate: -12, size: 250 },
+    ],
+
+    // Auth-ish / misc pages
+    "login.html": [
+      { icon: "fa-lock", pos: "wm-tl", rotate: 10, size: 285 },
+      { icon: "fa-scale-balanced", pos: "wm-br", rotate: -12, size: 250 },
+    ],
+    "register.html": [
+      { icon: "fa-user-plus", pos: "wm-mr", rotate: -8, size: 285 },
+      { icon: "fa-landmark", pos: "wm-bl", rotate: 12, size: 255 },
+    ],
+    "password-reset.html": [
+      { icon: "fa-key", pos: "wm-tr", rotate: -10, size: 285 },
+      { icon: "fa-shield", pos: "wm-br", rotate: -12, size: 250 },
+    ],
+    "pdf-viewer.html": [
+      { icon: "fa-file-pdf", pos: "wm-mr", rotate: -8, size: 285 },
+      { icon: "fa-magnifying-glass", pos: "wm-bl", rotate: 12, size: 250 },
+    ],
+    "debug-upload.html": [
+      { icon: "fa-bug", pos: "wm-tl", rotate: 10, size: 285 },
+      { icon: "fa-upload", pos: "wm-br", rotate: -12, size: 250 },
+    ],
+    "projectdashboard.html": [
+      { icon: "fa-gauge-high", pos: "wm-tr", rotate: -10, size: 285 },
+      { icon: "fa-folder-tree", pos: "wm-br", rotate: -12, size: 250 },
+    ],
+    "chronology-builder.html": [
+      { icon: "fa-scroll", pos: "wm-tl", rotate: 10, size: 285 },
+      { icon: "fa-pen-fancy", pos: "wm-br", rotate: -12, size: 250 },
+    ],
+  };
+
+  const DEFAULT_WATERMARKS = [
+    { icon: "fa-scale-balanced", pos: "wm-tr", rotate: -12, size: 295 },
+    { icon: "fa-gavel", pos: "wm-bl", rotate: 14, size: 265 },
+  ];
+
+  function getPreferredWatermarkHost() {
+    return (
+      document.querySelector(".app-shell .app-content") ||
+      document.querySelector("main") ||
+      document.body ||
+      null
+    );
+  }
+
+  function buildWatermarkSignature(page, marks) {
+    try {
+      return `${page}:${(marks || [])
+        .map((m) => `${m.icon}|${m.pos}|${m.rotate}|${m.size}|${m.opacity || ""}`)
+        .join(",")}`;
+    } catch {
+      return `${page}:fallback`;
+    }
+  }
+
+  function ensurePageWatermarks() {
+    // Allow opt-out for special pages
+    if (document.documentElement.getAttribute("data-vericase-watermarks") === "off") {
+      return;
+    }
+
+    const page = getCurrentPage();
+    const marks = PAGE_WATERMARKS[page] || DEFAULT_WATERMARKS;
+    const host = getPreferredWatermarkHost();
+    if (!host) return;
+
+    host.classList.add("vericase-watermarks-host");
+
+    let container = document.getElementById("vericaseWatermarks");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "vericaseWatermarks";
+      container.className = "vericase-watermarks";
+    }
+
+    if (container.parentElement !== host) {
+      // Move into the best host (e.g. after the shell is injected)
+      try {
+        container.parentElement?.removeChild(container);
+      } catch {
+        // ignore
+      }
+      host.prepend(container);
+    }
+
+    const signature = buildWatermarkSignature(page, marks);
+    if (container.dataset.signature === signature) return;
+    container.dataset.signature = signature;
+
+    // Re-render icons
+    container.innerHTML = "";
+    (marks || []).forEach((wm) => {
+      const i = document.createElement("i");
+      i.className = `fas ${wm.icon} vericase-watermark ${wm.pos || "wm-tr"}`;
+      i.setAttribute("aria-hidden", "true");
+      if (typeof wm.size === "number") i.style.setProperty("--wm-size", `${wm.size}px`);
+      if (typeof wm.rotate === "number") i.style.setProperty("--wm-rotate", `${wm.rotate}deg`);
+      if (typeof wm.opacity === "number") i.style.setProperty("--wm-opacity", String(wm.opacity));
+      container.appendChild(i);
+    });
   }
 
   // Load and display the current context name in the sidebar
@@ -797,6 +1022,9 @@
     // Move existing DOM into the new content container.
     appContent.appendChild(existingFragment);
 
+    // Page watermarks: ensure they live in the best host (shell content) and match this page.
+    ensurePageWatermarks();
+
     // Initialize progress tracker if needed
     if (showProgress && projectId && window.VericaseUI) {
       window.VericaseUI.Progress.render("progressTracker", projectId);
@@ -811,6 +1039,29 @@
     const mediaQuery = window.matchMedia("(max-width: 640px)");
     const sidebar = document.getElementById("appSidebar");
     const toggle = document.getElementById("sidebarToggle");
+    const toggleIcon = document.getElementById("sidebarToggleIcon");
+
+    function setHeaderToggleIcon(iconClass) {
+      if (!toggleIcon) return;
+      toggleIcon.className = `fas ${iconClass}`;
+    }
+
+    function updateHeaderToggleState() {
+      if (!toggle || !sidebar) return;
+
+      if (mediaQuery.matches) {
+        const open = sidebar.classList.contains("mobile-open");
+        setHeaderToggleIcon(open ? "fa-times" : "fa-bars");
+        toggle.setAttribute("aria-label", open ? "Close navigation" : "Open navigation");
+        toggle.setAttribute("title", open ? "Close navigation" : "Open navigation");
+        return;
+      }
+
+      const collapsed = sidebar.classList.contains("collapsed");
+      setHeaderToggleIcon(collapsed ? "fa-chevron-right" : "fa-chevron-left");
+      toggle.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
+      toggle.setAttribute("title", collapsed ? "Expand sidebar" : "Collapse sidebar");
+    }
 
     function handleMediaChange(e) {
       if (!toggle || !sidebar) return;
@@ -820,14 +1071,12 @@
       if (e.matches) {
         // Mobile: use slide-in drawer and clear desktop state
         sidebar.classList.remove("collapsed");
-        toggle.setAttribute("aria-label", "Open navigation");
-        toggle.setAttribute("title", "Open navigation");
       } else {
         // Desktop: ensure mobile drawer class is removed
         sidebar.classList.remove("mobile-open");
-        toggle.setAttribute("aria-label", "Hide sidebar");
-        toggle.setAttribute("title", "Hide sidebar");
       }
+
+      updateHeaderToggleState();
     }
 
     mediaQuery.addListener(handleMediaChange);
@@ -836,28 +1085,14 @@
     if (toggle && sidebar) {
       toggle.addEventListener("click", () => {
         if (mediaQuery.matches) {
-          const open = sidebar.classList.toggle("mobile-open");
-          toggle.setAttribute(
-            "aria-label",
-            open ? "Close navigation" : "Open navigation"
-          );
-          toggle.setAttribute(
-            "title",
-            open ? "Close navigation" : "Open navigation"
-          );
+          sidebar.classList.toggle("mobile-open");
+          updateHeaderToggleState();
         } else {
           const collapsed = sidebar.classList.toggle("collapsed");
-          toggle.setAttribute(
-            "aria-label",
-            collapsed ? "Show sidebar" : "Hide sidebar"
-          );
-          toggle.setAttribute(
-            "title",
-            collapsed ? "Show sidebar" : "Hide sidebar"
-          );
           // Save preference
           localStorage.setItem("vericase_sidebar_collapsed", collapsed);
           updateCollapseToggleState(collapsed);
+          updateHeaderToggleState();
         }
       });
     }
@@ -871,12 +1106,14 @@
         sidebar.classList.add("collapsed");
         updateCollapseToggleState(true);
       }
+      updateHeaderToggleState();
 
       collapseToggle.addEventListener("click", () => {
         if (!mediaQuery.matches) {
           const collapsed = sidebar.classList.toggle("collapsed");
           localStorage.setItem("vericase_sidebar_collapsed", collapsed);
           updateCollapseToggleState(collapsed);
+          updateHeaderToggleState();
         }
       });
     }
@@ -1108,6 +1345,7 @@
     buildNavUrl,
     getContext,
     getProjectId,
+    ensurePageWatermarks,
     showProjectSelector,
     closeProjectSelector,
     confirmProjectSelection,
@@ -1115,4 +1353,13 @@
     refreshNavUrls,
     setProjectContext,
   };
+
+  // If a page doesn't call `injectShell` (e.g., auth screens), still add watermarks once the DOM is ready.
+  document.addEventListener("DOMContentLoaded", function () {
+    try {
+      ensurePageWatermarks();
+    } catch {
+      // never crash UI
+    }
+  });
 })();

@@ -16,7 +16,7 @@
     .app-content {
       /* Match Control Centre styling */
       background-color: var(--vericase-cream);
-      background-image: radial-gradient(#E5E7EB 1px, transparent 1px);
+      background-image: radial-gradient(rgba(15, 23, 42, 0.08) 1px, transparent 1px);
       background-size: 24px 24px;
       border: none;
       border-radius: 0;
@@ -26,28 +26,6 @@
       min-height: 100vh;
       position: relative;
       overflow: hidden;
-    }
-
-    /* === WATERMARKS - Match Control Centre === */
-    .watermark {
-      position: absolute;
-      font-size: 280px;
-      color: var(--vericase-navy);
-      opacity: 0.025;
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    .watermark-scales {
-      right: -40px;
-      top: 80px;
-      transform: rotate(-12deg);
-    }
-
-    .watermark-gavel {
-      left: -60px;
-      bottom: -20px;
-      transform: rotate(15deg);
     }
 
     /* === Ensure content is above watermarks === */
@@ -2528,10 +2506,6 @@
 
 <body>
   <main id="main-content">
-    <!-- Watermarks - Match Control Centre styling -->
-    <i class="fas fa-balance-scale watermark watermark-scales"></i>
-    <i class="fas fa-gavel watermark watermark-gavel"></i>
-
     <!-- Compact Dashboard Header -->
     <header class="dashboard-header">
       <div class="dashboard-greeting">
