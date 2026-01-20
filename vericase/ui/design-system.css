@@ -210,6 +210,30 @@
   color: var(--text-inverted);
 }
 
+/* Context highlight (used on Workspace Hub after selecting a project/case) */
+.nav-item.context-highlight:not(.active) {
+  background: rgba(220, 38, 38, 0.12);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.nav-item.context-highlight:not(.active)::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 24px;
+  background: var(--error);
+  border-radius: 0 2px 2px 0;
+}
+
+.nav-item.context-highlight:not(.active) i,
+.nav-item.context-highlight:not(.active) svg {
+  opacity: 1;
+  color: rgba(255, 255, 255, 0.92);
+}
+
 .nav-item.active {
   background: rgba(var(--vericase-blue-rgb, 47, 134, 200), 0.16);
   color: rgba(255, 255, 255, 0.95);
@@ -383,6 +407,10 @@
 }
 
 .app-sidebar.collapsed .nav-item.active::before {
+  display: none;
+}
+
+.app-sidebar.collapsed .nav-item.context-highlight::before {
   display: none;
 }
 

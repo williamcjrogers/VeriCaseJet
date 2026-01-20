@@ -343,6 +343,15 @@
     return "";
   }
 
+  function getWorkspaceIdFromUrl() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlWorkspaceId = (urlParams.get("workspaceId") || "").trim();
+    if (urlWorkspaceId && urlWorkspaceId !== "undefined" && urlWorkspaceId !== "null") {
+      return urlWorkspaceId;
+    }
+    return "";
+  }
+
   function getUserRole() {
     try {
       const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -433,6 +442,11 @@
     const isMasterDashboard = currentPage === "master-dashboard.html";
     const ctx = isCommandCenter || isMasterDashboard ? { type: "", id: "" } : rawCtx;
     const hasContext = !!(ctx && ctx.id);
+    const workspaceIdFromUrl = getWorkspaceIdFromUrl();
+    const isWorkspaceHub = currentPage === "workspace-hub.html";
+    const isWorkspaceHubWorkspaceView = isWorkspaceHub && !!workspaceIdFromUrl;
+    const allowContextNavOnWorkspaceHub = isWorkspaceHubWorkspaceView && hasContext;
+    const shouldHighlightContextNav = allowContextNavOnWorkspaceHub;
 
     let navHtml = "";
     NAV_ITEMS.forEach((section) => {
@@ -443,7 +457,13 @@
 
       // Some sections (workspace nav, tools) should never appear on the Command Center or Master Dashboard.
       if (Array.isArray(section.hideOn) && section.hideOn.includes(currentPage)) {
-        return;
+        const isWorkspaceOrTools =
+          section.section === "WORKSPACE" || section.section === "TOOLS";
+        // Exception: on a workspace's hub view, once a project/case is selected, show the relevant pages
+        // so the user can navigate immediately without leaving the hub.
+        if (!(allowContextNavOnWorkspaceHub && isWorkspaceOrTools)) {
+          return;
+        }
       }
       
       // Also hide WORKSPACE and TOOLS sections on master dashboard
@@ -471,6 +491,9 @@
 
       if (!visibleItems.length) return;
 
+      const isWorkspaceOrToolsSection =
+        section.section === "WORKSPACE" || section.section === "TOOLS";
+
       navHtml += `<div class="${sectionClass}">`;
       navHtml += `<div class="nav-section-title">${sectionTitle}</div>`;
 
@@ -481,10 +504,12 @@
         const isActive = currentPage === itemPage || isDashboardAlias;
         const isDisabled = (needsContext && !hasContext) || (item.requiresContext && !hasContext);
         const itemLabel = resolveNavLabel(item.label, ctx);
+        const isContextHighlight =
+          shouldHighlightContextNav && isWorkspaceOrToolsSection && !isActive && !isDisabled;
 
         navHtml += `
                     <a href="${isDisabled ? "#" : buildNavUrl(item.url)}" data-base-url="${item.url}" class="nav-item ${isActive ? "active" : ""
-          } ${isDisabled ? "disabled" : ""}" data-nav="${item.id}"${isActive ? ' aria-current="page"' : ""
+          } ${isContextHighlight ? "context-highlight" : ""} ${isDisabled ? "disabled" : ""}" data-nav="${item.id}"${isActive ? ' aria-current="page"' : ""
           }${isDisabled ? ' aria-disabled="true" tabindex="-1"' : ""}">
                         <i class="fas ${item.icon} ${item.iconClass || ""}"></i>
                         <span>${itemLabel}</span>
@@ -1250,6 +1275,52 @@
     }
   }
 
+  function refreshSidebar() {
+    try {
+      const sidebar = document.getElementById("appSidebar");
+      if (!sidebar) return;
+
+      // Build a fresh sidebar in-memory, then patch the existing DOM in place.
+      // This avoids breaking header toggle listeners that reference the sidebar element.
+      const tmp = document.createElement("div");
+      tmp.innerHTML = renderSidebar();
+      const nextSidebar = tmp.querySelector("#appSidebar");
+      if (!nextSidebar) return;
+
+      const currentNav = sidebar.querySelector(".sidebar-nav");
+      const nextNav = nextSidebar.querySelector(".sidebar-nav");
+      if (currentNav && nextNav) {
+        currentNav.innerHTML = nextNav.innerHTML;
+      }
+
+      const currentContext = sidebar.querySelector(".project-context");
+      const nextContext = nextSidebar.querySelector(".project-context");
+      if (nextContext) {
+        if (currentContext) {
+          currentContext.replaceWith(nextContext);
+        } else {
+          const header = sidebar.querySelector(".sidebar-header");
+          if (header) {
+            header.insertAdjacentElement("afterend", nextContext);
+          } else if (currentNav) {
+            sidebar.insertBefore(nextContext, currentNav);
+          } else {
+            sidebar.prepend(nextContext);
+          }
+        }
+      } else if (currentContext) {
+        currentContext.remove();
+      }
+
+      // Ensure hrefs reflect the updated context.
+      refreshNavUrls();
+      // Best-effort: update displayed context name.
+      loadCurrentProjectName();
+    } catch (e) {
+      // never crash UI
+    }
+  }
+
   function setProjectContext({ projectId, projectName } = {}) {
     try {
       if (projectId && String(projectId).trim()) {
@@ -1270,8 +1341,35 @@
         if (el) el.textContent = name;
       }
 
-      // Ensure sidebar URLs match the *current* project context.
-      refreshNavUrls();
+      refreshSidebar();
+    } catch {
+      // ignore
+    }
+  }
+
+  function setCaseContext({ caseId, caseName } = {}) {
+    try {
+      if (caseId && String(caseId).trim()) {
+        const id = String(caseId).trim();
+        localStorage.setItem("profileType", "case");
+        localStorage.setItem("currentCaseId", id);
+        localStorage.setItem("caseId", id);
+        // Clear project context if switching to a case
+        localStorage.removeItem("vericase_current_project");
+        localStorage.removeItem("currentProjectId");
+        localStorage.removeItem("projectId");
+      }
+
+      if (caseName && String(caseName).trim()) {
+        const name = String(caseName).trim();
+        localStorage.setItem("currentCaseName", name);
+        localStorage.setItem("vericase_current_case_name", name);
+
+        const el = document.getElementById("currentProjectName");
+        if (el) el.textContent = name;
+      }
+
+      refreshSidebar();
     } catch {
       // ignore
     }
@@ -1443,6 +1541,7 @@
     buildNavUrl,
     getContext,
     getProjectId,
+    refreshSidebar,
     ensurePageWatermarks,
     showProjectSelector,
     closeProjectSelector,
@@ -1450,6 +1549,7 @@
     renderBreadcrumbs,
     refreshNavUrls,
     setProjectContext,
+    setCaseContext,
   };
 
   // If a page doesn't call `injectShell` (e.g., auth screens), still add watermarks once the DOM is ready.

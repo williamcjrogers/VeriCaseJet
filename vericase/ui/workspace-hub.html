@@ -47,6 +47,19 @@
       font-weight: 500;
     }
 
+    .hub-subtext {
+      color: var(--text-muted);
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      margin: -8px 0 14px;
+      max-width: 85ch;
+    }
+
+    .hub-subtext.hub-subtext-roomy {
+      margin: -8px 0 20px;
+      max-width: 70ch;
+    }
+
     .app-content {
       background: var(--bg-white);
       border: 1px solid var(--border-default);
@@ -1237,12 +1250,30 @@
     .about-card-body {
       padding: 14px 16px;
       color: var(--text-primary);
+      font-size: 0.9375rem;
+      line-height: 1.55;
     }
 
     .about-pre {
       white-space: pre-wrap;
       line-height: 1.55;
       font-size: 0.95rem;
+    }
+
+    .about-notes-textarea {
+      width: 100%;
+      min-height: 140px;
+      resize: vertical;
+      font-size: 0.9375rem;
+      line-height: 1.55;
+    }
+
+    .about-actions-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      align-items: center;
+      flex-wrap: wrap;
     }
 
     .about-list {
@@ -1290,6 +1321,7 @@
     .about-hint {
       color: var(--text-muted);
       font-size: 0.875rem;
+      margin-top: 8px;
     }
 
     @media (max-width: 900px) {
@@ -1331,9 +1363,9 @@
           </a>
         </div>
       </div>
-	      <div style="color: var(--text-muted); font-size: 0.9375rem; margin: -8px 0 20px; max-width: 70ch;">
-	        Workspaces group projects, cases, documents, and your team.
-	      </div>
+      <div class="hub-subtext hub-subtext-roomy">
+        Workspaces group projects, cases, documents, and your team.
+      </div>
       <div class="items-grid" id="workspacesGrid"></div>
     </section>
 
@@ -1498,7 +1530,7 @@
               Dispute Context Documents
             </div>
           </div>
-          <div style="color: var(--text-muted); font-size: 0.9375rem; margin: -8px 0 14px; max-width: 85ch;">
+          <div class="hub-subtext">
             Upload key documents (contract, notices, expert reports, pleadings, key letters) to build an AI read-in and Q&A in the <strong>About</strong> tab.
           </div>
           
@@ -1545,7 +1577,7 @@
               </div>
               <div class="about-card-body">
                 <ul class="about-list" id="aboutOpenQuestions"></ul>
-                <div class="about-hint" id="aboutOpenQuestionsHint" style="margin-top: 8px;"></div>
+                <div class="about-hint" id="aboutOpenQuestionsHint"></div>
               </div>
             </div>
 
@@ -1562,7 +1594,7 @@
                   </button>
                 </div>
                 <div class="about-chat" id="aboutChat"></div>
-                <div class="about-hint" id="aboutChatHint" style="margin-top: 10px;"></div>
+                <div class="about-hint" id="aboutChatHint"></div>
               </div>
             </div>
 
@@ -1572,14 +1604,14 @@
                 Teach the system (facts & framing)
               </div>
               <div class="about-card-body">
-                <textarea class="form-input" id="aboutUserNotes" style="min-height: 110px; resize: vertical;" placeholder="Add authoritative facts, agreed issues, parties/roles, or dispute framing. This guides AI outputs and reduces read-in for counsel."></textarea>
-                <div style="display:flex; gap:10px; margin-top:10px;">
+                <textarea class="form-input about-notes-textarea" id="aboutUserNotes" placeholder="Add authoritative facts, agreed issues, parties/roles, or dispute framing. This guides AI outputs and reduces read-in for counsel."></textarea>
+                <div class="about-actions-row">
                   <button class="btn btn-outline" onclick="loadWorkspaceAbout()">Reset</button>
                   <button class="btn btn-vericase" onclick="saveWorkspaceAboutNotes()">
                     <i class="fas fa-save"></i> Save notes
                   </button>
                 </div>
-                <div class="about-hint" id="aboutNotesHint" style="margin-top: 8px;"></div>
+                <div class="about-hint" id="aboutNotesHint"></div>
               </div>
             </div>
           </div>
@@ -1982,6 +2014,8 @@
 
         // Load AI context ("About" tab) in the background
         loadWorkspaceAbout().catch(() => {});
+        // Load full workspace documents list (best-effort; workspace payload is capped)
+        loadWorkspaceDocuments().catch(() => {});
 
       } catch (err) {
         console.error("Failed to load workspace:", err);
@@ -2153,8 +2187,10 @@
         window.location.href = `project-setup.html?workspaceId=${workspaceId}&projectId=${id}`;
       } else if (action === 'develop-case') {
         window.location.href = `case-setup.html?workspaceId=${workspaceId}&projectId=${id}`;
-      } else if (action === 'open' || !e.target.closest('button')) {
+      } else if (action === 'open') {
         openProject(id);
+      } else if (!e.target.closest('button')) {
+        selectProjectContext(id);
       }
     }
 
@@ -2166,9 +2202,27 @@
       
       if (action === 'configure') {
         window.location.href = `case-setup.html?workspaceId=${workspaceId}&caseId=${id}`;
-      } else if (action === 'open' || !e.target.closest('button')) {
+      } else if (action === 'open') {
         openCase(id);
+      } else if (!e.target.closest('button')) {
+        selectCaseContext(id);
       }
+    }
+
+    function selectProjectContext(id) {
+      const p = (workspaceData?.projects || []).find(x => String(x.id) === String(id));
+      const name = p?.name || p?.project_name || "Project";
+      try {
+        window.VericaseShell?.setProjectContext?.({ projectId: id, projectName: name });
+      } catch {}
+    }
+
+    function selectCaseContext(id) {
+      const c = (workspaceData?.cases || []).find(x => String(x.id) === String(id));
+      const name = c?.name || c?.case_name || "Case";
+      try {
+        window.VericaseShell?.setCaseContext?.({ caseId: id, caseName: name });
+      } catch {}
     }
 
     function openProject(id) {
@@ -2352,6 +2406,29 @@
     // ========================================
     // DOCUMENTS MANAGEMENT
     // ========================================
+    async function loadWorkspaceDocuments() {
+      if (!workspaceId) return;
+      try {
+        const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/documents`, {
+          headers: getAuthHeaders(),
+        });
+        if (!res.ok) return;
+        const docs = await res.json().catch(() => []);
+        if (!Array.isArray(docs)) return;
+
+        // Preserve any in-flight uploads already shown in the UI.
+        const inFlight = (workspaceDocuments || []).filter((d) => d && d.uploading);
+        workspaceDocuments = docs;
+        if (inFlight.length) {
+          workspaceDocuments = [...inFlight, ...workspaceDocuments];
+        }
+        renderDocuments();
+        updateTabCounts();
+      } catch {
+        // best-effort
+      }
+    }
+
     function setupDragAndDrop() {
       const zone = document.getElementById("uploadZone");
       if (!zone) return;
