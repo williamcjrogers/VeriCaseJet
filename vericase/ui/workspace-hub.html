@@ -6,14 +6,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VeriCase - Workspaces</title>
   <link rel="stylesheet" href="./assets/fontawesome/css/all.min.css" />
-  <link rel="stylesheet" href="brand-styles.css?v=7" />
-  <link rel="stylesheet" href="design-system.css?v=7" />
+  <link rel="stylesheet" href="brand-styles.css?v=9" />
+  <link rel="stylesheet" href="design-system.css?v=9" />
   <script src="vericase-ui.js"></script>
   <script src="nav-shell.js"></script>
   <style>
     /* Workspace hub provides its own in-page header; avoid duplicated breadcrumb bars when wrapped in the shell */
     .app-shell .hub-breadcrumb {
       display: none;
+    }
+
+    /* Fallback (if the shell doesn’t inject for any reason) */
+    body.workspace-hub-page {
+      background-color: var(--vericase-cream);
+      background-image: radial-gradient(var(--gray-200) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+
+    body.workspace-hub-page > .workspace-hub-container {
+      padding: 32px 48px;
+      min-height: 100vh;
     }
     /* === WORKSPACES - DIRECTORY + WORKSPACE VIEW === */
 
@@ -140,6 +152,10 @@
       border: 1px solid rgba(var(--vericase-teal-rgb), 0.20);
       color: var(--vericase-teal);
       min-width: 42px;
+    }
+
+    .directory-count-pill:empty {
+      visibility: hidden;
     }
 
     .directory-subtitle {
@@ -291,8 +307,8 @@
     }
 
     .workspace-card .workspace-preview {
-      grid-template-columns: 1fr;
-      gap: 12px;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
     }
 
     .workspace-card--skeleton {
@@ -1488,6 +1504,10 @@
         padding: 24px 16px;
       }
 
+      body.workspace-hub-page > .workspace-hub-container {
+        padding: 24px 16px;
+      }
+
       .directory-toolbar {
         padding: var(--space-3);
       }
@@ -1506,6 +1526,10 @@
       }
 
       .items-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .workspace-card .workspace-preview {
         grid-template-columns: 1fr;
       }
 

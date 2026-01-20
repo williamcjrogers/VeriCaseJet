@@ -103,10 +103,33 @@ const linkTargetsCache = {
 
 const GRID_VIEW_STORAGE_KEY = "vc_correspondence_grid_views";
 const GRID_VIEW_ACTIVE_KEY = "vc_correspondence_grid_view_active";
+// Programme analysis columns (toggled as a bundle in the UI).
+const PROGRAMME_ANALYSIS_COLUMN_IDS = [
+  "programme_activity",
+  "as_planned_finish_date",
+  "as_built_activity",
+  "as_built_finish_date",
+  "delay_days",
+  "is_critical_path",
+];
+
+// Default hidden columns (standard view). Users can re-enable via Columns / Views.
 const DEFAULT_HIDDEN_COLUMNS = new Set([
+  // Always hidden / internal
   "email_body_full",
   "thread_id",
   "has_attachments",
+
+  // Hide as standard for all users (Correspondence Enterprise)
+  "_stakeholders",
+  "matched_stakeholders",
+  "excluded",
+  "excluded_label",
+  "notes",
+  "pst_filename",
+
+  // Programme analysis columns are off by default.
+  ...PROGRAMME_ANALYSIS_COLUMN_IDS,
 ]);
 
 // Grid performance: fixed collapsed height, expanded uses auto-height for content fit
@@ -4806,6 +4829,53 @@ window.openTableSettings = function () {
   }
 };
 
+function areProgrammeAnalysisColumnsVisible() {
+  if (!gridApi?.getColumnState) return false;
+  try {
+    const state = gridApi.getColumnState() || [];
+    const map = new Map(state.map((s) => [s.colId, s]));
+    // Treat missing columns as "not visible" (e.g., if defs change).
+    return PROGRAMME_ANALYSIS_COLUMN_IDS.every((colId) => {
+      const s = map.get(colId);
+      return s && s.hide !== true;
+    });
+  } catch {
+    return false;
+  }
+}
+
+function updateProgrammeAnalysisColumnsToggleUi() {
+  const labelEl = document.getElementById("programmeAnalysisColumnsToggleLabel");
+  const iconEl = document.getElementById("programmeAnalysisColumnsToggleIcon");
+  if (!labelEl && !iconEl) return;
+
+  const visible = areProgrammeAnalysisColumnsVisible();
+  if (labelEl) {
+    labelEl.textContent = visible
+      ? "Hide Programme Analysis Columns"
+      : "Show Programme Analysis Columns";
+  }
+  if (iconEl) {
+    iconEl.className = visible ? "far fa-check-square" : "far fa-square";
+  }
+}
+
+function setProgrammeAnalysisColumnsVisible(visible) {
+  if (!gridApi?.applyColumnState) return;
+  const state = PROGRAMME_ANALYSIS_COLUMN_IDS.map((colId) => ({
+    colId,
+    hide: !visible,
+  }));
+  gridApi.applyColumnState({ state, applyOrder: false });
+  updateProgrammeAnalysisColumnsToggleUi();
+}
+
+window.toggleProgrammeAnalysisColumns = function () {
+  if (!gridApi) return;
+  const currentlyVisible = areProgrammeAnalysisColumnsVisible();
+  setProgrammeAnalysisColumnsVisible(!currentlyVisible);
+};
+
 function initGrid() {
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const userIsAdmin =
@@ -4918,12 +4988,12 @@ function initGrid() {
       cellRenderer: (p) => formatEmailAddressCell(p.value),
     },
     {
-      headerName: "Stakeholders",
+      headerName: "Domains",
       field: "_stakeholders",
       sortable: true,
       filter: "agSetColumnFilter",
       width: 180,
-      headerTooltip: "Unique domains/companies from From, To, and Cc",
+      headerTooltip: "Unique sender/recipient domains (derived from From/To/Cc)",
       valueGetter: (p) => {
         if (!p.data) return [];
         return extractStakeholders(p.data.email_from, p.data.email_to, p.data.email_cc);

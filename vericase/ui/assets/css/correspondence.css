@@ -404,6 +404,21 @@ body::before {
   padding: 0.5rem 0.75rem;
 }
 
+/* Primary buttons inside groups must keep their fill (otherwise text becomes white-on-white). */
+.btn-group .btn.btn-primary {
+  background: var(--vc-teal);
+  color: white;
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.btn-group .btn.btn-primary:hover:not(:disabled) {
+  background: var(--vc-teal-dark);
+}
+
+.btn-group .btn.btn-primary:active:not(:disabled) {
+  background: var(--vc-teal-dark);
+}
+
 .btn-group .btn:last-child {
   border-right: none;
 }
