@@ -127,6 +127,7 @@ def _build_email_row(
         or ""
     )
 
+    effective_date = e.date_sent or e.date_received
     return EmailMessageSummary(
         id=str(e.id),
         subject=e.subject,
@@ -146,7 +147,7 @@ def _build_email_row(
         email_from=sender_display,
         email_to=email_to_display,
         email_cc=email_cc_display,
-        email_date=e.date_sent,
+        email_date=effective_date,
         email_body=email_body,
         attachments=attachments_payload,
         attachment_count=len(attachments_payload),
@@ -223,11 +224,19 @@ def _build_email_row_server_side(
         body_text=e.body_text,
         body_html=e.body_html,
     )
+    # If the cleaned display is empty, retry using the raw preview text (often fuller
+    # than body_text_clean for externally bannered messages).
+    if not body_display and e.body_preview:
+        body_display = clean_email_body_for_display(
+            body_text_clean=None,
+            body_text=e.body_preview,
+            body_html=None,
+        )
+
     # Never return an empty body preview if we have *any* stored body signal.
-    # This prevents the grid from showing a column of "-" when `clean_email_body_for_display`
-    # decides the best display body is empty.
+    # Prefer preview text over banner-only clean bodies.
     if not body_display:
-        body_display = e.body_text_clean or e.body_preview or ""
+        body_display = e.body_preview or e.body_text_clean or ""
 
     email_body = _truncate_text((body_display or "").strip(), body_max_chars) or None
 
@@ -249,7 +258,7 @@ def _build_email_row_server_side(
         "email_from": sender_display,
         "email_to": email_to_display,
         "email_cc": email_cc_display,
-        "email_date": e.date_sent,
+        "email_date": e.date_sent or e.date_received,
         "email_body": email_body,
         "attachments": attachments_payload,
         "attachment_count": len(attachments_payload),
@@ -1711,6 +1720,7 @@ async def list_emails_server_side_service(
             EmailMessage.recipients_to,
             EmailMessage.recipients_cc,
             EmailMessage.date_sent,
+            EmailMessage.date_received,
             EmailMessage.body_text_clean,
             EmailMessage.body_preview,
             EmailMessage.content_hash,
@@ -1789,6 +1799,9 @@ async def list_emails_server_side_service(
 
     if not include_hidden:
         q = q.filter(build_correspondence_visibility_filter())
+
+    # Effective date for sorting/filtering (fallback to received date).
+    date_expr = func.coalesce(EmailMessage.date_sent, EmailMessage.date_received)
 
     # AG Grid filter model.
     filter_model: dict[str, Any] = request.filterModel or {}
@@ -1875,7 +1888,7 @@ async def list_emails_server_side_service(
 
         elif field in {"email_date", "date_sent"}:
             if filter_type in {"date", "text"}:
-                q = _apply_ag_grid_date_filter(q, EmailMessage.date_sent, spec_raw)
+                q = _apply_ag_grid_date_filter(q, date_expr, spec_raw)
 
     # IMPORTANT: Do NOT COUNT(*) the full filtered dataset for every block request.
     # That is extremely expensive at 100k+ rows and causes the correspondence page to stall.
@@ -1888,9 +1901,7 @@ async def list_emails_server_side_service(
         desc = direction != "asc"
 
         if col_id in {"email_date", "date_sent"}:
-            q = q.order_by(
-                EmailMessage.date_sent.desc() if desc else EmailMessage.date_sent.asc()
-            )
+            q = q.order_by(date_expr.desc() if desc else date_expr.asc())
         elif col_id in {"email_subject", "subject"}:
             q = q.order_by(
                 EmailMessage.subject.desc() if desc else EmailMessage.subject.asc()

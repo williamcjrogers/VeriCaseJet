@@ -2278,7 +2278,7 @@ function renderEmailDetail(data) {
   const to = formatRecipients(recipientsTo);
   const cc = formatRecipients(recipientsCc);
   
-  const when = data?.email_date || data?.date_sent || null;
+  const when = data?.email_date || data?.date_sent || data?.date_received || data?.date || null;
   const dateText = when
     ? new Date(when).toLocaleString("en-GB", {
         day: "2-digit",
@@ -4818,8 +4818,9 @@ function initGrid() {
       sortIndex: 0,
       headerTooltip: "Sent date/time",
       cellRenderer: (p) => {
-        if (!p.value) return "<span style='color: var(--text-muted);'>-</span>";
-        const d = new Date(p.value);
+        const raw = p.value ?? p.data?.date_sent ?? p.data?.date_received ?? p.data?.date ?? null;
+        if (!raw) return "<span style='color: var(--text-muted);'>-</span>";
+        const d = new Date(raw);
         if (Number.isNaN(d.getTime())) return "<span style='color: var(--text-muted);'>-</span>";
         const day = String(d.getDate()).padStart(2, "0");
         const month = String(d.getMonth() + 1).padStart(2, "0");
@@ -5438,21 +5439,6 @@ function initGrid() {
         if (activeView) {
           applyGridView(activeView, { toast: false, refresh: false });
           restoredColumnState = true;
-        } else {
-          const raw = localStorage.getItem("vc_correspondence_grid_state");
-          if (raw && gridApi) {
-            const state = JSON.parse(raw);
-            if (state.columnState) {
-              const sanitized = state.columnState.map((col) => ({
-                ...col,
-                hide: DEFAULT_HIDDEN_COLUMNS.has(col.colId) ? true : false,
-                pinned: null,
-              }));
-              // Keep the default column order; only restore widths/visibility/etc.
-              gridApi.applyColumnState({ state: sanitized, applyOrder: false });
-              restoredColumnState = true;
-            }
-          }
         }
       } catch (e) {
         console.warn("Could not restore grid state:", e);
