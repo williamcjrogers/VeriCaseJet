@@ -13,7 +13,16 @@ from datetime import timezone
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    UploadFile,
+    File,
+    BackgroundTasks,
+    Form,
+    Query,
+)
 from fastapi.responses import RedirectResponse
 
 logger = logging.getLogger(__name__)
@@ -40,6 +49,7 @@ from .models import (
     UserRole,
     Stakeholder,
     EvidenceItem,
+    Folder,
 )
 from .security import current_user
 
@@ -152,11 +162,134 @@ class AboutNotesRequest(BaseModel):
     notes: str | None = Field(default=None, max_length=10000)
 
 
+class WorkspaceDocumentFolderCreate(BaseModel):
+    path: str = Field(..., min_length=1, max_length=512)
+
+
+class WorkspaceDocumentMoveRequest(BaseModel):
+    folder_path: str | None = Field(default=None, max_length=512)
+
+
+class WorkspaceDocumentAskRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=2000)
+
+
 def _workspace_docs_query(db: Session, workspace_uuid: uuid.UUID):
     # Workspace documents are stored as EvidenceItems with a scoped meta marker.
     return db.query(EvidenceItem).filter(
         EvidenceItem.meta.op("->>")("workspace_id") == str(workspace_uuid)
     )
+
+
+def _normalize_workspace_doc_folder_path(value: str | None) -> str | None:
+    """Normalize and validate a workspace document folder path.
+
+    Folder paths are stored relative to the workspace root, e.g.:
+    - "Contracts"
+    - "Contracts/JCT"
+    - "Expert Reports/Quantum"
+    """
+
+    if value is None:
+        return None
+    path = str(value).strip()
+    if not path:
+        return None
+
+    # Normalize separators and strip leading/trailing slashes
+    path = path.strip().strip("/")
+    if not path:
+        return None
+
+    # Block traversal / oddities
+    if ".." in path or path.startswith("/") or "\\" in path:
+        raise HTTPException(status_code=400, detail="Invalid folder_path")
+
+    # Disallow obvious filesystem-forbidden chars (Windows-safe)
+    invalid_chars = ["<", ">", ":", '"', "|", "?", "*"]
+    if any(ch in path for ch in invalid_chars):
+        raise HTTPException(status_code=400, detail="Invalid folder_path")
+
+    parts = [p.strip() for p in path.split("/") if p.strip()]
+    if not parts:
+        return None
+    if len(parts) > 20:
+        raise HTTPException(status_code=400, detail="Invalid folder_path (too deep)")
+
+    reserved = {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        "COM1",
+        "COM2",
+        "COM3",
+        "COM4",
+        "COM5",
+        "COM6",
+        "COM7",
+        "COM8",
+        "COM9",
+        "LPT1",
+        "LPT2",
+        "LPT3",
+        "LPT4",
+        "LPT5",
+        "LPT6",
+        "LPT7",
+        "LPT8",
+        "LPT9",
+    }
+    for part in parts:
+        if part.upper() in reserved:
+            raise HTTPException(status_code=400, detail="Invalid folder_path")
+
+    normalized = "/".join(parts)
+    if len(normalized) > 512:
+        raise HTTPException(status_code=400, detail="Invalid folder_path (too long)")
+    return normalized
+
+
+def _workspace_doc_folder_db_prefix(workspace: Workspace) -> str:
+    # Namespace workspace folders in the shared Folder table to allow empty folders.
+    # Do NOT use slashes at the ends; caller appends "/<relative_path>".
+    return f"workspace-docs/{workspace.id}"
+
+
+def _ensure_workspace_doc_folders(db: Session, workspace: Workspace, folder_path: str) -> None:
+    """Ensure Folder rows exist for each segment of folder_path for this workspace.
+
+    This lets the UI show empty folders and not only folders implied by docs.
+    """
+
+    folder_path = _normalize_workspace_doc_folder_path(folder_path) or ""
+    if not folder_path:
+        return
+
+    prefix = _workspace_doc_folder_db_prefix(workspace)
+    owner_id = workspace.owner_id
+
+    parts = folder_path.split("/")
+    for i in range(1, len(parts) + 1):
+        rel = "/".join(parts[:i])
+        db_path = f"{prefix}/{rel}"
+        parent_rel = "/".join(parts[: i - 1]) if i > 1 else ""
+        parent_db_path = f"{prefix}/{parent_rel}" if parent_rel else None
+
+        existing = (
+            db.query(Folder)
+            .filter(Folder.owner_user_id == owner_id, Folder.path == db_path)
+            .first()
+        )
+        if existing:
+            continue
+        folder = Folder(
+            path=db_path,
+            name=parts[i - 1],
+            parent_path=parent_db_path,
+            owner_user_id=owner_id,
+        )
+        db.add(folder)
 
 
 def _safe_excerpt(text: str | None, limit: int = 1800) -> str:
@@ -195,6 +328,7 @@ async def _complete_with_tool_fallback(
     prompt: str,
     system_prompt: str,
     db: Session,
+    task_type: str = "workspace_about",
     max_tokens: int = 2200,
     temperature: float = 0.2,
 ) -> str:
@@ -213,7 +347,7 @@ async def _complete_with_tool_fallback(
             max_tokens=max_tokens,
             temperature=temperature,
             function_name=tool_name,
-            task_type="workspace_about",
+            task_type=task_type,
         )
 
     # First attempt: configured provider/model
@@ -1091,6 +1225,11 @@ def get_workspace(
                 "size": int(d.file_size or 0),
                 "created_at": d.created_at.isoformat() if d.created_at else None,
                 "processing_status": d.processing_status or "pending",
+                "folder_path": (
+                    (d.meta or {}).get("folder_path")  # type: ignore[union-attr]
+                    if isinstance(d.meta, dict) or d.meta is None
+                    else None
+                ),
             }
             for d in docs
         ]
@@ -1495,9 +1634,109 @@ def list_workspace_documents(
             "size": int(i.file_size or 0),
             "created_at": i.created_at.isoformat() if i.created_at else None,
             "processing_status": i.processing_status or "pending",
+            "folder_path": (
+                (i.meta or {}).get("folder_path")  # type: ignore[union-attr]
+                if isinstance(i.meta, dict) or i.meta is None
+                else None
+            ),
         }
         for i in items
     ]
+
+
+@router.get("/{workspace_id}/documents/folders")
+def list_workspace_document_folders(
+    workspace_id: str,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    workspace = _require_workspace(db, workspace_id, user)
+
+    prefix = _workspace_doc_folder_db_prefix(workspace)
+
+    folder_paths: set[str] = set()
+    try:
+        rows = (
+            db.query(Folder)
+            .filter(
+                Folder.owner_user_id == workspace.owner_id,
+                Folder.path.startswith(prefix + "/"),
+            )
+            .all()
+        )
+        for f in rows:
+            p = str(f.path or "")
+            if not p.startswith(prefix + "/"):
+                continue
+            rel = p[len(prefix) + 1 :]
+            rel = rel.strip().strip("/")
+            if rel:
+                folder_paths.add(rel)
+    except Exception:
+        # best-effort; still derive folders from docs
+        pass
+
+    docs = _workspace_docs_query(db, workspace.id).limit(5000).all()
+    unfiled_count = 0
+    direct_counts: dict[str, int] = {}
+    recursive_counts: dict[str, int] = {}
+
+    for d in docs:
+        meta = d.meta if isinstance(d.meta, dict) else {}
+        raw_fp = meta.get("folder_path") if isinstance(meta, dict) else None
+        try:
+            fp = _normalize_workspace_doc_folder_path(raw_fp)
+        except HTTPException:
+            fp = None
+
+        if not fp:
+            unfiled_count += 1
+            continue
+
+        direct_counts[fp] = direct_counts.get(fp, 0) + 1
+        parts = fp.split("/")
+        for i in range(1, len(parts) + 1):
+            p = "/".join(parts[:i])
+            folder_paths.add(p)
+            recursive_counts[p] = recursive_counts.get(p, 0) + 1
+
+    folders: list[dict[str, Any]] = []
+    for path in sorted(folder_paths, key=lambda s: (s.count("/"), s.lower())):
+        parts = path.split("/")
+        name = parts[-1]
+        parent = "/".join(parts[:-1]) or None
+        folders.append(
+            {
+                "path": path,
+                "name": name,
+                "parent_path": parent,
+                "doc_count": direct_counts.get(path, 0),
+                "doc_count_recursive": recursive_counts.get(path, 0),
+            }
+        )
+
+    return {
+        "folders": folders,
+        "unfiled_count": unfiled_count,
+        "total_documents": len(docs),
+    }
+
+
+@router.post("/{workspace_id}/documents/folders")
+def create_workspace_document_folder(
+    workspace_id: str,
+    payload: WorkspaceDocumentFolderCreate,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    workspace = _require_workspace(db, workspace_id, user)
+    folder_path = _normalize_workspace_doc_folder_path(payload.path)
+    if not folder_path:
+        raise HTTPException(status_code=400, detail="Invalid folder path")
+
+    _ensure_workspace_doc_folders(db, workspace, folder_path)
+    db.commit()
+    return {"status": "success", "path": folder_path}
 
 
 @router.post("/{workspace_id}/documents")
@@ -1505,6 +1744,8 @@ async def upload_workspace_document(
     workspace_id: str,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    folder_path: str | None = Form(default=None),
+    relative_path: str | None = Form(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> dict[str, Any]:
@@ -1578,6 +1819,11 @@ async def upload_workspace_document(
     except Exception:
         initial_type = None
 
+    normalized_folder_path = _normalize_workspace_doc_folder_path(folder_path)
+    normalized_relative_path = (str(relative_path).strip() if relative_path else "") or None
+    if normalized_relative_path and len(normalized_relative_path) > 1024:
+        normalized_relative_path = normalized_relative_path[:1024]
+
     item = EvidenceItem(
         id=evidence_id,
         filename=file.filename,
@@ -1600,10 +1846,19 @@ async def upload_workspace_document(
             "workspace_id": str(workspace.id),
             "scope": "workspace_document",
             "origin": "workspace-hub",
+            **({"folder_path": normalized_folder_path} if normalized_folder_path else {}),
+            **({"relative_path": normalized_relative_path} if normalized_relative_path else {}),
         },
     )
 
     db.add(item)
+    if normalized_folder_path:
+        # Create folder rows for empty-folder UI representation (best-effort)
+        try:
+            _ensure_workspace_doc_folders(db, workspace, normalized_folder_path)
+        except HTTPException:
+            # Ignore invalid folder_path for upload; the file still uploads successfully.
+            pass
     try:
         log_activity(
             db,
@@ -1638,9 +1893,213 @@ async def upload_workspace_document(
         "size": int(item.file_size or 0),
         "created_at": item.created_at.isoformat() if item.created_at else None,
         "processing_status": item.processing_status or "pending",
+        "folder_path": normalized_folder_path,
         "is_duplicate": is_duplicate,
         "duplicate_of_id": str(duplicate_of_id) if duplicate_of_id else None,
     }
+
+
+@router.post("/{workspace_id}/documents/{doc_id}/move")
+def move_workspace_document(
+    workspace_id: str,
+    doc_id: str,
+    payload: WorkspaceDocumentMoveRequest,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    workspace = _require_workspace(db, workspace_id, user)
+    doc_uuid = _parse_uuid(doc_id, "doc_id")
+    item = db.query(EvidenceItem).filter(EvidenceItem.id == doc_uuid).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if (item.meta or {}).get("workspace_id") != str(workspace.id):  # type: ignore[union-attr]
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    dest = _normalize_workspace_doc_folder_path(payload.folder_path)
+    meta = item.meta if isinstance(item.meta, dict) else {}
+    if not isinstance(meta, dict):
+        meta = {}
+
+    if dest:
+        meta["folder_path"] = dest
+        try:
+            _ensure_workspace_doc_folders(db, workspace, dest)
+        except Exception:
+            pass
+    else:
+        meta.pop("folder_path", None)
+
+    item.meta = meta
+    db.commit()
+    db.refresh(item)
+
+    return {
+        "id": str(item.id),
+        "filename": item.filename,
+        "size": int(item.file_size or 0),
+        "created_at": item.created_at.isoformat() if item.created_at else None,
+        "processing_status": item.processing_status or "pending",
+        "folder_path": dest,
+    }
+
+
+@router.get("/{workspace_id}/documents/{doc_id}/preview")
+async def preview_workspace_document(
+    workspace_id: str,
+    doc_id: str,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    workspace = _require_workspace(db, workspace_id, user)
+    doc_uuid = _parse_uuid(doc_id, "doc_id")
+    item = db.query(EvidenceItem).filter(EvidenceItem.id == doc_uuid).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if (item.meta or {}).get("workspace_id") != str(workspace.id):  # type: ignore[union-attr]
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    from .evidence.services import get_evidence_preview_service
+
+    return await get_evidence_preview_service(doc_id, db, user)
+
+
+@router.get("/{workspace_id}/documents/{doc_id}/text-content")
+async def get_workspace_document_text_content(
+    workspace_id: str,
+    doc_id: str,
+    db: DbSession,
+    user: CurrentUser,
+    max_length: Annotated[int, Query(description="Max chars", ge=1, le=200000)] = 50000,
+) -> dict[str, Any]:
+    workspace = _require_workspace(db, workspace_id, user)
+    doc_uuid = _parse_uuid(doc_id, "doc_id")
+    item = db.query(EvidenceItem).filter(EvidenceItem.id == doc_uuid).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if (item.meta or {}).get("workspace_id") != str(workspace.id):  # type: ignore[union-attr]
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    from .evidence.services import get_evidence_text_content_service
+
+    return await get_evidence_text_content_service(doc_id, db, user, max_length)
+
+
+@router.post("/{workspace_id}/documents/{doc_id}/ask")
+async def ask_workspace_document(
+    workspace_id: str,
+    doc_id: str,
+    payload: WorkspaceDocumentAskRequest,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    workspace = _require_workspace(db, workspace_id, user)
+    question = (payload.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Question is required")
+
+    doc_uuid = _parse_uuid(doc_id, "doc_id")
+    item = db.query(EvidenceItem).filter(EvidenceItem.id == doc_uuid).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if (item.meta or {}).get("workspace_id") != str(workspace.id):  # type: ignore[union-attr]
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Ensure we have text to work with (falls back to extraction if needed).
+    from .evidence.services import get_evidence_text_content_service
+
+    text_payload = await get_evidence_text_content_service(doc_id, db, user, 120000)
+    full_text = str(text_payload.get("text") or "").strip()
+    if not full_text:
+        return {
+            "answer": "I can’t answer yet: this document doesn’t have extracted text available. Try again in a moment (processing may still be running), or upload a text/PDF version.",
+            "sources": [],
+        }
+
+    tokens = re.findall(r"[a-zA-Z0-9]{3,}", question.lower())[:18]
+
+    def _score(chunk: str) -> int:
+        if not tokens:
+            return 0
+        hay = chunk.lower()
+        score = 0
+        for t in tokens:
+            if t in hay:
+                score += 2
+                score += min(hay.count(t), 5)
+        return score
+
+    # Build lightweight, question-focused excerpts.
+    chunk_size = 2200
+    chunks: list[tuple[int, int, str]] = []
+    for start in range(0, len(full_text), chunk_size):
+        end = min(len(full_text), start + chunk_size)
+        chunks.append((start, end, full_text[start:end]))
+
+    ranked = sorted(
+        [(s, e, c, _score(c)) for (s, e, c) in chunks],
+        key=lambda x: x[3],
+        reverse=True,
+    )
+
+    selected: list[tuple[str, int, int, str]] = []
+    used_spans: set[tuple[int, int]] = set()
+
+    # Always include the opening chunk for context.
+    if chunks:
+        s0, e0, c0 = chunks[0]
+        selected.append(("E1", s0, e0, c0))
+        used_spans.add((s0, e0))
+
+    label_idx = 2
+    for s, e, c, sc in ranked:
+        if sc <= 0:
+            continue
+        if (s, e) in used_spans:
+            continue
+        selected.append((f"E{label_idx}", s, e, c))
+        used_spans.add((s, e))
+        label_idx += 1
+        if len(selected) >= 7:
+            break
+
+    excerpt_blocks = "\n\n".join(
+        [f"[{lbl}] (chars {s}-{e})\n{txt.strip()}" for (lbl, s, e, txt) in selected]
+    )
+
+    system_prompt = (
+        "You are a disputes/legal assistant. Answer using ONLY the supplied excerpts from this one document. "
+        "Cite the excerpt labels like [E2]. If the answer is not in the excerpts, say 'Not found in this document excerpts' "
+        "and suggest what to search for or which section is likely relevant."
+    )
+    prompt = f"""
+Document: {item.filename} (id={item.id})
+Workspace: {workspace.name} ({workspace.code})
+
+Question: {question}
+
+Excerpts:
+{excerpt_blocks}
+
+Answer concisely, with citations like [E2].
+""".strip()
+
+    ai_text = await _complete_with_tool_fallback(
+        tool_name="workspace_document",
+        prompt=prompt,
+        system_prompt=system_prompt,
+        db=db,
+        task_type="workspace_document",
+        max_tokens=1400,
+        temperature=0.2,
+    )
+    answer = (ai_text or "").strip()
+    if not answer:
+        answer = "AI provider unavailable. I can’t answer reliably right now."
+
+    sources = [
+        {"label": lbl, "start": s, "end": e} for (lbl, s, e, _txt) in selected
+    ]
+    return {"answer": answer, "sources": sources}
 
 
 @router.get("/{workspace_id}/documents/{doc_id}/download")

@@ -1,0 +1,244 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backfill-mailto-3f1f3cf5
+  namespace: vericase
+data:
+  backfill.py: |
+    from __future__ import annotations
+
+    import json
+    import os
+    import re
+    from email.utils import parseaddr
+    from typing import Any
+
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.orm import sessionmaker
+
+    PROJECT_ID = "3f1f3cf5-e324-4876-8b32-6b7603e89001"
+
+    def _strip_mailto(value: str) -> str:
+        text = re.sub(r"mailto:", "", value, flags=re.IGNORECASE)
+        text = re.sub(r"([\\w.+-]+@[\\w.-]+)\\?[^\\s>;,]*", r"\\1", text)
+        return text
+
+    def _clean_email_token(value: str | None) -> str | None:
+        if not value:
+            return None
+        text = _strip_mailto(str(value)).strip()
+        text = text.strip("<>").strip()
+        if "@" not in text:
+            return None
+        return text
+
+    def _normalize_recipient_entry(value: str) -> tuple[str | None, str | None]:
+        cleaned = _strip_mailto(str(value))
+        name, email = parseaddr(cleaned)
+        email = _clean_email_token(email) or None
+        name = (name or "").strip()
+        if email:
+            if name:
+                return f"{name} <{email}>", email.lower()
+            return email, email.lower()
+        cleaned = cleaned.strip()
+        return (cleaned or None), (cleaned.lower() if cleaned else None)
+
+    def _sanitize_recipient_list(values: Any) -> list[str]:
+        if not values:
+            return []
+        if isinstance(values, str):
+            values = [values]
+        out: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            if not value:
+                continue
+            normalized, key = _normalize_recipient_entry(str(value))
+            if not normalized:
+                continue
+            dedupe_key = key or normalized.lower()
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            out.append(normalized)
+        return out
+
+    def _sanitize_display_string(value: str | None) -> str | None:
+        if not value:
+            return None
+        cleaned = _strip_mailto(str(value)).strip()
+        return cleaned[:2000] if cleaned else None
+
+    def _coerce_json(value: Any) -> dict[str, Any]:
+        if not value:
+            return {}
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, dict):
+                    return parsed
+            except Exception:
+                return {}
+        return {}
+
+    def main() -> int:
+        database_url = os.environ.get(
+            "DATABASE_URL",
+            "postgresql+psycopg2://vericase:vericase@localhost:5432/vericase",
+        )
+        print("Connecting to database...")
+        print(f"  URL: {database_url.split('@')[1] if '@' in database_url else 'local'}")
+
+        engine = create_engine(database_url)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+
+        try:
+            print(f"\nScanning project {PROJECT_ID} for mailto artifacts...")
+            offset = 0
+            batch_size = 500
+            processed = 0
+            updated = 0
+
+            while True:
+                query = text(
+                    """
+                    SELECT
+                        id,
+                        recipients_to,
+                        recipients_cc,
+                        recipients_bcc,
+                        metadata->'recipients_display' as recipients_display
+                    FROM email_messages
+                    WHERE project_id = CAST(:project_id AS uuid)
+                      AND (
+                        CAST(recipients_to AS text) ILIKE '%mailto:%'
+                        OR CAST(recipients_cc AS text) ILIKE '%mailto:%'
+                        OR CAST(recipients_bcc AS text) ILIKE '%mailto:%'
+                        OR metadata->'recipients_display'->>'to' ILIKE '%mailto:%'
+                        OR metadata->'recipients_display'->>'cc' ILIKE '%mailto:%'
+                        OR metadata->'recipients_display'->>'bcc' ILIKE '%mailto:%'
+                      )
+                    ORDER BY id
+                    LIMIT :batch_size OFFSET :offset
+                """
+                )
+                rows = session.execute(
+                    query,
+                    {"project_id": PROJECT_ID, "batch_size": batch_size, "offset": offset},
+                ).fetchall()
+
+                if not rows:
+                    break
+
+                for row in rows:
+                    processed += 1
+                    recipients_display = _coerce_json(row.recipients_display)
+                    sanitized_display = {}
+                    for key in ("to", "cc", "bcc"):
+                        cleaned = _sanitize_display_string(recipients_display.get(key))
+                        if cleaned:
+                            sanitized_display[key] = cleaned
+
+                    sanitized_to = _sanitize_recipient_list(row.recipients_to)
+                    sanitized_cc = _sanitize_recipient_list(row.recipients_cc)
+                    sanitized_bcc = _sanitize_recipient_list(row.recipients_bcc)
+
+                    changes = []
+                    params: dict[str, Any] = {"id": row.id}
+                    if sanitized_to and sanitized_to != (row.recipients_to or []):
+                        changes.append("recipients_to = :recipients_to")
+                        params["recipients_to"] = sanitized_to
+                    if sanitized_cc and sanitized_cc != (row.recipients_cc or []):
+                        changes.append("recipients_cc = :recipients_cc")
+                        params["recipients_cc"] = sanitized_cc
+                    if sanitized_bcc and sanitized_bcc != (row.recipients_bcc or []):
+                        changes.append("recipients_bcc = :recipients_bcc")
+                        params["recipients_bcc"] = sanitized_bcc
+                    if sanitized_display and sanitized_display != recipients_display:
+                        changes.append(
+                            "metadata = jsonb_set("
+                            "COALESCE(metadata::jsonb, '{}'::jsonb), "
+                            "'{recipients_display}', "
+                            "CAST(:recipients_display AS jsonb), "
+                            "true)::json"
+                        )
+                        params["recipients_display"] = json.dumps(sanitized_display)
+
+                    if changes:
+                        update = text(
+                            f"""
+                            UPDATE email_messages
+                            SET {', '.join(changes)}
+                            WHERE id = :id
+                        """
+                        )
+                        session.execute(update, params)
+                        updated += 1
+
+                session.commit()
+                offset += batch_size
+                print(f"  Processed {processed:,} emails, updated {updated:,}...")
+
+            print(f"\nUpdated {updated:,} emails out of {processed:,} processed")
+            return 0
+        finally:
+            session.close()
+
+    if __name__ == "__main__":
+        raise SystemExit(main())
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: backfill-mailto-3f1f3cf5-20260123
+  namespace: vericase
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: backfill-mailto-3f1f3cf5
+    spec:
+      serviceAccountName: vericase-api-sa
+      restartPolicy: Never
+      containers:
+        - name: backfill
+          image: docker.io/wcjrogers/vericase-api@sha256:324b7df4d7934416924779ca483e3bf5ade870451c357e51a48b699526ca7c54
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: USE_AWS_SERVICES
+              value: "true"
+            - name: AWS_REGION
+              value: "eu-west-2"
+            - name: AWS_DEFAULT_REGION
+              value: "eu-west-2"
+            - name: S3_BUCKET
+              value: "vericase-data"
+            - name: S3_PST_BUCKET
+              value: "vericase-data"
+            - name: S3_REGION
+              value: "eu-west-2"
+            - name: MINIO_BUCKET
+              value: "vericase-data"
+            - name: MINIO_ENDPOINT
+              value: ""
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vericase-secrets
+                  key: DATABASE_URL
+          command: ["python", "/scripts/backfill.py"]
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: backfill-mailto-3f1f3cf5
+            defaultMode: 0444

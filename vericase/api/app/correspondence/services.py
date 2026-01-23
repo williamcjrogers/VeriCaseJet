@@ -31,6 +31,7 @@ from ..storage import (
     multipart_list_parts,
     multipart_complete,
     multipart_start,
+    delete_object,
     presign_part,
     presign_put,
     presign_get,
@@ -1489,6 +1490,156 @@ async def admin_cleanup_pst_service(body: dict, db: Session, user: User) -> dict
         "selected_count": len(selected),
         "summary": total_counts,
         "selected": per_pst,
+    }
+
+
+async def delete_pst_upload_service(
+    pst_file_id: str, body: dict, db: Session, user: User
+) -> dict[str, Any]:
+    """Delete a single PST/email-import batch and its related records.
+
+    This is intended for cleaning up failed/stuck uploads so the UI doesn't get
+    "jammed" by dangling history rows.
+
+    Safety rules:
+    - Non-admin users can only delete their own uploads.
+    - Non-admin users can only delete FAILED batches, or "empty completed" batches
+      (0 emails imported) which are almost always failed uploads.
+    - Admins can force delete any batch with force=true.
+
+    Notes:
+    - We delete DB rows for: EmailMessage, EmailAttachment, EvidenceItem(source_email_id),
+      EvidenceCorrespondenceLink(email_message_id), then PSTFile.
+    - We delete the *container* object in S3 (PST file or email_import manifest) best-effort.
+      We intentionally do NOT delete attachment objects in S3 because they may be shared
+      (hash-deduped) across emails/uploads.
+    """
+
+    try:
+        pst_uuid = uuid.UUID(str(pst_file_id))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid pst_file_id") from exc
+
+    pst = db.query(PSTFile).filter(PSTFile.id == pst_uuid).first()
+    if not pst:
+        raise HTTPException(status_code=404, detail="PST file not found")
+
+    is_admin = str(getattr(user, "role", "")).upper() == "ADMIN"
+    force = bool(body.get("force", False))
+    delete_s3 = bool(body.get("delete_s3", True))
+
+    if force and not is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required for force delete")
+
+    # Ownership check (admins can delete anything)
+    if not is_admin:
+        if not pst.uploaded_by:
+            raise HTTPException(
+                status_code=403,
+                detail="Admin access required to delete this upload",
+            )
+        if pst.uploaded_by != getattr(user, "id", None):
+            raise HTTPException(
+                status_code=403, detail="Not allowed to delete this upload"
+            )
+
+    status = str(pst.processing_status or "").strip().lower()
+    empty_completed = (
+        status == "completed"
+        and int(pst.total_emails or 0) <= 0
+        and int(pst.processed_emails or 0) <= 0
+    )
+
+    if not force and not (status == "failed" or empty_completed):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Only failed (or empty) uploads can be deleted. "
+                "Ask an admin to force delete successful imports."
+            ),
+        )
+
+    # Capture S3 pointer before deleting the row.
+    s3_bucket = pst.s3_bucket
+    s3_key = pst.s3_key
+
+    # Resolve email IDs for this batch.
+    email_ids = [
+        row[0]
+        for row in db.query(EmailMessage.id)
+        .filter(EmailMessage.pst_file_id == pst_uuid)
+        .all()
+    ]
+
+    # Related records
+    from ..models import EmailAttachment
+
+    deleted_counts = {
+        "emails": 0,
+        "email_attachments": 0,
+        "evidence_items": 0,
+        "correspondence_links": 0,
+        "pst_files": 0,
+    }
+
+    if email_ids:
+        deleted_counts["correspondence_links"] = int(
+            db.query(EvidenceCorrespondenceLink)
+            .filter(EvidenceCorrespondenceLink.email_message_id.in_(email_ids))
+            .delete(synchronize_session=False)
+            or 0
+        )
+        deleted_counts["email_attachments"] = int(
+            db.query(EmailAttachment)
+            .filter(EmailAttachment.email_message_id.in_(email_ids))
+            .delete(synchronize_session=False)
+            or 0
+        )
+        deleted_counts["evidence_items"] = int(
+            db.query(EvidenceItem)
+            .filter(EvidenceItem.source_email_id.in_(email_ids))
+            .delete(synchronize_session=False)
+            or 0
+        )
+        deleted_counts["emails"] = int(
+            db.query(EmailMessage)
+            .filter(EmailMessage.id.in_(email_ids))
+            .delete(synchronize_session=False)
+            or 0
+        )
+
+    deleted_counts["pst_files"] = int(
+        db.query(PSTFile).filter(PSTFile.id == pst_uuid).delete(synchronize_session=False)
+        or 0
+    )
+
+    db.commit()
+
+    s3_deleted = False
+    s3_delete_error: str | None = None
+    if delete_s3 and s3_bucket and s3_key:
+        try:
+            delete_object(s3_key, bucket=s3_bucket)
+            s3_deleted = True
+        except Exception as exc:  # pragma: no cover - best effort
+            s3_delete_error = str(exc)
+            logger.warning(
+                "Failed to delete S3 object for pst_file_id=%s bucket=%s key=%s: %s",
+                pst_file_id,
+                s3_bucket,
+                s3_key,
+                exc,
+            )
+
+    return {
+        "deleted": True,
+        "pst_file_id": pst_file_id,
+        "status": status,
+        "force": force,
+        "delete_s3": delete_s3,
+        "s3_deleted": s3_deleted,
+        "s3_delete_error": s3_delete_error,
+        "deleted_counts": deleted_counts,
     }
 
 

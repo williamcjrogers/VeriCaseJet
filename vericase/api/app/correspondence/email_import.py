@@ -26,7 +26,7 @@ from email.utils import getaddresses, parseaddr, parsedate_to_datetime
 from typing import Any
 
 from fastapi import HTTPException, UploadFile
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -128,7 +128,8 @@ def _parse_addresses(headers: list[str] | None) -> list[str] | None:
     if not headers:
         return None
     pairs = getaddresses(headers)
-    emails = [addr.strip() for _, addr in pairs if addr and addr.strip()]
+    emails = [_clean_email_address(addr) for _, addr in pairs]
+    emails = [addr for addr in emails if addr]
     return emails or None
 
 
@@ -201,7 +202,7 @@ def _parse_sender_from_header(value: str | None) -> tuple[str | None, str | None
         return None, None
     name, addr = parseaddr(raw)
     name = (name or "").strip() or None
-    addr = (addr or "").strip() or None
+    addr = _clean_email_address(addr)
 
     # If parseaddr returns a "non-email" addr, treat it as name.
     if addr and "@" not in addr:
@@ -219,14 +220,34 @@ def _parse_recipients_from_header(value: str | None) -> list[str] | None:
     if not value:
         return None
     pairs = getaddresses([str(value)])
-    emails = [addr.strip() for _, addr in pairs if addr and addr.strip()]
+    emails = [_clean_email_address(addr) for _, addr in pairs]
+    emails = [addr for addr in emails if addr]
     return emails or None
+
+
+def _strip_mailto(text: str | None) -> str | None:
+    if not text:
+        return None
+    cleaned = re.sub(r"mailto:", "", str(text), flags=re.IGNORECASE)
+    cleaned = re.sub(r"([\\w.+-]+@[\\w.-]+)\\?[^\\s>;,]*", r"\\1", cleaned)
+    return cleaned
+
+
+def _clean_email_address(value: str | None) -> str | None:
+    if not value:
+        return None
+    cleaned = _strip_mailto(value) or ""
+    cleaned = cleaned.strip().strip("<>").strip()
+    if "@" not in cleaned:
+        return None
+    return cleaned
 
 
 def _normalize_recipient_display(value: Any | None) -> str | None:
     if value is None:
         return None
-    text = str(value).strip()
+    text = _strip_mailto(str(value)) or ""
+    text = text.strip()
     if not text or text.lower() == "none":
         return None
     return text[:2000]
@@ -400,9 +421,7 @@ def parse_eml_bytes(raw: bytes) -> ParsedEmail:
     msg = BytesParser(policy=policy.default).parsebytes(raw)
 
     subject = (msg.get("Subject") or "").strip() or None
-    sender_name, sender_email = parseaddr(msg.get("From") or "")
-    sender_name = sender_name.strip() or None
-    sender_email = sender_email.strip() or None
+    sender_email, sender_name = _parse_sender_from_header(msg.get("From") or "")
 
     # Common headers can appear multiple times; get_all covers that.
     to_list = _parse_addresses(msg.get_all("To"))
@@ -575,7 +594,7 @@ def parse_msg_bytes(raw: bytes) -> ParsedEmail:
         )
         sender_name, sender_email = parseaddr(str(sender_raw))
         sender_name = sender_name.strip() or None
-        sender_email = sender_email.strip() or None
+        sender_email = _clean_email_address(sender_email)
 
         to_list = _parse_addresses([str(getattr(m, "to", "") or "")])
         cc_list = _parse_addresses([str(getattr(m, "cc", "") or "")])
@@ -804,6 +823,208 @@ def _sha256_hex(data: bytes) -> str:
     return h.hexdigest()
 
 
+@dataclass
+class AttachmentEntry:
+    safe_filename: str
+    content_type: str
+    data: bytes
+    size: int
+    file_hash: str
+    is_inline: bool
+    content_id: str | None
+
+
+def _normalize_message_id(value: str | None) -> str | None:
+    if not value:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    match = re.search(r"<([^>]+)>", text)
+    if match:
+        text = match.group(1)
+    text = text.strip().strip("<>").strip()
+    return text.lower() or None
+
+
+def _message_id_variants(value: str | None) -> list[str]:
+    if not value:
+        return []
+    raw = str(value).strip()
+    if not raw:
+        return []
+    variants: set[str] = {raw}
+    raw_trim = raw.strip().strip("<>").strip()
+    if raw_trim:
+        variants.add(raw_trim)
+        variants.add(f"<{raw_trim}>")
+    norm = _normalize_message_id(raw)
+    if norm:
+        variants.add(norm)
+        variants.add(f"<{norm}>")
+    return sorted({v for v in variants if v})
+
+
+def _prepare_attachment_entries(
+    attachments: list[ParsedAttachment],
+) -> list[AttachmentEntry]:
+    entries: list[AttachmentEntry] = []
+    for i, att in enumerate(attachments or []):
+        data = att.data or b""
+        if not data:
+            continue
+        size = len(data)
+        safe_filename = _sanitize_attachment_filename(att.filename, f"attachment_{i}")
+        content_type = (att.content_type or "application/octet-stream").lower()
+
+        if content_type.startswith("image/") and _is_signature_image(
+            safe_filename, size, att.content_id, content_type
+        ):
+            continue
+        if att.is_inline and content_type.startswith("image/"):
+            continue
+
+        file_hash = _sha256_hex(data)
+        entries.append(
+            AttachmentEntry(
+                safe_filename=safe_filename,
+                content_type=content_type,
+                data=data,
+                size=size,
+                file_hash=file_hash,
+                is_inline=bool(att.is_inline),
+                content_id=att.content_id,
+            )
+        )
+    return entries
+
+
+def _load_attachment_hashes(
+    db: Session, email_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[str]]:
+    if not email_ids:
+        return {}
+    rows = (
+        db.query(EmailAttachment.email_message_id, EmailAttachment.attachment_hash)
+        .filter(EmailAttachment.email_message_id.in_(email_ids))
+        .all()
+    )
+    attachments: dict[uuid.UUID, list[str]] = {}
+    for email_id, attachment_hash in rows:
+        if not email_id or not attachment_hash:
+            continue
+        attachments.setdefault(email_id, []).append(str(attachment_hash))
+    for key in attachments:
+        attachments[key] = sorted(set(attachments[key]))
+    return attachments
+
+
+def _persist_attachment_entries(
+    *,
+    entries: list[AttachmentEntry],
+    email_id: uuid.UUID,
+    pst: PSTFile,
+    company_id: str | None,
+    original_filename: str,
+    db: Session,
+    user: User,
+) -> list[dict[str, Any]]:
+    attachments_info: list[dict[str, Any]] = []
+    if not entries:
+        return attachments_info
+
+    attach_bucket = settings.S3_ATTACHMENTS_BUCKET or settings.S3_BUCKET
+    entity_folder = (
+        f"case_{pst.case_id}" if pst.case_id else f"project_{pst.project_id}"
+    )
+    company_prefix = company_id if company_id else "no_company"
+
+    for entry in entries:
+        hash_prefix = entry.file_hash[:8]
+        s3_key = (
+            f"attachments/{company_prefix}/{entity_folder}/"
+            f"{hash_prefix}_{entry.safe_filename}"
+        )
+
+        try:
+            put_object(s3_key, entry.data, entry.content_type, bucket=attach_bucket)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Failed to store attachment {entry.safe_filename}: {exc}",
+            ) from exc
+
+        email_attachment = EmailAttachment(
+            email_message_id=email_id,
+            filename=entry.safe_filename,
+            content_type=entry.content_type,
+            file_size_bytes=entry.size,
+            s3_bucket=attach_bucket,
+            s3_key=s3_key,
+            attachment_hash=entry.file_hash,
+            is_inline=bool(entry.is_inline),
+            content_id=entry.content_id,
+            is_duplicate=False,
+        )
+        db.add(email_attachment)
+
+        evidence_item_id = uuid.uuid4()
+        evidence_type_category = _evidence_type_for_attachment(
+            entry.content_type, entry.safe_filename
+        )
+        evidence_item = EvidenceItem(
+            id=evidence_item_id,
+            filename=entry.safe_filename,
+            original_path=f"EMAIL_IMPORT:{original_filename}/{entry.safe_filename}",
+            file_type=(
+                os.path.splitext(entry.safe_filename)[1] or ""
+            ).lstrip(".").lower()
+            or None,
+            mime_type=entry.content_type,
+            file_size=entry.size,
+            file_hash=entry.file_hash,
+            s3_bucket=attach_bucket,
+            s3_key=s3_key,
+            evidence_type=evidence_type_category,
+            source_type="email_import",
+            source_email_id=email_id,
+            case_id=pst.case_id,
+            project_id=pst.project_id,
+            is_duplicate=False,
+            duplicate_of_id=None,
+            processing_status="pending",
+            auto_tags=["email-attachment", "from-email-import"],
+            uploaded_by=getattr(user, "id", None),
+            meta={
+                "email_import": {
+                    "pst_file_id": str(pst.id),
+                    "email_id": str(email_id),
+                    "content_id": entry.content_id,
+                    "is_inline": bool(entry.is_inline),
+                }
+            },
+        )
+        db.add(evidence_item)
+
+        attachments_info.append(
+            {
+                "attachment_id": str(email_attachment.id),
+                "evidence_item_id": str(evidence_item_id),
+                "filename": entry.safe_filename,
+                "size": entry.size,
+                "content_type": entry.content_type,
+                "is_inline": bool(entry.is_inline),
+                "content_id": entry.content_id,
+                "s3_key": s3_key,
+                "hash": entry.file_hash,
+                "attachment_hash": entry.file_hash,
+                "is_duplicate": False,
+            }
+        )
+
+    return attachments_info
+
+
 async def init_email_import_service(
     *,
     case_id: str | None,
@@ -966,6 +1187,145 @@ async def upload_email_file_service(
     scope_preview = scope_preview[:4000] if scope_preview else None
 
     # ============================================================
+    # Early duplicate detection (before spam + heavy extraction)
+    # ============================================================
+    dedupe_content_hash = build_content_hash(
+        canonical_body or None,
+        parsed.sender_email,
+        parsed.sender_name,
+        parsed.recipients_to,
+        parsed.subject,
+        parsed.date_sent,
+    )
+    message_id_norm = _normalize_message_id(parsed.message_id)
+    message_id_variants = _message_id_variants(parsed.message_id)
+    attachment_entries = _prepare_attachment_entries(parsed.attachments)
+    incoming_attachment_hashes = sorted(
+        {entry.file_hash for entry in attachment_entries}
+    )
+
+    if dedupe_content_hash or message_id_variants:
+        scope_query = db.query(
+            EmailMessage.id,
+            EmailMessage.message_id,
+            EmailMessage.content_hash,
+            EmailMessage.has_attachments,
+            EmailMessage.meta,
+        )
+        if pst.case_id:
+            scope_query = scope_query.filter(EmailMessage.case_id == pst.case_id)
+        elif pst.project_id:
+            scope_query = scope_query.filter(EmailMessage.project_id == pst.project_id)
+
+        filters = []
+        if dedupe_content_hash:
+            filters.append(EmailMessage.content_hash == dedupe_content_hash)
+        if message_id_variants:
+            filters.append(EmailMessage.message_id.in_(message_id_variants))
+
+        if filters:
+            candidates = scope_query.filter(or_(*filters)).all()
+        else:
+            candidates = []
+
+        if candidates:
+            candidate_ids = [row.id for row in candidates if row.id]
+            attachments_by_email = _load_attachment_hashes(db, candidate_ids)
+
+            best_candidate = None
+            best_rank = None
+            for row in candidates:
+                row_msg_norm = _normalize_message_id(row.message_id)
+                match_message_id = bool(
+                    message_id_norm and row_msg_norm == message_id_norm
+                )
+                match_content = bool(
+                    dedupe_content_hash and row.content_hash == dedupe_content_hash
+                )
+                if not (match_message_id or match_content):
+                    continue
+                existing_hashes = set(attachments_by_email.get(row.id, []))
+                rank = (
+                    2 if match_message_id else 0,
+                    1 if match_content else 0,
+                    len(existing_hashes),
+                )
+                if best_rank is None or rank > best_rank:
+                    best_rank = rank
+                    best_candidate = {
+                        "id": row.id,
+                        "existing_hashes": existing_hashes,
+                    }
+
+            if best_candidate:
+                existing_hashes = best_candidate["existing_hashes"]
+                missing_hashes = set(incoming_attachment_hashes) - existing_hashes
+                existing_email_id = best_candidate["id"]
+
+                if not missing_hashes:
+                    return {
+                        "email_id": str(existing_email_id),
+                        "duplicate": True,
+                        "duplicate_of_email_id": str(existing_email_id),
+                        "attachments_merged": False,
+                        "attachments_added": 0,
+                        "pst_file_id": pst_file_id,
+                        "embedded_email_ids": [],
+                        "has_attachments": bool(existing_hashes),
+                        "message": "Duplicate skipped",
+                    }
+
+                # Same message but new attachments: merge into the existing email.
+                existing_email = (
+                    db.query(EmailMessage)
+                    .filter(EmailMessage.id == existing_email_id)
+                    .first()
+                )
+                if existing_email:
+                    missing_entries = [
+                        entry
+                        for entry in attachment_entries
+                        if entry.file_hash in missing_hashes
+                    ]
+                    attachments_info = _persist_attachment_entries(
+                        entries=missing_entries,
+                        email_id=existing_email_id,
+                        pst=pst,
+                        company_id=company_id,
+                        original_filename=file.filename,
+                        db=db,
+                        user=user,
+                    )
+
+                    has_attachments = bool(existing_hashes or attachments_info)
+                    existing_email.has_attachments = has_attachments
+
+                    meta = existing_email.meta if isinstance(existing_email.meta, dict) else {}
+                    existing_meta_attachments = meta.get("attachments", [])
+                    if isinstance(existing_meta_attachments, list):
+                        meta["attachments"] = (
+                            existing_meta_attachments + attachments_info
+                        )
+                    else:
+                        meta["attachments"] = attachments_info
+                    meta["has_attachments"] = has_attachments
+                    existing_email.meta = meta
+
+                    db.commit()
+
+                    return {
+                        "email_id": str(existing_email_id),
+                        "duplicate": True,
+                        "duplicate_of_email_id": str(existing_email_id),
+                        "attachments_merged": True,
+                        "attachments_added": len(attachments_info),
+                        "pst_file_id": pst_file_id,
+                        "embedded_email_ids": [],
+                        "has_attachments": has_attachments,
+                        "message": "Duplicate merged attachments",
+                    }
+
+    # ============================================================
     # PST-parity spam classification (subject/sender/body)
     # ============================================================
     spam_res = classify_email_ai_sync(
@@ -1045,14 +1405,7 @@ async def upload_email_file_service(
             parsed.date_sent,
         )
     else:
-        content_hash = build_content_hash(
-            canonical_body or None,
-            parsed.sender_email,
-            parsed.sender_name,
-            parsed.recipients_to,
-            parsed.subject,
-            parsed.date_sent,
-        )
+        content_hash = dedupe_content_hash
 
     normalized_hash = (
         compute_normalized_text_hash((body_text_clean or canonical_body or ""))
@@ -1147,109 +1500,16 @@ async def upload_email_file_service(
     has_attachments = bool(parsed.attachments) if excluded else False
 
     if not excluded:
-        attach_bucket = settings.S3_ATTACHMENTS_BUCKET or settings.S3_BUCKET
-        entity_folder = (
-            f"case_{pst.case_id}" if pst.case_id else f"project_{pst.project_id}"
+        attachments_info = _persist_attachment_entries(
+            entries=attachment_entries,
+            email_id=email_id,
+            pst=pst,
+            company_id=company_id,
+            original_filename=file.filename,
+            db=db,
+            user=user,
         )
-        company_prefix = company_id if company_id else "no_company"
-
-        for i, att in enumerate(parsed.attachments):
-            data = att.data or b""
-            if not data:
-                continue
-            size = len(data)
-            safe_filename = _sanitize_attachment_filename(
-                att.filename, f"attachment_{i}"
-            )
-            content_type = (att.content_type or "application/octet-stream").lower()
-
-            # Skip embedded/signature images (parity with PST processor).
-            if content_type.startswith("image/") and _is_signature_image(
-                safe_filename, size, att.content_id, content_type
-            ):
-                continue
-            if att.is_inline and content_type.startswith("image/"):
-                continue
-
-            file_hash = _sha256_hex(data)
-            hash_prefix = file_hash[:8]
-            s3_key = f"attachments/{company_prefix}/{entity_folder}/{hash_prefix}_{safe_filename}"
-
-            try:
-                put_object(s3_key, data, content_type, bucket=attach_bucket)
-            except Exception as exc:
-                raise HTTPException(
-                    status_code=502,
-                    detail=f"Failed to store attachment {safe_filename}: {exc}",
-                ) from exc
-
-            email_attachment = EmailAttachment(
-                email_message_id=email_id,
-                filename=safe_filename,
-                content_type=content_type,
-                file_size_bytes=size,
-                s3_bucket=attach_bucket,
-                s3_key=s3_key,
-                attachment_hash=file_hash,
-                is_inline=bool(att.is_inline),
-                content_id=att.content_id,
-                is_duplicate=False,
-            )
-            db.add(email_attachment)
-
-            evidence_item_id = uuid.uuid4()
-            evidence_type_category = _evidence_type_for_attachment(
-                content_type, safe_filename
-            )
-
-            evidence_item = EvidenceItem(
-                id=evidence_item_id,
-                filename=safe_filename,
-                original_path=f"EMAIL_IMPORT:{file.filename}/{safe_filename}",
-                file_type=(os.path.splitext(safe_filename)[1] or "").lstrip(".").lower()
-                or None,
-                mime_type=content_type,
-                file_size=size,
-                file_hash=file_hash,
-                s3_bucket=attach_bucket,
-                s3_key=s3_key,
-                evidence_type=evidence_type_category,
-                source_type="email_import",
-                source_email_id=email_id,
-                case_id=pst.case_id,
-                project_id=pst.project_id,
-                is_duplicate=False,
-                duplicate_of_id=None,
-                processing_status="pending",
-                auto_tags=["email-attachment", "from-email-import"],
-                uploaded_by=getattr(user, "id", None),
-                meta={
-                    "email_import": {
-                        "pst_file_id": pst_file_id,
-                        "email_id": str(email_id),
-                        "content_id": att.content_id,
-                        "is_inline": bool(att.is_inline),
-                    }
-                },
-            )
-            db.add(evidence_item)
-
-            attachments_info.append(
-                {
-                    "attachment_id": str(email_attachment.id),
-                    "evidence_item_id": str(evidence_item_id),
-                    "filename": safe_filename,
-                    "size": size,
-                    "content_type": content_type,
-                    "is_inline": bool(att.is_inline),
-                    "content_id": att.content_id,
-                    "s3_key": s3_key,
-                    "hash": file_hash,
-                    "attachment_hash": file_hash,
-                    "is_duplicate": False,
-                }
-            )
-            has_attachments = True
+        has_attachments = bool(attachments_info)
 
     email_message.has_attachments = has_attachments
     if isinstance(email_message.meta, dict):
@@ -1259,7 +1519,10 @@ async def upload_email_file_service(
     # Best-effort: extract embedded forwarded messages (common in saved .msg forwards).
     embedded_created = 0
     embedded_email_ids: list[str] = []
-    if not excluded:
+    extract_embedded = bool(
+        getattr(settings, "EMAIL_IMPORT_EXTRACT_EMBEDDED", False)
+    )
+    if not excluded and extract_embedded:
         try:
             embedded = _extract_embedded_forwarded_emails(full_body_text_original)
         except Exception:
@@ -1398,21 +1661,48 @@ async def finalize_email_import_service(
     )
     emails_in_db = int(emails_in_db or 0)
 
+    # If nothing was imported, treat the batch as failed. This avoids the confusing
+    # "Complete (0 of 0)" state which commonly happens when *all* uploads failed.
+    if emails_in_db <= 0:
+        pst.processing_status = "failed"
+        pst.total_emails = 0
+        pst.processed_emails = 0
+        pst.processing_completed_at = datetime.utcnow()
+        pst.error_message = (
+            "Email import finished with 0 emails. "
+            "This usually means all file uploads failed or were rejected by the server."
+        )
+        db.commit()
+        raise HTTPException(status_code=409, detail=pst.error_message)
+
     from ..email_threading import build_email_threads
     from ..email_dedupe import dedupe_emails
 
+    thread_scope = (
+        str(getattr(settings, "PST_THREADING_SCOPE", "pst") or "pst")
+        .strip()
+        .lower()
+    )
+    thread_pst_id = pst_uuid if thread_scope == "pst" else None
     thread_stats = build_email_threads(
         db,
         case_id=pst.case_id,
         project_id=pst.project_id,
-        pst_file_id=pst_uuid,
+        pst_file_id=thread_pst_id,
         run_id="email_import_finalize",
     )
+
+    dedupe_scope = (
+        str(getattr(settings, "PST_DEDUPE_SCOPE", "pst") or "pst")
+        .strip()
+        .lower()
+    )
+    dedupe_pst_id = pst_uuid if dedupe_scope == "pst" else None
     dedupe_stats = dedupe_emails(
         db,
         case_id=pst.case_id,
         project_id=pst.project_id,
-        pst_file_id=pst_uuid,
+        pst_file_id=dedupe_pst_id,
         run_id="email_import_finalize",
     )
 

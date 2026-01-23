@@ -49,17 +49,18 @@ def parse_recipient_string(raw_string: str | None) -> list[str]:
     recipients: list[str] = []
 
     # Clean up the string
-    cleaned = raw_string.strip()
+    cleaned = _strip_mailto(raw_string.strip())
 
     # Try standard email parsing first (handles RFC 2822 format)
     try:
         # getaddresses handles comma-separated lists
         parsed = getaddresses([cleaned])
         for name, email in parsed:
+            email = _clean_email_token(email)
             if email:
                 # Format as "Name <email>" or just "email"
                 if name:
-                    recipients.append(f"{name} <{email}>")
+                    recipients.append(f"{name.strip()} <{email}>")
                 else:
                     recipients.append(email)
     except Exception:
@@ -76,14 +77,15 @@ def parse_recipient_string(raw_string: str | None) -> list[str]:
                     if part:
                         # Try to extract email from part
                         name, email = parseaddr(part)
+                        email = _clean_email_token(email)
                         if email:
                             if name:
-                                recipients.append(f"{name} <{email}>")
+                                recipients.append(f"{name.strip()} <{email}>")
                             else:
                                 recipients.append(email)
                         elif "@" in part:
                             # Fallback: just use the part if it looks like an email
-                            recipients.append(part)
+                            recipients.append(_strip_mailto(part))
                 break
 
         # If still no recipients and string contains @, use as-is
@@ -91,7 +93,7 @@ def parse_recipient_string(raw_string: str | None) -> list[str]:
             # Try to extract email pattern
             email_pattern = r"[\w\.-]+@[\w\.-]+\.\w+"
             matches = re.findall(email_pattern, cleaned)
-            recipients.extend(matches)
+            recipients.extend([_clean_email_token(m) or m for m in matches])
 
     # Deduplicate while preserving order
     seen: set[str] = set()
@@ -103,6 +105,67 @@ def parse_recipient_string(raw_string: str | None) -> list[str]:
             unique_recipients.append(r)
 
     return unique_recipients
+
+
+def _strip_mailto(value: str) -> str:
+    if not value:
+        return value
+    text = re.sub(r"mailto:", "", value, flags=re.IGNORECASE)
+    text = re.sub(r"([\\w.+-]+@[\\w.-]+)\\?[^\\s>;,]*", r"\\1", text)
+    return text
+
+
+def _clean_email_token(value: str | None) -> str | None:
+    if not value:
+        return None
+    text = _strip_mailto(str(value)).strip()
+    if not text:
+        return None
+    text = text.strip("<>").strip()
+    if "@" not in text:
+        return None
+    return text
+
+
+def _normalize_recipient_entry(value: str) -> tuple[str | None, str | None]:
+    cleaned = _strip_mailto(str(value))
+    name, email = parseaddr(cleaned)
+    email = _clean_email_token(email) or None
+    name = (name or "").strip()
+    if email:
+        if name:
+            return f"{name} <{email}>", email.lower()
+        return email, email.lower()
+    cleaned = cleaned.strip()
+    return (cleaned or None), (cleaned.lower() if cleaned else None)
+
+
+def _sanitize_recipient_list(values: Any) -> list[str]:
+    if not values:
+        return []
+    if isinstance(values, str):
+        values = [values]
+    out: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if not value:
+            continue
+        normalized, key = _normalize_recipient_entry(str(value))
+        if not normalized:
+            continue
+        dedupe_key = key or normalized.lower()
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        out.append(normalized)
+    return out
+
+
+def _sanitize_display_string(value: str | None) -> str | None:
+    if not value:
+        return None
+    cleaned = _strip_mailto(str(value)).strip()
+    return cleaned[:2000] if cleaned else None
 
 
 def _coerce_raw_headers(raw_headers: Any) -> dict[str, Any]:
@@ -134,10 +197,9 @@ def _extract_recipients_display_from_raw_headers(
     recipients_display: dict[str, str] = {}
     for key in ("to", "cc", "bcc"):
         value = _header_value(raw_headers, key)
-        if value:
-            cleaned = value.strip()
-            if cleaned:
-                recipients_display[key] = cleaned[:2000]
+        cleaned = _sanitize_display_string(value)
+        if cleaned:
+            recipients_display[key] = cleaned
     return recipients_display
 
 
@@ -167,6 +229,24 @@ def _build_scope_filter(
     return " AND " + " AND ".join(clauses), params
 
 
+def _recipient_source_clause(field: str, from_raw_headers: bool) -> str:
+    display_clause = (
+        f"(metadata->'recipients_display'->>'{field}' IS NOT NULL "
+        f"AND metadata->'recipients_display'->>'{field}' != '')"
+    )
+    if not from_raw_headers:
+        return display_clause
+
+    header_key = field.capitalize()
+    raw_clause = (
+        f"(metadata->'raw_headers'->>'{header_key}' IS NOT NULL "
+        f"AND metadata->'raw_headers'->>'{header_key}' != '') "
+        f"OR (metadata->'raw_headers'->>'{field}' IS NOT NULL "
+        f"AND metadata->'raw_headers'->>'{field}' != '')"
+    )
+    return f"({display_clause} OR ({raw_clause}))"
+
+
 def _load_env_file(path: str | None) -> None:
     if not path:
         return
@@ -187,19 +267,23 @@ def _load_env_file(path: str | None) -> None:
 
 
 def count_emails_to_update(
-    session: Any, *, case_id: str | None, project_id: str | None
+    session: Any,
+    *,
+    case_id: str | None,
+    project_id: str | None,
+    from_raw_headers: bool,
 ) -> dict[str, int]:
     """Count emails that need recipient backfill."""
     counts: dict[str, int] = {}
     scope_clause, scope_params = _build_scope_filter(case_id, project_id)
 
     for field in ["to", "cc", "bcc"]:
+        source_clause = _recipient_source_clause(field, from_raw_headers)
         query = text(
             f"""
             SELECT COUNT(*) FROM email_messages
             WHERE (recipients_{field} IS NULL OR recipients_{field} = '{{}}')
-            AND metadata->'recipients_display'->>'{field}' IS NOT NULL
-            AND metadata->'recipients_display'->>'{field}' != ''
+            AND {source_clause}
             {scope_clause}
         """
         )
@@ -207,6 +291,9 @@ def count_emails_to_update(
         counts[field] = result.scalar() or 0
 
     # Also count total emails with any empty recipients but metadata available
+    to_clause = _recipient_source_clause("to", from_raw_headers)
+    cc_clause = _recipient_source_clause("cc", from_raw_headers)
+    bcc_clause = _recipient_source_clause("bcc", from_raw_headers)
     query = text(
         f"""
         SELECT COUNT(*) FROM email_messages
@@ -215,7 +302,7 @@ def count_emails_to_update(
             OR (recipients_cc IS NULL OR recipients_cc = '{{}}')
             OR (recipients_bcc IS NULL OR recipients_bcc = '{{}}')
         )
-        AND metadata->'recipients_display' IS NOT NULL
+        AND ({to_clause} OR {cc_clause} OR {bcc_clause})
         {scope_clause}
     """
     )
@@ -232,9 +319,13 @@ def fetch_emails_batch(
     *,
     case_id: str | None,
     project_id: str | None,
+    from_raw_headers: bool,
 ) -> list[dict[str, Any]]:
     """Fetch a batch of emails that need recipient backfill."""
     scope_clause, scope_params = _build_scope_filter(case_id, project_id)
+    to_clause = _recipient_source_clause("to", from_raw_headers)
+    cc_clause = _recipient_source_clause("cc", from_raw_headers)
+    bcc_clause = _recipient_source_clause("bcc", from_raw_headers)
     query = text(
         f"""
         SELECT 
@@ -247,16 +338,13 @@ def fetch_emails_batch(
         FROM email_messages
         WHERE (
             ((recipients_to IS NULL OR recipients_to = '{{}}')
-             AND metadata->'recipients_display'->>'to' IS NOT NULL
-             AND metadata->'recipients_display'->>'to' != '')
+             AND {to_clause})
             OR
             ((recipients_cc IS NULL OR recipients_cc = '{{}}')
-             AND metadata->'recipients_display'->>'cc' IS NOT NULL
-             AND metadata->'recipients_display'->>'cc' != '')
+             AND {cc_clause})
             OR
             ((recipients_bcc IS NULL OR recipients_bcc = '{{}}')
-             AND metadata->'recipients_display'->>'bcc' IS NOT NULL
-             AND metadata->'recipients_display'->>'bcc' != '')
+             AND {bcc_clause})
         )
         {scope_clause}
         ORDER BY id
@@ -312,10 +400,10 @@ def update_recipients(
     if recipients_display:
         updates.append(
             "metadata = jsonb_set("
-            "COALESCE(metadata, '{}'::jsonb), "
+            "COALESCE(metadata::jsonb, '{}'::jsonb), "
             "'{recipients_display}', "
             "CAST(:recipients_display AS jsonb), "
-            "true)"
+            "true)::json"
         )
         params["recipients_display"] = json.dumps(recipients_display)
 
@@ -383,6 +471,11 @@ def main():
         action="store_true",
         help="Derive recipients_display from metadata.raw_headers when missing",
     )
+    parser.add_argument(
+        "--sanitize-mailto",
+        action="store_true",
+        help="Clean mailto: prefixes in recipients and display values",
+    )
     args = parser.parse_args()
 
     _load_env_file(args.env_file)
@@ -407,7 +500,10 @@ def main():
             print(f"Scope: {', '.join(scope_label)}")
 
         counts = count_emails_to_update(
-            session, case_id=args.case_id, project_id=args.project_id
+            session,
+            case_id=args.case_id,
+            project_id=args.project_id,
+            from_raw_headers=args.from_raw_headers,
         )
 
         print("\nEmails with metadata available for backfill:")
@@ -442,6 +538,7 @@ def main():
                 args.batch_size,
                 case_id=args.case_id,
                 project_id=args.project_id,
+                from_raw_headers=args.from_raw_headers,
             )
             if not batch:
                 break
@@ -452,6 +549,7 @@ def main():
                 email_id = row["id"]
                 recipients_display = row["recipients_display"]
                 derived_display = None
+                sanitized_display = None
 
                 if args.from_raw_headers and not recipients_display:
                     raw_headers = _coerce_raw_headers(row.get("raw_headers"))
@@ -461,11 +559,34 @@ def main():
                         )
                         if derived_display:
                             recipients_display = derived_display
+                if args.sanitize_mailto and recipients_display:
+                    sanitized_display = {}
+                    for key in ("to", "cc", "bcc"):
+                        cleaned = _sanitize_display_string(
+                            recipients_display.get(key)
+                            if isinstance(recipients_display, dict)
+                            else None
+                        )
+                        if cleaned:
+                            sanitized_display[key] = cleaned
+                    if sanitized_display != recipients_display:
+                        recipients_display = sanitized_display
 
                 # Parse recipients from metadata
                 new_to = None
                 new_cc = None
                 new_bcc = None
+
+                if args.sanitize_mailto:
+                    sanitized_to = _sanitize_recipient_list(row["recipients_to"])
+                    sanitized_cc = _sanitize_recipient_list(row["recipients_cc"])
+                    sanitized_bcc = _sanitize_recipient_list(row["recipients_bcc"])
+                    if sanitized_to and sanitized_to != (row["recipients_to"] or []):
+                        new_to = sanitized_to
+                    if sanitized_cc and sanitized_cc != (row["recipients_cc"] or []):
+                        new_cc = sanitized_cc
+                    if sanitized_bcc and sanitized_bcc != (row["recipients_bcc"] or []):
+                        new_bcc = sanitized_bcc
 
                 # Only update if current value is empty
                 if not row["recipients_to"] and recipients_display.get("to"):
@@ -483,7 +604,13 @@ def main():
                     if parsed:
                         new_bcc = parsed
 
-                needs_update = bool(new_to or new_cc or new_bcc or derived_display)
+                needs_update = bool(
+                    new_to
+                    or new_cc
+                    or new_bcc
+                    or derived_display
+                    or sanitized_display
+                )
                 if needs_update:
                     if args.verbose:
                         print(f"  {email_id}:")
@@ -501,6 +628,8 @@ def main():
                             )
                         if derived_display and not (new_to or new_cc or new_bcc):
                             print("    display-only update")
+                        if sanitized_display and not (new_to or new_cc or new_bcc):
+                            print("    mailto cleanup")
 
                     if not args.dry_run:
                         update_recipients(
@@ -509,7 +638,7 @@ def main():
                             new_to,
                             new_cc,
                             new_bcc,
-                            recipients_display=derived_display,
+                            recipients_display=(sanitized_display or derived_display),
                         )
 
                     batch_updates += 1

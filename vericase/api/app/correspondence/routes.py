@@ -42,6 +42,7 @@ from .services import (
     list_emails_service,
     admin_rescue_pst_service,
     admin_cleanup_pst_service,
+    delete_pst_upload_service,
 )
 from .utils import (
     PSTUploadInitRequest,
@@ -292,6 +293,18 @@ async def admin_rescue_pst(
       reason: str (only used for action="fail")
     """
     return await admin_rescue_pst_service(pst_file_id, body, db, user)
+
+
+@router.post("/pst/{pst_file_id}/delete")
+async def delete_pst_upload(
+    pst_file_id: str,
+    body: dict = Body(default={}),
+    _: None = Depends(verify_csrf_token),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Delete a failed/stuck PST/email-import batch and its related records."""
+    return await delete_pst_upload_service(pst_file_id, body, db, user)
 
 
 @router.get("/pst/files", response_model=PSTFileListResponse)

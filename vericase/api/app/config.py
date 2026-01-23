@@ -276,6 +276,9 @@ class Settings(BaseSettings):
     # Skip non-email MAPI items (tasks/appointments/etc) during PST ingest for speed and signal quality.
     # Set false if you need to ingest *all* IPM.* items for a forensic workflow.
     PST_SKIP_NON_EMAIL_ITEMS: bool = True
+    # Email import: avoid extracting embedded forwarded messages by default
+    # (uploads are often already split and embedded extraction creates duplicates).
+    EMAIL_IMPORT_EXTRACT_EMBEDDED: bool = False
     PST_AGENT_LOG_ENABLED: bool = False  # Disable local debug logging in production
     PST_AGENT_LOG_PATH: str | None = None  # Optional file path for local debug logs
 

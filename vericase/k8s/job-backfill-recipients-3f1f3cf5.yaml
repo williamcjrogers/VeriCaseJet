@@ -1,0 +1,655 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backfill-recipients-3f1f3cf5
+  namespace: vericase
+data:
+  backfill.py: |
+    #!/usr/bin/env python3
+    """
+    Backfill recipients_to, recipients_cc, recipients_bcc columns from email metadata.
+    
+    This script finds emails where recipient arrays are empty but metadata contains
+    recipients_display information, then parses and populates the array columns.
+    
+    Usage:
+        python scripts/backfill_recipients.py [--dry-run] [--batch-size 1000] [--limit 10000]
+    
+    Options:
+        --dry-run      Preview changes without writing to database
+        --batch-size   Number of records to update per batch (default: 500)
+        --limit        Maximum number of records to process (default: no limit)
+    """
+    
+    from __future__ import annotations
+    
+    import argparse
+    import json
+    import os
+    import re
+    import sys
+    from email.utils import getaddresses, parseaddr
+    from pathlib import Path
+    from typing import Any
+    
+    # Add the app directory to path
+    sys.path.insert(0, str(Path(__file__).parent.parent / "vericase" / "api"))
+    
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.orm import sessionmaker
+    
+    
+    def parse_recipient_string(raw_string: str | None) -> list[str]:
+        """
+        Parse a raw recipient string into a list of individual email addresses.
+    
+        Handles formats like:
+        - "John Doe <john@example.com>, Jane Smith <jane@example.com>"
+        - "john@example.com; jane@example.com"
+        - "John Doe <john@example.com>"
+        - "john@example.com"
+        - "'Display Name' <email@domain.com>"
+        """
+        if not raw_string or not raw_string.strip():
+            return []
+    
+        recipients: list[str] = []
+    
+        # Clean up the string
+        cleaned = raw_string.strip()
+    
+        # Try standard email parsing first (handles RFC 2822 format)
+        try:
+            # getaddresses handles comma-separated lists
+            parsed = getaddresses([cleaned])
+            for name, email in parsed:
+                if email:
+                    # Format as "Name <email>" or just "email"
+                    if name:
+                        recipients.append(f"{name} <{email}>")
+                    else:
+                        recipients.append(email)
+        except Exception:
+            pass
+    
+        # If standard parsing didn't work, try manual splitting
+        if not recipients:
+            # Split by common delimiters
+            for delimiter in [";", ","]:
+                if delimiter in cleaned:
+                    parts = cleaned.split(delimiter)
+                    for part in parts:
+                        part = part.strip()
+                        if part:
+                            # Try to extract email from part
+                            name, email = parseaddr(part)
+                            if email:
+                                if name:
+                                    recipients.append(f"{name} <{email}>")
+                                else:
+                                    recipients.append(email)
+                            elif "@" in part:
+                                # Fallback: just use the part if it looks like an email
+                                recipients.append(part)
+                    break
+    
+            # If still no recipients and string contains @, use as-is
+            if not recipients and "@" in cleaned:
+                # Try to extract email pattern
+                email_pattern = r"[\\w\\.-]+@[\\w\\.-]+\\.\\w+"
+                matches = re.findall(email_pattern, cleaned)
+                recipients.extend(matches)
+    
+        # Deduplicate while preserving order
+        seen: set[str] = set()
+        unique_recipients: list[str] = []
+        for r in recipients:
+            r_lower = r.lower()
+            if r_lower not in seen:
+                seen.add(r_lower)
+                unique_recipients.append(r)
+    
+        return unique_recipients
+    
+    
+    def _coerce_raw_headers(raw_headers: Any) -> dict[str, Any]:
+        if not raw_headers:
+            return {}
+        if isinstance(raw_headers, dict):
+            return raw_headers
+        if isinstance(raw_headers, str):
+            try:
+                parsed = json.loads(raw_headers)
+                if isinstance(parsed, dict):
+                    return parsed
+            except Exception:
+                return {}
+        return {}
+    
+    
+    def _header_value(raw_headers: dict[str, Any], key: str) -> str | None:
+        key_lower = key.lower()
+        for k, v in raw_headers.items():
+            if str(k).lower() == key_lower:
+                return str(v)
+        return None
+    
+    
+    def _extract_recipients_display_from_raw_headers(
+        raw_headers: dict[str, Any],
+    ) -> dict[str, str]:
+        recipients_display: dict[str, str] = {}
+        for key in ("to", "cc", "bcc"):
+            value = _header_value(raw_headers, key)
+            if value:
+                cleaned = value.strip()
+                if cleaned:
+                    recipients_display[key] = cleaned[:2000]
+        return recipients_display
+    
+    
+    def get_database_url() -> str:
+        """Get database URL from environment or use default."""
+        return os.environ.get(
+            "DATABASE_URL",
+            "postgresql+psycopg2://vericase:vericase@localhost:5432/vericase",
+        )
+    
+    
+    def _build_scope_filter(
+        case_id: str | None, project_id: str | None
+    ) -> tuple[str, dict[str, Any]]:
+        clauses: list[str] = []
+        params: dict[str, Any] = {}
+    
+        if case_id:
+            clauses.append("case_id = CAST(:case_id AS uuid)")
+            params["case_id"] = case_id
+        if project_id:
+            clauses.append("project_id = CAST(:project_id AS uuid)")
+            params["project_id"] = project_id
+    
+        if not clauses:
+            return "", params
+        return " AND " + " AND ".join(clauses), params
+    
+    
+    def _recipient_source_clause(field: str, from_raw_headers: bool) -> str:
+        display_clause = (
+            f"(metadata->'recipients_display'->>'{field}' IS NOT NULL "
+            f"AND metadata->'recipients_display'->>'{field}' != '')"
+        )
+        if not from_raw_headers:
+            return display_clause
+    
+        header_key = field.capitalize()
+        raw_clause = (
+            f"(metadata->'raw_headers'->>'{header_key}' IS NOT NULL "
+            f"AND metadata->'raw_headers'->>'{header_key}' != '') "
+            f"OR (metadata->'raw_headers'->>'{field}' IS NOT NULL "
+            f"AND metadata->'raw_headers'->>'{field}' != '')"
+        )
+        return f"({display_clause} OR ({raw_clause}))"
+    
+    
+    def _load_env_file(path: str | None) -> None:
+        if not path:
+            return
+        env_path = Path(path)
+        if not env_path.exists():
+            raise FileNotFoundError(f"Env file not found: {env_path}")
+        with env_path.open("r", encoding="utf-8") as handle:
+            for raw in handle:
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                if not key or key in os.environ:
+                    continue
+                value = value.strip().strip("'").strip('"')
+                os.environ[key] = value
+    
+    
+    def count_emails_to_update(
+        session: Any,
+        *,
+        case_id: str | None,
+        project_id: str | None,
+        from_raw_headers: bool,
+    ) -> dict[str, int]:
+        """Count emails that need recipient backfill."""
+        counts: dict[str, int] = {}
+        scope_clause, scope_params = _build_scope_filter(case_id, project_id)
+    
+        for field in ["to", "cc", "bcc"]:
+            source_clause = _recipient_source_clause(field, from_raw_headers)
+            query = text(
+                f"""
+                SELECT COUNT(*) FROM email_messages
+                WHERE (recipients_{field} IS NULL OR recipients_{field} = '{{}}')
+                AND {source_clause}
+                {scope_clause}
+            """
+            )
+            result = session.execute(query, scope_params)
+            counts[field] = result.scalar() or 0
+    
+        # Also count total emails with any empty recipients but metadata available
+        to_clause = _recipient_source_clause("to", from_raw_headers)
+        cc_clause = _recipient_source_clause("cc", from_raw_headers)
+        bcc_clause = _recipient_source_clause("bcc", from_raw_headers)
+        query = text(
+            f"""
+            SELECT COUNT(*) FROM email_messages
+            WHERE (
+                (recipients_to IS NULL OR recipients_to = '{{}}')
+                OR (recipients_cc IS NULL OR recipients_cc = '{{}}')
+                OR (recipients_bcc IS NULL OR recipients_bcc = '{{}}')
+            )
+            AND ({to_clause} OR {cc_clause} OR {bcc_clause})
+            {scope_clause}
+        """
+        )
+        result = session.execute(query, scope_params)
+        counts["total_with_metadata"] = result.scalar() or 0
+    
+        return counts
+    
+    
+    def fetch_emails_batch(
+        session: Any,
+        offset: int,
+        batch_size: int,
+        *,
+        case_id: str | None,
+        project_id: str | None,
+        from_raw_headers: bool,
+    ) -> list[dict[str, Any]]:
+        """Fetch a batch of emails that need recipient backfill."""
+        scope_clause, scope_params = _build_scope_filter(case_id, project_id)
+        to_clause = _recipient_source_clause("to", from_raw_headers)
+        cc_clause = _recipient_source_clause("cc", from_raw_headers)
+        bcc_clause = _recipient_source_clause("bcc", from_raw_headers)
+        query = text(
+            f"""
+            SELECT 
+                id,
+                metadata->'recipients_display' as recipients_display,
+                metadata->'raw_headers' as raw_headers,
+                recipients_to,
+                recipients_cc,
+                recipients_bcc
+            FROM email_messages
+            WHERE (
+                ((recipients_to IS NULL OR recipients_to = '{{}}')
+                 AND {to_clause})
+                OR
+                ((recipients_cc IS NULL OR recipients_cc = '{{}}')
+                 AND {cc_clause})
+                OR
+                ((recipients_bcc IS NULL OR recipients_bcc = '{{}}')
+                 AND {bcc_clause})
+            )
+            {scope_clause}
+            ORDER BY id
+            LIMIT :batch_size OFFSET :offset
+        """
+        )
+        params = {
+            "batch_size": batch_size,
+            "offset": offset,
+            **scope_params,
+        }
+        result = session.execute(query, params)
+        rows = result.fetchall()
+    
+        return [
+            {
+                "id": row.id,
+                "recipients_display": row.recipients_display or {},
+                "raw_headers": row.raw_headers,
+                "recipients_to": row.recipients_to,
+                "recipients_cc": row.recipients_cc,
+                "recipients_bcc": row.recipients_bcc,
+            }
+            for row in rows
+        ]
+    
+    
+    def update_recipients(
+        session: Any,
+        email_id: str,
+        recipients_to: list[str] | None,
+        recipients_cc: list[str] | None,
+        recipients_bcc: list[str] | None,
+        recipients_display: dict[str, str] | None = None,
+    ) -> None:
+        """Update recipient columns (and optionally metadata display) for an email."""
+        # Build dynamic update based on what needs updating
+        updates = []
+        params: dict[str, Any] = {"id": email_id}
+    
+        if recipients_to is not None:
+            updates.append("recipients_to = :recipients_to")
+            params["recipients_to"] = recipients_to
+    
+        if recipients_cc is not None:
+            updates.append("recipients_cc = :recipients_cc")
+            params["recipients_cc"] = recipients_cc
+    
+        if recipients_bcc is not None:
+            updates.append("recipients_bcc = :recipients_bcc")
+            params["recipients_bcc"] = recipients_bcc
+    
+        if recipients_display:
+            updates.append(
+                "metadata = jsonb_set("
+                "COALESCE(metadata::jsonb, '{}'::jsonb), "
+                "'{recipients_display}', "
+                "CAST(:recipients_display AS jsonb), "
+                "true)::json"
+            )
+            params["recipients_display"] = json.dumps(recipients_display)
+    
+        if not updates:
+            return
+    
+        query = text(
+            f"""
+            UPDATE email_messages
+            SET {', '.join(updates)}
+            WHERE id = :id
+        """
+        )
+    
+        session.execute(query, params)
+    
+    
+    def main():
+        parser = argparse.ArgumentParser(
+            description="Backfill email recipients from metadata"
+        )
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Preview changes without writing to database",
+        )
+        parser.add_argument(
+            "--batch-size",
+            type=int,
+            default=500,
+            help="Number of records to process per batch (default: 500)",
+        )
+        parser.add_argument(
+            "--limit",
+            type=int,
+            default=None,
+            help="Maximum number of records to process (default: no limit)",
+        )
+        parser.add_argument(
+            "--verbose",
+            "-v",
+            action="store_true",
+            help="Show detailed progress for each record",
+        )
+        parser.add_argument(
+            "--project-id",
+            type=str,
+            default=None,
+            help="Restrict backfill to a specific project_id",
+        )
+        parser.add_argument(
+            "--case-id",
+            type=str,
+            default=None,
+            help="Restrict backfill to a specific case_id",
+        )
+        parser.add_argument(
+            "--env-file",
+            type=str,
+            default=None,
+            help="Optional .env file to load before connecting",
+        )
+        parser.add_argument(
+            "--from-raw-headers",
+            action="store_true",
+            help="Derive recipients_display from metadata.raw_headers when missing",
+        )
+        args = parser.parse_args()
+    
+        _load_env_file(args.env_file)
+    
+        database_url = get_database_url()
+        print("Connecting to database...")
+        print(
+            f"  URL: {database_url.split('@')[1] if '@' in database_url else 'local'}"
+        )
+    
+        engine = create_engine(database_url)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+    
+        try:
+            # Count emails to update
+            print("\nAnalyzing emails with missing recipients...")
+            if args.project_id or args.case_id:
+                scope_label = []
+                if args.project_id:
+                    scope_label.append(f"project_id={args.project_id}")
+                if args.case_id:
+                    scope_label.append(f"case_id={args.case_id}")
+                print(f"Scope: {', '.join(scope_label)}")
+    
+            counts = count_emails_to_update(
+                session,
+                case_id=args.case_id,
+                project_id=args.project_id,
+                from_raw_headers=args.from_raw_headers,
+            )
+    
+            print("\nEmails with metadata available for backfill:")
+            print(f"  - recipients_to:  {counts['to']:,} emails")
+            print(f"  - recipients_cc:  {counts['cc']:,} emails")
+            print(f"  - recipients_bcc: {counts['bcc']:,} emails")
+            print(
+                f"  - Total with any metadata: {counts['total_with_metadata']:,} emails"
+            )
+    
+            total_to_process = counts["to"] + counts["cc"] + counts["bcc"]
+            if total_to_process == 0:
+                print("\nNo emails need backfilling!")
+                return 0
+    
+            if args.dry_run:
+                print("\n[DRY RUN] - No changes will be made")
+    
+            # Process in batches
+            offset = 0
+            processed = 0
+            updated = 0
+    
+            print(f"\nProcessing emails in batches of {args.batch_size}...")
+    
+            while True:
+                if args.limit and processed >= args.limit:
+                    print(f"\nReached limit of {args.limit} records")
+                    break
+    
+                batch = fetch_emails_batch(
+                    session,
+                    offset,
+                    args.batch_size,
+                    case_id=args.case_id,
+                    project_id=args.project_id,
+                from_raw_headers=args.from_raw_headers,
+                )
+                if not batch:
+                    break
+    
+                batch_updates = 0
+    
+                for row in batch:
+                    email_id = row["id"]
+                    recipients_display = row["recipients_display"]
+                    derived_display = None
+    
+                    if args.from_raw_headers and not recipients_display:
+                        raw_headers = _coerce_raw_headers(row.get("raw_headers"))
+                        if raw_headers:
+                            derived_display = _extract_recipients_display_from_raw_headers(
+                                raw_headers
+                            )
+                            if derived_display:
+                                recipients_display = derived_display
+    
+                    # Parse recipients from metadata
+                    new_to = None
+                    new_cc = None
+                    new_bcc = None
+    
+                    # Only update if current value is empty
+                    if not row["recipients_to"] and recipients_display.get("to"):
+                        parsed = parse_recipient_string(recipients_display["to"])
+                        if parsed:
+                            new_to = parsed
+    
+                    if not row["recipients_cc"] and recipients_display.get("cc"):
+                        parsed = parse_recipient_string(recipients_display["cc"])
+                        if parsed:
+                            new_cc = parsed
+    
+                    if not row["recipients_bcc"] and recipients_display.get("bcc"):
+                        parsed = parse_recipient_string(recipients_display["bcc"])
+                        if parsed:
+                            new_bcc = parsed
+    
+                    needs_update = bool(new_to or new_cc or new_bcc or derived_display)
+                    if needs_update:
+                        if args.verbose:
+                            print(f"  {email_id}:")
+                            if new_to:
+                                print(
+                                    f"    to:  {new_to[:2]}{'...' if len(new_to) > 2 else ''}"
+                                )
+                            if new_cc:
+                                print(
+                                    f"    cc:  {new_cc[:2]}{'...' if len(new_cc) > 2 else ''}"
+                                )
+                            if new_bcc:
+                                print(
+                                    f"    bcc: {new_bcc[:2]}{'...' if len(new_bcc) > 2 else ''}"
+                                )
+                            if derived_display and not (new_to or new_cc or new_bcc):
+                                print("    display-only update")
+    
+                        if not args.dry_run:
+                            update_recipients(
+                                session,
+                                email_id,
+                                new_to,
+                                new_cc,
+                                new_bcc,
+                                recipients_display=derived_display,
+                            )
+    
+                        batch_updates += 1
+                        updated += 1
+    
+                    processed += 1
+    
+                    if args.limit and processed >= args.limit:
+                        break
+    
+                if batch_updates > 0 and not args.dry_run:
+                    session.commit()
+    
+                offset += args.batch_size
+    
+                # Progress update
+                print(f"  Processed {processed:,} emails, updated {updated:,}...")
+    
+            print(
+                f"\n{'[DRY RUN] Would have updated' if args.dry_run else 'Updated'} "
+                f"{updated:,} emails out of {processed:,} processed"
+            )
+    
+            if not args.dry_run:
+                session.commit()
+                print("Changes committed successfully!")
+    
+            return 0
+    
+        except KeyboardInterrupt:
+            print("\n\nInterrupted by user")
+            session.rollback()
+            return 1
+        except Exception as e:
+            print(f"\nError: {e}")
+            session.rollback()
+            raise
+        finally:
+            session.close()
+    
+    
+    if __name__ == "__main__":
+        sys.exit(main())
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: backfill-recipients-3f1f3cf5-20260123d
+  namespace: vericase
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: backfill-recipients-3f1f3cf5
+    spec:
+      serviceAccountName: vericase-api-sa
+      restartPolicy: Never
+      containers:
+        - name: backfill
+          image: docker.io/wcjrogers/vericase-api@sha256:324b7df4d7934416924779ca483e3bf5ade870451c357e51a48b699526ca7c54
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: USE_AWS_SERVICES
+              value: "true"
+            - name: AWS_REGION
+              value: "eu-west-2"
+            - name: AWS_DEFAULT_REGION
+              value: "eu-west-2"
+            - name: S3_BUCKET
+              value: "vericase-data"
+            - name: S3_PST_BUCKET
+              value: "vericase-data"
+            - name: S3_REGION
+              value: "eu-west-2"
+            - name: MINIO_BUCKET
+              value: "vericase-data"
+            - name: MINIO_ENDPOINT
+              value: ""
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vericase-secrets
+                  key: DATABASE_URL
+          command:
+            [
+              "python",
+              "/scripts/backfill.py",
+              "--project-id",
+              "3f1f3cf5-e324-4876-8b32-6b7603e89001",
+              "--from-raw-headers",
+            ]
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: backfill-recipients-3f1f3cf5
+            defaultMode: 0444

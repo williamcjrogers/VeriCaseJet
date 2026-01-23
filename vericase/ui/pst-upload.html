@@ -1077,6 +1077,17 @@
       border-color: rgba(var(--vericase-teal-rgb), 0.5);
     }
 
+    .btn-icon.btn-danger {
+      border-color: rgba(239, 68, 68, 0.35);
+      color: #ef4444;
+    }
+
+    .btn-icon.btn-danger:hover {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.6);
+      color: #ef4444;
+    }
+
     .no-history {
       text-align: center;
       padding: 60px 24px;
@@ -1887,7 +1898,8 @@
       const token =
         localStorage.getItem("vericase_token") ||
         localStorage.getItem("token") ||
-        localStorage.getItem("jwt");
+        localStorage.getItem("jwt") ||
+        localStorage.getItem("access_token");
       const csrfToken =
         typeof getCsrfToken === "function" ? getCsrfToken() : null;
       return {
@@ -2101,6 +2113,7 @@
       else if (action === "rescue") rescuePST(id);
       else if (action === "error") showPSTError(id);
       else if (action === "view") viewEmails();
+      else if (action === "delete") deletePSTUpload(id);
     });
 
     // Add files to queue
@@ -2114,6 +2127,7 @@
         status: "pending",
         progress: 0,
         error: null,
+        note: null,
         speed: null,
         uploadStartTime: null,
         pst_file_id: null,
@@ -2330,6 +2344,7 @@
                     ? `<span class="email-extracted"><i class="fas fa-envelope-open"></i> ${escapeHtml(formatExtractedEmailCount(item.processed_emails || 0, item.total_emails || 0))}</span>`
                     : ""}
                   ${item.error ? `<span style="color: #ef4444;"><i class="fas fa-exclamation-circle"></i> ${escapeHtml(item.error)}</span>` : ""}
+                  ${item.note ? `<span style="color: var(--vericase-teal);"><i class="fas fa-info-circle"></i> ${escapeHtml(item.note)}</span>` : ""}
                 </div>
               </div>
               <div class="file-progress-section">
@@ -2424,6 +2439,11 @@
         
         Object.assign(item, updates);
         updateStats();
+
+        if (updates.error !== undefined || updates.note !== undefined) {
+          renderQueue();
+          return;
+        }
 
         // Update DOM directly for performance
         const el = document.getElementById(id);
@@ -2659,7 +2679,8 @@
         const token =
           localStorage.getItem("vericase_token") ||
           localStorage.getItem("token") ||
-          localStorage.getItem("jwt");
+          localStorage.getItem("jwt") ||
+          localStorage.getItem("access_token");
         if (token) {
           xhr.setRequestHeader("Authorization", `Bearer ${token}`);
         }
@@ -3146,11 +3167,25 @@
       }
 
       // Upload each email file into the batch.
-      const maxConcurrent = Math.min(MAX_CONCURRENT, 4);
+      const maxConcurrent = Math.min(MAX_CONCURRENT, 2);
       const executing = new Set();
+      let duplicateCount = 0;
+      let mergedCount = 0;
+      let mergedAttachments = 0;
 
       for (const item of items) {
-        const promise = uploadEmailImportFile(item, pstFileId).finally(() => executing.delete(promise));
+        const promise = uploadEmailImportFile(item, pstFileId)
+          .then((payload) => {
+            if (payload?.duplicate) {
+              duplicateCount += 1;
+              if (payload?.attachments_merged) {
+                mergedCount += 1;
+                mergedAttachments += Number(payload.attachments_added || 0);
+              }
+            }
+            return payload;
+          })
+          .finally(() => executing.delete(promise));
         executing.add(promise);
         if (executing.size >= maxConcurrent) {
           await Promise.race(executing);
@@ -3178,6 +3213,17 @@
         items.forEach((it) => {
           if (it.status !== "error") updateFileItem(it.id, { status: "complete", progress: 100 });
         });
+
+        if (duplicateCount > 0) {
+          const mergedNote =
+            mergedCount > 0
+              ? ` (${mergedCount} merged, ${mergedAttachments} attachment${mergedAttachments === 1 ? "" : "s"} added)`
+              : "";
+          ToastManager.info(
+            "Duplicates Skipped",
+            `${duplicateCount} duplicate email${duplicateCount === 1 ? "" : "s"} skipped${mergedNote}`
+          );
+        }
       } catch (e) {
         const msg = e?.message || String(e);
         items.forEach((it) => {
@@ -3193,52 +3239,100 @@
         const formData = new FormData();
         formData.append("file", item.file);
 
-        await new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open(
-            "POST",
-            `${apiUrl}/api/correspondence/email-import/${encodeURIComponent(pstFileId)}/upload`,
-            true,
-          );
+        const maxAttempts = 3;
+        const retryableStatuses = new Set([0, 429, 502, 503, 504]);
 
-          const token =
-            localStorage.getItem("vericase_token") ||
-            localStorage.getItem("token") ||
-            localStorage.getItem("jwt");
-          if (token) {
-            xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-          }
-
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-              const pct = Math.round((e.loaded / e.total) * 100);
-              updateFileItem(item.id, { progress: pct });
-            }
-          };
-
-          xhr.onload = () => {
-            if (xhr.status < 400) {
-              resolve();
-              return;
-            }
-            const detail = (xhr.responseText || "").trim();
-            reject(
-              new Error(
-                `Email import upload failed: ${xhr.status}${detail ? `: ${detail}` : ""}`,
-              ),
+        const attemptUpload = () =>
+          new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open(
+              "POST",
+              `${apiUrl}/api/correspondence/email-import/${encodeURIComponent(pstFileId)}/upload`,
+              true,
             );
-          };
+            // Prevent the UI getting stuck forever on a hung request.
+            xhr.timeout = 600000; // 10 minutes
 
-          xhr.onerror = () => reject(new Error("Network error"));
-          xhr.send(formData);
-        });
+            const token =
+              localStorage.getItem("vericase_token") ||
+              localStorage.getItem("token") ||
+              localStorage.getItem("jwt") ||
+              localStorage.getItem("access_token");
+            if (token) {
+              xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+            }
+
+            xhr.upload.onprogress = (e) => {
+              if (e.lengthComputable) {
+                const pct = Math.round((e.loaded / e.total) * 100);
+                updateFileItem(item.id, { progress: pct });
+              }
+            };
+
+            xhr.onload = () => {
+              if (xhr.status < 400) {
+                let payload = {};
+                try {
+                  payload = JSON.parse(xhr.responseText || "{}");
+                } catch (e) {
+                  payload = {};
+                }
+                resolve({ status: xhr.status, payload });
+                return;
+              }
+              const detail = (xhr.responseText || "").trim();
+              const err = new Error(
+                `Email import upload failed: ${xhr.status}${detail ? `: ${detail}` : ""}`,
+              );
+              err.status = xhr.status;
+              reject(err);
+            };
+
+            xhr.onerror = () => {
+              const err = new Error("Network error");
+              err.status = 0;
+              reject(err);
+            };
+            xhr.ontimeout = () => {
+              const err = new Error("Upload timed out");
+              err.status = 0;
+              reject(err);
+            };
+            xhr.send(formData);
+          });
+
+        let responsePayload = null;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            const result = await attemptUpload();
+            responsePayload = result?.payload || {};
+            break;
+          } catch (error) {
+            const status = error?.status ?? 0;
+            if (attempt < maxAttempts && retryableStatuses.has(status)) {
+              await new Promise((r) => setTimeout(r, 1500 * attempt));
+              continue;
+            }
+            throw error;
+          }
+        }
+
+        let note = null;
+        if (responsePayload?.duplicate) {
+          const added = Number(responsePayload.attachments_added || 0);
+          note = responsePayload.attachments_merged
+            ? `Duplicate merged (${added} attachment${added === 1 ? "" : "s"})`
+            : "Duplicate skipped";
+        }
 
         // Hold in processing state until batch finalize completes.
-        updateFileItem(item.id, { status: "processing", progress: 100 });
+        updateFileItem(item.id, { status: "processing", progress: 100, note });
         totalBytesUploaded += item.size;
+        return responsePayload;
       } catch (error) {
         console.error(`Email import upload error for ${item.name}:`, error);
         updateFileItem(item.id, { status: "error", error: error.message });
+        return null;
       }
     }
 
@@ -3261,7 +3355,8 @@
           const token =
             localStorage.getItem("vericase_token") ||
             localStorage.getItem("token") ||
-            localStorage.getItem("jwt");
+            localStorage.getItem("jwt") ||
+            localStorage.getItem("access_token");
           if (token) {
             xhr.setRequestHeader("Authorization", `Bearer ${token}`);
           }
@@ -3434,6 +3529,42 @@
     function getActionButtons(pst) {
       const buttons = [];
       const safeId = escapeHtml(String(pst.id || ""));
+      const status = String(pst.processing_status || "").toLowerCase();
+      const filename = String(pst.filename || "");
+      const isEmailImport = filename.toLowerCase().endsWith(".email_import.json");
+      const processed = Number(pst.processed_emails || 0);
+      const total = Number(pst.total_emails || 0);
+      const isEmpty = processed <= 0 && total <= 0;
+
+      const deleteBtn = `<button class="btn-icon btn-danger" data-action="delete" data-id="${safeId}" title="Delete upload"><i class="fas fa-trash"></i></button>`;
+
+      // Email imports are *not* processed by the PST worker. Keep actions scoped.
+      if (isEmailImport) {
+        if (status === "processing") {
+          buttons.push(
+            `<button class="btn-icon" data-action="status" data-id="${safeId}" title="Check Status"><i class="fas fa-sync-alt"></i></button>`,
+          );
+        }
+
+        if (status === "failed") {
+          buttons.push(
+            `<button class="btn-icon" data-action="error" data-id="${safeId}" title="View Error"><i class="fas fa-exclamation-circle"></i></button>`,
+          );
+        }
+
+        if (status === "completed" && processed > 0) {
+          buttons.push(
+            `<button class="btn-icon" data-action="view" data-id="${safeId}" title="View Emails"><i class="fas fa-envelope-open-text"></i></button>`,
+          );
+        }
+
+        // Allow deleting failed imports (or empty "completed" imports, which are nearly always failed uploads).
+        if (status === "failed" || (status === "completed" && isEmpty)) {
+          buttons.push(deleteBtn);
+        }
+
+        return buttons.join("") || '<span style="color: #606080;">—</span>';
+      }
 
       if (
         pst.processing_status === "uploaded" ||
@@ -3464,6 +3595,7 @@
             `<button class="btn-icon" data-action="rescue" data-id="${safeId}" title="Admin Rescue (Finalize)"><i class="fas fa-life-ring"></i></button>`,
           );
         }
+        buttons.push(deleteBtn);
       }
 
       if (pst.processing_status === "completed" && pst.processed_emails > 0) {
@@ -3601,6 +3733,43 @@
         alert(`PST Error:\n\n${err}`);
       } catch (error) {
         alert("Failed to load error details: " + error.message);
+      }
+    }
+
+    async function deletePSTUpload(pstFileId) {
+      const ok = confirm(
+        "Delete this upload?\n\nThis will remove the upload record and any extracted emails/attachments created by it.\n\nThis cannot be undone.",
+      );
+      if (!ok) return;
+
+      try {
+        const resp = await fetch(
+          `${apiUrl}/api/correspondence/pst/${encodeURIComponent(pstFileId)}/delete`,
+          withAuth({
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ delete_s3: true }),
+          }),
+        );
+
+        if (!resp.ok) {
+          const detail = (await resp.text()).trim();
+          throw new Error(detail || `Delete failed (HTTP ${resp.status})`);
+        }
+
+        if (window.ToastManager && typeof window.ToastManager.success === "function") {
+          window.ToastManager.success("Upload deleted", "The upload has been removed.");
+        } else {
+          alert("Upload deleted");
+        }
+        loadPSTHistory();
+      } catch (error) {
+        const msg = error?.message || String(error);
+        if (window.ToastManager && typeof window.ToastManager.error === "function") {
+          window.ToastManager.error("Delete failed", msg);
+        } else {
+          alert("Failed to delete upload: " + msg);
+        }
       }
     }
 

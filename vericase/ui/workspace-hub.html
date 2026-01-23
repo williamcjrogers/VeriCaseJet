@@ -1037,6 +1037,228 @@
       box-shadow: 0 0 0 3px rgba(var(--vericase-teal-rgb), 0.1);
     }
 
+    /* === WORKSPACE DOCS (FOLDERS + PREVIEW + CHAT) === */
+    .docs-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 12px 0 16px;
+      flex-wrap: wrap;
+    }
+
+    .docs-layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .docs-layout {
+        grid-template-columns: 1fr;
+      }
+      .docs-sidebar {
+        order: 2;
+      }
+      .docs-main {
+        order: 1;
+      }
+    }
+
+    .docs-sidebar {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      padding: 12px;
+    }
+
+    .docs-sidebar-title {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 10px;
+    }
+
+    .docs-folder-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .docs-folder-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      border: 1px solid transparent;
+    }
+
+    .docs-folder-item:hover {
+      background: var(--gray-50);
+    }
+
+    .docs-folder-item.active {
+      background: rgba(var(--vericase-teal-rgb), 0.10);
+      color: var(--text-primary);
+      border-color: rgba(var(--vericase-teal-rgb), 0.25);
+    }
+
+    .docs-folder-item .folder-count {
+      margin-left: auto;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .docs-breadcrumb {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin: 0 0 8px;
+    }
+
+    .docs-breadcrumb a {
+      color: var(--vericase-teal);
+      text-decoration: none;
+    }
+
+    .docs-breadcrumb a:hover {
+      text-decoration: underline;
+    }
+
+    .docs-main {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .doc-detail {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .doc-detail-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .doc-detail-title {
+      font-weight: 600;
+      color: var(--text-primary);
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .doc-detail-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .doc-preview {
+      padding: 12px 14px;
+      background: #fcfcfd;
+    }
+
+    .doc-preview-frame {
+      width: 100%;
+      height: 520px;
+      border: 1px solid var(--gray-200);
+      border-radius: 12px;
+      background: white;
+    }
+
+    .doc-preview-img {
+      max-width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--gray-200);
+      background: white;
+      display: block;
+    }
+
+    .doc-preview-pre {
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+        "Courier New", monospace;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 12px;
+      max-height: 520px;
+      overflow: auto;
+    }
+
+    .doc-chat {
+      border-top: 1px solid var(--gray-200);
+      background: white;
+    }
+
+    .doc-chat-messages {
+      padding: 12px 14px;
+      max-height: 220px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .doc-chat-messages .msg {
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--gray-200);
+      background: var(--gray-50);
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+    }
+
+    .doc-chat-messages .msg.user {
+      align-self: flex-end;
+      background: rgba(var(--vericase-teal-rgb), 0.08);
+      border-color: rgba(var(--vericase-teal-rgb), 0.25);
+      color: var(--text-primary);
+    }
+
+    .doc-chat-messages .msg.assistant {
+      align-self: flex-start;
+    }
+
+    .doc-chat-input {
+      display: flex;
+      gap: 8px;
+      padding: 12px 14px;
+      border-top: 1px solid var(--gray-200);
+      background: var(--gray-50);
+    }
+
+    .doc-chat-input input {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid var(--gray-300);
+      border-radius: 10px;
+      font-size: 0.9375rem;
+    }
+
+    .doc-chat-input input:focus {
+      outline: none;
+      border-color: var(--vericase-teal);
+      box-shadow: 0 0 0 3px rgba(var(--vericase-teal-rgb), 0.1);
+    }
+
     /* === DOCUMENTS GRID === */
     .documents-grid {
       display: grid;
@@ -1983,16 +2205,76 @@
           <div class="hub-subtext">
             Upload key documents (contract, notices, expert reports, pleadings, key letters) to build an AI read-in and Q&A in the <strong>About</strong> tab.
           </div>
-          
-          <!-- Upload Zone -->
-          <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
-            <i class="fas fa-cloud-upload-alt"></i>
-            <div class="upload-text">Drop files here or click to upload</div>
-            <div class="upload-hint">PDF, DOC, XLS, images up to 50MB</div>
-            <input type="file" id="fileInput" multiple hidden onchange="handleFileSelect(event)">
+
+          <div class="docs-toolbar">
+            <div class="docs-toolbar-left">
+              <button class="btn btn-sm btn-outline" type="button" onclick="createWorkspaceDocumentFolder()">
+                <i class="fas fa-folder-plus"></i> New Folder
+              </button>
+              <button class="btn btn-sm btn-outline" type="button" onclick="triggerFolderUpload()">
+                <i class="fas fa-folder-tree"></i> Upload Folder
+              </button>
+            </div>
+            <div class="docs-toolbar-right">
+              <button class="btn btn-sm btn-vericase" type="button" onclick="triggerFileUpload()">
+                <i class="fas fa-upload"></i> Upload Files
+              </button>
+            </div>
           </div>
-          
-          <div id="documentsGrid" class="documents-grid"></div>
+
+          <input type="file" id="fileInput" multiple hidden onchange="handleFileSelect(event)">
+          <input type="file" id="folderInput" multiple webkitdirectory directory hidden onchange="handleFolderSelect(event)">
+
+          <div class="docs-layout">
+            <aside class="docs-sidebar" aria-label="Document folders">
+              <div class="docs-sidebar-title">Folders</div>
+              <div id="docsFoldersList" class="docs-folder-list"></div>
+            </aside>
+
+            <div class="docs-main">
+              <div id="docsBreadcrumb" class="docs-breadcrumb"></div>
+
+              <!-- Upload Zone -->
+              <div class="upload-zone" id="uploadZone" onclick="triggerFileUpload()">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <div class="upload-text">Drop files here or click to upload</div>
+                <div class="upload-hint">PDF, DOC, XLS, images up to 50MB • Uploads into the selected folder</div>
+              </div>
+
+              <div id="documentsGrid" class="documents-grid"></div>
+
+              <!-- Document Detail (preview + AI chat) -->
+              <div class="doc-detail" id="docDetail" style="display:none">
+                <div class="doc-detail-header">
+                  <div class="doc-detail-title" id="docDetailTitle">Document</div>
+                  <div class="doc-detail-actions">
+                    <button class="btn btn-sm btn-outline" type="button" onclick="downloadSelectedDocument()" title="Download">
+                      <i class="fas fa-download"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline" type="button" onclick="moveSelectedDocument()" title="Move">
+                      <i class="fas fa-folder-open"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline" type="button" onclick="deleteSelectedDocument()" title="Delete">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline" type="button" onclick="closeDocumentDetail()" title="Close">
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
+                </div>
+                <div class="doc-preview" id="docPreview"></div>
+                <div class="doc-chat">
+                  <div class="doc-chat-messages" id="docChatMessages"></div>
+                  <div class="doc-chat-input">
+                    <input id="docChatInput" class="form-input" placeholder="Ask about this document (summarise, key terms, dates, issues)…" onkeydown="if(event.key==='Enter'){askSelectedDocument();}">
+                    <button class="btn btn-vericase" type="button" onclick="askSelectedDocument()">
+                      <i class="fas fa-paper-plane"></i> Send
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
       </div>
 
@@ -2288,6 +2570,9 @@
     let workspaceData = null;
     let workspaceDeadlines = [];
     let workspaceDocuments = [];
+    let workspaceDocumentFolders = [];
+    let currentDocumentsFolder = ""; // "" = all documents, "__unfiled__" = unfiled
+    let selectedWorkspaceDocId = null;
     let workspaceTeam = [];
     let workspaceNotes = [];
     let workspaceActivity = [];
@@ -2748,6 +3033,9 @@
         // Extract data
         workspaceDeadlines = workspaceData.deadlines || [];
         workspaceDocuments = workspaceData.documents || [];
+        workspaceDocumentFolders = [];
+        currentDocumentsFolder = "";
+        selectedWorkspaceDocId = null;
         workspaceTeam = workspaceData.team_members || workspaceData.users || workspaceData.team || [];
         workspaceNotes = workspaceData.notes || [];
         workspaceActivity = workspaceData.activity || [];
@@ -2785,6 +3073,8 @@
         loadWorkspaceAbout().catch(() => {});
         // Load full workspace documents list (best-effort; workspace payload is capped)
         loadWorkspaceDocuments().catch(() => {});
+        // Load folder tree (best-effort)
+        loadWorkspaceDocumentFolders().catch(() => {});
 
       } catch (err) {
         console.error("Failed to load workspace:", err);
@@ -3173,8 +3463,169 @@
     }
 
     // ========================================
-    // DOCUMENTS MANAGEMENT
+    // DOCUMENTS MANAGEMENT (folders + preview + AI)
     // ========================================
+
+    function triggerFileUpload() {
+      const input = document.getElementById("fileInput");
+      if (input) input.click();
+    }
+
+    function triggerFolderUpload() {
+      const input = document.getElementById("folderInput");
+      if (input) input.click();
+    }
+
+    function _isUnfiledFolderSelected() {
+      return String(currentDocumentsFolder || "") === "__unfiled__";
+    }
+
+    function _activeFolderForUpload() {
+      // If the user is browsing a real folder, uploads should land there.
+      // Otherwise (All Documents or Unfiled), upload as unfiled.
+      const fp = String(currentDocumentsFolder || "").trim();
+      if (!fp || fp === "__unfiled__") return "";
+      return fp;
+    }
+
+    function _docInCurrentFolder(doc) {
+      const folder = String(currentDocumentsFolder || "");
+      const fp = (doc && doc.folder_path) ? String(doc.folder_path) : "";
+
+      if (!folder) return true; // All Documents
+      if (folder === "__unfiled__") return !fp;
+      return fp === folder || fp.startsWith(folder + "/");
+    }
+
+    function _renderDocsBreadcrumb() {
+      const el = document.getElementById("docsBreadcrumb");
+      if (!el) return;
+
+      const folder = String(currentDocumentsFolder || "");
+      if (!folder) {
+        el.innerHTML = `<span>All Documents</span>`;
+        return;
+      }
+      if (folder === "__unfiled__") {
+        el.innerHTML = `<span>Unfiled</span>`;
+        return;
+      }
+
+      const parts = folder.split("/").filter(Boolean);
+      const crumbs = [{ label: "All Documents", path: "" }];
+      let acc = "";
+      for (const p of parts) {
+        acc = acc ? `${acc}/${p}` : p;
+        crumbs.push({ label: p, path: acc });
+      }
+
+      el.innerHTML = crumbs
+        .map((c, idx) => {
+          const isLast = idx === crumbs.length - 1;
+          const label = escapeHtml(c.label);
+          if (isLast) return `<span>${label}</span>`;
+          const enc = encodeURIComponent(String(c.path || ""));
+          return `<a href="#" onclick="selectDocumentsFolder(decodeURIComponent('${enc}')); return false;">${label}</a> <span class="separator">/</span> `;
+        })
+        .join("");
+    }
+
+    function renderDocumentFolders() {
+      const host = document.getElementById("docsFoldersList");
+      if (!host) return;
+
+      const folderList = Array.isArray(workspaceDocumentFolders)
+        ? workspaceDocumentFolders
+        : [];
+
+      const totalDocs = Array.isArray(workspaceDocuments) ? workspaceDocuments.length : 0;
+      const unfiled = (Array.isArray(workspaceDocuments) ? workspaceDocuments : []).filter((d) => !d?.folder_path).length;
+
+      const rows = [];
+
+      function row({ path, label, icon, depth = 0, count = null }) {
+        const active = String(currentDocumentsFolder || "") === String(path || "");
+        const pad = 10 + depth * 14;
+        const enc = encodeURIComponent(String(path || ""));
+        rows.push(`
+          <div class="docs-folder-item ${active ? "active" : ""}" style="padding-left:${pad}px" onclick="selectDocumentsFolder(decodeURIComponent('${enc}'))">
+            <i class="fas ${icon}"></i>
+            <span>${escapeHtml(label)}</span>
+            ${count !== null ? `<span class="folder-count">${formatCount(count)}</span>` : ""}
+          </div>
+        `);
+      }
+
+      row({ path: "", label: "All Documents", icon: "fa-folder-open", depth: 0, count: totalDocs });
+      row({ path: "__unfiled__", label: "Unfiled", icon: "fa-inbox", depth: 0, count: unfiled });
+
+      folderList.forEach((f) => {
+        const p = String(f?.path || "").trim();
+        if (!p) return;
+        const depth = p.split("/").length - 1;
+        row({
+          path: p,
+          label: f?.name || p.split("/").pop() || p,
+          icon: "fa-folder",
+          depth,
+          count: Number(f?.doc_count_recursive || 0),
+        });
+      });
+
+      host.innerHTML = rows.join("");
+    }
+
+    function selectDocumentsFolder(path) {
+      currentDocumentsFolder = String(path || "");
+      _renderDocsBreadcrumb();
+      closeDocumentDetail();
+      renderDocuments();
+    }
+
+    async function loadWorkspaceDocumentFolders() {
+      if (!workspaceId) return;
+      try {
+        const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/documents/folders`, {
+          headers: getAuthHeaders(),
+        });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => ({}));
+        const folders = Array.isArray(data?.folders) ? data.folders : [];
+        workspaceDocumentFolders = folders;
+        renderDocumentFolders();
+      } catch {
+        // best-effort
+      }
+    }
+
+    async function createWorkspaceDocumentFolder() {
+      if (!workspaceId) return;
+      const base = _activeFolderForUpload();
+      const raw = prompt(
+        base ? `New folder name/path (inside "${base}"):` : "New folder name/path:",
+        ""
+      );
+      if (raw === null) return;
+      const entered = String(raw || "").trim().replace(/^\/+|\/+$/g, "");
+      if (!entered) return;
+      const full = base ? `${base}/${entered}` : entered;
+
+      try {
+        const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/documents/folders`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ path: full }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data?.detail === "string" ? data.detail : "Failed to create folder");
+        await loadWorkspaceDocumentFolders();
+        selectDocumentsFolder(full);
+        VericaseUI.Toast.success("Folder created");
+      } catch (e) {
+        VericaseUI.Toast.error("Failed to create folder");
+      }
+    }
+
     async function loadWorkspaceDocuments() {
       if (!workspaceId) return;
       try {
@@ -3193,6 +3644,7 @@
         }
         renderDocuments();
         updateTabCounts();
+        loadWorkspaceDocumentFolders().catch(() => {});
       } catch {
         // best-effort
       }
@@ -3220,9 +3672,11 @@
 
     function handleFileSelect(e) {
       handleFiles(e.target.files);
+      try { e.target.value = ""; } catch {}
     }
 
     async function handleFiles(files) {
+      const targetFolder = _activeFolderForUpload();
       for (const file of files) {
         if (file.size > 50 * 1024 * 1024) {
           VericaseUI.Toast.error(`${file.name} is too large (max 50MB)`);
@@ -3235,7 +3689,8 @@
           filename: file.name,
           size: file.size,
           created_at: new Date().toISOString(),
-          uploading: true
+          uploading: true,
+          folder_path: targetFolder || null
         };
         workspaceDocuments.push(doc);
         renderDocuments();
@@ -3245,10 +3700,11 @@
           const formData = new FormData();
           formData.append('file', file);
           formData.append('workspace_id', workspaceId);
+          if (targetFolder) formData.append('folder_path', targetFolder);
 
           const res = await fetch(`/api/workspaces/${workspaceId}/documents`, {
             method: 'POST',
-            headers: { Authorization: getAuthHeaders().Authorization },
+            headers: (getAuthHeaders().Authorization ? { Authorization: getAuthHeaders().Authorization } : {}),
             body: formData
           });
 
@@ -3270,6 +3726,71 @@
         updateTabCounts();
       }
       VericaseUI.Toast.success("Files uploaded");
+    }
+
+    function handleFolderSelect(e) {
+      handleFolderFiles(e.target.files);
+      try { e.target.value = ""; } catch {}
+    }
+
+    async function handleFolderFiles(files) {
+      const base = _activeFolderForUpload();
+      const list = Array.from(files || []);
+      if (!list.length) return;
+
+      for (const file of list) {
+        if (file.size > 50 * 1024 * 1024) {
+          VericaseUI.Toast.error(`${file.name} is too large (max 50MB)`);
+          continue;
+        }
+
+        const rel = String(file.webkitRelativePath || file.name || "").replace(/^\/+/, "");
+        const parts = rel.split("/").filter(Boolean);
+        const fileName = parts.pop() || file.name;
+        const relFolder = parts.join("/");
+        const targetFolder = [base, relFolder].filter(Boolean).join("/");
+
+        const doc = {
+          id: Date.now() + Math.random(),
+          filename: fileName,
+          size: file.size,
+          created_at: new Date().toISOString(),
+          uploading: true,
+          folder_path: targetFolder || null
+        };
+        workspaceDocuments.push(doc);
+        renderDocuments();
+
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("workspace_id", workspaceId);
+          if (targetFolder) formData.append("folder_path", targetFolder);
+          if (rel) formData.append("relative_path", rel);
+
+          const res = await fetch(`/api/workspaces/${workspaceId}/documents`, {
+            method: "POST",
+            headers: (getAuthHeaders().Authorization ? { Authorization: getAuthHeaders().Authorization } : {}),
+            body: formData,
+          });
+
+          if (res.ok) {
+            const saved = await res.json();
+            const idx = workspaceDocuments.findIndex((d) => d.id === doc.id);
+            if (idx >= 0) workspaceDocuments[idx] = saved;
+            refreshWorkspaceAbout(false).catch(() => {});
+          }
+          doc.uploading = false;
+        } catch {
+          doc.uploading = false;
+        }
+
+        renderDocuments();
+        updateTabCounts();
+      }
+
+      VericaseUI.Toast.success("Folder uploaded");
+      loadWorkspaceDocumentFolders().catch(() => {});
     }
 
     // ========================================
@@ -3682,33 +4203,71 @@
     }
 
     function renderDocuments() {
-      const grid = document.getElementById("documentsGrid");
+      // Keep folders + breadcrumb in sync with document renders.
+      try { renderDocumentFolders(); } catch {}
+      try { _renderDocsBreadcrumb(); } catch {}
 
-      if (workspaceDocuments.length === 0) {
-        grid.innerHTML = '';
+      const grid = document.getElementById("documentsGrid");
+      if (!grid) return;
+
+      const docs = (Array.isArray(workspaceDocuments) ? workspaceDocuments : []).filter(_docInCurrentFolder);
+
+      if (docs.length === 0) {
+        const hint =
+          String(currentDocumentsFolder || "") === "__unfiled__"
+            ? "No unfiled documents. Upload files here or move items back to Unfiled."
+            : String(currentDocumentsFolder || "")
+              ? "No documents in this folder yet. Upload files here or upload a folder."
+              : "No documents yet. Upload files to start building workspace context.";
+
+        grid.innerHTML = `
+          <div class="empty-state" style="grid-column: 1 / -1;">
+            <i class="fas fa-folder-open empty-icon"></i>
+            <div class="empty-title">No documents</div>
+            <div class="empty-desc">${escapeHtml(hint)}</div>
+            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px;">
+              <button class="btn btn-vericase" type="button" onclick="triggerFileUpload()">
+                <i class="fas fa-upload"></i> Upload Files
+              </button>
+              <button class="btn btn-outline" type="button" onclick="triggerFolderUpload()">
+                <i class="fas fa-folder-tree"></i> Upload Folder
+              </button>
+            </div>
+          </div>
+        `;
         return;
       }
 
-      grid.innerHTML = workspaceDocuments.map(doc => {
+      grid.innerHTML = docs.map(doc => {
         const ext = (doc.filename || '').split('.').pop().toLowerCase();
         let iconClass = '';
         let iconName = 'fa-file';
         if (['pdf'].includes(ext)) { iconClass = 'pdf'; iconName = 'fa-file-pdf'; }
         else if (['doc', 'docx'].includes(ext)) { iconClass = 'doc'; iconName = 'fa-file-word'; }
         else if (['xls', 'xlsx', 'csv'].includes(ext)) { iconClass = 'xls'; iconName = 'fa-file-excel'; }
-        else if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) { iconClass = 'img'; iconName = 'fa-file-image'; }
+        else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) { iconClass = 'img'; iconName = 'fa-file-image'; }
+
+        const isSelected = String(doc.id) === String(selectedWorkspaceDocId || "");
+        const cardStyle = [
+          doc.uploading ? "opacity:0.6" : "",
+          isSelected ? "border-color: var(--vericase-teal); box-shadow: 0 6px 16px rgba(15, 23, 32, 0.10);" : ""
+        ].filter(Boolean).join(";");
+
+        const fp = doc.folder_path ? String(doc.folder_path) : "";
+        const folderLabel = fp ? ` • ${escapeHtml(fp)}` : "";
 
         return `
-          <div class="document-card" data-doc-id="${doc.id}" ${doc.uploading ? 'style="opacity: 0.6;"' : ''}>
+          <div class="document-card" data-doc-id="${doc.id}" onclick="selectWorkspaceDocument('${doc.id}')" style="${cardStyle}">
             <div class="doc-actions">
-              <button class="table-action-btn" onclick="downloadDocument('${doc.id}')" title="Download"><i class="fas fa-download"></i></button>
-              <button class="table-action-btn danger" onclick="deleteDocument('${doc.id}')" title="Delete"><i class="fas fa-trash"></i></button>
+              <button class="table-action-btn" onclick="event.stopPropagation(); moveDocumentPrompt('${doc.id}')" title="Move"><i class="fas fa-folder-open"></i></button>
+              <button class="table-action-btn" onclick="event.stopPropagation(); downloadDocument('${doc.id}')" title="Download"><i class="fas fa-download"></i></button>
+              <button class="table-action-btn danger" onclick="event.stopPropagation(); deleteDocument('${doc.id}')" title="Delete"><i class="fas fa-trash"></i></button>
             </div>
             <div class="document-icon ${iconClass}">
               <i class="fas ${iconName}"></i>
             </div>
             <div class="document-name">${escapeHtml(doc.filename || 'Untitled')}</div>
-            <div class="document-meta">${formatFileSize(doc.size)} • ${formatDate(doc.created_at)}</div>
+            <div class="document-meta">${formatFileSize(doc.size)} • ${formatDate(doc.created_at)}${folderLabel}</div>
           </div>
         `;
       }).join('');
@@ -3720,14 +4279,232 @@
       window.open(`/api/workspaces/${ws}/documents/${docId}/download`, '_blank');
     }
 
-    function deleteDocument(id) {
-      const doc = workspaceDocuments.find(d => String(d.id) === String(id));
+    async function moveDocumentPrompt(id) {
+      const doc = (Array.isArray(workspaceDocuments) ? workspaceDocuments : []).find(d => String(d?.id) === String(id));
       if (!doc) return;
-      
+
+      const current = (doc.folder_path ? String(doc.folder_path) : "");
+      const dest = prompt("Move to folder path (blank = Unfiled):", current);
+      if (dest === null) return;
+
+      const folder_path = String(dest || "").trim();
+      try {
+        const ws = encodeURIComponent(workspaceId || "");
+        const docId = encodeURIComponent(id || "");
+        const res = await fetch(`/api/workspaces/${ws}/documents/${docId}/move`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ folder_path: folder_path || null }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data?.detail === "string" ? data.detail : "Failed to move");
+
+        // Update local list
+        const idx = workspaceDocuments.findIndex(d => String(d?.id) === String(id));
+        if (idx >= 0) {
+          workspaceDocuments[idx] = { ...workspaceDocuments[idx], ...data };
+        }
+        loadWorkspaceDocumentFolders().catch(() => {});
+        renderDocuments();
+        VericaseUI.Toast.success("Document moved");
+      } catch (e) {
+        VericaseUI.Toast.error("Failed to move document");
+      }
+    }
+
+    function selectWorkspaceDocument(id) {
+      selectedWorkspaceDocId = id;
+      renderDocuments();
+
+      const doc = (Array.isArray(workspaceDocuments) ? workspaceDocuments : []).find(d => String(d?.id) === String(id));
+      const detail = document.getElementById("docDetail");
+      const titleEl = document.getElementById("docDetailTitle");
+      const previewEl = document.getElementById("docPreview");
+      const chatEl = document.getElementById("docChatMessages");
+      const inputEl = document.getElementById("docChatInput");
+
+      if (detail) detail.style.display = "";
+      if (titleEl) titleEl.textContent = doc?.filename || "Document";
+      if (previewEl) previewEl.innerHTML = `<div class="about-hint">Loading preview…</div>`;
+      if (chatEl) chatEl.innerHTML = "";
+      if (inputEl) inputEl.value = "";
+
+      _appendDocChatMessage("assistant", "Ask me anything about this document (summary, key dates, key terms, issues).");
+      loadSelectedDocumentPreview(id).catch(() => {});
+    }
+
+    function closeDocumentDetail() {
+      selectedWorkspaceDocId = null;
+      const detail = document.getElementById("docDetail");
+      const previewEl = document.getElementById("docPreview");
+      const chatEl = document.getElementById("docChatMessages");
+      if (detail) detail.style.display = "none";
+      if (previewEl) previewEl.innerHTML = "";
+      if (chatEl) chatEl.innerHTML = "";
+    }
+
+    function downloadSelectedDocument() {
+      if (!selectedWorkspaceDocId) return;
+      downloadDocument(selectedWorkspaceDocId);
+    }
+
+    function moveSelectedDocument() {
+      if (!selectedWorkspaceDocId) return;
+      moveDocumentPrompt(selectedWorkspaceDocId);
+    }
+
+    function deleteSelectedDocument() {
+      if (!selectedWorkspaceDocId) return;
+      deleteDocument(selectedWorkspaceDocId);
+    }
+
+    function _appendDocChatMessage(role, text) {
+      const chat = document.getElementById("docChatMessages");
+      if (!chat) return;
+      const div = document.createElement("div");
+      div.className = `msg ${role}`;
+      div.textContent = text || "";
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    async function askSelectedDocument() {
+      if (!workspaceId || !selectedWorkspaceDocId) return;
+      const input = document.getElementById("docChatInput");
+      const q = (input?.value || "").trim();
+      if (!q) return;
+      if (input) input.value = "";
+
+      _appendDocChatMessage("user", q);
+      _appendDocChatMessage("assistant", "Thinking…");
+
+      const ws = encodeURIComponent(workspaceId || "");
+      const docId = encodeURIComponent(selectedWorkspaceDocId || "");
+
+      try {
+        const res = await fetch(`/api/workspaces/${ws}/documents/${docId}/ask`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ question: q }),
+        });
+        const data = await res.json().catch(() => ({}));
+        const answer = data?.answer || (res.ok ? "" : (data?.detail || "Failed to ask"));
+
+        // Remove the "Thinking…" message (last assistant message) and replace.
+        const chat = document.getElementById("docChatMessages");
+        if (chat && chat.lastElementChild && chat.lastElementChild.classList.contains("assistant")) {
+          chat.removeChild(chat.lastElementChild);
+        }
+        _appendDocChatMessage("assistant", String(answer || "No response").trim());
+      } catch (e) {
+        const chat = document.getElementById("docChatMessages");
+        if (chat && chat.lastElementChild && chat.lastElementChild.classList.contains("assistant")) {
+          chat.removeChild(chat.lastElementChild);
+        }
+        _appendDocChatMessage("assistant", "Failed to reach AI service.");
+      }
+    }
+
+    async function loadSelectedDocumentPreview(id) {
+      if (!workspaceId || !id) return;
+      const current = String(id);
+      const previewEl = document.getElementById("docPreview");
+      if (!previewEl) return;
+
+      previewEl.innerHTML = `<div class="about-hint">Loading preview…</div>`;
+      const ws = encodeURIComponent(workspaceId || "");
+      const docId = encodeURIComponent(id || "");
+
+      try {
+        const res = await fetch(`/api/workspaces/${ws}/documents/${docId}/preview`, {
+          headers: getAuthHeaders(),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data?.detail === "string" ? data.detail : "Failed to preview");
+        if (String(selectedWorkspaceDocId || "") !== current) return;
+        await renderSelectedDocumentPreview(data);
+      } catch (e) {
+        if (String(selectedWorkspaceDocId || "") !== current) return;
+        previewEl.innerHTML = `<div class="about-hint">Preview unavailable.</div>`;
+      }
+    }
+
+    async function renderSelectedDocumentPreview(preview) {
+      const previewEl = document.getElementById("docPreview");
+      if (!previewEl) return;
+
+      const type = String(preview?.preview_type || "unsupported");
+      const url = preview?.preview_url || preview?.download_url || null;
+      const mime = preview?.mime_type || "";
+
+      if (type === "pdf" && url) {
+        previewEl.innerHTML = `<iframe class="doc-preview-frame" src="${url}"></iframe>`;
+        return;
+      }
+      if (type === "image" && url) {
+        previewEl.innerHTML = `<img class="doc-preview-img" src="${url}" alt="Preview" />`;
+        return;
+      }
+      if (type === "audio" && url) {
+        previewEl.innerHTML = `<audio class="doc-preview-frame" controls src="${url}"></audio>`;
+        return;
+      }
+      if (type === "video" && url) {
+        previewEl.innerHTML = `<video class="doc-preview-frame" controls src="${url}"></video>`;
+        return;
+      }
+      if (type === "email") {
+        const c = preview?.preview_content || {};
+        previewEl.innerHTML = `
+          <div class="doc-preview-pre">
+From: ${escapeHtml(c?.from || "")}
+To: ${escapeHtml(c?.to || "")}
+CC: ${escapeHtml(c?.cc || "")}
+Subject: ${escapeHtml(c?.subject || "")}
+Date: ${escapeHtml(c?.date || "")}
+
+${escapeHtml(c?.body_preview || "")}
+          </div>
+        `;
+        return;
+      }
+
+      // Text-ish types: fetch extracted text content for display
+      if (type === "text" || type === "office" || mime.startsWith("text/")) {
+        previewEl.innerHTML = `<div class="about-hint">Extracting text preview…</div>`;
+        try {
+          const ws = encodeURIComponent(workspaceId || "");
+          const evidenceId = encodeURIComponent(String(preview?.evidence_id || selectedWorkspaceDocId || ""));
+          const res = await fetch(`/api/workspaces/${ws}/documents/${evidenceId}/text-content?max_length=50000`, {
+            headers: getAuthHeaders(),
+          });
+          const data = await res.json().catch(() => ({}));
+          const text = String(data?.text || "");
+          previewEl.innerHTML = `<pre class="doc-preview-pre">${escapeHtml(text || "[No text extracted yet]")}</pre>`;
+          return;
+        } catch {
+          // fall through
+        }
+      }
+
+      const safeName = escapeHtml(String(preview?.filename || "Document"));
+      previewEl.innerHTML = `
+        <div class="about-hint">
+          Preview not available for ${safeName}. ${url ? "You can still download it." : ""}
+        </div>
+      `;
+    }
+
+    function deleteDocument(id) {
+      const doc = (Array.isArray(workspaceDocuments) ? workspaceDocuments : []).find(d => String(d?.id) === String(id));
+      if (!doc) return;
       if (!confirm(`Delete "${doc.filename}"?`)) return;
 
-      workspaceDocuments = workspaceDocuments.filter(d => String(d.id) !== String(id));
-      
+      workspaceDocuments = workspaceDocuments.filter(d => String(d?.id) !== String(id));
+      if (String(selectedWorkspaceDocId || "") === String(id)) {
+        closeDocumentDetail();
+      }
+
       fetch(`/api/workspaces/${workspaceId}/documents/${id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
@@ -3735,6 +4512,7 @@
 
       renderDocuments();
       updateTabCounts();
+      loadWorkspaceDocumentFolders().catch(() => {});
       VericaseUI.Toast.success("Document deleted");
     }
 

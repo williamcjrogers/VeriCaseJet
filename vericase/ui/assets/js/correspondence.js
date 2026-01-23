@@ -704,12 +704,21 @@ function htmlToTextSafe(html) {
  * Format recipient array (list of strings) into display string.
  */
 function formatRecipients(recipients) {
+  const normalizeRecipient = (value) => {
+    if (!value || typeof value !== "string") return value;
+    let cleaned = value.replace(/mailto:/gi, "");
+    cleaned = cleaned.replace(
+      /([\w.+-]+@[\w.-]+)\?[^\s>;,]*/g,
+      "$1",
+    );
+    return cleaned;
+  };
   if (!recipients) return "-";
   if (Array.isArray(recipients) && recipients.length > 0) {
-    return recipients.join(", ");
+    return recipients.map(normalizeRecipient).join(", ");
   }
   if (typeof recipients === "string" && recipients.trim()) {
-    return recipients;
+    return normalizeRecipient(recipients);
   }
   return "-";
 }
