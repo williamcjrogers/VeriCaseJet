@@ -2318,11 +2318,21 @@ function renderEmailDetail(data) {
 
   const emailId = data?.id || data?.email_id || data?.emailId || null;
   const subject = data?.subject || data?.email_subject || "(No subject)";
-  const from = data?.email_from || data?.sender_email || "-";
+  const from = data?.email_from || data?.sender_email || data?.sender_name || "-";
   
   // Use recipients_to/recipients_cc arrays (forensic source), fallback to legacy email_to/email_cc
-  const recipientsTo = data?.recipients_to || (data?.email_to ? [data.email_to] : []);
-  const recipientsCc = data?.recipients_cc || (data?.email_cc ? [data.email_cc] : []);
+  const recipientsTo =
+    Array.isArray(data?.recipients_to) && data.recipients_to.length
+      ? data.recipients_to
+      : data?.email_to
+        ? [data.email_to]
+        : [];
+  const recipientsCc =
+    Array.isArray(data?.recipients_cc) && data.recipients_cc.length
+      ? data.recipients_cc
+      : data?.email_cc
+        ? [data.email_cc]
+        : [];
   const to = formatRecipients(recipientsTo);
   const cc = formatRecipients(recipientsCc);
   

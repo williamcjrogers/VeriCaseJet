@@ -2263,6 +2263,20 @@ async def get_email_detail_service(email_id: str, db: Session):
         full_body_html
     )
 
+    meta: dict[str, Any] = email.meta if isinstance(email.meta, dict) else {}
+    email_to_display = _join_recipients(
+        email.recipients_to
+    ) or _recipient_display_from_meta(meta, "to")
+    email_cc_display = _join_recipients(
+        email.recipients_cc
+    ) or _recipient_display_from_meta(meta, "cc")
+    sender_display = None
+    if email.sender_name and email.sender_email:
+        sender_display = f"{email.sender_name} <{email.sender_email}>"
+    else:
+        sender_display = email.sender_name or email.sender_email
+    email_date = email.date_sent or email.date_received
+
     return EmailMessageDetail(
         id=str(email.id),
         subject=email.subject,
@@ -2272,6 +2286,10 @@ async def get_email_detail_service(email_id: str, db: Session):
         recipients_cc=email.recipients_cc or [],
         date_sent=email.date_sent,
         date_received=email.date_received,
+        email_from=sender_display,
+        email_to=email_to_display,
+        email_cc=email_cc_display,
+        email_date=email_date,
         body_text=body_display or full_body_text,
         body_html=full_body_html_without_inline_images,
         body_text_clean=body_display or email.body_text_clean,

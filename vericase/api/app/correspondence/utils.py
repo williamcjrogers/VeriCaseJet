@@ -476,6 +476,10 @@ class EmailMessageDetail(BaseModel):
     recipients_cc: list[str] | None  # Changed to list of strings (text[] in DB)
     date_sent: datetime | None
     date_received: datetime | None
+    email_from: str | None = None
+    email_to: str | None = None
+    email_cc: str | None = None
+    email_date: datetime | None = None
     body_text: str | None
     body_html: str | None
     body_text_clean: str | None = None

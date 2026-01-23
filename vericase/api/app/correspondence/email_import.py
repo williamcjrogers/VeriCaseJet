@@ -104,6 +104,7 @@ class ParsedEmail:
     recipients_to: list[str] | None
     recipients_cc: list[str] | None
     recipients_bcc: list[str] | None
+    recipients_display: dict[str, str] | None
     date_sent: datetime | None
     date_received: datetime | None
     message_id: str | None
@@ -222,6 +223,24 @@ def _parse_recipients_from_header(value: str | None) -> list[str] | None:
     return emails or None
 
 
+def _normalize_recipient_display(value: Any | None) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text.lower() == "none":
+        return None
+    return text[:2000]
+
+
+def _join_header_values(values: list[str] | None) -> str | None:
+    if not values:
+        return None
+    parts = [str(v).strip() for v in values if v and str(v).strip()]
+    if not parts:
+        return None
+    return ", ".join(parts)
+
+
 def _unquote_lines(text: str) -> str:
     if not text:
         return text
@@ -327,6 +346,12 @@ def _extract_embedded_forwarded_emails(
             continue
         seen.add(fp)
 
+        recipients_display: dict[str, str] = {}
+        for key in ("to", "cc", "bcc"):
+            display_val = _normalize_recipient_display(headers.get(key))
+            if display_val:
+                recipients_display[key] = display_val
+
         results.append(
             ParsedEmail(
                 subject=subject,
@@ -335,6 +360,7 @@ def _extract_embedded_forwarded_emails(
                 recipients_to=_parse_recipients_from_header(headers.get("to")),
                 recipients_cc=_parse_recipients_from_header(headers.get("cc")),
                 recipients_bcc=_parse_recipients_from_header(headers.get("bcc")),
+                recipients_display=recipients_display or None,
                 date_sent=dt,
                 date_received=None,
                 message_id=None,
@@ -382,6 +408,9 @@ def parse_eml_bytes(raw: bytes) -> ParsedEmail:
     to_list = _parse_addresses(msg.get_all("To"))
     cc_list = _parse_addresses(msg.get_all("Cc"))
     bcc_list = _parse_addresses(msg.get_all("Bcc"))
+    to_display = _normalize_recipient_display(_join_header_values(msg.get_all("To")))
+    cc_display = _normalize_recipient_display(_join_header_values(msg.get_all("Cc")))
+    bcc_display = _normalize_recipient_display(_join_header_values(msg.get_all("Bcc")))
 
     date_sent = _parse_date(msg.get("Date"))
 
@@ -478,6 +507,14 @@ def parse_eml_bytes(raw: bytes) -> ParsedEmail:
         except Exception:
             pass
 
+    recipients_display: dict[str, str] = {}
+    if to_display:
+        recipients_display["to"] = to_display
+    if cc_display:
+        recipients_display["cc"] = cc_display
+    if bcc_display:
+        recipients_display["bcc"] = bcc_display
+
     return ParsedEmail(
         subject=subject,
         sender_email=sender_email,
@@ -485,6 +522,7 @@ def parse_eml_bytes(raw: bytes) -> ParsedEmail:
         recipients_to=to_list,
         recipients_cc=cc_list,
         recipients_bcc=bcc_list,
+        recipients_display=recipients_display or None,
         date_sent=date_sent,
         date_received=None,
         message_id=message_id,
@@ -542,6 +580,9 @@ def parse_msg_bytes(raw: bytes) -> ParsedEmail:
         to_list = _parse_addresses([str(getattr(m, "to", "") or "")])
         cc_list = _parse_addresses([str(getattr(m, "cc", "") or "")])
         bcc_list = _parse_addresses([str(getattr(m, "bcc", "") or "")])
+        to_display = _normalize_recipient_display(getattr(m, "to", None))
+        cc_display = _normalize_recipient_display(getattr(m, "cc", None))
+        bcc_display = _normalize_recipient_display(getattr(m, "bcc", None))
 
         date_sent = _parse_date(str(getattr(m, "date", "") or ""))
 
@@ -627,6 +668,14 @@ def parse_msg_bytes(raw: bytes) -> ParsedEmail:
             except Exception:
                 pass
 
+        recipients_display: dict[str, str] = {}
+        if to_display:
+            recipients_display["to"] = to_display
+        if cc_display:
+            recipients_display["cc"] = cc_display
+        if bcc_display:
+            recipients_display["bcc"] = bcc_display
+
         return ParsedEmail(
             subject=subject,
             sender_email=sender_email,
@@ -634,6 +683,7 @@ def parse_msg_bytes(raw: bytes) -> ParsedEmail:
             recipients_to=to_list,
             recipients_cc=cc_list,
             recipients_bcc=bcc_list,
+            recipients_display=recipients_display or None,
             date_sent=date_sent,
             date_received=None,
             message_id=None,
@@ -1020,6 +1070,8 @@ async def upload_email_file_service(
         "status_set_by": "spam_filter_ingest",
     }
 
+    recipients_display = parsed.recipients_display or None
+
     meta_payload: dict[str, Any] = {
         "source": source_type,
         "original_filename": file.filename,
@@ -1032,6 +1084,7 @@ async def upload_email_file_service(
         "other_project": other_project_value,
         "spam": spam_payload,
         "raw_headers": parsed.raw_headers,
+        "recipients_display": recipients_display,
         "attachments": [],
     }
 
