@@ -1811,6 +1811,72 @@
       font-size: 0.95rem;
     }
 
+    .about-markdown {
+      white-space: normal;
+      line-height: 1.55;
+      font-size: 0.95rem;
+    }
+
+    .about-markdown h1,
+    .about-markdown h2,
+    .about-markdown h3,
+    .about-markdown h4 {
+      margin: 0 0 8px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .about-markdown h1 { font-size: 1.15rem; }
+    .about-markdown h2 { font-size: 1.05rem; }
+    .about-markdown h3,
+    .about-markdown h4 { font-size: 0.98rem; }
+
+    .about-markdown p {
+      margin: 0 0 8px;
+    }
+
+    .about-markdown p:last-child {
+      margin-bottom: 0;
+    }
+
+    .about-markdown ul,
+    .about-markdown ol {
+      margin: 6px 0 8px 18px;
+      padding: 0;
+    }
+
+    .about-markdown li {
+      margin: 2px 0;
+    }
+
+    .about-markdown hr {
+      border: none;
+      border-top: 1px solid var(--gray-200);
+      margin: 10px 0;
+    }
+
+    .about-markdown blockquote {
+      margin: 8px 0;
+      padding-left: 12px;
+      border-left: 3px solid var(--gray-200);
+      color: var(--text-muted);
+    }
+
+    .about-markdown code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.9em;
+      background: var(--gray-100);
+      padding: 1px 4px;
+      border-radius: 6px;
+    }
+
+    .about-markdown pre {
+      background: var(--gray-100);
+      padding: 10px 12px;
+      border-radius: 10px;
+      overflow-x: auto;
+    }
+
     .about-notes-textarea {
       width: 100%;
       min-height: 140px;
@@ -2092,6 +2158,11 @@
         About
         <span class="tab-count" id="aboutCount">0</span>
       </button>
+      <button class="hub-tab" data-tab="purpose" onclick="switchTab('purpose')">
+        <i class="fas fa-bullseye"></i>
+        Purpose
+        <span class="tab-count" id="purposeCount">0</span>
+      </button>
       <button class="hub-tab" data-tab="team" onclick="switchTab('team')">
         <i class="fas fa-id-badge"></i>
         Team
@@ -2287,11 +2358,8 @@
               About
             </div>
             <div class="section-actions">
-              <button class="btn btn-sm btn-outline" onclick="refreshWorkspaceAbout(false)" title="Quick refresh (uses latest processed excerpts)">
+              <button class="btn btn-sm btn-outline" onclick="refreshWorkspaceAbout(true)" title="Refresh (deep read-in by default)">
                 <i class="fas fa-sync-alt"></i> Refresh
-              </button>
-              <button class="btn btn-sm btn-vericase" onclick="refreshWorkspaceAbout(true)" title="Supercharged read-in (deep, multi-agent + contract intelligence)">
-                <i class="fas fa-wand-magic-sparkles"></i> Supercharge
               </button>
             </div>
           </div>
@@ -2302,7 +2370,7 @@
                 <i class="fas fa-bolt" aria-hidden="true"></i>
                 AI Brief (auto-updates as documents arrive)
               </div>
-              <div class="about-card-body about-pre" id="aboutSummary">Upload a document in this workspace to start building the dispute context.</div>
+              <div class="about-card-body about-markdown" id="aboutSummary">Upload a document in this workspace to start building the dispute context.</div>
             </div>
 
             <div class="about-card about-span-2">
@@ -2433,6 +2501,115 @@
         </section>
       </div>
 
+      <!-- Purpose Panel -->
+      <div class="tab-panel" id="panel-purpose">
+        <section class="hub-section">
+          <div class="section-header">
+            <div class="section-title">
+              <i class="fas fa-bullseye" aria-hidden="true"></i>
+              Purpose
+            </div>
+            <div class="section-actions">
+              <button class="btn btn-sm btn-outline" onclick="refreshWorkspacePurpose(true)" title="Refresh (deep purpose analysis by default)">
+                <i class="fas fa-sync-alt"></i> Refresh
+              </button>
+            </div>
+          </div>
+
+          <div class="about-grid">
+            <div class="about-card about-span-2">
+              <div class="about-card-title">
+                <i class="fas fa-flag" aria-hidden="true"></i>
+                Purpose baseline
+              </div>
+              <div class="about-card-body">
+                <textarea class="form-input about-notes-textarea" id="purposeTextInput" placeholder="Define the workspace goal or instruction baseline (e.g., identify/design responsibility, chronology, contradictions, issue groupings)."></textarea>
+                <div class="about-actions-row">
+                  <button class="btn btn-outline" onclick="loadWorkspacePurpose()">Reset</button>
+                  <button class="btn btn-vericase" onclick="saveWorkspacePurposeConfig()">
+                    <i class="fas fa-save"></i> Save baseline
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="about-card">
+              <div class="about-card-title">
+                <i class="fas fa-file-signature" aria-hidden="true"></i>
+                Instruction document
+              </div>
+              <div class="about-card-body">
+                <select class="form-select" id="purposeInstructionSelect" onchange="saveWorkspacePurposeConfig(false)"></select>
+                <div class="about-actions-row">
+                  <button class="btn btn-sm btn-outline" type="button" onclick="triggerPurposeInstructionUpload()">
+                    <i class="fas fa-upload"></i> Upload instruction
+                  </button>
+                </div>
+                <div class="hub-subtext" id="purposeInstructionHint">Select or upload the instruction narrative PDF that defines what the workspace must achieve.</div>
+                <input type="file" id="purposeInstructionInput" hidden onchange="handlePurposeInstructionSelect(event)">
+              </div>
+            </div>
+
+            <div class="about-card about-span-2">
+              <div class="about-card-title">
+                <i class="fas fa-bolt" aria-hidden="true"></i>
+                Purpose brief (auto-updates against baseline + evidence)
+              </div>
+              <div class="about-card-body about-pre" id="purposeSummary">Define a purpose baseline to generate a tracked deliverables plan.</div>
+            </div>
+
+            <div class="about-card">
+              <div class="about-card-title">
+                <i class="fas fa-tasks" aria-hidden="true"></i>
+                Deliverables & progress
+              </div>
+              <div class="about-card-body about-pre" id="purposeDeliverables"></div>
+            </div>
+
+            <div class="about-card">
+              <div class="about-card-title">
+                <i class="fas fa-clock" aria-hidden="true"></i>
+                Chronology
+              </div>
+              <div class="about-card-body about-pre" id="purposeChronology"></div>
+            </div>
+
+            <div class="about-card">
+              <div class="about-card-title">
+                <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                Contradictions & inconsistencies
+              </div>
+              <div class="about-card-body about-pre" id="purposeContradictions"></div>
+            </div>
+
+            <div class="about-card about-span-2">
+              <div class="about-card-title">
+                <i class="fas fa-sitemap" aria-hidden="true"></i>
+                Evidence organisation (issue groupings & keywords)
+              </div>
+              <div class="about-card-body about-pre" id="purposeEvidenceOrganisation"></div>
+            </div>
+          </div>
+
+          <div class="about-qa">
+            <div class="about-qa-title">
+              <i class="fas fa-message" aria-hidden="true"></i>
+              Ask about the purpose baseline
+            </div>
+            <div class="about-chat" id="purposeChat">
+              <div class="msg ai">Ask about progress, deliverables, missing evidence, or contradictions.</div>
+            </div>
+            <div class="about-qa-row">
+              <input class="form-input" id="purposeQuestionInput" placeholder="Ask: which deliverables are still missing evidence? what contradictions exist?">
+              <button class="btn btn-vericase" id="purposeAskBtn" onclick="askWorkspacePurpose()">
+                <i class="fas fa-paper-plane"></i> Ask
+              </button>
+            </div>
+            <div class="about-qa-hint" id="purposeChatHint"></div>
+          </div>
+        </section>
+      </div>
+
       <!-- Team Panel -->
       <div class="tab-panel" id="panel-team">
         <section class="hub-section">
@@ -2547,6 +2724,45 @@
     </div>
   </div>
 
+  <!-- Move Document Modal -->
+  <div class="modal-overlay" id="moveDocModal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fas fa-folder-open"></i> Move Document</h3>
+        <button class="modal-close" onclick="hideMoveDocumentModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Document</label>
+          <div class="form-input" id="moveDocName" style="background: var(--gray-50); border-color: var(--gray-200);"></div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Move to existing folder</label>
+          <select class="form-select" id="moveDocFolderSelect"></select>
+          <div class="about-hint" style="margin-top:6px;">Choose an existing folder (or Unfiled).</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Or create a new folder</label>
+          <div style="display:flex; gap:8px;">
+            <input class="form-input" id="moveDocNewFolder" placeholder="e.g. Contracts/JCT or Expert Reports/Quantum" />
+            <button class="btn btn-outline" type="button" onclick="createFolderFromMoveModal()">
+              <i class="fas fa-folder-plus"></i>
+            </button>
+          </div>
+          <div class="about-hint" id="moveDocCreateHint" style="margin-top:6px;"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" type="button" onclick="hideMoveDocumentModal()">Cancel</button>
+        <button class="btn btn-vericase" type="button" onclick="confirmMoveDocument()">
+          <i class="fas fa-arrow-right"></i> Move
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // Get workspace ID from URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -2573,6 +2789,7 @@
     let workspaceDocumentFolders = [];
     let currentDocumentsFolder = ""; // "" = all documents, "__unfiled__" = unfiled
     let selectedWorkspaceDocId = null;
+    let moveDocModalId = null;
     let workspaceTeam = [];
     let workspaceNotes = [];
     let workspaceActivity = [];
@@ -2580,6 +2797,10 @@
     // About (AI workspace context + Q&A)
     let workspaceAbout = null;
     let aboutPollHandle = null;
+
+    // Purpose (baseline instructions + tracking)
+    let workspacePurpose = null;
+    let purposePollHandle = null;
 
     // Auth helpers
     function getAuthHeaders() {
@@ -3069,8 +3290,10 @@
           });
         }
 
-        // Load AI context ("About" tab) in the background
-        loadWorkspaceAbout().catch(() => {});
+        // Load AI context ("About" tab) in the background (deep by default)
+        refreshWorkspaceAbout(true).catch(() => {});
+        // Load Purpose baseline + tracking (deep by default)
+        refreshWorkspacePurpose(true).catch(() => {});
         // Load full workspace documents list (best-effort; workspace payload is capped)
         loadWorkspaceDocuments().catch(() => {});
         // Load folder tree (best-effort)
@@ -3136,18 +3359,22 @@
       document.getElementById("documentsCount").textContent = workspaceDocuments.length;
       document.getElementById("teamCount").textContent = workspaceTeam.length;
 
-      // About status: show AI readiness indicator
+      // About status: show open questions count
       const aboutEl = document.getElementById("aboutCount");
       if (aboutEl) {
-        const status = (workspaceAbout?.status || "").toLowerCase();
-        aboutEl.textContent =
-          status === "ready"
-            ? "AI"
-            : status === "building" || status === "processing"
-              ? "…"
-              : workspaceDocuments.length > 0
-                ? "AI"
-                : "0";
+        const openQuestions = Array.isArray(workspaceAbout?.open_questions)
+          ? workspaceAbout.open_questions.length
+          : 0;
+        aboutEl.textContent = String(openQuestions);
+      }
+
+      // Purpose status: show deliverables count
+      const purposeEl = document.getElementById("purposeCount");
+      if (purposeEl) {
+        const deliverables = Array.isArray(workspacePurpose?.data?.baseline?.deliverables)
+          ? workspacePurpose.data.baseline.deliverables.length
+          : 0;
+        purposeEl.textContent = String(deliverables);
       }
     }
 
@@ -3645,6 +3872,7 @@
         renderDocuments();
         updateTabCounts();
         loadWorkspaceDocumentFolders().catch(() => {});
+        try { _renderPurposeInstructionOptions(); } catch {}
       } catch {
         // best-effort
       }
@@ -3715,7 +3943,8 @@
             if (idx >= 0) workspaceDocuments[idx] = saved;
 
             // Kick off workspace intelligence refresh (AI ingestion + About tab update)
-            refreshWorkspaceAbout(false).catch(() => {});
+            refreshWorkspaceAbout(true).catch(() => {});
+            refreshWorkspacePurpose(true).catch(() => {});
           }
           doc.uploading = false;
         } catch {
@@ -3778,7 +4007,8 @@
             const saved = await res.json();
             const idx = workspaceDocuments.findIndex((d) => d.id === doc.id);
             if (idx >= 0) workspaceDocuments[idx] = saved;
-            refreshWorkspaceAbout(false).catch(() => {});
+            refreshWorkspaceAbout(true).catch(() => {});
+            refreshWorkspacePurpose(true).catch(() => {});
           }
           doc.uploading = false;
         } catch {
@@ -3835,12 +4065,12 @@
       const updatedText = updatedAt ? `Last updated: ${formatRelativeTime(updatedAt)}` : "";
 
       if (summaryEl) {
-        const summary = about?.summary || about?.summary_md || "";
-        summaryEl.textContent =
-          summary ||
-          (workspaceDocuments.length > 0
+        const summary = about?.summary_md || about?.summary || "";
+        const fallback =
+          workspaceDocuments.length > 0
             ? "Building workspace context… (upload ingestion running)"
-            : "Upload a document in this workspace to start building the dispute context.");
+            : "Upload a document in this workspace to start building the dispute context.";
+        summaryEl.innerHTML = renderMarkdown(summary || fallback);
       }
 
       // Contracts & key terms (pivotal section)
@@ -3962,12 +4192,12 @@
           }
           push("Current position", at.current_position);
           push("Quantum", at.quantum);
-          atAGlanceEl.textContent = lines.length ? lines.join("\n") : "Run Supercharge to generate structured intelligence (at-a-glance, parties, issues, next steps).";
+          atAGlanceEl.textContent = lines.length ? lines.join("\n") : "Refresh will generate structured intelligence (at-a-glance, parties, issues, next steps).";
         }
 
         if (partiesEl) {
           if (!parties.length) {
-            partiesEl.textContent = "Supercharge will extract parties/roles from contracts, pleadings, and key correspondence.";
+            partiesEl.textContent = "Refresh will extract parties/roles from contracts, pleadings, and key correspondence.";
           } else {
             partiesEl.textContent = parties.slice(0, 14).map(p => {
               const name = (p?.name || "").toString().trim();
@@ -3986,7 +4216,7 @@
 
         if (issuesEl) {
           if (!issues.length) {
-            issuesEl.textContent = "Supercharge will extract the core issues (defects, delay, payment, design responsibility, insurance) with citations.";
+            issuesEl.textContent = "Refresh will extract the core issues (defects, delay, payment, design responsibility, insurance) with citations.";
           } else {
             issuesEl.textContent = issues.slice(0, 10).map(it => {
               const title = (it?.issue || "").toString().trim();
@@ -4003,7 +4233,7 @@
 
         if (nextActionsEl) {
           if (!nextActions.length) {
-            nextActionsEl.textContent = "Supercharge will propose next actions with document requests and owner hints.";
+            nextActionsEl.textContent = "Refresh will propose next actions with document requests and owner hints.";
           } else {
             nextActionsEl.textContent = nextActions.slice(0, 12).map(a => {
               const action = (a?.action || "").toString().trim();
@@ -4022,7 +4252,7 @@
           structuredHintEl.textContent =
             (structured && Object.keys(structured).length)
               ? "Structured intelligence is generated from extracted text + AWS entity extraction + contract queries."
-              : "Tip: Supercharge runs deep processing and produces structured intelligence for counsel.";
+              : "Tip: Refresh runs deep processing and produces structured intelligence for counsel.";
         }
 
         if (evidenceMapEl) {
@@ -4063,7 +4293,7 @@
           }
 
           const html = categories.map(([label, key]) => renderCategory(label, key)).filter(Boolean).join("");
-          evidenceMapEl.innerHTML = html || `<div class="about-pre">Supercharge will build an evidence map (contracts/pleadings/reports/correspondence/programmes/photos) and explain why each item matters.</div>`;
+          evidenceMapEl.innerHTML = html || `<div class="about-pre">Refresh will build an evidence map (contracts/pleadings/reports/correspondence/programmes/photos) and explain why each item matters.</div>`;
         }
 
         if (evidenceMapHintEl) {
@@ -4130,11 +4360,12 @@
 
     async function refreshWorkspaceAbout(force) {
       if (!workspaceId) return;
+      const useForce = true; // Always run the deepest read-in by default
       try {
         const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/about/refresh`, {
           method: "POST",
           headers: getAuthHeaders(),
-          body: JSON.stringify({ force: !!force }),
+          body: JSON.stringify({ force: useForce }),
         });
         if (!res.ok) throw new Error("Failed to refresh About");
         workspaceAbout = await res.json().catch(() => workspaceAbout);
@@ -4202,6 +4433,347 @@
       }
     }
 
+    // ========================================
+    // PURPOSE (BASELINE + TRACKING)
+    // ========================================
+    function _clearPurposePoll() {
+      if (purposePollHandle) {
+        clearTimeout(purposePollHandle);
+        purposePollHandle = null;
+      }
+    }
+
+    function _appendPurposeChatMessage(role, text) {
+      const chat = document.getElementById("purposeChat");
+      if (!chat) return;
+      const div = document.createElement("div");
+      div.className = `msg ${role}`;
+      div.textContent = text || "";
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function _renderPurposeInstructionOptions() {
+      const select = document.getElementById("purposeInstructionSelect");
+      if (!select) return;
+      const currentId = (workspacePurpose?.instructions_evidence_id || "").toString();
+      select.innerHTML = "";
+      const noneOpt = document.createElement("option");
+      noneOpt.value = "";
+      noneOpt.textContent = "No instruction document selected";
+      select.appendChild(noneOpt);
+
+      const docs = Array.isArray(workspaceDocuments) ? workspaceDocuments : [];
+      docs
+        .slice()
+        .sort((a, b) => (a.filename || "").localeCompare(b.filename || ""))
+        .forEach((doc) => {
+          const opt = document.createElement("option");
+          opt.value = doc.id;
+          opt.textContent = doc.filename || "Untitled";
+          if (String(doc.id) === currentId) opt.selected = true;
+          select.appendChild(opt);
+        });
+    }
+
+    function _isPurposeEmpty(purpose) {
+      const summary = (purpose?.summary || purpose?.summary_md || "").toString().trim();
+      const baseline = (purpose?.purpose_text || "").toString().trim();
+      const instructionId = (purpose?.instructions_evidence_id || "").toString().trim();
+      const data = purpose?.data && typeof purpose.data === "object" ? purpose.data : {};
+      const hasData = Object.keys(data || {}).length > 0;
+      return !summary && !baseline && !instructionId && !hasData;
+    }
+
+    function _renderPurpose(purpose) {
+      const summaryEl = document.getElementById("purposeSummary");
+      const textEl = document.getElementById("purposeTextInput");
+      const deliverablesEl = document.getElementById("purposeDeliverables");
+      const chronologyEl = document.getElementById("purposeChronology");
+      const contradictionsEl = document.getElementById("purposeContradictions");
+      const evidenceOrgEl = document.getElementById("purposeEvidenceOrganisation");
+      const hintEl = document.getElementById("purposeChatHint");
+
+      const status = (purpose?.status || "").toLowerCase();
+      const updatedAt = purpose?.updated_at || null;
+      const updatedText = updatedAt ? `Last updated: ${formatRelativeTime(updatedAt)}` : "";
+      const isEmpty = _isPurposeEmpty(purpose);
+
+      if (summaryEl) {
+        const summary = purpose?.summary || purpose?.summary_md || "";
+        summaryEl.textContent =
+          summary ||
+          (isEmpty
+            ? "No purpose baseline yet. Add a goal statement and/or upload the instruction narrative."
+            : "Building purpose baseline…");
+      }
+
+      if (textEl) {
+        textEl.value = (purpose?.purpose_text || "").toString();
+      }
+
+      _renderPurposeInstructionOptions();
+
+      try {
+        const data = purpose?.data || {};
+        const baseline = data?.baseline || {};
+        const tracking = Array.isArray(data?.tracking) ? data.tracking : [];
+        const chronology = Array.isArray(data?.chronology) ? data.chronology : [];
+        const contradictions = Array.isArray(data?.contradictions) ? data.contradictions : [];
+        const evidenceOrg = data?.evidence_organisation || {};
+
+        if (deliverablesEl) {
+          if (tracking.length) {
+            deliverablesEl.textContent = tracking.slice(0, 16).map((d) => {
+              const name = (d?.deliverable || "").toString().trim();
+              const statusVal = (d?.status || "").toString().trim();
+              const gaps = (d?.gaps || "").toString().trim();
+              const evidence = (d?.evidence || "").toString().trim();
+              const bits = [];
+              if (name) bits.push(`• ${name}`);
+              if (statusVal) bits.push(`  - Status: ${statusVal}`);
+              if (evidence) bits.push(`  - Evidence: ${evidence}`);
+              if (gaps) bits.push(`  - Gaps: ${gaps}`);
+              return bits.join("\n");
+            }).join("\n");
+          } else if (Array.isArray(baseline?.deliverables) && baseline.deliverables.length) {
+            deliverablesEl.textContent = baseline.deliverables.slice(0, 14).map(d => `• ${String(d || "")}`).join("\n");
+          } else {
+            deliverablesEl.textContent = isEmpty
+              ? "Define a baseline or upload the instruction narrative to generate deliverables."
+              : "Define deliverables in the purpose baseline or upload the instruction narrative.";
+          }
+        }
+
+        if (chronologyEl) {
+          if (chronology.length) {
+            chronologyEl.textContent = chronology.slice(0, 12).map((c) => {
+              const date = (c?.date || "").toString().trim();
+              const party = (c?.party || "").toString().trim();
+              const quote = (c?.quote || "").toString().trim();
+              const tags = Array.isArray(c?.issue_tags) ? c.issue_tags.join(", ") : "";
+              const line = `• ${date || "Unknown date"} — ${party || "Unknown party"}${tags ? ` (${tags})` : ""}`;
+              return quote ? `${line}\n  - ${quote}` : line;
+            }).join("\n");
+          } else {
+            chronologyEl.textContent = isEmpty
+              ? "Add baseline instructions to start building the chronology."
+              : "Chronology will be generated from dated evidence and correspondence.";
+          }
+        }
+
+        if (contradictionsEl) {
+          if (contradictions.length) {
+            contradictionsEl.textContent = contradictions.slice(0, 10).map((c) => {
+              const a = (c?.statement_a || "").toString().trim();
+              const b = (c?.statement_b || "").toString().trim();
+              const exp = (c?.explanation || "").toString().trim();
+              const lines = [];
+              if (a) lines.push(`• A: ${a}`);
+              if (b) lines.push(`  - B: ${b}`);
+              if (exp) lines.push(`  - Why: ${exp}`);
+              return lines.join("\n");
+            }).join("\n");
+          } else {
+            contradictionsEl.textContent = isEmpty
+              ? "Upload instruction narrative and key documents to surface contradictions."
+              : "Contradictions will surface once key emails, inspections, and drawings are ingested.";
+          }
+        }
+
+        if (evidenceOrgEl) {
+          const issueGroups = Array.isArray(evidenceOrg?.issue_groupings) ? evidenceOrg.issue_groupings : [];
+          const keywordMap = evidenceOrg?.keyword_map || {};
+          const lines = [];
+          if (issueGroups.length) {
+            lines.push("Issue groupings:");
+            issueGroups.slice(0, 8).forEach((g) => lines.push(`• ${String(g || "")}`));
+          }
+          if (keywordMap && typeof keywordMap === "object" && Object.keys(keywordMap).length) {
+            lines.push("");
+            lines.push("Keyword map:");
+            Object.entries(keywordMap).slice(0, 8).forEach(([k, v]) => {
+              lines.push(`• ${k}: ${String(v || "")}`);
+            });
+          }
+          evidenceOrgEl.textContent = lines.length
+            ? lines.join("\n")
+            : (isEmpty
+              ? "Define issue groupings in the instruction narrative to map evidence."
+              : "Evidence organisation will align to instruction keywords and issue groupings.");
+        }
+      } catch {
+        // best-effort
+      }
+
+      if (hintEl) {
+        hintEl.textContent =
+          status === "building"
+            ? `Processing baseline. ${updatedText}`
+            : (isEmpty ? "No baseline yet. Add purpose text or upload instructions." : updatedText);
+      }
+
+      updateTabCounts();
+    }
+
+    async function loadWorkspacePurpose() {
+      if (!workspaceId) return;
+      try {
+        const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/purpose`, {
+          headers: getAuthHeaders(),
+        });
+        if (!res.ok) throw new Error("Failed to load Purpose");
+        workspacePurpose = await res.json();
+        _renderPurpose(workspacePurpose);
+
+        const status = (workspacePurpose?.status || "").toLowerCase();
+        if (status === "building" || status === "processing") {
+          _clearPurposePoll();
+          purposePollHandle = setTimeout(() => loadWorkspacePurpose().catch(() => {}), 1800);
+        } else {
+          _clearPurposePoll();
+        }
+      } catch (e) {
+        console.debug("Purpose load failed:", e);
+        workspacePurpose = {
+          status: "empty",
+          purpose_text: "",
+          instructions_evidence_id: null,
+          summary: "",
+          data: {},
+          updated_at: null,
+        };
+        _renderPurpose(workspacePurpose);
+      }
+    }
+
+    async function saveWorkspacePurposeConfig(showToast = true) {
+      if (!workspaceId) return;
+      const textEl = document.getElementById("purposeTextInput");
+      const selectEl = document.getElementById("purposeInstructionSelect");
+      const purpose_text = (textEl?.value || "").trim();
+      const instructions_evidence_id = selectEl?.value || null;
+
+      try {
+        const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/purpose/config`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            purpose_text,
+            instructions_evidence_id: instructions_evidence_id || null,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data?.detail === "string" ? data.detail : "Failed to save purpose");
+        workspacePurpose = { ...(workspacePurpose || {}), ...data, purpose_text };
+        _renderPurpose(workspacePurpose);
+        if (showToast) VericaseUI.Toast.success("Purpose baseline saved");
+        refreshWorkspacePurpose(true).catch(() => {});
+      } catch (e) {
+        if (showToast) VericaseUI.Toast.error("Failed to save purpose baseline");
+      }
+    }
+
+    async function refreshWorkspacePurpose(force) {
+      if (!workspaceId) return;
+      const useForce = true; // Always run the deepest purpose analysis by default
+      try {
+        const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/purpose/refresh`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ force: useForce, deep: useForce }),
+        });
+        if (!res.ok) throw new Error("Failed to refresh Purpose");
+        workspacePurpose = await res.json().catch(() => workspacePurpose);
+        _renderPurpose(workspacePurpose);
+        _clearPurposePoll();
+        purposePollHandle = setTimeout(() => loadWorkspacePurpose().catch(() => {}), 1200);
+      } catch (e) {
+        console.debug("Purpose refresh failed:", e);
+      }
+    }
+
+    async function askWorkspacePurpose() {
+      const input = document.getElementById("purposeQuestionInput");
+      const btn = document.getElementById("purposeAskBtn");
+      const question = (input?.value || "").trim();
+      if (!question) return;
+
+      _appendPurposeChatMessage("user", question);
+      if (input) input.value = "";
+      if (btn) btn.disabled = true;
+
+      try {
+        const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/purpose/ask`, {
+          method: "POST",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ question }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const msg = typeof data?.detail === "string" ? data.detail : "Failed to answer question";
+          _appendPurposeChatMessage("ai", msg);
+          return;
+        }
+        _appendPurposeChatMessage("ai", String(data?.answer || "No answer returned."));
+        if (Array.isArray(data?.sources) && data.sources.length > 0) {
+          const top = data.sources.slice(0, 6).map(s => `• ${s.filename || s.label || s.id || "source"}`).join("\n");
+          _appendPurposeChatMessage("ai", `Sources:\n${top}`);
+        }
+      } catch (e) {
+        _appendPurposeChatMessage("ai", "Failed to answer question (network or server error).");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    function triggerPurposeInstructionUpload() {
+      const input = document.getElementById("purposeInstructionInput");
+      if (input) input.click();
+    }
+
+    async function handlePurposeInstructionSelect(e) {
+      const files = e.target.files || [];
+      if (!files.length) return;
+      const file = files[0];
+      try { e.target.value = ""; } catch {}
+      if (!workspaceId) return;
+
+      if (file.size > 50 * 1024 * 1024) {
+        VericaseUI.Toast.error(`${file.name} is too large (max 50MB)`);
+        return;
+      }
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("workspace_id", workspaceId);
+        formData.append("folder_path", "Purpose/Instructions");
+
+        const res = await fetch(`/api/workspaces/${workspaceId}/documents`, {
+          method: "POST",
+          headers: (getAuthHeaders().Authorization ? { Authorization: getAuthHeaders().Authorization } : {}),
+          body: formData,
+        });
+        if (!res.ok) throw new Error("Upload failed");
+        const saved = await res.json();
+        workspaceDocuments = Array.isArray(workspaceDocuments) ? workspaceDocuments : [];
+        workspaceDocuments.unshift(saved);
+        renderDocuments();
+        loadWorkspaceDocumentFolders().catch(() => {});
+        _renderPurposeInstructionOptions();
+
+        const select = document.getElementById("purposeInstructionSelect");
+        if (select) {
+          select.value = saved.id;
+        }
+        await saveWorkspacePurposeConfig(false);
+        VericaseUI.Toast.success("Instruction uploaded");
+      } catch (e) {
+        VericaseUI.Toast.error("Failed to upload instruction");
+      }
+    }
+
     function renderDocuments() {
       // Keep folders + breadcrumb in sync with document renders.
       try { renderDocumentFolders(); } catch {}
@@ -4259,7 +4831,7 @@
         return `
           <div class="document-card" data-doc-id="${doc.id}" onclick="selectWorkspaceDocument('${doc.id}')" style="${cardStyle}">
             <div class="doc-actions">
-              <button class="table-action-btn" onclick="event.stopPropagation(); moveDocumentPrompt('${doc.id}')" title="Move"><i class="fas fa-folder-open"></i></button>
+              <button class="table-action-btn" onclick="event.stopPropagation(); showMoveDocumentModal('${doc.id}')" title="Move"><i class="fas fa-folder-open"></i></button>
               <button class="table-action-btn" onclick="event.stopPropagation(); downloadDocument('${doc.id}')" title="Download"><i class="fas fa-download"></i></button>
               <button class="table-action-btn danger" onclick="event.stopPropagation(); deleteDocument('${doc.id}')" title="Delete"><i class="fas fa-trash"></i></button>
             </div>
@@ -4279,37 +4851,176 @@
       window.open(`/api/workspaces/${ws}/documents/${docId}/download`, '_blank');
     }
 
-    async function moveDocumentPrompt(id) {
-      const doc = (Array.isArray(workspaceDocuments) ? workspaceDocuments : []).find(d => String(d?.id) === String(id));
+    function hideMoveDocumentModal() {
+      moveDocModalId = null;
+      const modal = document.getElementById("moveDocModal");
+      if (modal) modal.style.display = "none";
+      const hint = document.getElementById("moveDocCreateHint");
+      if (hint) hint.textContent = "";
+      const input = document.getElementById("moveDocNewFolder");
+      if (input) input.value = "";
+    }
+
+    function _populateMoveDocFolderSelect(currentFolderPath) {
+      const select = document.getElementById("moveDocFolderSelect");
+      if (!select) return;
+
+      // Build options safely (DOM API) to avoid encoding pitfalls.
+      select.innerHTML = "";
+
+      function addOption(value, label) {
+        const opt = document.createElement("option");
+        opt.value = String(value || "");
+        opt.textContent = String(label || "");
+        select.appendChild(opt);
+      }
+
+      addOption("", "Unfiled (no folder)");
+
+      const folders = Array.isArray(workspaceDocumentFolders)
+        ? workspaceDocumentFolders
+        : [];
+
+      folders.forEach((f) => {
+        const path = String(f?.path || "").trim();
+        if (!path) return;
+        const depth = path.split("/").length - 1;
+        const indent = "\u00A0\u00A0".repeat(depth);
+        addOption(path, `${indent}${path}`);
+      });
+
+      const desired = String(currentFolderPath || "");
+      const has = Array.from(select.options).some((o) => o.value === desired);
+      select.value = has ? desired : "";
+    }
+
+    async function showMoveDocumentModal(id) {
+      if (!workspaceId) return;
+      const doc = (Array.isArray(workspaceDocuments) ? workspaceDocuments : []).find(
+        (d) => String(d?.id) === String(id)
+      );
       if (!doc) return;
 
-      const current = (doc.folder_path ? String(doc.folder_path) : "");
-      const dest = prompt("Move to folder path (blank = Unfiled):", current);
-      if (dest === null) return;
+      moveDocModalId = String(id);
 
-      const folder_path = String(dest || "").trim();
+      const nameEl = document.getElementById("moveDocName");
+      if (nameEl) nameEl.textContent = doc?.filename || "Document";
+
+      const hint = document.getElementById("moveDocCreateHint");
+      if (hint) hint.textContent = "";
+      const input = document.getElementById("moveDocNewFolder");
+      if (input) input.value = "";
+
+      // Ensure folder list is current.
+      await loadWorkspaceDocumentFolders();
+      _populateMoveDocFolderSelect(doc?.folder_path || "");
+
+      const modal = document.getElementById("moveDocModal");
+      if (modal) modal.style.display = "flex";
+      const select = document.getElementById("moveDocFolderSelect");
+      if (select) select.focus();
+    }
+
+    async function createFolderFromMoveModal() {
+      if (!workspaceId) return;
+      const input = document.getElementById("moveDocNewFolder");
+      const hint = document.getElementById("moveDocCreateHint");
+      const select = document.getElementById("moveDocFolderSelect");
+
+      const raw = String(input?.value || "")
+        .trim()
+        .replace(/^\/+|\/+$/g, "");
+
+      if (!raw) {
+        if (hint) hint.textContent = "Enter a folder name/path to create.";
+        return;
+      }
+
+      const selectedParent = String(select?.value || "");
+      // If the user typed a simple name and a folder is selected, create as a child folder.
+      const isSimpleName = !raw.includes("/");
+      const path = selectedParent && isSimpleName ? `${selectedParent}/${raw}` : raw;
+
+      try {
+        if (hint) hint.textContent = "Creating…";
+        const res = await fetch(
+          `/api/workspaces/${encodeURIComponent(workspaceId)}/documents/folders`,
+          {
+            method: "POST",
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ path }),
+          }
+        );
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(
+            typeof data?.detail === "string" ? data.detail : "Failed to create folder"
+          );
+        }
+
+        // Refresh folders and select the newly created path.
+        await loadWorkspaceDocumentFolders();
+        _populateMoveDocFolderSelect(path);
+        if (select) select.value = path;
+
+        if (input) input.value = "";
+        if (hint) hint.textContent = `Created "${path}". Select it and click Move.`;
+      } catch (e) {
+        if (hint) hint.textContent = "Failed to create folder.";
+      }
+    }
+
+    async function confirmMoveDocument() {
+      if (!workspaceId || !moveDocModalId) return;
+      const select = document.getElementById("moveDocFolderSelect");
+      const folder_path = String(select?.value || "").trim();
+
       try {
         const ws = encodeURIComponent(workspaceId || "");
-        const docId = encodeURIComponent(id || "");
+        const docId = encodeURIComponent(moveDocModalId || "");
         const res = await fetch(`/api/workspaces/${ws}/documents/${docId}/move`, {
           method: "POST",
           headers: getAuthHeaders(),
           body: JSON.stringify({ folder_path: folder_path || null }),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(typeof data?.detail === "string" ? data.detail : "Failed to move");
+        if (!res.ok) {
+          throw new Error(typeof data?.detail === "string" ? data.detail : "Failed to move");
+        }
 
-        // Update local list
-        const idx = workspaceDocuments.findIndex(d => String(d?.id) === String(id));
+        const idx = workspaceDocuments.findIndex(
+          (d) => String(d?.id) === String(moveDocModalId)
+        );
         if (idx >= 0) {
           workspaceDocuments[idx] = { ...workspaceDocuments[idx], ...data };
         }
+
+        // If the moved doc no longer matches the current folder filter, close the detail panel.
+        const updatedDoc = (Array.isArray(workspaceDocuments) ? workspaceDocuments : []).find(
+          (d) => String(d?.id) === String(moveDocModalId)
+        );
+        if (String(selectedWorkspaceDocId || "") === String(moveDocModalId)) {
+          try {
+            if (updatedDoc && !_docInCurrentFolder(updatedDoc)) {
+              closeDocumentDetail();
+            }
+          } catch {}
+        }
+
+        hideMoveDocumentModal();
         loadWorkspaceDocumentFolders().catch(() => {});
         renderDocuments();
+        refreshWorkspaceAbout(true).catch(() => {});
+        refreshWorkspacePurpose(true).catch(() => {});
         VericaseUI.Toast.success("Document moved");
       } catch (e) {
         VericaseUI.Toast.error("Failed to move document");
       }
+    }
+
+    // Backwards-compatible alias (older buttons used this name)
+    function moveDocumentPrompt(id) {
+      showMoveDocumentModal(id);
     }
 
     function selectWorkspaceDocument(id) {
@@ -4350,7 +5061,7 @@
 
     function moveSelectedDocument() {
       if (!selectedWorkspaceDocId) return;
-      moveDocumentPrompt(selectedWorkspaceDocId);
+      showMoveDocumentModal(selectedWorkspaceDocId);
     }
 
     function deleteSelectedDocument() {
@@ -4513,6 +5224,8 @@ ${escapeHtml(c?.body_preview || "")}
       renderDocuments();
       updateTabCounts();
       loadWorkspaceDocumentFolders().catch(() => {});
+      refreshWorkspaceAbout(true).catch(() => {});
+      refreshWorkspacePurpose(true).catch(() => {});
       VericaseUI.Toast.success("Document deleted");
     }
 
@@ -4751,6 +5464,162 @@ ${escapeHtml(c?.body_preview || "")}
       const div = document.createElement('div');
       div.textContent = str;
       return div.innerHTML;
+    }
+
+    function sanitizeUrl(url) {
+      try {
+        const u = String(url || "").trim();
+        if (!u) return null;
+        if (/^(https?:\/\/|mailto:)/i.test(u)) return u;
+        return null;
+      } catch {
+        return null;
+      }
+    }
+
+    function renderInline(rawText) {
+      let t = escapeHtml(rawText);
+
+      // Inline code
+      t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
+
+      // Links: [text](url)
+      t = t.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, label, url) => {
+        const safe = sanitizeUrl(url);
+        if (!safe) return label;
+        return `<a href="${escapeHtml(safe)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+      });
+
+      // Bold - improved pattern to handle text like **Word:** correctly
+      t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+
+      // Italic
+      t = t.replace(/(^|[^*])\*([^*]+?)\*(?!\*)/g, "$1<em>$2</em>");
+
+      return t;
+    }
+
+    function renderMarkdown(markdown) {
+      const src = String(markdown || "").replace(/\r\n/g, "\n");
+      const lines = src.split("\n");
+
+      const out = [];
+      let inCodeBlock = false;
+      let codeLang = "";
+      let codeLines = [];
+      let listType = null; // 'ul' | 'ol' | null
+      let paragraphLines = [];
+
+      function flushParagraph() {
+        const text = paragraphLines.join(" ").trim();
+        if (text) out.push(`<p>${renderInline(text)}</p>`);
+        paragraphLines = [];
+      }
+
+      function closeList() {
+        if (listType) {
+          out.push(`</${listType}>`);
+          listType = null;
+        }
+      }
+
+      function openList(type) {
+        if (listType !== type) {
+          closeList();
+          out.push(`<${type}>`);
+          listType = type;
+        }
+      }
+
+      for (const rawLine of lines) {
+        const line = String(rawLine ?? "");
+        const trimmed = line.trim();
+
+        if (inCodeBlock) {
+          if (trimmed.startsWith("```")) {
+            const code = escapeHtml(codeLines.join("\n"));
+            const langClass = codeLang ? ` language-${escapeHtml(codeLang)}` : "";
+            out.push(`<pre><code class="${langClass.trim()}">${code}</code></pre>`);
+            inCodeBlock = false;
+            codeLang = "";
+            codeLines = [];
+          } else {
+            codeLines.push(line);
+          }
+          continue;
+        }
+
+        if (trimmed.startsWith("```")) {
+          flushParagraph();
+          closeList();
+          inCodeBlock = true;
+          codeLang = trimmed.slice(3).trim();
+          codeLines = [];
+          continue;
+        }
+
+        if (!trimmed) {
+          flushParagraph();
+          closeList();
+          continue;
+        }
+
+        if (trimmed === "---" || trimmed === "***") {
+          flushParagraph();
+          closeList();
+          out.push("<hr>");
+          continue;
+        }
+
+        // Support h1-h6 headers (map h4-h6 to h4 for styling consistency)
+        const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+        if (headingMatch) {
+          flushParagraph();
+          closeList();
+          const rawLevel = headingMatch[1].length;
+          const level = Math.min(rawLevel, 4); // Cap at h4 for styling
+          const text = headingMatch[2];
+          out.push(`<h${level}>${renderInline(text)}</h${level}>`);
+          continue;
+        }
+
+        const bqMatch = trimmed.match(/^>\s?(.*)$/);
+        if (bqMatch) {
+          flushParagraph();
+          closeList();
+          out.push(`<blockquote><p>${renderInline(bqMatch[1])}</p></blockquote>`);
+          continue;
+        }
+
+        const olMatch = trimmed.match(/^(\d+)\.\s+(.+)$/);
+        if (olMatch) {
+          flushParagraph();
+          openList("ol");
+          out.push(`<li>${renderInline(olMatch[2])}</li>`);
+          continue;
+        }
+
+        const ulMatch = trimmed.match(/^[-*]\s+(.+)$/);
+        if (ulMatch) {
+          flushParagraph();
+          openList("ul");
+          out.push(`<li>${renderInline(ulMatch[1])}</li>`);
+          continue;
+        }
+
+        closeList();
+        paragraphLines.push(trimmed);
+      }
+
+      if (inCodeBlock) {
+        const code = escapeHtml(codeLines.join("\n"));
+        const langClass = codeLang ? ` language-${escapeHtml(codeLang)}` : "";
+        out.push(`<pre><code class="${langClass.trim()}">${code}</code></pre>`);
+      }
+      flushParagraph();
+      closeList();
+
+      return out.join("\n");
     }
 
     function formatDate(dateStr) {

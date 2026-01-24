@@ -40,6 +40,7 @@ from .ai_settings import get_tool_config
 from .models import (
     Workspace,
     WorkspaceAbout,
+    WorkspacePurpose,
     WorkspaceKeyword,
     WorkspaceTeamMember,
     WorkspaceKeyDate,
@@ -162,6 +163,20 @@ class AboutNotesRequest(BaseModel):
     notes: str | None = Field(default=None, max_length=10000)
 
 
+class PurposeConfigRequest(BaseModel):
+    purpose_text: str | None = Field(default=None, max_length=12000)
+    instructions_evidence_id: str | None = Field(default=None)
+
+
+class PurposeRefreshRequest(BaseModel):
+    force: bool = False
+    deep: bool = False
+
+
+class PurposeAskRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=2000)
+
+
 class WorkspaceDocumentFolderCreate(BaseModel):
     path: str = Field(..., min_length=1, max_length=512)
 
@@ -179,6 +194,29 @@ def _workspace_docs_query(db: Session, workspace_uuid: uuid.UUID):
     return db.query(EvidenceItem).filter(
         EvidenceItem.meta.op("->>")("workspace_id") == str(workspace_uuid)
     )
+
+
+def _get_workspace_scoped_evidence(
+    db: Session,
+    *,
+    workspace: Workspace,
+    evidence_id: str | None,
+    project_ids: list[uuid.UUID] | None = None,
+    case_ids: list[uuid.UUID] | None = None,
+) -> EvidenceItem | None:
+    if not evidence_id:
+        return None
+    ev_uuid = _parse_uuid(evidence_id, "instructions_evidence_id")
+    item = db.query(EvidenceItem).filter(EvidenceItem.id == ev_uuid).first()
+    if not item:
+        return None
+    if (item.meta or {}).get("workspace_id") == str(workspace.id):  # type: ignore[union-attr]
+        return item
+    if project_ids and item.project_id in project_ids:
+        return item
+    if case_ids and item.case_id in case_ids:
+        return item
+    return None
 
 
 def _normalize_workspace_doc_folder_path(value: str | None) -> str | None:
@@ -301,6 +339,62 @@ def _safe_excerpt(text: str | None, limit: int = 1800) -> str:
     return t[:limit].rstrip() + "…"
 
 
+def _hint_tokens(text: str | None, max_tokens: int = 18) -> list[str]:
+    if not text:
+        return []
+    tokens = re.findall(r"[a-zA-Z0-9]{4,}", text.lower())
+    seen: set[str] = set()
+    out: list[str] = []
+    for t in tokens:
+        if t in seen:
+            continue
+        seen.add(t)
+        out.append(t)
+        if len(out) >= max_tokens:
+            break
+    return out
+
+
+def _select_best_excerpt(
+    text: str | None, limit: int = 1800, hints: list[str] | None = None
+) -> str:
+    """Pick the most relevant chunk rather than a naive prefix."""
+    t = (text or "").strip()
+    if not t:
+        return ""
+    if len(t) <= limit:
+        return t
+
+    chunk_size = min(max(800, limit), 1600)
+    overlap = 200
+    lower_hints = [h.lower() for h in (hints or []) if h]
+
+    def score_chunk(chunk: str) -> int:
+        if not lower_hints:
+            return 0
+        hay = chunk.lower()
+        score = 0
+        for h in lower_hints:
+            if h in hay:
+                score += 2
+                score += min(hay.count(h), 3)
+        return score
+
+    chunks: list[tuple[int, str]] = []
+    start = 0
+    while start < len(t):
+        end = min(len(t), start + chunk_size)
+        chunk = t[start:end]
+        chunks.append((score_chunk(chunk), chunk))
+        if end == len(t):
+            break
+        start = max(0, end - overlap)
+
+    chunks.sort(key=lambda x: x[0], reverse=True)
+    best = chunks[0][1] if chunks else t[:limit]
+    return _safe_excerpt(best, limit)
+
+
 def _extract_json_object(text: str) -> dict[str, Any] | None:
     if not text:
         return None
@@ -418,6 +512,23 @@ async def _build_workspace_about_snapshot(
     project_ids = [p.id for p in projects]
     case_ids = [c.id for c in cases]
 
+    # Purpose baseline (if configured) to prioritize instruction PDFs in About.
+    purpose = (
+        db.query(WorkspacePurpose)
+        .filter(WorkspacePurpose.workspace_id == workspace.id)
+        .first()
+    )
+    purpose_text = (purpose.purpose_text or "") if purpose else ""
+    instruction_item = _get_workspace_scoped_evidence(
+        db,
+        workspace=workspace,
+        evidence_id=str(purpose.instructions_evidence_id)
+        if purpose and purpose.instructions_evidence_id
+        else None,
+        project_ids=project_ids,
+        case_ids=case_ids,
+    )
+
     evidence_conds = [
         EvidenceItem.meta.op("->>")("workspace_id") == str(workspace.id),
     ]
@@ -433,6 +544,8 @@ async def _build_workspace_about_snapshot(
         .limit(240 if deep else 160)
         .all()
     )
+    if instruction_item and all(it.id != instruction_item.id for it in evidence_pool):
+        evidence_pool.insert(0, instruction_item)
 
     # Identify contract documents uploaded at workspace scope (pivotal for counsel read-in).
     workspace_docs = (
@@ -538,6 +651,32 @@ async def _build_workspace_about_snapshot(
 
     contract_docs = [d for d in workspace_docs if _looks_like_contract(d)]
     contract_docs = contract_docs[:6]
+
+    about_hints = [
+        "instruction",
+        "instructions",
+        "instruction narrative",
+        "scope",
+        "deliverable",
+        "employer",
+        "client",
+        "main contractor",
+        "contractor",
+        "architect",
+        "engineer",
+        "design",
+        "inspection",
+        "responsibility",
+        "causation",
+        "water ingress",
+        "defect",
+        "correspondence",
+        "chronology",
+        "contradiction",
+        "issue",
+    ]
+    about_hints.extend(_hint_tokens(purpose_text))
+    about_hints = list(dict.fromkeys([h for h in about_hints if h]))
 
     def _score_for_readin(it: EvidenceItem) -> int:
         score = 0
@@ -651,13 +790,16 @@ async def _build_workspace_about_snapshot(
                         signals.append(f"{alias}={str(ans).strip()[:160]}")
         # Give more room to contract documents.
         excerpt_limit = 3200 if _looks_like_contract(item) else 1600
-        excerpt = _safe_excerpt(item.extracted_text, excerpt_limit) or _safe_excerpt(
+        excerpt = _select_best_excerpt(
+            item.extracted_text, excerpt_limit, hints=about_hints
+        ) or _select_best_excerpt(
             (
                 (item.extracted_metadata or {}).get("text_preview")  # type: ignore[union-attr]
                 if isinstance(item.extracted_metadata, dict)
                 else ""
             ),
             excerpt_limit,
+            hints=about_hints,
         )
         sources.append(
             {
@@ -678,6 +820,117 @@ async def _build_workspace_about_snapshot(
         if _looks_like_contract(item):
             contract_source_labels[str(item.id)] = label
 
+    # Pull a bounded slice of correspondence (emails) from projects/cases in this workspace.
+    # This gives the read-in access to the "Correspondence" tab content, not just documents.
+    try:
+        from .models import EmailMessage
+
+        email_conds = []
+        if project_ids:
+            email_conds.append(EmailMessage.project_id.in_(project_ids))
+        if case_ids:
+            email_conds.append(EmailMessage.case_id.in_(case_ids))
+
+        emails: list[EmailMessage] = []
+        if email_conds:
+            emails = (
+                db.query(EmailMessage)
+                .filter(or_(*email_conds))
+                .filter(EmailMessage.is_duplicate.is_(False))
+                .filter(EmailMessage.is_inclusive.is_(True))
+                .order_by(
+                    desc(EmailMessage.date_sent).nullslast(),
+                    desc(EmailMessage.created_at),
+                )
+                .limit(260 if deep else 180)
+                .all()
+            )
+
+        def _score_email_for_readin(em: EmailMessage) -> int:
+            score = 0
+            subj = (em.subject or "").lower()
+
+            if em.has_attachments:
+                score += 70
+            if (em.importance or "").lower() == "high":
+                score += 25
+
+            for k, w in (
+                ("letter of claim", 120),
+                ("without prejudice", 90),
+                ("claim", 70),
+                ("notice", 55),
+                ("delay", 45),
+                ("eot", 45),
+                ("extension of time", 45),
+                ("payment", 40),
+                ("pay less", 55),
+                ("invoice", 30),
+                ("valuation", 35),
+                ("variation", 35),
+                ("defect", 35),
+                ("snag", 20),
+                ("termination", 60),
+                ("adjudication", 60),
+                ("expert", 45),
+                ("programme", 25),
+                ("program", 25),
+            ):
+                if k in subj:
+                    score += w
+
+            # Lightweight recency boost
+            try:
+                dt = em.date_sent or em.created_at
+                if dt:
+                    now = datetime.now(timezone.utc)
+                    age_days = max(0, int((now - dt).total_seconds() // 86400))
+                    score += max(0, 28 - age_days)
+            except Exception:
+                pass
+
+            # Reward if we have canonical body text
+            if (em.body_text_clean or "").strip():
+                score += 10
+            return score
+
+        ranked_emails = sorted(emails, key=_score_email_for_readin, reverse=True)
+        selected_emails = ranked_emails[: (10 if deep else 6)]
+
+        start_idx = len(sources) + 1
+        for i, em in enumerate(selected_emails, start=start_idx):
+            label = f"S{i}"
+            subject = (em.subject or "(no subject)").strip()
+            dt = em.date_sent.isoformat() if em.date_sent else None
+            frm = (em.sender_email or em.sender_name or "Unknown").strip()
+            to = ", ".join((em.recipients_to or [])[:6]) if em.recipients_to else ""
+            if len(to) > 220:
+                to = to[:220].rstrip() + "…"
+
+            body = em.body_text_clean or em.body_preview or em.body_text or ""
+            excerpt = _select_best_excerpt(body, 1400, hints=about_hints)
+
+            sources.append(
+                {
+                    "label": label,
+                    "evidence_id": str(em.id),
+                    "filename": f"Email: {subject[:180]}",
+                    "document_date": dt,
+                    "evidence_type": "email",
+                }
+            )
+            if excerpt:
+                header = (
+                    f"[{label}] Email: {subject} (id={em.id}, date={dt or 'unknown'})"
+                    f"\nFrom: {frm}\nTo: {to or 'Unknown'}"
+                )
+                if em.has_attachments:
+                    header += "\nHas attachments: yes"
+                source_blocks.append(f"{header}\n{excerpt}")
+    except Exception:
+        # best-effort; never block read-in generation
+        pass
+
     user_notes = (about.user_notes or "").strip()
     evidence_excerpt_text = "\n\n".join(source_blocks) if source_blocks else "None"
     contract_list_text = (
@@ -690,6 +943,9 @@ async def _build_workspace_about_snapshot(
         if contract_docs
         else "None"
     )
+    instruction_context = ""
+    if instruction_item:
+        instruction_context = f"{instruction_item.filename} (id={instruction_item.id})"
 
     system_prompt = (
         "You are a senior construction disputes barrister's assistant. "
@@ -727,10 +983,16 @@ Cases (count={len(cases)}): {", ".join([c.name for c in cases if c.name]) or "No
 Authoritative user notes (treat as ground truth if present):
 {user_notes or "None"}
 
+Purpose baseline:
+{purpose_text or "None"}
+
+Instruction baseline document:
+{instruction_context or "None"}
+
 Contract documents uploaded in this workspace (if any):
 {contract_list_text}
 
-Evidence excerpts (cite sources like [S1], [S2] where relevant):
+Evidence + correspondence excerpts (cite sources like [S1], [S2] where relevant):
 {evidence_excerpt_text}
 """.strip()
 
@@ -2361,12 +2623,27 @@ async def ask_workspace_about(
         if about and isinstance(about.data, dict)
         else {}
     )
+    purpose = (
+        db.query(WorkspacePurpose)
+        .filter(WorkspacePurpose.workspace_id == workspace.id)
+        .first()
+    )
+    purpose_text = (purpose.purpose_text or "") if purpose else ""
 
     # Build evidence pool: workspace docs + related project/case evidence (bounded).
     projects = db.query(Project).filter(Project.workspace_id == workspace.id).all()
     cases = db.query(Case).filter(Case.workspace_id == workspace.id).all()
     project_ids = [p.id for p in projects]
     case_ids = [c.id for c in cases]
+    instruction_item = _get_workspace_scoped_evidence(
+        db,
+        workspace=workspace,
+        evidence_id=str(purpose.instructions_evidence_id)
+        if purpose and purpose.instructions_evidence_id
+        else None,
+        project_ids=project_ids,
+        case_ids=case_ids,
+    )
 
     pool_conds = [
         EvidenceItem.meta.op("->>")("workspace_id") == str(workspace.id),
@@ -2383,8 +2660,52 @@ async def ask_workspace_about(
         .limit(200)
         .all()
     )
+    if instruction_item and all(it.id != instruction_item.id for it in pool):
+        pool.insert(0, instruction_item)
+
+    # Pull correspondence (emails) from projects/cases in this workspace (bounded).
+    email_pool = []
+    try:
+        from .models import EmailMessage
+
+        email_conds = []
+        if project_ids:
+            email_conds.append(EmailMessage.project_id.in_(project_ids))
+        if case_ids:
+            email_conds.append(EmailMessage.case_id.in_(case_ids))
+        if email_conds:
+            email_pool = (
+                db.query(EmailMessage)
+                .filter(or_(*email_conds))
+                .filter(EmailMessage.is_duplicate.is_(False))
+                .filter(EmailMessage.is_inclusive.is_(True))
+                .order_by(
+                    desc(EmailMessage.date_sent).nullslast(),
+                    desc(EmailMessage.created_at),
+                )
+                .limit(260)
+                .all()
+            )
+    except Exception:
+        email_pool = []
 
     tokens = re.findall(r"[a-zA-Z0-9]{3,}", question.lower())[:14]
+    purpose_hints = [
+        "instruction",
+        "instructions",
+        "scope",
+        "deliverable",
+        "chronology",
+        "contradiction",
+        "responsibility",
+        "causation",
+        "inspection",
+        "design",
+        "water ingress",
+    ]
+    purpose_hints.extend(_hint_tokens(purpose_text))
+    purpose_hints = list(dict.fromkeys([h for h in purpose_hints if h]))
+    excerpt_hints = list(dict.fromkeys(tokens + purpose_hints))
 
     def score_item(it: EvidenceItem) -> int:
         hay = f"{it.filename} {it.title or ''} {(_safe_excerpt(it.extracted_text, 6000))}".lower()
@@ -2400,7 +2721,7 @@ async def ask_workspace_about(
     contract_ranked = [
         it for it in ranked if (it.evidence_type or "").lower() == "contract"
     ][:2]
-    topical = [it for it in ranked if score_item(it) > 0][:6]
+    topical = [it for it in ranked if score_item(it) > 0][:4]
     top = []
     seen: set[str] = set()
     for it in contract_ranked + topical:
@@ -2409,28 +2730,110 @@ async def ask_workspace_about(
             continue
         top.append(it)
         seen.add(sid)
-    top = top[:8] or ranked[:4]
+    top = top[:6] or ranked[:4]
+
+    def score_email(em) -> int:
+        try:
+            subj = (em.subject or "")
+            body = em.body_text_clean or em.body_preview or em.body_text or ""
+            to = " ".join((em.recipients_to or [])[:8]) if em.recipients_to else ""
+            hay = f"{subj} {em.sender_email or ''} {em.sender_name or ''} {to} {_safe_excerpt(body, 6000)}".lower()
+            score = 0
+            for t in tokens:
+                if t in hay:
+                    score += 2
+                    score += min(hay.count(t), 4)
+            if getattr(em, "has_attachments", False):
+                score += 1
+            return score
+        except Exception:
+            return 0
+
+    ranked_emails = sorted(email_pool, key=score_email, reverse=True)
+    top_emails = [em for em in ranked_emails if score_email(em) > 0][:3]
+    if not top_emails and email_pool:
+        # If the question is broad, still include a small slice of recent correspondence.
+        top_emails = email_pool[:2]
 
     sources: list[dict[str, Any]] = []
     blocks: list[str] = []
-    for idx, it in enumerate(top, start=1):
+    start_idx = 1
+    if instruction_item:
+        label = f"S{start_idx}"
+        excerpt = _select_best_excerpt(
+            instruction_item.extracted_text,
+            1500,
+            hints=excerpt_hints,
+        ) or _select_best_excerpt(
+            (
+                (instruction_item.extracted_metadata or {}).get("text_preview")  # type: ignore[union-attr]
+                if isinstance(instruction_item.extracted_metadata, dict)
+                else ""
+            ),
+            1500,
+            hints=excerpt_hints,
+        )
+        sources.append(
+            {
+                "label": label,
+                "id": str(instruction_item.id),
+                "filename": instruction_item.filename,
+            }
+        )
+        if excerpt:
+            blocks.append(
+                f"[{label}] {instruction_item.filename} (id={instruction_item.id})\n{excerpt}"
+            )
+        start_idx += 1
+
+    for idx, it in enumerate(top, start=start_idx):
         label = f"S{idx}"
-        excerpt = _safe_excerpt(it.extracted_text, 1400)
+        excerpt = _select_best_excerpt(it.extracted_text, 1400, hints=excerpt_hints)
         sources.append({"label": label, "id": str(it.id), "filename": it.filename})
         if excerpt:
             blocks.append(f"[{label}] {it.filename} (id={it.id})\n{excerpt}")
 
+    start_idx = len(sources) + 1
+    for i, em in enumerate(top_emails, start=start_idx):
+        label = f"S{i}"
+        subject = (getattr(em, "subject", None) or "(no subject)").strip()
+        dt = em.date_sent.isoformat() if getattr(em, "date_sent", None) else None
+        frm = (getattr(em, "sender_email", None) or getattr(em, "sender_name", None) or "Unknown").strip()
+        to = ", ".join((getattr(em, "recipients_to", None) or [])[:6]) if getattr(em, "recipients_to", None) else ""
+        if len(to) > 220:
+            to = to[:220].rstrip() + "…"
+
+        body = getattr(em, "body_text_clean", None) or getattr(em, "body_preview", None) or getattr(em, "body_text", None) or ""
+        excerpt = _select_best_excerpt(body, 1200, hints=excerpt_hints)
+
+        sources.append({"label": label, "id": str(em.id), "filename": f"Email: {subject}"})
+        if excerpt:
+            header = f"[{label}] Email: {subject} (id={em.id}, date={dt or 'unknown'})\nFrom: {frm}\nTo: {to or 'Unknown'}"
+            if getattr(em, "has_attachments", False):
+                header += "\nHas attachments: yes"
+            blocks.append(f"{header}\n{excerpt}")
+
     system_prompt = (
         "You answer questions for lawyers/barristers about a workspace dispute. "
-        "Use ONLY the supplied context. Cite sources as [S#]. "
+        "Use ONLY the supplied context (evidence + correspondence). Cite sources as [S#]. "
         "If unsure, say what is missing and propose the next document to request."
     )
     evidence_blocks_text = "\n\n".join(blocks) if blocks else "None"
+    instruction_context = ""
+    if instruction_item:
+        instruction_context = f"{instruction_item.filename} (id={instruction_item.id})"
+
     prompt = f"""
 Question: {question}
 
 Authoritative user notes (ground truth):
 {user_notes or "None"}
+
+Purpose baseline:
+{purpose_text or "None"}
+
+Instruction baseline document:
+{instruction_context or "None"}
 
 Cached workspace summary:
 {about_summary or "None"}
@@ -2438,7 +2841,7 @@ Cached workspace summary:
 Contracts & key terms (cached):
 {json.dumps(about_contracts, ensure_ascii=False)[:6000] if about_contracts else "None"}
 
-Evidence excerpts:
+Evidence + correspondence excerpts:
 {evidence_blocks_text}
 
 Answer concisely, with citations like [S1].
@@ -2456,5 +2859,716 @@ Answer concisely, with citations like [S1].
     answer = (ai_text or "").strip()
     if not answer:
         answer = "AI provider unavailable. I can’t answer reliably yet; please upload key documents (contract, key correspondence, notices, schedules, valuations)."
+
+    return {"answer": answer, "sources": sources}
+
+
+# ============================================================================
+# Workspace Purpose (baseline instructions + tracking)
+# ============================================================================
+
+
+async def _build_workspace_purpose_snapshot(
+    *,
+    db: Session,
+    workspace: Workspace,
+    force: bool = False,
+    deep: bool = False,
+) -> WorkspacePurpose:
+    purpose = (
+        db.query(WorkspacePurpose)
+        .filter(WorkspacePurpose.workspace_id == workspace.id)
+        .first()
+    )
+    if not purpose:
+        purpose = WorkspacePurpose(workspace_id=workspace.id, status="empty")
+        db.add(purpose)
+        db.commit()
+        db.refresh(purpose)
+
+    latest_doc = (
+        _workspace_docs_query(db, workspace.id)
+        .order_by(desc(EvidenceItem.created_at))
+        .first()
+    )
+    latest_doc_at = getattr(latest_doc, "created_at", None)
+    if (
+        not force
+        and (purpose.status or "").lower() == "ready"
+        and purpose.updated_at
+        and latest_doc_at
+        and purpose.updated_at >= latest_doc_at
+    ):
+        return purpose
+
+    purpose.status = "building"
+    purpose.last_error = None
+    db.commit()
+
+    projects = db.query(Project).filter(Project.workspace_id == workspace.id).all()
+    cases = db.query(Case).filter(Case.workspace_id == workspace.id).all()
+    project_ids = [p.id for p in projects]
+    case_ids = [c.id for c in cases]
+
+    purpose_text = (purpose.purpose_text or "").strip()
+    instruction_item = _get_workspace_scoped_evidence(
+        db,
+        workspace=workspace,
+        evidence_id=str(purpose.instructions_evidence_id)
+        if purpose.instructions_evidence_id
+        else None,
+        project_ids=project_ids,
+        case_ids=case_ids,
+    )
+
+    evidence_conds = [
+        EvidenceItem.meta.op("->>")("workspace_id") == str(workspace.id),
+    ]
+    if project_ids:
+        evidence_conds.append(EvidenceItem.project_id.in_(project_ids))
+    if case_ids:
+        evidence_conds.append(EvidenceItem.case_id.in_(case_ids))
+    evidence_pool = (
+        db.query(EvidenceItem)
+        .filter(or_(*evidence_conds))
+        .order_by(desc(EvidenceItem.created_at))
+        .limit(240 if deep else 160)
+        .all()
+    )
+    if instruction_item and all(it.id != instruction_item.id for it in evidence_pool):
+        evidence_pool.insert(0, instruction_item)
+
+    email_pool = []
+    try:
+        from .models import EmailMessage
+
+        email_conds = []
+        if project_ids:
+            email_conds.append(EmailMessage.project_id.in_(project_ids))
+        if case_ids:
+            email_conds.append(EmailMessage.case_id.in_(case_ids))
+        if email_conds:
+            email_pool = (
+                db.query(EmailMessage)
+                .filter(or_(*email_conds))
+                .filter(EmailMessage.is_duplicate.is_(False))
+                .filter(EmailMessage.is_inclusive.is_(True))
+                .order_by(
+                    desc(EmailMessage.date_sent).nullslast(),
+                    desc(EmailMessage.created_at),
+                )
+                .limit(260 if deep else 180)
+                .all()
+            )
+    except Exception:
+        email_pool = []
+
+    purpose_hints = [
+        "instruction",
+        "instructions",
+        "instruction narrative",
+        "deliverable",
+        "chronology",
+        "contradiction",
+        "responsibility",
+        "inspection",
+        "design",
+        "causation",
+        "water ingress",
+        "keyword",
+        "issue grouping",
+    ]
+    purpose_hints.extend(_hint_tokens(purpose_text))
+    purpose_hints = list(dict.fromkeys([h for h in purpose_hints if h]))
+
+    def score_evidence(it: EvidenceItem) -> int:
+        score = 0
+        fn = (it.filename or "").lower()
+        et = (it.evidence_type or "").lower()
+        if et in ("contract", "expert_report", "pleading"):
+            score += 90
+        if any(k in fn for k in ("instruction", "narrative", "scope", "terms")):
+            score += 70
+        for k, w in (
+            ("expert", 40),
+            ("report", 30),
+            ("notice", 30),
+            ("chronology", 35),
+            ("inspection", 35),
+            ("drawing", 25),
+            ("specification", 30),
+            ("email", 15),
+        ):
+            if k in fn:
+                score += w
+        if (it.extracted_text or "").strip():
+            score += 10
+        return score
+
+    ranked_evidence = sorted(evidence_pool, key=score_evidence, reverse=True)
+    top_evidence = ranked_evidence[: (16 if deep else 10)]
+
+    def score_email_for_purpose(em) -> int:
+        subj = (em.subject or "").lower()
+        score = 0
+        if em.has_attachments:
+            score += 30
+        for k in (
+            "instruction",
+            "scope",
+            "notice",
+            "inspection",
+            "defect",
+            "water ingress",
+            "design",
+            "responsibility",
+        ):
+            if k in subj:
+                score += 20
+        return score
+
+    ranked_emails = sorted(email_pool, key=score_email_for_purpose, reverse=True)
+    top_emails = ranked_emails[: (8 if deep else 5)]
+
+    sources: list[dict[str, Any]] = []
+    blocks: list[str] = []
+    label_idx = 1
+    if instruction_item:
+        excerpt = _select_best_excerpt(
+            instruction_item.extracted_text,
+            1600,
+            hints=purpose_hints,
+        ) or _select_best_excerpt(
+            (
+                (instruction_item.extracted_metadata or {}).get("text_preview")  # type: ignore[union-attr]
+                if isinstance(instruction_item.extracted_metadata, dict)
+                else ""
+            ),
+            1600,
+            hints=purpose_hints,
+        )
+        sources.append(
+            {
+                "label": f"S{label_idx}",
+                "evidence_id": str(instruction_item.id),
+                "filename": instruction_item.filename,
+                "document_date": instruction_item.document_date.isoformat()
+                if instruction_item.document_date
+                else None,
+                "evidence_type": "instructions",
+            }
+        )
+        if excerpt:
+            blocks.append(
+                f"[S{label_idx}] {instruction_item.filename} (id={instruction_item.id})\n{excerpt}"
+            )
+        label_idx += 1
+
+    for it in top_evidence:
+        label = f"S{label_idx}"
+        excerpt = _select_best_excerpt(it.extracted_text, 1400, hints=purpose_hints)
+        sources.append(
+            {
+                "label": label,
+                "evidence_id": str(it.id),
+                "filename": it.filename,
+                "document_date": it.document_date.isoformat() if it.document_date else None,
+                "evidence_type": getattr(it, "evidence_type", None),
+            }
+        )
+        if excerpt:
+            blocks.append(f"[{label}] {it.filename} (id={it.id})\n{excerpt}")
+        label_idx += 1
+
+    for em in top_emails:
+        label = f"S{label_idx}"
+        subject = (em.subject or "(no subject)").strip()
+        dt = em.date_sent.isoformat() if em.date_sent else None
+        frm = (em.sender_email or em.sender_name or "Unknown").strip()
+        to = ", ".join((em.recipients_to or [])[:6]) if em.recipients_to else ""
+        body = em.body_text_clean or em.body_preview or em.body_text or ""
+        excerpt = _select_best_excerpt(body, 1200, hints=purpose_hints)
+        sources.append(
+            {
+                "label": label,
+                "evidence_id": str(em.id),
+                "filename": f"Email: {subject}",
+                "document_date": dt,
+                "evidence_type": "email",
+            }
+        )
+        if excerpt:
+            header = (
+                f"[{label}] Email: {subject} (id={em.id}, date={dt or 'unknown'})"
+                f"\nFrom: {frm}\nTo: {to or 'Unknown'}"
+            )
+            if em.has_attachments:
+                header += "\nHas attachments: yes"
+            blocks.append(f"{header}\n{excerpt}")
+        label_idx += 1
+
+    evidence_blocks_text = "\n\n".join(blocks) if blocks else "None"
+    instruction_label = (
+        f"{instruction_item.filename} (id={instruction_item.id})"
+        if instruction_item
+        else "None"
+    )
+
+    system_prompt = (
+        "You are a senior construction disputes barrister's assistant. "
+        "Use ONLY the facts provided. Do NOT invent. "
+        "If information is missing, say 'Unknown' and add an open question."
+    )
+    prompt = f"""
+Build a baseline “Purpose” plan and tracking pack for this workspace.
+
+Return ONE JSON object with keys:
+- summary_md: string (plain text; use headings + bullets; reference the purpose baseline)
+- baseline: object with fields {{goal_statement, deliverables, issue_groupings, keywords, sources}}
+- tracking: array of objects {{deliverable, status, evidence, gaps, sources}}
+- chronology: array {{date, party, issue_tags, quote, source}}
+- contradictions: array {{statement_a, statement_b, explanation, sources}}
+- evidence_organisation: object {{issue_groupings, keyword_map}}
+- open_questions: array of strings
+- sources: array of objects {{label, evidence_id, filename, document_date, evidence_type}}
+
+Workspace:
+- name: {workspace.name}
+- code: {workspace.code}
+- contract_type: {workspace.contract_type or "Unknown"}
+- description: {workspace.description or "None"}
+
+Purpose statement (authoritative if present):
+{purpose_text or "None"}
+
+Instruction baseline document:
+{instruction_label}
+
+Evidence + correspondence excerpts (cite sources like [S1], [S2]):
+{evidence_blocks_text}
+""".strip()
+
+    tool_name = "vericase_analysis" if deep else "workspace_purpose"
+    ai_text = await _complete_with_tool_fallback(
+        tool_name=tool_name,
+        prompt=prompt,
+        system_prompt=system_prompt,
+        db=db,
+        max_tokens=7000 if deep else 3200,
+        temperature=0.2,
+    )
+
+    payload = _extract_json_object(ai_text) if ai_text else None
+    if not payload:
+        summary_lines = [
+            f"Workspace: {workspace.name} ({workspace.code})",
+            f"Purpose: {purpose_text or 'None'}",
+            f"Instructions: {instruction_label}",
+        ]
+        if top_evidence:
+            summary_lines.append(
+                "Key evidence: "
+                + ", ".join([e.filename for e in top_evidence if e.filename][:8])
+            )
+        payload = {
+            "summary_md": "\n".join(summary_lines),
+            "baseline": {"goal_statement": purpose_text or "", "deliverables": []},
+            "tracking": [],
+            "chronology": [],
+            "contradictions": [],
+            "evidence_organisation": {},
+            "open_questions": [],
+            "sources": sources,
+        }
+
+    purpose.summary_md = str(payload.get("summary_md") or payload.get("summary") or "")
+    purpose.data = payload
+    purpose.status = "ready"
+    purpose.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(purpose)
+    return purpose
+
+
+async def _workspace_purpose_refresh_job(
+    workspace_id: str, force: bool, deep: bool
+) -> None:
+    db = SessionLocal()
+    try:
+        ws_uuid = _parse_uuid(workspace_id, "workspace_id")
+        ws = db.query(Workspace).filter(Workspace.id == ws_uuid).first()
+        if not ws:
+            return
+        await _build_workspace_purpose_snapshot(
+            db=db, workspace=ws, force=force, deep=deep
+        )
+    finally:
+        db.close()
+
+
+@router.get("/{workspace_id}/purpose")
+def get_workspace_purpose(
+    workspace_id: str,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    workspace = _require_workspace(db, workspace_id, user)
+    purpose = (
+        db.query(WorkspacePurpose)
+        .filter(WorkspacePurpose.workspace_id == workspace.id)
+        .first()
+    )
+    if not purpose:
+        return {
+            "workspace_id": str(workspace.id),
+            "status": "empty",
+            "purpose_text": "",
+            "instructions_evidence_id": None,
+            "instructions_filename": None,
+            "summary": "",
+            "data": {},
+            "updated_at": None,
+        }
+
+    instructions_filename = None
+    if purpose.instructions_evidence_id:
+        item = db.query(EvidenceItem).filter(
+            EvidenceItem.id == purpose.instructions_evidence_id
+        ).first()
+        if item:
+            instructions_filename = item.filename
+
+    return {
+        "workspace_id": str(workspace.id),
+        "status": purpose.status,
+        "purpose_text": purpose.purpose_text or "",
+        "instructions_evidence_id": str(purpose.instructions_evidence_id)
+        if purpose.instructions_evidence_id
+        else None,
+        "instructions_filename": instructions_filename,
+        "summary": purpose.summary_md or "",
+        "data": purpose.data or {},
+        "updated_at": purpose.updated_at.isoformat() if purpose.updated_at else None,
+        "last_error": purpose.last_error,
+    }
+
+
+@router.post("/{workspace_id}/purpose/config")
+def save_workspace_purpose_config(
+    workspace_id: str,
+    payload: PurposeConfigRequest,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    workspace = _require_workspace(db, workspace_id, user)
+    purpose = (
+        db.query(WorkspacePurpose)
+        .filter(WorkspacePurpose.workspace_id == workspace.id)
+        .first()
+    )
+    if not purpose:
+        purpose = WorkspacePurpose(workspace_id=workspace.id, status="empty")
+        db.add(purpose)
+        db.commit()
+        db.refresh(purpose)
+
+    projects = db.query(Project).filter(Project.workspace_id == workspace.id).all()
+    cases = db.query(Case).filter(Case.workspace_id == workspace.id).all()
+    project_ids = [p.id for p in projects]
+    case_ids = [c.id for c in cases]
+
+    instruction_item = _get_workspace_scoped_evidence(
+        db,
+        workspace=workspace,
+        evidence_id=payload.instructions_evidence_id,
+        project_ids=project_ids,
+        case_ids=case_ids,
+    )
+    if payload.instructions_evidence_id and not instruction_item:
+        raise HTTPException(status_code=404, detail="Instruction document not found")
+
+    purpose.purpose_text = (payload.purpose_text or "").strip() or None
+    purpose.instructions_evidence_id = (
+        instruction_item.id if instruction_item else None
+    )
+    purpose.status = "empty"
+    purpose.last_error = None
+    purpose.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(purpose)
+
+    return {
+        "workspace_id": str(workspace.id),
+        "status": purpose.status,
+        "purpose_text": purpose.purpose_text or "",
+        "instructions_evidence_id": str(purpose.instructions_evidence_id)
+        if purpose.instructions_evidence_id
+        else None,
+        "updated_at": purpose.updated_at.isoformat() if purpose.updated_at else None,
+    }
+
+
+@router.post("/{workspace_id}/purpose/refresh")
+def refresh_workspace_purpose(
+    workspace_id: str,
+    payload: PurposeRefreshRequest,
+    background_tasks: BackgroundTasks,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    workspace = _require_workspace(db, workspace_id, user)
+    purpose = (
+        db.query(WorkspacePurpose)
+        .filter(WorkspacePurpose.workspace_id == workspace.id)
+        .first()
+    )
+    if not purpose:
+        purpose = WorkspacePurpose(workspace_id=workspace.id, status="empty")
+        db.add(purpose)
+        db.commit()
+        db.refresh(purpose)
+
+    purpose.status = "building"
+    purpose.last_error = None
+    purpose.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(purpose)
+
+    background_tasks.add_task(
+        _workspace_purpose_refresh_job,
+        str(workspace.id),
+        bool(payload.force),
+        bool(payload.deep),
+    )
+
+    return {
+        "workspace_id": str(workspace.id),
+        "status": purpose.status,
+        "summary": purpose.summary_md or "",
+        "purpose_text": purpose.purpose_text or "",
+        "updated_at": purpose.updated_at.isoformat() if purpose.updated_at else None,
+    }
+
+
+@router.post("/{workspace_id}/purpose/ask")
+async def ask_workspace_purpose(
+    workspace_id: str,
+    payload: PurposeAskRequest,
+    db: DbSession,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    workspace = _require_workspace(db, workspace_id, user)
+    question = (payload.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Question is required")
+
+    purpose = (
+        db.query(WorkspacePurpose)
+        .filter(WorkspacePurpose.workspace_id == workspace.id)
+        .first()
+    )
+    purpose_text = (purpose.purpose_text if purpose else None) or ""
+    purpose_summary = (purpose.summary_md if purpose else None) or ""
+
+    projects = db.query(Project).filter(Project.workspace_id == workspace.id).all()
+    cases = db.query(Case).filter(Case.workspace_id == workspace.id).all()
+    project_ids = [p.id for p in projects]
+    case_ids = [c.id for c in cases]
+
+    instruction_item = _get_workspace_scoped_evidence(
+        db,
+        workspace=workspace,
+        evidence_id=str(purpose.instructions_evidence_id)
+        if purpose and purpose.instructions_evidence_id
+        else None,
+        project_ids=project_ids,
+        case_ids=case_ids,
+    )
+
+    pool_conds = [
+        EvidenceItem.meta.op("->>")("workspace_id") == str(workspace.id),
+    ]
+    if project_ids:
+        pool_conds.append(EvidenceItem.project_id.in_(project_ids))
+    if case_ids:
+        pool_conds.append(EvidenceItem.case_id.in_(case_ids))
+
+    pool = (
+        db.query(EvidenceItem)
+        .filter(or_(*pool_conds))
+        .order_by(desc(EvidenceItem.created_at))
+        .limit(200)
+        .all()
+    )
+    if instruction_item and all(it.id != instruction_item.id for it in pool):
+        pool.insert(0, instruction_item)
+
+    email_pool = []
+    try:
+        from .models import EmailMessage
+
+        email_conds = []
+        if project_ids:
+            email_conds.append(EmailMessage.project_id.in_(project_ids))
+        if case_ids:
+            email_conds.append(EmailMessage.case_id.in_(case_ids))
+        if email_conds:
+            email_pool = (
+                db.query(EmailMessage)
+                .filter(or_(*email_conds))
+                .filter(EmailMessage.is_duplicate.is_(False))
+                .filter(EmailMessage.is_inclusive.is_(True))
+                .order_by(
+                    desc(EmailMessage.date_sent).nullslast(),
+                    desc(EmailMessage.created_at),
+                )
+                .limit(220)
+                .all()
+            )
+    except Exception:
+        email_pool = []
+
+    tokens = re.findall(r"[a-zA-Z0-9]{3,}", question.lower())[:14]
+    purpose_hints = [
+        "instruction",
+        "instructions",
+        "scope",
+        "deliverable",
+        "chronology",
+        "contradiction",
+        "responsibility",
+        "inspection",
+        "design",
+        "causation",
+        "water ingress",
+    ]
+    purpose_hints.extend(_hint_tokens(purpose_text))
+    purpose_hints = list(dict.fromkeys([h for h in purpose_hints if h]))
+    excerpt_hints = list(dict.fromkeys(tokens + purpose_hints))
+
+    def score_item(it: EvidenceItem) -> int:
+        hay = f"{it.filename} {it.title or ''} {(_safe_excerpt(it.extracted_text, 6000))}".lower()
+        score = 0
+        for t in tokens:
+            if t in hay:
+                score += 2
+                score += min(hay.count(t), 4)
+        return score
+
+    ranked = sorted(pool, key=score_item, reverse=True)
+    top = [it for it in ranked if score_item(it) > 0][:6]
+    if not top:
+        top = ranked[:4]
+
+    def score_email(em) -> int:
+        subj = (em.subject or "")
+        body = em.body_text_clean or em.body_preview or em.body_text or ""
+        hay = f"{subj} {em.sender_email or ''} {em.sender_name or ''} {_safe_excerpt(body, 6000)}".lower()
+        score = 0
+        for t in tokens:
+            if t in hay:
+                score += 2
+                score += min(hay.count(t), 3)
+        return score
+
+    ranked_emails = sorted(email_pool, key=score_email, reverse=True)
+    top_emails = [em for em in ranked_emails if score_email(em) > 0][:3]
+    if not top_emails and email_pool:
+        top_emails = email_pool[:2]
+
+    sources: list[dict[str, Any]] = []
+    blocks: list[str] = []
+    label_idx = 1
+    if instruction_item:
+        excerpt = _select_best_excerpt(
+            instruction_item.extracted_text,
+            1400,
+            hints=excerpt_hints,
+        ) or _select_best_excerpt(
+            (
+                (instruction_item.extracted_metadata or {}).get("text_preview")  # type: ignore[union-attr]
+                if isinstance(instruction_item.extracted_metadata, dict)
+                else ""
+            ),
+            1400,
+            hints=excerpt_hints,
+        )
+        sources.append(
+            {
+                "label": f"S{label_idx}",
+                "id": str(instruction_item.id),
+                "filename": instruction_item.filename,
+            }
+        )
+        if excerpt:
+            blocks.append(
+                f"[S{label_idx}] {instruction_item.filename} (id={instruction_item.id})\n{excerpt}"
+            )
+        label_idx += 1
+
+    for it in top:
+        label = f"S{label_idx}"
+        excerpt = _select_best_excerpt(it.extracted_text, 1200, hints=excerpt_hints)
+        sources.append({"label": label, "id": str(it.id), "filename": it.filename})
+        if excerpt:
+            blocks.append(f"[{label}] {it.filename} (id={it.id})\n{excerpt}")
+        label_idx += 1
+
+    for em in top_emails:
+        label = f"S{label_idx}"
+        subject = (em.subject or "(no subject)").strip()
+        dt = em.date_sent.isoformat() if em.date_sent else None
+        frm = (em.sender_email or em.sender_name or "Unknown").strip()
+        to = ", ".join((em.recipients_to or [])[:6]) if em.recipients_to else ""
+        body = em.body_text_clean or em.body_preview or em.body_text or ""
+        excerpt = _select_best_excerpt(body, 1200, hints=excerpt_hints)
+        sources.append({"label": label, "id": str(em.id), "filename": f"Email: {subject}"})
+        if excerpt:
+            header = f"[{label}] Email: {subject} (id={em.id}, date={dt or 'unknown'})\nFrom: {frm}\nTo: {to or 'Unknown'}"
+            if em.has_attachments:
+                header += "\nHas attachments: yes"
+            blocks.append(f"{header}\n{excerpt}")
+        label_idx += 1
+
+    evidence_blocks_text = "\n\n".join(blocks) if blocks else "None"
+    instruction_context = ""
+    if instruction_item:
+        instruction_context = f"{instruction_item.filename} (id={instruction_item.id})"
+
+    system_prompt = (
+        "You answer questions for lawyers/barristers about a workspace purpose baseline. "
+        "Use ONLY the supplied context. Cite sources as [S#]. "
+        "If unsure, say what is missing and propose the next document to request."
+    )
+    prompt = f"""
+Question: {question}
+
+Purpose baseline:
+{purpose_text or "None"}
+
+Instruction baseline document:
+{instruction_context or "None"}
+
+Purpose snapshot summary:
+{purpose_summary or "None"}
+
+Evidence + correspondence excerpts:
+{evidence_blocks_text}
+
+Answer concisely, with citations like [S1].
+""".strip()
+
+    ai_text = await _complete_with_tool_fallback(
+        tool_name="workspace_purpose",
+        prompt=prompt,
+        system_prompt=system_prompt,
+        db=db,
+        max_tokens=1400,
+        temperature=0.2,
+    )
+
+    answer = (ai_text or "").strip()
+    if not answer:
+        answer = "AI provider unavailable. I can’t answer reliably yet; please upload key documents and the instruction baseline."
 
     return {"answer": answer, "sources": sources}
