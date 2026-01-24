@@ -43,7 +43,16 @@ try:  # Optional Redis
 except ImportError:  # pragma: no cover - runtime fallback if redis-py not installed
     Redis = None  # type: ignore
 
-from .models import User, EmailMessage, Project, EvidenceItem, ChronologyItem
+from .models import (
+    User,
+    EmailMessage,
+    Project,
+    Case,
+    EvidenceItem,
+    ChronologyItem,
+    WorkspaceAbout,
+    WorkspacePurpose,
+)
 from .db import get_db
 from .security import current_user
 from .ai_settings import (
@@ -1011,6 +1020,38 @@ class SearcherAgent(BaseAgent):
             )
         else:
             return []
+
+        # Ensure workspace-scoped items are considered even when vector search returns results.
+        # These may not be present in the vector index (workspace documents are not project/case-linked).
+        if evidence_items:
+            ws_types = {"WORKSPACE_DOCUMENT", "WORKSPACE_PURPOSE", "WORKSPACE_ABOUT"}
+            ws_items = [
+                e for e in evidence_items if str(e.get("type") or "") in ws_types
+            ]
+            if ws_items:
+                existing_keys: set[str] = set()
+                for c in candidates:
+                    cid = c.get("id")
+                    ctype = c.get("type")
+                    if cid and ctype:
+                        existing_keys.add(f"{ctype}:{cid}")
+
+                added = 0
+                for e in ws_items[:120]:
+                    eid = e.get("id")
+                    etype = e.get("type")
+                    key = f"{etype}:{eid}" if etype and eid else ""
+                    if key and key in existing_keys:
+                        continue
+                    candidates.append(e)
+                    if key:
+                        existing_keys.add(key)
+                    added += 1
+
+                if added:
+                    logger.info(
+                        f"Added {added} workspace-scoped items into candidate pool"
+                    )
 
         # Step 2: Cross-encoder reranking on candidates
         reranked = self.rerank_results(query, candidates, top_k=top_k * 2)
@@ -2160,6 +2201,106 @@ async def build_evidence_context(
     context_parts: list[str] = []
     evidence_items: list[dict[str, Any]] = []
 
+    intro_parts: list[str] = []
+    intro_items: list[dict[str, Any]] = []
+
+    def _clip(val: str | None, limit: int) -> str:
+        s = (val or "").strip()
+        if not s:
+            return ""
+        return s if len(s) <= limit else (s[:limit].rstrip() + "…")
+
+    # If the analysis is scoped to a project/case, pull workspace-scoped context too.
+    workspace_uuid: uuid.UUID | None = None
+    try:
+        if project_id:
+            proj_uuid = uuid.UUID(str(project_id))
+            proj = db.query(Project).filter(Project.id == proj_uuid).first()
+            if proj is not None:
+                workspace_uuid = getattr(proj, "workspace_id", None)
+        elif case_id:
+            case_uuid = uuid.UUID(str(case_id))
+            cs = db.query(Case).filter(Case.id == case_uuid).first()
+            if cs is not None:
+                workspace_uuid = getattr(cs, "workspace_id", None)
+    except Exception:
+        workspace_uuid = None
+
+    if workspace_uuid:
+        try:
+            about = (
+                db.query(WorkspaceAbout)
+                .filter(WorkspaceAbout.workspace_id == workspace_uuid)
+                .first()
+            )
+            purpose = (
+                db.query(WorkspacePurpose)
+                .filter(WorkspacePurpose.workspace_id == workspace_uuid)
+                .first()
+            )
+
+            # Authoritative user notes + cached summaries help steer analysis.
+            if about:
+                notes = _clip(getattr(about, "user_notes", None), 2200)
+                summary = _clip(getattr(about, "summary_md", None), 3000)
+                last_error = _clip(getattr(about, "last_error", None), 600)
+                status = str(getattr(about, "status", "") or "").strip()
+                if notes or summary or last_error:
+                    intro_parts.append(
+                        "\n".join(
+                            [
+                                "[WORKSPACE ABOUT]",
+                                f"Status: {status or 'unknown'}",
+                                *([f"User Notes: {notes}"] if notes else []),
+                                *([f"Summary: {summary}"] if summary else []),
+                                *([f"Last error: {last_error}"] if last_error else []),
+                                "---",
+                            ]
+                        )
+                    )
+                    intro_items.append(
+                        {
+                            "id": f"workspace:{workspace_uuid}:about",
+                            "type": "WORKSPACE_ABOUT",
+                            "content": "\n\n".join(
+                                [x for x in [notes, summary, last_error] if x]
+                            )[:2000],
+                            "text": f"Workspace About notes/summary: {notes or summary}",
+                        }
+                    )
+
+            if purpose:
+                goal = _clip(getattr(purpose, "purpose_text", None), 2200)
+                summary = _clip(getattr(purpose, "summary_md", None), 3000)
+                last_error = _clip(getattr(purpose, "last_error", None), 600)
+                status = str(getattr(purpose, "status", "") or "").strip()
+                if goal or summary or last_error:
+                    intro_parts.append(
+                        "\n".join(
+                            [
+                                "[WORKSPACE PURPOSE]",
+                                f"Status: {status or 'unknown'}",
+                                *([f"Baseline: {goal}"] if goal else []),
+                                *([f"Summary: {summary}"] if summary else []),
+                                *([f"Last error: {last_error}"] if last_error else []),
+                                "---",
+                            ]
+                        )
+                    )
+                    intro_items.append(
+                        {
+                            "id": f"workspace:{workspace_uuid}:purpose",
+                            "type": "WORKSPACE_PURPOSE",
+                            "content": "\n\n".join(
+                                [x for x in [goal, summary, last_error] if x]
+                            )[:2000],
+                            "text": f"Workspace purpose baseline: {goal or summary}",
+                        }
+                    )
+        except Exception:
+            # best-effort; analysis should still work without cached workspace context
+            pass
+
     # Get emails - exclude spam/hidden/other_project (marked during PST ingestion)
     email_query = db.query(EmailMessage)
 
@@ -2227,7 +2368,7 @@ async def build_evidence_context(
             }
         )
 
-    # Get evidence items (documents/attachments linked to project)
+    # Get evidence items linked to project/case, plus workspace-scoped documents (if any).
     evidence_query = db.query(EvidenceItem).filter(
         or_(
             EvidenceItem.meta.is_(None),
@@ -2237,14 +2378,51 @@ async def build_evidence_context(
     )
     if project_id:
         evidence_query = evidence_query.filter(EvidenceItem.project_id == project_id)
+    elif case_id:
+        evidence_query = evidence_query.filter(EvidenceItem.case_id == case_id)
 
-    evidence_docs = evidence_query.all()
+    project_case_docs = evidence_query.order_by(EvidenceItem.created_at.desc()).all()
 
-    for evidence in evidence_docs:
+    workspace_docs: list[EvidenceItem] = []
+    if workspace_uuid:
+        try:
+            workspace_docs = (
+                db.query(EvidenceItem)
+                .filter(
+                    EvidenceItem.meta.op("->>")("workspace_id") == str(workspace_uuid)
+                )
+                .order_by(EvidenceItem.created_at.desc())
+                .limit(500)
+                .all()
+            )
+        except Exception:
+            workspace_docs = []
+
+    # Deduplicate by id (workspace docs are stored in EvidenceItem too).
+    combined_docs: list[EvidenceItem] = []
+    seen_ids: set[str] = set()
+    for doc in list(project_case_docs) + list(workspace_docs):
+        doc_id = str(getattr(doc, "id", "") or "")
+        if not doc_id or doc_id in seen_ids:
+            continue
+        seen_ids.add(doc_id)
+        combined_docs.append(doc)
+
+    for evidence in combined_docs:
         content = evidence.extracted_text or evidence.description or ""
         if content:
+            meta = evidence.meta if isinstance(evidence.meta, dict) else {}
+            is_workspace_doc = (
+                bool(workspace_uuid)
+                and isinstance(meta, dict)
+                and meta.get("workspace_id") == str(workspace_uuid)
+                and getattr(evidence, "project_id", None) is None
+                and getattr(evidence, "case_id", None) is None
+            )
+            ev_type = "WORKSPACE_DOCUMENT" if is_workspace_doc else "EVIDENCE"
+            label = "WORKSPACE_DOC" if is_workspace_doc else "EVIDENCE"
             text_part = (
-                f"[EVIDENCE {evidence.id}]\n"
+                f"[{label} {evidence.id}]\n"
                 f"Filename: {evidence.filename or 'Unknown'}\n"
                 f"Type: {evidence.evidence_type or 'Unknown'}\n"
                 f"Content: {content[:500]}\n"
@@ -2255,12 +2433,22 @@ async def build_evidence_context(
             evidence_items.append(
                 {
                     "id": str(evidence.id),
-                    "type": "EVIDENCE",
+                    "type": ev_type,
                     "filename": evidence.filename or "Unknown",
                     "content": content[:1500],
                     "text": f"Evidence {evidence.filename}: {content[:1500]}",
+                    **(
+                        {"workspace_id": str(workspace_uuid)}
+                        if is_workspace_doc and workspace_uuid
+                        else {}
+                    ),
                 }
             )
+
+    if intro_parts:
+        context_parts = intro_parts + context_parts
+    if intro_items:
+        evidence_items = intro_items + evidence_items
 
     return EvidenceContext(text="\n\n".join(context_parts), items=evidence_items)
 
