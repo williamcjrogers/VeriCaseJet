@@ -1,4 +1,4 @@
-﻿# VeriCase AI Key Management Guide
+# VeriCase AI Key Management Guide
 
 ## ðŸ”‘ Where Does VeriCase Load AI Keys From?
 
@@ -223,6 +223,29 @@ MULTI_VECTOR_ENABLED=true
 # Enable AWS Bedrock for AI (uses IAM credentials, not API keys)
 BEDROCK_ENABLED=true
 BEDROCK_REGION=eu-west-2
+
+# ------------------------------------------------------------
+# Bedrock Guardrails (recommended for “counsel-ready” read-ins)
+# ------------------------------------------------------------
+# Create a Guardrail in the Bedrock console, then set:
+BEDROCK_GUARDRAILS_ENABLED=true
+# Either a guardrail ID (e.g. "gr-abc123") or a full ARN
+BEDROCK_GUARDRAIL_ID=YOUR_GUARDRAIL_ID_OR_ARN
+# Numeric version (e.g. "1") or "DRAFT"
+BEDROCK_GUARDRAIL_VERSION=DRAFT
+
+# ------------------------------------------------------------
+# Bedrock Reranking (Cohere Rerank 3.5, no third‑party keys)
+# ------------------------------------------------------------
+BEDROCK_RERANK_ENABLED=true
+BEDROCK_RERANK_MODEL_ID=cohere.rerank-v3-5:0
+# NOTE: Cohere Rerank v3.5 is not available in all regions.
+# If your Knowledge Base is in eu-west-2, keep BEDROCK_REGION=eu-west-2 and set:
+BEDROCK_RERANK_REGION=us-east-1
+# Optional override. If blank, app derives the ARN from BEDROCK_RERANK_REGION (or BEDROCK_REGION) + MODEL_ID.
+BEDROCK_RERANK_MODEL_ARN=
+# How many candidates to retrieve before reranking (KB retrieval path)
+BEDROCK_RERANK_CANDIDATES=25
 
 # Bedrock Knowledge Base
 USE_KNOWLEDGE_BASE=true

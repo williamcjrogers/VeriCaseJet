@@ -33,6 +33,7 @@ from sqlalchemy import func, or_, desc
 from .db import get_db
 from .db import SessionLocal
 from .config import settings
+from .aws_services import get_aws_services
 from .storage import put_object, presign_get, delete_object
 from .evidence.utils import compute_file_hash, get_file_type, log_activity
 from .ai_runtime import complete_chat
@@ -733,21 +734,66 @@ async def _build_workspace_about_snapshot(
 
     ranked_pool = sorted(evidence_pool, key=_score_for_readin, reverse=True)
 
-    # Ensure contract docs are represented in the prompt evidence excerpts for citation.
-    ordered_items: list[EvidenceItem] = []
+    target_docs = 26 if deep else 20
+    candidate_limit = 90 if deep else 55
+
+    # Candidates for reranking: force-in contracts, then best-of rest.
+    candidate_items: list[EvidenceItem] = []
     seen_ids: set[str] = set()
-    for it in contract_docs:
+    for it in contract_docs + ranked_pool[:candidate_limit]:
         sid = str(it.id)
         if sid not in seen_ids:
-            ordered_items.append(it)
+            candidate_items.append(it)
             seen_ids.add(sid)
-    for it in ranked_pool:
-        sid = str(it.id)
-        if sid not in seen_ids:
-            ordered_items.append(it)
-            seen_ids.add(sid)
-    # Keep prompt bounded; deep mode can afford slightly more context.
-    ordered_items = ordered_items[: (26 if deep else 20)]
+
+    ordered_items = candidate_items
+
+    # Deep mode: rerank candidates using Bedrock Cohere Rerank 3.5 (best-effort).
+    if deep and getattr(settings, "BEDROCK_RERANK_ENABLED", False) and len(candidate_items) > 3:
+        try:
+            aws = get_aws_services()
+            snippets: list[str] = []
+            for it in candidate_items:
+                excerpt = _select_best_excerpt(it.extracted_text, 1200, hints=about_hints) or (
+                    (it.extracted_text or "")[:1200]
+                )
+                meta = []
+                if it.document_date:
+                    meta.append(f"date={it.document_date.isoformat()}")
+                if (it.evidence_type or "").strip():
+                    meta.append(f"type={(it.evidence_type or '').strip()}")
+                header = f"{it.filename or 'Untitled'}" + (f" ({', '.join(meta)})" if meta else "")
+                snippets.append(f"{header}\n{excerpt}")
+
+            rerank_query = (
+                "Select the most relevant sources for a counsel-ready construction dispute read-in. "
+                "Prioritize contracts and key terms, notices/claims, pleadings, expert reports, key correspondence, "
+                "programme/delay material, defects/inspections, payment/valuation, and decisive admissions/positions."
+            )
+            reranked = await aws.rerank_texts(rerank_query, snippets, top_n=min(target_docs, len(snippets)))
+            order = [int(r.get("index", -1)) for r in reranked if isinstance(r, dict)]
+            picked: list[EvidenceItem] = []
+            picked_ids: set[str] = set()
+            for idx in order:
+                if 0 <= idx < len(candidate_items):
+                    it = candidate_items[idx]
+                    sid = str(it.id)
+                    if sid not in picked_ids:
+                        picked.append(it)
+                        picked_ids.add(sid)
+
+            # Ensure contract docs remain represented even if reranker is noisy.
+            for it in contract_docs:
+                sid = str(it.id)
+                if sid not in picked_ids:
+                    picked.insert(0, it)
+                    picked_ids.add(sid)
+
+            ordered_items = picked[:target_docs]
+        except Exception:
+            ordered_items = candidate_items[:target_docs]
+    else:
+        ordered_items = candidate_items[:target_docs]
 
     sources: list[dict[str, Any]] = []
     source_blocks: list[str] = []
@@ -897,6 +943,50 @@ async def _build_workspace_about_snapshot(
         ranked_emails = sorted(emails, key=_score_email_for_readin, reverse=True)
         selected_emails = ranked_emails[: (10 if deep else 6)]
 
+        # Deep mode: rerank email candidates for read-in relevance (best-effort).
+        if (
+            deep
+            and getattr(settings, "BEDROCK_RERANK_ENABLED", False)
+            and len(ranked_emails) > 6
+        ):
+            try:
+                aws = get_aws_services()
+                cand = ranked_emails[:50]
+                em_snippets: list[str] = []
+                for em in cand:
+                    subject = (em.subject or "(no subject)").strip()
+                    dt = em.date_sent.isoformat() if em.date_sent else None
+                    frm = (em.sender_email or em.sender_name or "Unknown").strip()
+                    body = em.body_text_clean or em.body_preview or em.body_text or ""
+                    excerpt = _select_best_excerpt(body, 900, hints=about_hints) or (body[:900])
+                    header = f"Email: {subject}" + (f" (date={dt})" if dt else "")
+                    em_snippets.append(f"{header}\nFrom: {frm}\n{excerpt}")
+
+                rerank_query = (
+                    "Select the most relevant correspondence for a counsel-ready construction dispute read-in. "
+                    "Prioritize notices/claims, admissions/positions, key delay/payment/defect communications, "
+                    "expert-related exchanges, programme/EOT threads, and emails with attachments."
+                )
+                reranked = await aws.rerank_texts(
+                    rerank_query,
+                    em_snippets,
+                    top_n=min((10 if deep else 6), len(em_snippets)),
+                )
+                order = [int(r.get("index", -1)) for r in reranked if isinstance(r, dict)]
+                picked = []
+                seen = set()
+                for idx in order:
+                    if 0 <= idx < len(cand):
+                        em = cand[idx]
+                        sid = str(getattr(em, "id", "")) or f"idx:{idx}"
+                        if sid not in seen:
+                            picked.append(em)
+                            seen.add(sid)
+                if picked:
+                    selected_emails = picked
+            except Exception:
+                pass
+
         start_idx = len(sources) + 1
         for i, em in enumerate(selected_emails, start=start_idx):
             label = f"S{i}"
@@ -996,7 +1086,8 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2] where relevant)
 {evidence_excerpt_text}
 """.strip()
 
-    tool_name = "vericase_analysis" if deep else "workspace_about"
+    # Always use the workspace tool so Bedrock Guardrails apply consistently.
+    tool_name = "workspace_about"
     max_tokens = 7000 if deep else 3200
     ai_text = await _complete_with_tool_fallback(
         tool_name=tool_name,
@@ -3006,7 +3097,9 @@ async def _build_workspace_purpose_snapshot(
         return score
 
     ranked_evidence = sorted(evidence_pool, key=score_evidence, reverse=True)
-    top_evidence = ranked_evidence[: (16 if deep else 10)]
+    target_evidence = 16 if deep else 10
+    evidence_candidate_limit = 80 if deep else 45
+    top_evidence = ranked_evidence[:target_evidence]
 
     def score_email_for_purpose(em) -> int:
         subj = (em.subject or "").lower()
@@ -3028,7 +3121,80 @@ async def _build_workspace_purpose_snapshot(
         return score
 
     ranked_emails = sorted(email_pool, key=score_email_for_purpose, reverse=True)
-    top_emails = ranked_emails[: (8 if deep else 5)]
+    target_emails = 8 if deep else 5
+    email_candidate_limit = 50 if deep else 25
+    top_emails = ranked_emails[:target_emails]
+
+    # Deep mode: rerank evidence/email candidates for purpose extraction (best-effort).
+    if deep and getattr(settings, "BEDROCK_RERANK_ENABLED", False):
+        try:
+            aws = get_aws_services()
+            rerank_query = (
+                "Select the most relevant sources for building a purpose baseline from an instruction narrative. "
+                "Prioritize instruction/scope, deliverables, chronology, responsibility/causation, inspections/defects, "
+                "key notices, and any contradictions between parties' positions."
+            )
+
+            # Evidence rerank
+            cand_evidence = ranked_evidence[:evidence_candidate_limit]
+            if len(cand_evidence) > 3:
+                ev_snippets: list[str] = []
+                for it in cand_evidence:
+                    excerpt = _select_best_excerpt(
+                        it.extracted_text, 900, hints=purpose_hints
+                    ) or ((it.extracted_text or "")[:900])
+                    meta = []
+                    if it.document_date:
+                        meta.append(f"date={it.document_date.isoformat()}")
+                    if (it.evidence_type or "").strip():
+                        meta.append(f"type={(it.evidence_type or '').strip()}")
+                    header = f"{it.filename or 'Untitled'}" + (f" ({', '.join(meta)})" if meta else "")
+                    ev_snippets.append(f"{header}\n{excerpt}")
+                reranked = await aws.rerank_texts(
+                    rerank_query, ev_snippets, top_n=min(target_evidence, len(ev_snippets))
+                )
+                ev_order = [int(r.get("index", -1)) for r in reranked if isinstance(r, dict)]
+                picked: list[EvidenceItem] = []
+                seen: set[str] = set()
+                for idx in ev_order:
+                    if 0 <= idx < len(cand_evidence):
+                        it = cand_evidence[idx]
+                        sid = str(it.id)
+                        if sid not in seen:
+                            picked.append(it)
+                            seen.add(sid)
+                if picked:
+                    top_evidence = picked[:target_evidence]
+
+            # Email rerank
+            cand_emails = ranked_emails[:email_candidate_limit]
+            if len(cand_emails) > 3:
+                em_snippets: list[str] = []
+                for em in cand_emails:
+                    subject = (em.subject or "(no subject)").strip()
+                    dt = em.date_sent.isoformat() if em.date_sent else None
+                    frm = (em.sender_email or em.sender_name or "Unknown").strip()
+                    body = em.body_text_clean or em.body_preview or em.body_text or ""
+                    excerpt = _select_best_excerpt(body, 800, hints=purpose_hints) or (body[:800])
+                    header = f"Email: {subject}" + (f" (date={dt})" if dt else "")
+                    em_snippets.append(f"{header}\nFrom: {frm}\n{excerpt}")
+                reranked = await aws.rerank_texts(
+                    rerank_query, em_snippets, top_n=min(target_emails, len(em_snippets))
+                )
+                em_order = [int(r.get("index", -1)) for r in reranked if isinstance(r, dict)]
+                picked_em: list[Any] = []
+                seen_em: set[str] = set()
+                for idx in em_order:
+                    if 0 <= idx < len(cand_emails):
+                        em = cand_emails[idx]
+                        sid = str(getattr(em, "id", "")) or f"idx:{idx}"
+                        if sid not in seen_em:
+                            picked_em.append(em)
+                            seen_em.add(sid)
+                if picked_em:
+                    top_emails = picked_em[:target_emails]
+        except Exception:
+            pass
 
     sources: list[dict[str, Any]] = []
     blocks: list[str] = []
@@ -3148,7 +3314,8 @@ Evidence + correspondence excerpts (cite sources like [S1], [S2]):
 {evidence_blocks_text}
 """.strip()
 
-    tool_name = "vericase_analysis" if deep else "workspace_purpose"
+    # Always use the workspace tool so Bedrock Guardrails apply consistently.
+    tool_name = "workspace_purpose"
     ai_text = await _complete_with_tool_fallback(
         tool_name=tool_name,
         prompt=prompt,

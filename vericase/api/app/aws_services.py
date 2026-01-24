@@ -26,8 +26,26 @@ class AWSServicesManager:
         # Initialize all AWS clients
         self.textract = self.session.client("textract")
         self.comprehend = self.session.client("comprehend")
-        self.bedrock_runtime = self.session.client("bedrock-runtime")
-        self.bedrock_agent_runtime = self.session.client("bedrock-agent-runtime")
+        # Bedrock is region-scoped and may differ from the default AWS region.
+        self._bedrock_region = (settings.BEDROCK_REGION or settings.AWS_REGION).strip()
+        # Rerank models may only be available in specific regions (e.g. Cohere Rerank v3.5 in us-east-1).
+        self._bedrock_rerank_region = (
+            (getattr(settings, "BEDROCK_RERANK_REGION", "") or "").strip()
+            or self._bedrock_region
+        )
+        self.bedrock_runtime = self.session.client(
+            "bedrock-runtime", region_name=self._bedrock_region
+        )
+        self.bedrock_agent_runtime = self.session.client(
+            "bedrock-agent-runtime", region_name=self._bedrock_region
+        )
+        # Separate client for reranking if configured to a different region.
+        if self._bedrock_rerank_region == self._bedrock_region:
+            self.bedrock_agent_runtime_rerank = self.bedrock_agent_runtime
+        else:
+            self.bedrock_agent_runtime_rerank = self.session.client(
+                "bedrock-agent-runtime", region_name=self._bedrock_rerank_region
+            )
         self.opensearch = self.session.client("opensearchserverless")
         self.eventbridge = self.session.client("events")
         self.stepfunctions = self.session.client("stepfunctions")
@@ -43,6 +61,13 @@ class AWSServicesManager:
         self.rds = self.session.client("rds")
 
         self.executor = ThreadPoolExecutor(max_workers=10)
+
+    def _rerank_model_arn(self) -> str:
+        explicit = (getattr(settings, "BEDROCK_RERANK_MODEL_ARN", "") or "").strip()
+        if explicit:
+            return explicit
+        model_id = (getattr(settings, "BEDROCK_RERANK_MODEL_ID", "") or "").strip() or "cohere.rerank-v3-5:0"
+        return f"arn:aws:bedrock:{self._bedrock_rerank_region}::foundation-model/{model_id}"
 
     async def _run_in_executor(self, func, *args, **kwargs):
         """Helper to run boto3 calls in executor with proper argument handling"""
@@ -407,6 +432,90 @@ class AWSServicesManager:
     # 3. BEDROCK KNOWLEDGE BASE INTEGRATION - Semantic Search & AI Insights
     # ═══════════════════════════════════════════════════════════════════════════
 
+    async def rerank_texts(
+        self,
+        query: str,
+        texts: List[str],
+        *,
+        top_n: int = 10,
+        additional_model_request_fields: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Rerank candidate texts using Bedrock Agent Runtime Rerank API.
+
+        Uses Cohere Rerank 3.5 by default (configurable via settings).
+
+        Docs:
+        - Rerank API: https://docs.aws.amazon.com/bedrock/latest/APIReference/API_agent-runtime_Rerank.html
+        """
+        texts = [str(t or "") for t in (texts or []) if str(t or "").strip()]
+        if not texts:
+            return []
+
+        if not getattr(settings, "BEDROCK_RERANK_ENABLED", False):
+            return [{"index": i, "relevanceScore": 0.0} for i in range(min(top_n, len(texts)))]
+
+        if not hasattr(self.bedrock_agent_runtime_rerank, "rerank"):
+            logger.warning("bedrock-agent-runtime.rerank not available (boto3 too old?)")
+            return [{"index": i, "relevanceScore": 0.0} for i in range(min(top_n, len(texts)))]
+
+        try:
+            model_arn = self._rerank_model_arn()
+            n = max(1, min(int(top_n or 10), 1000, len(texts)))
+
+            # Rerank supports up to 1000 sources; each text up to 32k chars.
+            sources = [
+                {
+                    "type": "INLINE",
+                    "inlineDocumentSource": {
+                        "type": "TEXT",
+                        "textDocument": {"text": t[:32000]},
+                    },
+                }
+                for t in texts[:1000]
+            ]
+
+            request: Dict[str, Any] = {
+                "queries": [{"type": "TEXT", "textQuery": {"text": str(query or "")[:32000]}}],
+                "sources": sources,
+                "rerankingConfiguration": {
+                    "type": "BEDROCK_RERANKING_MODEL",
+                    "bedrockRerankingConfiguration": {
+                        "numberOfResults": n,
+                        "modelConfiguration": {
+                            "modelArn": model_arn,
+                            "additionalModelRequestFields": additional_model_request_fields
+                            or {},
+                        },
+                    },
+                },
+            }
+
+            response = await self._run_in_executor(
+                self.bedrock_agent_runtime_rerank.rerank, **request
+            )
+            results = response.get("results", []) if isinstance(response, dict) else []
+            if not isinstance(results, list):
+                return [{"index": i, "relevanceScore": 0.0} for i in range(n)]
+            # Preserve AWS response shape but ensure required keys exist.
+            out: List[Dict[str, Any]] = []
+            for r in results:
+                if not isinstance(r, dict):
+                    continue
+                idx = r.get("index")
+                if idx is None:
+                    continue
+                out.append(
+                    {
+                        "index": int(idx),
+                        "relevanceScore": float(r.get("relevanceScore", 0.0) or 0.0),
+                    }
+                )
+            return out or [{"index": i, "relevanceScore": 0.0} for i in range(n)]
+        except Exception as e:
+            logger.error(f"Bedrock rerank failed: {e}")
+            return [{"index": i, "relevanceScore": 0.0} for i in range(min(top_n, len(texts)))]
+
     async def query_knowledge_base(
         self, query: str, kb_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
@@ -421,13 +530,20 @@ class AWSServicesManager:
             return []
 
         try:
+            candidate_k = (
+                int(getattr(settings, "BEDROCK_RERANK_CANDIDATES", 25) or 25)
+                if getattr(settings, "BEDROCK_RERANK_ENABLED", False)
+                else 10
+            )
+            candidate_k = max(1, min(candidate_k, 100))
+
             response = await self._run_in_executor(
                 self.bedrock_agent_runtime.retrieve,
                 knowledgeBaseId=knowledge_base_id,
                 retrievalQuery={"text": query},
                 retrievalConfiguration={
                     "vectorSearchConfiguration": {
-                        "numberOfResults": 10,
+                        "numberOfResults": candidate_k,
                         "overrideSearchType": "HYBRID",  # Combine semantic + keyword search
                     }
                 },
@@ -443,6 +559,28 @@ class AWSServicesManager:
                         "location": result.get("location", {}),
                     }
                 )
+
+            # Optional reranking pass for better relevance (Cohere Rerank 3.5 via Bedrock).
+            try:
+                if getattr(settings, "BEDROCK_RERANK_ENABLED", False) and len(results) > 1:
+                    texts = [r.get("content", "") for r in results]
+                    reranked = await self.rerank_texts(query, texts, top_n=min(10, len(texts)))
+                    order = [int(x.get("index", 0)) for x in reranked if isinstance(x, dict)]
+                    seen = set()
+                    ordered: List[Dict[str, Any]] = []
+                    for idx in order:
+                        if idx in seen:
+                            continue
+                        if 0 <= idx < len(results):
+                            ordered.append(results[idx])
+                            seen.add(idx)
+                    # Append any remaining, preserving original order.
+                    for i, r in enumerate(results):
+                        if i not in seen:
+                            ordered.append(r)
+                    results = ordered
+            except Exception:
+                pass
 
             return results
 
@@ -508,7 +646,9 @@ class AWSServicesManager:
 
         try:
             # Use bedrock-agent client for ingestion (not runtime)
-            bedrock_agent = self.session.client("bedrock-agent")
+            bedrock_agent = self.session.client(
+                "bedrock-agent", region_name=self._bedrock_region
+            )
 
             response = await self._run_in_executor(
                 bedrock_agent.start_ingestion_job,

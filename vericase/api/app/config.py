@@ -430,6 +430,24 @@ class Settings(BaseSettings):
     # Route Claude requests through Bedrock instead of direct Anthropic API
     BEDROCK_ROUTE_CLAUDE: bool = False
 
+    # Bedrock Guardrails (applied to InvokeModel calls when configured)
+    # Provide either a guardrail ID (e.g. "gr-abc123") or a full ARN.
+    BEDROCK_GUARDRAILS_ENABLED: bool = True
+    BEDROCK_GUARDRAIL_ID: str = ""
+    # Guardrail version number or "DRAFT"
+    BEDROCK_GUARDRAIL_VERSION: str = "DRAFT"
+
+    # Bedrock Reranking (Cohere Rerank 3.5 via Agents Runtime Rerank API)
+    BEDROCK_RERANK_ENABLED: bool = True
+    BEDROCK_RERANK_MODEL_ID: str = "cohere.rerank-v3-5:0"
+    # Rerank model region can differ from the main Bedrock region.
+    # Example: your KB is in eu-west-2 but Cohere Rerank v3.5 is in us-east-1.
+    BEDROCK_RERANK_REGION: str = ""
+    # Optional override. If empty, we derive:
+    # arn:aws:bedrock:{BEDROCK_RERANK_REGION or BEDROCK_REGION}::foundation-model/{BEDROCK_RERANK_MODEL_ID}
+    BEDROCK_RERANK_MODEL_ARN: str = ""
+    BEDROCK_RERANK_CANDIDATES: int = 25
+
     # =========================================================================
     # EMBEDDING / VECTOR SEARCH
     # =========================================================================

@@ -2801,6 +2801,7 @@
     // Purpose (baseline instructions + tracking)
     let workspacePurpose = null;
     let purposePollHandle = null;
+    let purposeAuthRedirected = false;
 
     // Auth helpers
     function getAuthHeaders() {
@@ -2810,6 +2811,45 @@
         localStorage.getItem("jwt") ||
         localStorage.getItem("auth_token");
       return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+    }
+
+    function handleAuthFailure(res) {
+      if (res && (res.status === 401 || res.status === 403)) {
+        if (!purposeAuthRedirected) {
+          purposeAuthRedirected = true;
+          VericaseUI.Toast.error("Session expired. Please sign in again.");
+          setTimeout(() => {
+            window.location.href = "login.html";
+          }, 800);
+        }
+        return true;
+      }
+      return false;
+    }
+
+    async function parseApiError(res) {
+      let detail = "";
+      let payload = null;
+      const contentType = res?.headers?.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        payload = await res.json().catch(() => null);
+        if (payload) {
+          if (typeof payload.detail === "string") {
+            detail = payload.detail;
+          } else if (typeof payload.message === "string") {
+            detail = payload.message;
+          } else {
+            try {
+              detail = JSON.stringify(payload);
+            } catch {
+              detail = "";
+            }
+          }
+        }
+      } else {
+        detail = await res.text().catch(() => "");
+      }
+      return { detail, payload };
     }
 
     // Tab switching
@@ -4622,7 +4662,12 @@
         const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/purpose`, {
           headers: getAuthHeaders(),
         });
-        if (!res.ok) throw new Error("Failed to load Purpose");
+        if (!res.ok) {
+          const { detail } = await parseApiError(res);
+          console.debug("Purpose load failed:", { status: res.status, detail });
+          if (handleAuthFailure(res)) return;
+          throw new Error(detail || "Failed to load Purpose");
+        }
         workspacePurpose = await res.json();
         _renderPurpose(workspacePurpose);
 
@@ -4664,13 +4709,17 @@
           }),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(typeof data?.detail === "string" ? data.detail : "Failed to save purpose");
+        if (!res.ok) {
+          if (handleAuthFailure(res)) return;
+          throw new Error(typeof data?.detail === "string" ? data.detail : "Failed to save purpose");
+        }
         workspacePurpose = { ...(workspacePurpose || {}), ...data, purpose_text };
         _renderPurpose(workspacePurpose);
         if (showToast) VericaseUI.Toast.success("Purpose baseline saved");
         refreshWorkspacePurpose(true).catch(() => {});
       } catch (e) {
-        if (showToast) VericaseUI.Toast.error("Failed to save purpose baseline");
+        const msg = typeof e?.message === "string" ? e.message : "Failed to save purpose baseline";
+        if (showToast) VericaseUI.Toast.error(msg);
       }
     }
 
@@ -4683,13 +4732,20 @@
           headers: getAuthHeaders(),
           body: JSON.stringify({ force: useForce, deep: useForce }),
         });
-        if (!res.ok) throw new Error("Failed to refresh Purpose");
+        if (!res.ok) {
+          const { detail } = await parseApiError(res);
+          console.debug("Purpose refresh failed:", { status: res.status, detail });
+          if (handleAuthFailure(res)) return;
+          throw new Error(detail || "Failed to refresh Purpose");
+        }
         workspacePurpose = await res.json().catch(() => workspacePurpose);
         _renderPurpose(workspacePurpose);
         _clearPurposePoll();
         purposePollHandle = setTimeout(() => loadWorkspacePurpose().catch(() => {}), 1200);
       } catch (e) {
+        const msg = typeof e?.message === "string" ? e.message : "Failed to refresh Purpose";
         console.debug("Purpose refresh failed:", e);
+        VericaseUI.Toast.error(msg);
       }
     }
 

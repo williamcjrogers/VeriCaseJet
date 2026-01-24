@@ -232,6 +232,10 @@ class BedrockProvider:
         max_tokens: int = 4096,
         temperature: float = 0.7,
         system_prompt: str | None = None,
+        *,
+        guardrail_identifier: str | None = None,
+        guardrail_version: str | None = None,
+        trace: str | None = None,
     ) -> str:
         """
         Invoke a Bedrock model
@@ -276,13 +280,23 @@ class BedrockProvider:
         client = self._get_client()
 
         try:
-            response = await asyncio.to_thread(
-                client.invoke_model,
-                modelId=model_id,
-                body=json.dumps(body),
-                contentType="application/json",
-                accept="application/json",
-            )
+            invoke_kwargs: dict[str, Any] = {
+                "modelId": model_id,
+                "body": json.dumps(body),
+                "contentType": "application/json",
+                "accept": "application/json",
+            }
+            if guardrail_identifier:
+                if not guardrail_version:
+                    raise ValueError(
+                        "guardrail_version is required when guardrail_identifier is set"
+                    )
+                invoke_kwargs["guardrailIdentifier"] = guardrail_identifier
+                invoke_kwargs["guardrailVersion"] = guardrail_version
+            if trace:
+                invoke_kwargs["trace"] = trace
+
+            response = await asyncio.to_thread(client.invoke_model, **invoke_kwargs)
 
             response_body = json.loads(response["body"].read())
 

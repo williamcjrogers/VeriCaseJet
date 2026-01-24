@@ -103,6 +103,32 @@ class AISettings:
             },
         },
         # ------------------------------------------------------------------
+        # WORKSPACE PURPOSE - Baseline + tracking pack (workspace hub)
+        # ------------------------------------------------------------------
+        "workspace_purpose": {
+            "enabled": True,
+            "display_name": "Workspace Purpose Baseline",
+            "description": "Builds a purpose baseline and tracking pack from instructions + evidence",
+            "category": "workspace",
+            "provider": "bedrock",
+            "model": "amazon.nova-pro-v1:0",
+            "max_tokens": 3000,
+            "temperature": 0.2,
+            "max_duration_seconds": 180,
+            "fallback_chain": [
+                ("bedrock", "amazon.nova-lite-v1:0"),
+                ("anthropic", "claude-sonnet-4-20250514"),
+                ("openai", "gpt-5.2-instant"),
+                ("gemini", "gemini-2.5-flash"),
+            ],
+            "features": {
+                "citations": True,
+                "rag": True,
+                "textract_queries": True,
+                "guardrails_no_hallucination": True,
+            },
+        },
+        # ------------------------------------------------------------------
         # VERICASE ANALYSIS - Flagship multi-agent legal research platform
         # ------------------------------------------------------------------
         "vericase_analysis": {

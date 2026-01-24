@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from .ai_settings import get_ai_api_key, is_bedrock_enabled, get_bedrock_region
 from .ai_providers import BedrockProvider, bedrock_available
+from .config import settings
 from .ai_optimization import log_ai_event
 from .trace_context import ensure_chain_id, get_trace_context
 
@@ -240,12 +241,22 @@ async def complete_chat(
                     raise RuntimeError("Bedrock provider not available")
                 bedrock_provider = BedrockProvider(region=region)
 
+            guardrail_id = (settings.BEDROCK_GUARDRAIL_ID or "").strip()
+            guardrail_version = (settings.BEDROCK_GUARDRAIL_VERSION or "").strip()
+            use_guardrails = bool(
+                getattr(settings, "BEDROCK_GUARDRAILS_ENABLED", False)
+                and guardrail_id
+                and guardrail_version
+            )
+
             result = await bedrock_provider.invoke(
                 model_id=model_id,
                 prompt=prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 system_prompt=system_prompt if system_prompt else None,
+                guardrail_identifier=guardrail_id if use_guardrails else None,
+                guardrail_version=guardrail_version if use_guardrails else None,
             )
             success = True
             return result

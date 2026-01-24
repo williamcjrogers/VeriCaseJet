@@ -282,10 +282,27 @@ JSON RESPONSE:"""
         }
 
         try:
+            guardrail_id = (settings.BEDROCK_GUARDRAIL_ID or "").strip()
+            guardrail_version = (settings.BEDROCK_GUARDRAIL_VERSION or "").strip()
+            use_guardrails = bool(
+                getattr(settings, "BEDROCK_GUARDRAILS_ENABLED", False)
+                and guardrail_id
+                and guardrail_version
+            )
+
+            invoke_kwargs: Dict[str, Any] = {
+                "modelId": self.ANALYSIS_MODEL,
+                "body": json.dumps(body),
+                "contentType": "application/json",
+                "accept": "application/json",
+            }
+            if use_guardrails:
+                invoke_kwargs["guardrailIdentifier"] = guardrail_id
+                invoke_kwargs["guardrailVersion"] = guardrail_version
+
             response = await aws_services._run_in_executor(
                 aws_services.bedrock_runtime.invoke_model,
-                modelId=self.ANALYSIS_MODEL,
-                body=json.dumps(body),
+                **invoke_kwargs,
             )
 
             response_body = json.loads(response["body"].read())
