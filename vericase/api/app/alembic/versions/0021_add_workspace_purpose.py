@@ -27,7 +27,7 @@ def upgrade() -> None:
                 SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'workspace_purpose'
             ) THEN
                 EXECUTE 'CREATE TABLE workspace_purpose (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    id UUID PRIMARY KEY,
                     workspace_id UUID NOT NULL UNIQUE,
                     status VARCHAR(32) NOT NULL DEFAULT ''empty'',
                     purpose_text TEXT,

@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator, model_validator, ValidationInfo
 import os
 import logging
+import sys
 
 from .logging_utils import install_log_sanitizer
 
@@ -14,7 +15,19 @@ install_log_sanitizer()
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=True, extra="ignore"
+        # Support running from multiple working directories:
+        # - repo root (./.env)
+        # - vericase/ (./.env)
+        # - vericase/api (./.env)
+        # while also allowing callers to set env vars directly.
+        env_file=(
+            ".env",
+            "../.env",
+            "../../.env",
+        ),
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
     )
     # AWS mode flag - when true, use AWS S3 (IRSA) instead of MinIO
     USE_AWS_SERVICES: bool = False
@@ -150,13 +163,30 @@ class Settings(BaseSettings):
         if not self.DATABASE_URL:
             raise ValueError("DATABASE_URL must be set via environment variables")
 
+        # Running Alembic migrations should not require object storage credentials.
+        # The migration environment imports Settings to get DATABASE_URL.
+        is_alembic = any("alembic" in (arg or "").lower() for arg in sys.argv)
+        skip_storage_validation = os.getenv("SKIP_STORAGE_VALIDATION", "").lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+
         use_aws = self.USE_AWS_SERVICES or not self.MINIO_ENDPOINT
         if not use_aws:
-            if not self.MINIO_ACCESS_KEY:
+            if (
+                (not is_alembic)
+                and (not skip_storage_validation)
+                and (not self.MINIO_ACCESS_KEY)
+            ):
                 raise ValueError(
                     "MINIO_ACCESS_KEY must be set when USE_AWS_SERVICES is false"
                 )
-            if not self.MINIO_SECRET_KEY:
+            if (
+                (not is_alembic)
+                and (not skip_storage_validation)
+                and (not self.MINIO_SECRET_KEY)
+            ):
                 raise ValueError(
                     "MINIO_SECRET_KEY must be set when USE_AWS_SERVICES is false"
                 )

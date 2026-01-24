@@ -2802,6 +2802,7 @@
     let workspacePurpose = null;
     let purposePollHandle = null;
     let purposeAuthRedirected = false;
+    let purposeLoadErrorShown = false;
 
     // Auth helpers
     function getAuthHeaders() {
@@ -4538,14 +4539,19 @@
       const updatedAt = purpose?.updated_at || null;
       const updatedText = updatedAt ? `Last updated: ${formatRelativeTime(updatedAt)}` : "";
       const isEmpty = _isPurposeEmpty(purpose);
+      const lastError = (purpose?.last_error || "").toString().trim();
 
       if (summaryEl) {
         const summary = purpose?.summary || purpose?.summary_md || "";
-        summaryEl.textContent =
-          summary ||
-          (isEmpty
-            ? "No purpose baseline yet. Add a goal statement and/or upload the instruction narrative."
-            : "Building purpose baseline…");
+        if (lastError) {
+          summaryEl.textContent = `Unable to load Purpose data: ${lastError}`;
+        } else {
+          summaryEl.textContent =
+            summary ||
+            (isEmpty
+              ? "No purpose baseline yet. Add a goal statement and/or upload the instruction narrative."
+              : "Building purpose baseline…");
+        }
       }
 
       if (textEl) {
@@ -4647,10 +4653,14 @@
       }
 
       if (hintEl) {
-        hintEl.textContent =
-          status === "building"
-            ? `Processing baseline. ${updatedText}`
-            : (isEmpty ? "No baseline yet. Add purpose text or upload instructions." : updatedText);
+        if (lastError) {
+          hintEl.textContent = lastError;
+        } else {
+          hintEl.textContent =
+            status === "building"
+              ? `Processing baseline. ${updatedText}`
+              : (isEmpty ? "No baseline yet. Add purpose text or upload instructions." : updatedText);
+        }
       }
 
       updateTabCounts();
@@ -4679,14 +4689,20 @@
           _clearPurposePoll();
         }
       } catch (e) {
+        const msg = typeof e?.message === "string" ? e.message : "Failed to load Purpose";
         console.debug("Purpose load failed:", e);
+        if (!purposeLoadErrorShown) {
+          purposeLoadErrorShown = true;
+          VericaseUI.Toast.error(msg);
+        }
         workspacePurpose = {
-          status: "empty",
+          status: "error",
           purpose_text: "",
           instructions_evidence_id: null,
           summary: "",
           data: {},
           updated_at: null,
+          last_error: msg,
         };
         _renderPurpose(workspacePurpose);
       }

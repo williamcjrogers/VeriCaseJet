@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, desc
+from sqlalchemy.exc import ProgrammingError, OperationalError
 
 from .db import get_db
 from .db import SessionLocal
@@ -64,6 +65,33 @@ DbSession = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(current_user)]
 
 router = APIRouter(prefix="/api/workspaces", tags=["workspaces"])
+
+
+def _is_missing_table_error(exc: Exception, table: str) -> bool:
+    """Best-effort detection of a missing Postgres table.
+
+    This prevents returning opaque 500s when a feature is deployed before migrations.
+    """
+
+    msg = str(exc).lower()
+    t = table.lower()
+    if t not in msg:
+        return False
+    return (
+        "does not exist" in msg
+        or "undefinedtable" in msg
+        or "42p01" in msg  # Postgres undefined_table
+    )
+
+
+def _raise_missing_migration(table: str) -> None:
+    raise HTTPException(
+        status_code=503,
+        detail=(
+            f"Server database schema is missing required table '{table}'. "
+            "Apply migrations (alembic upgrade head) and retry."
+        ),
+    )
 
 
 def _parse_uuid(value: str, field: str) -> uuid.UUID:
@@ -295,7 +323,9 @@ def _workspace_doc_folder_db_prefix(workspace: Workspace) -> str:
     return f"workspace-docs/{workspace.id}"
 
 
-def _ensure_workspace_doc_folders(db: Session, workspace: Workspace, folder_path: str) -> None:
+def _ensure_workspace_doc_folders(
+    db: Session, workspace: Workspace, folder_path: str
+) -> None:
     """Ensure Folder rows exist for each segment of folder_path for this workspace.
 
     This lets the UI show empty folders and not only folders implied by docs.
@@ -523,9 +553,11 @@ async def _build_workspace_about_snapshot(
     instruction_item = _get_workspace_scoped_evidence(
         db,
         workspace=workspace,
-        evidence_id=str(purpose.instructions_evidence_id)
-        if purpose and purpose.instructions_evidence_id
-        else None,
+        evidence_id=(
+            str(purpose.instructions_evidence_id)
+            if purpose and purpose.instructions_evidence_id
+            else None
+        ),
         project_ids=project_ids,
         case_ids=case_ids,
     )
@@ -749,20 +781,26 @@ async def _build_workspace_about_snapshot(
     ordered_items = candidate_items
 
     # Deep mode: rerank candidates using Bedrock Cohere Rerank 3.5 (best-effort).
-    if deep and getattr(settings, "BEDROCK_RERANK_ENABLED", False) and len(candidate_items) > 3:
+    if (
+        deep
+        and getattr(settings, "BEDROCK_RERANK_ENABLED", False)
+        and len(candidate_items) > 3
+    ):
         try:
             aws = get_aws_services()
             snippets: list[str] = []
             for it in candidate_items:
-                excerpt = _select_best_excerpt(it.extracted_text, 1200, hints=about_hints) or (
-                    (it.extracted_text or "")[:1200]
-                )
+                excerpt = _select_best_excerpt(
+                    it.extracted_text, 1200, hints=about_hints
+                ) or ((it.extracted_text or "")[:1200])
                 meta = []
                 if it.document_date:
                     meta.append(f"date={it.document_date.isoformat()}")
                 if (it.evidence_type or "").strip():
                     meta.append(f"type={(it.evidence_type or '').strip()}")
-                header = f"{it.filename or 'Untitled'}" + (f" ({', '.join(meta)})" if meta else "")
+                header = f"{it.filename or 'Untitled'}" + (
+                    f" ({', '.join(meta)})" if meta else ""
+                )
                 snippets.append(f"{header}\n{excerpt}")
 
             rerank_query = (
@@ -770,7 +808,9 @@ async def _build_workspace_about_snapshot(
                 "Prioritize contracts and key terms, notices/claims, pleadings, expert reports, key correspondence, "
                 "programme/delay material, defects/inspections, payment/valuation, and decisive admissions/positions."
             )
-            reranked = await aws.rerank_texts(rerank_query, snippets, top_n=min(target_docs, len(snippets)))
+            reranked = await aws.rerank_texts(
+                rerank_query, snippets, top_n=min(target_docs, len(snippets))
+            )
             order = [int(r.get("index", -1)) for r in reranked if isinstance(r, dict)]
             picked: list[EvidenceItem] = []
             picked_ids: set[str] = set()
@@ -958,7 +998,9 @@ async def _build_workspace_about_snapshot(
                     dt = em.date_sent.isoformat() if em.date_sent else None
                     frm = (em.sender_email or em.sender_name or "Unknown").strip()
                     body = em.body_text_clean or em.body_preview or em.body_text or ""
-                    excerpt = _select_best_excerpt(body, 900, hints=about_hints) or (body[:900])
+                    excerpt = _select_best_excerpt(body, 900, hints=about_hints) or (
+                        body[:900]
+                    )
                     header = f"Email: {subject}" + (f" (date={dt})" if dt else "")
                     em_snippets.append(f"{header}\nFrom: {frm}\n{excerpt}")
 
@@ -972,7 +1014,9 @@ async def _build_workspace_about_snapshot(
                     em_snippets,
                     top_n=min((10 if deep else 6), len(em_snippets)),
                 )
-                order = [int(r.get("index", -1)) for r in reranked if isinstance(r, dict)]
+                order = [
+                    int(r.get("index", -1)) for r in reranked if isinstance(r, dict)
+                ]
                 picked = []
                 seen = set()
                 for idx in order:
@@ -2173,7 +2217,9 @@ async def upload_workspace_document(
         initial_type = None
 
     normalized_folder_path = _normalize_workspace_doc_folder_path(folder_path)
-    normalized_relative_path = (str(relative_path).strip() if relative_path else "") or None
+    normalized_relative_path = (
+        str(relative_path).strip() if relative_path else ""
+    ) or None
     if normalized_relative_path and len(normalized_relative_path) > 1024:
         normalized_relative_path = normalized_relative_path[:1024]
 
@@ -2199,8 +2245,16 @@ async def upload_workspace_document(
             "workspace_id": str(workspace.id),
             "scope": "workspace_document",
             "origin": "workspace-hub",
-            **({"folder_path": normalized_folder_path} if normalized_folder_path else {}),
-            **({"relative_path": normalized_relative_path} if normalized_relative_path else {}),
+            **(
+                {"folder_path": normalized_folder_path}
+                if normalized_folder_path
+                else {}
+            ),
+            **(
+                {"relative_path": normalized_relative_path}
+                if normalized_relative_path
+                else {}
+            ),
         },
     )
 
@@ -2449,9 +2503,7 @@ Answer concisely, with citations like [E2].
     if not answer:
         answer = "AI provider unavailable. I can’t answer reliably right now."
 
-    sources = [
-        {"label": lbl, "start": s, "end": e} for (lbl, s, e, _txt) in selected
-    ]
+    sources = [{"label": lbl, "start": s, "end": e} for (lbl, s, e, _txt) in selected]
     return {"answer": answer, "sources": sources}
 
 
@@ -2729,9 +2781,11 @@ async def ask_workspace_about(
     instruction_item = _get_workspace_scoped_evidence(
         db,
         workspace=workspace,
-        evidence_id=str(purpose.instructions_evidence_id)
-        if purpose and purpose.instructions_evidence_id
-        else None,
+        evidence_id=(
+            str(purpose.instructions_evidence_id)
+            if purpose and purpose.instructions_evidence_id
+            else None
+        ),
         project_ids=project_ids,
         case_ids=case_ids,
     )
@@ -2825,7 +2879,7 @@ async def ask_workspace_about(
 
     def score_email(em) -> int:
         try:
-            subj = (em.subject or "")
+            subj = em.subject or ""
             body = em.body_text_clean or em.body_preview or em.body_text or ""
             to = " ".join((em.recipients_to or [])[:8]) if em.recipients_to else ""
             hay = f"{subj} {em.sender_email or ''} {em.sender_name or ''} {to} {_safe_excerpt(body, 6000)}".lower()
@@ -2889,15 +2943,30 @@ async def ask_workspace_about(
         label = f"S{i}"
         subject = (getattr(em, "subject", None) or "(no subject)").strip()
         dt = em.date_sent.isoformat() if getattr(em, "date_sent", None) else None
-        frm = (getattr(em, "sender_email", None) or getattr(em, "sender_name", None) or "Unknown").strip()
-        to = ", ".join((getattr(em, "recipients_to", None) or [])[:6]) if getattr(em, "recipients_to", None) else ""
+        frm = (
+            getattr(em, "sender_email", None)
+            or getattr(em, "sender_name", None)
+            or "Unknown"
+        ).strip()
+        to = (
+            ", ".join((getattr(em, "recipients_to", None) or [])[:6])
+            if getattr(em, "recipients_to", None)
+            else ""
+        )
         if len(to) > 220:
             to = to[:220].rstrip() + "…"
 
-        body = getattr(em, "body_text_clean", None) or getattr(em, "body_preview", None) or getattr(em, "body_text", None) or ""
+        body = (
+            getattr(em, "body_text_clean", None)
+            or getattr(em, "body_preview", None)
+            or getattr(em, "body_text", None)
+            or ""
+        )
         excerpt = _select_best_excerpt(body, 1200, hints=excerpt_hints)
 
-        sources.append({"label": label, "id": str(em.id), "filename": f"Email: {subject}"})
+        sources.append(
+            {"label": label, "id": str(em.id), "filename": f"Email: {subject}"}
+        )
         if excerpt:
             header = f"[{label}] Email: {subject} (id={em.id}, date={dt or 'unknown'})\nFrom: {frm}\nTo: {to or 'Unknown'}"
             if getattr(em, "has_attachments", False):
@@ -2966,11 +3035,16 @@ async def _build_workspace_purpose_snapshot(
     force: bool = False,
     deep: bool = False,
 ) -> WorkspacePurpose:
-    purpose = (
-        db.query(WorkspacePurpose)
-        .filter(WorkspacePurpose.workspace_id == workspace.id)
-        .first()
-    )
+    try:
+        purpose = (
+            db.query(WorkspacePurpose)
+            .filter(WorkspacePurpose.workspace_id == workspace.id)
+            .first()
+        )
+    except (ProgrammingError, OperationalError) as exc:
+        if _is_missing_table_error(exc, "workspace_purpose"):
+            _raise_missing_migration("workspace_purpose")
+        raise
     if not purpose:
         purpose = WorkspacePurpose(workspace_id=workspace.id, status="empty")
         db.add(purpose)
@@ -3005,9 +3079,11 @@ async def _build_workspace_purpose_snapshot(
     instruction_item = _get_workspace_scoped_evidence(
         db,
         workspace=workspace,
-        evidence_id=str(purpose.instructions_evidence_id)
-        if purpose.instructions_evidence_id
-        else None,
+        evidence_id=(
+            str(purpose.instructions_evidence_id)
+            if purpose.instructions_evidence_id
+            else None
+        ),
         project_ids=project_ids,
         case_ids=case_ids,
     )
@@ -3148,12 +3224,18 @@ async def _build_workspace_purpose_snapshot(
                         meta.append(f"date={it.document_date.isoformat()}")
                     if (it.evidence_type or "").strip():
                         meta.append(f"type={(it.evidence_type or '').strip()}")
-                    header = f"{it.filename or 'Untitled'}" + (f" ({', '.join(meta)})" if meta else "")
+                    header = f"{it.filename or 'Untitled'}" + (
+                        f" ({', '.join(meta)})" if meta else ""
+                    )
                     ev_snippets.append(f"{header}\n{excerpt}")
                 reranked = await aws.rerank_texts(
-                    rerank_query, ev_snippets, top_n=min(target_evidence, len(ev_snippets))
+                    rerank_query,
+                    ev_snippets,
+                    top_n=min(target_evidence, len(ev_snippets)),
                 )
-                ev_order = [int(r.get("index", -1)) for r in reranked if isinstance(r, dict)]
+                ev_order = [
+                    int(r.get("index", -1)) for r in reranked if isinstance(r, dict)
+                ]
                 picked: list[EvidenceItem] = []
                 seen: set[str] = set()
                 for idx in ev_order:
@@ -3175,13 +3257,19 @@ async def _build_workspace_purpose_snapshot(
                     dt = em.date_sent.isoformat() if em.date_sent else None
                     frm = (em.sender_email or em.sender_name or "Unknown").strip()
                     body = em.body_text_clean or em.body_preview or em.body_text or ""
-                    excerpt = _select_best_excerpt(body, 800, hints=purpose_hints) or (body[:800])
+                    excerpt = _select_best_excerpt(body, 800, hints=purpose_hints) or (
+                        body[:800]
+                    )
                     header = f"Email: {subject}" + (f" (date={dt})" if dt else "")
                     em_snippets.append(f"{header}\nFrom: {frm}\n{excerpt}")
                 reranked = await aws.rerank_texts(
-                    rerank_query, em_snippets, top_n=min(target_emails, len(em_snippets))
+                    rerank_query,
+                    em_snippets,
+                    top_n=min(target_emails, len(em_snippets)),
                 )
-                em_order = [int(r.get("index", -1)) for r in reranked if isinstance(r, dict)]
+                em_order = [
+                    int(r.get("index", -1)) for r in reranked if isinstance(r, dict)
+                ]
                 picked_em: list[Any] = []
                 seen_em: set[str] = set()
                 for idx in em_order:
@@ -3218,9 +3306,11 @@ async def _build_workspace_purpose_snapshot(
                 "label": f"S{label_idx}",
                 "evidence_id": str(instruction_item.id),
                 "filename": instruction_item.filename,
-                "document_date": instruction_item.document_date.isoformat()
-                if instruction_item.document_date
-                else None,
+                "document_date": (
+                    instruction_item.document_date.isoformat()
+                    if instruction_item.document_date
+                    else None
+                ),
                 "evidence_type": "instructions",
             }
         )
@@ -3238,7 +3328,9 @@ async def _build_workspace_purpose_snapshot(
                 "label": label,
                 "evidence_id": str(it.id),
                 "filename": it.filename,
-                "document_date": it.document_date.isoformat() if it.document_date else None,
+                "document_date": (
+                    it.document_date.isoformat() if it.document_date else None
+                ),
                 "evidence_type": getattr(it, "evidence_type", None),
             }
         )
@@ -3380,11 +3472,16 @@ def get_workspace_purpose(
     user: CurrentUser,
 ) -> dict[str, Any]:
     workspace = _require_workspace(db, workspace_id, user)
-    purpose = (
-        db.query(WorkspacePurpose)
-        .filter(WorkspacePurpose.workspace_id == workspace.id)
-        .first()
-    )
+    try:
+        purpose = (
+            db.query(WorkspacePurpose)
+            .filter(WorkspacePurpose.workspace_id == workspace.id)
+            .first()
+        )
+    except (ProgrammingError, OperationalError) as exc:
+        if _is_missing_table_error(exc, "workspace_purpose"):
+            _raise_missing_migration("workspace_purpose")
+        raise
     if not purpose:
         return {
             "workspace_id": str(workspace.id),
@@ -3399,9 +3496,11 @@ def get_workspace_purpose(
 
     instructions_filename = None
     if purpose.instructions_evidence_id:
-        item = db.query(EvidenceItem).filter(
-            EvidenceItem.id == purpose.instructions_evidence_id
-        ).first()
+        item = (
+            db.query(EvidenceItem)
+            .filter(EvidenceItem.id == purpose.instructions_evidence_id)
+            .first()
+        )
         if item:
             instructions_filename = item.filename
 
@@ -3409,9 +3508,11 @@ def get_workspace_purpose(
         "workspace_id": str(workspace.id),
         "status": purpose.status,
         "purpose_text": purpose.purpose_text or "",
-        "instructions_evidence_id": str(purpose.instructions_evidence_id)
-        if purpose.instructions_evidence_id
-        else None,
+        "instructions_evidence_id": (
+            str(purpose.instructions_evidence_id)
+            if purpose.instructions_evidence_id
+            else None
+        ),
         "instructions_filename": instructions_filename,
         "summary": purpose.summary_md or "",
         "data": purpose.data or {},
@@ -3428,11 +3529,16 @@ def save_workspace_purpose_config(
     user: CurrentUser,
 ) -> dict[str, Any]:
     workspace = _require_workspace(db, workspace_id, user)
-    purpose = (
-        db.query(WorkspacePurpose)
-        .filter(WorkspacePurpose.workspace_id == workspace.id)
-        .first()
-    )
+    try:
+        purpose = (
+            db.query(WorkspacePurpose)
+            .filter(WorkspacePurpose.workspace_id == workspace.id)
+            .first()
+        )
+    except (ProgrammingError, OperationalError) as exc:
+        if _is_missing_table_error(exc, "workspace_purpose"):
+            _raise_missing_migration("workspace_purpose")
+        raise
     if not purpose:
         purpose = WorkspacePurpose(workspace_id=workspace.id, status="empty")
         db.add(purpose)
@@ -3455,9 +3561,7 @@ def save_workspace_purpose_config(
         raise HTTPException(status_code=404, detail="Instruction document not found")
 
     purpose.purpose_text = (payload.purpose_text or "").strip() or None
-    purpose.instructions_evidence_id = (
-        instruction_item.id if instruction_item else None
-    )
+    purpose.instructions_evidence_id = instruction_item.id if instruction_item else None
     purpose.status = "empty"
     purpose.last_error = None
     purpose.updated_at = datetime.now(timezone.utc)
@@ -3468,9 +3572,11 @@ def save_workspace_purpose_config(
         "workspace_id": str(workspace.id),
         "status": purpose.status,
         "purpose_text": purpose.purpose_text or "",
-        "instructions_evidence_id": str(purpose.instructions_evidence_id)
-        if purpose.instructions_evidence_id
-        else None,
+        "instructions_evidence_id": (
+            str(purpose.instructions_evidence_id)
+            if purpose.instructions_evidence_id
+            else None
+        ),
         "updated_at": purpose.updated_at.isoformat() if purpose.updated_at else None,
     }
 
@@ -3484,11 +3590,16 @@ def refresh_workspace_purpose(
     user: CurrentUser,
 ) -> dict[str, Any]:
     workspace = _require_workspace(db, workspace_id, user)
-    purpose = (
-        db.query(WorkspacePurpose)
-        .filter(WorkspacePurpose.workspace_id == workspace.id)
-        .first()
-    )
+    try:
+        purpose = (
+            db.query(WorkspacePurpose)
+            .filter(WorkspacePurpose.workspace_id == workspace.id)
+            .first()
+        )
+    except (ProgrammingError, OperationalError) as exc:
+        if _is_missing_table_error(exc, "workspace_purpose"):
+            _raise_missing_migration("workspace_purpose")
+        raise
     if not purpose:
         purpose = WorkspacePurpose(workspace_id=workspace.id, status="empty")
         db.add(purpose)
@@ -3529,11 +3640,16 @@ async def ask_workspace_purpose(
     if not question:
         raise HTTPException(status_code=400, detail="Question is required")
 
-    purpose = (
-        db.query(WorkspacePurpose)
-        .filter(WorkspacePurpose.workspace_id == workspace.id)
-        .first()
-    )
+    try:
+        purpose = (
+            db.query(WorkspacePurpose)
+            .filter(WorkspacePurpose.workspace_id == workspace.id)
+            .first()
+        )
+    except (ProgrammingError, OperationalError) as exc:
+        if _is_missing_table_error(exc, "workspace_purpose"):
+            _raise_missing_migration("workspace_purpose")
+        raise
     purpose_text = (purpose.purpose_text if purpose else None) or ""
     purpose_summary = (purpose.summary_md if purpose else None) or ""
 
@@ -3545,9 +3661,11 @@ async def ask_workspace_purpose(
     instruction_item = _get_workspace_scoped_evidence(
         db,
         workspace=workspace,
-        evidence_id=str(purpose.instructions_evidence_id)
-        if purpose and purpose.instructions_evidence_id
-        else None,
+        evidence_id=(
+            str(purpose.instructions_evidence_id)
+            if purpose and purpose.instructions_evidence_id
+            else None
+        ),
         project_ids=project_ids,
         case_ids=case_ids,
     )
@@ -3628,7 +3746,7 @@ async def ask_workspace_purpose(
         top = ranked[:4]
 
     def score_email(em) -> int:
-        subj = (em.subject or "")
+        subj = em.subject or ""
         body = em.body_text_clean or em.body_preview or em.body_text or ""
         hay = f"{subj} {em.sender_email or ''} {em.sender_name or ''} {_safe_excerpt(body, 6000)}".lower()
         score = 0
@@ -3689,7 +3807,9 @@ async def ask_workspace_purpose(
         to = ", ".join((em.recipients_to or [])[:6]) if em.recipients_to else ""
         body = em.body_text_clean or em.body_preview or em.body_text or ""
         excerpt = _select_best_excerpt(body, 1200, hints=excerpt_hints)
-        sources.append({"label": label, "id": str(em.id), "filename": f"Email: {subject}"})
+        sources.append(
+            {"label": label, "id": str(em.id), "filename": f"Email: {subject}"}
+        )
         if excerpt:
             header = f"[{label}] Email: {subject} (id={em.id}, date={dt or 'unknown'})\nFrom: {frm}\nTo: {to or 'Unknown'}"
             if em.has_attachments:
