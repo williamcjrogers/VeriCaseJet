@@ -2265,19 +2265,21 @@ def rescan_workspace_keywords(
                     )
                 )
                 new_ids = matcher.match_keyword_ids(e.subject, body)
-                if not new_ids:
-                    continue
                 existing = (
                     e.matched_keywords if isinstance(e.matched_keywords, list) else []
                 )
-                merged = (
-                    _unique_strings(new_ids)
-                    if mode == "overwrite"
-                    else _unique_strings([*existing, *new_ids])
-                )
-                if merged != existing:
-                    e.matched_keywords = merged
-                    emails_updated += 1
+                if mode == "overwrite":
+                    merged = _unique_strings(new_ids)
+                    if merged != existing:
+                        e.matched_keywords = merged
+                        emails_updated += 1
+                else:
+                    if not new_ids:
+                        continue
+                    merged = _unique_strings([*existing, *new_ids])
+                    if merged != existing:
+                        e.matched_keywords = merged
+                        emails_updated += 1
 
     if payload.include_evidence:
         evidence_conds = [
@@ -2311,28 +2313,36 @@ def rescan_workspace_keywords(
                 ]
             )
             new_ids = matcher.match_keyword_ids(it.filename, blob)
-            if not new_ids:
-                continue
-
             existing_ids = (
                 it.keywords_matched if isinstance(it.keywords_matched, list) else []
             )
-            merged_ids = (
-                _unique_strings(new_ids)
-                if mode == "overwrite"
-                else _unique_strings([*existing_ids, *new_ids])
-            )
-            changed = merged_ids != existing_ids
-            if changed:
-                it.keywords_matched = merged_ids
-
-            auto = it.auto_tags if isinstance(it.auto_tags, list) else []
-            name_tags = [matcher.names_by_id.get(kid, "") for kid in new_ids]
-            name_tags = [t for t in name_tags if t]
-            merged_auto = _unique_strings([*auto, *name_tags])
-            if merged_auto != auto:
-                it.auto_tags = merged_auto
-                changed = True
+            changed = False
+            if mode == "overwrite":
+                merged_ids = _unique_strings(new_ids)
+                if merged_ids != existing_ids:
+                    it.keywords_matched = merged_ids
+                    changed = True
+                auto = it.auto_tags if isinstance(it.auto_tags, list) else []
+                name_tags = [matcher.names_by_id.get(kid, "") for kid in merged_ids]
+                name_tags = [t for t in name_tags if t]
+                merged_auto = _unique_strings(name_tags)
+                if merged_auto != auto:
+                    it.auto_tags = merged_auto
+                    changed = True
+            else:
+                if not new_ids:
+                    continue
+                merged_ids = _unique_strings([*existing_ids, *new_ids])
+                if merged_ids != existing_ids:
+                    it.keywords_matched = merged_ids
+                    changed = True
+                auto = it.auto_tags if isinstance(it.auto_tags, list) else []
+                name_tags = [matcher.names_by_id.get(kid, "") for kid in new_ids]
+                name_tags = [t for t in name_tags if t]
+                merged_auto = _unique_strings([*auto, *name_tags])
+                if merged_auto != auto:
+                    it.auto_tags = merged_auto
+                    changed = True
 
             if changed:
                 evidence_updated += 1
@@ -4056,7 +4066,9 @@ def get_workspace_purpose(
             "instructions_filename": None,
             "summary": "",
             "data": {},
+            "sources": [],
             "updated_at": None,
+            "last_error": None,
         }
 
     instructions_filename = None
@@ -4069,6 +4081,9 @@ def get_workspace_purpose(
         if item:
             instructions_filename = item.filename
 
+    data = purpose.data if isinstance(purpose.data, dict) else {}
+    sources = data.get("sources") if isinstance(data.get("sources"), list) else []
+
     return {
         "workspace_id": str(workspace.id),
         "status": purpose.status,
@@ -4080,7 +4095,8 @@ def get_workspace_purpose(
         ),
         "instructions_filename": instructions_filename,
         "summary": purpose.summary_md or "",
-        "data": purpose.data or {},
+        "data": data,
+        "sources": sources,
         "updated_at": purpose.updated_at.isoformat() if purpose.updated_at else None,
         "last_error": purpose.last_error,
     }
@@ -4184,12 +4200,34 @@ def refresh_workspace_purpose(
         bool(payload.deep),
     )
 
+    instructions_filename = None
+    if purpose.instructions_evidence_id:
+        item = (
+            db.query(EvidenceItem)
+            .filter(EvidenceItem.id == purpose.instructions_evidence_id)
+            .first()
+        )
+        if item:
+            instructions_filename = item.filename
+
+    data = purpose.data if isinstance(purpose.data, dict) else {}
+    sources = data.get("sources") if isinstance(data.get("sources"), list) else []
+
     return {
         "workspace_id": str(workspace.id),
         "status": purpose.status,
-        "summary": purpose.summary_md or "",
         "purpose_text": purpose.purpose_text or "",
+        "instructions_evidence_id": (
+            str(purpose.instructions_evidence_id)
+            if purpose.instructions_evidence_id
+            else None
+        ),
+        "instructions_filename": instructions_filename,
+        "summary": purpose.summary_md or "",
+        "data": data,
+        "sources": sources,
         "updated_at": purpose.updated_at.isoformat() if purpose.updated_at else None,
+        "last_error": purpose.last_error,
     }
 
 

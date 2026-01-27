@@ -1231,6 +1231,7 @@
         </h3>
         <div id="projectIntelSummary" class="intel-summary">Loading intel pack…</div>
         <div id="projectIntelStatus" class="intel-status"></div>
+        <div id="projectIntelMeta" class="intel-status"></div>
         <div id="projectIntelQuestions" class="intel-questions"></div>
         <div id="projectIntelClaims" class="intel-questions"></div>
         <div id="projectIntelAnswer" class="intel-answer"></div>
@@ -2921,6 +2922,7 @@
     function renderProjectIntelPack(pack) {
       const summaryEl = document.getElementById("projectIntelSummary");
       const statusEl = document.getElementById("projectIntelStatus");
+      const metaEl = document.getElementById("projectIntelMeta");
       const questionsEl = document.getElementById("projectIntelQuestions");
       const claimsEl = document.getElementById("projectIntelClaims");
       const answerEl = document.getElementById("projectIntelAnswer");
@@ -2932,14 +2934,26 @@
       const questions = Array.isArray(pack?.data?.open_questions)
         ? pack.data.open_questions
         : [];
+      const effectivePurpose = (pack?.effective_purpose_text || pack?.purpose_text || "")
+        .toString()
+        .trim();
+      const purposeSource = (pack?.purpose_source || "").toString().toLowerCase();
+      const purposeLabel =
+        purposeSource === "workspace"
+          ? "workspace baseline"
+          : purposeSource === "project"
+            ? "project override"
+            : "";
 
       summaryEl.textContent = summary
         ? summary.trim()
         : status === "building"
           ? "Building project intel pack…"
-          : "No intel pack yet. Set a purpose statement and refresh to generate.";
+          : effectivePurpose
+            ? "No intel pack yet. Refresh to generate."
+            : "No intel pack yet. Set a purpose statement (workspace baseline or project override) and refresh to generate.";
 
-      statusEl.textContent =
+      let statusText =
         status === "building"
           ? "Status: building (refreshing sources)"
           : status === "ready"
@@ -2947,6 +2961,20 @@
             : status === "error"
               ? `Status: error${pack?.last_error ? ` — ${pack.last_error}` : ""}`
               : "Status: empty";
+      if (purposeLabel) statusText += ` | Purpose: ${purposeLabel}`;
+      statusEl.textContent = statusText;
+
+      if (metaEl) {
+        const wsId = typeof workspaceId === "string" ? workspaceId : "";
+        if (purposeSource === "workspace" && wsId) {
+          const href = `workspace-hub.html?workspaceId=${encodeURIComponent(wsId)}&tab=purpose`;
+          metaEl.innerHTML = `<a href="${href}"><i class="fas fa-bullseye"></i> Edit workspace baseline</a>`;
+        } else if (purposeSource === "project") {
+          metaEl.textContent = "Purpose is set as a project override.";
+        } else {
+          metaEl.textContent = "";
+        }
+      }
 
       if (questions.length) {
         questionsEl.innerHTML = `<div style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600; margin-bottom: 0.35rem;">Open questions</div>
@@ -3062,16 +3090,16 @@
 
     async function setProjectIntelPurpose() {
       if (!profileId || profileType !== "project") return;
-      const current = projectIntelCache?.purpose_text || "";
+      const current = (projectIntelCache?.effective_purpose_text || projectIntelCache?.purpose_text || "").toString();
       const purposeText = prompt(
-        "Set the project purpose statement (used to guide the intel pack):",
+        "Set the purpose statement for this project (project override). If the workspace baseline is empty, it will be seeded too:",
         current,
       );
       if (purposeText === null) return;
 
       const instructionId = prompt(
-        "Optional: enter an instruction evidence ID (leave blank if none):",
-        projectIntelCache?.instructions_evidence_id || "",
+        "Optional: instruction evidence ID (project override). Leave blank to inherit workspace instructions:",
+        projectIntelCache?.effective_instructions_evidence_id || projectIntelCache?.instructions_evidence_id || "",
       );
 
       try {

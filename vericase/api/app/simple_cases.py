@@ -24,6 +24,7 @@ from .models import (
     UserCompany,
     Project,
     Workspace,
+    WorkspacePurpose,
     User,
     UserRole,
     Stakeholder,
@@ -59,6 +60,28 @@ from .workspaces import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _get_workspace_purpose_optional(
+    db: Session, workspace_id: uuid.UUID | None
+) -> WorkspacePurpose | None:
+    """Best-effort lookup of workspace purpose.
+
+    Project intel should still function even if workspace_purpose isn't migrated yet.
+    """
+
+    if not workspace_id:
+        return None
+    try:
+        return (
+            db.query(WorkspacePurpose)
+            .filter(WorkspacePurpose.workspace_id == workspace_id)
+            .first()
+        )
+    except (ProgrammingError, OperationalError) as exc:
+        if _is_missing_table_error(exc, "workspace_purpose"):
+            return None
+        raise
 
 
 def _get_default_owner_user_id(db: Session) -> uuid.UUID:
@@ -1192,18 +1215,21 @@ def rescan_project_keywords(
                 or (re.sub(r"<[^>]+>", " ", e.body_html or "") if e.body_html else "")
             )
             new_ids = matcher.match_keyword_ids(e.subject, body)
-            if not new_ids:
-                continue
             existing = (
                 e.matched_keywords if isinstance(e.matched_keywords, list) else []
             )
             if mode == "overwrite":
                 merged = _unique_strings(new_ids)
+                if merged != existing:
+                    e.matched_keywords = merged
+                    emails_updated += 1
             else:
+                if not new_ids:
+                    continue
                 merged = _unique_strings([*existing, *new_ids])
-            if merged != existing:
-                e.matched_keywords = merged
-                emails_updated += 1
+                if merged != existing:
+                    e.matched_keywords = merged
+                    emails_updated += 1
 
     # Evidence
     if payload.include_evidence:
@@ -1228,28 +1254,37 @@ def rescan_project_keywords(
                 ]
             )
             new_ids = matcher.match_keyword_ids(it.filename, blob)
-            if not new_ids:
-                continue
-
             existing_ids = (
                 it.keywords_matched if isinstance(it.keywords_matched, list) else []
             )
+            changed = False
             if mode == "overwrite":
                 merged_ids = _unique_strings(new_ids)
+                if merged_ids != existing_ids:
+                    it.keywords_matched = merged_ids
+                    changed = True
+                name_tags = [matcher.names_by_id.get(kid, "") for kid in merged_ids]
+                name_tags = [t for t in name_tags if t]
+                auto = it.auto_tags if isinstance(it.auto_tags, list) else []
+                merged_auto = _unique_strings(name_tags)
+                if merged_auto != auto:
+                    it.auto_tags = merged_auto
+                    changed = True
             else:
+                if not new_ids:
+                    continue
                 merged_ids = _unique_strings([*existing_ids, *new_ids])
-            changed = merged_ids != existing_ids
-            if changed:
-                it.keywords_matched = merged_ids
-
-            # Also expose keyword *names* via auto_tags so existing tag filtering works.
-            auto = it.auto_tags if isinstance(it.auto_tags, list) else []
-            name_tags = [matcher.names_by_id.get(kid, "") for kid in new_ids]
-            name_tags = [t for t in name_tags if t]
-            merged_auto = _unique_strings([*auto, *name_tags])
-            if merged_auto != auto:
-                it.auto_tags = merged_auto
-                changed = True
+                if merged_ids != existing_ids:
+                    it.keywords_matched = merged_ids
+                    changed = True
+                # Also expose keyword *names* via auto_tags so existing tag filtering works.
+                auto = it.auto_tags if isinstance(it.auto_tags, list) else []
+                name_tags = [matcher.names_by_id.get(kid, "") for kid in new_ids]
+                name_tags = [t for t in name_tags if t]
+                merged_auto = _unique_strings([*auto, *name_tags])
+                if merged_auto != auto:
+                    it.auto_tags = merged_auto
+                    changed = True
 
             if changed:
                 evidence_updated += 1
@@ -1566,6 +1601,9 @@ async def _build_project_intel_pack_snapshot(
     run_started_at = datetime.now(timezone.utc)
 
     purpose_text = (pack.purpose_text or "").strip()
+    ws_purpose = _get_workspace_purpose_optional(db, project.workspace_id)
+    if not purpose_text and ws_purpose:
+        purpose_text = (ws_purpose.purpose_text or "").strip()
     instruction_item = _get_project_scoped_evidence(
         db,
         project=project,
@@ -1574,6 +1612,13 @@ async def _build_project_intel_pack_snapshot(
         ),
         case_ids=case_ids,
     )
+    if (not instruction_item) and ws_purpose and ws_purpose.instructions_evidence_id:
+        instruction_item = _get_project_scoped_evidence(
+            db,
+            project=project,
+            evidence_id=str(ws_purpose.instructions_evidence_id),
+            case_ids=case_ids,
+        )
 
     evidence_pool = (
         db.query(EvidenceItem)
@@ -2136,6 +2181,15 @@ def get_project_intel_pack(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    ws_purpose = _get_workspace_purpose_optional(db, project.workspace_id)
+    ws_purpose_text = ((ws_purpose.purpose_text or "") if ws_purpose else "").strip()
+    ws_instr_id = ws_purpose.instructions_evidence_id if ws_purpose else None
+    ws_instr_filename = None
+    if ws_instr_id:
+        item = db.query(EvidenceItem).filter(EvidenceItem.id == ws_instr_id).first()
+        if item:
+            ws_instr_filename = item.filename
+
     try:
         pack = (
             db.query(ProjectIntelPack)
@@ -2148,16 +2202,24 @@ def get_project_intel_pack(
         raise
 
     if not pack:
+        effective_purpose_text = ws_purpose_text
         return {
             "project_id": str(project.id),
+            "workspace_id": str(project.workspace_id) if project.workspace_id else None,
             "status": "empty",
             "purpose_text": "",
+            "effective_purpose_text": effective_purpose_text,
+            "purpose_source": "workspace" if effective_purpose_text else "none",
             "instructions_evidence_id": None,
             "instructions_filename": None,
+            "effective_instructions_evidence_id": str(ws_instr_id) if ws_instr_id else None,
+            "effective_instructions_filename": ws_instr_filename,
+            "instructions_source": "workspace" if ws_instr_id else "none",
             "summary": "",
             "data": {},
             "sources": [],
             "updated_at": None,
+            "last_error": None,
         }
 
     instructions_filename = None
@@ -2173,14 +2235,39 @@ def get_project_intel_pack(
     data = pack.data or {}
     sources = data.get("sources", []) if isinstance(data, dict) else []
 
+    override_purpose_text = (pack.purpose_text or "").strip()
+    effective_purpose_text = override_purpose_text or ws_purpose_text
+    purpose_source = (
+        "project"
+        if override_purpose_text
+        else ("workspace" if ws_purpose_text else "none")
+    )
+
+    effective_instr_id = pack.instructions_evidence_id or ws_instr_id
+    effective_instr_filename = None
+    if effective_instr_id:
+        item = db.query(EvidenceItem).filter(EvidenceItem.id == effective_instr_id).first()
+        if item:
+            effective_instr_filename = item.filename
+
     return {
         "project_id": str(project.id),
+        "workspace_id": str(project.workspace_id) if project.workspace_id else None,
         "status": pack.status,
         "purpose_text": pack.purpose_text or "",
+        "effective_purpose_text": effective_purpose_text,
+        "purpose_source": purpose_source,
         "instructions_evidence_id": (
             str(pack.instructions_evidence_id) if pack.instructions_evidence_id else None
         ),
         "instructions_filename": instructions_filename,
+        "effective_instructions_evidence_id": str(effective_instr_id) if effective_instr_id else None,
+        "effective_instructions_filename": effective_instr_filename,
+        "instructions_source": (
+            "project"
+            if pack.instructions_evidence_id
+            else ("workspace" if ws_instr_id else "none")
+        ),
         "summary": pack.summary_md or "",
         "data": data,
         "sources": sources if isinstance(sources, list) else [],
@@ -2236,6 +2323,44 @@ def save_project_intel_config(
     pack.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(pack)
+
+    # Opportunistic sync: if the workspace baseline is empty, seed it from the project purpose.
+    if project.workspace_id:
+        ws_table_missing = False
+        try:
+            ws_purpose = (
+                db.query(WorkspacePurpose)
+                .filter(WorkspacePurpose.workspace_id == project.workspace_id)
+                .first()
+            )
+        except (ProgrammingError, OperationalError) as exc:
+            if _is_missing_table_error(exc, "workspace_purpose"):
+                ws_table_missing = True
+                ws_purpose = None
+            else:
+                raise
+
+        if not ws_table_missing:
+            changed = False
+            if not ws_purpose:
+                ws_purpose = WorkspacePurpose(workspace_id=project.workspace_id, status="empty")
+                db.add(ws_purpose)
+                db.commit()
+                db.refresh(ws_purpose)
+
+            if (pack.purpose_text or "").strip() and not (ws_purpose.purpose_text or "").strip():
+                ws_purpose.purpose_text = pack.purpose_text
+                changed = True
+
+            if pack.instructions_evidence_id and not ws_purpose.instructions_evidence_id:
+                ws_purpose.instructions_evidence_id = pack.instructions_evidence_id
+                changed = True
+
+            if changed:
+                ws_purpose.status = "empty"
+                ws_purpose.last_error = None
+                ws_purpose.updated_at = datetime.now(timezone.utc)
+                db.commit()
 
     return {
         "project_id": str(project.id),
@@ -2328,6 +2453,12 @@ async def ask_project_intel_pack(
     purpose_text = (pack.purpose_text if pack else None) or ""
     purpose_summary = (pack.summary_md if pack else None) or ""
 
+    ws_purpose = _get_workspace_purpose_optional(db, project.workspace_id)
+    if not purpose_text.strip() and ws_purpose:
+        purpose_text = (ws_purpose.purpose_text or "").strip()
+    if not purpose_summary.strip() and ws_purpose and (ws_purpose.summary_md or "").strip():
+        purpose_summary = (ws_purpose.summary_md or "").strip()
+
     cases = db.query(Case).filter(Case.project_id == project.id).all()
     case_ids = [c.id for c in cases]
 
@@ -2341,6 +2472,13 @@ async def ask_project_intel_pack(
         ),
         case_ids=case_ids,
     )
+    if (not instruction_item) and ws_purpose and ws_purpose.instructions_evidence_id:
+        instruction_item = _get_project_scoped_evidence(
+            db,
+            project=project,
+            evidence_id=str(ws_purpose.instructions_evidence_id),
+            case_ids=case_ids,
+        )
 
     pool_conds = [EvidenceItem.project_id == project.id]
     if case_ids:
@@ -3366,18 +3504,21 @@ def rescan_case_keywords(
                 or (re.sub(r"<[^>]+>", " ", e.body_html or "") if e.body_html else "")
             )
             new_ids = matcher.match_keyword_ids(e.subject, body)
-            if not new_ids:
-                continue
             existing = (
                 e.matched_keywords if isinstance(e.matched_keywords, list) else []
             )
             if mode == "overwrite":
                 merged = _unique_strings(new_ids)
+                if merged != existing:
+                    e.matched_keywords = merged
+                    emails_updated += 1
             else:
+                if not new_ids:
+                    continue
                 merged = _unique_strings([*existing, *new_ids])
-            if merged != existing:
-                e.matched_keywords = merged
-                emails_updated += 1
+                if merged != existing:
+                    e.matched_keywords = merged
+                    emails_updated += 1
 
     # Evidence
     if payload.include_evidence:
@@ -3411,27 +3552,36 @@ def rescan_case_keywords(
                 ]
             )
             new_ids = matcher.match_keyword_ids(it.filename, blob)
-            if not new_ids:
-                continue
-
             existing_ids = (
                 it.keywords_matched if isinstance(it.keywords_matched, list) else []
             )
+            changed = False
             if mode == "overwrite":
                 merged_ids = _unique_strings(new_ids)
+                if merged_ids != existing_ids:
+                    it.keywords_matched = merged_ids
+                    changed = True
+                auto = it.auto_tags if isinstance(it.auto_tags, list) else []
+                name_tags = [matcher.names_by_id.get(kid, "") for kid in merged_ids]
+                name_tags = [t for t in name_tags if t]
+                merged_auto = _unique_strings(name_tags)
+                if merged_auto != auto:
+                    it.auto_tags = merged_auto
+                    changed = True
             else:
+                if not new_ids:
+                    continue
                 merged_ids = _unique_strings([*existing_ids, *new_ids])
-            changed = merged_ids != existing_ids
-            if changed:
-                it.keywords_matched = merged_ids
-
-            auto = it.auto_tags if isinstance(it.auto_tags, list) else []
-            name_tags = [matcher.names_by_id.get(kid, "") for kid in new_ids]
-            name_tags = [t for t in name_tags if t]
-            merged_auto = _unique_strings([*auto, *name_tags])
-            if merged_auto != auto:
-                it.auto_tags = merged_auto
-                changed = True
+                if merged_ids != existing_ids:
+                    it.keywords_matched = merged_ids
+                    changed = True
+                auto = it.auto_tags if isinstance(it.auto_tags, list) else []
+                name_tags = [matcher.names_by_id.get(kid, "") for kid in new_ids]
+                name_tags = [t for t in name_tags if t]
+                merged_auto = _unique_strings([*auto, *name_tags])
+                if merged_auto != auto:
+                    it.auto_tags = merged_auto
+                    changed = True
 
             if changed:
                 evidence_updated += 1

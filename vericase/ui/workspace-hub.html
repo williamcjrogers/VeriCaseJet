@@ -3025,7 +3025,7 @@
               Purpose
             </div>
             <div class="section-actions">
-              <button class="btn btn-sm btn-outline" onclick="refreshWorkspacePurpose(true)" title="Refresh (deep purpose analysis by default)">
+              <button class="btn btn-sm btn-outline" onclick="refreshWorkspacePurpose(true)" title="Refresh (rebuild brief from baseline + evidence)">
                 <i class="fas fa-sync-alt"></i> Refresh
               </button>
               <button class="btn btn-sm btn-outline" onclick="rescanWorkspaceKeywords()" title="Rescan correspondence + evidence for keywords (keeps workspace outputs aligned)">
@@ -3038,10 +3038,14 @@
             <div class="about-card about-span-2">
               <div class="about-card-title">
                 <i class="fas fa-flag" aria-hidden="true"></i>
-                Purpose baseline
+                Baseline instructions
               </div>
               <div class="about-card-body">
-                <textarea class="form-input about-notes-textarea" id="purposeTextInput" placeholder="Define the workspace goal or instruction baseline (e.g., identify/design responsibility, chronology, contradictions, issue groupings)."></textarea>
+                <textarea class="form-input about-notes-textarea" id="purposeTextInput" placeholder="Write the baseline instructions:
+- Key questions to answer
+- Required deliverables (chronology, responsibility, contradictions, issue buckets)
+- Scope limits (dates, parties, packages)
+- Keywords to track"></textarea>
                 <div class="about-actions-row">
                   <button class="btn btn-outline" onclick="loadWorkspacePurpose()">Reset</button>
                   <button class="btn btn-vericase" onclick="saveWorkspacePurposeConfig()">
@@ -3063,7 +3067,7 @@
                     <i class="fas fa-upload"></i> Upload instruction
                   </button>
                 </div>
-                <div class="hub-subtext" id="purposeInstructionHint">Select or upload the instruction narrative PDF that defines what the workspace must achieve.</div>
+                <div class="hub-subtext" id="purposeInstructionHint">Select or upload the instruction narrative (PDF/DOCX) that defines scope, issues, and deliverables.</div>
                 <input type="file" id="purposeInstructionInput" hidden onchange="handlePurposeInstructionSelect(event)">
               </div>
             </div>
@@ -3071,9 +3075,9 @@
             <div class="about-card about-span-2">
               <div class="about-card-title">
                 <i class="fas fa-bolt" aria-hidden="true"></i>
-                Purpose brief (auto-updates against baseline + evidence)
+                Generated brief (updates from baseline + evidence)
               </div>
-              <div class="about-card-body about-pre" id="purposeSummary">Define a purpose baseline to generate a tracked deliverables plan.</div>
+              <div class="about-card-body about-pre" id="purposeSummary">Add baseline instructions and/or choose an instruction document, then click Refresh to generate a brief, deliverables, chronology, contradictions, and evidence mapping.</div>
             </div>
 
             <div class="about-card">
@@ -3112,13 +3116,13 @@
           <div class="about-qa">
             <div class="about-qa-title">
               <i class="fas fa-message" aria-hidden="true"></i>
-              Ask about the purpose baseline
+              Ask about deliverables, gaps, and contradictions
             </div>
             <div class="about-chat" id="purposeChat">
-              <div class="msg ai">Ask about progress, deliverables, missing evidence, or contradictions.</div>
+              <div class="msg ai">Ask about missing evidence per deliverable, contradictions, key dates, or what to ingest next.</div>
             </div>
             <div class="about-qa-row">
-              <input class="form-input" id="purposeQuestionInput" placeholder="Ask: which deliverables are still missing evidence? what contradictions exist?">
+              <input class="form-input" id="purposeQuestionInput" placeholder="Ask: Which deliverables lack evidence? What contradictions exist? What should we ingest next?">
               <button class="btn btn-vericase" id="purposeAskBtn" onclick="askWorkspacePurpose()">
                 <i class="fas fa-paper-plane"></i> Ask
               </button>
@@ -3863,7 +3867,7 @@
 
         // Load AI context ("About" tab) in the background (deep by default)
         refreshWorkspaceAbout(true).catch(() => {});
-        // Load Purpose baseline + tracking (deep by default)
+        // Load baseline + tracking (Purpose tab) (deep by default)
         refreshWorkspacePurpose(true).catch(() => {});
         // Load full workspace documents list (best-effort; workspace payload is capped)
         loadWorkspaceDocuments().catch(() => {});
@@ -5152,8 +5156,8 @@
           summaryEl.innerHTML = _parseCitationsToChips(summary);
         } else {
           summaryEl.innerHTML = `<span class="empty-state-message">${isEmpty
-            ? "No purpose baseline yet. Add a goal statement and/or upload the instruction narrative."
-            : "Building purpose baseline…"}</span>`;
+            ? "No baseline yet. Add goal text and/or select an instruction document."
+            : "Generating purpose brief…"}</span>`;
         }
       }
 
@@ -5177,19 +5181,19 @@
             deliverablesEl.innerHTML = _renderDeliverablesGrid(tracking, baseline, _purposeSourcesCache);
           } else {
             deliverablesEl.innerHTML = `<div class="empty-state-message">${isEmpty
-              ? "Define a baseline or upload the instruction narrative to generate deliverables."
-              : "Define deliverables in the purpose baseline or upload the instruction narrative."}</div>`;
+              ? "Add baseline instructions or choose an instruction document to generate deliverables."
+              : "Add deliverables to the baseline (or choose an instruction document) and refresh."}</div>`;
           }
         }
 
         if (chronologyEl) {
           if (chronology.length) {
             // Use new interactive chronology timeline
-            chronologyEl.innerHTML = _renderChronologyTimeline(chronology);
+            chronologyEl.innerHTML = _renderChronologyTimeline(chronology, _purposeSourcesCache);
           } else {
             chronologyEl.innerHTML = `<div class="empty-state-message">${isEmpty
-              ? "Add baseline instructions to start building the chronology."
-              : "Chronology will be generated from dated evidence and correspondence."}</div>`;
+              ? "Add baseline instructions, then refresh to generate a chronology."
+              : "Chronology is generated from dated evidence and correspondence."}</div>`;
           }
         }
 
@@ -5199,8 +5203,8 @@
             contradictionsEl.innerHTML = _renderContradictionCards(contradictions, _purposeSourcesCache);
           } else {
             contradictionsEl.innerHTML = `<div class="empty-state-message">${isEmpty
-              ? "Upload instruction narrative and key documents to surface contradictions."
-              : "Contradictions will surface once key emails, inspections, and drawings are ingested."}</div>`;
+              ? "Choose an instruction document and ingest key evidence to surface contradictions."
+              : "Contradictions surface once key emails, inspections, and drawings are ingested."}</div>`;
           }
         }
 
@@ -5230,8 +5234,8 @@
             evidenceOrgEl.innerHTML = html;
           } else {
             evidenceOrgEl.innerHTML = `<div class="empty-state-message">${isEmpty
-              ? "Define issue groupings in the instruction narrative to map evidence."
-              : "Evidence organisation will align to instruction keywords and issue groupings."}</div>`;
+              ? "Add issue buckets/keywords in the baseline or instruction document to map evidence."
+              : "Evidence mapping aligns to instruction keywords and issue buckets."}</div>`;
           }
         }
       } catch {
@@ -5245,7 +5249,7 @@
           hintEl.textContent =
             status === "building"
               ? `Processing baseline. ${updatedText}`
-              : (isEmpty ? "No baseline yet. Add purpose text or upload instructions." : updatedText);
+              : (isEmpty ? "No baseline yet. Add goal text or choose an instruction document." : updatedText);
         }
       }
 
@@ -5319,10 +5323,10 @@
         }
         workspacePurpose = { ...(workspacePurpose || {}), ...data, purpose_text };
         _renderPurpose(workspacePurpose);
-        if (showToast) VericaseUI.Toast.success("Purpose baseline saved");
+        if (showToast) VericaseUI.Toast.success("Baseline saved");
         refreshWorkspacePurpose(true).catch(() => {});
       } catch (e) {
-        const msg = typeof e?.message === "string" ? e.message : "Failed to save purpose baseline";
+        const msg = typeof e?.message === "string" ? e.message : "Failed to save baseline";
         if (showToast) VericaseUI.Toast.error(msg);
       }
     }
@@ -5365,12 +5369,12 @@
         const res = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/keywords/rescan`, {
           method: "POST",
           headers: getAuthHeaders(),
-          body: JSON.stringify({
+        body: JSON.stringify({
             include_emails: true,
             include_evidence: true,
             max_emails: 50000,
             max_evidence: 50000,
-            mode: "merge",
+          mode: "overwrite",
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -6593,7 +6597,7 @@ ${escapeHtml(c?.body_preview || "")}
                       baseline.deliverables.map(d => ({ deliverable: d, status: 'unknown' })) : []);
 
       if (!items.length) {
-        return '<div class="about-pre" style="color: var(--text-muted);">Define deliverables in the purpose baseline or upload instruction documents.</div>';
+        return '<div class="about-pre" style="color: var(--text-muted);">Add deliverables to the baseline or upload/select instruction documents.</div>';
       }
 
       const rows = items.slice(0, 12).map(d => {
@@ -6639,7 +6643,7 @@ ${escapeHtml(c?.body_preview || "")}
     /**
      * Render chronology as visual timeline
      */
-    function _renderChronologyTimeline(chronology) {
+    function _renderChronologyTimeline(chronology, sources) {
       if (!Array.isArray(chronology) || !chronology.length) {
         return '<div class="about-pre" style="color: var(--text-muted);">Chronology will be generated from dated evidence and correspondence.</div>';
       }
@@ -6648,15 +6652,20 @@ ${escapeHtml(c?.body_preview || "")}
         const date = (c.date || '').toString().trim();
         const party = (c.party || '').toString().trim();
         const quote = (c.quote || c.description || '').toString().trim();
+        const sourceText = (c.source || c.sources || '').toString().trim();
         const tags = Array.isArray(c.issue_tags) ? c.issue_tags : [];
 
         if (!date && !party && !quote) return '';
+
+        const quoteHtml = quote ? _parseCitationsToChips(quote, sources) : '';
+        const sourceHtml = sourceText ? _parseCitationsToChips(sourceText, sources) : '';
 
         return `
           <div class="chronology-item">
             <div class="chronology-date">${escapeHtml(date || 'Unknown date')}</div>
             ${party ? `<div class="chronology-party"><i class="fas fa-user"></i> ${escapeHtml(party)}</div>` : ''}
-            ${quote ? `<div class="chronology-quote">${escapeHtml(quote)}</div>` : ''}
+            ${quote ? `<div class="chronology-quote">${quoteHtml}</div>` : ''}
+            ${sourceHtml ? `<div class="hub-subtext">${sourceHtml}</div>` : ''}
             ${tags.length ? `
               <div class="chronology-tags">
                 ${tags.slice(0, 4).map(t => `<span class="chronology-tag">${escapeHtml(t)}</span>`).join('')}
